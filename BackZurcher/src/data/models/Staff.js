@@ -1,14 +1,13 @@
-const { DataTypes } = require('sequelize');
+const { DataTypes } = require("sequelize");
 
 module.exports = (sequelize) => {
   sequelize.define(
-    'Staff',
+    "Staff",
     {
-     
       name: {
         type: DataTypes.STRING,
       },
-    
+
       email: {
         type: DataTypes.STRING,
         allowNull: false,
@@ -25,9 +24,9 @@ module.exports = (sequelize) => {
         type: DataTypes.STRING,
         allowNull: true,
       },
-      
+
       role: {
-        type: DataTypes.ENUM( 'recept', 'admin', 'owner', 'worker'),
+        type: DataTypes.ENUM("recept", "admin", "owner", "worker"),
         allowNull: false,
       },
       isActive: {
@@ -40,19 +39,19 @@ module.exports = (sequelize) => {
       lastLogout: {
         type: DataTypes.DATE,
       },
-     
+
       passwordResetToken: {
-      type: DataTypes.STRING,
-      allowNull: true
-  },
-  passwordResetExpires: {
-    type: DataTypes.DATE,
-    allowNull: true
-  },
-  tokenCreatedAt: {
-    type: DataTypes.DATE,
-    allowNull: true
-  },
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      passwordResetExpires: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
+      tokenCreatedAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
       deletedAt: {
         type: DataTypes.DATE,
         allowNull: true,

@@ -7,7 +7,6 @@ module.exports = (sequelize) => {
       primaryKey: true,
       autoIncrement: true,
     },
-
     date: {
       type: DataTypes.DATEONLY,
       allowNull: false,
@@ -15,18 +14,14 @@ module.exports = (sequelize) => {
     expirationDate: {
       type: DataTypes.DATEONLY,
     },
-
-
     price: {
-      type: DataTypes.DECIMAL,
+      type: DataTypes.DECIMAL(10, 2), // Aseguramos precisión decimal
       allowNull: false,
     },
-
     initialPayment: {
       type: DataTypes.INTEGER,
       allowNull: false,
     },
-
     status: {
       type: DataTypes.ENUM("send", "approved", "notResponded", "rejected"),
       allowNull: false,

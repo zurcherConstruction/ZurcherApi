@@ -4,7 +4,7 @@ const { Permit } = require('../data');
 const createPermit = async (req, res) => {
   try {
     const { 
-      permitNumber, applicationNumber, documentNumber, constructionPermitFor, applicant, 
+      permitNumber, applicationNumber, applicantName,applicantEmail,applicantPhone, documentNumber, constructionPermitFor, applicant, 
       propertyAddress, lot, block, propertyId, systemType, configuration, locationBenchmark, 
       elevation, drainfieldDepth, fillRequired, specificationsBy, approvedBy, dateIssued, 
       expirationDate, greaseInterceptorCapacity, dosingTankCapacity, gpdCapacity, 
@@ -14,7 +14,7 @@ const createPermit = async (req, res) => {
     const pdfData = req.file ? req.file.buffer : null; // Si se sube un archivo PDF
 
     const permit = await Permit.create({
-      permitNumber, applicationNumber, documentNumber, constructionPermitFor, applicant, 
+      permitNumber, applicationNumber, applicantName,applicantEmail,applicantPhone, documentNumber, constructionPermitFor, applicant, 
       propertyAddress, lot, block, propertyId, systemType, configuration, locationBenchmark, 
       elevation, drainfieldDepth, fillRequired, specificationsBy, approvedBy, dateIssued, 
       expirationDate, greaseInterceptorCapacity, dosingTankCapacity, gpdCapacity, 
@@ -99,10 +99,31 @@ const downloadPermitPdf = async (req, res) => {
   }
 };
 
+const getContactList = async (req, res) => {
+    try {
+      const contacts = await Permit.findAll({
+        attributes: ['applicantName', 'applicantEmail', 'applicantPhone', 'propertyAddress'],
+      });
+  
+      res.status(200).json({
+        error: false,
+        message: 'Listado de contactos obtenido exitosamente',
+        data: contacts,
+      });
+    } catch (error) {
+      console.error('Error al obtener el listado de contactos:', error);
+      res.status(500).json({
+        error: true,
+        message: 'Error interno del servidor',
+      });
+    }
+  };
+
 module.exports = {
   createPermit,
   getPermits,
   getPermitById,
   updatePermit,
   downloadPermitPdf,
+  getContactList
 };

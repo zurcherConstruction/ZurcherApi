@@ -1,5 +1,5 @@
 const isOwner = (req, res, next) => {
-  if (req.user.role !== 'owner') {
+  if (req.staff.role !== 'owner') {
     return res.status(403).json({
       error: true,
       message: 'Acceso permitido solo para el dueño del hotel'
@@ -9,7 +9,7 @@ const isOwner = (req, res, next) => {
 };
 
 const isAdmin = (req, res, next) => {
-  if (req.user.role !== 'admin') {
+  if (req.staff.role !== 'admin') {
     return res.status(403).json({
       error: true,
       message: 'Acceso permitido solo para personal administrativo'
@@ -19,7 +19,7 @@ const isAdmin = (req, res, next) => {
 };
 
 const isRecept = (req, res, next) => {
-  if (req.user.role !== 'recept') {
+  if (req.staff.role !== 'recept') {
     return res.status(403).json({
       error: true,
       message: 'Acceso permitido solo para recepcionistas'
@@ -29,8 +29,8 @@ const isRecept = (req, res, next) => {
 };
 
 const isStaff = (req, res, next) => {
-  const staffRoles = ['owner', 'admin', 'recept'];
-  if (!staffRoles.includes(req.user.role)) {
+  const staffRoles = ['owner', 'admin', 'recept', 'worker'];
+  if (!staffRoles.includes(req.staff.role)) {
     return res.status(403).json({
       error: true,
       message: 'Acceso permitido solo para personal del hotel'
@@ -41,10 +41,10 @@ const isStaff = (req, res, next) => {
 
 const allowRoles = (roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
+    if (!roles.includes(req.staff.role)) {
       return res.status(403).json({
         error: true,
-        message: 'No tienes permisos para realizar esta acción'
+        message: 'No tienes permisos para realizar esta acción',
       });
     }
     next();

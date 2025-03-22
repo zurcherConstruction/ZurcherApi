@@ -2,7 +2,7 @@ const { Inspection, Work } = require('../data');
 
 const createInspection = async (req, res) => {
   try {
-    const { workId, date, status, observations } = req.body;
+    const { workId, type, dateRequested, dateCompleted, status, notes } = req.body;
 
     // Verificar que la obra (Work) exista
     const work = await Work.findByPk(workId);
@@ -11,7 +11,15 @@ const createInspection = async (req, res) => {
     }
 
     // Crear la inspección
-    const inspection = await Inspection.create({ workId, date, status, observations });
+    const inspection = await Inspection.create({
+      workId,
+      type,
+      dateRequested,
+      dateCompleted,
+      status,
+      notes,
+    });
+
     res.status(201).json(inspection);
   } catch (error) {
     console.error('Error al crear la inspección:', error);
@@ -41,7 +49,7 @@ const getInspectionsByWork = async (req, res) => {
 const updateInspection = async (req, res) => {
   try {
     const { id } = req.params;
-    const { date, status, observations } = req.body;
+    const { type, dateRequested, dateCompleted, status, notes } = req.body;
 
     // Verificar que la inspección exista
     const inspection = await Inspection.findByPk(id);
@@ -50,9 +58,12 @@ const updateInspection = async (req, res) => {
     }
 
     // Actualizar la inspección
-    inspection.date = date || inspection.date;
+    inspection.type = type || inspection.type;
+    inspection.dateRequested = dateRequested || inspection.dateRequested;
+    inspection.dateCompleted = dateCompleted || inspection.dateCompleted;
     inspection.status = status || inspection.status;
-    inspection.observations = observations || inspection.observations;
+    inspection.notes = notes || inspection.notes;
+
     await inspection.save();
 
     res.status(200).json(inspection);

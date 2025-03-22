@@ -1,7 +1,7 @@
 const { CustomError } = require("../error");
 
 const validateLogin = (req, res, next) => {
-  const { email, password, phone } = req.body;
+  const { email, password} = req.body;
 
   if (!email) {
     throw new CustomError("El email es requerido", 400);
@@ -29,10 +29,10 @@ const validateLogin = (req, res, next) => {
 };
 
 const validateRegister = (req, res, next) => {
-    const { email, password, phone  } = req.body;
+    const { email, password, phone, role  } = req.body;
 
     // Validaciones requeridas
-    if (!email || !password  || !phone) {
+    if (!email || !password  || !phone || !role) {
         throw new CustomError("Todos los campos obligatorios deben ser completados", 400);
     }
 

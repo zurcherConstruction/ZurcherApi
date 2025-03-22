@@ -15,7 +15,7 @@ router.use(verifyToken);
 
 // Rutas de gestión de usuarios (solo owner)
 router.get("/staff", isOwner, getAllStaff);
-router.post("/staff", isOwner, createStaff);
+router.post("/staff", createStaff);
 router.put("/staff/:id", isOwner, updateStaff);
 router.delete("/staff/:id", isOwner, deactivateStaff);
 

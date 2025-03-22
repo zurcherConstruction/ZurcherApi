@@ -8,6 +8,7 @@ module.exports = (sequelize) => {
       defaultValue: DataTypes.UUIDV4,
       allowNull: false,
     },
+    
     propertyAddress: {
       type: DataTypes.TEXT,
       allowNull: false, // Aseguramos que este campo sea obligatorio
@@ -31,7 +32,7 @@ module.exports = (sequelize) => {
     },
     endDate: {
       type: DataTypes.DATEONLY,
-      allowNull: true,
+      allowNull: true,                                                                                                                                                                                                                                                         
     },
     notes: {
       type: DataTypes.TEXT,

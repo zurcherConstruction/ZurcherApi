@@ -3,7 +3,7 @@ const { Work, Permit } = require('../data');
 // Crear una nueva obra
 const createWork = async (req, res) => {
   try {
-    const { propertyAddress, status, startDate, endDate, notes } = req.body;
+    const { propertyAddress, status, startDate, notes } = req.body;
 
     // Verificar que el permiso asociado exista
     const permit = await Permit.findOne({ where: { propertyAddress } });
@@ -12,7 +12,7 @@ const createWork = async (req, res) => {
     }
 
     // Crear la obra
-    const work = await Work.create({ propertyAddress, status, startDate, endDate, notes });
+    const work = await Work.create({ propertyAddress, status, startDate,  notes });
     res.status(201).json(work);
   } catch (error) {
     console.error('Error al crear la obra:', error);
@@ -34,8 +34,8 @@ const getWorks = async (req, res) => {
 // Obtener una obra por ID
 const getWorkById = async (req, res) => {
   try {
-    const { id } = req.params;
-    const work = await Work.findByPk(id);
+    const { idWork } = req.params;
+    const work = await Work.findByPk(idWork);
 
     if (!work) {
       return res.status(404).json({ error: true, message: 'Obra no encontrada' });
@@ -51,10 +51,10 @@ const getWorkById = async (req, res) => {
 // Actualizar una obra
 const updateWork = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { propertyAddress, status, startDate, endDate, notes } = req.body;
+    const { idWork } = req.params;
+    const { propertyAddress, status, startDate,  notes } = req.body;
 
-    const work = await Work.findByPk(id);
+    const work = await Work.findByPk(idWork);
     if (!work) {
       return res.status(404).json({ error: true, message: 'Obra no encontrada' });
     }
@@ -63,7 +63,7 @@ const updateWork = async (req, res) => {
     work.propertyAddress = propertyAddress || work.propertyAddress;
     work.status = status || work.status;
     work.startDate = startDate || work.startDate;
-    work.endDate = endDate || work.endDate;
+   
     work.notes = notes || work.notes;
 
     await work.save();
@@ -77,9 +77,9 @@ const updateWork = async (req, res) => {
 // Eliminar una obra
 const deleteWork = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { idWork } = req.params;
 
-    const work = await Work.findByPk(id);
+    const work = await Work.findByPk(idWork);
     if (!work) {
       return res.status(404).json({ error: true, message: 'Obra no encontrada' });
     }

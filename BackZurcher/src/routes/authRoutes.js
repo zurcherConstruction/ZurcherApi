@@ -8,17 +8,13 @@ const {
     logout,
     changePassword
 } = require('../controllers/User/authController');
-const nodemailerController = require('../controllers/nodemailerController');
 
-// Public routes
-router.post('/register', validateRegister, register);
-router.post('/login', validateLogin, login);
-// router.post('/forgot-password', nodemailerController.forgotPassword);
-// router.post('/reset-password', nodemailerController.resetPassword);
+// Rutas públicas
+router.post('/register', validateRegister, register); // Registro no requiere token
+router.post('/login', validateLogin, login); // Login no requiere token
 
-// Protected routes
-router.use(verifyToken);
-
+// Rutas protegidas
+router.use(verifyToken); // Middleware para proteger las rutas siguientes
 router.post('/logout', logout);
 router.put('/change-password', changePassword);
 

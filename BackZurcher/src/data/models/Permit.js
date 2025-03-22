@@ -33,6 +33,21 @@ module.exports = (sequelize) => {
       allowNull: true,
       unique:true
     },
+    applicantName: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    applicantEmail: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      validate: {
+        isEmail: true,
+      },
+    },
+    applicantPhone: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     lot: {
       type: DataTypes.TEXT,
       allowNull: true

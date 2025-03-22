@@ -4,18 +4,16 @@ const { Staff } = require('../../data');
 const { generateToken } = require('../../middleware/isAuth');
 const { CustomError } = require('../../middleware/error');
 
-
-
 const register = async (req, res, next) => {
   try {
     const { email, password, role, phone = 'Admin', ...staffData } = req.body;
 
     // Verificar si el correo ya existe
-    const existingStaff = await Staff.findOne({ 
-      where: { 
+    const existingStaff = await Staff.findOne({
+      where: {
         email,
-        deletedAt: null 
-      } 
+        deletedAt: null,
+      },
     });
 
     if (existingStaff) {
@@ -33,7 +31,7 @@ const register = async (req, res, next) => {
       role,
       phone,
       isActive: true,
-      lastLogin: new Date()
+      lastLogin: new Date(),
     });
 
     // Generar token JWT
@@ -45,9 +43,8 @@ const register = async (req, res, next) => {
     res.status(201).json({
       error: false,
       message: 'Usuario registrado exitosamente',
-      data: { token, user: staffResponse }
+      data: { token, user: staffResponse },
     });
-
   } catch (error) {
     next(error);
   }
@@ -57,12 +54,12 @@ const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    const staff = await Staff.findOne({ 
-      where: { 
+    const staff = await Staff.findOne({
+      where: {
         email,
         isActive: true,
-        deletedAt: null
-      } 
+        deletedAt: null,
+      },
     });
 
     if (!staff) {
@@ -87,9 +84,8 @@ const login = async (req, res, next) => {
     res.json({
       error: false,
       message: 'Login exitoso',
-      data: { token, staff: staffResponse }
+      data: { token, staff: staffResponse },
     });
-
   } catch (error) {
     next(error);
   }
@@ -97,15 +93,15 @@ const login = async (req, res, next) => {
 
 const logout = async (req, res, next) => {
   try {
-    const { id } = req.staff;
+    const { email } = req.user; // Cambiado de req.staff a req.user
     await Staff.update(
       { lastLogout: new Date() },
-      { where: { id } }
+      { where: { email } }
     );
 
     res.json({
       error: false,
-      message: 'Sesión cerrada exitosamente'
+      message: 'Sesión cerrada exitosamente',
     });
   } catch (error) {
     next(error);
@@ -115,28 +111,23 @@ const logout = async (req, res, next) => {
 const changePassword = async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    const { id, role } = req.user;
-    
-    // Si el rol es Customer, se impide el cambio mediante este endpoint
-    if (role === 'Admin') {
-      throw new CustomError('Los Admin no pueden cambiar la contraseña desde esta sección. Utilice el proceso de recuperación de contraseña.', 403);
-    }
-    
-    const staff = await Staff.findByPk(id);
-    
+    const { email } = req.user;
+
+    const staff = await Staff.findOne({ where: { email } });
+
     // Verificar contraseña actual
     const validPassword = await bcrypt.compare(currentPassword, staff.password);
     if (!validPassword) {
       throw new CustomError('Contraseña actual incorrecta', 400);
     }
-    
+
     // Hash y actualizar nueva contraseña
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await staff.update({ password: hashedPassword });
-    
+
     res.json({
       error: false,
-      message: 'Contraseña actualizada exitosamente'
+      message: 'Contraseña actualizada exitosamente',
     });
   } catch (error) {
     next(error);
@@ -147,5 +138,5 @@ module.exports = {
   register,
   login,
   logout,
-  changePassword
+  changePassword,
 };
