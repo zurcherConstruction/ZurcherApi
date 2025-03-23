@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
-import { loginSuccess } from './Redux/Actions/authActions';
+import { useDispatch, useSelector } from 'react-redux';
+import { restoreSession } from './Redux/Actions/authActions';
 import PrivateRoute from './Components/PrivateRoute';
-import FirstStage from './Components/firstStage';
 import Header from './Components/Header';
 
 // Importa tus componentes
@@ -20,16 +19,11 @@ function App() {
   const dispatch = useDispatch();
   const [activeSection, setActiveSection] = useState("Overview");
 
+  const { isAuthenticated } = useSelector((state) => state.auth);
+
   useEffect(() => {
-    // Verificar si hay un token guardado al iniciar la app
-    const token = localStorage.getItem('token');
-    if (token) {
-      // Si hay token, intentar restaurar la sesión
-      const user = JSON.parse(localStorage.getItem('user'));
-      if (user) {
-        dispatch(loginSuccess({ token, user }));
-      }
-    }
+    // Restaurar sesión al cargar la aplicación
+    dispatch(restoreSession());
   }, [dispatch]);
 
   return (
@@ -44,18 +38,24 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/firststage" element={<FirstStage />} />
 
           {/* Rutas protegidas */}
-          {/* <Route
+          <Route
             path="/dashboard"
             element={
-              <PrivateRoute allowedRoles={['Owner']}>
+              <PrivateRoute allowedRoles={['owner', 'admin']}>
                 <Dashboard />
               </PrivateRoute>
             }
-          /> */}
+          />
+          <Route
+            path="/firststage"
+            element={
+              <PrivateRoute allowedRoles={['owner', 'recept']}>
+                <firstStage />
+              </PrivateRoute>
+            }
+          />
 
           {/* Ruta por defecto para 404 */}
           <Route path="*" element={<NotFound />} />
@@ -66,4 +66,3 @@ function App() {
 }
 
 export default App;
-

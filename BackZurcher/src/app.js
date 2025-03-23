@@ -14,7 +14,7 @@ const app = express();
 app.use(express.json()); // Solo este para manejar JSON
 app.use(express.urlencoded({ extended: true }));
 app.use('/images', express.static(path.join(__dirname, 'images')));
-app.use(cors());
+
 app.use(morgan('dev'));
 app.use(passport.initialize());
 

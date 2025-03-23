@@ -21,14 +21,16 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('Datos enviados:', formData); // Verifica que email y password estén presentes
     try {
-      await dispatch(login(formData));
+      // Desestructura email y password de formData y pásalos como argumentos
+      const { email, password } = formData;
+      await dispatch(login(email, password));
       navigate('/dashboard');
     } catch (error) {
       console.error('Login failed:', error);
     }
   };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
