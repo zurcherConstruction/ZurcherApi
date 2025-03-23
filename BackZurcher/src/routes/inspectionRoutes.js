@@ -9,9 +9,9 @@ const router = express.Router();
 router.post('/', verifyToken, allowRoles(['admin', 'recept', 'owner']), InspectionController.createInspection);
 
 // Obtener inspecciones por obra (personal del hotel)
-router.get('/work/:workId', verifyToken, isStaff, InspectionController.getInspectionsByWork);
+router.get('/work/:workId', verifyToken, allowRoles(['admin', 'recept', 'owner']), InspectionController.getInspectionsByWork);
 
 // Actualizar una inspección (solo administradores)
-router.put('/:id', verifyToken, isAdmin, InspectionController.updateInspection);
+router.put('/:id', verifyToken, allowRoles(['admin', 'recept', 'owner']), InspectionController.updateInspection);
 
 module.exports = router;

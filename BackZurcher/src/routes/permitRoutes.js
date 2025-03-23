@@ -10,18 +10,18 @@ const router = express.Router();
 router.post('/', verifyToken, allowRoles(['admin', 'recept', 'owner']), PermitController.createPermit);
 
 // Obtener todos los permisos (permitido para staff)
-router.get('/', verifyToken, isStaff, PermitController.getPermits);
+router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner']), PermitController.getPermits);
 
 // Obtener un permiso por ID (permitido para staff)
-router.get('/:idPermit', verifyToken, isStaff, PermitController.getPermitById);
+router.get('/:idPermit', allowRoles(['admin', 'recept', 'owner']), PermitController.getPermitById);
 
 // Obtener datos de contacto de un permiso (permitido para staff)
-router.get('/contact/:idPermit', verifyToken, isStaff, PermitController.getContactList);
+router.get('/contacts/:idPermit?', allowRoles(['admin', 'recept', 'owner']), PermitController.getContactList);
 
 // Descargar PDF de un permiso (permitido para staff)
-router.get('/pdf/:idPermit', verifyToken, isStaff, PermitController.downloadPermitPdf);
+router.get('/pdf/:idPermit', allowRoles(['admin', 'recept', 'owner']), PermitController.downloadPermitPdf);
 
 // Actualizar un permiso (permitido solo para admin)
-router.put('/:idPermit', verifyToken, allowRoles(['admin']), PermitController.updatePermit);
+router.put('/:idPermit', verifyToken, allowRoles(['admin','recept', 'owner']), PermitController.updatePermit);
 
 module.exports = router;

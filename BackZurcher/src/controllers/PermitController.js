@@ -42,8 +42,8 @@ const getPermits = async (req, res) => {
 // Obtener un permiso por ID
 const getPermitById = async (req, res) => {
   try {
-    const { id } = req.params;
-    const permit = await Permit.findByPk(id);
+    const { idPermit } = req.params;
+    const permit = await Permit.findByPk(idPermit);
 
     if (!permit) {
       return res.status(404).json({ error: true, message: 'Permiso no encontrado' });
@@ -59,11 +59,11 @@ const getPermitById = async (req, res) => {
 // Actualizar un permiso
 const updatePermit = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { idPermit } = req.params;
     const updates = req.body;
     const pdfData = req.file ? req.file.buffer : null;
 
-    const permit = await Permit.findByPk(id);
+    const permit = await Permit.findByPk(idPermit);
 
     if (!permit) {
       return res.status(404).json({ error: true, message: 'Permiso no encontrado' });
@@ -83,8 +83,8 @@ const updatePermit = async (req, res) => {
 // Descargar el PDF asociado a un permiso
 const downloadPermitPdf = async (req, res) => {
   try {
-    const { id } = req.params;
-    const permit = await Permit.findByPk(id);
+    const { idPermit } = req.params;
+    const permit = await Permit.findByPk(idPermit);
 
     if (!permit || !permit.pdfData) {
       return res.status(404).json({ error: true, message: 'PDF no encontrado' });
@@ -100,24 +100,52 @@ const downloadPermitPdf = async (req, res) => {
 };
 
 const getContactList = async (req, res) => {
-    try {
-      const contacts = await Permit.findAll({
-        attributes: ['applicantName', 'applicantEmail', 'applicantPhone', 'propertyAddress'],
-      });
-  
-      res.status(200).json({
-        error: false,
-        message: 'Listado de contactos obtenido exitosamente',
-        data: contacts,
-      });
-    } catch (error) {
-      console.error('Error al obtener el listado de contactos:', error);
-      res.status(500).json({
+  try {
+    const { idPermit } = req.params; // Obtener el ID del permiso desde los parámetros de la URL (si existe)
+
+    // Configurar la condición de búsqueda
+    const whereCondition = idPermit ? { idPermit } : {}; // Si idPermit está presente, filtrar por él; de lo contrario, no filtrar
+
+    // Buscar los contactos asociados al permiso (o todos si no se pasa idPermit)
+    const contacts = await Permit.findAll({
+      where: whereCondition, // Aplicar la condición de búsqueda
+      attributes: ['applicantName', 'applicantEmail', 'applicantPhone', 'propertyAddress'],
+    });
+
+    if (!contacts || contacts.length === 0) {
+      return res.status(404).json({
         error: true,
-        message: 'Error interno del servidor',
+        message: idPermit
+          ? 'No se encontraron contactos para el permiso especificado'
+          : 'No se encontraron contactos',
       });
     }
-  };
+
+    // Filtrar o transformar los datos
+    const filteredContacts = contacts.map((contact) => ({
+      applicantName: contact.applicantName || 'No especificado',
+      applicantEmail: contact.applicantEmail || 'No especificado',
+      applicantPhone: contact.applicantPhone || 'No especificado',
+      propertyAddress: contact.propertyAddress || 'No especificado',
+    }));
+
+    res.status(200).json({
+      error: false,
+      message: idPermit
+        ? 'Listado de contactos para el permiso obtenido exitosamente'
+        : 'Listado de todos los contactos obtenido exitosamente',
+      data: filteredContacts,
+    });
+  } catch (error) {
+    console.error('Error al obtener el listado de contactos:', error);
+    res.status(500).json({
+      error: true,
+      message: 'Error interno del servidor',
+    });
+  }
+};
+
+
 
 module.exports = {
   createPermit,

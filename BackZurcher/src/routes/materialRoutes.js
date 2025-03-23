@@ -12,6 +12,6 @@ router.post('/', verifyToken,allowRoles(['admin', 'recept', 'owner']), MaterialC
 router.get('/work/:workId', verifyToken, isStaff, MaterialController.getMaterialsByWork);
 
 // Actualizar un material (solo administradores)
-router.put('/:id', verifyToken, isAdmin, MaterialController.updateMaterial);
+router.put('/:id', verifyToken, allowRoles(['admin', 'recept', 'owner']), MaterialController.updateMaterial);
 
 module.exports = router;
