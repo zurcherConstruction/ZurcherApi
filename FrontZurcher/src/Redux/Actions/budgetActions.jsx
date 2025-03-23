@@ -3,6 +3,9 @@ import {
   fetchBudgetsRequest,
   fetchBudgetsSuccess,
   fetchBudgetsFailure,
+  fetchBudgetByIdRequest,
+  fetchBudgetByIdSuccess,
+  fetchBudgetByIdFailure,
   createBudgetRequest,
   createBudgetSuccess,
   createBudgetFailure,
@@ -14,57 +17,67 @@ import {
   deleteBudgetFailure,
 } from '../Reducer/BudgetReducer';
 
+// Obtener todos los presupuestos
 export const fetchBudgets = () => async (dispatch) => {
-    dispatch(fetchBudgetsRequest());
-    try {
-      const response = await api.get('/budgets'); // Ajusta la ruta según tu backend
-      dispatch(fetchBudgetsSuccess(response.data));
-    } catch (error) {
-      // Manejo de errores
-      const errorMessage =
-        error.response?.data?.message || // Mensaje del backend
-        error.message || // Mensaje del cliente (por ejemplo, error de red)
-        'Error al obtener presupuestos'; // Mensaje por defecto
-      dispatch(fetchBudgetsFailure(errorMessage));
-    }
-  };
+  dispatch(fetchBudgetsRequest());
+  try {
+    const response = await api.get('/budgets/all'); // Ruta del backend
+    dispatch(fetchBudgetsSuccess(response.data));
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.message || 'Error al obtener los presupuestos';
+    dispatch(fetchBudgetsFailure(errorMessage));
+  }
+};
 
-  export const createBudget = (budgetData) => async (dispatch) => {
-    dispatch(createBudgetRequest());
-    try {
-      const response = await api.post('/budgets', budgetData); // Ruta del backend
-      dispatch(createBudgetSuccess(response.data));
-    } catch (error) {
-      const errorMessage =
-        error.response?.data?.error || // Mensaje del backend
-        error.message || // Mensaje del cliente (por ejemplo, error de red)
-        'Error al crear el presupuesto'; // Mensaje por defecto
-      dispatch(createBudgetFailure(errorMessage));
-    }
-  };
-  
-  // Acción para actualizar un presupuesto
-  export const updateBudget = (id, budgetData) => async (dispatch) => {
-    dispatch(updateBudgetRequest());
-    try {
-      const response = await api.put(`/budgets/${id}`, budgetData); // Ruta del backend
-      dispatch(updateBudgetSuccess(response.data));
-    } catch (error) {
-      const errorMessage =
-        error.response?.data?.error || 'Error al actualizar el presupuesto';
-      dispatch(updateBudgetFailure(errorMessage));
-    }
-  };
-  
-  // Acción para eliminar un presupuesto
-  export const deleteBudget = (id) => async (dispatch) => {
-    dispatch(deleteBudgetRequest());
-    try {
-      await api.delete(`/budgets/${id}`); // Ruta del backend
-      dispatch(deleteBudgetSuccess(id));
-    } catch (error) {
-      const errorMessage =
-        error.response?.data?.error || 'Error al eliminar el presupuesto';
-      dispatch(deleteBudgetFailure(errorMessage));
-    }
-  };
+// Obtener un presupuesto por ID
+export const fetchBudgetById = (id) => async (dispatch) => {
+  dispatch(fetchBudgetByIdRequest());
+  try {
+    const response = await api.get(`/budgets/${id}`); // Ruta del backend
+    dispatch(fetchBudgetByIdSuccess(response.data));
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.message || 'Error al obtener el presupuesto';
+    dispatch(fetchBudgetByIdFailure(errorMessage));
+  }
+};
+
+// Crear un presupuesto
+export const createBudget = (budgetData) => async (dispatch) => {
+  dispatch(createBudgetRequest());
+  try {
+    const response = await api.post('/budgets', budgetData); // Ruta del backend
+    dispatch(createBudgetSuccess(response.data));
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.message || 'Error al crear el presupuesto';
+    dispatch(createBudgetFailure(errorMessage));
+  }
+};
+
+// Actualizar un presupuesto
+export const updateBudget = (id, budgetData) => async (dispatch) => {
+  dispatch(updateBudgetRequest());
+  try {
+    const response = await api.put(`/budgets/${id}`, budgetData); // Ruta del backend
+    dispatch(updateBudgetSuccess(response.data));
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.message || 'Error al actualizar el presupuesto';
+    dispatch(updateBudgetFailure(errorMessage));
+  }
+};
+
+// Eliminar un presupuesto
+export const deleteBudget = (id) => async (dispatch) => {
+  dispatch(deleteBudgetRequest());
+  try {
+    await api.delete(`/budgets/${id}`); // Ruta del backend
+    dispatch(deleteBudgetSuccess(id));
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.message || 'Error al eliminar el presupuesto';
+    dispatch(deleteBudgetFailure(errorMessage));
+  }
+};
