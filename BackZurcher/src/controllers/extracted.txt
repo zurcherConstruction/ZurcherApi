@@ -1,0 +1,167 @@
+STATE OF FLORIDA
+DEPARTMENT OF HEALTH
+ONSITE SEWAGE TREATMENT AND DISPOSAL SYSTEM
+APPLICATION #:
+DATE PAID:
+FEE PAID:
+RECEIPT #:
+CONSTRUCTION PERMIT FOR:
+APPLICANT:
+PROPERTY ADDRESS:
+LOT:
+PROPERTY ID #:
+[SECTION, TOWNSHIP, RANGE, PARCEL NUMBER]
+BLOCK:SUBDIVISION:
+[OR TAX ID NUMBER]
+SYSTEM MUST BE CONSTRUCTED IN ACCORDANCE WITH SPECIFICATIONS AND STANDARDS OF SECTION 381.0065, F.S., AND CHAPTER 64E-6, F.A.C. DEPARTMENT APPROVAL OF SYSTEM DOES NOT GUARANTEE SATISFACTORY PERFORMANCE FOR ANY SPECIFIC PERIOD OF TIME. ANY CHANGE IN MATERIAL FACTS, WHICH SERVED AS A BASIS FOR ISSUANCE OF THIS PERMIT, REQUIRE THE APPLICANT TO MODIFY THE PERMIT APPLICATION. SUCH MODIFICATIONS MAY RESULT IN THIS PERMIT BEING MADE NULL AND VOID. ISSUANCE OF THIS PERMIT DOES NOT EXEMPT THE APPLICANT FROM COMPLIANCE WITH OTHER FEDERAL, STATE, OR LOCAL PERMITTING REQUIRED FOR DEVELOPMENT OF THIS PROPERTY.
+SYSTEM DESIGN AND SPECIFICATIONS
+T [
+A [
+N [
+K [
+D [
+R [
+A TYPE SYSTEM:
+I CONFIGURATION:
+N F LOCATION OF BENCHMARK:
+I ELEVATION OF PROPOSED SYSTEM SITE
+E BOTTOM OF DRAINFIELD TO BE
+L D FILL REQUIRED:
+O
+T
+H E R SPECIFICATIONS BY:
+APPROVED BY:
+DATE ISSUED:
+DEP 4015, 06-21-2022 (Obsoletes previous editions which may not be used) Incorporated 62-6.004, FAC
+Page 1 of 3
+TITLE:
+TITLE:
+CHD
+EXPIRATION DATE: 500 500
+12/11/2023
+06/11/2025 18.00 0.12 0.87
+Lee
+]
+]
+] GALLONS GREASE INTERCEPTOR CAPACITY [MAXIMUM CAPACITY SINGLE TANK:1250 GALLONS]
+] GALLONS DOSING TANK CAPACITY]GALLONS
+]DOSES PER 24 HRS
+]
+GALLONS
+GALLONS
+/
+/
+GPD
+GPD
+CAPACITY
+CAPACITY
+] SQUARE FEET ] SQUARE FEETSYSTEM
+] STANDARD] FILLED
+x
+] MOUND]
+] TRENCH
+x
+] BED]
+][
+][
+FT
+][
+]BENCHMARK/REFERENCE POINT
+][
+]BENCHMARK/REFERENCE POINT
+] INCHES 72.00
+] INCHES
+Emily Rozzano
+[
+[
+[
+[
+[
+[@[#Pumps [
+[
+[
+[ EXCAVATION REQUIRED: [
+[
+[
+ABOVE
+ABOVE
+24.5 NAVD EOP @ LT PL
+/
+/
+INCHES
+INCHES
+FT
+/
+/
+BELOW
+BELOW
+AP2001208
+Sergio A Guzman
+PE
+Environmental Specialist II
+v 1.1.4 (ALLIED REALTY 10)
+815 Sentinela Blvd Lehigh Acres, FL 33974
+344
+034527L1020040340
+OSTDS New
+SE1914491
+DOCUMENT #:PR2033378
+Class I NSF245 ATU Tank
+N/A
+N/A
+SYSTEM
+Drainfield
+PERMIT #:
+MINIMUM INFILTRATIVE SURFACE ELEVATION = 25.37'.
+Excavate 2' wider & longer than drainfield to a depth of 72". HEALTH DEPARTMENT TO VERIFY ENGINEER SOILS & ELEVATIONS AT TIME OF INITIAL INSPECTION. The system is sized for 4 bedrooms with a maximum occupancy of 8 persons (2 per bedroom), for a total estimated flow of 400 gpd. Nitrogen-reducing system installed to comply with current or future spring BMAP requirements. Nitrogen-reducing NSF-245 certified aerobic treatment unit. Maintenance Service Agreement & Biennial Operating Permit Application required before final.
+36-SN-2787188
+AP2001208 A party whose substantial interest is affected by this order may petition for an administrative hearing pursuant to sections 120.569 and 120.57, Florida Statutes. Such proceedings are governed by Rule 28-106, Florida Administrative Code. A petition for administrative hearing must be in writing and must be received by the Agency Clerk for the Department, within twenty-one (21) days from the receipt of this order. The address of the agency clerk is 3900 Commonwealth Boulevard, Mail Station 35, Tallahassee, Florida 32399-
+3000. The Agency Clerks email is agency_clerk@FloridaDEP.gov.
+Mediation is not available as an alternative remedy.
+Your failure to submit a petition for hearing within 21 days from receipt of this order will constitute a waiver of your right to an administrative hearing, and this order shall become a 'final order'.
+Should this order become a final order, a party who is adversely affected by it is entitled to judicial review pursuant to Section 120.68, Florida Statutes. Review proceedings are governed by the Florida Rules of Appellate Procedure. Such proceedings may be commenced by filing one copy of a Notice of Appeal with the Agency Clerk of the Department of Environmental Protection and a second copy, accompanied by the filing fees required by law, with the Court of Appeal in the appropriate District Court. The notice must be filed within 30 days of rendition of the final order.
+NOTICE OF RIGHTS Date Issued:
+Application #:
+SEPTIC SYSTEM PERMIT #
+CHAPTER 381, FLORIDA STATUTES & 64E-6, FLORIDA ADMINISTRATIVE CODE
+THIS PERMIT CARD MUST BE POSTED ON SITE
+CONSTRUCTION PERMIT FOR: [ X ] New System ] Existing System [ ] Holding Tank [ ] Innovative Other [ ] Temporary [ ] Abandonment [ ] Repair [ [ APPLICANT: PROPERTY STREET ADDRESS:
+SEPTIC CONTRACTOR:
+LOT:
+BLOCK:
+SUBDIVISION:
+PROPERTY ID #:
+[Section/Township/Range/Parcel No.] [OR TAX ID NUMBER]
+See System Construction Permit for System Specifications
+DATE:
+BY:
+NO
+YES
+EXCAVATION INSPECTION APPROVED:
+INITIAL INSPECTION
+OK TO COVER/DATE:
+E.H.SPECIALIST:
+CALL FOR FINAL INSPECTION AFTER:
+roof is guttered
+mound is stablized:4' shoulder all sides max.____:1 slopes, 6"-18" soil cover, Tank Soil Cap: Max 8" sod installed over entire mound slope
+well is constructed
+inlet
+CONSTRUCTION NON-COMPLIANCE DATE:
+REASON(S):
+E.H.SPECIALIST:
+E.H. SPECIALIST:
+APPROVAL #:
+REASON(S):
+E.H. SPECIALIST:
+APPROVAL DENIED / DATE:
+APPROVAL / DATE:
+FINAL INSPECTION
+There is a $75.00 fee for any additional inspections or reinspections after a disapproval
+QUESTIONS? 239-690-2100
+36-SN-2787188
+AP2001208
+12/11/2023 (ALLIED REALTY 10)
+815 Sentinela Blvd Lehigh Acres, FL 33974
+34
+4
+034527L1020040340 ] *Invertech Solutions LLC

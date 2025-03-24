@@ -56,10 +56,7 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true
     },
-    propertyId: {
-      type: DataTypes.TEXT,
-      allowNull: true
-    },
+   
     systemType: {
       type: DataTypes.TEXT,
       allowNull: true
@@ -104,16 +101,13 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true
     },
-    dosingTankCapacity: {
-      type: DataTypes.TEXT,
-      allowNull: true
-    },
+   
     gpdCapacity: {
       type: DataTypes.TEXT,
       allowNull: true
     },
-    exavationRequired:{
-      type: DataTypes.TEXT,
+    excavationRequired:{
+      type: DataTypes.INTEGER,
       allowNull: true
     },
     squareFeetSystem: {
