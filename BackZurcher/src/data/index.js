@@ -58,8 +58,8 @@ const { Staff, Permit, Budget, Work, Material, Inspection } = sequelize.models;
 Permit.hasMany(Work, { foreignKey: 'propertyAddress', sourceKey: 'propertyAddress' });
 Work.belongsTo(Permit, { foreignKey: 'propertyAddress', targetKey: 'propertyAddress' });
 
-Permit.hasMany(Work, { foreignKey: 'permitId' });
-Work.belongsTo(Permit, { foreignKey: 'permitId' });
+Permit.hasMany(Budget, { foreignKey: 'propertyAddress', sourceKey: 'propertyAddress' });
+Budget.belongsTo(Permit, { foreignKey: 'propertyAddress', targetKey: 'propertyAddress' });
 
 Work.hasMany(Material, { foreignKey: 'workId' });
 Material.belongsTo(Work, { foreignKey: 'workId' });

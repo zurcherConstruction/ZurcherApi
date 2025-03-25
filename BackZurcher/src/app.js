@@ -11,8 +11,8 @@ const authRoutes = require('./routes/authRoutes');
 const app = express();
 
 // Middlewares
-app.use(express.json()); // Solo este para manejar JSON
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "10mb" })); // Cambia "10mb" según tus necesidades
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
 app.use('/images', express.static(path.join(__dirname, 'images')));
 
 app.use(morgan('dev'));

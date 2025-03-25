@@ -3,35 +3,39 @@ const { Permit } = require('../data');
 // Crear un nuevo permiso
 const createPermit = async (req, res) => {
   try {
-    const { 
-      permitNumber, applicationNumber, applicantName,applicantEmail,applicantPhone, documentNumber, constructionPermitFor, applicant, 
-      propertyAddress, lot, block, propertyId, systemType, configuration, locationBenchmark, 
-      elevation, drainfieldDepth, fillRequired, specificationsBy, approvedBy, dateIssued, 
-      expirationDate, greaseInterceptorCapacity, dosingTankCapacity, gpdCapacity, 
-      exavationRequired, squareFeetSystem, other, isATU, pump 
-    } = req.body;
+      console.log("Datos recibidos en el cuerpo de la solicitud:", req.body);
 
-    const pdfData = req.file ? req.file.buffer : null; // Si se sube un archivo PDF
+      const { 
+          permitNumber, applicationNumber, applicantName, applicantEmail, applicantPhone, documentNumber, constructionPermitFor, applicant, 
+          propertyAddress, lot, block, propertyId, systemType, configuration, locationBenchmark, 
+          elevation, drainfieldDepth, fillRequired, specificationsBy, approvedBy, dateIssued, 
+          expirationDate, greaseInterceptorCapacity, dosingTankCapacity, gpdCapacity, 
+          exavationRequired, squareFeetSystem, other, isATU, pump 
+      } = req.body;
 
-    const permit = await Permit.create({
-      permitNumber, applicationNumber, applicantName,applicantEmail,applicantPhone, documentNumber, constructionPermitFor, applicant, 
-      propertyAddress, lot, block, propertyId, systemType, configuration, locationBenchmark, 
-      elevation, drainfieldDepth, fillRequired, specificationsBy, approvedBy, dateIssued, 
-      expirationDate, greaseInterceptorCapacity, dosingTankCapacity, gpdCapacity, 
-      exavationRequired, squareFeetSystem, other, isATU, pump, pdfData
-    });
+      const pdfData = req.file ? req.file.buffer : null; // Si se sube un archivo PDF
 
-    res.status(201).json(permit);
+      const permit = await Permit.create({
+          permitNumber, applicationNumber, applicantName, applicantEmail, applicantPhone, documentNumber, constructionPermitFor, applicant, 
+          propertyAddress, lot, block, propertyId, systemType, configuration, locationBenchmark, 
+          elevation, drainfieldDepth, fillRequired, specificationsBy, approvedBy, dateIssued, 
+          expirationDate, greaseInterceptorCapacity, dosingTankCapacity, gpdCapacity, 
+          exavationRequired, squareFeetSystem, other, isATU, pump, pdfData
+      });
+
+      res.status(201).json(permit);
   } catch (error) {
-    console.error('Error al crear el permiso:', error);
-    res.status(500).json({ error: true, message: 'Error interno del servidor' });
+      console.error("Error al crear el permiso:", error);
+      res.status(500).json({ error: true, message: "Error interno del servidor" });
   }
 };
 
 // Obtener todos los permisos
 const getPermits = async (req, res) => {
   try {
-    const permits = await Permit.findAll();
+    const permits = await Permit.findAll({
+    attributes: { exclude: ['pdfData'] },
+    })
     res.status(200).json(permits);
   } catch (error) {
     console.error('Error al obtener permisos:', error);

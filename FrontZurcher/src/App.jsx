@@ -14,6 +14,7 @@ import NotFound from './Components/NotFound';
 import Unauthorized from './Components/Auth/Unauthorized';
 import Landing from './Components/Landing';
 import PdfReceipt from './Components/PdfReceipt';
+//import PdfViewerPage from './Components/PdfViewerPage';
 
 function App() {
   const dispatch = useDispatch();
@@ -38,6 +39,8 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
+          {/* <Route path="/pdf-viewer" element={<PdfViewerPage />} /> */}
+          <Route path="/unauthorized" element={<Unauthorized />} />
 
           {/* Rutas protegidas */}
           <Route
@@ -45,9 +48,12 @@ function App() {
             element={
               <PrivateRoute allowedRoles={['owner', 'admin']}>
                 <Dashboard />
+               
               </PrivateRoute>
             }
           />
+                
+         
           <Route
             path="/firststage"
             element={

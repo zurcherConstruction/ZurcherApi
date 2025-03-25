@@ -3,15 +3,15 @@ const { Budget } = require('../data');
 const BudgetController = {
   async createBudget(req, res) {
     try {
-      const { date, expirationDate, price, initialPayment, status } = req.body;
+      const { date, expirationDate, price, initialPayment, status, applicantName } = req.body;
 
       // Validar campos obligatorios
-      if (!date || !price || !initialPayment || !status) {
+      if (!date || !price || !initialPayment || !status || !applicantName) {
         return res.status(400).json({ error: 'Faltan campos obligatorios' });
       }
 
       // Crear presupuesto
-      const budget = await Budget.create({ date, expirationDate, price, initialPayment, status });
+      const budget = await Budget.create({ date, expirationDate, price, initialPayment, status, applicantName });
       res.status(201).json(budget);
     } catch (error) {
       console.error('Error al crear el presupuesto:', error);

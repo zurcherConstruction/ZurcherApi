@@ -118,10 +118,7 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true
     },
-    isATU:{
-      type: DataTypes.BOOLEAN,
-      allowNull: true
-    },
+  
     pump:{
       type: DataTypes.TEXT,
       allowNull: true

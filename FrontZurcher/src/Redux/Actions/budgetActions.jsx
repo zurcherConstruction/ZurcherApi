@@ -47,7 +47,7 @@ export const fetchBudgetById = (id) => async (dispatch) => {
 export const createBudget = (budgetData) => async (dispatch) => {
   dispatch(createBudgetRequest());
   try {
-    const response = await api.post('/budgets', budgetData); // Ruta del backend
+    const response = await api.post('/budget', budgetData); // Ruta del backend
     dispatch(createBudgetSuccess(response.data));
   } catch (error) {
     const errorMessage =
