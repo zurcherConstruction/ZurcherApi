@@ -21,7 +21,8 @@ import BudgetList from './Components/Budget/BudgetList';
 import Works from './Components/Works/Work';
 import ProgressTracker from './Components/ProgressTracker';
 import WorkDetail from './Components/Works/WorkDetail';
-
+import Materiales from './Components/Materiales';
+import MaterialsCheck from './Components/Seguimiento/WorkStatusManager';
 
 function App() {
   const dispatch = useDispatch();
@@ -53,6 +54,8 @@ function App() {
           <Route path="/works" element={<Works />} />
           <Route path="/work/:idWork" element={<WorkDetail />} />
          <Route path="/progress-tracker" element={<ProgressTracker />} />
+         <Route path="/materiales" element={<Materiales />} />
+         <Route path="/inspecciones" element={<MaterialsCheck />} />
          
 
           {/* Rutas protegidas */}

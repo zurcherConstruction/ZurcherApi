@@ -49,7 +49,7 @@ const getWorks = async (req, res) => {
         {
           model: Permit,
           
-          attributes: ['idPermit', 'propertyAddress'], // Campos relevantes del permiso
+          attributes: ['idPermit', 'propertyAddress', 'applicantName'], // Campos relevantes del permiso
         },
       ],
     });
@@ -77,6 +77,7 @@ const getWorkById = async (req, res) => {
             'idPermit',
             'propertyAddress',
             'permitNumber',
+            'applicantName',
             
             'pdfData', // Incluir el PDF
           ],

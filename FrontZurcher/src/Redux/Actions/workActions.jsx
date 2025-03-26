@@ -62,7 +62,7 @@ export const createWork = (workData) => async (dispatch) => {
 export const updateWork = (idWork, workData) => async (dispatch) => {
   dispatch(updateWorkRequest());
   try {
-    const response = await api.put(`/works/${idWork}`, workData); // Ruta del backend
+    const response = await api.put(`/work/${idWork}`, workData); // Ruta del backend
     dispatch(updateWorkSuccess(response.data));
   } catch (error) {
     const errorMessage =

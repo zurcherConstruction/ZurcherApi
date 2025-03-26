@@ -3,55 +3,68 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import logo from '../assets/logoseptic.png'; // Import the logo
 import { useSelector,  useDispatch } from 'react-redux';
-import { fetchPermits } from '../Redux/Actions/permitActions';
+import { fetchWorks } from '../Redux/Actions/workActions'; // Asegúrate de tener esta acción
+
 const Materiales = () => {
   const dispatch = useDispatch();
-  const permits = useSelector((state) => state.permit.permits); // Accede al estado de permits
-  const loading = useSelector((state) => state.permit.loading);
-  const error = useSelector((state) => state.permit.error);
+  const works = useSelector((state) => state.work.works); // Accede a las obras desde Redux
+  const loading = useSelector((state) => state.work.loading);
+  const error = useSelector((state) => state.work.error);
+  const [pdfUrl, setPdfUrl] = useState(null);
 
   useEffect(() => {
-    dispatch(fetchPermits()); // Dispara la acción para cargar permisos
+    dispatch(fetchWorks()); // Cargar obras
   }, [dispatch]);
 
-  console.log('Permits desde Redux:', permits); // Verifica el estado
+ 
 
   
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     client: '',
     obraAddress: '',
-    materials: [{ material: '', quantity: '', comment: '' }],
+    materials: [],
     comments: ''
   });
-
-
+  const [newMaterial, setNewMaterial] = useState({ material: '', quantity: '', comment: '' });
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value
-    });
+  
+    // Si el campo modificado es "obraAddress", busca el cliente correspondiente
+    if (name === 'obraAddress') {
+      const selectedWork = works.find((work) => work.propertyAddress === value);
+      setFormData({
+        ...formData,
+        [name]: value,
+        client: selectedWork ? selectedWork.Permit?.applicantName || '' : '', // Llena el cliente si se encuentra
+      });
+    } else {
+      setFormData({
+        ...formData,
+        [name]: value,
+      });
+    }
   };
 
-  const handleMaterialChange = (index, e) => {
+  const handleNewMaterialChange = (e) => {
     const { name, value } = e.target;
-    const newMaterials = formData.materials.map((material, i) => (
-      i === index ? { ...material, [name]: value } : material
-    ));
-    setFormData({
-      ...formData,
-      materials: newMaterials
+    setNewMaterial({
+      ...newMaterial,
+      [name]: value,
     });
   };
 
   const addMaterial = () => {
-    setFormData({
-      ...formData,
-      materials: [...formData.materials, { material: '', quantity: '', comment: '' }]
-    });
+    if (newMaterial.material && newMaterial.quantity) {
+      setFormData({
+        ...formData,
+        materials: [...formData.materials, newMaterial],
+      });
+      setNewMaterial({ material: '', quantity: '', comment: '' }); // Limpiar el formulario de nuevo material
+    }
   };
+
 
   const generatePDF = () => {
     const doc = new jsPDF();
@@ -75,7 +88,11 @@ const Materiales = () => {
       doc.text('Comentarios adicionales:', 10, doc.lastAutoTable.finalY + 10);
       doc.text(formData.comments, 10, doc.lastAutoTable.finalY + 20);
     }
-    doc.save('materiales.pdf');
+  
+    // Generar el PDF como Blob y crear una URL para la vista previa
+    const pdfBlob = doc.output('blob');
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+    setPdfUrl(pdfUrl);
   };
 
   return (
@@ -110,99 +127,88 @@ const Materiales = () => {
           />
         </div>
         <div>
-      {loading && <p>Cargando permisos...</p>}
-      {error && <p>Error: {error}</p>}
-      <select
-  id="obraAddress"
-  name="obraAddress"
-  value={formData.obraAddress}
-  onChange={handleChange} // Usa el mismo manejador de cambios
-  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
->
-  <option value="">Seleccione una dirección</option>
-  {Array.isArray(permits) &&
-    permits.map((permit) => (
-      <option key={permit.idPermit} value={permit.propertyAddress}>
-        {permit.propertyAddress}
-      </option>
-    ))}
-</select>
-    </div>
-        {formData.materials.map((material, index) => (
-          <div key={index} className="flex gap-4">
-            <div className="flex-1">
-              <label htmlFor={`material-${index}`} className="block text-gray-700 text-sm font-bold mb-2">
-                Material:
-              </label>
-              <select
-                id={`material-${index}`}
-                name="material"
-                value={material.material}
-                onChange={(e) => handleMaterialChange(index, e)}
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              >
-                <option value="">Seleccione un material</option>
-                <option value="Tanque ATU 500 Infiltrator">Tanque ATU 500 Infiltrator</option>
-                <option value="Kit alarma compresor">Kit alarma compresor</option>
-                <option value="Clean Out">Clean Out</option>
-                <option value="Cruz de 4">Cruz de 4</option>
-                <option value="Codos de 90">Codos de 90</option>
-                <option value="T de 4">T de 4</option>
-                <option value="Chambers arc24">Chambers arc24</option>
-                {/* Add more materials as needed */}
-              </select>
-            </div>
-            <div className="flex-1">
-              <label htmlFor={`quantity-${index}`} className="block text-gray-700 text-sm font-bold mb-2">
-                Cantidad/Descripción:
-              </label>
-              <input
-                type="text"
-                id={`quantity-${index}`}
-                name="quantity"
-                value={material.quantity}
-                onChange={(e) => handleMaterialChange(index, e)}
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                placeholder="Ingrese la cantidad o descripción"
-              />
-            </div>
-            <div className="flex-1">
-              <label htmlFor={`comment-${index}`} className="block text-gray-700 text-sm font-bold mb-2">
-                Comentario:
-              </label>
-              <input
-                type="text"
-                id={`comment-${index}`}
-                name="comment"
-                value={material.comment}
-                onChange={(e) => handleMaterialChange(index, e)}
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                placeholder="Ingrese un comentario"
-              />
-            </div>
-          </div>
-        ))}
+          {loading && <p>Cargando permisos...</p>}
+          {error && <p>Error: {error}</p>}
+          <select
+            id="obraAddress"
+            name="obraAddress"
+            value={formData.obraAddress}
+            onChange={handleChange}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          >
+            <option value="">Seleccione una dirección</option>
+            {works.map((work) => (
+              <option key={work.idWork} value={work.propertyAddress}>
+                {work.propertyAddress}
+              </option>
+            ))}
+          </select>
+        </div>
         <div className="md:col-span-2">
+          <label htmlFor="material" className="block text-gray-700 text-sm font-bold mb-2">
+            Material:
+          </label>
+          <select
+            id="material"
+            name="material"
+            value={newMaterial.material}
+            onChange={handleNewMaterialChange}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          >
+            <option value="">Seleccione un material</option>
+            <option value="Tanque ATU 500 Infiltrator">Tanque ATU 500 Infiltrator</option>
+            <option value="Kit alarma compresor">Kit alarma compresor</option>
+            <option value="Clean Out">Clean Out</option>
+            <option value="Cruz de 4">Cruz de 4</option>
+            <option value="Codos de 90">Codos de 90</option>
+            <option value="T de 4">T de 4</option>
+            <option value="Chambers arc24">Chambers arc24</option>
+            <option value="Otro">Otro (Especificar manualmente)</option>
+          </select>
+          <input
+            type="text"
+            name="quantity"
+            placeholder="Cantidad"
+            value={newMaterial.quantity}
+            onChange={handleNewMaterialChange}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mt-2"
+          />
+          <input
+            type="text"
+            name="comment"
+            placeholder="Comentario"
+            value={newMaterial.comment}
+            onChange={handleNewMaterialChange}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mt-2"
+          />
           <button
             type="button"
             onClick={addMaterial}
-            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full md:w-auto"
+            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline mt-2"
           >
             Añadir Material
           </button>
         </div>
         <div className="md:col-span-2">
-          <label htmlFor="comments" className="block text-gray-700 text-sm font-bold mb-2">
-            Comentarios adicionales:
-          </label>
-          <textarea
-            id="comments"
-            name="comments"
-            value={formData.comments}
-            onChange={handleChange}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            placeholder="Ingrese comentarios adicionales"
-          />
+          <h3 className="text-lg font-bold mt-4">Materiales seleccionados</h3>
+          <table className="table-auto w-full mt-2">
+            <thead>
+              <tr>
+                <th className="px-4 py-2">Material</th>
+                <th className="px-4 py-2">Cantidad</th>
+                <th className="px-4 py-2">Comentario</th>
+              </tr>
+            </thead>
+            <tbody>
+              {formData.materials.map((material, index) => (
+                <tr key={index}>
+                  <td className="border px-4 py-2">{material.material}</td>
+                  <td className="border px-4 py-2">{material.quantity}</td>
+                  <td className="border px-4 py-2">{material.comment}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
         <div className="md:col-span-2">
           <button
@@ -214,8 +220,19 @@ const Materiales = () => {
           </button>
         </div>
       </form>
+
+      {pdfUrl && (
+        <div>
+         
+          <iframe src={pdfUrl} width="100%" height="500px" title="Vista previa del PDF"></iframe>
+          <a href={pdfUrl} download="materiales.pdf" className="btn btn-primary">
+            Descargar PDF
+          </a>
+        </div>
+      )}
     </div>
   );
 };
+
 
 export default Materiales;
