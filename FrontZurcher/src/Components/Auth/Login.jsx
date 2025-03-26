@@ -26,7 +26,7 @@ const Login = () => {
       // Desestructura email y password de formData y pásalos como argumentos
       const { email, password } = formData;
       await dispatch(login(email, password));
-      navigate('/dashboard');
+      navigate('/landing');
     } catch (error) {
       console.error('Login failed:', error);
     }
