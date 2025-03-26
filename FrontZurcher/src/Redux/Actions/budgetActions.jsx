@@ -21,7 +21,7 @@ import {
 export const fetchBudgets = () => async (dispatch) => {
   dispatch(fetchBudgetsRequest());
   try {
-    const response = await api.get('/budgets/all'); // Ruta del backend
+    const response = await api.get('/budget/all'); // Ruta del backend
     dispatch(fetchBudgetsSuccess(response.data));
   } catch (error) {
     const errorMessage =

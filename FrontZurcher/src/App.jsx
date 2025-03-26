@@ -15,7 +15,7 @@ import Unauthorized from './Components/Auth/Unauthorized';
 import Landing from './Components/Landing';
 import PdfReceipt from './Components/PdfReceipt';
 import BarraLateral from './Components/Dashboard/BarraLateral';
-
+import BudgetList from './Components/Budget/BudgetList';
 //import PdfViewerPage from './Components/PdfViewerPage';
 
 
@@ -45,7 +45,10 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
           {/* <Route path="/pdf-viewer" element={<PdfViewerPage />} /> */}
-          <Route path="/unauthorized" element={<Unauthorized />} />
+          <Route path="/budgets" element={<BudgetList/> } />
+            
+         
+         
 
           {/* Rutas protegidas */}
           <Route

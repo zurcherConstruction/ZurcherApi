@@ -4,7 +4,7 @@ import { NavLink } from "react-router-dom";
 
 const BarraLateral = () => {
   const menuItems = [
-    { name: "Works", path: "/works" },
+    { name: "Works", path: "/budgets" },
     { name: "Cargar Permits", path: "/cargarPermits" },
     { name: "Presupuestos", path: "/presupuestos" },
     { name: "Inspecciones", path: "/inspecciones" },
