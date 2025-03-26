@@ -3,30 +3,79 @@ const { Permit } = require('../data');
 // Crear un nuevo permiso
 const createPermit = async (req, res) => {
   try {
-      console.log("Datos recibidos en el cuerpo de la solicitud:", req.body);
+    console.log("Request body:", req.body);
+    console.log("Request file:", req.file);
 
-      const { 
-          permitNumber, applicationNumber, applicantName, applicantEmail, applicantPhone, documentNumber, constructionPermitFor, applicant, 
-          propertyAddress, lot, block, propertyId, systemType, configuration, locationBenchmark, 
-          elevation, drainfieldDepth, fillRequired, specificationsBy, approvedBy, dateIssued, 
-          expirationDate, greaseInterceptorCapacity, dosingTankCapacity, gpdCapacity, 
-          exavationRequired, squareFeetSystem, other, isATU, pump 
-      } = req.body;
+    // Validaciones básicas (ajusta según tus requerimientos)
+    if (!req.body.applicantName || !req.body.propertyAddress) {
+      return res.status(400).json({ error: true, message: "Faltan campos obligatorios." });
+    }
 
-      const pdfData = req.file ? req.file.buffer : null; // Si se sube un archivo PDF
+    const { 
+      permitNumber,
+      applicationNumber,
+      applicantName,
+      applicantEmail,
+      applicantPhone,
+      documentNumber,
+      constructionPermitFor,
+      applicant,
+      propertyAddress,
+      lot,
+      block,
+      propertyId,
+      systemType,
+      configuration,
+      locationBenchmark,
+      drainfieldDepth,
+      dateIssued,
+      expirationDate,
+      dosingTankCapacity,
+      gpdCapacity,
+      exavationRequired,
+      squareFeetSystem,
+      other,
+      pump,
+      
+    } = req.body;
 
-      const permit = await Permit.create({
-          permitNumber, applicationNumber, applicantName, applicantEmail, applicantPhone, documentNumber, constructionPermitFor, applicant, 
-          propertyAddress, lot, block, propertyId, systemType, configuration, locationBenchmark, 
-          elevation, drainfieldDepth, fillRequired, specificationsBy, approvedBy, dateIssued, 
-          expirationDate, greaseInterceptorCapacity, dosingTankCapacity, gpdCapacity, 
-          exavationRequired, squareFeetSystem, other, isATU, pump, pdfData
-      });
+    // Si el archivo PDF se envió correctamente, req.file tendrá la información
+    const pdfData = req.file ? req.file.buffer : null;
 
-      res.status(201).json(permit);
+    // Crear el permiso en la base de datos
+    const permit = await Permit.create({
+      permitNumber,
+      applicationNumber,
+      applicantName,
+      applicantEmail,
+      applicantPhone,
+      documentNumber,
+      constructionPermitFor,
+      applicant,
+      propertyAddress,
+      lot,
+      block,
+      propertyId,
+      systemType,
+      configuration,
+      locationBenchmark,
+      drainfieldDepth,
+      dateIssued,
+      expirationDate,
+      dosingTankCapacity,
+      gpdCapacity,
+      exavationRequired,
+      squareFeetSystem,
+      other,
+      pump,
+      pdfData
+    });
+
+    console.log("Permiso creado correctamente:", permit.idPermit);
+    res.status(201).json(permit);
   } catch (error) {
-      console.error("Error al crear el permiso:", error);
-      res.status(500).json({ error: true, message: "Error interno del servidor" });
+    console.error("Error al crear el permiso:", error);
+    res.status(500).json({ error: true, message: "Error interno del servidor" });
   }
 };
 

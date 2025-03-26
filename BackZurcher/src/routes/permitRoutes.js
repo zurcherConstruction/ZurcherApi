@@ -2,12 +2,19 @@ const express = require('express');
 const PermitController = require('../controllers/PermitController');
 const { verifyToken } = require('../middleware/isAuth');
 const { allowRoles, isStaff, isOwner, isAdmin, isRecept, } = require('../middleware/byRol'); // Ajusta según tus middlewares
+const { upload } = require('../middleware/multer'); 
 
 
 const router = express.Router();
 
 // Crear un permiso (permitido para admin, recept y owner)
-router.post('/', verifyToken, allowRoles(['admin', 'recept', 'owner']), PermitController.createPermit);
+router.post(
+    '/', 
+    verifyToken, 
+    allowRoles(['admin', 'recept', 'owner']),
+    upload.single('file'),
+    PermitController.createPermit
+  );
 
 // Obtener todos los permisos (permitido para staff)
 router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner']), PermitController.getPermits);

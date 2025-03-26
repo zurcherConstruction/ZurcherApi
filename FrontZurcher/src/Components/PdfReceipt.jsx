@@ -11,6 +11,7 @@ import "@react-pdf-viewer/default-layout/lib/styles/index.css";
 const PdfReceipt = () => {
   const dispatch = useDispatch();
   const [pdfPreview, setPdfPreview] = useState(null);
+  const [file, setFile] = useState(null); // Estado para el objeto File real
   const [formData, setFormData] = useState({
     permitNumber: "",
     applicationNumber: "",
@@ -32,13 +33,14 @@ const PdfReceipt = () => {
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
 
   const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const fileUrl = URL.createObjectURL(file);
-      setPdfPreview(fileUrl);
-      dispatch(uploadPdf(file)).then((action) => {
+    const uploadedFile = e.target.files[0];
+    console.log("Archivo seleccionado:", uploadedFile);
+    if (uploadedFile) {
+      const fileUrl = URL.createObjectURL(uploadedFile);
+      setPdfPreview(fileUrl);  // Para la previsualización
+      setFile(uploadedFile);   // Guardar el objeto File real
+      dispatch(uploadPdf(uploadedFile)).then((action) => {
         if (action.payload) {
-          // Actualizar el estado formData con los datos extraídos del PDF
           setFormData((prevFormData) => ({
             ...prevFormData,
             ...action.payload.data,
@@ -64,14 +66,29 @@ const PdfReceipt = () => {
       alert("El campo Applicant Name es obligatorio.");
       return;
     }
-  
+
+    console.log("Archivo PDF seleccionado:", file);
+  if (!file) {
+    alert("No se ha seleccionado ningún archivo PDF.");
+    return;
+  }
+   
     // Crear un objeto FormData para enviar el archivo PDF y los datos del formulario
     const formDataToSend = new FormData();
-    formDataToSend.append("file", pdfPreview); // Archivo PDF
-    Object.keys(formData).forEach((key) => {
-      formDataToSend.append(key, formData[key]); // Agregar los datos del formulario
-    });
-  
+
+  formDataToSend.append("file", file); // Usa el objeto File real
+  Object.keys(formData).forEach((key) => {
+    formDataToSend.append(key, formData[key]);
+  });
+
+  console.log("Contenido del FormData:");
+  for (let [key, value] of formDataToSend.entries()) {
+    if (key === 'file') {
+      console.log('Archivo:', value.name, value.size, value.type);
+    } else {
+      console.log(`${key}:`, value);
+    }
+  }
     try {
       // Crear el permiso
       console.log("Datos enviados para crear el permiso:", formData);
