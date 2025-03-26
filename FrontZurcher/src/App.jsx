@@ -4,7 +4,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { restoreSession } from './Redux/Actions/authActions';
 import PrivateRoute from './Components/PrivateRoute';
 import Header from './Components/Header';
-
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 // Importa tus componentes
 import Login from './Components/Auth/Login';
 import Register from './Components/Auth/Register';
@@ -17,7 +18,7 @@ import PdfReceipt from './Components/PdfReceipt';
 import BarraLateral from './Components/Dashboard/BarraLateral';
 import BudgetList from './Components/Budget/BudgetList';
 //import PdfViewerPage from './Components/PdfViewerPage';
-
+import Works from './Components/Works/Work';
 
 function App() {
   const dispatch = useDispatch();
@@ -46,7 +47,7 @@ function App() {
           <Route path="/unauthorized" element={<Unauthorized />} />
           {/* <Route path="/pdf-viewer" element={<PdfViewerPage />} /> */}
           <Route path="/budgets" element={<BudgetList/> } />
-            
+          <Route path="/works" element={<Works />} />
          
          
 
@@ -76,6 +77,7 @@ function App() {
         </Routes>
       </div>
     </div>
+    <ToastContainer />
     </BrowserRouter>
   );
 }

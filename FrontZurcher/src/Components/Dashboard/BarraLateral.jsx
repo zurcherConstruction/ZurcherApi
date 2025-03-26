@@ -4,9 +4,9 @@ import { NavLink } from "react-router-dom";
 
 const BarraLateral = () => {
   const menuItems = [
-    { name: "Works", path: "/budgets" },
-    { name: "Cargar Permits", path: "/cargarPermits" },
-    { name: "Presupuestos", path: "/presupuestos" },
+    { name: "Works", path: "/works" },
+    { name: "Cargar Permits", path: "/pdf" },
+    { name: "Presupuestos", path: "/budgets" },
     { name: "Inspecciones", path: "/inspecciones" },
     { name: "Materiales", path: "/materiales" },
     { name: "Staff", path: "/staff" },
@@ -29,7 +29,7 @@ const BarraLateral = () => {
               className={({ isActive }) =>
                 `block py-3 px-4 text-sm font-medium transition-all duration-300 ${
                   isActive
-                    ? "bg-blue-500 text-white"
+                    ? "bg-blue-950 text-white"
                     : "hover:bg-gray-700 hover:text-blue-300"
                 }`
               }

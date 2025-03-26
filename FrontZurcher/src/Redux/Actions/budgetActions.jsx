@@ -34,7 +34,7 @@ export const fetchBudgets = () => async (dispatch) => {
 export const fetchBudgetById = (id) => async (dispatch) => {
   dispatch(fetchBudgetByIdRequest());
   try {
-    const response = await api.get(`/budgets/${id}`); // Ruta del backend
+    const response = await api.get(`/budget/${id}`); // Ruta del backend
     dispatch(fetchBudgetByIdSuccess(response.data));
   } catch (error) {
     const errorMessage =
@@ -60,7 +60,7 @@ export const createBudget = (budgetData) => async (dispatch) => {
 export const updateBudget = (id, budgetData) => async (dispatch) => {
   dispatch(updateBudgetRequest());
   try {
-    const response = await api.put(`/budgets/${id}`, budgetData); // Ruta del backend
+    const response = await api.put(`/budget/${id}`, budgetData); // Ruta del backend
     dispatch(updateBudgetSuccess(response.data));
   } catch (error) {
     const errorMessage =

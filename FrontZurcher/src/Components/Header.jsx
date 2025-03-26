@@ -15,9 +15,7 @@ const Header = () => {
         <a href="/seguimiento" className="hover:text-blue-300">
           Seguimiento
         </a>
-        <a href="/pdf" className="hover:text-blue-300">
-          PDF Receipt
-        </a>
+       
         <a href="/login" className="hover:text-blue-300">
           Login
         </a>
