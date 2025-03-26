@@ -12,7 +12,7 @@ const Header = () => {
 
       {/* Acciones rápidas */}
       <div className="flex gap-4">
-        <a href="/seguimiento" className="hover:text-blue-300">
+        <a href="/progress-tracker" className="hover:text-blue-300">
           Seguimiento
         </a>
        

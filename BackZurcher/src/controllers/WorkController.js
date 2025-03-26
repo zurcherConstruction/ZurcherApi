@@ -1,4 +1,4 @@
-const { Work, Permit, Budget } = require('../data');
+const { Work, Permit, Budget, Material, Inspection } = require('../data');
 
 
 const createWork = async (req, res) => {
@@ -26,7 +26,7 @@ const createWork = async (req, res) => {
       propertyAddress: budget.propertyAddress,
       status: 'pending', // Estado inicial
       idPermit: budget.permit?.idPermit || null, // Asociar el permiso si existe
-      notes: `Obra creada desde el presupuesto ${idBudget}`,
+      notes: `Work create budget N° ${idBudget}`,
     });
 
     res.status(201).json({ message: 'Obra creada correctamente', work });
@@ -68,14 +68,35 @@ const getWorkById = async (req, res) => {
       include: [
         {
           model: Budget,
-          as: 'budget', // Alias definido en la relación
-          attributes: ['idBudget', 'propertyAddress', 'status', 'price'], // Campos relevantes del presupuesto
+          as: 'budget',
+          attributes: ['idBudget', 'propertyAddress', 'status', 'price'],
         },
         {
           model: Permit,
-          
-          attributes: ['idPermit',  'propertyAddress'], // Campos relevantes del permiso
+          attributes: [
+            'idPermit',
+            'propertyAddress',
+            'permitNumber',
+            
+            'pdfData', // Incluir el PDF
+          ],
         },
+        {
+          model: Material,
+          attributes: ['idMaterial', 'name', 'quantity','unit', 'cost'],
+        },
+        {
+          model: Inspection,
+          attributes: [
+            'idInspection',
+            'type',
+            'status',
+            'dateRequested',
+            'dateCompleted',
+            'notes',
+          ],
+        },
+      
       ],
     });
 

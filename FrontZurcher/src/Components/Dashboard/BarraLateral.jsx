@@ -12,7 +12,7 @@ const BarraLateral = () => {
     { name: "Staff", path: "/staff" },
     { name: "Estadísticas", path: "/estadisticas" },
     { name: "Clientes", path: "/clientes" },
-    { name: "Progresos", path: "/progresos" },
+    { name: "Progresos", path: "/progress-tracker" },
   ];
 
   return (

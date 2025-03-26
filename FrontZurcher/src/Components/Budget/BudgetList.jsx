@@ -46,10 +46,21 @@ const BudgetList = () => {
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
     doc.text(`Presupuesto N°: ${budget.idBudget}`, rightX, 20, { align: "right" });
-    doc.setFont("helvetica", "normal");
-    doc.text(`Date: ${budget.date}`, rightX, 30, { align: "right" });
-    doc.text(`End Date: ${budget.expirationDate || "N/A"}`, rightX, 40, { align: "right" });
 
+    // Convertir las fechas al formato dd-mm-aaaa
+const formatDate = (dateString) => {
+  const date = new Date(dateString);
+  return date.toLocaleDateString("es-ES", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+};
+
+doc.setFontSize(8);
+doc.setFont("helvetica", "normal");
+doc.text(`Date: ${formatDate(budget.date)}`, rightX, 28, { align: "right" }); // Reducir el espaciado
+doc.text(`Validity: ${formatDate(budget.expirationDate) || "N/A"}`, rightX, 34, { align: "right" }); // Reducir el espaciado
     // Dibujar una línea fina que divida la sección superior
     doc.setDrawColor(200); // Color gris claro
     doc.setLineWidth(0.5); // Línea fina
@@ -79,9 +90,9 @@ const BudgetList = () => {
 
   doc.setFont("helvetica", "normal");
   doc.text("Bank: Bank of America", 10, paymentStartY + 20);
-  doc.text("N° ruta: 063100277", 10, paymentStartY + 30);
-  doc.text("N° cuenta: 898138399808", 10, paymentStartY + 40);
-  doc.text("Email: zurcherconstruction.fl@gmail.com", 10, paymentStartY + 50);
+  doc.text("N° ruta: 063100277", 10, paymentStartY + 25);
+  doc.text("N° cuenta: 898138399808", 10, paymentStartY + 30);
+  doc.text("Email: zurcherconstruction.fl@gmail.com", 10, paymentStartY + 40);
 
   // Agregar enlace clickeable al lado derecho
   const linkX = pageWidth - 50; // Posición del enlace a la derecha

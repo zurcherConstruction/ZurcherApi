@@ -19,6 +19,9 @@ import BarraLateral from './Components/Dashboard/BarraLateral';
 import BudgetList from './Components/Budget/BudgetList';
 //import PdfViewerPage from './Components/PdfViewerPage';
 import Works from './Components/Works/Work';
+import ProgressTracker from './Components/ProgressTracker';
+import WorkDetail from './Components/Works/WorkDetail';
+
 
 function App() {
   const dispatch = useDispatch();
@@ -48,7 +51,8 @@ function App() {
           {/* <Route path="/pdf-viewer" element={<PdfViewerPage />} /> */}
           <Route path="/budgets" element={<BudgetList/> } />
           <Route path="/works" element={<Works />} />
-         
+          <Route path="/work/:idWork" element={<WorkDetail />} />
+         <Route path="/progress-tracker" element={<ProgressTracker />} />
          
 
           {/* Rutas protegidas */}
