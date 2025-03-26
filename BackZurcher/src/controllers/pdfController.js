@@ -74,18 +74,17 @@ const processPdf = async (req, res) => {
 
         console.log('Datos extraídos del PDF:', extractedData);
 
-        if (!extractedData.permitNumber || !extractedData.applicationNumber) {
+        if (!extractedData.applicationNumber) {
             return res.status(400).json({
                 message: 'No se pudieron extraer todos los datos necesarios',
                 extractedData
             });
         }
-        extractedData.pdfData = req.file.buffer;
-        const permitData = await Permit.create(extractedData);
 
+        // Devolver los datos extraídos al frontend
         res.json({
             message: 'PDF procesado correctamente',
-            data: permitData
+            data: extractedData
         });
     } catch (err) {
         console.error('Error procesando el PDF:', err);

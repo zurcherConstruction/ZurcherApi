@@ -7,6 +7,10 @@ module.exports = (sequelize) => {
       primaryKey: true,
       autoIncrement: true,
     },
+    applicantName: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
     date: {
       type: DataTypes.DATEONLY,
       allowNull: false,
@@ -23,8 +27,9 @@ module.exports = (sequelize) => {
       allowNull: false,
     },
     status: {
-      type: DataTypes.ENUM("send", "approved", "notResponded", "rejected"),
+      type: DataTypes.ENUM("created","send", "approved", "notResponded", "rejected"),
       allowNull: false,
     },
+    
   });
 };

@@ -16,6 +16,9 @@ import Landing from './Components/Landing';
 import PdfReceipt from './Components/PdfReceipt';
 import BarraLateral from './Components/Dashboard/BarraLateral';
 
+//import PdfViewerPage from './Components/PdfViewerPage';
+
+
 function App() {
   const dispatch = useDispatch();
   const [activeSection, setActiveSection] = useState("Overview");
@@ -41,6 +44,8 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
+          {/* <Route path="/pdf-viewer" element={<PdfViewerPage />} /> */}
+          <Route path="/unauthorized" element={<Unauthorized />} />
 
           {/* Rutas protegidas */}
           <Route
@@ -48,9 +53,12 @@ function App() {
             element={
               <PrivateRoute allowedRoles={['owner', 'admin']}>
                 <Dashboard />
+               
               </PrivateRoute>
             }
           />
+                
+         
           <Route
             path="/firststage"
             element={
