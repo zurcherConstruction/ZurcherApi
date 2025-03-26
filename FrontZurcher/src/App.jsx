@@ -14,6 +14,7 @@ import NotFound from './Components/NotFound';
 import Unauthorized from './Components/Auth/Unauthorized';
 import Landing from './Components/Landing';
 import PdfReceipt from './Components/PdfReceipt';
+import BarraLateral from './Components/Dashboard/BarraLateral';
 
 function App() {
   const dispatch = useDispatch();
@@ -28,8 +29,10 @@ function App() {
 
   return (
     <BrowserRouter>
-      <Header activeSection={activeSection} setActiveSection={setActiveSection} />
-      <div className="container mx-auto p-4">
+       <Header />
+      <div className="flex">
+        <BarraLateral />
+        <div className="flex-1 ml-60 pt-20 p-4">
         <Routes>
           {/* Rutas públicas */}
           <Route path="/" element={<Landing />} />
@@ -61,6 +64,7 @@ function App() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </div>
+    </div>
     </BrowserRouter>
   );
 }

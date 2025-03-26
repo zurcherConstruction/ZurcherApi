@@ -1,9 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import logo from '../assets/logoseptic.png'; // Import the logo
-
+import { useSelector,  useDispatch } from 'react-redux';
+import { fetchPermits } from '../Redux/Actions/permitActions';
 const Materiales = () => {
+  const dispatch = useDispatch();
+  const permits = useSelector((state) => state.permit.permits); // Accede al estado de permits
+  const loading = useSelector((state) => state.permit.loading);
+  const error = useSelector((state) => state.permit.error);
+
+  useEffect(() => {
+    dispatch(fetchPermits()); // Dispara la acción para cargar permisos
+  }, [dispatch]);
+
+  console.log('Permits desde Redux:', permits); // Verifica el estado
+
+  
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     client: '',
@@ -11,6 +24,8 @@ const Materiales = () => {
     materials: [{ material: '', quantity: '', comment: '' }],
     comments: ''
   });
+
+
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -45,9 +60,10 @@ const Materiales = () => {
     doc.text(`Fecha: ${formData.date}`, 150, 15); // Add date
     doc.text(`Cliente: ${formData.client}`, 150, 25); // Add client
     doc.setFontSize(16);
-    doc.text(`Materiales para ${formData.obraAddress}`, 10, 50); // Add title
+    doc.text(`Materiales para:`, 10, 50); // Título
+  doc.text(`${formData.obraAddress}`, 10, 60); // 
     autoTable(doc, {
-      startY: 60,
+      startY: 80,
       head: [['Material', 'Cantidad', 'Comentario']],
       body: formData.materials.map(material => [
         material.material,
@@ -94,19 +110,24 @@ const Materiales = () => {
           />
         </div>
         <div>
-          <label htmlFor="obraAddress" className="block text-gray-700 text-sm font-bold mb-2">
-            Dirección de Obra:
-          </label>
-          <input
-            type="text"
-            id="obraAddress"
-            name="obraAddress"
-            value={formData.obraAddress}
-            onChange={handleChange}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            placeholder="Ingrese la dirección de obra"
-          />
-        </div>
+      {loading && <p>Cargando permisos...</p>}
+      {error && <p>Error: {error}</p>}
+      <select
+  id="obraAddress"
+  name="obraAddress"
+  value={formData.obraAddress}
+  onChange={handleChange} // Usa el mismo manejador de cambios
+  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+>
+  <option value="">Seleccione una dirección</option>
+  {Array.isArray(permits) &&
+    permits.map((permit) => (
+      <option key={permit.idPermit} value={permit.propertyAddress}>
+        {permit.propertyAddress}
+      </option>
+    ))}
+</select>
+    </div>
         {formData.materials.map((material, index) => (
           <div key={index} className="flex gap-4">
             <div className="flex-1">
