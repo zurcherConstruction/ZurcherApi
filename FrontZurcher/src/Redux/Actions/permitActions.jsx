@@ -21,7 +21,7 @@ import {
 export const fetchPermits = () => async (dispatch) => {
   dispatch(fetchPermitsRequest());
   try {
-    const response = await api.get('/permits'); // Ruta del backend
+    const response = await api.get('/permit'); // Ruta del backend
     dispatch(fetchPermitsSuccess(response.data));
   } catch (error) {
     const errorMessage =
