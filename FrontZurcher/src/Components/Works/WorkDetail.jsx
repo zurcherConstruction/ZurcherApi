@@ -36,18 +36,18 @@ const WorkDetail = () => {
   return (
     <div className="p-4 bg-white shadow-md rounded-lg">
       <h2 className="text-xl font-bold mb-4">Detalles de la Obra</h2>
-      <p><strong>ID:</strong> {work.idWork}</p>
-      <p><strong>Dirección:</strong> {work.propertyAddress}</p>
-      <p><strong>Estado:</strong> {work.status}</p>
-      <p><strong>Notas:</strong> {work.notes}</p>
+     
+      <p><strong>Address:</strong> {work.propertyAddress}</p>
+      <p><strong>State:</strong> {work.status}</p>
+      
       <p><strong>Presupuesto:</strong> {work.budget?.price || "No disponible"}</p>
       <p><strong>Permiso:</strong> {work.permit?.idPermit || "No disponible"}</p>
       
       
       {pdfUrl && (
         <div>
-          <h3 className="text-lg font-bold mt-4">Vista previa del permiso</h3>
-          <iframe src={pdfUrl} width="100%" height="500px" title="Vista previa del PDF"></iframe>
+          <h3 className="text-lg font-bold mt-4">Vista previa del Permit</h3>
+          <iframe src={pdfUrl} width="50%" height="250px" title="Vista previa del PDF"></iframe>
         </div>
       )}
       {/* Agrega más campos según sea necesario */}

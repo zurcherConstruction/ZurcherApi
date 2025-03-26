@@ -18,10 +18,11 @@ const authSlice = createSlice({
     },
     loginSuccess: (state, action) => {
       state.loading = false;
-      state.staff = action.payload.staff;
+      state.staff = action.payload.staff; // Aquí se almacena el objeto staff
       state.token = action.payload.token;
       state.isAuthenticated = true;
       state.error = null;
+      localStorage.setItem('token', action.payload.token); // Almacena el token en localStorage
     },
     loginFailure: (state, action) => {
       state.loading = false;

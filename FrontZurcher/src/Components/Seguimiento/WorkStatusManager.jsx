@@ -88,10 +88,10 @@ const WorkStatusManager = () => {
       {/* Detalle de la obra seleccionada */}
       {selectedWork && (
         <div className="p-4 bg-white shadow-md rounded-lg mb-4">
-          <h3 className="text-lg font-bold mb-2">Detalles de la Obra</h3>
+          <h3 className="text-lg font-bold mb-2">Work Detail</h3>
           <p><strong>Dirección:</strong> {selectedWork.propertyAddress}</p>
           <p><strong>Estado:</strong> {selectedWork.status}</p>
-          <p><strong>Notas:</strong> {selectedWork.notes || 'Sin notas'}</p>
+        
         </div>
       )}
 
