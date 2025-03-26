@@ -7,6 +7,14 @@ module.exports = (sequelize) => {
       primaryKey: true,
       autoIncrement: true,
     },
+    propertyAddress: {
+      type: DataTypes.TEXT,
+      allowNull: false,
+      references: {
+        model: 'Permits',
+        key: 'propertyAddress'
+      }
+    },
     applicantName: {
       type: DataTypes.STRING,
       allowNull: false,

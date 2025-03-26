@@ -1,17 +1,38 @@
-const { Budget } = require('../data');
+const { Budget, Permit  } = require('../data');
 
 const BudgetController = {
   async createBudget(req, res) {
     try {
-      const { date, expirationDate, price, initialPayment, status, applicantName } = req.body;
+      const { date, expirationDate, price, initialPayment, status, applicantName, propertyAddress } = req.body;
 
       // Validar campos obligatorios
-      if (!date || !price || !initialPayment || !status || !applicantName) {
+      if (!date || !price || !initialPayment || !status || !applicantName || !propertyAddress) {
         return res.status(400).json({ error: 'Faltan campos obligatorios' });
       }
 
+      // Verificar que existe un permiso con esa dirección
+      const permit = await Permit.findOne({ 
+        where: { propertyAddress } 
+      });
+
+      if (!permit) {
+        return res.status(404).json({ 
+          error: 'No existe un permiso para la dirección especificada' 
+        });
+      }
+
       // Crear presupuesto
-      const budget = await Budget.create({ date, expirationDate, price, initialPayment, status, applicantName });
+      const budget = await Budget.create({ 
+        date, 
+        propertyAddress, 
+        expirationDate, 
+        price, 
+        initialPayment, 
+        status, 
+        applicantName 
+      });
+
+      console.log('Presupuesto creado:', budget.toJSON());
       res.status(201).json(budget);
     } catch (error) {
       console.error('Error al crear el presupuesto:', error);
