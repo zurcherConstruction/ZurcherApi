@@ -5,9 +5,10 @@ const BarraLateral = () => {
   const [isOpen, setIsOpen] = useState(false); // Estado para controlar si la barra lateral está abierta
 
   const menuItems = [
-    { name: "Works", path: "/works" },
+   
     { name: "Cargar Permits", path: "/pdf" },
     { name: "Presupuestos", path: "/budgets" },
+    { name: "Works", path: "/works" },
     { name: "Seguimiento", path: "/inspecciones" },
     { name: "Materiales", path: "/materiales" },
     { name: "Staff", path: "/staff" },
