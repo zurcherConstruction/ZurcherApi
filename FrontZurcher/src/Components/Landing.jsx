@@ -1,5 +1,6 @@
 // eslint-disable-next-line no-unused-vars
 import React from 'react'
+import Login from './Auth/Login'
 
 
 
@@ -7,7 +8,7 @@ import React from 'react'
 const Landing = () => {
   return (
     <div>
-     
+     <Login />
      
       </div>
   )

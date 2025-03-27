@@ -38,6 +38,9 @@ module.exports = (sequelize) => {
       type: DataTypes.ENUM("created","send", "approved", "notResponded", "rejected"),
       allowNull: false,
     },
-    
+    propertyAddress: {
+      type: DataTypes.TEXT,
+      allowNull: false, // Asegúrate de que sea obligatorio
+    },
   });
 };

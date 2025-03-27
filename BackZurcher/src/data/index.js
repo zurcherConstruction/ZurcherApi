@@ -70,6 +70,8 @@ Inspection.belongsTo(Work, { foreignKey: 'workId' });
 Staff.hasMany(Work, { foreignKey: 'staffId' });
 Work.belongsTo(Staff, { foreignKey: 'staffId' });
 
+Work.belongsTo(Budget, { foreignKey: 'idBudget', as: 'budget' });
+
 //---------------------------------------------------------------------------------//
 module.exports = {
   ...sequelize.models, // para poder importar los modelos así: const { Product, User } = require('./db.js');

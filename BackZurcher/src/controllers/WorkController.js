@@ -1,21 +1,37 @@
-const { Work, Permit } = require('../data');
+const { Work, Permit, Budget, Material, Inspection } = require('../data');
 
-// Crear una nueva obra
+
 const createWork = async (req, res) => {
   try {
-    const { propertyAddress, status, startDate, notes } = req.body;
+    const { idBudget } = req.body;
 
-    // Verificar que el permiso asociado exista
-    const permit = await Permit.findOne({ where: { propertyAddress } });
-    if (!permit) {
-      return res.status(404).json({ error: true, message: 'Permiso no encontrado para esta dirección' });
+    // Buscar el presupuesto con estado "approved"
+    const budget = await Budget.findOne({
+      where: { idBudget, status: 'approved' },
+      include: [{ model: Permit }], // Incluir el permiso relacionado
+    });
+
+    if (!budget) {
+      return res.status(404).json({ error: true, message: 'Presupuesto no encontrado o no aprobado' });
+    }
+
+    // Verificar si ya existe un Work asociado al Budget
+    const existingWork = await Work.findOne({ where: { propertyAddress: budget.propertyAddress } });
+    if (existingWork) {
+      return res.status(400).json({ error: true, message: 'Ya existe una obra asociada a este presupuesto' });
     }
 
     // Crear la obra
-    const work = await Work.create({ propertyAddress, status, startDate,  notes });
-    res.status(201).json(work);
+    const work = await Work.create({
+      propertyAddress: budget.propertyAddress,
+      status: 'pending', // Estado inicial
+      idPermit: budget.permit?.idPermit || null, // Asociar el permiso si existe
+      notes: `Work create budget N° ${idBudget}`,
+    });
+
+    res.status(201).json({ message: 'Obra creada correctamente', work });
   } catch (error) {
-    console.error('Error al crear la obra:', error);
+    console.error('Error al crear la obra desde el presupuesto aprobado:', error);
     res.status(500).json({ error: true, message: 'Error interno del servidor' });
   }
 };
@@ -23,7 +39,20 @@ const createWork = async (req, res) => {
 // Obtener todas las obras
 const getWorks = async (req, res) => {
   try {
-    const works = await Work.findAll();
+    const works = await Work.findAll({
+      include: [
+        {
+          model: Budget,
+          as: 'budget', // Alias definido en la relación
+          attributes: ['idBudget', 'propertyAddress', 'status', 'price'], // Campos relevantes del presupuesto
+        },
+        {
+          model: Permit,
+          
+          attributes: ['idPermit', 'propertyAddress', 'applicantName'], // Campos relevantes del permiso
+        },
+      ],
+    });
     res.status(200).json(works);
   } catch (error) {
     console.error('Error al obtener las obras:', error);
@@ -35,7 +64,42 @@ const getWorks = async (req, res) => {
 const getWorkById = async (req, res) => {
   try {
     const { idWork } = req.params;
-    const work = await Work.findByPk(idWork);
+    const work = await Work.findByPk(idWork, {
+      include: [
+        {
+          model: Budget,
+          as: 'budget',
+          attributes: ['idBudget', 'propertyAddress', 'status', 'price'],
+        },
+        {
+          model: Permit,
+          attributes: [
+            'idPermit',
+            'propertyAddress',
+            'permitNumber',
+            'applicantName',
+            
+            'pdfData', // Incluir el PDF
+          ],
+        },
+        {
+          model: Material,
+          attributes: ['idMaterial', 'name', 'quantity','unit', 'cost'],
+        },
+        {
+          model: Inspection,
+          attributes: [
+            'idInspection',
+            'type',
+            'status',
+            'dateRequested',
+            'dateCompleted',
+            'notes',
+          ],
+        },
+      
+      ],
+    });
 
     if (!work) {
       return res.status(404).json({ error: true, message: 'Obra no encontrada' });
