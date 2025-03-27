@@ -1,5 +1,5 @@
-const { Work, Permit, Budget, Material, Inspection } = require('../data');
-
+const { Work, Permit, Budget, Material, Inspection, Staff } = require('../data');
+const {sendEmail} = require('../emailService');
 
 const createWork = async (req, res) => {
   try {
@@ -28,6 +28,20 @@ const createWork = async (req, res) => {
       idPermit: budget.permit?.idPermit || null, // Asociar el permiso si existe
       notes: `Work create budget N° ${idBudget}`,
     });
+
+     // Buscar a los usuarios con roles "owner" y "admin"
+     const staffToNotify = await Staff.findAll({
+      where: {
+        role: ['owner', 'admin'], // Roles a notificar
+      },
+    });
+
+    // Enviar correos electrónicos a los usuarios correspondientes
+    const notificationMessage = `El trabajo con ID ${work.id} y dirección ${work.propertyAddress} ha sido aprobado. Por favor, procedan a comprar los materiales necesarios.`;
+    for (const staff of staffToNotify) {
+      await sendEmail(staff, notificationMessage);
+    }
+
 
     res.status(201).json({ message: 'Obra creada correctamente', work });
   } catch (error) {
