@@ -88,7 +88,11 @@ const login = async (req, res, next) => {
         token,
         staff: {
           ...staffResponse,
-          role: staff.role, // Incluye el rol explícitamente
+         
+          name: staff.name, // Incluye el nombre del usuario
+          email: staff.email, // Incluye el email
+          role: staff.role, // Incluye el rol
+          lastLogin: staff.lastLogin, // Incluye el último login
         },
       },
     });

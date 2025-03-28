@@ -1,5 +1,7 @@
 const { Work, Permit, Budget, Material, Inspection, Staff } = require('../data');
-const {sendEmail} = require('../emailService');
+const {sendEmail} = require('../utils/nodeMailer/emailService');
+const { getNotificationDetails } = require('../utils/nodeMailer/notificationService');
+
 
 const createWork = async (req, res) => {
   try {
@@ -145,6 +147,21 @@ const updateWork = async (req, res) => {
     work.notes = notes || work.notes;
 
     await work.save();
+
+ // Obtener detalles de notificación
+ const notificationDetails = await getNotificationDetails(status, work);
+console.log('Detalles de notificación:', notificationDetails);
+
+ if (notificationDetails) {
+   const { staffToNotify, message } = notificationDetails;
+
+   // Enviar correos electrónicos a los empleados correspondientes
+   for (const staff of staffToNotify) {
+    console.log('Enviando correo a:', staff.email);
+    await sendEmail(staff, message);
+  }
+ }
+
     res.status(200).json(work);
   } catch (error) {
     console.error('Error al actualizar la obra:', error);

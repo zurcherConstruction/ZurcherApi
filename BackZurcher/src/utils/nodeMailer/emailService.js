@@ -19,11 +19,19 @@ const sendEmail = async (staff, message) => {
       to: staff.email, // Correo del empleado
       subject: 'Notificación de cambio de estado de trabajo',
       html: `
-        <p>Hola ${staff.name || 'Empleado'},</p>
-        <p>${message}</p>
-        <p>Por favor, revisa el sistema para más detalles.</p>
-        <p>Gracias,</p>
-        <p><strong>Zurcher Construction</strong></p>
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <img src="http://localhost:3000/assets/logoseptic.png" alt="Logo de la empresa" style="width: 150px; height: auto;" />
+          </div>
+          <h2 style="color: #0056b3;">Hola ${staff.name || staff.email},</h2>
+          <p>${message}</p>
+          <p>Por favor, revisa el sistema para más detalles.</p>
+          <div style="text-align: center; margin-top: 20px;">
+            <a href="https://www.tuempresa.com" style="background-color: #0056b3; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir a la página</a>
+          </div>
+          <p style="margin-top: 20px;">Gracias,</p>
+          <p><strong>Zurcher Construction</strong></p>
+        </div>
       `,
     };
 
