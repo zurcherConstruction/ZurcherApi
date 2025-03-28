@@ -4,6 +4,11 @@ module.exports = (sequelize) => {
   sequelize.define(
     "Staff",
     {
+      id: {
+        type: DataTypes.UUID,
+        defaultValue: DataTypes.UUIDV4, // Genera automáticamente un UUID
+        primaryKey: true, // Define este campo como clave primaria
+      },
       name: {
         type: DataTypes.STRING,
       },

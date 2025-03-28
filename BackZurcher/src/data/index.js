@@ -52,7 +52,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Budget, Work, Material, Inspection } = sequelize.models;
+const { Staff, Permit, Budget, Work, Material, Inspection, Notification } = sequelize.models;
 
 // Relaciones
 Permit.hasMany(Work, { foreignKey: 'propertyAddress', sourceKey: 'propertyAddress' });
@@ -71,6 +71,11 @@ Staff.hasMany(Work, { foreignKey: 'staffId' });
 Work.belongsTo(Staff, { foreignKey: 'staffId' });
 
 Work.belongsTo(Budget, { foreignKey: 'idBudget', as: 'budget' });
+
+// Relación entre Staff y Notification
+// Relación entre Staff y Notification
+Staff.hasMany(Notification, { foreignKey: 'staffId', as: 'notifications' }); // Alias para las notificaciones
+Notification.belongsTo(Staff, { foreignKey: 'staffId', as: 'sender' }); // Alias para el remitente
 
 //---------------------------------------------------------------------------------//
 module.exports = {

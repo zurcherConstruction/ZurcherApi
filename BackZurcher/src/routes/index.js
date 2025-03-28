@@ -9,7 +9,7 @@ const inspectionRoutes = require('./inspectionRoutes');
 const materialRoutes = require('./materialRoutes');
 const workRoutes = require('./workRoutes');
 const permitRoutes = require('./permitRoutes');
-
+const notificationRoutes = require('./NotificationRoutes'); // Asegúrate de que la ruta sea correcta
 
 
 // Rutas públicas
@@ -25,6 +25,7 @@ router.use('/inspection', inspectionRoutes);
 router.use('/material', materialRoutes);
 router.use('/work', workRoutes);
 router.use('/permit', permitRoutes);
+router.use('/notification', notificationRoutes); // Rutas de notificaciones
 
 
 module.exports = router;

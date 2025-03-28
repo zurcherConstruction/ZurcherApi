@@ -1,7 +1,10 @@
 import React, { useState } from "react";
 import { NavLink } from "react-router-dom";
+import { useSelector } from "react-redux"; // Asegúrate de importar useSelector
+
 
 const BarraLateral = () => {
+  const { staff } = useSelector((state) => state.auth);
   const [isOpen, setIsOpen] = useState(false); // Estado para controlar si la barra lateral está abierta
 
   const menuItems = [
@@ -15,6 +18,7 @@ const BarraLateral = () => {
     { name: "Estadísticas", path: "/estadisticas" },
     { name: "Clientes", path: "/clientes" },
     { name: "Progresos", path: "/progress-tracker" },
+    { name: "Notificaciones", path: "/send-notifications" },
   ];
 
   return (

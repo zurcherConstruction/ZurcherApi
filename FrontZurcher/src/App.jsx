@@ -23,6 +23,8 @@ import ProgressTracker from './Components/ProgressTracker';
 import WorkDetail from './Components/Works/WorkDetail';
 import Materiales from './Components/Materiales';
 import MaterialsCheck from './Components/Seguimiento/WorkStatusManager';
+import SendNotification from './Components/SendNotification';
+
 
 function App() {
   const dispatch = useDispatch();
@@ -126,6 +128,14 @@ function App() {
               element={
                 <PrivateRoute allowedRoles={['owner', 'admin', 'user']}>
                   <PdfReceipt />
+                </PrivateRoute>
+              }
+            />
+                <Route
+              path="/send-notifications"
+              element={
+                <PrivateRoute allowedRoles={['owner', 'recept', 'worker', 'admin']}>
+                  <SendNotification />
                 </PrivateRoute>
               }
             />

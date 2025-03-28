@@ -17,25 +17,12 @@ const adminSlice = createSlice({
     },
     fetchStaffSuccess: (state, action) => {
       state.loading = false;
-      // Transformar los datos para manejar valores null
-      state.staff = action.payload.map((staff) => ({
-        id: staff.id,
-        name: staff.name || 'No especificado',
-        email: staff.email || 'No especificado',
-        phone: staff.phone || 'No especificado',
-        role: staff.role || 'No especificado',
-        isActive: staff.isActive,
-        lastLogin: staff.lastLogin || 'No registrado',
-        lastLogout: staff.lastLogout || 'No registrado',
-        createdAt: staff.createdAt,
-        updatedAt: staff.updatedAt,
-      }));
+      state.staff = action.payload; // Los datos ya están transformados en la acción
     },
     fetchStaffFailure: (state, action) => {
       state.loading = false;
-      state.error = action.payload;
+      state.error = action.payload || 'Error desconocido al obtener el staff';
     },
-
     // Crear staff
     createStaffRequest: (state) => {
       state.loading = true;
