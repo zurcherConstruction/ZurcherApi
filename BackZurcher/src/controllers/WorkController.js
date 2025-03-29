@@ -1,4 +1,4 @@
-const { Work, Permit, Budget, Material, Inspection, Staff } = require('../data');
+const { Work, Permit, Budget, Material, Inspection, Staff, InstallationDetail } = require('../data');
 const {sendEmail} = require('../utils/nodeMailer/emailService');
 const { getNotificationDetails } = require('../utils/nodeMailer/notificationService');
 
@@ -186,6 +186,40 @@ const deleteWork = async (req, res) => {
     res.status(500).json({ error: true, message: 'Error interno del servidor' });
   }
 };
+const addInstallationDetail = async (req, res) => {
+  try {
+    const { idWork } = req.params; // ID del Work al que se asociará el detalle
+    const { date, extraDetails, extraMaterials, images } = req.body;
+
+    // Verificar que el Work exista
+    const work = await Work.findByPk(idWork);
+    if (!work) {
+      return res.status(404).json({ error: true, message: 'Obra no encontrada' });
+    }
+
+    // Crear el detalle de instalación
+    const installationDetail = await InstallationDetail.create({
+      idWork,
+      date,
+      extraDetails,
+      extraMaterials,
+      images,
+    });
+
+    // Actualizar el estado del Work a "installed"
+    work.status = 'installed';
+    await work.save();
+
+    res.status(201).json({
+      message: 'Detalle de instalación agregado correctamente',
+      installationDetail,
+      work,
+    });
+  } catch (error) {
+    console.error('Error al agregar el detalle de instalación:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor' });
+  }
+};
 
 module.exports = {
   createWork,
@@ -193,4 +227,5 @@ module.exports = {
   getWorkById,
   updateWork,
   deleteWork,
+  addInstallationDetail
 };

@@ -21,4 +21,7 @@ router.put('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner']), Wo
 // Eliminar una obra (solo administradores)
 router.delete('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner']), WorkController.deleteWork);
 
+// Ruta para agregar un detalle de instalación a un Work
+router.post('/:idWork/installation-details', verifyToken, allowRoles(['admin', 'recept', 'owner','worker']), WorkController.addInstallationDetail);
+
 module.exports = router;

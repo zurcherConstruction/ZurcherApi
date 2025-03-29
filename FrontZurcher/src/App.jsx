@@ -25,6 +25,8 @@ import Materiales from './Components/Materiales';
 import MaterialsCheck from './Components/Seguimiento/WorkStatusManager';
 import SendNotification from './Components/SendNotification';
 import Notifications from './Components/Notifications';
+import InstallationForm from './Components/Works/InstalationForm';
+
 
 function App() {
   const dispatch = useDispatch();
@@ -96,6 +98,14 @@ function App() {
               element={
                 <PrivateRoute allowedRoles={['owner', 'admin', 'user']}>
                   <WorkDetail />
+                </PrivateRoute>
+              }
+            />
+              <Route
+              path="/installation"
+              element={
+                <PrivateRoute allowedRoles={['owner', 'admin', 'user','worker']}>
+                  <InstallationForm />
                 </PrivateRoute>
               }
             />

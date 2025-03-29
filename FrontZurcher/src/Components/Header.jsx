@@ -4,7 +4,9 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { logoutStaff } from "../Redux/Actions/authActions";
 import Notifications from "./Notifications"; // Importamos el componente Notifications
-import { EnvelopeIcon, ArrowLeftOnRectangleIcon } from "@heroicons/react/24/outline"; 
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faEnvelope, faRightFromBracket } from "@fortawesome/free-solid-svg-icons";
+
 
 const Header = () => {
   const dispatch = useDispatch();
@@ -41,7 +43,7 @@ const Header = () => {
               className="relative hover:text-blue-300 text-sm md:text-base"
             >
               {/* Ícono de sobre */}
-              <EnvelopeIcon className="w-6 h-6" />
+              <FontAwesomeIcon icon={faEnvelope} className="w-6 h-6" />
               {unreadCount > 0 && (
                 <span className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
                   {unreadCount}
@@ -53,8 +55,8 @@ const Header = () => {
             {showNotifications && (
               <div className="absolute right-0 mt-2 w-64 bg-white text-black shadow-lg rounded-lg z-20">
                 <Notifications
-                  isDropdown={true} // Indicamos que es un dropdown
-                  onClose={() => setShowNotifications(false)} // Cerramos el dropdown al interactuar
+                  isDropdown={true}
+                  onClose={() => setShowNotifications(false)}
                 />
               </div>
             )}
@@ -65,16 +67,15 @@ const Header = () => {
         {isAuthenticated && (
           <button
             onClick={handleLogout}
-            className="flex items-center gap-2  hover:text-blue-300 text-sm md:text-base"
+            className="flex items-center gap-2 hover:text-blue-300 text-sm md:text-base"
           >
-            <ArrowLeftOnRectangleIcon className="w-6 h-6" /> {/* Ícono de logout */}
-            
+            <FontAwesomeIcon icon={faRightFromBracket} className="w-6 h-6" />
+            <span className="hidden md:block">Logout</span>
           </button>
         )}
       </div>
     </div>
   );
 };
-
 
 export default Header;

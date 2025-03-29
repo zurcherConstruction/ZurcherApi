@@ -12,6 +12,9 @@ import {
   updateWorkRequest,
   updateWorkSuccess,
   updateWorkFailure,
+  addInstallationDetailRequest,
+  addInstallationDetailSuccess,
+  addInstallationDetailFailure,
   deleteWorkRequest,
   deleteWorkSuccess,
   deleteWorkFailure,
@@ -75,11 +78,25 @@ export const updateWork = (idWork, workData) => async (dispatch) => {
 export const deleteWork = (idWork) => async (dispatch) => {
   dispatch(deleteWorkRequest());
   try {
-    await api.delete(`/works/${idWork}`); // Ruta del backend
+    await api.delete(`/work/${idWork}`); // Ruta del backend
     dispatch(deleteWorkSuccess(idWork));
   } catch (error) {
     const errorMessage =
       error.response?.data?.message || 'Error al eliminar la obra';
     dispatch(deleteWorkFailure(errorMessage));
+  }
+};
+export const addInstallationDetail = (idWork, installationData) => async (dispatch) => {
+  dispatch(addInstallationDetailRequest());
+  try {
+    const response = await api.post(`/work/${idWork}/installation-details`, installationData);
+
+    dispatch(addInstallationDetailSuccess(response.data)); // Despacha los datos recibidos
+    return response.data; // Devuelve los datos para usarlos en el componente
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.message || "Error al agregar el detalle de instalación";
+    dispatch(addInstallationDetailFailure(errorMessage));
+    throw error; // Lanza el error para manejarlo en el componente
   }
 };

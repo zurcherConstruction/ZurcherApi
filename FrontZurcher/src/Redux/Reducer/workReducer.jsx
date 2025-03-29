@@ -60,15 +60,46 @@ const workSlice = createSlice({
     },
     updateWorkSuccess: (state, action) => {
       state.loading = false;
-      const index = state.works.findIndex((work) => work.id === action.payload.id);
+      const index = state.works.findIndex((work) => work.idWork === action.payload.idWork);
       if (index !== -1) {
         state.works[index] = action.payload;
+      }
+      // Si la obra actualizada es la seleccionada, también actualizamos `selectedWork`
+      if (state.selectedWork?.idWork === action.payload.idWork) {
+        state.selectedWork = action.payload;
       }
     },
     updateWorkFailure: (state, action) => {
       state.loading = false;
       state.error = action.payload;
     },
+
+     // Agregar un detalle de instalación
+     addInstallationDetailRequest: (state) => {
+      state.loading = true;
+      state.error = null;
+    },
+    addInstallationDetailSuccess: (state, action) => {
+      state.loading = false;
+      const { work, installationDetail } = action.payload;
+
+      // Actualizar el estado del `selectedWork` si coincide con el `idWork`
+      if (state.selectedWork?.idWork === work.idWork) {
+        state.selectedWork = {
+          ...state.selectedWork,
+          ...work, // Actualizamos el estado del Work
+          installationDetails: [
+            ...(state.selectedWork.installationDetails || []),
+            installationDetail, // Agregamos el nuevo detalle de instalación
+          ],
+        };
+      }
+    },
+    addInstallationDetailFailure: (state, action) => {
+      state.loading = false;
+      state.error = action.payload;
+    },
+      
 
     // Eliminar una obra
     deleteWorkRequest: (state) => {
@@ -104,6 +135,9 @@ export const {
   updateWorkRequest,
   updateWorkSuccess,
   updateWorkFailure,
+  addInstallationDetailRequest,
+  addInstallationDetailSuccess,
+  addInstallationDetailFailure,
   deleteWorkRequest,
   deleteWorkSuccess,
   deleteWorkFailure,
