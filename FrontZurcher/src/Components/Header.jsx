@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { logoutStaff } from "../Redux/Actions/authActions";
 import Notifications from "./Notifications"; // Importamos el componente Notifications
+import { EnvelopeIcon, ArrowLeftOnRectangleIcon } from "@heroicons/react/24/outline"; 
 
 const Header = () => {
   const dispatch = useDispatch();
@@ -31,7 +32,7 @@ const Header = () => {
       </div>
 
       {/* Acciones rápidas */}
-      <div className="flex gap-4 items-center">
+      <div className="flex gap-6 items-center">
         {/* Ícono de notificaciones */}
         {isAuthenticated && (
           <div className="relative">
@@ -39,9 +40,10 @@ const Header = () => {
               onClick={() => setShowNotifications(!showNotifications)}
               className="relative hover:text-blue-300 text-sm md:text-base"
             >
-              <span className="material-icons">notifications</span>
+              {/* Ícono de sobre */}
+              <EnvelopeIcon className="w-6 h-6" />
               {unreadCount > 0 && (
-                <span className="absolute top-0 right-0 bg-red-500 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
+                <span className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center">
                   {unreadCount}
                 </span>
               )}
@@ -59,27 +61,20 @@ const Header = () => {
           </div>
         )}
 
-        {/* Botón de login/logout */}
-        {isAuthenticated ? (
-          <button onClick={handleLogout} className="hover:text-blue-300 text-sm md:text-base">
-            Logout
+        {/* Botón de logout */}
+        {isAuthenticated && (
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2  hover:text-blue-300 text-sm md:text-base"
+          >
+            <ArrowLeftOnRectangleIcon className="w-6 h-6" /> {/* Ícono de logout */}
+            
           </button>
-        ) : (
-          <a href="/login" className="hover:text-blue-300 text-sm md:text-base">
-            Login
-          </a>
         )}
-
-        {/* Enlace de seguimiento */}
-        <a
-          href="/progress-tracker"
-          className="hidden md:block hover:text-blue-300 text-sm md:text-base"
-        >
-          Seguimiento
-        </a>
       </div>
     </div>
   );
 };
+
 
 export default Header;

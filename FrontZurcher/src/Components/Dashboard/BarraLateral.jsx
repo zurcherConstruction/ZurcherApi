@@ -18,8 +18,8 @@ const BarraLateral = () => {
     { name: "Estadísticas", path: "/estadisticas" },
     { name: "Clientes", path: "/clientes" },
     { name: "Progresos", path: "/progress-tracker" },
-    { name: "Notificaciones", path: "/send-notifications" },
-    { name: "Mis Notificaciones", path: "/notifications" },
+    { name: "Enviar mensaje", path: "/send-notifications" },
+    
   ];
 
   return (
