@@ -11,10 +11,14 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING,
       allowNull: false,
     },
-    staffId: { // Cambiado de "Id" a "staffId"
+    staffId: {
       type: DataTypes.UUID,
       allowNull: false,
     },
+    senderId: {
+        type: DataTypes.UUID, // ID del remitente
+        allowNull: false,
+      },
     isRead: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
@@ -22,6 +26,16 @@ module.exports = (sequelize) => {
     type: {
       type: DataTypes.STRING, // Por ejemplo: 'alerta', 'mensaje', 'tarea'
       allowNull: true,
+    },
+    parentId: {
+      type: DataTypes.UUID, // Cambiado de INTEGER a UUID
+      allowNull: true,
+      references: {
+        model: 'Notifications', // Hace referencia a la misma tabla
+        key: 'id',
+      },
+      onDelete: 'SET NULL', // Si se elimina la notificación original, establece parentId como NULL
+      onUpdate: 'CASCADE',
     },
   });
 };

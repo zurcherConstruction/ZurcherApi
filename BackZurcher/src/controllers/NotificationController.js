@@ -3,33 +3,42 @@ const { Notification, Staff } = require('../data');
 
  const createNotification = async (req, res) => {
   try {
-    const { staffId, message, type } = req.body;
+    const { staffId, message, type, parentId } = req.body;
 
-    // Verificar que el usuario exista
-    const staff = await Staff.findByPk(staffId);
-    if (!staff) {
-      return res.status(404).json({ error: true, message: "Usuario no encontrado" });
+    // Obtener el usuario que envía la notificación (remitente)
+    const sender = req.staff;
+
+    if (!sender) {
+      return res.status(401).json({ error: true, message: "Usuario no autenticado" });
+    }
+
+    let recipientId = staffId; // Por defecto, el destinatario es el staffId proporcionado
+
+    // Si es una respuesta, verifica que la notificación original exista
+    if (parentId) {
+      const originalNotification = await Notification.findByPk(parentId);
+      if (!originalNotification) {
+        return res.status(404).json({ error: true, message: "Notificación original no encontrada" });
+      }
+
+      // El destinatario de la respuesta debe ser el remitente de la notificación original
+      recipientId = originalNotification.senderId;
     }
 
     // Crear la notificación
     const notification = await Notification.create({
-      staffId,
+      staffId: recipientId, // Destinatario
       message,
       type,
+      parentId: parentId || null, // Asocia la respuesta con la notificación original
+      senderId: sender.id, // Remitente
     });
-
-    // Agregar el nombre del remitente y su ID a la notificación
-    const notificationWithSender = {
-      ...notification.toJSON(),
-      senderId: staff.id, // Incluye el ID del remitente
-      senderName: staff.name, // Incluye el nombre del remitente
-    };
 
     // Emitir la notificación en tiempo real
     const io = req.app.get("io");
-    io.to(staffId).emit("newNotification", notificationWithSender);
+    io.to(recipientId).emit("newNotification", notification);
 
-    res.status(201).json({ error: false, notification: notificationWithSender });
+    res.status(201).json({ error: false, notification });
   } catch (error) {
     console.error("Error al crear la notificación:", error);
     res.status(500).json({ error: true, message: "Error interno del servidor" });
@@ -40,7 +49,7 @@ const getNotifications = async (req, res) => {
   try {
     const { staffId } = req.params;
 
-    // Obtener las notificaciones con el nombre del remitente
+    // Obtener las notificaciones con sus respuestas
     const notifications = await Notification.findAll({
       where: { staffId },
       include: [
@@ -48,6 +57,11 @@ const getNotifications = async (req, res) => {
           model: Staff,
           as: "sender", // Alias definido en la relación
           attributes: ["id", "name"], // Incluye el ID y el nombre del remitente
+        },
+        {
+          model: Notification,
+          as: "responses", // Alias para las respuestas
+          attributes: ["id", "message", "createdAt"], // Incluye los campos necesarios de las respuestas
         },
       ],
       order: [["createdAt", "DESC"]],

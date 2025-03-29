@@ -24,7 +24,7 @@ import WorkDetail from './Components/Works/WorkDetail';
 import Materiales from './Components/Materiales';
 import MaterialsCheck from './Components/Seguimiento/WorkStatusManager';
 import SendNotification from './Components/SendNotification';
-
+import Notifications from './Components/Notifications';
 
 function App() {
   const dispatch = useDispatch();
@@ -136,6 +136,14 @@ function App() {
               element={
                 <PrivateRoute allowedRoles={['owner', 'recept', 'worker', 'admin']}>
                   <SendNotification />
+                </PrivateRoute>
+              }
+            />
+               <Route
+              path="/notifications"
+              element={
+                <PrivateRoute allowedRoles={['owner', 'recept', 'worker', 'admin']}>
+                  <Notifications />
                 </PrivateRoute>
               }
             />

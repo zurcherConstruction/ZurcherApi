@@ -73,9 +73,11 @@ Work.belongsTo(Staff, { foreignKey: 'staffId' });
 Work.belongsTo(Budget, { foreignKey: 'idBudget', as: 'budget' });
 
 // Relación entre Staff y Notification
-// Relación entre Staff y Notification
-Staff.hasMany(Notification, { foreignKey: 'staffId', as: 'notifications' }); // Alias para las notificaciones
-Notification.belongsTo(Staff, { foreignKey: 'staffId', as: 'sender' }); // Alias para el remitente
+Notification.belongsTo(Staff, { as: "sender", foreignKey: "senderId" });
+Staff.hasMany(Notification, { as: "sentNotifications", foreignKey: "senderId" });
+
+Notification.hasMany(Notification, { as: "responses", foreignKey: "parentId" });
+Notification.belongsTo(Notification, { as: "parent", foreignKey: "parentId" });
 
 //---------------------------------------------------------------------------------//
 module.exports = {
