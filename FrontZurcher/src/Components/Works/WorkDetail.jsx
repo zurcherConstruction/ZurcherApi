@@ -43,8 +43,8 @@ const WorkDetail = () => {
         <h2 className="text-xl font-bold mb-4">Detalles de la Obra</h2>
         <p><strong>Address:</strong> {work.propertyAddress}</p>
         <p><strong>State:</strong> {work.status}</p>
-        <p><strong>Presupuesto:</strong> {work.budget?.price || "No disponible"}</p>
-        <p><strong>Permiso:</strong> {work.permit?.idPermit || "No disponible"}</p>
+        <p><strong>Aplicante:</strong> {work.Permit?.applicantName || "No disponible"}</p>
+        <p><strong>Permit N°:</strong> {work.Permit?.idPermit || "No disponible"}</p>
 
         {pdfUrl && (
           <div>
