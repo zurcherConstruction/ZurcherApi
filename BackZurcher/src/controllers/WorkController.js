@@ -113,6 +113,11 @@ const getWorkById = async (req, res) => {
             'notes',
           ],
         },
+        {
+          model: InstallationDetail, // Incluir el modelo InstallationDetail
+          as: 'installationDetails', // Alias definido en la relación
+          attributes: ['idInstallationDetail', 'date', 'extraDetails', 'extraMaterials', 'images'], // Campos relevantes
+        },
       
       ],
     });
@@ -188,6 +193,7 @@ const deleteWork = async (req, res) => {
 };
 const addInstallationDetail = async (req, res) => {
   try {
+    console.log("Request Body:", req.body);
     const { idWork } = req.params; // ID del Work al que se asociará el detalle
     const { date, extraDetails, extraMaterials, images } = req.body;
 

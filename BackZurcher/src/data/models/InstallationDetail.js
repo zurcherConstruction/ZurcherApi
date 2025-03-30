@@ -26,7 +26,7 @@ module.exports = (sequelize) => {
     },
     images: {
       type: DataTypes.ARRAY(DataTypes.STRING), // URLs de imágenes
-      allowNull: true,
+      defaultValue: [],
     },
   });
 };
