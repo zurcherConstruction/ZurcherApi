@@ -42,5 +42,18 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: false, // Asegúrate de que sea obligatorio
     },
+     systemType: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    drainfieldDepth: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    gpdCapacity: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    
   });
 };

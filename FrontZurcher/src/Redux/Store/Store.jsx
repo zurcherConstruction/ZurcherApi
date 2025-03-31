@@ -14,7 +14,7 @@ const rootReducer = combineReducers({
   auth: authReducer,
   pdf: pdfReducer,
    admin: adminReducer,
-   Budget: BudgetReducer,
+   budget: BudgetReducer,
    inspection: inspectionReducer,
    material: materialReducer,
   permit: permitReducer,
