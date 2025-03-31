@@ -7,6 +7,18 @@ module.exports = (sequelize) => {
       primaryKey: true,
       autoIncrement: true,
     },
+    propertyAddress: {
+      type: DataTypes.TEXT,
+      allowNull: false,
+      references: {
+        model: 'Permits',
+        key: 'propertyAddress'
+      }
+    },
+    applicantName: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
     date: {
       type: DataTypes.DATEONLY,
       allowNull: false,
@@ -23,8 +35,25 @@ module.exports = (sequelize) => {
       allowNull: false,
     },
     status: {
-      type: DataTypes.ENUM("send", "approved", "notResponded", "rejected"),
+      type: DataTypes.ENUM("created","send", "approved", "notResponded", "rejected"),
       allowNull: false,
     },
+    propertyAddress: {
+      type: DataTypes.TEXT,
+      allowNull: false, // Asegúrate de que sea obligatorio
+    },
+     systemType: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    drainfieldDepth: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    gpdCapacity: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
+    
   });
 };

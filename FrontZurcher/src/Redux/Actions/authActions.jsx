@@ -5,13 +5,22 @@ import { loginRequest, loginSuccess, loginFailure, logout } from '../Reducer/aut
 export const login = (email, password) => async (dispatch) => {
   dispatch(loginRequest());
   try {
-    console.log('Datos enviados al backend:', { email, password }); // Depuración
+    // Verificar los datos enviados al backend
+    console.log('Datos enviados al backend:', { email, password });
+
     const response = await api.post('/auth/login', { email, password });
+
+    // Verificar la respuesta del backend
+    console.log('Respuesta del backend:', response.data);
+
     const { token, staff } = response.data.data;
 
-    // Guardar el token en localStorage
+    // Guardar el token y el staff en localStorage
     localStorage.setItem('token', token);
     localStorage.setItem('staff', JSON.stringify(staff));
+
+    // Verificar los datos enviados al reducer
+    console.log('Datos enviados al reducer:', { token, staff });
 
     dispatch(loginSuccess({ token, staff }));
   } catch (error) {
@@ -19,6 +28,7 @@ export const login = (email, password) => async (dispatch) => {
       error.response?.data?.message || // Mensaje del backend
       error.message || // Mensaje del cliente (por ejemplo, error de red)
       'Error al iniciar sesión'; // Mensaje por defecto
+
     console.error('Error en login:', errorMessage); // Registro en consola para depuración
     dispatch(loginFailure(errorMessage));
   }

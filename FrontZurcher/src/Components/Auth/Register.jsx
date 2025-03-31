@@ -1,130 +1,268 @@
-
-import { useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { register } from '../../Redux/Actions/authActions';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  fetchStaff,
+  createStaff,
+  updateStaff,
+  deactivateOrDeleteStaff,
+} from "../../Redux/Actions/adminActions";
+import { validateForm } from "../../utils/validation";
 
 const Register = () => {
   const dispatch = useDispatch();
-  const navigate = useNavigate();
-  const { loading, error } = useSelector((state) => state.auth);
 
+  
+  const { staff, loading, error } = useSelector((state) => state.admin);
+
+  
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    role: '', // Agrega otros campos necesarios como `role` o `phone`
-    phone: '',
+    email: "",
+    password: "",
+    role: "admin",
+    phone: "",
+    name: "",
+    isActive: true,
   });
+  const [editingStaff, setEditingStaff] = useState(null); 
+  
+  useEffect(() => {
+    dispatch(fetchStaff());
+  }, [dispatch]);
 
-  const handleChange = (e) => {
+  
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [name]: value,
     });
   };
 
-  const handleSubmit = async (e) => {
+ 
+  const handleSubmit = (e) => {
     e.preventDefault();
-    console.log('Datos enviados para registro:', formData); // Depuración
-    try {
-      await dispatch(register(formData));
-      navigate('/dashboard'); // Redirige al dashboard después del registro
-    } catch (error) {
-      console.error('Error al registrarse:', error);
+    const errors = validateForm(formData);
+    if (Object.keys(errors).length > 0) {
+      alert("Por favor corrige los siguientes errores:\n" + Object.values(errors).join("\n"));
+      return;
+    }
+
+    if (editingStaff) {
+      
+      dispatch(updateStaff(editingStaff.id, formData));
+      setEditingStaff(null); 
+    } else {
+      
+      dispatch(createStaff(formData));
+    }
+    setFormData({
+      email: "",
+      password: "",
+      role: "admin",
+      phone: "",
+      name: "",
+      isActive: true,
+    });
+  };
+
+ 
+  const handleEdit = (staff) => {
+    setEditingStaff(staff);
+    setFormData({
+      email: staff.email,
+      password: "", 
+      role: staff.role,
+      phone: staff.phone,
+      name: staff.name,
+      isActive: staff.isActive,
+    });
+  };
+
+ 
+const handleDelete = (id) => {
+  const confirmDelete = window.confirm(
+    "¿Estás seguro de que deseas eliminar este miembro del staff?"
+  );
+  if (confirmDelete) {
+    dispatch(deactivateOrDeleteStaff(id, "delete")); 
+  }
+};
+ 
+  const handleDeactivate = (id) => {
+    const confirmDeactivate = window.confirm(
+      "¿Estás seguro de que deseas desactivar este miembro del staff?"
+    );
+    if (confirmDeactivate) {
+      dispatch(deactivateOrDeleteStaff(id, "deactivate")); 
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Regístrate
-          </h2>
-        </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="rounded-md shadow-sm -space-y-px">
+    <div className="p-4">
+     
+
+      
+      <div className="mb-6">
+        <h2 className="text-xl font-semibold mb-4">
+          {editingStaff ? "Editar Staff" : "Registrar Staff"}
+        </h2>
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+           
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleInputChange}
+              required
+              className="w-full border rounded px-3 py-2"
+              placeholder="Nombre completo"
+            />
+          </div>
+          <div>
+           
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleInputChange}
+              required
+              className="w-full border rounded px-3 py-2"
+              placeholder="Email"
+            />
+          </div>
+          <div>
+            
+            <input
+              type="tel"
+              name="phone"
+              value={formData.phone}
+              onChange={handleInputChange}
+              required
+              className="w-full border rounded px-3 py-2"
+              placeholder="Teléfono"
+            />
+          </div>
+          <div>
+            
+            <select
+              name="role"
+              value={formData.role}
+              onChange={handleInputChange}
+              required
+              className="w-full border rounded px-3 py-2"
+            >
+              <option value="admin">Admin</option>
+              <option value="worker">Worker</option>
+              <option value="recept">Recept</option>
+              <option value="owner">Owner</option>
+            </select>
+          </div>
+          {editingStaff && (
             <div>
-              <label htmlFor="email" className="sr-only">
-                Correo electrónico
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={formData.email}
-                onChange={handleChange}
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-fuchsia-500 focus:border-fuchsia-500 focus:z-10 sm:text-sm"
-                placeholder="Correo electrónico"
-              />
+              
+              <select
+                name="isActive"
+                value={formData.isActive}
+                onChange={handleInputChange}
+                className="w-full border rounded px-3 py-2"
+              >
+                <option value="true">Activo</option>
+                <option value="false">Inactivo</option>
+              </select>
             </div>
+          )}
+          {!editingStaff && (
             <div>
-              <label htmlFor="password" className="sr-only">
-                Contraseña
-              </label>
+             
               <input
-                id="password"
-                name="password"
                 type="password"
-                autoComplete="current-password"
-                required
+                name="password"
                 value={formData.password}
-                onChange={handleChange}
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-fuchsia-500 focus:border-fuchsia-500 focus:z-10 sm:text-sm"
+                onChange={handleInputChange}
+                required
+                className="w-full border rounded px-3 py-2"
                 placeholder="Contraseña"
               />
             </div>
-            <div>
-              <label htmlFor="role" className="sr-only">
-                Rol
-              </label>
-              <input
-                id="role"
-                name="role"
-                type="text"
-                required
-                value={formData.role}
-                onChange={handleChange}
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-fuchsia-500 focus:border-fuchsia-500 focus:z-10 sm:text-sm"
-                placeholder="Rol (admin, owner, etc.)"
-              />
-            </div>
-            <div>
-              <label htmlFor="phone" className="sr-only">
-                Teléfono
-              </label>
-              <input
-                id="phone"
-                name="phone"
-                type="text"
-                value={formData.phone}
-                onChange={handleChange}
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-fuchsia-500 focus:border-fuchsia-500 focus:z-10 sm:text-sm"
-                placeholder="Teléfono"
-              />
-            </div>
-          </div>
-          {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <div className="flex">
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-red-800">{error}</h3>
-                </div>
-              </div>
-            </div>
           )}
-          <div>
+          <div className="md:col-span-2 flex justify-end">
             <button
               type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-fuchsia-600 hover:bg-fuchsia-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-fuchsia-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-700"
             >
-              {loading ? 'Registrando...' : 'Registrarse'}
+              {editingStaff ? "Guardar Cambios" : "Registrar"}
             </button>
           </div>
         </form>
+      </div>
+
+      {/* Listado del staff */}
+      <div>
+        <h2 className="text-lg font-bold mb-2">Staff</h2>
+        {loading && <p className="text-blue-500">Cargando staff...</p>}
+        {error && <p className="text-red-500">Error: {error}</p>}
+        {!loading && !error && (
+          <table className="table-auto w-full border-collapse border border-gray-300">
+            <thead>
+              <tr className="bg-gray-200">
+                <th className="border border-gray-300 px-4 py-2">Nombre</th>
+                <th className="border border-gray-300 px-4 py-2">Email</th>
+                <th className="border border-gray-300 px-4 py-2">Teléfono</th>
+                <th className="border border-gray-300 px-4 py-2">Rol</th>
+                <th className="border border-gray-300 px-4 py-2">Estado</th>
+                <th className="border border-gray-300 px-4 py-2">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+            {staff && staff.length > 0 ? (
+                staff.map((member) => (
+                  <tr key={member.id} className="hover:bg-gray-100">
+                    <td className="border border-gray-300 px-4 py-2">{member.name}</td>
+                    <td className="border border-gray-300 px-4 py-2">{member.email}</td>
+                    <td className="border border-gray-300 px-4 py-2">{member.phone}</td>
+                    <td className="border border-gray-300 px-4 py-2">{member.role}</td>
+                    <td className="border border-gray-300 px-4 py-2">
+                      {member.isActive ? (
+                        <span className="text-green-500 font-bold">Activo</span>
+                      ) : (
+                        <span className="text-red-500 font-bold">Inactivo</span>
+                      )}
+                    </td>
+                    <td className="border border-gray-300 px-4 py-2">
+                      <button
+                        onClick={() => handleEdit(member)}
+                        className="bg-yellow-500 text-white text-xs px-2 py-1 rounded hover:bg-yellow-700 mr-2"
+                      >
+                        Editar
+                      </button>
+                      {member.isActive && (
+                        <button
+                          onClick={() => handleDeactivate(member.id)}
+                          className="bg-orange-500 text-white text-xs px-2 py-1 rounded hover:bg-orange-700 mr-2"
+                        >
+                          Desactivar
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDelete(member.id)}
+                        className="bg-red-500 text-white text-xs px-2 py-1 rounded hover:bg-red-700"
+                      >
+                        Eliminar
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="6" className="text-center py-4">
+                    No hay miembros del staff registrados.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

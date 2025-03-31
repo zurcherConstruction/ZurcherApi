@@ -1,0 +1,45 @@
+const nodemailer = require('nodemailer');
+
+// Configurar el transporte de Nodemailer
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // true para el puerto 465, false para otros puertos
+  auth: {
+    user: 'guatapenocountry@gmail.com', // Tu correo de Gmail
+    pass: 'kgiz adhs boqt hedg', // Tu contraseña de aplicación
+  },
+});
+
+// Función para enviar el correo
+const sendEmail = async (staff, message) => {
+  try {
+    const mailOptions = {
+      from: 'guatapenocountry@gmail.com', // Dirección de correo del remitente
+      to: staff.email, // Correo del empleado, imagen traer de cloudinary
+      subject: 'Notificación de cambio de estado de trabajo',
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <img src="http://localhost:3000/assets/logoseptic.png" alt="Logo de la empresa" style="width: 150px; height: auto;" />
+          </div>
+          <h2 style="color: #0056b3;">Hola ${staff.name || staff.email},</h2>
+          <p>${message}</p>
+          <p>Por favor, revisa el sistema para más detalles.</p>
+          <div style="text-align: center; margin-top: 20px;">
+            <a href="https://www.tuempresa.com" style="background-color: #0056b3; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Ir a la página</a>
+          </div>
+          <p style="margin-top: 20px;">Gracias,</p>
+          <p><strong>Zurcher Construction</strong></p>
+        </div>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Correo enviado a ${staff.email}`);
+  } catch (error) {
+    console.error('Error al enviar el correo:', error);
+  }
+};
+
+module.exports = { sendEmail };

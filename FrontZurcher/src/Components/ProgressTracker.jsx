@@ -1,68 +1,150 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchWorks } from "../Redux/Actions/workActions"; // Acción para obtener los works
 
+// Mapeo de estados del backend a nombres legibles
 const etapas = [
-  "Presupuesto", "Pago", "Instalación", "Inspección",
-  "Tapado", "Inspec Final", "Terminado"
-];
-
-const edificaciones = [
-  { id: 1, numeroCliente: "1234", etapaActual: "Instalación" },
-  { id: 2, numeroCliente: "5678", etapaActual: "Tapado" },
-  { id: 3, numeroCliente: "9101", etapaActual: "Pago" },
+  { backend: "pending", display: "Esperando Materiales" },
+  { backend: "inProgress", display: "Preparando Instalación" },
+  { backend: "installed", display: "Instalado" },
+  { backend: "firstInspectionPending", display: "Inspección Pendiente" },
+  { backend: "approvedInspection", display: "Inspección Aprobada" },
+  { backend: "completed", display: "Completado" },
+  { backend: "finalInspectionPending", display: "Inspección Final Pendiente" },
+  { backend: "finalApproved", display: "Inspección Final Aprobada" },
+  { backend: "maintenance", display: "Mantenimiento" },
 ];
 
 const ProgressTracker = () => {
-  const [search, setSearch] = useState("");
-  const [filteredData, setFilteredData] = useState(edificaciones);
+  const dispatch = useDispatch();
 
-  const handleSearch = (e) => {
-    const value = e.target.value;
-    setSearch(value);
+  // Obtener works desde el estado de Redux
+  const { works, loading, error } = useSelector((state) => state.work);
+
+  // Estado local para la búsqueda
+  const [search, setSearch] = useState("");
+  const [filteredData, setFilteredData] = useState([]);
+
+  // Cargar works al montar el componente
+  useEffect(() => {
+    dispatch(fetchWorks()); // Cargar los works desde el backend
+  }, [dispatch]);
+
+  // Actualizar los datos filtrados cuando cambien los works o la búsqueda
+  useEffect(() => {
     setFilteredData(
-      edificaciones.filter((item) => item.numeroCliente.includes(value))
+      works.filter((work) =>
+        work.propertyAddress.toLowerCase().includes(search.toLowerCase())
+      )
     );
+  }, [works, search]);
+
+  // Manejar la búsqueda
+  const handleSearch = (e) => {
+    setSearch(e.target.value);
   };
 
-  const getProgressIndex = (etapa) => etapas.indexOf(etapa);
+  // Obtener el índice de progreso según el estado
+  const getProgressIndex = (status) =>
+    etapas.findIndex((etapa) => etapa.backend === status);
+
+  // Obtener el nombre legible de la etapa
+  const getDisplayName = (status) => {
+    const etapa = etapas.find((etapa) => etapa.backend === status);
+    return etapa ? etapa.display : "Estado desconocido";
+  };
+
+  // Filtrar etapas para excluir estados rechazados
+  const filteredEtapas = etapas.filter(
+    (etapa) =>
+      etapa.backend !== "rejectedInspection" && etapa.backend !== "finalRejected"
+  );
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-4xl mx-auto">
+    <div className="p-4 md:p-6 lg:p-8 max-w-5xl mx-auto">
       <input
         type="text"
-        placeholder="Buscar por N° de Cliente"
+        placeholder="Buscar por Dirección"
         value={search}
         onChange={handleSearch}
-        className="border p-2 mb-4 w-full rounded-md"
+        className="border border-gray-300 p-2 md:p-3 mb-6 w-full rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
       />
-      {filteredData.map(({ id, numeroCliente, etapaActual }) => (
-        <div key={id} className="mb-6 bg-white p-4 shadow-md rounded-lg">
-          <h3 className="font-bold text-lg mb-2">Cliente: {numeroCliente}</h3>
-          <div className="relative flex items-center overflow-x-auto">
-            <div className="absolute w-full h-2 bg-gray-300 rounded-full"></div>
-            <div
-              className="absolute h-2 bg-green-500 rounded-full"
-              style={{ width: `${(getProgressIndex(etapaActual) / (etapas.length - 1)) * 100}%` }}
-            ></div>
-            {etapas.map((etapa, index) => (
-              <div key={etapa} className="relative flex flex-col items-center w-full min-w-max">
-                <div
-                  className={`w-6 h-6 flex items-center justify-center rounded-full text-white text-xs z-10 ${
-                    getProgressIndex(etapaActual) >= index
-                      ? "bg-green-500"
-                      : "bg-gray-400"
-                  }`}
-                >
-                  {index + 1}
-                </div>
-                <p className="text-xs mt-2 text-center w-16 text-gray-700">{etapa}</p>
-              </div>
-            ))}
+  
+      {/* Mostrar estado de carga */}
+      {loading && <p className="text-blue-500 text-center">Cargando obras...</p>}
+  
+      {/* Mostrar error si ocurre */}
+      {error && <p className="text-red-500 text-center">Error: {error}</p>}
+  
+      {/* Mostrar lista de obras */}
+      {!loading &&
+        !error &&
+        filteredData.map(({ idWork, propertyAddress, status }) => (
+          <div
+            key={idWork}
+            className="bg-white p-4 md:p-4 shadow-lg rounded-lg border border-gray-200"
+          >
+            <h3 className="font-semibold text-lg md:text-xl text-gray-700 text-center">
+              Address: {propertyAddress}
+            </h3>
+  
+{/* Diseño para pantallas grandes */}
+<div className="hidden sm:flex relative items-center justify-between">
+  {/* Barra de fondo */}
+  <div className="absolute w-full h-2 bg-gray-200 rounded-full"></div>
+  
+  {/* Barra de progreso */}
+  <div
+    className="absolute h-2 bg-green-500 rounded-full transition-all duration-500"
+    style={{
+      width: `${
+        (getProgressIndex(status) / (filteredEtapas.length - 1)) * 100
+      }%`,
+    }}
+  ></div>
+
+  {filteredEtapas.map((etapa, index) => (
+    <div
+      key={etapa.backend}
+      className="relative flex flex-col items-center"
+      style={{
+        width: `${100 / filteredEtapas.length}%`,
+      }}
+    >
+      {/* Círculo */}
+      <div
+        className={`w-8 h-8 flex items-center justify-center rounded-full text-white text-sm font-bold shadow-md ${
+          getProgressIndex(status) >= index
+            ? "bg-green-500"
+            : "bg-gray-400"
+        }`}
+        style={{
+          position: "absolute",
+          top: "50%", // Centrar verticalmente
+          transform: "translate(-50%, -50%)", // Ajustar para que quede centrado
+          left: "50%", // Centrar horizontalmente dentro de su contenedor
+        }}
+      >
+        {index + 1}
+      </div>
+      <p className="text-xs text-center text-gray-600 mt-16">
+        {etapa.display}
+      </p>
+    </div>
+  ))}
+</div>
+  
+            {/* Diseño para móviles */}
+            <div className="block sm:hidden">
+              <p className="text-sm text-gray-600">
+                Estado actual:{" "}
+                <span className="font-semibold text-green-600">
+                  {getDisplayName(status)}
+                </span>
+              </p>
+            </div>
           </div>
-          <p className="text-gray-600 text-sm mt-4 text-center">
-            Estado actual: <span className="font-semibold">{etapaActual}</span>
-          </p>
-        </div>
-      ))}
+        ))}
     </div>
   );
 };

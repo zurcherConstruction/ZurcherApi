@@ -17,10 +17,14 @@ module.exports = (sequelize) => {
       type: DataTypes.ENUM(
         'pending',
         'inProgress',
+        'installed',
+        'firstInspectionPending',
+        'approvedInspection',  
+        'rejectedInspection',
         'completed', //se agrega installed
-        'inspectionPending', //cambiar por firstInspectionPending revisar inspecciones
-        'approved',  
-        'rejected',
+        'finalInspectionPending', //cambiar por firstInspectionPending revisar inspecciones
+        'finalApproved',
+        'finalRejected',
         'maintenance'
       ),
       allowNull: false,

@@ -9,17 +9,17 @@ import inspectionReducer from '../Reducer/inspectionReducer';
 import materialReducer from '../Reducer/materialReducer';
 import permitReducer from '../Reducer/permitReducer';
 import workReducer from '../Reducer/workReducer';
-
+import notificationReducer from '../Reducer/notificationReducer';
 const rootReducer = combineReducers({
   auth: authReducer,
   pdf: pdfReducer,
    admin: adminReducer,
-   Budget: BudgetReducer,
+   budget: BudgetReducer,
    inspection: inspectionReducer,
    material: materialReducer,
   permit: permitReducer,
-   work: workReducer
-
+   work: workReducer,
+  notifications: notificationReducer,
   // agrega otros reducers aquí
 });
 

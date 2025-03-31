@@ -1,21 +1,53 @@
-const { Work, Permit } = require('../data');
+const { Work, Permit, Budget, Material, Inspection, Staff, InstallationDetail } = require('../data');
+const {sendEmail} = require('../utils/nodeMailer/emailService');
+const { getNotificationDetails } = require('../utils/nodeMailer/notificationService');
 
-// Crear una nueva obra
+
 const createWork = async (req, res) => {
   try {
-    const { propertyAddress, status, startDate, notes } = req.body;
+    const { idBudget } = req.body;
 
-    // Verificar que el permiso asociado exista
-    const permit = await Permit.findOne({ where: { propertyAddress } });
-    if (!permit) {
-      return res.status(404).json({ error: true, message: 'Permiso no encontrado para esta dirección' });
+    // Buscar el presupuesto con estado "approved"
+    const budget = await Budget.findOne({
+      where: { idBudget, status: 'approved' },
+      include: [{ model: Permit }], // Incluir el permiso relacionado
+    });
+
+    if (!budget) {
+      return res.status(404).json({ error: true, message: 'Presupuesto no encontrado o no aprobado' });
+    }
+
+    // Verificar si ya existe un Work asociado al Budget
+    const existingWork = await Work.findOne({ where: { propertyAddress: budget.propertyAddress } });
+    if (existingWork) {
+      return res.status(400).json({ error: true, message: 'Ya existe una obra asociada a este presupuesto' });
     }
 
     // Crear la obra
-    const work = await Work.create({ propertyAddress, status, startDate,  notes });
-    res.status(201).json(work);
+    const work = await Work.create({
+      propertyAddress: budget.propertyAddress,
+      status: 'pending', // Estado inicial
+      idPermit: budget.permit?.idPermit || null, // Asociar el permiso si existe
+      notes: `Work create budget N° ${idBudget}`,
+    });
+
+     // Buscar a los usuarios con roles "owner" y "admin"
+     const staffToNotify = await Staff.findAll({
+      where: {
+        role: ['owner', 'admin'], // Roles a notificar
+      },
+    });
+
+    // Enviar correos electrónicos a los usuarios correspondientes
+    const notificationMessage = `El trabajo con ID ${work.id} y dirección ${work.propertyAddress} ha sido aprobado. Por favor, procedan a comprar los materiales necesarios.`;
+    for (const staff of staffToNotify) {
+      await sendEmail(staff, notificationMessage);
+    }
+
+
+    res.status(201).json({ message: 'Obra creada correctamente', work });
   } catch (error) {
-    console.error('Error al crear la obra:', error);
+    console.error('Error al crear la obra desde el presupuesto aprobado:', error);
     res.status(500).json({ error: true, message: 'Error interno del servidor' });
   }
 };
@@ -23,7 +55,20 @@ const createWork = async (req, res) => {
 // Obtener todas las obras
 const getWorks = async (req, res) => {
   try {
-    const works = await Work.findAll();
+    const works = await Work.findAll({
+      include: [
+        {
+          model: Budget,
+          as: 'budget', // Alias definido en la relación
+          attributes: ['idBudget', 'propertyAddress', 'status', 'price'], // Campos relevantes del presupuesto
+        },
+        {
+          model: Permit,
+          
+          attributes: ['idPermit', 'propertyAddress', 'applicantName'], // Campos relevantes del permiso
+        },
+      ],
+    });
     res.status(200).json(works);
   } catch (error) {
     console.error('Error al obtener las obras:', error);
@@ -35,7 +80,47 @@ const getWorks = async (req, res) => {
 const getWorkById = async (req, res) => {
   try {
     const { idWork } = req.params;
-    const work = await Work.findByPk(idWork);
+    const work = await Work.findByPk(idWork, {
+      include: [
+        {
+          model: Budget,
+          as: 'budget',
+          attributes: ['idBudget', 'propertyAddress', 'status', 'price'],
+        },
+        {
+          model: Permit,
+          attributes: [
+            'idPermit',
+            'propertyAddress',
+            'permitNumber',
+            'applicantName',
+            
+            'pdfData', // Incluir el PDF
+          ],
+        },
+        {
+          model: Material,
+          attributes: ['idMaterial', 'name', 'quantity','unit', 'cost'],
+        },
+        {
+          model: Inspection,
+          attributes: [
+            'idInspection',
+            'type',
+            'status',
+            'dateRequested',
+            'dateCompleted',
+            'notes',
+          ],
+        },
+        {
+          model: InstallationDetail, // Incluir el modelo InstallationDetail
+          as: 'installationDetails', // Alias definido en la relación
+          attributes: ['idInstallationDetail', 'date', 'extraDetails', 'extraMaterials', 'images'], // Campos relevantes
+        },
+      
+      ],
+    });
 
     if (!work) {
       return res.status(404).json({ error: true, message: 'Obra no encontrada' });
@@ -67,6 +152,21 @@ const updateWork = async (req, res) => {
     work.notes = notes || work.notes;
 
     await work.save();
+
+ // Obtener detalles de notificación
+ const notificationDetails = await getNotificationDetails(status, work);
+console.log('Detalles de notificación:', notificationDetails);
+
+ if (notificationDetails) {
+   const { staffToNotify, message } = notificationDetails;
+
+   // Enviar correos electrónicos a los empleados correspondientes
+   for (const staff of staffToNotify) {
+    console.log('Enviando correo a:', staff.email);
+    await sendEmail(staff, message);
+  }
+ }
+
     res.status(200).json(work);
   } catch (error) {
     console.error('Error al actualizar la obra:', error);
@@ -91,6 +191,41 @@ const deleteWork = async (req, res) => {
     res.status(500).json({ error: true, message: 'Error interno del servidor' });
   }
 };
+const addInstallationDetail = async (req, res) => {
+  try {
+    console.log("Request Body:", req.body);
+    const { idWork } = req.params; // ID del Work al que se asociará el detalle
+    const { date, extraDetails, extraMaterials, images } = req.body;
+
+    // Verificar que el Work exista
+    const work = await Work.findByPk(idWork);
+    if (!work) {
+      return res.status(404).json({ error: true, message: 'Obra no encontrada' });
+    }
+
+    // Crear el detalle de instalación
+    const installationDetail = await InstallationDetail.create({
+      idWork,
+      date,
+      extraDetails,
+      extraMaterials,
+      images,
+    });
+
+    // Actualizar el estado del Work a "installed"
+    work.status = 'installed';
+    await work.save();
+
+    res.status(201).json({
+      message: 'Detalle de instalación agregado correctamente',
+      installationDetail,
+      work,
+    });
+  } catch (error) {
+    console.error('Error al agregar el detalle de instalación:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor' });
+  }
+};
 
 module.exports = {
   createWork,
@@ -98,4 +233,5 @@ module.exports = {
   getWorkById,
   updateWork,
   deleteWork,
+  addInstallationDetail
 };

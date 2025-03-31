@@ -1,27 +1,88 @@
-const { Budget } = require('../data');
+const { Budget, Permit } = require('../data');
 
 const BudgetController = {
   async createBudget(req, res) {
     try {
-      const { date, expirationDate, price, initialPayment, status } = req.body;
+      console.log("Cuerpo de la solicitud recibido:", req.body);
 
-      // Validar campos obligatorios
-      if (!date || !price || !initialPayment || !status) {
-        return res.status(400).json({ error: 'Faltan campos obligatorios' });
+      // Validar si el cuerpo de la solicitud está vacío
+      if (!req.body) {
+        return res.status(400).json({ error: "El cuerpo de la solicitud está vacío." });
       }
 
+      const {
+        date,
+        expirationDate,
+        price,
+        initialPayment,
+        status,
+        applicantName,
+        propertyAddress,
+        systemType,
+        drainfieldDepth,
+        gpdCapacity,
+      } = req.body;
+
+      // Validar campos obligatorios
+      if (
+        !date ||
+        !price ||
+        !initialPayment ||
+        !status ||
+        !applicantName ||
+        !propertyAddress||
+        !systemType ||
+        !drainfieldDepth ||
+        !gpdCapacity
+      ) {
+        return res.status(400).json({ error: "Faltan campos obligatorios." });
+      }
+
+      // Verificar si el propertyAddress existe en Permit
+      const permit = await Permit.findOne({ where: { propertyAddress } });
+      if (!permit) {
+        return res
+          .status(404)
+          .json({ error: "No se encontró un permiso con esa dirección de propiedad." });
+      }
+
+      console.log("Permiso encontrado:", permit);
+
       // Crear presupuesto
-      const budget = await Budget.create({ date, expirationDate, price, initialPayment, status });
+      const budget = await Budget.create({
+        date,
+        expirationDate,
+        price,
+        initialPayment,
+        status,
+        applicantName,
+        propertyAddress,
+        systemType,
+        drainfieldDepth,
+        gpdCapacity
+
+      });
+
+      console.log("Presupuesto creado:", budget);
+
       res.status(201).json(budget);
     } catch (error) {
-      console.error('Error al crear el presupuesto:', error);
+      console.error("Error al crear el presupuesto:", error);
       res.status(400).json({ error: error.message });
     }
   },
 
+ 
   async getBudgets(req, res) {
     try {
-      const budgets = await Budget.findAll();
+      // Incluir el modelo Permit para obtener el campo propertyAddress
+      const budgets = await Budget.findAll({
+        include: {
+          model: Permit,
+          attributes: ['propertyAddress'], // Solo incluye el campo propertyAddress
+        },
+      });
+
       res.status(200).json(budgets);
     } catch (error) {
       console.error('Error al obtener los presupuestos:', error);
@@ -31,10 +92,17 @@ const BudgetController = {
 
   async getBudgetById(req, res) {
     try {
-      const budget = await Budget.findByPk(req.params.idBudget); // Cambiado a idBudget
+      const budget = await Budget.findByPk(req.params.idBudget, {
+        include: {
+          model: Permit,
+          attributes: ['propertyAddress', 'permitNumber'], // Incluye los campos que necesitas
+        },
+      });
+  
       if (!budget) {
         return res.status(404).json({ error: 'Presupuesto no encontrado' });
       }
+  
       res.status(200).json(budget);
     } catch (error) {
       console.error('Error al obtener el presupuesto:', error);

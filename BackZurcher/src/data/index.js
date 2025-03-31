@@ -52,14 +52,14 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Budget, Work, Material, Inspection } = sequelize.models;
+const { Staff, Permit, Budget, Work, Material, Inspection, Notification, InstallationDetail } = sequelize.models;
 
 // Relaciones
 Permit.hasMany(Work, { foreignKey: 'propertyAddress', sourceKey: 'propertyAddress' });
 Work.belongsTo(Permit, { foreignKey: 'propertyAddress', targetKey: 'propertyAddress' });
 
-Permit.hasMany(Work, { foreignKey: 'permitId' });
-Work.belongsTo(Permit, { foreignKey: 'permitId' });
+Permit.hasMany(Budget, { foreignKey: 'propertyAddress', sourceKey: 'propertyAddress' });
+Budget.belongsTo(Permit, { foreignKey: 'propertyAddress', targetKey: 'propertyAddress' });
 
 Work.hasMany(Material, { foreignKey: 'workId' });
 Material.belongsTo(Work, { foreignKey: 'workId' });
@@ -69,6 +69,18 @@ Inspection.belongsTo(Work, { foreignKey: 'workId' });
 
 Staff.hasMany(Work, { foreignKey: 'staffId' });
 Work.belongsTo(Staff, { foreignKey: 'staffId' });
+
+Work.belongsTo(Budget, { foreignKey: 'idBudget', as: 'budget' });
+
+// Relación entre Staff y Notification
+Notification.belongsTo(Staff, { as: "sender", foreignKey: "senderId" });
+Staff.hasMany(Notification, { as: "sentNotifications", foreignKey: "senderId" });
+
+Notification.hasMany(Notification, { as: "responses", foreignKey: "parentId" });
+Notification.belongsTo(Notification, { as: "parent", foreignKey: "parentId" });
+
+Work.hasMany(InstallationDetail, { foreignKey: 'idWork', as: 'installationDetails' });
+InstallationDetail.belongsTo(Work, { foreignKey: 'idWork', as: 'work' });
 
 //---------------------------------------------------------------------------------//
 module.exports = {

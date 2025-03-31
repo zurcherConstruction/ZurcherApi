@@ -12,6 +12,9 @@ import {
   updateWorkRequest,
   updateWorkSuccess,
   updateWorkFailure,
+  addInstallationDetailRequest,
+  addInstallationDetailSuccess,
+  addInstallationDetailFailure,
   deleteWorkRequest,
   deleteWorkSuccess,
   deleteWorkFailure,
@@ -21,7 +24,7 @@ import {
 export const fetchWorks = () => async (dispatch) => {
   dispatch(fetchWorksRequest());
   try {
-    const response = await api.get('/works'); // Ruta del backend
+    const response = await api.get('/work'); // Ruta del backend
     dispatch(fetchWorksSuccess(response.data));
   } catch (error) {
     const errorMessage =
@@ -34,7 +37,7 @@ export const fetchWorks = () => async (dispatch) => {
 export const fetchWorkById = (idWork) => async (dispatch) => {
   dispatch(fetchWorkByIdRequest());
   try {
-    const response = await api.get(`/works/${idWork}`); // Ruta del backend
+    const response = await api.get(`/work/${idWork}`); // Ruta del backend
     dispatch(fetchWorkByIdSuccess(response.data));
   } catch (error) {
     const errorMessage =
@@ -47,12 +50,14 @@ export const fetchWorkById = (idWork) => async (dispatch) => {
 export const createWork = (workData) => async (dispatch) => {
   dispatch(createWorkRequest());
   try {
-    const response = await api.post('/works', workData); // Ruta del backend
-    dispatch(createWorkSuccess(response.data));
+    const response = await api.post('/work', workData); // Ruta del backend
+    dispatch(createWorkSuccess(response.data)); // Actualizar el estado global con el nuevo Work
+    return response.data; // Devolver el Work creado
   } catch (error) {
     const errorMessage =
       error.response?.data?.message || 'Error al crear la obra';
     dispatch(createWorkFailure(errorMessage));
+    throw error; // Lanzar el error para manejarlo en el componente
   }
 };
 
@@ -60,7 +65,7 @@ export const createWork = (workData) => async (dispatch) => {
 export const updateWork = (idWork, workData) => async (dispatch) => {
   dispatch(updateWorkRequest());
   try {
-    const response = await api.put(`/works/${idWork}`, workData); // Ruta del backend
+    const response = await api.put(`/work/${idWork}`, workData); // Ruta del backend
     dispatch(updateWorkSuccess(response.data));
   } catch (error) {
     const errorMessage =
@@ -73,11 +78,25 @@ export const updateWork = (idWork, workData) => async (dispatch) => {
 export const deleteWork = (idWork) => async (dispatch) => {
   dispatch(deleteWorkRequest());
   try {
-    await api.delete(`/works/${idWork}`); // Ruta del backend
+    await api.delete(`/work/${idWork}`); // Ruta del backend
     dispatch(deleteWorkSuccess(idWork));
   } catch (error) {
     const errorMessage =
       error.response?.data?.message || 'Error al eliminar la obra';
     dispatch(deleteWorkFailure(errorMessage));
+  }
+};
+export const addInstallationDetail = (idWork, installationData) => async (dispatch) => {
+  dispatch(addInstallationDetailRequest());
+  try {
+    const response = await api.post(`/work/${idWork}/installation-details`, installationData);
+
+    dispatch(addInstallationDetailSuccess(response.data)); // Despacha los datos recibidos
+    return response.data; // Devuelve los datos para usarlos en el componente
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.message || "Error al agregar el detalle de instalación";
+    dispatch(addInstallationDetailFailure(errorMessage));
+    throw error; // Lanza el error para manejarlo en el componente
   }
 };

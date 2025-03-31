@@ -6,7 +6,7 @@ export const uploadPdf = createAsyncThunk(
   async (file, thunkAPI) => {
     try {
       const formData = new FormData();
-      formData.append('pdf', file);
+      formData.append('file', file);
       const { data } = await api.post('/pdf/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });

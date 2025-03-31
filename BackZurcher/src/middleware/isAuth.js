@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
+const {Staff} = require('../data'); // Asegúrate de que la ruta sea correcta
 require('dotenv').config();
 
-const verifyToken = (req, res, next) => {
+const verifyToken = async (req, res, next) => {
   try {
     const authorization = req.headers.authorization;
 
@@ -13,7 +14,7 @@ const verifyToken = (req, res, next) => {
     }
 
     const token = authorization.split(' ')[1];
-    jwt.verify(token, process.env.JWT_SECRET_KEY, (err, decoded) => {
+    jwt.verify(token, process.env.JWT_SECRET_KEY, async (err, decoded) => {
       if (err) {
         return res.status(401).json({
           error: true,
@@ -21,8 +22,17 @@ const verifyToken = (req, res, next) => {
         });
       }
 
-      // Asignar los datos del usuario autenticado a req.staff
-      req.staff = decoded; // Cambiado de req.user a req.staff
+      // Buscar el Staff en la base de datos
+      const staff = await Staff.findByPk(decoded.id);
+      if (!staff) {
+        return res.status(401).json({
+          error: true,
+          message: 'Usuario no encontrado',
+        });
+      }
+
+      // Asignar el Staff autenticado a req.staff
+      req.staff = staff;
       next();
     });
   } catch (error) {
@@ -34,10 +44,11 @@ const verifyToken = (req, res, next) => {
   }
 };
 
+
 const generateToken = (staffData) => {
   return jwt.sign(
     {
-     
+      id: staffData.id,
       role: staffData.role,
       email: staffData.email
     },

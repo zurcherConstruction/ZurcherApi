@@ -84,7 +84,17 @@ const login = async (req, res, next) => {
     res.json({
       error: false,
       message: 'Login exitoso',
-      data: { token, staff: staffResponse },
+      data: {
+        token,
+        staff: {
+          ...staffResponse,
+         
+          name: staff.name, // Incluye el nombre del usuario
+          email: staff.email, // Incluye el email
+          role: staff.role, // Incluye el rol
+          lastLogin: staff.lastLogin, // Incluye el último login
+        },
+      },
     });
   } catch (error) {
     next(error);

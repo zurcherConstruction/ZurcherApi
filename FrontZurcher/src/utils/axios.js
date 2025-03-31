@@ -4,12 +4,8 @@ import { logout } from '../Redux/Reducer/authReducer';
 
 // Crear instancia de axios con la URL base
 const api = axios.create({
-  baseURL: 'http://localhost:3001/', // Ajusta esto a tu URL de backend
-  //baseURL: 'http://localhost:3001/',
+  baseURL: 'http://localhost:3001/',
   timeout: 5000,
-  headers: {
-    'Content-Type': 'application/json'
-  }
 });
 
 // Interceptor para requests
@@ -19,6 +15,14 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // No establecer Content-Type si es FormData
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    } else {
+      config.headers['Content-Type'] = 'application/json';
+    }
+
     return config;
   },
   (error) => {
@@ -31,7 +35,6 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Si recibimos un 401, limpiamos el token y redirigimos a login
       store.dispatch(logout());
     }
     return Promise.reject(error);

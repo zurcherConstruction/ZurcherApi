@@ -21,7 +21,7 @@ import {
 export const fetchPermits = () => async (dispatch) => {
   dispatch(fetchPermitsRequest());
   try {
-    const response = await api.get('/permits'); // Ruta del backend
+    const response = await api.get('/permit'); // Ruta del backend
     dispatch(fetchPermitsSuccess(response.data));
   } catch (error) {
     const errorMessage =
@@ -44,14 +44,14 @@ export const fetchPermitById = (idPermit) => async (dispatch) => {
 };
 
 // Crear un permiso
-export const createPermit = (permitData) => async (dispatch) => {
+export const createPermit = (formData) => async (dispatch) => {
   dispatch(createPermitRequest());
   try {
-    const response = await api.post('/permits', permitData); // Ruta del backend
+    // No establecer Content-Type, dejar que el navegador lo haga automáticamente
+    const response = await api.post('/permit', formData);
     dispatch(createPermitSuccess(response.data));
   } catch (error) {
-    const errorMessage =
-      error.response?.data?.message || 'Error al crear el permiso';
+    const errorMessage = error.response?.data?.message || 'Error al crear el permiso';
     dispatch(createPermitFailure(errorMessage));
   }
 };
