@@ -6,7 +6,7 @@ const {
   getAllStaff,
   createStaff,
   updateStaff,
-  deactivateStaff,
+  deactivateOrDeleteStaff,
 } = require("../controllers/User/adminController");
 
 
@@ -17,7 +17,8 @@ router.use(verifyToken);
 router.get("/staff", allowRoles(['admin', 'recept', 'owner', 'worker']), getAllStaff);
 router.post("/staff", allowRoles(['admin', 'recept', 'owner']),createStaff);
 router.put("/staff/:id", allowRoles(['admin', 'recept', 'owner']), updateStaff);
-router.delete("/staff/:id", allowRoles(['admin', 'recept', 'owner']), deactivateStaff);
+router.post("/staff/:id/deactivate", allowRoles(['admin', 'recept', 'owner']), deactivateOrDeleteStaff); 
+router.delete("/staff/:id", allowRoles(['admin', 'recept', 'owner']), deactivateOrDeleteStaff);
 
 
 

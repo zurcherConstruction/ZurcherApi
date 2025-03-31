@@ -14,7 +14,7 @@ const BarraLateral = () => {
     { name: "Works", path: "/works" },
     { name: "Seguimiento", path: "/inspecciones" },
     { name: "Materiales", path: "/materiales" },
-    { name: "Staff", path: "/staff" },
+    { name: "Staff", path: "/register" },
     { name: "Estadísticas", path: "/estadisticas" },
     { name: "Clientes", path: "/clientes" },
     { name: "Progresos", path: "/progress-tracker" },

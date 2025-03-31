@@ -17,7 +17,7 @@ const getAllStaff = async (req, res) => {
 };
 
 const createStaff = async (req, res) => {
-    const { email, password, role, phone, ...staffData } = req.body;
+    const {name, email, password, role, phone, ...staffData } = req.body;
 
     // Validar rol permitido
     const allowedRoles = [ 'recept', 'admin', 'owner', 'worker'];
@@ -35,12 +35,13 @@ const createStaff = async (req, res) => {
     
     const newStaff = await Staff.create({
         ...staffData,
+        name,
         email,
         password: hashedPassword,
         role,
         phone,
         isActive: true,
-        createdBy: req.user.id
+        createdBy: req.staff.id
     });
 
     // Remove password from response
@@ -56,7 +57,7 @@ const createStaff = async (req, res) => {
 
 const updateStaff = async (req, res) => {
     const { id } = req.params;
-    const { email, role, phone, ...updateData } = req.body;
+    const {name, email, role, phone, ...updateData } = req.body;
 
     const staff = await Staff.findByPk(id);
     if (!staff) {
@@ -72,17 +73,18 @@ const updateStaff = async (req, res) => {
     }
 
     // Validar rol si se está actualizando
-    const allowedRoles = ['admin', 'receptionist', 'worker', 'owner'];
+    const allowedRoles = ['admin', 'recept', 'worker', 'owner'];
     if (role && !allowedRoles.includes(role)) {
         throw new CustomError('Rol no válido para staff', 400);
     }
 
     await staff.update({
         ...updateData,
+        name,
         email,
         role,
         phone,
-        updatedBy: req.user.id
+        updatedBy: req.staff.id
     });
 
     const staffResponse = { ...staff.toJSON() };
@@ -95,34 +97,47 @@ const updateStaff = async (req, res) => {
     });
 };
 
-const deactivateStaff = async (req, res) => {
+const deactivateOrDeleteStaff = async (req, res) => {
     const { id } = req.params;
+    const { action } = req.body; // "deactivate" o "delete"
 
-    const staff = await Staff.findByPk(id);
+    // Buscar al usuario en la base de datos
+    const staff = await Staff.findByPk(id); // Buscar por ID sin importar el estado
     if (!staff) {
         throw new CustomError('Usuario no encontrado', 404);
     }
 
-    // Prevenir desactivación del usuario owner principal
+    // Prevenir desactivación/eliminación del usuario owner principal
     if (staff.role === 'owner' && staff.id === 1) {
-        throw new CustomError('No se puede desactivar al usuario principal', 403);
+        throw new CustomError('No se puede modificar al usuario principal', 403);
     }
 
-    await staff.update({ 
-        isActive: false,
-        deactivatedAt: new Date(),
-        deactivatedBy: req.staff.id
-    });
-
-    res.json({
-        error: false,
-        message: 'Usuario desactivado exitosamente'
-    });
+    if (req.method === 'DELETE' || action === 'delete') {
+        // Eliminar permanentemente el registro
+        await staff.destroy();
+        return res.json({
+            error: false,
+            message: 'Usuario eliminado permanentemente',
+        });
+    } else if (action === 'deactivate') {
+        // Desactivar el usuario
+        await staff.update({
+            isActive: false,
+            deactivatedAt: new Date(),
+            deactivatedBy: req.staff.id,
+        });
+        return res.json({
+            error: false,
+            message: 'Usuario desactivado exitosamente',
+        });
+    } else {
+        throw new CustomError('Acción no válida', 400);
+    }
 };
 
 module.exports = {
     getAllStaff,
     createStaff,
     updateStaff,
-    deactivateStaff
+    deactivateOrDeleteStaff
 };

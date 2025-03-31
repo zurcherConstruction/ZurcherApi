@@ -70,6 +70,10 @@ const adminSlice = createSlice({
       state.loading = false;
       state.error = action.payload;
     },
+    deleteStaffSuccess: (state, action) => {
+      state.loading = false;
+      state.staff = state.staff.filter((staff) => staff.id !== action.payload); // Eliminar del estado global
+    },
   },
 });
 
@@ -86,6 +90,7 @@ export const {
   deactivateStaffRequest,
   deactivateStaffSuccess,
   deactivateStaffFailure,
+  deleteStaffSuccess,
 } = adminSlice.actions;
 
 export default adminSlice.reducer;

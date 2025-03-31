@@ -13,6 +13,7 @@ import {
   deactivateStaffRequest,
   deactivateStaffSuccess,
   deactivateStaffFailure,
+  deleteStaffSuccess
 } from '../Reducer/adminReducer';
 
 // Obtener todos los staff
@@ -73,15 +74,22 @@ export const updateStaff = (id, staffData) => async (dispatch) => {
   }
 };
 
-// Desactivar un staff
-export const deactivateStaff = (id) => async (dispatch) => {
+// Desactivar o eliminar un staff
+export const deactivateOrDeleteStaff = (id, action) => async (dispatch) => {
   dispatch(deactivateStaffRequest());
   try {
-    await api.delete(`/admin/staff/${id}`); // Ruta del backend
-    dispatch(deactivateStaffSuccess(id));
+    if (action === "delete") {
+      // Usar DELETE para eliminar
+      await api.delete(`/admin/staff/${id}`);
+      dispatch(deleteStaffSuccess(id)); // Despachar acción específica para eliminar
+    } else if (action === "deactivate") {
+      // Usar POST para desactivar
+      await api.post(`/admin/staff/${id}/deactivate`, { action });
+      dispatch(deactivateStaffSuccess(id)); // Actualizar el estado global para desactivación
+    }
   } catch (error) {
     const errorMessage =
-      error.response?.data?.message || 'Error al desactivar el staff';
+      error.response?.data?.message || "Error al procesar la solicitud";
     dispatch(deactivateStaffFailure(errorMessage));
   }
 };
