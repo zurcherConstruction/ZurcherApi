@@ -15,7 +15,7 @@ const app = express();
 const server = http.createServer(app); // Crear el servidor HTTP
 const io = new Server(server, {
   cors: {
-    origin: '*', // Cambia esto según el dominio de tu frontend
+    origin: 'https://zurcher-api-9526.vercel.app', // Cambia esto según el dominio de tu frontend
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
   },
 });
