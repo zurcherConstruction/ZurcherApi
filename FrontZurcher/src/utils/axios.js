@@ -4,7 +4,7 @@ import { logout } from '../Redux/Reducer/authReducer';
 
 // Crear instancia de axios con la URL base
 const api = axios.create({
-  baseURL: 'http://localhost:3001/',
+  baseURL: 'https://zurcherapi.onrender.com/',
   timeout: 5000,
 });
 
