@@ -57,7 +57,7 @@ app.use(passport.initialize());
 
 // Session
 app.use(cors({
-  origin: 'http://localhost:5173', // Permitir solicitudes desde este origen
+  origin: 'https://zurcher-api-9526.vercel.app', // Permitir solicitudes desde este origen
   methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'], // Métodos permitidos
   allowedHeaders: ['Content-Type', 'Authorization'], // Encabezados permitidos
   credentials: true, // Permitir el uso de credenciales
