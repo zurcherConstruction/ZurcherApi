@@ -35,7 +35,7 @@ const BarraLateral = () => {
 
       {/* Barra lateral */}
       <div
-        className={`fixed top-0 left-0 h-screen bg-gray-800 text-white flex flex-col items-center pt-20  transition-transform duration-300 ${
+        className={`fixed top-0 left-0 h-screen bg-gray-800 text-white flex flex-col items-center   transition-transform duration-300 ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         } lg:translate-x-0 lg:static w-60 md:w-48 lg:w-40`}
       >

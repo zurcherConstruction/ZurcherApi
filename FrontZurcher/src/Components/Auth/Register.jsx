@@ -6,6 +6,7 @@ import {
   updateStaff,
   deactivateOrDeleteStaff,
 } from "../../Redux/Actions/adminActions";
+import { validateForm } from "../../utils/validation";
 
 const Register = () => {
   const dispatch = useDispatch();
@@ -40,6 +41,12 @@ const Register = () => {
  
   const handleSubmit = (e) => {
     e.preventDefault();
+    const errors = validateForm(formData);
+    if (Object.keys(errors).length > 0) {
+      alert("Por favor corrige los siguientes errores:\n" + Object.values(errors).join("\n"));
+      return;
+    }
+
     if (editingStaff) {
       
       dispatch(updateStaff(editingStaff.id, formData));

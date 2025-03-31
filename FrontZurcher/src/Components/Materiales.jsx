@@ -128,19 +128,21 @@ const Materiales = () => {
                 Dirección:
               </label>
               <select
-                id="address"
-                name="address"
-                value={selectedAddress}
-                onChange={(e) => setSelectedAddress(e.target.value)}
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              >
-                <option value="">Seleccione una dirección</option>
-                {works.map((work) => (
-                  <option key={work.idWork} value={work.propertyAddress}>
-                    {work.propertyAddress}
-                  </option>
-                ))}
-              </select>
+  id="address"
+  name="address"
+  value={selectedAddress}
+  onChange={(e) => setSelectedAddress(e.target.value)}
+  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+>
+  <option value="">Seleccione una dirección</option>
+  {works
+    .filter((work) => work.status === "pending") // Filtrar solo las obras con estado "pending"
+    .map((work) => (
+      <option key={work.idWork} value={work.propertyAddress}>
+        {work.propertyAddress}
+      </option>
+    ))}
+</select>
             </div>
             <div>
               <label htmlFor="date" className="block text-gray-700 text-sm font-bold mb-2">

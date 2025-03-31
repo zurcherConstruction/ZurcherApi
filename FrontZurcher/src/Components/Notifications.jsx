@@ -85,7 +85,7 @@ const Notifications = ({ isDropdown = false, onClose }) => {
 
   return (
     <div className={isDropdown ? "absolute bg-white shadow-lg rounded-lg" : ""}>
-      <h2 className="text-lg font-bold">Notificaciones</h2>
+      <h2 className="text-sm font-medium bg-sky-800 text-white p-2 border-">Notificaciones</h2>
       <ul className="divide-y divide-gray-200">
   {notifications.length > 0 ? (
     notifications.map((notification) => (

@@ -51,12 +51,35 @@ export const fetchStaff = () => async (dispatch) => {
 // Crear un nuevo staff
 export const createStaff = (staffData) => async (dispatch) => {
   dispatch(createStaffRequest());
+
+  // Validar el formato del teléfono antes de enviar
+  const phoneRegex = /^[0-9]{10}$/; // Ejemplo: 10 dígitos numéricos
+  if (!phoneRegex.test(staffData.phone)) {
+    const errorMessage = "El número de teléfono debe contener 10 dígitos.";
+    console.error(errorMessage);
+    dispatch(createStaffFailure(errorMessage));
+    return;
+  }
+
   try {
-    const response = await api.post('/admin/staff/', staffData); // Ruta del backend
-    dispatch(createStaffSuccess(response.data.data));
+    console.log('Datos enviados al backend para crear staff:', staffData); // Depuración
+
+    // Enviar los datos al backend
+    const response = await api.post('/auth/register', staffData); // Usamos la misma ruta que `register`
+    const { token, user } = response.data.data;
+
+    // Guardar el token en localStorage (opcional, si es necesario)
+    localStorage.setItem('token', token);
+    localStorage.setItem('staff', JSON.stringify(user));
+
+    // Actualizar el estado global con el nuevo usuario
+    dispatch(createStaffSuccess(user));
   } catch (error) {
     const errorMessage =
-      error.response?.data?.message || 'Error al crear el staff';
+      error.response?.data?.message || // Mensaje del backend
+      error.message || // Mensaje del cliente (por ejemplo, error de red)
+      'Error al crear el staff'; // Mensaje por defecto
+    console.error('Error en createStaff:', errorMessage); // Registro en consola para depuración
     dispatch(createStaffFailure(errorMessage));
   }
 };
