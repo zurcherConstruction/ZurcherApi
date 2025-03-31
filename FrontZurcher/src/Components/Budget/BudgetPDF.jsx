@@ -1,7 +1,7 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import PropTypes from "prop-types";
-import logo from "../../assets/logoseptic.png";
+import logo from "../../../public/logo.png"; // Asegúrate de que la ruta sea correcta
 
 const BudgetPDF = ({ budget, editMode = false }) => {
   const generatePDF = (budget) => {

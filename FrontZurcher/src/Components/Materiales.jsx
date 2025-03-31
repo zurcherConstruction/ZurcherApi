@@ -3,7 +3,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorks, fetchWorkById } from "../Redux/Actions/workActions";
-import logo from '../assets/logoseptic.png';
+import logo from '../../public/logo.png'; // Asegúrate de que la ruta sea correcta
 const Materiales = () => {
   const dispatch = useDispatch();
 

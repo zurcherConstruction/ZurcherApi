@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import logo from "../assets/logoseptic.png";
+import logo from "../../public/logo.png"; // Asegúrate de que la ruta sea correcta
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { logoutStaff } from "../Redux/Actions/authActions";

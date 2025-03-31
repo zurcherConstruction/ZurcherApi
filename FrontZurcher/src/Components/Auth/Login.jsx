@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import { login } from '../../Redux/Actions/authActions';
-import logo from '../../Assets/logoseptic.png';
+import logo from '../../../public/logo.png'; // Asegúrate de que la ruta sea correcta
+import { toast } from 'react-toastify';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 
 const Login = () => {
