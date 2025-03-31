@@ -10,10 +10,10 @@ import {
 const Register = () => {
   const dispatch = useDispatch();
 
-  // Obtener el estado del staff desde Redux
+  
   const { staff, loading, error } = useSelector((state) => state.admin);
 
-  // Estados locales
+  
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -22,14 +22,13 @@ const Register = () => {
     name: "",
     isActive: true,
   });
-  const [editingStaff, setEditingStaff] = useState(null); // Staff seleccionado para edición
-
-  // Cargar el listado del staff al montar el componente
+  const [editingStaff, setEditingStaff] = useState(null); 
+  
   useEffect(() => {
     dispatch(fetchStaff());
   }, [dispatch]);
 
-  // Manejar cambios en los campos del formulario
+  
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData({
@@ -38,15 +37,15 @@ const Register = () => {
     });
   };
 
-  // Manejar la creación o edición del staff
+ 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (editingStaff) {
-      // Actualizar staff existente
+      
       dispatch(updateStaff(editingStaff.id, formData));
-      setEditingStaff(null); // Salir del modo de edición
+      setEditingStaff(null); 
     } else {
-      // Crear nuevo staff
+      
       dispatch(createStaff(formData));
     }
     setFormData({
@@ -59,12 +58,12 @@ const Register = () => {
     });
   };
 
-  // Manejar la edición de un miembro del staff
+ 
   const handleEdit = (staff) => {
     setEditingStaff(staff);
     setFormData({
       email: staff.email,
-      password: "", // No se muestra la contraseña actual
+      password: "", 
       role: staff.role,
       phone: staff.phone,
       name: staff.name,
@@ -72,38 +71,37 @@ const Register = () => {
     });
   };
 
-  // Manejar la eliminación de un miembro del staff
- // Manejar la eliminación de un miembro del staff
+ 
 const handleDelete = (id) => {
   const confirmDelete = window.confirm(
     "¿Estás seguro de que deseas eliminar este miembro del staff?"
   );
   if (confirmDelete) {
-    dispatch(deactivateOrDeleteStaff(id, "delete")); // No necesitas actualizar el estado local
+    dispatch(deactivateOrDeleteStaff(id, "delete")); 
   }
 };
-  // Manejar la desactivación de un miembro del staff
+ 
   const handleDeactivate = (id) => {
     const confirmDeactivate = window.confirm(
       "¿Estás seguro de que deseas desactivar este miembro del staff?"
     );
     if (confirmDeactivate) {
-      dispatch(deactivateOrDeleteStaff(id, "deactivate")); // Acción para desactivar
+      dispatch(deactivateOrDeleteStaff(id, "deactivate")); 
     }
   };
 
   return (
     <div className="p-4">
-      <h1 className="text-xl font-semibold mb-4">Gestión de Staff</h1>
+     
 
-      {/* Formulario de registro/edición */}
+      
       <div className="mb-6">
-        <h2 className="text-lg font-bold mb-2">
+        <h2 className="text-xl font-semibold mb-4">
           {editingStaff ? "Editar Staff" : "Registrar Staff"}
         </h2>
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-bold mb-1">Nombre:</label>
+           
             <input
               type="text"
               name="name"
@@ -111,10 +109,11 @@ const handleDelete = (id) => {
               onChange={handleInputChange}
               required
               className="w-full border rounded px-3 py-2"
+              placeholder="Nombre completo"
             />
           </div>
           <div>
-            <label className="block text-sm font-bold mb-1">Email:</label>
+           
             <input
               type="email"
               name="email"
@@ -122,10 +121,11 @@ const handleDelete = (id) => {
               onChange={handleInputChange}
               required
               className="w-full border rounded px-3 py-2"
+              placeholder="Email"
             />
           </div>
           <div>
-            <label className="block text-sm font-bold mb-1">Teléfono:</label>
+            
             <input
               type="tel"
               name="phone"
@@ -133,10 +133,11 @@ const handleDelete = (id) => {
               onChange={handleInputChange}
               required
               className="w-full border rounded px-3 py-2"
+              placeholder="Teléfono"
             />
           </div>
           <div>
-            <label className="block text-sm font-bold mb-1">Rol:</label>
+            
             <select
               name="role"
               value={formData.role}
@@ -152,7 +153,7 @@ const handleDelete = (id) => {
           </div>
           {editingStaff && (
             <div>
-              <label className="block text-sm font-bold mb-1">Estado:</label>
+              
               <select
                 name="isActive"
                 value={formData.isActive}
@@ -166,7 +167,7 @@ const handleDelete = (id) => {
           )}
           {!editingStaff && (
             <div>
-              <label className="block text-sm font-bold mb-1">Contraseña:</label>
+             
               <input
                 type="password"
                 name="password"
@@ -174,13 +175,14 @@ const handleDelete = (id) => {
                 onChange={handleInputChange}
                 required
                 className="w-full border rounded px-3 py-2"
+                placeholder="Contraseña"
               />
             </div>
           )}
           <div className="md:col-span-2 flex justify-end">
             <button
               type="submit"
-              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-700"
+              className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-700"
             >
               {editingStaff ? "Guardar Cambios" : "Registrar"}
             </button>
@@ -190,7 +192,7 @@ const handleDelete = (id) => {
 
       {/* Listado del staff */}
       <div>
-        <h2 className="text-lg font-bold mb-2">Listado de Staff</h2>
+        <h2 className="text-lg font-bold mb-2">Staff</h2>
         {loading && <p className="text-blue-500">Cargando staff...</p>}
         {error && <p className="text-red-500">Error: {error}</p>}
         {!loading && !error && (
