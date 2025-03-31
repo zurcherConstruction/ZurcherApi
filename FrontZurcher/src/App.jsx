@@ -1,32 +1,32 @@
-import { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
-import { restoreSession } from './Redux/Actions/authActions';
-import PrivateRoute from './Components/PrivateRoute';
-import Header from './Components/Header';
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { useEffect, useState } from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { restoreSession } from "./Redux/Actions/authActions";
+import PrivateRoute from "./Components/PrivateRoute";
+import Header from "./Components/Header";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 // Importa tus componentes
-import Login from './Components/Auth/Login';
-import Register from './Components/Auth/Register';
-import Dashboard from './Components/Dashboard/Dashboard';
-import Seguimiento from './Components/Seguimiento/Seguimiento';
-import NotFound from './Components/NotFound';
-import Unauthorized from './Components/Auth/Unauthorized';
-import Landing from './Components/Landing';
-import PdfReceipt from './Components/PdfReceipt';
-import BarraLateral from './Components/Dashboard/BarraLateral';
-import BudgetList from './Components/Budget/BudgetList';
+import Login from "./Components/Auth/Login";
+import Register from "./Components/Auth/Register";
+import Dashboard from "./Components/Dashboard/Dashboard";
+import Seguimiento from "./Components/Seguimiento/Seguimiento";
+import NotFound from "./Components/NotFound";
+import Unauthorized from "./Components/Auth/Unauthorized";
+import Landing from "./Components/Landing";
+import PdfReceipt from "./Components/PdfReceipt";
+import BarraLateral from "./Components/Dashboard/BarraLateral";
+import BudgetList from "./Components/Budget/BudgetList";
 //import PdfViewerPage from './Components/PdfViewerPage';
-import Works from './Components/Works/Work';
-import ProgressTracker from './Components/ProgressTracker';
-import WorkDetail from './Components/Works/WorkDetail';
-import Materiales from './Components/Materiales';
-import MaterialsCheck from './Components/Seguimiento/WorkStatusManager';
-import SendNotification from './Components/SendNotification';
-import Notifications from './Components/Notifications';
-import InstallationForm from './Components/Works/InstalationForm';
-
+import Works from "./Components/Works/Work";
+import ProgressTracker from "./Components/ProgressTracker";
+import WorkDetail from "./Components/Works/WorkDetail";
+import Materiales from "./Components/Materiales";
+import MaterialsCheck from "./Components/Seguimiento/WorkStatusManager";
+import SendNotification from "./Components/SendNotification";
+import Notifications from "./Components/Notifications";
+import InstallationForm from "./Components/Works/InstalationForm";
+import BudgetEditor from "./Components/Budget/BudgetEditor";
 
 function App() {
   const dispatch = useDispatch();
@@ -39,13 +39,13 @@ function App() {
     dispatch(restoreSession());
   }, [dispatch]);
 
-   // Verifica si la ruta actual es "/"
-   const isLandingPage = location.pathname === "/";
+  // Verifica si la ruta actual es "/"
+  const isLandingPage = location.pathname === "/";
 
-   return (
+  return (
     <BrowserRouter>
       {isAuthenticated && <Header />}
-      <div className={`flex ${isAuthenticated ? 'pt-20' : ''}`}>
+      <div className={`flex ${isAuthenticated ? "pt-20" : ""}`}>
         {isAuthenticated && <BarraLateral />}
         <div className="flex-1">
           <Routes>
@@ -56,7 +56,7 @@ function App() {
             <Route
               path="/dashboard"
               element={
-                <PrivateRoute allowedRoles={['owner', 'admin']}>
+                <PrivateRoute allowedRoles={["owner", "admin"]}>
                   <Dashboard />
                 </PrivateRoute>
               }
@@ -64,7 +64,7 @@ function App() {
             <Route
               path="/firststage"
               element={
-                <PrivateRoute allowedRoles={['owner', 'recept']}>
+                <PrivateRoute allowedRoles={["owner", "recept"]}>
                   <firstStage />
                 </PrivateRoute>
               }
@@ -72,7 +72,7 @@ function App() {
             <Route
               path="/progress-tracker"
               element={
-                <PrivateRoute allowedRoles={['owner', 'admin', 'user']}>
+                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
                   <ProgressTracker />
                 </PrivateRoute>
               }
@@ -80,7 +80,7 @@ function App() {
             <Route
               path="/seguimiento"
               element={
-                <PrivateRoute allowedRoles={['owner', 'admin', 'user']}>
+                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
                   <Seguimiento />
                 </PrivateRoute>
               }
@@ -88,7 +88,7 @@ function App() {
             <Route
               path="/works"
               element={
-                <PrivateRoute allowedRoles={['owner', 'admin', 'user']}>
+                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
                   <Works />
                 </PrivateRoute>
               }
@@ -96,15 +96,17 @@ function App() {
             <Route
               path="/work/:idWork"
               element={
-                <PrivateRoute allowedRoles={['owner', 'admin', 'user']}>
+                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
                   <WorkDetail />
                 </PrivateRoute>
               }
             />
-              <Route
+            <Route
               path="/installation"
               element={
-                <PrivateRoute allowedRoles={['owner', 'admin', 'user','worker']}>
+                <PrivateRoute
+                  allowedRoles={["owner", "admin", "user", "worker"]}
+                >
                   <InstallationForm />
                 </PrivateRoute>
               }
@@ -112,7 +114,7 @@ function App() {
             <Route
               path="/materiales"
               element={
-                <PrivateRoute allowedRoles={['owner', 'admin', 'user']}>
+                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
                   <Materiales />
                 </PrivateRoute>
               }
@@ -120,7 +122,7 @@ function App() {
             <Route
               path="/inspecciones"
               element={
-                <PrivateRoute allowedRoles={['owner', 'admin', 'user']}>
+                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
                   <MaterialsCheck />
                 </PrivateRoute>
               }
@@ -128,7 +130,7 @@ function App() {
             <Route
               path="/budgets"
               element={
-                <PrivateRoute allowedRoles={['owner', 'admin', 'user']}>
+                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
                   <BudgetList />
                 </PrivateRoute>
               }
@@ -136,23 +138,36 @@ function App() {
             <Route
               path="/pdf"
               element={
-                <PrivateRoute allowedRoles={['owner', 'admin', 'user']}>
+                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
                   <PdfReceipt />
                 </PrivateRoute>
               }
             />
-                <Route
+
+            <Route
+              path="/editBudget/:budgetId"
+              element={
+                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
+                  <BudgetEditor />
+                </PrivateRoute>
+              }
+            />
+            <Route
               path="/send-notifications"
               element={
-                <PrivateRoute allowedRoles={['owner', 'recept', 'worker', 'admin']}>
+                <PrivateRoute
+                  allowedRoles={["owner", "recept", "worker", "admin"]}
+                >
                   <SendNotification />
                 </PrivateRoute>
               }
             />
-               <Route
+            <Route
               path="/notifications"
               element={
-                <PrivateRoute allowedRoles={['owner', 'recept', 'worker', 'admin']}>
+                <PrivateRoute
+                  allowedRoles={["owner", "recept", "worker", "admin"]}
+                >
                   <Notifications />
                 </PrivateRoute>
               }

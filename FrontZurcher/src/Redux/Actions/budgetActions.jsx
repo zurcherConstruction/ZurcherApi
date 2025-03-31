@@ -31,10 +31,10 @@ export const fetchBudgets = () => async (dispatch) => {
 };
 
 // Obtener un presupuesto por ID
-export const fetchBudgetById = (id) => async (dispatch) => {
+export const fetchBudgetById = (idBudget) => async (dispatch) => {
   dispatch(fetchBudgetByIdRequest());
   try {
-    const response = await api.get(`/budget/${id}`); // Ruta del backend
+    const response = await api.get(`/budget/${idBudget}`); // Ruta del backend
     dispatch(fetchBudgetByIdSuccess(response.data));
   } catch (error) {
     const errorMessage =
@@ -49,18 +49,20 @@ export const createBudget = (budgetData) => async (dispatch) => {
   try {
     const response = await api.post('/budget', budgetData); // Ruta del backend
     dispatch(createBudgetSuccess(response.data));
+    return response.data; // Retorna la data para poder usarla en el front
   } catch (error) {
     const errorMessage =
       error.response?.data?.message || 'Error al crear el presupuesto';
     dispatch(createBudgetFailure(errorMessage));
+    return undefined;
   }
 };
 
 // Actualizar un presupuesto
-export const updateBudget = (id, budgetData) => async (dispatch) => {
+export const updateBudget = (idBudget, budgetData) => async (dispatch) => {
   dispatch(updateBudgetRequest());
   try {
-    const response = await api.put(`/budget/${id}`, budgetData); // Ruta del backend
+    const response = await api.put(`/budget/${idBudget}`, budgetData); // Ruta del backend
     dispatch(updateBudgetSuccess(response.data));
   } catch (error) {
     const errorMessage =
@@ -70,11 +72,11 @@ export const updateBudget = (id, budgetData) => async (dispatch) => {
 };
 
 // Eliminar un presupuesto
-export const deleteBudget = (id) => async (dispatch) => {
+export const deleteBudget = (idBudget) => async (dispatch) => {
   dispatch(deleteBudgetRequest());
   try {
-    await api.delete(`/budgets/${id}`); // Ruta del backend
-    dispatch(deleteBudgetSuccess(id));
+    await api.delete(`/budget/${idBudget}`); // Ruta del backend
+    dispatch(deleteBudgetSuccess(idBudget));
   } catch (error) {
     const errorMessage =
       error.response?.data?.message || 'Error al eliminar el presupuesto';
