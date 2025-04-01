@@ -152,66 +152,74 @@ const PdfReceipt = () => {
       <h1 className="text-2xl font-bold mb-4">
         Gestión de PDF, Permiso y Presupuesto
       </h1>
-
-      {/* Subir PDF */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700">
-          Subir PDF
-        </label>
-        <input
-          type="file"
-          accept="application/pdf"
-          onChange={handleFileUpload}
-          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-        />
-      </div>
-
-      {/* Vista previa del PDF */}
-      {pdfPreview && (
-        <div className="mb-4">
-          <h2 className="text-xl font-bold mb-2">Vista previa del PDF</h2>
-          <Worker
-            workerUrl={`https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js`}
-          >
-            <Viewer
-              fileUrl={pdfPreview}
-              plugins={[defaultLayoutPluginInstance]}
-            />
-          </Worker>
-        </div>
-      )}
-
-      {/* Formulario */}
-      <form
-        onSubmit={handleSubmit}
-        className="grid grid-cols-1 md:grid-cols-2 gap-4"
-      >
-        {Object.keys(formData).map((key) => (
-          <div key={key}>
-            <label className="block text-sm font-medium capitalize text-gray-700">
-              {key.replace(/([A-Z])/g, " $1").trim()}{" "}
-              {/* Formatear el nombre del campo */}
+  
+      {/* Contenedor principal con diseño responsivo */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Columna izquierda: Vista previa del PDF */}
+        <div className="bg-white shadow-md rounded-lg p-4 col-span-1 md:col-span-2">
+        
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700">
+              Subir PDF
             </label>
             <input
-              type="text"
-              name={key}
-              value={formData[key] || ""}
-              onChange={handleInputChange}
+              type="file"
+              accept="application/pdf"
+              onChange={handleFileUpload}
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             />
           </div>
-        ))}
-
-        {/* Botón de envío */}
-        <button
-          type="submit"
-          className="col-span-1 md:col-span-2 bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700"
-        >
-          Guardar
-        </button>
-      </form>
+  
+          {pdfPreview && (
+            <div
+              className="overflow-y-auto max-h-[700px] border border-gray-300 rounded-md"
+              style={{ height: "700px" }} // Altura máxima para el contenedor del PDF
+            >
+              <Worker
+                workerUrl={`https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js`}
+              >
+                <Viewer
+                  fileUrl={pdfPreview}
+                  plugins={[defaultLayoutPluginInstance]} // Habilitar scroll y navegación
+                />
+              </Worker>
+            </div>
+          )}
+        </div>
+  
+        {/* Columna derecha: Formulario */}
+        <div className="bg-white shadow-md rounded-lg p-4 col-span-1">
+         
+          <form
+            onSubmit={handleSubmit}
+            className="grid grid-cols-1 gap-4"
+          >
+            {Object.keys(formData).map((key) => (
+              <div key={key}>
+                <label className="block text-xs font-medium capitalize text-gray-700">
+                  {key.replace(/([A-Z])/g, " $1").trim()}
+                </label>
+                <input
+                  type="text"
+                  name={key}
+                  value={formData[key] || ""}
+                  onChange={handleInputChange}
+                  className=" block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-xs"
+                />
+              </div>
+            ))}
+  
+            {/* Botón de envío */}
+            <button
+              type="submit"
+              className="bg-blue-950 text-white text-sm py-1 px-2 rounded-md hover:bg-indigo-700"
+            >
+              Guardar
+            </button>
+          </form>
+        </div>
+      </div>
     </div>
-  );
-};
+  );}
 
 export default PdfReceipt;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Viewer, Worker } from "@react-pdf-viewer/core";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { defaultLayoutPlugin } from "@react-pdf-viewer/default-layout";
 import { fetchBudgetById, updateBudget } from "../../Redux/Actions/budgetActions";
 import "@react-pdf-viewer/core/lib/styles/index.css";
@@ -12,7 +12,7 @@ const BudgetEditor = () => {
   const dispatch = useDispatch();
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
   const budgetState = useSelector((state) => state.budget);
-
+const navigate = useNavigate();
   const [formData, setFormData] = useState({
     idBudget: "",
     propertyAddress: "",
@@ -80,6 +80,7 @@ const BudgetEditor = () => {
     e.preventDefault();
     dispatch(updateBudget(formData.idBudget, formData));
     alert("Presupuesto actualizado correctamente.");
+    navigate("/budgets");
   };
 
   const handleManualBudgetIdChange = (e) => {
@@ -89,6 +90,7 @@ const BudgetEditor = () => {
   const handleLoadManualBudget = () => {
     if (manualBudgetId) {
       loadBudget(manualBudgetId);
+     
     } else {
       alert("Por favor, ingresa un ID de presupuesto válido.");
     }
