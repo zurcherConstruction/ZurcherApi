@@ -1,6 +1,5 @@
 const { Notification, Staff } = require('../data');
  // Asegúrate de importar `io` desde tu servidor
-
  const createNotification = async (req, res) => {
   try {
     const { staffId, message, type, parentId } = req.body;

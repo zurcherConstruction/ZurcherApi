@@ -101,7 +101,7 @@ const Notifications = ({ isDropdown = false, onClose }) => {
           onClick={() => handleOpenNotification(notification)}
           className="mt-2 text-blue-500 hover:underline"
         >
-          Ver detalles
+          Responder
         </button>
         {!notification.isRead && (
           <button
