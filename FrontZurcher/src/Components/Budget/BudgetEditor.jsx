@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Viewer, Worker } from "@react-pdf-viewer/core";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { defaultLayoutPlugin } from "@react-pdf-viewer/default-layout";
 import { fetchBudgetById, updateBudget } from "../../Redux/Actions/budgetActions";
 import "@react-pdf-viewer/core/lib/styles/index.css";
@@ -12,7 +12,7 @@ const BudgetEditor = () => {
   const dispatch = useDispatch();
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
   const budgetState = useSelector((state) => state.budget);
-
+const navigate = useNavigate();
   const [formData, setFormData] = useState({
     idBudget: "",
     propertyAddress: "",
@@ -80,6 +80,7 @@ const BudgetEditor = () => {
     e.preventDefault();
     dispatch(updateBudget(formData.idBudget, formData));
     alert("Presupuesto actualizado correctamente.");
+    navigate("/budgets");
   };
 
   const handleManualBudgetIdChange = (e) => {
@@ -89,77 +90,84 @@ const BudgetEditor = () => {
   const handleLoadManualBudget = () => {
     if (manualBudgetId) {
       loadBudget(manualBudgetId);
+     
     } else {
       alert("Por favor, ingresa un ID de presupuesto válido.");
     }
   };
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Editar Presupuesto</h1>
+    <div className="container mx-auto p-4 space-y-8">
+      {/* Card superior: Datos para editar */}
+      <div className="bg-white shadow-md rounded-lg p-6">
+        <h1 className="text-xl font-bold mb-4">Revisar Presupuesto</h1>
 
-      {/* Input para ingresar manualmente el budgetId */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700">
-          Ingresar ID de Presupuesto
-        </label>
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={manualBudgetId}
-            onChange={handleManualBudgetIdChange}
-            placeholder="Ingresa el ID del presupuesto"
-            className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-          />
+        {pdfPreview && (
+          <div className="mb-4">
+            <h2 className="text-xl font-bold mb-2">Vista previa del PDF</h2>
+            <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+              <Viewer
+                fileUrl={pdfPreview}
+                plugins={[defaultLayoutPluginInstance]}
+              />
+            </Worker>
+          </div>
+        )}
+
+        <form
+          onSubmit={handleSubmit}
+          className="grid grid-cols-1 md:grid-cols-2 gap-4"
+        >
+          {Object.keys(formData).map((key) => {
+            if (key === "pdfUrl") return null;
+            return (
+              <div key={key}>
+                <label className="block text-sm font-medium capitalize text-gray-700">
+                  {key.replace(/([A-Z])/g, " $1").trim()}
+                </label>
+                <input
+                  type="text"
+                  name={key}
+                  value={formData[key]}
+                  onChange={handleInputChange}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                />
+              </div>
+            );
+          })}
           <button
-            onClick={handleLoadManualBudget}
-            className="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700"
+            type="submit"
+            className="col-span-1 md:col-span-2 bg-blue-950 text-white py-2 px-4 rounded-md hover:bg-indigo-700"
           >
-            Cargar
+            Guardar Cambios
           </button>
-        </div>
+        </form>
       </div>
 
-      {pdfPreview && (
+      {/* Card inferior: Búsqueda de presupuesto */}
+      <div className="bg-white shadow-md rounded-lg p-6">
+        <h2 className="text-xl font-bold mb-4">Buscar Presupuesto</h2>
         <div className="mb-4">
-          <h2 className="text-xl font-bold mb-2">Vista previa del PDF</h2>
-          <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
-            <Viewer
-              fileUrl={pdfPreview}
-              plugins={[defaultLayoutPluginInstance]}
+          <label className="block text-sm font-medium text-gray-700">
+            Ingresar ID de Presupuesto
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={manualBudgetId}
+              onChange={handleManualBudgetIdChange}
+              placeholder="Ingresa el ID del presupuesto"
+              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             />
-          </Worker>
+            <button
+              onClick={handleLoadManualBudget}
+              className="bg-blue-950 text-white py-2 px-4 rounded-md hover:bg-indigo-700"
+            >
+              Cargar
+            </button>
+          </div>
         </div>
-      )}
-
-      <form
-        onSubmit={handleSubmit}
-        className="grid grid-cols-1 md:grid-cols-2 gap-4"
-      >
-        {Object.keys(formData).map((key) => {
-          if (key === "pdfUrl") return null;
-          return (
-            <div key={key}>
-              <label className="block text-sm font-medium capitalize text-gray-700">
-                {key.replace(/([A-Z])/g, " $1").trim()}
-              </label>
-              <input
-                type="text"
-                name={key}
-                value={formData[key]}
-                onChange={handleInputChange}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              />
-            </div>
-          );
-        })}
-        <button
-          type="submit"
-          className="col-span-1 md:col-span-2 bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700"
-        >
-          Guardar Cambios
-        </button>
-      </form>
+      </div>
     </div>
   );
 };

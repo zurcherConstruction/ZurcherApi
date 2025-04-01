@@ -57,8 +57,9 @@ const createStaff = async (req, res) => {
 
 const updateStaff = async (req, res) => {
     const { id } = req.params;
-    const {name, email, role, phone, ...updateData } = req.body;
+    const { name, email, role, phone, password, ...updateData } = req.body;
 
+    // Buscar al usuario en la base de datos
     const staff = await Staff.findByPk(id);
     if (!staff) {
         throw new CustomError('Staff no encontrado', 404);
@@ -78,22 +79,30 @@ const updateStaff = async (req, res) => {
         throw new CustomError('Rol no válido para staff', 400);
     }
 
+    // Si se proporciona una nueva contraseña, encriptarla
+    if (password) {
+        const salt = await bcrypt.genSalt(10);
+        updateData.password = await bcrypt.hash(password, salt);
+    }
+
+    // Actualizar los datos del usuario
     await staff.update({
         ...updateData,
         name,
         email,
         role,
         phone,
-        updatedBy: req.staff.id
+        updatedBy: req.staff.id,
     });
 
+    // Eliminar la contraseña del objeto de respuesta
     const staffResponse = { ...staff.toJSON() };
     delete staffResponse.password;
 
     res.json({
         error: false,
         message: 'Usuario actualizado exitosamente',
-        data: staffResponse
+        data: staffResponse,
     });
 };
 

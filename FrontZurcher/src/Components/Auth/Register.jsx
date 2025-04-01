@@ -41,20 +41,24 @@ const Register = () => {
  
   const handleSubmit = (e) => {
     e.preventDefault();
-    const errors = validateForm(formData);
+  
+    // Pasar el estado de edición a la función de validación
+    const errors = validateForm(formData, !!editingStaff);
     if (Object.keys(errors).length > 0) {
       alert("Por favor corrige los siguientes errores:\n" + Object.values(errors).join("\n"));
       return;
     }
-
+  
     if (editingStaff) {
-      
+      // Actualizar miembro del staff
       dispatch(updateStaff(editingStaff.id, formData));
-      setEditingStaff(null); 
+      setEditingStaff(null);
     } else {
-      
+      // Crear nuevo miembro del staff
       dispatch(createStaff(formData));
     }
+  
+    // Reiniciar el formulario
     setFormData({
       email: "",
       password: "",
@@ -64,7 +68,6 @@ const Register = () => {
       isActive: true,
     });
   };
-
  
   const handleEdit = (staff) => {
     setEditingStaff(staff);
@@ -99,16 +102,13 @@ const handleDelete = (id) => {
 
   return (
     <div className="p-4">
-     
-
-      
+      {/* Formulario de registro/edición */}
       <div className="mb-6">
         <h2 className="text-xl font-semibold mb-4">
           {editingStaff ? "Editar Staff" : "Registrar Staff"}
         </h2>
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-           
             <input
               type="text"
               name="name"
@@ -120,7 +120,6 @@ const handleDelete = (id) => {
             />
           </div>
           <div>
-           
             <input
               type="email"
               name="email"
@@ -132,7 +131,6 @@ const handleDelete = (id) => {
             />
           </div>
           <div>
-            
             <input
               type="tel"
               name="phone"
@@ -144,7 +142,6 @@ const handleDelete = (id) => {
             />
           </div>
           <div>
-            
             <select
               name="role"
               value={formData.role}
@@ -160,7 +157,6 @@ const handleDelete = (id) => {
           </div>
           {editingStaff && (
             <div>
-              
               <select
                 name="isActive"
                 value={formData.isActive}
@@ -174,7 +170,6 @@ const handleDelete = (id) => {
           )}
           {!editingStaff && (
             <div>
-             
               <input
                 type="password"
                 name="password"
@@ -189,47 +184,105 @@ const handleDelete = (id) => {
           <div className="md:col-span-2 flex justify-end">
             <button
               type="submit"
-              className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-700"
+              className="bg-blue-950 text-white px-2 py-1 rounded hover:bg-blue-700"
             >
               {editingStaff ? "Guardar Cambios" : "Registrar"}
             </button>
           </div>
         </form>
       </div>
-
+  
       {/* Listado del staff */}
       <div>
         <h2 className="text-lg font-bold mb-2">Staff</h2>
         {loading && <p className="text-blue-500">Cargando staff...</p>}
         {error && <p className="text-red-500">Error: {error}</p>}
         {!loading && !error && (
-          <table className="table-auto w-full border-collapse border border-gray-300">
-            <thead>
-              <tr className="bg-gray-200">
-                <th className="border border-gray-300 px-4 py-2">Nombre</th>
-                <th className="border border-gray-300 px-4 py-2">Email</th>
-                <th className="border border-gray-300 px-4 py-2">Teléfono</th>
-                <th className="border border-gray-300 px-4 py-2">Rol</th>
-                <th className="border border-gray-300 px-4 py-2">Estado</th>
-                <th className="border border-gray-300 px-4 py-2">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-            {staff && staff.length > 0 ? (
+          <>
+            {/* Tabla para pantallas grandes */}
+            <div className="hidden lg:block">
+              <table className="table-auto w-full border-collapse border border-gray-300">
+                <thead>
+                  <tr className="bg-gray-200">
+                    <th className="border border-gray-300 px-4 py-2">Nombre</th>
+                    <th className="border border-gray-300 px-4 py-2">Email</th>
+                    <th className="border border-gray-300 px-4 py-2">Teléfono</th>
+                    <th className="border border-gray-300 px-4 py-2">Rol</th>
+                    <th className="border border-gray-300 px-4 py-2">Estado</th>
+                    <th className="border border-gray-300 px-4 py-2">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {staff && staff.length > 0 ? (
+                    staff.map((member) => (
+                      <tr key={member.id} className="hover:bg-gray-100">
+                        <td className="border border-gray-300 px-4 py-2">{member.name}</td>
+                        <td className="border border-gray-300 px-4 py-2">{member.email}</td>
+                        <td className="border border-gray-300 px-4 py-2">{member.phone}</td>
+                        <td className="border border-gray-300 px-4 py-2">{member.role}</td>
+                        <td className="border border-gray-300 px-4 py-2">
+                          {member.isActive ? (
+                            <span className="text-green-500 font-bold">Activo</span>
+                          ) : (
+                            <span className="text-red-500 font-bold">Inactivo</span>
+                          )}
+                        </td>
+                        <td className="border border-gray-300 px-4 py-2">
+                          <button
+                            onClick={() => handleEdit(member)}
+                            className="bg-yellow-500 text-white text-xs px-2 py-1 rounded hover:bg-yellow-700 mr-2"
+                          >
+                            Editar
+                          </button>
+                          {member.isActive && (
+                            <button
+                              onClick={() => handleDeactivate(member.id)}
+                              className="bg-orange-500 text-white text-xs px-2 py-1 rounded hover:bg-orange-700 mr-2"
+                            >
+                              Desactivar
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDelete(member.id)}
+                            className="bg-red-500 text-white text-xs px-2 py-1 rounded hover:bg-red-700"
+                          >
+                            Eliminar
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="6" className="text-center py-4">
+                        No hay miembros del staff registrados.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+  
+            {/* Tarjetas para pantallas pequeñas */}
+            <div className="block lg:hidden space-y-4">
+              {staff && staff.length > 0 ? (
                 staff.map((member) => (
-                  <tr key={member.id} className="hover:bg-gray-100">
-                    <td className="border border-gray-300 px-4 py-2">{member.name}</td>
-                    <td className="border border-gray-300 px-4 py-2">{member.email}</td>
-                    <td className="border border-gray-300 px-4 py-2">{member.phone}</td>
-                    <td className="border border-gray-300 px-4 py-2">{member.role}</td>
-                    <td className="border border-gray-300 px-4 py-2">
+                  <div
+                    key={member.id}
+                    className="border border-gray-300 rounded-lg p-4 shadow-md hover:bg-gray-100"
+                  >
+                    <p className="text-sm font-semibold">Nombre: {member.name}</p>
+                    <p className="text-sm">Email: {member.email}</p>
+                    <p className="text-sm">Teléfono: {member.phone}</p>
+                    <p className="text-sm">Rol: {member.role}</p>
+                    <p className="text-sm">
+                      Estado:{" "}
                       {member.isActive ? (
                         <span className="text-green-500 font-bold">Activo</span>
                       ) : (
                         <span className="text-red-500 font-bold">Inactivo</span>
                       )}
-                    </td>
-                    <td className="border border-gray-300 px-4 py-2">
+                    </p>
+                    <div className="mt-2">
                       <button
                         onClick={() => handleEdit(member)}
                         className="bg-yellow-500 text-white text-xs px-2 py-1 rounded hover:bg-yellow-700 mr-2"
@@ -250,21 +303,16 @@ const handleDelete = (id) => {
                       >
                         Eliminar
                       </button>
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 ))
               ) : (
-                <tr>
-                  <td colSpan="6" className="text-center py-4">
-                    No hay miembros del staff registrados.
-                  </td>
-                </tr>
+                <p className="text-center py-4">No hay miembros del staff registrados.</p>
               )}
-            </tbody>
-          </table>
+            </div>
+          </>
         )}
       </div>
     </div>
-  );
-};
+  );}
 export default Register;

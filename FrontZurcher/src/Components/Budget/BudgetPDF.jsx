@@ -493,7 +493,7 @@ $220 for rocks.`;
     <div>
       <button
         onClick={handleDownload}
-        className="bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 mb-4"
+        className="bg-blue-950 text-white text-xs py-1 px-2 rounded-md hover:bg-indigo-700 p-2"
       >
         {editMode ? "Descargar PDF Editado" : "Descargar PDF"}
       </button>

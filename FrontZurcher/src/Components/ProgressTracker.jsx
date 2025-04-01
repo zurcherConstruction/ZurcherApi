@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorks } from "../Redux/Actions/workActions"; // Acción para obtener los works
-
+import { Link } from "react-router-dom";
 // Mapeo de estados del backend a nombres legibles
 const etapas = [
   { backend: "pending", display: "Esperando Materiales" },
@@ -80,10 +80,11 @@ const ProgressTracker = () => {
       {!loading &&
         !error &&
         filteredData.map(({ idWork, propertyAddress, status }) => (
-          <div
-            key={idWork}
-            className="bg-white p-4 md:p-4 shadow-lg rounded-lg border border-gray-200"
-          >
+          <Link
+          to={`/work/${idWork}`} // Redirige al detalle del trabajo
+          key={idWork}
+          className="block bg-white p-4 md:p-4 shadow-lg rounded-lg border border-gray-200 hover:shadow-xl transition-shadow duration-300"
+        >
             <h3 className="font-semibold text-lg md:text-xl text-gray-700 text-center">
               Address: {propertyAddress}
             </h3>
@@ -143,7 +144,7 @@ const ProgressTracker = () => {
                 </span>
               </p>
             </div>
-          </div>
+          </Link>
         ))}
     </div>
   );

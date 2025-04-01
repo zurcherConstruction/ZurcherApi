@@ -27,6 +27,9 @@ import SendNotification from "./Components/SendNotification";
 import Notifications from "./Components/Notifications";
 import InstallationForm from "./Components/Works/InstalationForm";
 import BudgetEditor from "./Components/Budget/BudgetEditor";
+import ForgotPassword from "./Components/Auth/ForgotPassword";
+import ResetPassword from "./Components/Auth/ResetPassword";
+  
 
 function App() {
   const dispatch = useDispatch();
@@ -177,6 +180,8 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+             <Route path="/reset-password/:token" element={<ResetPassword />} />
 
             {/* Ruta por defecto para 404 */}
             <Route path="*" element={<NotFound />} />
