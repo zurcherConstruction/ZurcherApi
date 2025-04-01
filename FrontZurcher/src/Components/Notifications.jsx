@@ -84,50 +84,57 @@ const Notifications = ({ isDropdown = false, onClose }) => {
   if (error) return <p>Error: {error}</p>;
 
   return (
-    <div className={isDropdown ? "absolute bg-white shadow-lg rounded-lg" : ""}>
-      <h2 className="text-sm font-medium bg-sky-800 text-white p-2 border-">Notificaciones</h2>
-      <ul className="divide-y divide-gray-200">
-  {notifications.length > 0 ? (
-    notifications.map((notification) => (
-      <li
-        key={notification.id}
-        className={`p-2 ${notification.isRead ? "bg-gray-100" : "bg-blue-100"}`}
-      >
-        <p className="font-semibold">{notification.message}</p>
-        <p className="text-sm text-gray-500">
-          Tipo: {notification.type} | Enviado por: {notification.senderName || "Desconocido"}
-        </p>
-        <button
-          onClick={() => handleOpenNotification(notification)}
-          className="mt-2 text-blue-500 hover:underline"
+<div className={isDropdown ? "absolute bg-white shadow-lg rounded-lg" : ""}>
+  <h2 className="text-sm font-medium bg-sky-800 text-white p-2 border-">
+    Notificaciones
+  </h2>
+  <ul
+    className="divide-y divide-gray-200 overflow-y-auto"
+    style={{ maxHeight: "400px" }} // Altura máxima con scroll
+  >
+    {notifications.length > 0 ? (
+      notifications.map((notification) => (
+        <li
+          key={notification.id}
+          className={`p-2 ${notification.isRead ? "bg-gray-100" : "bg-blue-100"}`}
         >
-          Responder
-        </button>
-        {!notification.isRead && (
+          <p className="font-semibold">{notification.message}</p>
+          <p className="text-sm text-gray-500">
+            Tipo: {notification.type} | Enviado por: {notification.senderName || "Desconocido"}
+          </p>
           <button
-            onClick={() => handleMarkAsRead(notification.id)}
-            className="ml-2 text-green-500 hover:underline"
+            onClick={() => handleOpenNotification(notification)}
+            className="mt-2 text-blue-500 hover:underline"
           >
-            Marcar como leída
+            Responder
           </button>
-        )}
+          {!notification.isRead && (
+            <button
+              onClick={() => handleMarkAsRead(notification.id)}
+              className="ml-2 text-green-500 hover:underline"
+            >
+              Marcar como leída
+            </button>
+          )}
 
-        {/* Mostrar respuestas asociadas */}
-        {notification.responses && notification.responses.length > 0 && (
-          <ul className="mt-2 pl-4 border-l-2 border-gray-300">
-            {notification.responses.map((response) => (
-              <li key={response.id} className="text-sm text-gray-700">
-                <p>Respuesta: {response.message}</p>
-                <p className="text-xs text-gray-500">Enviado el: {new Date(response.createdAt).toLocaleString()}</p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </li>
-    ))
-  ) : (
-    <li className="p-2 text-center text-gray-500">No hay notificaciones</li>
-  )}
+          {/* Mostrar respuestas asociadas */}
+          {notification.responses && notification.responses.length > 0 && (
+            <ul className="mt-2 pl-4 border-l-2 border-gray-300">
+              {notification.responses.map((response) => (
+                <li key={response.id} className="text-sm text-gray-700">
+                  <p>Respuesta: {response.message}</p>
+                  <p className="text-xs text-gray-500">
+                    Enviado el: {new Date(response.createdAt).toLocaleString()}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </li>
+      ))
+    ) : (
+      <li className="p-2 text-center text-gray-500">No hay notificaciones</li>
+    )}
 </ul>
 
       {/* Modal para ver detalles */}
