@@ -82,7 +82,7 @@ const BudgetList = () => {
 
   return (
     <div className="p-4">
-      <h1 className="text-xl font-semibold mb-4">Presupuestos</h1>
+      <h1 className="text-sm font-semibold mb-4">Presupuestos</h1>
 
       {/* Mostrar estado de carga */}
       {loading && <p className="text-blue-500">Cargando presupuestos...</p>}
@@ -93,68 +93,114 @@ const BudgetList = () => {
       {/* Mostrar lista de presupuestos */}
       {!loading && !error && (
         <>
-          <table className="table-auto w-full border-collapse border border-gray-300">
-            <thead>
-              <tr className="bg-gray-200">
-                <th className="border border-gray-300 px-4 text-xs">Aplicant</th>
-                <th className="border border-gray-300 px-4 text-xs">Date</th>
-                <th className="border border-gray-300 px-4 text-xs">End Date</th>
-                <th className="border border-gray-300 px-4 text-xs">Precio</th>
-                <th className="border border-gray-300 px-4 text-xs">Pago 60%</th>
-                <th className="border border-gray-300 px-4 text-xs">Estate</th>
-                <th className="border border-gray-300 px-4 text-xs">Adress</th>
-                <th className="border border-gray-300 px-4 text-xs">systemType</th>
-                <th className="border border-gray-300 px-4 text-xs">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {currentBudgets.map((budget) => (
-                <tr
-                  key={budget.idBudget}
-                  className={`hover:bg-gray-100 ${getStatusColor(budget.status)}`}
-                >
-                  <td className="border border-gray-300 px-4 text-xs">{budget.applicantName}</td>
-                  <td className="border border-gray-300 px-4 text-xs">{budget.date}</td>
-                  <td className="border border-gray-300 px-4 text-xs">
-                    {budget.expirationDate || "N/A"}
-                  </td>
-                  <td className="border border-gray-300 px-4 text-xs">${budget.price}</td>
-                  <td className="border border-gray-300 px-4 text-xs">${budget.initialPayment}</td>
-                  <td className="border border-gray-300 px-4 text-xs">{budget.status}</td>
-                  <td className="border border-gray-300 px-4 text-xs">
-                    {budget.propertyAddress || "No especificada"}
-                  </td>
-                  <td className="border border-gray-300 px-4 text-xs">
-                    {budget.systemType || "No especificada"}
-                  </td>
-                  <td className="border border-gray-300 px-4">
-                  
-                    <BudgetPDF
-                      budget={{
-                        ...budget,
-                        price: parseFloat(budget.price),
-                        initialPayment: parseFloat(budget.initialPayment),
-                      }}
-                      editMode={false}
-                    />
-                    <select
-                      value={budget.status}
-                      onChange={(e) =>
-                        handleUpdateStatus(budget.idBudget, e.target.value, budget)
-                      }
-                      className="bg-gray-100 border border-gray-300 text-xs rounded px-1 py-1"
-                    >
-                      <option value="send" disabled={budget.status === "send"}>
-                        {budget.status === "send" ? "Enviado" : "Enviar"}
-                      </option>
-                      <option value="approved">Aprobado</option>
-                      <option value="rejected">Rechazado</option>
-                    </select>
-                  </td>
+          {/* Tabla para pantallas grandes y medianas */}
+          <div className="hidden lg:block">
+            <table className="table-auto w-full border-collapse border border-gray-300">
+              <thead>
+                <tr className="bg-gray-200">
+                  <th className="border border-gray-300 font-Montserrat px-4 text-xs">Aplicant</th>
+                  <th className="border border-gray-300 font-Montserrat px-4 text-xs">Date</th>
+                  <th className="border border-gray-300 px-4 font-Montserrat text-xs">End Date</th>
+                  <th className="border border-gray-300 px-4 font-Montserrat text-xs">Precio</th>
+                  <th className="border border-gray-300 px-4 font-Montserrat text-xs">Pago 60%</th>
+                  <th className="border border-gray-300 px-4 font-Montserrat text-xs">Estate</th>
+                  <th className="border border-gray-300 px-4 font-Montserrat text-xs">Adress</th>
+                  <th className="border border-gray-300 px-4 font-Montserrat text-xs">systemType</th>
+                  <th className="border border-gray-300 px-4 font-Montserrat text-xs">Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {currentBudgets.map((budget) => (
+                  <tr
+                    key={budget.idBudget}
+                    className={`hover:bg-gray-100 ${getStatusColor(budget.status)}`}
+                  >
+                    <td className="border border-gray-300 px-4 text-xs">{budget.applicantName}</td>
+                    <td className="border border-gray-300 px-4 text-xs">{budget.date}</td>
+                    <td className="border border-gray-300 px-4 text-xs">
+                      {budget.expirationDate || "N/A"}
+                    </td>
+                    <td className="border border-gray-300 px-4 text-xs">${budget.price}</td>
+                    <td className="border border-gray-300 px-4 text-xs">${budget.initialPayment}</td>
+                    <td className="border border-gray-300 px-4 text-xs">{budget.status}</td>
+                    <td className="border border-gray-300 px-4 text-xs">
+                      {budget.propertyAddress || "No especificada"}
+                    </td>
+                    <td className="border border-gray-300 px-4 text-xs">
+                      {budget.systemType || "No especificada"}
+                    </td>
+                    <td className="border border-gray-300 px-4">
+                      <BudgetPDF
+                        budget={{
+                          ...budget,
+                          price: parseFloat(budget.price),
+                          initialPayment: parseFloat(budget.initialPayment),
+                        }}
+                        editMode={false}
+                      />
+                      <select
+                        value={budget.status}
+                        onChange={(e) =>
+                          handleUpdateStatus(budget.idBudget, e.target.value, budget)
+                        }
+                        className="bg-gray-100 border border-gray-300 text-xs rounded px-1"
+                      >
+                        <option value="send" disabled={budget.status === "send"}>
+                          {budget.status === "send" ? "Enviado" : "Enviar"}
+                        </option>
+                        <option value="approved">Aprobado</option>
+                        <option value="rejected">Rechazado</option>
+                      </select>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Tarjetas para pantallas pequeñas */}
+          <div className="block lg:hidden space-y-4">
+            {currentBudgets.map((budget) => (
+              <div
+                key={budget.idBudget}
+                className={`border border-gray-300 rounded-lg p-4 shadow-md ${getStatusColor(
+                  budget.status
+                )}`}
+              >
+                <p className="text-xs font-semibold">Aplicant: {budget.applicantName}</p>
+                <p className="text-xs">Date: {budget.date}</p>
+                <p className="text-xs">End Date: {budget.expirationDate || "N/A"}</p>
+                <p className="text-xs">Precio: ${budget.price}</p>
+                <p className="text-xs">Pago 60%: ${budget.initialPayment}</p>
+                <p className="text-xs">Estate: {budget.status}</p>
+                <p className="text-xs">Adress: {budget.propertyAddress || "No especificada"}</p>
+                <p className="text-xs">System Type: {budget.systemType || "No especificada"}</p>
+                <div className="mt-2">
+                  <BudgetPDF
+                    budget={{
+                      ...budget,
+                      price: parseFloat(budget.price),
+                      initialPayment: parseFloat(budget.initialPayment),
+                    }}
+                    editMode={false}
+                  />
+                  <select
+                    value={budget.status}
+                    onChange={(e) =>
+                      handleUpdateStatus(budget.idBudget, e.target.value, budget)
+                    }
+                    className="bg-gray-100 border border-gray-300 text-xs rounded px-1 mt-2"
+                  >
+                    <option value="send" disabled={budget.status === "send"}>
+                      {budget.status === "send" ? "Enviado" : "Enviar"}
+                    </option>
+                    <option value="approved">Aprobado</option>
+                    <option value="rejected">Rechazado</option>
+                  </select>
+                </div>
+              </div>
+            ))}
+          </div>
 
           {/* Paginado */}
           <div className="flex justify-center mt-4">
@@ -162,9 +208,9 @@ const BudgetList = () => {
               <button
                 key={index + 1}
                 onClick={() => handlePageChange(index + 1)}
-                className={`mx-1 px-3 py-1 rounded ${
+                className={`mx-1 px-2 py-1 text-xs rounded ${
                   currentPage === index + 1
-                    ? "bg-indigo-600 text-white"
+                    ? "bg-blue-950 text-white"
                     : "bg-gray-200 text-gray-700"
                 }`}
               >

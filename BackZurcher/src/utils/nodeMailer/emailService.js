@@ -1,13 +1,14 @@
 const nodemailer = require('nodemailer');
+require('dotenv').config();
 
 // Configurar el transporte de Nodemailer
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, // true para el puerto 465, false para otros puertos
+  host: process.env.SMTP_HOST,
+  port: process.env.SMTP_PORT,
+  secure: process.env.SMTP_SECURE === 'true', // true para el puerto 465, false para otros puertos
   auth: {
-    user: 'guatapenocountry@gmail.com', // Tu correo de Gmail
-    pass: 'kgiz adhs boqt hedg', // Tu contraseña de aplicación
+    user: process.env.SMTP_USER, // Tu correo de Gmail
+    pass: process.env.SMTP_PASSWORD, // Tu contraseña de aplicación
   },
 });
 

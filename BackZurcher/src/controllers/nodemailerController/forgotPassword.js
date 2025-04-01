@@ -1,6 +1,6 @@
 // const crypto = require('crypto');
 // const bcrypt = require('bcrypt');
-// const { User } = require('../../data');
+// const { Staff } = require('../../data');
 // const response = require('../../utils/response');
 // const { transporter } = require('../../utils/transporter');
 // const { emailTemplates } = require('../../utils/emailTemplates');
@@ -11,7 +11,7 @@
 //     const { email } = req.body;
 
 //     // Buscar usuario activo
-//     const user = await User.findOne({ 
+//     const user = await Staff.findOne({ 
 //       where: { 
 //         email,
 //         isActive: true,
@@ -52,7 +52,7 @@
 //         from: process.env.SMTP_USER,
 //         to: user.email,
 //         subject: 'Restablecimiento de contraseña - Balu Hotel',
-//         html: emailTemplates.resetPassword(user.first_name, resetUrl)
+//         html: emailTemplates.resetPassword(user.name, resetUrl)
 //       });
 
 //       return response(res, 200, "Se ha enviado un correo para restablecer tu contraseña");

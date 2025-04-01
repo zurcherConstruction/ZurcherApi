@@ -1,5 +1,5 @@
 // const bcrypt = require('bcrypt');
-// const { User } = require('../../data');
+// const { Staff } = require('../../data');
 // const response = require('../../utils/response');
 // const { Op } = require('sequelize');
 // const transporter = require('../../utils/transporter');
@@ -16,7 +16,7 @@
 //     }
 
 //     // Buscar usuario con token válido
-//     const user = await User.findOne({
+//     const user = await Staff.findOne({
 //       where: {
 //         passwordResetToken: { [Op.ne]: null },
 //         passwordResetExpires: { [Op.gt]: Date.now() }

@@ -1,5 +1,13 @@
 import api from '../../utils/axios';
-import { loginRequest, loginSuccess, loginFailure, logout } from '../Reducer/authReducer';
+import { loginRequest, loginSuccess, loginFailure, logout,forgotPasswordRequest,
+  forgotPasswordSuccess,
+  forgotPasswordFailure,
+  resetPasswordRequest,
+  resetPasswordSuccess,
+  resetPasswordFailure,
+  changePasswordRequest,
+  changePasswordSuccess,
+  changePasswordFailure, } from '../Reducer/authReducer';
 
 // Acción para iniciar sesión
 export const login = (email, password) => async (dispatch) => {
@@ -80,5 +88,40 @@ export const register = (userData) => async (dispatch) => {
       'Error al registrarse'; // Mensaje por defecto
     console.error('Error en register:', errorMessage); // Registro en consola para depuración
     dispatch(loginFailure(errorMessage));
+  }
+};
+// Forgot Password
+export const forgotPassword = (email) => async (dispatch) => {
+  dispatch(forgotPasswordRequest());
+  try {
+    const response = await api.post('/auth/forgot-password', { email });
+    dispatch(forgotPasswordSuccess(response.data.message));
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || 'Error al solicitar restablecimiento de contraseña';
+    dispatch(forgotPasswordFailure(errorMessage));
+  }
+};
+
+// Reset Password
+export const resetPassword = (token, password) => async (dispatch) => {
+  dispatch(resetPasswordRequest());
+  try {
+    const response = await api.post(`/auth/reset-password/${token}`, { password });
+    dispatch(resetPasswordSuccess(response.data.message));
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || 'Error al restablecer la contraseña';
+    dispatch(resetPasswordFailure(errorMessage));
+  }
+};
+
+// Change Password
+export const changePassword = (currentPassword, newPassword) => async (dispatch) => {
+  dispatch(changePasswordRequest());
+  try {
+    const response = await api.put('/auth/change-password', { currentPassword, newPassword });
+    dispatch(changePasswordSuccess(response.data.message));
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || 'Error al cambiar la contraseña';
+    dispatch(changePasswordFailure(errorMessage));
   }
 };

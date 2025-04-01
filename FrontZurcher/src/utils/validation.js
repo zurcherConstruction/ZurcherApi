@@ -36,13 +36,25 @@ export const validateEmail = (email) => {
     return null;
   };
   
-  // Validar formulario completo
-  export const validateForm = (formData) => {
+ // Validar formulario completo
+export const validateForm = (formData, isEditing = false) => {
     const errors = {};
+  
+    // Validar email
     errors.email = validateEmail(formData.email);
+  
+    // Validar teléfono
     errors.phone = validatePhone(formData.phone);
-    errors.password = validatePassword(formData.password);
+  
+    // Validar contraseña solo si no estás editando
+    if (!isEditing) {
+      errors.password = validatePassword(formData.password);
+    }
+  
+    // Validar nombre
     errors.name = validateName(formData.name);
+  
+    // Validar rol
     errors.role = validateRole(formData.role);
   
     // Filtrar errores nulos

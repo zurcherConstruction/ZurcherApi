@@ -128,21 +128,21 @@ const Materiales = () => {
                 Dirección:
               </label>
               <select
-  id="address"
-  name="address"
-  value={selectedAddress}
-  onChange={(e) => setSelectedAddress(e.target.value)}
-  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
->
-  <option value="">Seleccione una dirección</option>
-  {works
-    .filter((work) => work.status === "pending") // Filtrar solo las obras con estado "pending"
-    .map((work) => (
-      <option key={work.idWork} value={work.propertyAddress}>
-        {work.propertyAddress}
-      </option>
-    ))}
-</select>
+                id="address"
+                name="address"
+                value={selectedAddress}
+                onChange={(e) => setSelectedAddress(e.target.value)}
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              >
+                <option value="">Seleccione una dirección</option>
+                {works
+                  .filter((work) => work.status === "pending")
+                  .map((work) => (
+                    <option key={work.idWork} value={work.propertyAddress}>
+                      {work.propertyAddress}
+                    </option>
+                  ))}
+              </select>
             </div>
             <div>
               <label htmlFor="date" className="block text-gray-700 text-sm font-bold mb-2">
@@ -195,7 +195,8 @@ const Materiales = () => {
             </div>
           </form>
   
-          <div className="mt-4">
+          {/* Tabla para pantallas grandes */}
+          <div className="hidden lg:block mt-4">
             <h3 className="text-lg font-bold">Materiales seleccionados</h3>
             <div className="overflow-x-auto">
               <table className="table-auto w-full mt-2">
@@ -233,6 +234,36 @@ const Materiales = () => {
               </table>
             </div>
           </div>
+  
+          {/* Tarjetas para pantallas pequeñas */}
+          <div className="block lg:hidden mt-4 space-y-4">
+            <h3 className="text-lg font-bold">Materiales seleccionados</h3>
+            {formData.materials.map((material, index) => (
+              <div
+                key={index}
+                className="border border-gray-300 rounded-lg p-4 shadow-md hover:bg-gray-100"
+              >
+                <p className="text-sm font-semibold">Material: {material.material}</p>
+                <p className="text-sm">Cantidad: {material.quantity}</p>
+                <p className="text-sm">Comentario: {material.comment}</p>
+                <div className="mt-2">
+                  <button
+                    onClick={() => editMaterial(index)}
+                    className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded mr-2"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => deleteMaterial(index)}
+                    className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded"
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+  
           <button
             type="button"
             onClick={generatePDF}
@@ -244,40 +275,39 @@ const Materiales = () => {
   
         {/* Columna derecha: Vista previa del PDF del permiso y PDF generado */}
         <div className="flex-1">
-  {permitPdfUrl && (
-    <div className="mb-4">
-      <h3 className="text-lg font-bold">Vista previa del Permit</h3>
-      <div className="relative overflow-hidden">
-        <iframe
-          src={permitPdfUrl}
-          className="w-full h-64 sm:h-72 md:h-80 lg:h-96"
-          title="Vista previa del PDF del Permit"
-        ></iframe>
+          {permitPdfUrl && (
+            <div className="mb-4">
+              <h3 className="text-lg font-bold">Vista previa del Permit</h3>
+              <div className="relative overflow-hidden">
+                <iframe
+                  src={permitPdfUrl}
+                  className="w-full h-64 sm:h-72 md:h-80 lg:h-96"
+                  title="Vista previa del PDF del Permit"
+                ></iframe>
+              </div>
+            </div>
+          )}
+          {pdfUrl && (
+            <div>
+              <h3 className="text-lg font-bold">Vista previa del PDF de Materiales</h3>
+              <div className="relative overflow-hidden">
+                <iframe
+                  src={pdfUrl}
+                  className="w-full h-64 sm:h-72 md:h-80 lg:h-96"
+                  title="Vista previa del PDF de Materiales"
+                ></iframe>
+              </div>
+              <a
+                href={pdfUrl}
+                download="materiales.pdf"
+                className="btn btn-primary mt-2 inline-block bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+              >
+                Descargar PDF
+              </a>
+            </div>
+          )}
+        </div>
       </div>
     </div>
-  )}
-  {pdfUrl && (
-    <div>
-      <h3 className="text-lg font-bold">Vista previa del PDF de Materiales</h3>
-      <div className="relative overflow-hidden">
-        <iframe
-          src={pdfUrl}
-          className="w-full h-64 sm:h-72 md:h-80 lg:h-96"
-          title="Vista previa del PDF de Materiales"
-        ></iframe>
-      </div>
-      <a
-        href={pdfUrl}
-        download="materiales.pdf"
-        className="btn btn-primary mt-2 inline-block bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-      >
-        Descargar PDF
-      </a>
-    </div>
-  )}
-</div>
-      </div>
-    </div>
-  );
-}
+  );}
 export default Materiales;

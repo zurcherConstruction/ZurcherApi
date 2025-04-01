@@ -3,6 +3,11 @@ const jwt = require('jsonwebtoken');
 const { Staff } = require('../../data');
 const { generateToken } = require('../../middleware/isAuth');
 const { CustomError } = require('../../middleware/error');
+const { transporter } = require('../../utils/transporter');
+const { emailTemplates } = require('../../utils/emailTemplates');
+const crypto = require('crypto');
+const { sendEmail } = require('../../utils/nodeMailer/emailService');
+const { Op } = require('sequelize');
 
 const register = async (req, res, next) => {
   try {
@@ -143,10 +148,95 @@ const changePassword = async (req, res, next) => {
     next(error);
   }
 };
+// Controlador forgotPassword
+const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    // Buscar usuario activo
+    const user = await Staff.findOne({
+      where: {
+        email,
+        isActive: true,
+        deletedAt: null,
+      },
+    });
+
+    if (!user) {
+      throw new CustomError('Usuario no encontrado', 404);
+    }
+
+    // Generar token seguro
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = await bcrypt.hash(resetToken, 10);
+
+    // Actualizar usuario con token
+    await user.update({
+      passwordResetToken: hashedToken,
+      passwordResetExpires: Date.now() + 3600000, // 1 hora
+    });
+
+    // Crear URL de restablecimiento
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${resetToken}`;
+
+    // Enviar correo de recuperación
+    const message = `
+      Hemos recibido una solicitud para restablecer tu contraseña. 
+      Si no realizaste esta solicitud, puedes ignorar este correo.
+      <br><br>
+      Haz clic en el siguiente enlace para restablecer tu contraseña:
+      <br>
+      <a href="${resetUrl}" style="color: #0056b3;">${resetUrl}</a>
+    `;
+
+    await sendEmail(user, message);
+
+    res.status(200).json({ message: 'Correo enviado para restablecer tu contraseña' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Controlador resetPassword
+const resetPassword = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    const user = await Staff.findOne({
+      where: {
+        passwordResetToken: { [Op.ne]: null },
+        passwordResetExpires: { [Op.gt]: Date.now() },
+      },
+    });
+
+    if (!user) throw new CustomError('El enlace ha expirado o no es válido', 400);
+
+    const isTokenValid = await bcrypt.compare(token, user.passwordResetToken);
+    if (!isTokenValid) throw new CustomError('Token inválido', 400);
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    await user.update({
+      password: hashedPassword,
+      passwordResetToken: null,
+      passwordResetExpires: null,
+    });
+
+    res.json({ error: false, message: 'Contraseña actualizada correctamente' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+
 
 module.exports = {
   register,
   login,
   logout,
   changePassword,
+  forgotPassword,
+  resetPassword,
+  
 };
