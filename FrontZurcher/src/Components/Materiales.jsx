@@ -4,6 +4,9 @@ import autoTable from "jspdf-autotable";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorks, fetchWorkById } from "../Redux/Actions/workActions";
 import logo from '../../public/logo.png'; // Asegúrate de que la ruta sea correcta
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faEdit, faTrash } from "@fortawesome/free-solid-svg-icons";
+
 const Materiales = () => {
   const dispatch = useDispatch();
 
@@ -16,9 +19,71 @@ const Materiales = () => {
     materials: [],
     comments: "",
   });
-  const [newMaterial, setNewMaterial] = useState({ material: "", quantity: "", comment: "" });
+  const [newPredefinedMaterial, setNewPredefinedMaterial] = useState({
+    material: "",
+    selectedOption: "",
+    quantity: "",
+  });
+  
+  const [newManualMaterial, setNewManualMaterial] = useState({
+    material: "",
+    quantity: "",
+    comment: "",
+  });
   const [editingIndex, setEditingIndex] = useState(null); // Índice del material que se está editando
   const [pdfUrl, setPdfUrl] = useState(null);
+
+  const predefinedMaterials = [
+    {
+      material: "Tanque Atu",
+      options: ["1060 Galones", "900 Galones", "700 Galones", "500 Galones"], // Subopciones para "Tanque"
+    },
+    {
+      material: "Tanque Regular",
+      options: ["1060 Galones", "900 Galones", "700 Galones", "500 Galones"], // Subopciones para "Tanque"
+    },
+    {
+      material: "Chambers",
+      options: ["arc24", "LP", "Drip", "Bundles"], // Subopciones para "Tanque"
+    },
+    {
+      material: "Kit Atu",
+       
+    },
+    {
+      material: "End Cap",
+      options: ["arc24", "LP", "Bundles"], 
+    },
+    {
+      material: "Racer",
+      options: ["12'", "6'"], 
+    },
+    {
+      material: "Clean Out",
+    },
+    {
+      material: "Cruz de 4",
+    },
+    {
+      material: "Reducción de 4' a 3' ",
+    },
+    
+    {
+      material: "Caños",
+      options: ["Verdes", "3/4 x 10'"], 
+    },
+    {
+      material: "Codos ",
+      options: ["de 90* de 4", "de 90* de 3/4"],
+    },
+    {
+      material: "T de 4'",
+    },
+    {
+      material: "Filtro",
+    }
+    // Agrega más materiales según sea necesario
+  ];
 
   // Cargar todas las obras al montar el componente
   useEffect(() => {
@@ -53,29 +118,102 @@ useEffect(() => {
       [name]: value,
     });
   };
-
-  const addOrUpdateMaterial = () => {
-    if (newMaterial.material && newMaterial.quantity) {
-      if (editingIndex !== null) {
-        // Actualizar material existente
-        const updatedMaterials = [...formData.materials];
-        updatedMaterials[editingIndex] = newMaterial;
-        setFormData({ ...formData, materials: updatedMaterials });
-        setEditingIndex(null); // Salir del modo de edición
-      } else {
-        // Agregar nuevo material
-        setFormData({
-          ...formData,
-          materials: [...formData.materials, newMaterial],
-        });
-      }
-      setNewMaterial({ material: "", quantity: "", comment: "" });
+  const addPredefinedMaterial = () => {
+    if (newPredefinedMaterial.material && newPredefinedMaterial.quantity) {
+      const materialToAdd = {
+        material: newPredefinedMaterial.material,
+        option: newPredefinedMaterial.selectedOption || "N/A",
+        quantity: parseInt(newPredefinedMaterial.quantity, 10), // Asegúrate de convertir la cantidad a número
+        comment: "", // No hay comentarios para materiales predefinidos
+      };
+  
+      setFormData({
+        ...formData,
+        materials: [...formData.materials, materialToAdd],
+      });
+  
+      // Reiniciar el formulario de materiales predefinidos
+      setNewPredefinedMaterial({ material: "", selectedOption: "", quantity: "" });
+    } else {
+      alert("Por favor, selecciona un material y una cantidad válida.");
     }
   };
 
+  const addManualMaterial = () => {
+    if (newManualMaterial.material && newManualMaterial.quantity) {
+      const materialToAdd = {
+        material: newManualMaterial.material,
+        option: "N/A", // No hay subopciones para materiales manuales
+        quantity: newManualMaterial.quantity,
+        comment: newManualMaterial.comment || "",
+      };
+  
+      setFormData({
+        ...formData,
+        materials: [...formData.materials, materialToAdd],
+      });
+  
+      // Reiniciar el formulario de materiales manuales
+      setNewManualMaterial({ material: "", quantity: "", comment: "" });
+    }
+  };
+  const addOrUpdateMaterial = () => {
+    if (editingIndex !== null) {
+      // Actualizar material existente
+      const updatedMaterials = [...formData.materials];
+  
+      if (newPredefinedMaterial.material) {
+        // Actualizar material predefinido
+        updatedMaterials[editingIndex] = {
+          material: newPredefinedMaterial.material,
+          option: newPredefinedMaterial.selectedOption || "N/A",
+          quantity: parseInt(newPredefinedMaterial.quantity, 10),
+          comment: "", // No hay comentarios para materiales predefinidos
+        };
+      } else if (newManualMaterial.material) {
+        // Actualizar material manual
+        updatedMaterials[editingIndex] = {
+          material: newManualMaterial.material,
+          option: "N/A", // No hay subopciones para materiales manuales
+          quantity: parseInt(newManualMaterial.quantity, 10),
+          comment: newManualMaterial.comment || "",
+        };
+      }
+  
+      setFormData({ ...formData, materials: updatedMaterials });
+      setEditingIndex(null); // Salir del modo de edición
+      setNewPredefinedMaterial({ material: "", selectedOption: "", quantity: "" });
+      setNewManualMaterial({ material: "", quantity: "", comment: "" });
+    } else {
+      alert("No hay material seleccionado para editar.");
+    }
+  };
   const editMaterial = (index) => {
-    setNewMaterial(formData.materials[index]);
-    setEditingIndex(index);
+    const materialToEdit = formData.materials[index];
+  
+    if (predefinedMaterials.some((m) => m.material === materialToEdit.material)) {
+      // Es un material predefinido
+      setNewPredefinedMaterial({
+        material: materialToEdit.material,
+        selectedOption: materialToEdit.option !== "N/A" ? materialToEdit.option : "",
+        quantity: materialToEdit.quantity.toString(), // Convertir a string para el input
+      });
+  
+      // Limpiar el estado de materiales manuales
+      setNewManualMaterial({ material: "", quantity: "", comment: "" });
+    } else {
+      // Es un material manual
+      setNewManualMaterial({
+        material: materialToEdit.material,
+        quantity: materialToEdit.quantity.toString(),
+        comment: materialToEdit.comment || "",
+      });
+  
+      // Limpiar el estado de materiales predefinidos
+      setNewPredefinedMaterial({ material: "", selectedOption: "", quantity: "" });
+    }
+  
+    setEditingIndex(index); // Establecer el índice del material que se está editando
   };
 
   const deleteMaterial = (index) => {
@@ -94,9 +232,10 @@ useEffect(() => {
     doc.text(`${work?.propertyAddress || "No disponible"}`, 10, 60);
     autoTable(doc, {
       startY: 80,
-      head: [["Material", "Cantidad", "Comentario"]],
+      head: [["Material","Opción", "Cantidad", "Comentario"]],
       body: formData.materials.map((material) => [
         material.material,
+        material.option || "N/A",
         material.quantity,
         material.comment,
       ]),
@@ -160,113 +299,192 @@ useEffect(() => {
     className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-200 cursor-not-allowed"
   />
 </div>
-            <div className="md:col-span-2">
+
+<div className="flex-1 p-4 border-2 border-gray-300 rounded-lg shadow-md">
+  {/* Material predefinido */}
+  <div className="flex-1">
+  <label htmlFor="material" className="block text-gray-700 text-sm font-bold mb-2">
+      Material:
+    </label>
+    <select
+      id="predefinedMaterial"
+      name="predefinedMaterial"
+      value={newPredefinedMaterial.material}
+      onChange={(e) => {
+        const selectedMaterial = predefinedMaterials.find(
+          (material) => material.material === e.target.value
+        );
+        setNewPredefinedMaterial({
+          ...newPredefinedMaterial,
+          material: selectedMaterial ? selectedMaterial.material : "",
+          selectedOption: "",
+        });
+      }}
+      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+    >
+      <option value="">Seleccione un material</option>
+      {predefinedMaterials.map((material) => (
+        <option key={material.material} value={material.material}>
+          {material.material}
+        </option>
+      ))}
+    </select>
+  </div>
+
+  {/* Subopción */}
+  {newPredefinedMaterial.material &&
+      predefinedMaterials.find((m) => m.material === newPredefinedMaterial.material)?.options && (
+        <div className="flex-1">
+          <label htmlFor="subOption" className="block text-gray-700 text-sm font-bold mb-1">
+            Subopción:
+          </label>
+          <select
+            id="subOption"
+            name="subOption"
+            value={newPredefinedMaterial.selectedOption}
+            onChange={(e) =>
+              setNewPredefinedMaterial({ ...newPredefinedMaterial, selectedOption: e.target.value })
+            }
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          >
+            <option value="">Seleccione una subopción</option>
+            {predefinedMaterials
+              .find((m) => m.material === newPredefinedMaterial.material)
+              ?.options.map((option, index) => (
+                <option key={index} value={option}>
+                  {option}
+                </option>
+              ))}
+          </select>
+        </div>
+      )}
+
+
+  {/* Cantidad */}
+  <div className="flex-1">
+      <label htmlFor="quantity" className="block text-gray-700 text-sm font-bold mb-1">
+        Cantidad:
+      </label>
+      <input
+        type="number"
+        id="quantity"
+        name="quantity"
+        value={newPredefinedMaterial.quantity}
+        onChange={(e) =>
+          setNewPredefinedMaterial({ ...newPredefinedMaterial, quantity: e.target.value })
+        }
+        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+      />
+    </div>
+    <button
+    type="button"
+    onClick={editingIndex !== null ? addOrUpdateMaterial : addPredefinedMaterial}
+    className="bg-blue-950 w-full hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded focus:outline-none focus:shadow-outline mt-4"
+  >
+    {editingIndex !== null ? "Actualizar" : "Añadir"}
+  </button>
+
+</div>
+
+
+<div className="flex-1 p-4 border-2 border-gray-300 rounded-lg shadow-md">
               <label htmlFor="material" className="block text-gray-700 text-sm font-bold mb-2">
-                Material:
+                Escribir Manual:
               </label>
               <input
-                type="text"
-                name="material"
-                placeholder="Material"
-                value={newMaterial.material}
-                onChange={handleNewMaterialChange}
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              />
+        type="text"
+        id="manualMaterial"
+        name="material"
+        placeholder="Material"
+        value={newManualMaterial.material}
+        onChange={(e) =>
+          setNewManualMaterial({ ...newManualMaterial, material: e.target.value })
+        }
+        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+      />
+      <label htmlFor="quantity" className="block text-gray-700 text-sm font-bold mb-1">
+        Cantidad:
+      </label>
+               <input
+        type="number"
+        id="manualQuantity"
+        name="quantity"
+        placeholder="Cantidad"
+        value={newManualMaterial.quantity}
+        onChange={(e) =>
+          setNewManualMaterial({ ...newManualMaterial, quantity: e.target.value })
+        }
+        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+      />
+      <label htmlFor="quantity" className="block text-gray-700 text-sm font-bold mb-1">
+        Detalle:
+      </label>
               <input
-                type="text"
-                name="quantity"
-                placeholder="Cantidad"
-                value={newMaterial.quantity}
-                onChange={handleNewMaterialChange}
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mt-2"
-              />
-              <input
-                type="text"
-                name="comment"
-                placeholder="Comentario"
-                value={newMaterial.comment}
-                onChange={handleNewMaterialChange}
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mt-2"
-              />
+        type="text"
+        id="manualComment"
+        name="comment"
+        placeholder="Comentario"
+        value={newManualMaterial.comment}
+        onChange={(e) =>
+          setNewManualMaterial({ ...newManualMaterial, comment: e.target.value })
+        }
+        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+      />
               <button
-                type="button"
-                onClick={addOrUpdateMaterial}
-                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline mt-2"
-              >
-                {editingIndex !== null ? "Actualizar Material" : "Añadir Material"}
-              </button>
+    type="button"
+    onClick={editingIndex !== null ? addOrUpdateMaterial : addManualMaterial}
+    className="bg-blue-950 w-full hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded focus:outline-none focus:shadow-outline mt-4"
+  >
+    {editingIndex !== null ? "Actualizar" : "Añadir"}
+  </button>
             </div>
           </form>
   
           {/* Tabla para pantallas grandes */}
-          <div className="hidden lg:block mt-4">
-            <h3 className="text-lg font-bold">Materiales seleccionados</h3>
+          <div className="flex-1 p-4 border-2 mt-2 border-gray-300 rounded-lg shadow-md">
+        
             <div className="overflow-x-auto">
               <table className="table-auto w-full mt-2">
-                <thead>
-                  <tr>
-                    <th className="px-4 py-2">Material</th>
-                    <th className="px-4 py-2">Cantidad</th>
-                    <th className="px-4 py-2">Comentario</th>
-                    <th className="px-4 py-2">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {formData.materials.map((material, index) => (
-                    <tr key={index}>
-                      <td className="border px-4 py-2">{material.material}</td>
-                      <td className="border px-4 py-2">{material.quantity}</td>
-                      <td className="border px-4 py-2">{material.comment}</td>
-                      <td className="border px-4 py-2">
-                        <button
-                          onClick={() => editMaterial(index)}
-                          className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded mr-2"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => deleteMaterial(index)}
-                          className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded"
-                        >
-                          Eliminar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
+              <thead>
+  <tr>
+    <th className="px-4 py-2 font-Montserrat text-sm">Material</th>
+    <th className="px-4 py-2 font-Montserrat text-sm">Subopción</th>
+    <th className="px-4 py-2 font-Montserrat text-sm">Cantidad</th>
+    <th className="px-4 py-2 font-Montserrat text-sm">Comentario</th>
+    <th className="px-4 py-2 font-Montserrat text-sm">Acciones</th>
+  </tr>
+</thead>
+<tbody>
+  {formData.materials.map((material, index) => (
+    <tr key={index}>
+      <td className="border px-4 py-2 font-Montserrat text-sm">{material.material}</td>
+      <td className="border px-4 py-2 font-Montserrat text-sm">{material.option}</td>
+      <td className="border px-4 py-2 font-Montserrat text-sm">{material.quantity}</td>
+      <td className="border px-4 py-2 font-Montserrat text-sm">{material.comment}</td>
+      <td className="border px-4 py-2 font-Montserrat text-sm">
+      <div className="flex items-center gap-2"> {/* Flexbox para alinear los botones */}
+          <button
+            onClick={() => editMaterial(index)}
+            className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded"
+          >
+            <FontAwesomeIcon icon={faEdit} /> {/* Ícono de editar */}
+          </button>
+          <button
+            onClick={() => deleteMaterial(index)}
+            className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded"
+          >
+            <FontAwesomeIcon icon={faTrash} /> {/* Ícono de eliminar */}
+          </button>
+        </div>
+      </td>
+    </tr>
+  ))}
+</tbody>
               </table>
             </div>
           </div>
   
-          {/* Tarjetas para pantallas pequeñas */}
-          <div className="block lg:hidden mt-4 space-y-4">
-            <h3 className="text-lg font-bold">Materiales seleccionados</h3>
-            {formData.materials.map((material, index) => (
-              <div
-                key={index}
-                className="border border-gray-300 rounded-lg p-4 shadow-md hover:bg-gray-100"
-              >
-                <p className="text-sm font-semibold">Material: {material.material}</p>
-                <p className="text-sm">Cantidad: {material.quantity}</p>
-                <p className="text-sm">Comentario: {material.comment}</p>
-                <div className="mt-2">
-                  <button
-                    onClick={() => editMaterial(index)}
-                    className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded mr-2"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    onClick={() => deleteMaterial(index)}
-                    className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded"
-                  >
-                    Eliminar
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-  
+         
           <button
             type="button"
             onClick={generatePDF}
