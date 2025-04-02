@@ -25,16 +25,19 @@ const Materiales = () => {
     dispatch(fetchWorks());
   }, [dispatch]);
 
-  // Cargar los detalles de la obra seleccionada
-  useEffect(() => {
-    if (selectedAddress) {
-      const selectedWork = works.find((work) => work.propertyAddress === selectedAddress);
-      if (selectedWork) {
-        dispatch(fetchWorkById(selectedWork.idWork));
-      }
+  // Cuando se selecciona una dirección
+useEffect(() => {
+  if (selectedAddress) {
+    const selectedWork = works.find((work) => work.propertyAddress === selectedAddress);
+    if (selectedWork) {
+      dispatch(fetchWorkById(selectedWork.idWork)); // Cargar detalles del trabajo
+      setFormData({
+        ...formData,
+        date: selectedWork.startDate || new Date().toISOString().split("T")[0], // Usar startDate si está disponible
+      });
     }
-  }, [selectedAddress, works, dispatch]);
-
+  }
+}, [selectedAddress, works, dispatch]);
   // Memorizar la URL del PDF del permiso
   const permitPdfUrl = useMemo(() => {
     if (selectedAddress && work?.Permit?.pdfData) {
@@ -145,18 +148,18 @@ const Materiales = () => {
               </select>
             </div>
             <div>
-              <label htmlFor="date" className="block text-gray-700 text-sm font-bold mb-2">
-                Fecha:
-              </label>
-              <input
-                type="date"
-                id="date"
-                name="date"
-                value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              />
-            </div>
+  <label htmlFor="date" className="block text-gray-700 text-sm font-bold mb-2">
+    Fecha:
+  </label>
+  <input
+    type="date"
+    id="date"
+    name="date"
+    value={formData.date}
+    readOnly // Deshabilitar edición
+    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-200 cursor-not-allowed"
+  />
+</div>
             <div className="md:col-span-2">
               <label htmlFor="material" className="block text-gray-700 text-sm font-bold mb-2">
                 Material:
