@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchBudgets, updateBudget } from "../../Redux/Actions/budgetActions";
 import { createWork } from "../../Redux/Actions/workActions";
-import BudgetPDF from "./BudgetPdf";
+import BudgetPDF from "./BudgetPDF";
 
 const BudgetList = () => {
   const dispatch = useDispatch();
