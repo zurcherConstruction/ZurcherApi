@@ -6,6 +6,7 @@ import { fetchWorks, fetchWorkById } from "../Redux/Actions/workActions";
 import logo from '../../public/logo.png'; // Asegúrate de que la ruta sea correcta
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faEdit, faTrash } from "@fortawesome/free-solid-svg-icons";
+import { createMaterial } from "../Redux/Actions/materialActions";
 
 const Materiales = () => {
   const dispatch = useDispatch();
@@ -84,7 +85,37 @@ const Materiales = () => {
     }
     // Agrega más materiales según sea necesario
   ];
-
+  const saveMaterials = async () => {
+    const materialsData = {
+      materials: formData.materials.map((material) => ({
+        material: material.material,
+        quantity: material.quantity,
+        comment: material.comment || "",
+      })),
+      workId: work?.idWork, // ID de la obra seleccionada
+      purchaseDate: formData.date, // Fecha asignada
+    };
+  
+    console.log('Datos que se enviarán al backend:', materialsData);
+  
+    try {
+      await dispatch(createMaterial(materialsData)); // Usar la acción para guardar el conjunto de materiales
+      alert('Materiales guardados exitosamente.');
+  
+      // Limpiar el formulario
+      setFormData({
+        date: new Date().toISOString().split("T")[0],
+        materials: [],
+        comments: "",
+      });
+      setNewPredefinedMaterial({ material: "", selectedOption: "", quantity: "" });
+      setNewManualMaterial({ material: "", quantity: "", comment: "" });
+      setEditingIndex(null); // Salir del modo de edición
+    } catch (error) {
+      console.error('Error al guardar los materiales:', error);
+      alert('Hubo un error al guardar los materiales.');
+    }
+  };
   // Cargar todas las obras al montar el componente
   useEffect(() => {
     dispatch(fetchWorks());
@@ -221,7 +252,7 @@ useEffect(() => {
     setFormData({ ...formData, materials: updatedMaterials });
   };
 
-  const generatePDF = () => {
+  const generatePDF = async() => {
     const doc = new jsPDF();
     doc.addImage(logo, 'PNG', 10, 10, 30, 30); // Adjust logo size
     doc.setFontSize(12);
@@ -248,6 +279,8 @@ useEffect(() => {
     const pdfBlob = doc.output("blob");
     const pdfUrl = URL.createObjectURL(pdfBlob);
     setPdfUrl(pdfUrl);
+
+    await saveMaterials();
   };
 
   if (loading) {

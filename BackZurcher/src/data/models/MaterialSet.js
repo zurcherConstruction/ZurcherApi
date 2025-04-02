@@ -1,30 +1,22 @@
 const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
-  return sequelize.define('Material', {
-    idMaterial: {
+  return sequelize.define('MaterialSet', {
+    idMaterialSet: {
       type: DataTypes.UUID,
       primaryKey: true,
       defaultValue: DataTypes.UUIDV4,
       allowNull: false,
     },
-    name: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
-    quantity: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-    },
-    cost: {
-      type: DataTypes.DECIMAL,
+    invoiceFile: {
+      type: DataTypes.STRING, // Ruta del archivo de factura
       allowNull: true,
     },
-    comment: {
-      type: DataTypes.STRING,
+    purchaseDate: {
+      type: DataTypes.DATE,
       allowNull: true,
     },
-    materialSetId: {
+    workId: {
       type: DataTypes.UUID,
       allowNull: false,
     },

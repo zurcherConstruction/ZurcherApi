@@ -100,7 +100,7 @@ const getWorkById = async (req, res) => {
         },
         {
           model: Material,
-          attributes: ['idMaterial', 'name', 'quantity','unit', 'cost'],
+          attributes: ['idMaterial', 'name', 'quantity', 'cost'],
         },
         {
           model: Inspection,
