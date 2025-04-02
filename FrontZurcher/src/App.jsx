@@ -31,6 +31,7 @@ import ForgotPassword from "./Components/Auth/ForgotPassword";
 import ResetPassword from "./Components/Auth/ResetPassword";
  import ArchveBudget from "./Components/Budget/ArchiveBudget"; 
 import FileDetail from "./Components/Budget/FileDetail";
+import PendingWorks from "./Components/Works/PendingWorks"; // Asegúrate de importar el componente correcto
 function App() {
   const dispatch = useDispatch();
   const [activeSection, setActiveSection] = useState("Overview");
@@ -104,6 +105,16 @@ function App() {
                 </PrivateRoute>
               }
             />
+             <Route
+              path="/workCalendar"
+              element={
+                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
+                  <PendingWorks />
+                </PrivateRoute>
+              }
+            />
+
+
             <Route
               path="/installation"
               element={

@@ -65,9 +65,12 @@ export const createWork = (workData) => async (dispatch) => {
 export const updateWork = (idWork, workData) => async (dispatch) => {
   dispatch(updateWorkRequest());
   try {
+    console.log('Enviando datos al backend:', { idWork, workData }); // Log para depuración
     const response = await api.put(`/work/${idWork}`, workData); // Ruta del backend
+    console.log('Respuesta del backend:', response.data); // Log para depuración
     dispatch(updateWorkSuccess(response.data));
   } catch (error) {
+    console.error('Error al actualizar la obra:', error); // Log para depuración
     const errorMessage =
       error.response?.data?.message || 'Error al actualizar la obra';
     dispatch(updateWorkFailure(errorMessage));

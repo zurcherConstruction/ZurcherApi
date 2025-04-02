@@ -16,7 +16,7 @@ const BarraLateral = () => {
     { name: "Progresos", path: "/progress-tracker" },
     { name: "Enviar mensaje", path: "/send-notifications" },
     { name: "Staff", path: "/register" },
-    { name: "Estadísticas", path: "/estadisticas" },
+    { name: "Calendar", path: "/workCalendar" },
     { name: "BudgetsEnd", path: "/archive" },
   ];
 
