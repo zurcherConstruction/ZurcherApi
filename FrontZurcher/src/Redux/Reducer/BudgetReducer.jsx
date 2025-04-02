@@ -2,6 +2,7 @@ import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
   budgets: [], // Lista de presupuestos
+  archivedBudgets: [],
   loading: false, // Estado de carga
   error: null, // Mensaje de error
 };
@@ -88,6 +89,19 @@ const budgetSlice = createSlice({
       state.error = action.payload;
     },
 
+    fetchArchivedBudgetsRequest: (state) => {
+      state.loading = true;
+      state.error = null;
+    },
+    fetchArchivedBudgetsSuccess: (state, action) => {
+      state.loading = false;
+      state.archivedBudgets = action.payload;
+    },
+    fetchArchivedBudgetsFailure: (state, action) => {
+      state.loading = false;
+      state.error = action.payload;
+    },
+
     // Limpiar errores
     clearBudgetsError: (state) => {
       state.error = null;
@@ -111,6 +125,9 @@ export const {
   deleteBudgetRequest,
   deleteBudgetSuccess,
   deleteBudgetFailure,
+  fetchArchivedBudgetsRequest,
+  fetchArchivedBudgetsSuccess,
+  fetchArchivedBudgetsFailure,
   clearBudgetsError,
 } = budgetSlice.actions;
 

@@ -10,6 +10,7 @@ const authRoutes = require('./routes/authRoutes');
 const http = require('http');
 const { Server } = require('socket.io');
 
+require('./tasks/cronJobs');
 
 const app = express();
 const server = http.createServer(app); // Crear el servidor HTTP

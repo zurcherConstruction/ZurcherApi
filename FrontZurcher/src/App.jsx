@@ -29,8 +29,8 @@ import InstallationForm from "./Components/Works/InstalationForm";
 import BudgetEditor from "./Components/Budget/BudgetEditor";
 import ForgotPassword from "./Components/Auth/ForgotPassword";
 import ResetPassword from "./Components/Auth/ResetPassword";
-  
-
+ import ArchveBudget from "./Components/Budget/ArchiveBudget"; 
+import FileDetail from "./Components/Budget/FileDetail";
 function App() {
   const dispatch = useDispatch();
   const [activeSection, setActiveSection] = useState("Overview");
@@ -155,6 +155,16 @@ function App() {
                 </PrivateRoute>
               }
             />
+             <Route
+              path="/archive"
+              element={
+                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
+                  <ArchveBudget />
+                </PrivateRoute>
+              }
+            />
+            <Route path="/archives/:folder/:file" element={<FileDetail />} />
+            
             <Route
               path="/send-notifications"
               element={

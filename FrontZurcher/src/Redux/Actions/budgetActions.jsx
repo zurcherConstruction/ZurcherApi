@@ -15,6 +15,9 @@ import {
   deleteBudgetRequest,
   deleteBudgetSuccess,
   deleteBudgetFailure,
+  fetchArchivedBudgetsRequest,
+  fetchArchivedBudgetsSuccess,
+  fetchArchivedBudgetsFailure,
 } from '../Reducer/BudgetReducer';
 
 // Obtener todos los presupuestos
@@ -81,5 +84,18 @@ export const deleteBudget = (idBudget) => async (dispatch) => {
     const errorMessage =
       error.response?.data?.message || 'Error al eliminar el presupuesto';
     dispatch(deleteBudgetFailure(errorMessage));
+  }
+};
+
+// Obtener archivos archivados
+export const fetchArchivedBudgets = () => async (dispatch) => {
+  dispatch(fetchArchivedBudgetsRequest());
+  try {
+    const response = await api.get(`/archive?timestamp=${new Date().getTime()}`); // Agregar un parámetro único
+    dispatch(fetchArchivedBudgetsSuccess(response.data));
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.message || "Error al obtener los archivos archivados";
+    dispatch(fetchArchivedBudgetsFailure(errorMessage));
   }
 };

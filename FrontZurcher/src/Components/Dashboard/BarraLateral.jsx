@@ -17,7 +17,7 @@ const BarraLateral = () => {
     { name: "Enviar mensaje", path: "/send-notifications" },
     { name: "Staff", path: "/register" },
     { name: "Estadísticas", path: "/estadisticas" },
-    { name: "Clientes", path: "/clientes" },
+    { name: "BudgetsEnd", path: "/archive" },
   ];
 
   const handleNavigation = (path) => {
