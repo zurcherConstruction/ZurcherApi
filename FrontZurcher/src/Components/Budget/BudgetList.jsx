@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { fetchBudgets, updateBudget } from "../../Redux/Actions/budgetActions";
 import { createWork } from "../../Redux/Actions/workActions";
 import BudgetPDF from "./BudgetPdf";
+import { parseISO, isSameMonth, format} from "date-fns";
 
 const BudgetList = () => {
   const dispatch = useDispatch();
@@ -19,8 +20,19 @@ const BudgetList = () => {
     dispatch(fetchBudgets());
   }, [dispatch]);
 
+   // Obtener la fecha actual
+   const currentDate = new Date();
+
+   
+
+   // Filtrar presupuestos del mes actual
+   const currentMonthBudgets = budgets.filter((budget) => {
+     const budgetDate = parseISO(budget.date); // Convierte la fecha de 'YYYY-MM-DD' a un objeto Date
+     return isSameMonth(budgetDate, currentDate);
+   });
+
   // Ordenar los presupuestos por estado (priorizando "created")
-  const sortedBudgets = budgets
+  const sortedBudgets = currentMonthBudgets
     .slice() // Crear una copia para no mutar el estado original
     .sort((a, b) => {
       if (a.status === "created" && b.status !== "created") return -1;
@@ -37,6 +49,8 @@ const BudgetList = () => {
   const handlePageChange = (pageNumber) => {
     setCurrentPage(pageNumber);
   };
+
+  const formatDate = (date) => format(new Date(date), "dd-MM-yyyy");
 
   // Función para manejar el cambio de estado del presupuesto
   const handleUpdateStatus = (idBudget, newStatus, budget) => {
@@ -116,10 +130,14 @@ const BudgetList = () => {
                     className={`hover:bg-gray-100 ${getStatusColor(budget.status)}`}
                   >
                     <td className="border border-gray-300 px-4 text-xs">{budget.applicantName}</td>
-                    <td className="border border-gray-300 px-4 text-xs">{budget.date}</td>
                     <td className="border border-gray-300 px-4 text-xs">
-                      {budget.expirationDate || "N/A"}
-                    </td>
+        {format(parseISO(budget.date), "dd-MM-yyyy")} {/* Formatear la fecha */}
+      </td>
+      <td className="border border-gray-300 px-4 text-xs">
+        {budget.expirationDate
+          ? format(parseISO(budget.expirationDate), "dd-MM-yyyy") // Formatear la fecha
+          : "N/A"}
+      </td>
                     <td className="border border-gray-300 px-4 text-xs">${budget.price}</td>
                     <td className="border border-gray-300 px-4 text-xs">${budget.initialPayment}</td>
                     <td className="border border-gray-300 px-4 text-xs">{budget.status}</td>
