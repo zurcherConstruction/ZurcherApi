@@ -29,7 +29,10 @@ import InstallationForm from "./Components/Works/InstalationForm";
 import BudgetEditor from "./Components/Budget/BudgetEditor";
 import ForgotPassword from "./Components/Auth/ForgotPassword";
 import ResetPassword from "./Components/Auth/ResetPassword";
-  
+ import ArchveBudget from "./Components/Budget/ArchiveBudget"; 
+import FileDetail from "./Components/Budget/FileDetail";
+import PendingWorks from "./Components/Works/PendingWorks"; 
+import AttachInvoice from "./Components/Seguimiento/AttachInvoice";
 
 function App() {
   const dispatch = useDispatch();
@@ -104,6 +107,16 @@ function App() {
                 </PrivateRoute>
               }
             />
+             <Route
+              path="/workCalendar"
+              element={
+                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
+                  <PendingWorks />
+                </PrivateRoute>
+              }
+            />
+
+
             <Route
               path="/installation"
               element={
@@ -155,6 +168,16 @@ function App() {
                 </PrivateRoute>
               }
             />
+             <Route
+              path="/archive"
+              element={
+                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
+                  <ArchveBudget />
+                </PrivateRoute>
+              }
+            />
+            <Route path="/archives/:folder/:file" element={<FileDetail />} />
+            
             <Route
               path="/send-notifications"
               element={
@@ -172,6 +195,16 @@ function App() {
                   allowedRoles={["owner", "recept", "worker", "admin"]}
                 >
                   <Notifications />
+                </PrivateRoute>
+              }
+            />
+                        <Route
+              path="/attachInvoice"
+              element={
+                <PrivateRoute
+                  allowedRoles={["owner", "recept", "worker", "admin"]}
+                >
+                  <AttachInvoice />
                 </PrivateRoute>
               }
             />

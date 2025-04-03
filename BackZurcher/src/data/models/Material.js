@@ -9,21 +9,24 @@ module.exports = (sequelize) => {
       allowNull: false,
     },
     name: {
-      type: DataTypes.ENUM('Tanque ATU 500 Infiltrator', 'Kit alarma compresor', 'Clean Out', 'Arena', 'Cruz de 4',
-         'Codos de 90', 'T de 4', 'Chambers arc24',  'otros'),
+      type: DataTypes.STRING,
       allowNull: false,
     },
     quantity: {
       type: DataTypes.INTEGER,
       allowNull: false,
     },
-    unit: {
-      type: DataTypes.STRING,
-      allowNull: false,
-    },
     cost: {
       type: DataTypes.DECIMAL,
       allowNull: true,
+    },
+    comment: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    materialSetId: {
+      type: DataTypes.UUID,
+      allowNull: false,
     },
   });
 };

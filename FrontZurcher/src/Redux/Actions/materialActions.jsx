@@ -28,7 +28,7 @@ export const fetchMaterialsByWork = (workId) => async (dispatch) => {
 export const createMaterial = (materialData) => async (dispatch) => {
   dispatch(createMaterialRequest());
   try {
-    const response = await api.post('/materials', materialData); // Ruta del backend
+    const response = await api.post('/material', materialData); // Ruta del backend
     dispatch(createMaterialSuccess(response.data));
   } catch (error) {
     const errorMessage =

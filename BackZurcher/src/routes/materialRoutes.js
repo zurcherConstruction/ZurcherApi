@@ -6,7 +6,7 @@ const {allowRoles, isOwner, isAdmin, isRecept, isStaff } = require('../middlewar
 const router = express.Router();
 
 // Crear un material (solo administradores)
-router.post('/', verifyToken,allowRoles(['admin', 'recept', 'owner']), MaterialController.createMaterial);
+router.post('/', verifyToken,allowRoles(['admin', 'recept', 'owner']), MaterialController.createMaterialSet);
 
 // Obtener materiales por obra (personal del hotel)
 router.get('/work/:workId', verifyToken, isStaff, MaterialController.getMaterialsByWork);

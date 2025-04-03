@@ -10,7 +10,7 @@ const materialRoutes = require('./materialRoutes');
 const workRoutes = require('./workRoutes');
 const permitRoutes = require('./permitRoutes');
 const notificationRoutes = require('./NotificationRoutes'); // Asegúrate de que la ruta sea correcta
-
+const archiveRoutes = require('./archiveRoutes'); // Asegúrate de que la ruta sea correcta
 
 // Rutas públicas
 router.use('/auth', authRoutes); // Registro y login no requieren token
@@ -26,6 +26,6 @@ router.use('/material', materialRoutes);
 router.use('/work', workRoutes);
 router.use('/permit', permitRoutes);
 router.use('/notification', notificationRoutes); // Rutas de notificaciones
-
+router.use('/archive', archiveRoutes); // Ruta para obtener presupuestos archivados
 
 module.exports = router;

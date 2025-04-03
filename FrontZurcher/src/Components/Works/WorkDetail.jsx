@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorkById } from "../../Redux/Actions/workActions";
 import { useParams } from "react-router-dom";
+import api from "../../utils/axios";
 
 const WorkDetail = () => {
   const { idWork } = useParams();
@@ -30,9 +31,17 @@ const WorkDetail = () => {
     return <p>No se encontró la obra.</p>;
   }
 
-  // Convertir el PDF a una URL para mostrarlo
+  // Convertir el PDF del Permit a una URL para mostrarlo
   const pdfUrl = work.Permit?.pdfData
-    ? URL.createObjectURL(new Blob([new Uint8Array(work.Permit.pdfData.data)], { type: 'application/pdf' }))
+    ? URL.createObjectURL(new Blob([new Uint8Array(work.Permit.pdfData.data)], { type: "application/pdf" }))
+    : null;
+
+  // Obtener la URL de la factura de materiales
+  const validMaterialSet = work.MaterialSets?.find((set) => set.invoiceFile !== null);
+
+  // Construir la URL de la factura si existe
+  const invoiceUrl = validMaterialSet
+    ? `${api.defaults.baseURL}uploads/${validMaterialSet.invoiceFile}` // Usar la baseURL de Axios
     : null;
 
 
@@ -52,6 +61,37 @@ const WorkDetail = () => {
             <iframe src={pdfUrl} width="100%" height="250px" title="Vista previa del PDF"></iframe>
           </div>
         )}
+
+        {/* Enlace para ver la factura de materiales */}
+       {invoiceUrl && (
+  <div className="mt-4">
+    <h3 className="text-lg font-bold">Factura de Materiales</h3>
+    {invoiceUrl.endsWith('.pdf') ? (
+      // Mostrar vista previa si es un PDF
+      <iframe
+        src={invoiceUrl}
+        width="100%"
+        height="250px"
+        title="Vista previa de la factura"
+      ></iframe>
+    ) : (
+      // Mostrar imagen si no es un PDF
+      <img
+        src={invoiceUrl}
+        alt="Vista previa de la factura"
+        className="w-full h-auto rounded shadow"
+      />
+    )}
+    <a
+      href={invoiceUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-blue-500 underline mt-2 block"
+    >
+      Descargar factura de materiales
+    </a>
+  </div>
+)}
       </div>
 
       {/* Columna derecha: Detalles de instalación */}

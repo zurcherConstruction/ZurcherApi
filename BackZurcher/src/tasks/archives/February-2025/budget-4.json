@@ -1,0 +1,15 @@
+{
+  "idBudget": 4,
+  "propertyAddress": "670 Sentinela Blvd  Lehigh Acres, FL 33974",
+  "applicantName": "joaquin",
+  "date": "2025-02-02",
+  "expirationDate": "2025-03-02",
+  "price": "15300.00",
+  "initialPayment": 9180,
+  "status": "created",
+  "systemType": "Class I NSF245 ATU Tank",
+  "drainfieldDepth": "500",
+  "gpdCapacity": "5",
+  "createdAt": "2025-04-02T02:34:24.970Z",
+  "updatedAt": "2025-04-02T02:34:39.578Z"
+}
