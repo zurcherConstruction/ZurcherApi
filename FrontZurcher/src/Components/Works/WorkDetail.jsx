@@ -41,7 +41,7 @@ const WorkDetail = () => {
 
   // Construir la URL de la factura si existe
   const invoiceUrl = validMaterialSet
-    ? `http://localhost:3001/uploads/${validMaterialSet.invoiceFile}` // Ruta completa al archivo
+    ? `${api.defaults.baseURL}uploads/${validMaterialSet.invoiceFile}` // Usar la baseURL de Axios
     : null;
 
 
