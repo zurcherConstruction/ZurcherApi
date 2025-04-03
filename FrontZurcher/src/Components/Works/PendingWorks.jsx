@@ -49,21 +49,26 @@ console.log(staff, "staff"); // Verificar el contenido del staff
     setSelectedStaff("");
   };
 
-  // Convertir trabajos en eventos para el calendario
-  const events = works
-    .filter((work) => work.startDate) // Solo trabajos con fecha asignada
-    .map((work) => ({
-      title: `${work.propertyAddress} - ${work.notes || "Sin notas"}`,
-      start: new Date(work.startDate),
-      end: new Date(work.startDate), // Puedes ajustar la duración si es necesario
-      work, // Pasar el objeto completo para usarlo en el tooltip
-    }));
+ // Convertir trabajos en eventos para el calendario
+const events = works
+.filter((work) => work.startDate) // Solo trabajos con fecha asignada
+.map((work) => {
+  // Buscar el nombre del staff correspondiente al staffId
+  const staffMember = staff.find((member) => member.id === work.staffId);
+  const staffName = staffMember ? staffMember.name : "Sin asignar";
 
+  return {
+    title: `${work.propertyAddress} -  (${staffName})`,
+    start: new Date(work.startDate),
+    end: new Date(work.startDate), // Puedes ajustar la duración si es necesario
+    work, // Pasar el objeto completo para usarlo en el tooltip
+  };
+});
   // Renderizar eventos con un color llamativo
   const eventStyleGetter = (event) => {
     return {
       style: {
-        backgroundColor: "#ff6347", // Color llamativo
+        backgroundColor: "#1E90FF", // Color llamativo
         color: "white",
         borderRadius: "5px",
         border: "none",
@@ -151,7 +156,7 @@ console.log(staff, "staff"); // Verificar el contenido del staff
     style={{ height: 400, width: "100%" }} // Reducir la altura y el ancho
     eventPropGetter={eventStyleGetter} // Aplicar estilo personalizado
     tooltipAccessor={(event) =>
-      `Dirección: ${event.work.propertyAddress}\nStaff: ${event.work.notes}`
+      `Dirección: ${event.work.propertyAddress}\nStaff: ${event.work.staffId}`
     } // Mostrar tooltip con información
   />
 </div>
