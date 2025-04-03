@@ -9,7 +9,7 @@ const { JWT_SECRET_KEY } = require('./config/envs');
 const authRoutes = require('./routes/authRoutes');
 const http = require('http');
 const { Server } = require('socket.io');
-
+const fs = require('fs');
 require('./tasks/cronJobs');
 
 const app = express();
@@ -20,6 +20,12 @@ const io = new Server(server, {
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
   },
 });
+
+// Crear la carpeta "uploads" si no existe
+const uploadsPath = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadsPath)) {
+  fs.mkdirSync(uploadsPath, { recursive: true });
+}
 // Middleware para compartir `io` en toda la aplicación
 app.set('io', io);
 
@@ -51,7 +57,7 @@ io.on("connection", (socket) => {
 app.use(express.json({ limit: "10mb" })); // Cambia "10mb" según tus necesidades
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 app.use('/images', express.static(path.join(__dirname, 'images')));
-
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use(morgan('dev'));
 app.use(passport.initialize());
 

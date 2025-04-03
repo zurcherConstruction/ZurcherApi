@@ -2,7 +2,7 @@ const express = require('express');
 const WorkController = require('../controllers/WorkController');
 const { verifyToken } = require('../middleware/isAuth');
 const { allowRoles, isOwner, isAdmin, isRecept, isStaff } = require('../middleware/byRol')
-
+const { uploadToDisk } = require('../middleware/multerDisk');
 
 const router = express.Router();
 
@@ -24,4 +24,5 @@ router.delete('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner']),
 // Ruta para agregar un detalle de instalación a un Work
 router.post('/:idWork/installation-details', verifyToken, allowRoles(['admin', 'recept', 'owner','worker']), WorkController.addInstallationDetail);
 
+router.put('/:idWork/invoice', verifyToken, allowRoles(['admin', 'recept', 'owner','worker']), uploadToDisk.single('invoiceFile'), WorkController.attachInvoiceToWork);
 module.exports = router;

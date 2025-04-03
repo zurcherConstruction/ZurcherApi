@@ -18,6 +18,7 @@ const BarraLateral = () => {
     { name: "Staff", path: "/register" },
     { name: "Calendar", path: "/workCalendar" },
     { name: "BudgetsEnd", path: "/archive" },
+    { name: "Facturas", path: "/attachInvoice" },
   ];
 
   const handleNavigation = (path) => {

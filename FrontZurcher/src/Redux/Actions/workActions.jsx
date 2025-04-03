@@ -103,3 +103,31 @@ export const addInstallationDetail = (idWork, installationData) => async (dispat
     throw error; // Lanza el error para manejarlo en el componente
   }
 };
+export const attachInvoiceToWork = (idWork, file, totalCost) => async (dispatch) => {
+  dispatch(updateWorkRequest()); // Indicar que estamos actualizando
+  try {
+    // Crear un FormData para enviar el archivo y los datos adicionales
+    const formData = new FormData();
+    formData.append('invoiceFile', file); // Archivo de la factura
+    formData.append('totalCost', totalCost); // Costo total
+
+    console.log('Enviando datos al backend:', { idWork, file, totalCost }); // Log para depuración
+
+    // Enviar la solicitud al backend
+    const response = await api.put(`/work/${idWork}/invoice`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data', // Indicar que es un formulario
+      },
+    });
+
+    console.log('Respuesta del backend:', response.data); // Log para depuración
+    dispatch(updateWorkSuccess(response.data)); // Actualizar el estado global con los datos de la obra
+    return response.data; // Devolver los datos para usarlos en el componente
+  } catch (error) {
+    console.error('Error al adjuntar la factura:', error); // Log para depuración
+    const errorMessage =
+      error.response?.data?.message || 'Error al adjuntar la factura';
+    dispatch(updateWorkFailure(errorMessage)); // Despachar el error al estado global
+    throw error; // Lanzar el error para manejarlo en el componente
+  }
+};

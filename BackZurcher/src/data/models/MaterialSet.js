@@ -12,6 +12,10 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING, // Ruta del archivo de factura
       allowNull: true,
     },
+    totalCost: {
+        type: DataTypes.DECIMAL(10, 2), // Costo total del conjunto de materiales
+        allowNull: true,
+      },
     purchaseDate: {
       type: DataTypes.DATE,
       allowNull: true,

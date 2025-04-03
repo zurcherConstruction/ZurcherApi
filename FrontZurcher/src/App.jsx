@@ -31,7 +31,9 @@ import ForgotPassword from "./Components/Auth/ForgotPassword";
 import ResetPassword from "./Components/Auth/ResetPassword";
  import ArchveBudget from "./Components/Budget/ArchiveBudget"; 
 import FileDetail from "./Components/Budget/FileDetail";
-import PendingWorks from "./Components/Works/PendingWorks"; // Asegúrate de importar el componente correcto
+import PendingWorks from "./Components/Works/PendingWorks"; 
+import AttachInvoice from "./Components/Seguimiento/AttachInvoice";
+
 function App() {
   const dispatch = useDispatch();
   const [activeSection, setActiveSection] = useState("Overview");
@@ -193,6 +195,16 @@ function App() {
                   allowedRoles={["owner", "recept", "worker", "admin"]}
                 >
                   <Notifications />
+                </PrivateRoute>
+              }
+            />
+                        <Route
+              path="/attachInvoice"
+              element={
+                <PrivateRoute
+                  allowedRoles={["owner", "recept", "worker", "admin"]}
+                >
+                  <AttachInvoice />
                 </PrivateRoute>
               }
             />

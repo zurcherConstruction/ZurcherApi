@@ -87,6 +87,9 @@ InstallationDetail.belongsTo(Work, { foreignKey: 'idWork', as: 'work' });
 
 MaterialSet.hasMany(Material, { foreignKey: 'materialSetId' });
 Material.belongsTo(MaterialSet, { foreignKey: 'materialSetId' });
+// Relación entre Work y MaterialSet
+Work.hasMany(MaterialSet, { foreignKey: 'workId', as: 'MaterialSets' });
+MaterialSet.belongsTo(Work, { foreignKey: 'workId', as: 'Work' });
 //---------------------------------------------------------------------------------//
 module.exports = {
   ...sequelize.models, // para poder importar los modelos así: const { Product, User } = require('./db.js');

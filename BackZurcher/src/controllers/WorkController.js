@@ -1,4 +1,4 @@
-const { Work, Permit, Budget, Material, Inspection, Staff, InstallationDetail } = require('../data');
+const { Work, Permit, Budget, Material, Inspection, Staff, InstallationDetail, MaterialSet } = require('../data');
 const {sendEmail} = require('../utils/nodeMailer/emailService');
 const { getNotificationDetails } = require('../utils/nodeMailer/notificationService');
 
@@ -118,6 +118,11 @@ const getWorkById = async (req, res) => {
           as: 'installationDetails', // Alias definido en la relación
           attributes: ['idInstallationDetail', 'date', 'extraDetails', 'extraMaterials', 'images'], // Campos relevantes
         },
+        {
+          model: MaterialSet, // Incluir el modelo MaterialSet
+          as: 'MaterialSets', // Alias definido en la relación
+          attributes: ['idMaterialSet', 'invoiceFile', 'totalCost'], // Campos relevantes
+        },
       
       ],
     });
@@ -226,6 +231,56 @@ const addInstallationDetail = async (req, res) => {
     res.status(500).json({ error: true, message: 'Error interno del servidor' });
   }
 };
+const attachInvoiceToWork = async (req, res) => {
+  try {
+    const { idWork } = req.params; // ID de la obra
+    const { totalCost } = req.body; // Costo total enviado en el cuerpo de la solicitud
+
+    // Verificar si se subió un archivo
+    if (!req.file) {
+      return res.status(400).json({ error: true, message: 'No se subió ningún archivo' });
+    }
+
+    // Obtener el nombre del archivo subido
+    const invoiceFile = req.file.filename;
+
+    // Verificar que la obra exista
+    const work = await Work.findByPk(idWork, {
+      include: [
+        {
+          model: MaterialSet,
+          as: 'MaterialSets',
+        },
+      ],
+    });
+
+    if (!work) {
+      return res.status(404).json({ error: true, message: 'Obra no encontrada' });
+    }
+
+    // Crear o actualizar el conjunto de materiales asociado a la obra
+    let materialSet = work.MaterialSets[0]; // Asumimos que hay un único conjunto de materiales
+    if (!materialSet) {
+      materialSet = await MaterialSet.create({
+        workId: idWork,
+        invoiceFile,
+        totalCost,
+      });
+    } else {
+      materialSet.invoiceFile = invoiceFile;
+      materialSet.totalCost = totalCost;
+      await materialSet.save();
+    }
+
+    res.status(200).json({
+      message: 'Factura y costo total guardados correctamente',
+      materialSet,
+    });
+  } catch (error) {
+    console.error('Error al guardar la factura y el costo total:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor' });
+  }
+};
 
 module.exports = {
   createWork,
@@ -233,5 +288,6 @@ module.exports = {
   getWorkById,
   updateWork,
   deleteWork,
-  addInstallationDetail
+  addInstallationDetail,
+  attachInvoiceToWork,
 };
