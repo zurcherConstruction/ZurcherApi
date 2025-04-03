@@ -42,5 +42,13 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    staffId: {
+      type: DataTypes.UUID, // Clave foránea que referencia a Staff
+      allowNull: true, // Permitir NULL si no todas las obras están asignadas
+      references: {
+        model: 'Staffs', // Nombre del modelo relacionado
+        key: 'id', // Clave primaria del modelo Staff
+      },
+    },
   });
 };

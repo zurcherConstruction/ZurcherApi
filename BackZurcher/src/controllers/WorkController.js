@@ -142,7 +142,7 @@ const getWorkById = async (req, res) => {
 const updateWork = async (req, res) => {
   try {
     const { idWork } = req.params;
-    const { propertyAddress, status, startDate,  notes } = req.body;
+    const { propertyAddress, status, startDate,  notes, staffId } = req.body;
 
     const work = await Work.findByPk(idWork);
     if (!work) {
@@ -153,7 +153,7 @@ const updateWork = async (req, res) => {
     work.propertyAddress = propertyAddress || work.propertyAddress;
     work.status = status || work.status;
     work.startDate = startDate || work.startDate;
-   
+    work.staffId = staffId || work.staffId; // Asignar el ID del empleado;
     work.notes = notes || work.notes;
 
     await work.save();

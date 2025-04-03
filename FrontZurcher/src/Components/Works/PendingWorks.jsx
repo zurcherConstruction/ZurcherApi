@@ -12,7 +12,7 @@ const PendingWorks = () => {
   const dispatch = useDispatch();
   const { works } = useSelector((state) => state.work); // Obtener trabajos desde Redux
   const { staff, loading: staffLoading, error: staffError } = useSelector((state) => state.admin); // Obtener staff desde Redux
-
+console.log(staff, "staff"); // Verificar el contenido del staff
   const [selectedWork, setSelectedWork] = useState(null);
   const [startDate, setStartDate] = useState(new Date());
   const [selectedStaff, setSelectedStaff] = useState("");
@@ -40,7 +40,7 @@ const PendingWorks = () => {
     dispatch(
       updateWork(selectedWork.idWork, {
         startDate: formattedDate, // Fecha en formato YYYY-MM-DD
-        notes: `Asignado a ${selectedStaff}`,
+        staffId: selectedStaff, // ID del miembro del staff 
       })
     );
 
@@ -121,7 +121,7 @@ const PendingWorks = () => {
             >
               <option value="">Selecciona un miembro del staff</option>
               {staff.map((member) => (
-                <option key={member.id} value={member.name}>
+                <option key={member.id} value={member.id}>
                   {member.name}
                 </option>
               ))}
