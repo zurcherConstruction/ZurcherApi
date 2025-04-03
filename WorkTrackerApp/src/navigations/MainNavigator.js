@@ -4,41 +4,50 @@ import { NavigationContainer } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
-import UploadScreen from '../screens/UploadScreen'; // Pantalla para cargar imágenes
-import NotAuthorizedScreen from '../screens/NotAuthorizedScreen'; // Pantalla para usuarios no autorizados
+import UploadScreen from '../screens/UploadScreen';
+import NotAuthorizedScreen from '../screens/NotAuthorizedScreen';
 
 const Stack = createStackNavigator();
 
 const MainNavigator = () => {
   const { isAuthenticated, staff } = useSelector((state) => state.auth);
 
-  const renderScreens = () => {
-    if (!isAuthenticated) {
-      return <Stack.Screen name="Login" component={LoginScreen} />;
-    }
-
-    if (staff.role === 'owner') {
-      // Rutas para el rol "Owner"
-      return (
-        <>
-          <Stack.Screen name="Home" component={HomeScreen} />
-          <Stack.Screen name="Upload" component={UploadScreen} />
-        </>
-      );
-    }
-
-    if (staff.role === 'worker') {
-      // Rutas para el rol "Worker"
-      return <Stack.Screen name="Upload" component={UploadScreen} />;
-    }
-
-    // Si el rol no está autorizado
-    return <Stack.Screen name="NotAuthorized" component={NotAuthorizedScreen} />;
-  };
-
   return (
     <NavigationContainer>
-      <Stack.Navigator>{renderScreens()}</Stack.Navigator>
+      <Stack.Navigator initialRouteName="Login">
+        {!isAuthenticated ? (
+          <Stack.Screen
+            name="Login"
+            component={LoginScreen}
+            options={{ title: 'Iniciar Sesión', path: 'login' }}
+          />
+        ) : staff.role === 'owner' ? (
+          <>
+            <Stack.Screen
+              name="Home"
+              component={HomeScreen}
+              options={{ title: 'Inicio', path: 'home' }}
+            />
+            <Stack.Screen
+              name="Upload"
+              component={UploadScreen}
+              options={{ title: 'Subir Imagen', path: 'upload' }}
+            />
+          </>
+        ) : staff.role === 'worker' ? (
+          <Stack.Screen
+            name="Upload"
+            component={UploadScreen}
+            options={{ title: 'Subir Imagen', path: 'upload' }}
+          />
+        ) : (
+          <Stack.Screen
+            name="NotAuthorized"
+            component={NotAuthorizedScreen}
+            options={{ title: 'No Autorizado', path: 'not-authorized' }}
+          />
+        )}
+      </Stack.Navigator>
     </NavigationContainer>
   );
 };
