@@ -18,15 +18,28 @@ import {
   deleteWorkRequest,
   deleteWorkSuccess,
   deleteWorkFailure,
-} from '../Reducer/workReducer';
+  addImagesRequest,
+  addImagesSuccess,
+  addImagesFailure,
+  deleteImagesRequest,
+  deleteImagesSuccess,
+  deleteImagesFailure,
+} from '../features/workSlice'; // Importar las acciones del slice de trabajo
 import { Alert } from 'react-native'; // Importar Alert para mostrar errores
 
 // Obtener todas las obras
-export const fetchWorks = () => async (dispatch) => {
+export const fetchWorks = (staffId = null) => async (dispatch) => {
   dispatch(fetchWorksRequest());
   try {
     const response = await api.get('/work'); // Ruta del backend
-    dispatch(fetchWorksSuccess(response.data));
+    let works = response.data;
+
+    // Filtrar los trabajos por staffId si se proporciona
+    if (staffId) {
+      works = works.filter((work) => work.staffId === staffId);
+    }
+
+    dispatch(fetchWorksSuccess(works));
   } catch (error) {
     const errorMessage =
       error.response?.data?.message || 'Error al obtener las obras';
@@ -106,5 +119,34 @@ export const addInstallationDetail = (idWork, installationData) => async (dispat
     dispatch(addInstallationDetailFailure(errorMessage));
     Alert.alert('Error', errorMessage); // Mostrar error en una alerta
     throw error; // Lanza el error para manejarlo en el componente
+  }
+};
+export const addImagesToWork = (idWork, imageData) => async (dispatch) => {
+  dispatch(addImagesRequest()); // Acción para iniciar la solicitud
+  try {
+    const response = await api.post(`/work/${idWork}/images`, imageData); // Ruta del backend
+    dispatch(addImagesSuccess(response.data)); // Acción para éxito
+    return response.data; // Devolver los datos para usarlos en el componente
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.message || 'Error al agregar las imágenes';
+    dispatch(addImagesFailure(errorMessage)); // Acción para error
+    Alert.alert('Error', errorMessage); // Mostrar error en una alerta
+    throw error; // Lanzar el error para manejarlo en el componente
+  }
+};
+
+export const deleteImagesFromWork = (idWork, imageData) => async (dispatch) => {
+  dispatch(deleteImagesRequest()); // Acción para iniciar la solicitud
+  try {
+    const response = await api.delete(`/work/${idWork}/images`, { data: imageData }); // Ruta del backend
+    dispatch(deleteImagesSuccess(response.data)); // Acción para éxito
+    return response.data; // Devolver los datos para usarlos en el componente
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.message || 'Error al eliminar las imágenes';
+    dispatch(deleteImagesFailure(errorMessage)); // Acción para error
+    Alert.alert('Error', errorMessage); // Mostrar error en una alerta
+    throw error; // Lanzar el error para manejarlo en el componente
   }
 };
