@@ -10,7 +10,6 @@ const etapas = [
   { backend: "firstInspectionPending", display: "Inspección Pendiente" },
   { backend: "approvedInspection", display: "Inspección Aprobada" },
   { backend: "coverPending", display: "Cover Pending" },
-
   { backend: "completed", display: "Covered" },
   { backend: "InvoiceFinal", display: "Invoice Final" },
   { backend: "cobrado", display: "cobrado" },
