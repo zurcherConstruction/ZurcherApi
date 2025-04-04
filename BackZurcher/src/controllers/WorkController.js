@@ -125,7 +125,7 @@ const getWorkById = async (req, res) => {
         },
       
       ],
-    });
+    });  // include de imagesByWork
 
     if (!work) {
       return res.status(404).json({ error: true, message: 'Obra no encontrada' });
@@ -282,6 +282,127 @@ const attachInvoiceToWork = async (req, res) => {
   }
 };
 
+const getAssignedWorks = async (req, res) => {
+  try {
+    // Verificar que el usuario autenticado sea un worker
+    if (req.staff.role !== 'worker') {
+      return res.status(403).json({ error: true, message: 'No tienes permisos para ver las tareas asignadas' });
+    }
+
+    // Obtener las obras asignadas al worker autenticado
+    const works = await Work.findAll({
+      where: { staffId: req.staff.id }, // Filtrar por el ID del usuario autenticado
+      include: [
+        {
+          model: Permit,
+          attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'pdfData'], // Incluir datos del permiso
+        },
+        {
+          model: Material,
+          attributes: ['idMaterial', 'name', 'quantity', 'cost'], // Incluir materiales relacionados
+        },
+        {
+          model: Inspection,
+          attributes: ['idInspection', 'type', 'status', 'dateRequested', 'dateCompleted', 'notes'], // Incluir inspecciones relacionadas
+        },
+      ],
+    });
+
+    // Verificar si el worker tiene tareas asignadas
+    if (works.length === 0) {
+      return res.status(404).json({ error: false, message: 'No tienes tareas asignadas actualmente' });
+    }
+
+    res.status(200).json({ error: false, works });
+  } catch (error) {
+    console.error('Error al obtener las tareas asignadas:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor' });
+  }
+};
+
+const addImagesToWork = async (req, res) => {
+  try {
+    const { idWork } = req.params; // ID del trabajo al que se asociarán las imágenes
+    const { stage, imageUrls } = req.body; // Etapa y URLs de las imágenes
+
+    // Verificar que el trabajo exista
+    const work = await Work.findByPk(idWork);
+    if (!work) {
+      return res.status(404).json({ error: true, message: 'Trabajo no encontrado' });
+    }
+
+    // Validar que la etapa sea válida (opcional, ya está validado en el modelo)
+    const validStages = [
+      'foto previa del lugar',
+      'foto excavación',
+      'foto tanque instalado',
+      'fotos de cada camión de arena',
+      'foto inspección final',
+      'foto de extracción de piedras',
+    ];
+    if (!validStages.includes(stage)) {
+      return res.status(400).json({ error: true, message: 'Etapa no válida' });
+    }
+
+    // Crear el registro de imágenes
+    const imageRecord = await Image.create({
+      idWork,
+      stage,
+      imageUrls,
+    });
+
+    res.status(201).json({
+      message: 'Imágenes agregadas correctamente',
+      imageRecord,
+    });
+  } catch (error) {
+    console.error('Error al agregar imágenes al trabajo:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor' });
+  }
+};
+
+const deleteImagesFromWork = async (req, res) => {
+  try {
+    const { idWork } = req.params; // ID del trabajo
+    const { stage, imageUrls } = req.body; // Etapa y URLs de las imágenes a eliminar
+
+    // Verificar que el trabajo exista
+    const work = await Work.findByPk(idWork);
+    if (!work) {
+      return res.status(404).json({ error: true, message: 'Trabajo no encontrado' });
+    }
+
+    // Buscar el registro de imágenes para la etapa especificada
+    const imageRecord = await Image.findOne({ where: { idWork, stage } });
+    if (!imageRecord) {
+      return res.status(404).json({ error: true, message: 'No se encontraron imágenes para esta etapa' });
+    }
+
+    // Filtrar las imágenes que no se quieren eliminar
+    const updatedImageUrls = imageRecord.imageUrls.filter((url) => !imageUrls.includes(url));
+
+    // Actualizar el registro de imágenes
+    if (updatedImageUrls.length === 0) {
+      // Si no quedan imágenes, eliminar el registro completo
+      await imageRecord.destroy();
+    } else {
+      // Si quedan imágenes, actualizar el registro
+      imageRecord.imageUrls = updatedImageUrls;
+      await imageRecord.save();
+    }
+
+    res.status(200).json({
+      message: 'Imágenes eliminadas correctamente',
+      updatedImageUrls,
+    });
+  } catch (error) {
+    console.error('Error al eliminar imágenes del trabajo:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor' });
+  }
+};
+
+
+
 module.exports = {
   createWork,
   getWorks,
@@ -290,4 +411,7 @@ module.exports = {
   deleteWork,
   addInstallationDetail,
   attachInvoiceToWork,
+  getAssignedWorks,
+  addImagesToWork,
+  deleteImagesFromWork
 };

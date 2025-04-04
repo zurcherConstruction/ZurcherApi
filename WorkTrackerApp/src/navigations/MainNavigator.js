@@ -1,51 +1,24 @@
+// MainNavigator.js
 import React from 'react';
-import { createStackNavigator } from '@react-navigation/stack';
 import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
 import { useSelector } from 'react-redux';
 import LoginScreen from '../screens/LoginScreen';
-import HomeScreen from '../screens/HomeScreen';
-import UploadScreen from '../screens/UploadScreen';
-import NotAuthorizedScreen from '../screens/NotAuthorizedScreen';
+import BottomTabNavigator from './BottomTabNavigator';
 
 const Stack = createStackNavigator();
 
 const MainNavigator = () => {
-  const { isAuthenticated, staff } = useSelector((state) => state.auth);
+  // Obtener el estado de autenticación del store
+  const { isAuthenticated } = useSelector((state) => state.auth);
 
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Login">
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!isAuthenticated ? (
-          <Stack.Screen
-            name="Login"
-            component={LoginScreen}
-            options={{ title: 'Iniciar Sesión', path: 'login' }}
-          />
-        ) : staff.role === 'owner' ? (
-          <>
-            <Stack.Screen
-              name="Home"
-              component={HomeScreen}
-              options={{ title: 'Inicio', path: 'home' }}
-            />
-            <Stack.Screen
-              name="Upload"
-              component={UploadScreen}
-              options={{ title: 'Subir Imagen', path: 'upload' }}
-            />
-          </>
-        ) : staff.role === 'worker' ? (
-          <Stack.Screen
-            name="Upload"
-            component={UploadScreen}
-            options={{ title: 'Subir Imagen', path: 'upload' }}
-          />
+          <Stack.Screen name="Login" component={LoginScreen} />
         ) : (
-          <Stack.Screen
-            name="NotAuthorized"
-            component={NotAuthorizedScreen}
-            options={{ title: 'No Autorizado', path: 'not-authorized' }}
-          />
+          <Stack.Screen name="Main" component={BottomTabNavigator} />
         )}
       </Stack.Navigator>
     </NavigationContainer>

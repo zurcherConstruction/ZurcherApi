@@ -3,8 +3,9 @@ import { createSlice } from '@reduxjs/toolkit';
 const initialState = {
   works: [], // Lista de obras
   work: null, // Obra específica
+  images: [], // Lista de imágenes asociadas a un trabajo
   loading: false, // Estado de carga
-  error: null, // Mensaje de error
+  error: null,
 };
 
 const workSlice = createSlice({
@@ -107,7 +108,37 @@ const workSlice = createSlice({
       state.loading = false;
       state.error = action.payload; // Guardar el mensaje de error
     },
+    addImagesRequest: (state) => {
+      state.loading = true;
+      state.error = null;
+    },
+    addImagesSuccess: (state, action) => {
+      state.loading = false;
+      state.images = [...state.images, ...action.payload.imageUrls]; // Agregar las nuevas imágenes
+      state.error = null;
+    },
+    addImagesFailure: (state, action) => {
+      state.loading = false;
+      state.error = action.payload; // Guardar el mensaje de error
+    },
+
+    deleteImagesRequest: (state) => {
+      state.loading = true;
+      state.error = null;
+    },
+    deleteImagesSuccess: (state, action) => {
+      state.loading = false;
+      const { imageUrls } = action.payload;
+      state.images = state.images.filter((url) => !imageUrls.includes(url)); // Eliminar las imágenes especificadas
+      state.error = null;
+    },
+    deleteImagesFailure: (state, action) => {
+      state.loading = false;
+      state.error = action.payload; // Guardar el mensaje de error
+    },
+
   },
+
 });
 
 // Exportar las acciones generadas automáticamente
@@ -130,6 +161,12 @@ export const {
   addInstallationDetailRequest,
   addInstallationDetailSuccess,
   addInstallationDetailFailure,
+  addImagesRequest,
+  addImagesSuccess,
+  addImagesFailure,
+  deleteImagesRequest,
+  deleteImagesSuccess,
+  deleteImagesFailure
 } = workSlice.actions;
 
 // Exportar el reducer para integrarlo en el store
