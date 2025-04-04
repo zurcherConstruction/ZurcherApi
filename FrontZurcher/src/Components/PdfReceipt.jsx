@@ -194,20 +194,33 @@ const PdfReceipt = () => {
             onSubmit={handleSubmit}
             className="grid grid-cols-1 gap-4"
           >
-            {Object.keys(formData).map((key) => (
-              <div key={key}>
-                <label className="block text-xs font-medium capitalize text-gray-700">
-                  {key.replace(/([A-Z])/g, " $1").trim()}
-                </label>
-                <input
-                  type="text"
-                  name={key}
-                  value={formData[key] || ""}
-                  onChange={handleInputChange}
-                  className=" block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-xs"
-                />
-              </div>
-            ))}
+        {Object.keys(formData)
+    .filter(
+      (key) =>
+        key !== "applicationNumber" &&
+        key !== "constructionPermitFor" &&
+        key !== "dateIssued" // Excluir estos campos
+    )
+    .map((key) => (
+      <div key={key}>
+         {/* Agregar título antes del campo applicantName */}
+         {key === "applicantName" && (
+          <h2 className="text-sm font-semibold text-gray-800 mt-2 mb-2 bg-blue-950 text-white p-1 rounded-md">
+            CUSTOMER CLIENT
+          </h2>
+        )}
+        <label className="block text-xs font-medium capitalize text-gray-700">
+          {key.replace(/([A-Z])/g, " $1").trim()}
+        </label>
+        <input
+          type="text"
+          name={key}
+          value={formData[key] || ""}
+          onChange={handleInputChange}
+          className=" block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-xs"
+        />
+      </div>
+    ))}
   
             {/* Botón de envío */}
             <button
