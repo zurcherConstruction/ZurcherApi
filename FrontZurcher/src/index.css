@@ -2,5 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
-
+@keyframes pulse {
+    0%, 100% {
+      box-shadow: 0 0 10px rgba(44, 210, 47, 0.5); /* Verde brillante */
+    }
+  50% {
+      box-shadow: 0 0 20px rgb(9, 9, 82); /* Más intenso */
+    }
+  }
+  
+  .animate-pulse {
+    animation: pulse 1s infinite;
+  }
 

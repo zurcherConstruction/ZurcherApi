@@ -9,7 +9,10 @@ const etapas = [
   { backend: "installed", display: "Instalado" },
   { backend: "firstInspectionPending", display: "Inspección Pendiente" },
   { backend: "approvedInspection", display: "Inspección Aprobada" },
+  { backend: "coverPending", display: "Cover Pending" },
   { backend: "completed", display: "Covered" },
+  { backend: "InvoiceFinal", display: "Invoice Final" },
+  { backend: "cobrado", display: "cobrado" },
   { backend: "finalInspectionPending", display: "Inspección Final Pendiente" },
   { backend: "finalApproved", display: "Inspección Final Aprobada" },
   { backend: "maintenance", display: "Mantenimiento" },
@@ -61,7 +64,7 @@ const ProgressTracker = () => {
   );
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-5xl mx-auto">
+    <div className="max-w-7xl p-2 mx-auto">
       <input
         type="text"
         placeholder="Buscar por Dirección"
@@ -114,11 +117,13 @@ const ProgressTracker = () => {
     >
       {/* Círculo */}
       <div
-        className={`w-8 h-8 flex items-center justify-center rounded-full text-white text-sm font-bold shadow-md ${
-          getProgressIndex(status) >= index
-            ? "bg-green-500"
-            : "bg-gray-400"
-        }`}
+       className={`w-8 h-8 flex items-center justify-center rounded-full text-white text-sm font-bold shadow-md ${
+        getProgressIndex(status) === index
+          ? "bg-green-500 animate-pulse" // Solo el último estado completado tendrá el efecto de destello
+          : getProgressIndex(status) > index
+          ? "bg-green-500" // Estados completados sin destello
+          : "bg-gray-400" // Estados pendientes
+      }`}
         style={{
           position: "absolute",
           top: "50%", // Centrar verticalmente
@@ -128,9 +133,15 @@ const ProgressTracker = () => {
       >
         {index + 1}
       </div>
-      <p className="text-xs text-center text-gray-600 mt-16">
-        {etapa.display}
-      </p>
+      <p
+  className={`text-xs text-center mt-16 ${
+    getProgressIndex(status) === index
+      ? "text-green-600 font-bold animate-pulse" // Resaltar el texto del estado actual
+      : "text-gray-600"
+  }`}
+>
+  {etapa.display}
+</p>
     </div>
   ))}
 </div>
