@@ -26,7 +26,7 @@ router.post('/:idWork/installation-details', verifyToken, allowRoles(['admin', '
 
 router.put('/:idWork/invoice', verifyToken, allowRoles(['admin', 'recept', 'owner','worker']), uploadToDisk.single('invoiceFile'), WorkController.attachInvoiceToWork);
 
-router.post('/images', verifyToken, allowRoles([ 'owner','worker']), WorkController.addImagesToWork);
+router.post('/:idWork/images', verifyToken, allowRoles([ 'owner','worker']), WorkController.addImagesToWork);
 
 router.delete('/:idWork/images', verifyToken, allowRoles(['owner', 'worker']), WorkController.deleteImagesFromWork);
 

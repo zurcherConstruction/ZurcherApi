@@ -1,4 +1,4 @@
-const { Work, Permit, Budget, Material, Inspection, Staff, InstallationDetail, MaterialSet } = require('../data');
+const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet } = require('../data');
 const {sendEmail} = require('../utils/nodeMailer/emailService');
 const { getNotificationDetails } = require('../utils/nodeMailer/notificationService');
 
@@ -94,7 +94,6 @@ const getWorkById = async (req, res) => {
             'propertyAddress',
             'permitNumber',
             'applicantName',
-            
             'pdfData', // Incluir el PDF
           ],
         },
@@ -123,9 +122,13 @@ const getWorkById = async (req, res) => {
           as: 'MaterialSets', // Alias definido en la relación
           attributes: ['idMaterialSet', 'invoiceFile', 'totalCost'], // Campos relevantes
         },
-      
+        {
+          model: Image, // Incluir el modelo Image
+          as: 'images', // Alias para la relación (opcional)
+          attributes: ['id', 'stage', 'imageData'], // Campos que quieres obtener de la tabla Image
+        },
       ],
-    });  // include de imagesByWork
+    });
 
     if (!work) {
       return res.status(404).json({ error: true, message: 'Obra no encontrada' });
@@ -318,8 +321,8 @@ const getAssignedWorks = async (req, res) => {
 
 const addImagesToWork = async (req, res) => {
   try {
-    const { idWork } = req.params; // ID del trabajo al que se asociarán las imágenes
-    const { stage, imageUrls } = req.body; // Etapa y URLs de las imágenes
+    const { idWork } = req.params; // ID del trabajo
+    const { stage, image } = req.body; // Etapa e imagen en Base64
 
     // Verificar que el trabajo exista
     const work = await Work.findByPk(idWork);
@@ -327,7 +330,7 @@ const addImagesToWork = async (req, res) => {
       return res.status(404).json({ error: true, message: 'Trabajo no encontrado' });
     }
 
-    // Validar que la etapa sea válida (opcional, ya está validado en el modelo)
+    // Validar que la etapa sea válida
     const validStages = [
       'foto previa del lugar',
       'foto excavación',
@@ -340,19 +343,19 @@ const addImagesToWork = async (req, res) => {
       return res.status(400).json({ error: true, message: 'Etapa no válida' });
     }
 
-    // Crear el registro de imágenes
+    // Crear el registro de la imagen
     const imageRecord = await Image.create({
       idWork,
       stage,
-      imageUrls,
+      imageData: image, // Guardar la imagen en Base64
     });
 
     res.status(201).json({
-      message: 'Imágenes agregadas correctamente',
+      message: 'Imagen agregada correctamente',
       imageRecord,
     });
   } catch (error) {
-    console.error('Error al agregar imágenes al trabajo:', error);
+    console.error('Error al agregar imagen al trabajo:', error);
     res.status(500).json({ error: true, message: 'Error interno del servidor' });
   }
 };

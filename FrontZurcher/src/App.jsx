@@ -29,10 +29,11 @@ import InstallationForm from "./Components/Works/InstalationForm";
 import BudgetEditor from "./Components/Budget/BudgetEditor";
 import ForgotPassword from "./Components/Auth/ForgotPassword";
 import ResetPassword from "./Components/Auth/ResetPassword";
- import ArchveBudget from "./Components/Budget/ArchiveBudget"; 
+import ArchveBudget from "./Components/Budget/ArchiveBudget";
 import FileDetail from "./Components/Budget/FileDetail";
-import PendingWorks from "./Components/Works/PendingWorks"; 
+import PendingWorks from "./Components/Works/PendingWorks";
 import AttachInvoice from "./Components/Seguimiento/AttachInvoice";
+import VerImagenes from "./Components/Works/VerImagenes";
 
 function App() {
   const dispatch = useDispatch();
@@ -107,7 +108,7 @@ function App() {
                 </PrivateRoute>
               }
             />
-             <Route
+            <Route
               path="/workCalendar"
               element={
                 <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
@@ -115,7 +116,6 @@ function App() {
                 </PrivateRoute>
               }
             />
-
 
             <Route
               path="/installation"
@@ -168,7 +168,7 @@ function App() {
                 </PrivateRoute>
               }
             />
-             <Route
+            <Route
               path="/archive"
               element={
                 <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
@@ -177,7 +177,7 @@ function App() {
               }
             />
             <Route path="/archives/:folder/:file" element={<FileDetail />} />
-            
+
             <Route
               path="/send-notifications"
               element={
@@ -198,7 +198,7 @@ function App() {
                 </PrivateRoute>
               }
             />
-                        <Route
+            <Route
               path="/attachInvoice"
               element={
                 <PrivateRoute
@@ -208,13 +208,13 @@ function App() {
                 </PrivateRoute>
               }
             />
-
+            <Route path="/ver-imagenes/:idWork" element={<VerImagenes />} />
             {/* Rutas de autenticación */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
-             <Route path="/reset-password/:token" element={<ResetPassword />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
 
             {/* Ruta por defecto para 404 */}
             <Route path="*" element={<NotFound />} />
