@@ -205,7 +205,7 @@ const PdfReceipt = () => {
       <div key={key}>
          {/* Agregar título antes del campo applicantName */}
          {key === "applicantName" && (
-          <h2 className="text-sm font-semibold text-gray-800 mt-2 mb-2 bg-blue-950 text-white p-1 rounded-md">
+          <h2 className="text-sm font-semibold  mt-2 mb-2 bg-blue-950 text-white p-1 rounded-md">
             CUSTOMER CLIENT
           </h2>
         )}

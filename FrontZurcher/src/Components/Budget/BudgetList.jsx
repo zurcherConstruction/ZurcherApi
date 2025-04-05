@@ -109,6 +109,7 @@ const BudgetList = () => {
     try {
       await dispatch(uploadInvoice(idBudget, file));
       alert("Factura cargada exitosamente.");
+      dispatch(fetchBudgets());
     } catch (error) {
       alert("Error al cargar la factura: " + error.message);
     }
