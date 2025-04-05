@@ -284,10 +284,7 @@ const attachInvoiceToWork = async (req, res) => {
 
 const getAssignedWorks = async (req, res) => {
   try {
-    // Verificar que el usuario autenticado sea un worker
-    if (req.staff.role !== 'worker') {
-      return res.status(403).json({ error: true, message: 'No tienes permisos para ver las tareas asignadas' });
-    }
+    console.log("Datos del usuario autenticado (req.staff):", req.staff);
 
     // Obtener las obras asignadas al worker autenticado
     const works = await Work.findAll({
@@ -295,20 +292,19 @@ const getAssignedWorks = async (req, res) => {
       include: [
         {
           model: Permit,
-          attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'pdfData'], // Incluir datos del permiso
+          attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'pdfData'],
         },
         {
           model: Material,
-          attributes: ['idMaterial', 'name', 'quantity', 'cost'], // Incluir materiales relacionados
+          attributes: ['idMaterial', 'name', 'quantity', 'cost'],
         },
         {
           model: Inspection,
-          attributes: ['idInspection', 'type', 'status', 'dateRequested', 'dateCompleted', 'notes'], // Incluir inspecciones relacionadas
+          attributes: ['idInspection', 'type', 'status', 'dateRequested', 'dateCompleted', 'notes'],
         },
       ],
     });
 
-    // Verificar si el worker tiene tareas asignadas
     if (works.length === 0) {
       return res.status(404).json({ error: false, message: 'No tienes tareas asignadas actualmente' });
     }

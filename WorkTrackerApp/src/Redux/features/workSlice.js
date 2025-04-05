@@ -136,6 +136,19 @@ const workSlice = createSlice({
       state.loading = false;
       state.error = action.payload; // Guardar el mensaje de error
     },
+    fetchAssignedWorksRequest: (state) => {
+      state.loading = true;
+      state.error = null;
+    },
+    fetchAssignedWorksSuccess: (state, action) => {
+      state.loading = false;
+      state.works = action.payload; // Guardar los trabajos asignados
+      state.error = null;
+    },
+    fetchAssignedWorksFailure: (state, action) => {
+      state.loading = false;
+      state.error = action.payload; // Guardar el mensaje de error
+    },
 
   },
 
@@ -143,9 +156,9 @@ const workSlice = createSlice({
 
 // Exportar las acciones generadas automáticamente
 export const {
-  fetchWorksRequest,
-  fetchWorksSuccess,
-  fetchWorksFailure,
+  fetchAssignedWorksRequest,
+  fetchAssignedWorksSuccess,
+  fetchAssignedWorksFailure,
   fetchWorkByIdRequest,
   fetchWorkByIdSuccess,
   fetchWorkByIdFailure,
@@ -166,7 +179,10 @@ export const {
   addImagesFailure,
   deleteImagesRequest,
   deleteImagesSuccess,
-  deleteImagesFailure
+  deleteImagesFailure,
+  fetchWorksRequest,
+  fetchWorksSuccess,
+  fetchWorksFailure,
 } = workSlice.actions;
 
 // Exportar el reducer para integrarlo en el store

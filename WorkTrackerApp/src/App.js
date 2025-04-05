@@ -7,7 +7,7 @@ import '../global.css'
 export default function App() {
   return (
     <Provider store={store}>
-      <MainNavigator /> {/* Usar MainNavigator para todas las plataformas */}
+      <MainNavigator /> 
     </Provider>
   );
 }

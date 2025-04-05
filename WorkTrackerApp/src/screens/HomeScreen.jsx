@@ -9,7 +9,7 @@ const HomeScreen = ({ navigation }) => {
   const handleLogout = () => {
     dispatch(logoutUser());
     // Opcional: navegar a la pantalla de login si lo deseas
-    navigation.replace('LoginScreen');
+   
   };
 
   return (

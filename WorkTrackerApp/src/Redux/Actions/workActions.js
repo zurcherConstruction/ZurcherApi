@@ -24,6 +24,9 @@ import {
   deleteImagesRequest,
   deleteImagesSuccess,
   deleteImagesFailure,
+  fetchAssignedWorksRequest,
+  fetchAssignedWorksSuccess,
+  fetchAssignedWorksFailure,
 } from '../features/workSlice'; // Importar las acciones del slice de trabajo
 import { Alert } from 'react-native'; // Importar Alert para mostrar errores
 
@@ -148,5 +151,19 @@ export const deleteImagesFromWork = (idWork, imageData) => async (dispatch) => {
     dispatch(deleteImagesFailure(errorMessage)); // Acción para error
     Alert.alert('Error', errorMessage); // Mostrar error en una alerta
     throw error; // Lanzar el error para manejarlo en el componente
+  }
+};
+
+export const fetchAssignedWorks = () => async (dispatch) => {
+  dispatch(fetchAssignedWorksRequest()); // Inicia la solicitud
+  try {
+    const response = await api.get('/work/assigned'); // Llama al endpoint del backend
+    const works = response.data.works; // Extrae los trabajos asignados de la respuesta
+    dispatch(fetchAssignedWorksSuccess(works)); // Despacha los trabajos al estado global
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.message || 'Error al obtener los trabajos asignados';
+    dispatch(fetchAssignedWorksFailure(errorMessage)); // Maneja el error
+    Alert.alert('Error', errorMessage); // Muestra el error en una alerta
   }
 };
