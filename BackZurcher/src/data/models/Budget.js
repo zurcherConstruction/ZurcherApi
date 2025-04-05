@@ -54,6 +54,10 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true
     },
+    paymentInvoice: {
+      type: DataTypes.STRING, // Ruta o URL del archivo
+      allowNull: true, // Inicialmente puede ser null
+    },
     
   });
 };

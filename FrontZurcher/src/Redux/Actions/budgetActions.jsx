@@ -99,3 +99,25 @@ export const fetchArchivedBudgets = () => async (dispatch) => {
     dispatch(fetchArchivedBudgetsFailure(errorMessage));
   }
 };
+
+export const uploadInvoice = (idBudget, invoiceFile) => async (dispatch) => {
+  try {
+    // Crear un FormData para enviar el archivo
+    const formData = new FormData();
+    formData.append('file', invoiceFile);
+
+    // Hacer la solicitud al backend
+    const response = await api.post(`/budget/${idBudget}/upload`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data', // Asegurarse de que se envíe como multipart
+      },
+    });
+
+    return response.data; // Retorna la respuesta del backend
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.message || 'Error al subir la factura';
+    console.error(errorMessage);
+    throw new Error(errorMessage); // Lanza el error para manejarlo en el componente
+  }
+};
