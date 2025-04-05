@@ -111,11 +111,12 @@ const BudgetController = {
     }
   },
 
+  
   async updateBudget(req, res) {
     try {
       const { idBudget } = req.params;
       const { date, expirationDate, price, initialPayment, status, paymentInvoice } = req.body;
-  
+
       // Validar campos obligatorios
       if (!date && !price && !initialPayment && !status && !expirationDate) {
         return res.status(400).json({ error: 'No se proporcionaron campos para actualizar' });
@@ -128,13 +129,13 @@ const BudgetController = {
           return res.status(400).json({ error: 'Debe cargar la factura antes de aprobar el presupuesto.' });
         }
       }
-  
+
       // Actualizar presupuesto
       const [updated] = await Budget.update(
         { date, expirationDate, price, initialPayment, status, paymentInvoice },
         { where: { idBudget } }
       );
-  
+
       if (!updated) {
         return res.status(404).json({ error: 'Presupuesto no encontrado' });
       }
@@ -149,7 +150,6 @@ const BudgetController = {
           await Work.create({
             propertyAddress: budget.propertyAddress,
             status: 'pending',
-            startDate: new Date(),
             idBudget: budget.idBudget, // Asegúrate de que este campo se esté asignando correctamente
             notes: `Work creado a partir del presupuesto N° ${budget.idBudget}`,
             initialPayment: budget.initialPayment,
@@ -157,7 +157,7 @@ const BudgetController = {
         }
       }
       
-  
+
       const updatedBudget = await Budget.findByPk(idBudget);
       res.status(200).json(updatedBudget);
     } catch (error) {

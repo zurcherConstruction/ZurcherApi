@@ -71,7 +71,10 @@ const BudgetList = () => {
       return;
     }
   
-    dispatch(updateBudget(idBudget, { status: newStatus }))
+    // Excluir cualquier campo no deseado antes de enviar la solicitud
+    const payload = { status: newStatus };
+  
+    dispatch(updateBudget(idBudget, payload))
       .then(() => {
         console.log(`Estado actualizado a: ${newStatus}`);
         // Recargar los presupuestos desde el backend
@@ -81,7 +84,6 @@ const BudgetList = () => {
         console.error("Error al actualizar el estado:", error);
       });
   };
-
   const handleUploadPayment = async (idBudget, file) => {
     if (!file) {
       alert("Debe seleccionar un archivo.");

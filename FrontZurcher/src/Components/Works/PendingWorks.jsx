@@ -20,8 +20,14 @@ console.log(staff, "staff"); // Verificar el contenido del staff
   const localizer = momentLocalizer(moment);
 
   // Filtrar trabajos con estado "pending"
-  const pendingWorks = works.filter((work) => work.status === "pending");
-
+ // Filtrar trabajos con estado "pending" y limpiar el campo startDate si es necesario
+ const pendingWorks = works
+ .filter((work) => work.status === "pending")
+ .map((work) => ({
+   ...work,
+   startDate: null, // Forzar a que startDate sea null
+ }));
+console.log(pendingWorks, "pendingWorks"); // Verificar los trabajos pendientes
   // Cargar el staff al montar el componente
   useEffect(() => {
     dispatch(fetchStaff());
@@ -85,23 +91,23 @@ const events = works
       <div className="mb-4">
         <h2 className="text-lg font-semibold">Selecciona un trabajo:</h2>
         <ul className="space-y-2">
-          {pendingWorks.map((work) => (
-            <li
-              key={work.idWork}
-              className={`p-2 border rounded cursor-pointer ${
-                selectedWork?.idWork === work.idWork ? "bg-blue-200" : ""
-              } ${work.startDate ? "bg-gray-300 cursor-not-allowed" : ""}`} // Si ya tiene fecha, deshabilitar
-              onClick={() => {
-                if (!work.startDate) setSelectedWork(work); // Solo permitir seleccionar si no tiene fecha
-              }}
-            >
-              {work.propertyAddress} - {work.status}
-              {work.startDate && (
-                <span className="text-red-500 ml-2">(Ya asignado)</span>
-              )}
-            </li>
-          ))}
-        </ul>
+  {pendingWorks.map((work) => (
+    <li
+      key={work.idWork}
+      className={`p-2 border rounded cursor-pointer ${
+        selectedWork?.idWork === work.idWork ? "bg-blue-200" : ""
+      } ${work.startDate ? "bg-gray-300 cursor-not-allowed" : ""}`} // Si ya tiene fecha, deshabilitar
+      onClick={() => {
+        if (!work.startDate) setSelectedWork(work); // Solo permitir seleccionar si no tiene fecha
+      }}
+    >
+      {work.propertyAddress} - {work.status}
+      {work.startDate && (
+        <span className="text-red-500 ml-2">(Ya asignado)</span>
+      )}
+    </li>
+  ))}
+</ul>
       </div>
 
       {/* Seleccionar fecha */}

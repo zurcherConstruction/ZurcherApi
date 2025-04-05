@@ -59,17 +59,26 @@ const getWorks = async (req, res) => {
       include: [
         {
           model: Budget,
-          as: 'budget', // Alias definido en la relación
-          attributes: ['idBudget', 'propertyAddress', 'status', 'price', 'paymentInvoice','initialPayment', 'date'], // Campos relevantes del presupuesto
+          as: 'budget',
+          attributes: ['idBudget', 'propertyAddress', 'status', 'price', 'paymentInvoice', 'initialPayment', 'date'],
         },
         {
           model: Permit,
-          
-          attributes: ['idPermit', 'propertyAddress', 'applicantName'], // Campos relevantes del permiso
+          attributes: ['idPermit', 'propertyAddress', 'applicantName'],
         },
       ],
     });
-    res.status(200).json(works);
+
+    // Filtrar el campo startDate si no está asignado
+    const filteredWorks = works.map((work) => {
+      const plainWork = work.get({ plain: true }); // Convertir a objeto plano
+      if (!plainWork.startDate) {
+        delete plainWork.startDate; // Eliminar el campo si no está asignado
+      }
+      return plainWork;
+    });
+
+    res.status(200).json(filteredWorks);
   } catch (error) {
     console.error('Error al obtener las obras:', error);
     res.status(500).json({ error: true, message: 'Error interno del servidor' });
@@ -167,11 +176,18 @@ const updateWork = async (req, res) => {
     if (!work) {
       return res.status(404).json({ error: true, message: 'Obra no encontrada' });
     }
-
+    if (status && status === 'inProgress' && work.status !== 'inProgress') {
+      work.status = status;
+    
+      // Solo asignar startDate si no está ya definido
+      if (!work.startDate) {
+        work.startDate = new Date();
+      }
+    }
     // Actualizar los campos
     work.propertyAddress = propertyAddress || work.propertyAddress;
     work.status = status || work.status;
-    work.startDate = startDate || work.startDate;
+   
     work.staffId = staffId || work.staffId; // Asignar el ID del empleado;
     work.notes = notes || work.notes;
   
