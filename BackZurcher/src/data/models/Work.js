@@ -50,5 +50,14 @@ module.exports = (sequelize) => {
         key: 'id', // Clave primaria del modelo Staff
       },
     },
+    idBudget: {
+      type: DataTypes.INTEGER, // Cambiado a INTEGER para coincidir con Budget
+      allowNull: true,
+      references: {
+        model: 'Budgets',
+        key: 'idBudget',
+      },
+    },
+    
   });
 };

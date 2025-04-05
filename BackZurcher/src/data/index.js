@@ -74,7 +74,7 @@ Staff.hasMany(Work, { foreignKey: 'staffId' });
 Work.belongsTo(Staff, { foreignKey: 'staffId' });
 
 Work.belongsTo(Budget, { foreignKey: 'idBudget', as: 'budget' });
-
+Budget.hasMany(Work, { foreignKey: 'idBudget' });
 // Relación entre Staff y Notification
 Notification.belongsTo(Staff, { as: "sender", foreignKey: "senderId" });
 Staff.hasMany(Notification, { as: "sentNotifications", foreignKey: "senderId" });

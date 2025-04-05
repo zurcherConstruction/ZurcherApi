@@ -27,8 +27,8 @@ const createWork = async (req, res) => {
     const work = await Work.create({
       propertyAddress: budget.propertyAddress,
       status: 'pending', // Estado inicial
-      idPermit: budget.permit?.idPermit || null, // Asociar el permiso si existe
-      notes: `Work create budget N° ${idBudget}`,
+      idBudget: budget.idBudget, // Asociar el presupuesto
+      notes: `Work creado a partir del presupuesto N° ${idBudget}`,
     });
 
      // Buscar a los usuarios con roles "owner" y "admin"
@@ -60,7 +60,7 @@ const getWorks = async (req, res) => {
         {
           model: Budget,
           as: 'budget', // Alias definido en la relación
-          attributes: ['idBudget', 'propertyAddress', 'status', 'price'], // Campos relevantes del presupuesto
+          attributes: ['idBudget', 'propertyAddress', 'status', 'price', 'paymentInvoice','initialPayment', 'date'], // Campos relevantes del presupuesto
         },
         {
           model: Permit,
@@ -85,7 +85,7 @@ const getWorkById = async (req, res) => {
         {
           model: Budget,
           as: 'budget',
-          attributes: ['idBudget', 'propertyAddress', 'status', 'price'],
+          attributes: ['idBudget', 'propertyAddress', 'status', 'price', 'paymentInvoice','initialPayment', 'date'],
         },
         {
           model: Permit,
@@ -155,6 +155,7 @@ const updateWork = async (req, res) => {
     work.startDate = startDate || work.startDate;
     work.staffId = staffId || work.staffId; // Asignar el ID del empleado;
     work.notes = notes || work.notes;
+  
 
     await work.save();
 
