@@ -135,7 +135,8 @@ export const addImagesToWork = (idWork, imageData) => async (dispatch) => {
       error.response?.data?.message || 'Error al agregar las imágenes';
     dispatch(addImagesFailure(errorMessage)); // Acción para error
     Alert.alert('Error', errorMessage); // Mostrar error en una alerta
-    throw error; // Lanzar el error para manejarlo en el componente
+    // throw error; // Lanzar el error para manejarlo en el componente
+    return { error: errorMessage }; // Return an object with an error property
   }
 };
 

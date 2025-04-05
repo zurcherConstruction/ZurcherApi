@@ -83,18 +83,13 @@ const getWorkById = async (req, res) => {
     const work = await Work.findByPk(idWork, {
       include: [
         {
-          model: Budget,
-          as: 'budget',
-          attributes: ['idBudget', 'propertyAddress', 'status', 'price'],
-        },
-        {
           model: Permit,
           attributes: [
             'idPermit',
             'propertyAddress',
             'permitNumber',
             'applicantName',
-            'pdfData', // Incluir el PDF
+            'pdfData',
           ],
         },
         {
@@ -113,19 +108,19 @@ const getWorkById = async (req, res) => {
           ],
         },
         {
-          model: InstallationDetail, // Incluir el modelo InstallationDetail
-          as: 'installationDetails', // Alias definido en la relación
-          attributes: ['idInstallationDetail', 'date', 'extraDetails', 'extraMaterials', 'images'], // Campos relevantes
+          model: InstallationDetail,
+          as: 'installationDetails',
+          attributes: ['idInstallationDetail', 'date', 'extraDetails', 'extraMaterials', 'images'],
         },
         {
-          model: MaterialSet, // Incluir el modelo MaterialSet
-          as: 'MaterialSets', // Alias definido en la relación
-          attributes: ['idMaterialSet', 'invoiceFile', 'totalCost'], // Campos relevantes
+          model: MaterialSet,
+          as: 'MaterialSets',
+          attributes: ['idMaterialSet', 'invoiceFile', 'totalCost'],
         },
         {
-          model: Image, // Incluir el modelo Image
-          as: 'images', // Alias para la relación (opcional)
-          attributes: ['id', 'stage', 'imageData'], // Campos que quieres obtener de la tabla Image
+          model: Image,
+          as: 'images',
+          attributes: ['id', 'stage', 'imageData'],
         },
       ],
     });
@@ -134,7 +129,21 @@ const getWorkById = async (req, res) => {
       return res.status(404).json({ error: true, message: 'Obra no encontrada' });
     }
 
-    res.status(200).json(work);
+    // Fetch the Budget separately using the propertyAddress
+    const budget = await Budget.findOne({ where: { propertyAddress: work.propertyAddress } });
+
+    // Add the budget information to the work object
+    const workWithBudget = {
+      ...work.get({ plain: true }), // Convert Sequelize object to plain JavaScript object
+      budget: budget ? {
+        idBudget: budget.idBudget,
+        propertyAddress: budget.propertyAddress,
+        status: budget.status,
+        price: budget.price
+      } : null
+    };
+
+    res.status(200).json(workWithBudget);
   } catch (error) {
     console.error('Error al obtener la obra:', error);
     res.status(500).json({ error: true, message: 'Error interno del servidor' });
