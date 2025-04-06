@@ -55,6 +55,11 @@ const BudgetList = () => {
 
   // Función para manejar el cambio de estado del presupuesto
   const handleUpdateStatus = (idBudget, newStatus, budget) => {
+    console.log("Datos que se enviarán al backend:", {
+      idBudget,
+      newStatus,
+      budget,
+    });
     dispatch(updateBudget(idBudget, { status: newStatus })).then(() => {
       if (newStatus === "approved") {
         const workData = {

@@ -5,6 +5,7 @@ const { getNotificationDetails } = require('../utils/nodeMailer/notificationServ
 
 const createWork = async (req, res) => {
   try {
+    console.log("Request Body:", req.body); // <---- Agregar este console.log
     const { idBudget } = req.body;
 
     // Buscar el presupuesto con estado "approved"
@@ -100,6 +101,7 @@ const getWorkById = async (req, res) => {
           model: Inspection,
           attributes: [
             'idInspection',
+
             'type',
             'status',
             'dateRequested',
@@ -120,7 +122,7 @@ const getWorkById = async (req, res) => {
         {
           model: Image,
           as: 'images',
-          attributes: ['id', 'stage', 'imageData'],
+          attributes: ['id', 'stage', 'dateTime','imageData', ],
         },
       ],
     });
@@ -331,7 +333,7 @@ const getAssignedWorks = async (req, res) => {
 const addImagesToWork = async (req, res) => {
   try {
     const { idWork } = req.params; // ID del trabajo
-    const { stage, image } = req.body; // Etapa e imagen en Base64
+    const { stage, image, dateTime } = req.body; // Etapa, imagen en Base64 y fecha/hora
 
     // Verificar que el trabajo exista
     const work = await Work.findByPk(idWork);
@@ -357,6 +359,7 @@ const addImagesToWork = async (req, res) => {
       idWork,
       stage,
       imageData: image, // Guardar la imagen en Base64
+      dateTime: dateTime, // Guardar la fecha y hora
     });
 
     res.status(201).json({
