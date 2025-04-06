@@ -17,9 +17,14 @@ module.exports = (sequelize) => {
       ),
       allowNull: false,
     },
+    dateTime: {
+      type: DataTypes.STRING, // Tipo de dato para la fecha y hora
+      allowNull: true, // Permite valores nulos si no siempre se proporciona
+    },
     imageData: {
       type: DataTypes.TEXT('long'), // o DataTypes.BLOB si prefieres
       allowNull: false, // o true, dependiendo de si siempre quieres una imagen
     },
+    
   });
 };

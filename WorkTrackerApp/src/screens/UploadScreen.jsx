@@ -1,11 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable, Image, Alert, ScrollView, StyleSheet } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useDispatch } from 'react-redux';
 import { addImagesToWork } from '../Redux/Actions/workActions';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as FileSystem from 'expo-file-system';
-import Canvas, { Image as CanvasImage } from 'react-native-canvas'; // Import Canvas
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator'; // Importa manipulateAsync
 
 const UploadScreen = () => {
   const { idWork } = useRoute().params;
@@ -15,7 +15,6 @@ const UploadScreen = () => {
   const [stage, setStage] = useState(''); // Etapa seleccionada
   const [date, setDate] = useState(new Date().toLocaleDateString());
   const dispatch = useDispatch();
-  const canvasRef = useRef(null);
 
   const stages = [
     'foto previa del lugar',
@@ -45,51 +44,12 @@ const UploadScreen = () => {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 1,
+      quality: 0.5, // Reduce la calidad al 50%
     });
 
     if (!result.canceled) {
-      const fileUri = result.assets[0].uri;
-      try {
-        // Convert the file URI to a Base64 data URI
-        const base64 = await FileSystem.readAsStringAsync(fileUri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        const dataUri = `data:image/jpeg;base64,${base64}`;
-        setImageUri(dataUri); // Guardar la Base64 URI de la imagen seleccionada
-      } catch (error) {
-        console.error("Error converting image to Base64:", error);
-        Alert.alert("Error", "Failed to convert image to Base64.");
-        return;
-      }
+      setImageUri(result.assets[0].uri); // Guardar la URI de la imagen seleccionada
     }
-  };
-
-  const addDateTimeToImage = async (uri) => {
-    return new Promise((resolve, reject) => {
-      const img = new CanvasImage(canvasRef.current);
-      img.src = uri;
-      img.addEventListener('load', () => {
-        const now = new Date();
-        const dateTimeString = now.toLocaleString();
-
-        canvasRef.current.width = img.width;
-        canvasRef.current.height = img.height;
-        const ctx = canvasRef.current.getContext('2d');
-        ctx.drawImage(img, 0, 0, img.width, img.height);
-
-        ctx.font = '24px Arial';
-        ctx.fillStyle = 'white';
-        ctx.textAlign = 'right';
-        ctx.fillText(dateTimeString, img.width - 10, img.height - 20);
-
-        canvasRef.current.toDataURL('image/jpeg').then(resolve);
-      });
-      img.addEventListener('error', (error) => {
-        console.error('Error loading image:', error);
-        reject(uri);
-      });
-    });
   };
 
   const handleSubmit = async () => {
@@ -97,24 +57,30 @@ const UploadScreen = () => {
       Alert.alert('Campos incompletos', 'Por favor, completa todos los campos.');
       return;
     }
-  
+
     try {
-      // Add date and time to the image
-      const processedImageUri = await addDateTimeToImage(imageUri);
-  
-      // No need to convert to base64 again, it's already a base64 string
-      // const base64Image = await FileSystem.readAsStringAsync(processedImageUri, { encoding: 'base64' });
-      const base64Image = processedImageUri.replace(/^data:image\/jpeg;base64,/, ''); // Remove the data URI prefix
-  
+      // Reducir el tamaño de la imagen
+      const resizedImage = await manipulateAsync(
+        imageUri,
+        [{ resize: { width: 800 } }], // Redimensiona a un ancho de 800px
+        { compress: 0.7, format: SaveFormat.JPEG } // Comprime la imagen
+      );
+
+      // Convertir la imagen redimensionada a base64
+      const base64Image = await FileSystem.readAsStringAsync(resizedImage.uri, { encoding: 'base64' });
+
       // Crear el objeto de datos a enviar al backend
+      const now = new Date();
+      const dateTimeString = now.toLocaleString();
       const imageData = {
         stage: stage,
         image: base64Image, // Send base64 image
+        dateTime: dateTimeString, // Send date and time
       };
-  
+
       // Despachar la acción addImagesToWork
       await dispatch(addImagesToWork(idWork, imageData));
-  
+
       Alert.alert('Éxito', 'Datos enviados correctamente.');
       // Limpiar los campos después de enviar
       setImageUri(null);
@@ -173,7 +139,6 @@ const UploadScreen = () => {
       >
         <Text className="text-white text-center text-lg font-semibold">Enviar</Text>
       </Pressable>
-      <Canvas ref={canvasRef} style={{ display: 'none' }} />
     </ScrollView>
   );
 };
@@ -193,9 +158,6 @@ const styles = StyleSheet.create({
     minHeight: 100, // Minimum height for each button
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  selectedStageButton: {
-    opacity: 0.7, // Slightly darken the selected button
   },
   stageButtonText: {
     color: 'white',
