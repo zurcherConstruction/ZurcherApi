@@ -78,6 +78,7 @@ const BudgetController = {
     try {
       // Incluir el modelo Permit para obtener el campo propertyAddress
       const budgets = await Budget.findAll({
+        attributes: ['idBudget', 'propertyAddress', 'status', 'price', 'initialPayment'],
         include: {
           model: Permit,
           attributes: ['propertyAddress'], // Solo incluye el campo propertyAddress
@@ -94,6 +95,7 @@ const BudgetController = {
   async getBudgetById(req, res) {
     try {
       const budget = await Budget.findByPk(req.params.idBudget, {
+        attributes: ['idBudget', 'propertyAddress', 'status', 'price', 'initialPayment'], 
         include: {
           model: Permit,
           attributes: ['propertyAddress', 'permitNumber'], // Incluye los campos que necesitas
