@@ -157,7 +157,10 @@ const getWorkById = async (req, res) => {
         idBudget: budget.idBudget,
         propertyAddress: budget.propertyAddress,
         status: budget.status,
-        price: budget.price
+        price: budget.price,
+        initialPayment: budget.initialPayment,
+        paymentInvoice: budget.paymentInvoice,
+        date: budget.date,
       } : null
     };
 
