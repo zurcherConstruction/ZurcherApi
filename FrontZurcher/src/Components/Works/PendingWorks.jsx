@@ -12,7 +12,7 @@ const PendingWorks = () => {
   const dispatch = useDispatch();
   const { works } = useSelector((state) => state.work); // Obtener trabajos desde Redux
   const { staff, loading: staffLoading, error: staffError } = useSelector((state) => state.admin); // Obtener staff desde Redux
-console.log(staff, "staff"); // Verificar el contenido del staff
+
   const [selectedWork, setSelectedWork] = useState(null);
   const [startDate, setStartDate] = useState(new Date());
   const [selectedStaff, setSelectedStaff] = useState("");
@@ -49,6 +49,7 @@ console.log(pendingWorks, "pendingWorks"); // Verificar los trabajos pendientes
         staffId: selectedStaff, // ID del miembro del staff 
       })
     );
+    console.log(startDate, "startDate"); // Verificar la fecha seleccionada
 
     alert("Trabajo asignado correctamente.");
     setSelectedWork(null);
