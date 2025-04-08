@@ -189,7 +189,7 @@ const updateWork = async (req, res) => {
     // Actualizar los campos
     work.propertyAddress = propertyAddress || work.propertyAddress;
     work.status = status || work.status;
-   
+   work.startDate = startDate || work.startDate; // Asignar la fecha de inicio;
     work.staffId = staffId || work.staffId; // Asignar el ID del empleado;
     work.notes = notes || work.notes;
   
