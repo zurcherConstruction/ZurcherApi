@@ -53,6 +53,15 @@ console.log("Detalles de la obra:", work); // Verificar los detalles de la obra
     return <p>No se encontró la obra.</p>;
   }
 
+    // Agrupar imágenes por etapa
+    const groupedImages = work.images.reduce((acc, image) => {
+      if (!acc[image.stage]) {
+        acc[image.stage] = [];
+      }
+      acc[image.stage].push(image);
+      return acc;
+    }, {});
+
   // Convertir el PDF del Permit a una URL para mostrarlo
   const pdfUrl = work.Permit?.pdfData
     ? URL.createObjectURL(new Blob([new Uint8Array(work.Permit.pdfData.data)], { type: "application/pdf" }))
@@ -198,63 +207,60 @@ console.log("Detalles de la obra:", work); // Verificar los detalles de la obra
     
         {/* Columna derecha: Detalles de instalación */}
         <div className="flex-1">
-          <h2 className="text-xl font-bold mb-4">Detalles de Instalación</h2>
-          {work.installationDetails && work.installationDetails.length > 0 ? (
-            <ul className="space-y-4">
-              {work.installationDetails.map((detail) => (
-                <li
-                  key={detail.idInstallationDetail}
-                  className="border p-4 rounded shadow"
+        <h2 className="text-xl font-bold mb-4">Imágenes de la Obra</h2>
+        {Object.entries(groupedImages).map(([stage, images]) => (
+          <div key={stage} className="mb-6">
+            <h3 className="text-lg font-semibold mb-2">{stage}</h3>
+            <div className="flex overflow-x-auto space-x-4">
+              {images.map((image) => (
+                <div
+                  key={image.id}
+                  className="flex-shrink-0 cursor-pointer"
+                  onClick={() => setSelectedImage(image)} // Seleccionar imagen al hacer clic
                 >
-                  <p><strong>Fecha:</strong> {detail.date}</p>
-                  <p><strong>Detalles Extras:</strong> {detail.extraDetails || "No disponible"}</p>
-                  <p><strong>Materiales Extras:</strong> {detail.extraMaterials || "No disponible"}</p>
-                  {detail.images && detail.images.length > 0 && (
-                    <div>
-                      <p><strong>Imágenes:</strong></p>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mt-2">
-                        {detail.images.map((img, index) => (
-                          <img
-                            key={index}
-                            src={img}
-                            alt={`Imagen ${index + 1}`}
-                            className="w-full h-24 object-cover rounded cursor-pointer"
-                            onClick={() => setSelectedImage(img)} // Abrir el modal con la imagen seleccionada
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </li>
+                  <img
+                    src={`data:image/jpeg;base64,${image.imageData}`}
+                    alt={stage}
+                    className="w-24 h-24 object-cover rounded-md shadow"
+                  />
+                  <p className="text-sm text-center mt-2">{image.dateTime}</p>
+                </div>
               ))}
-            </ul>
-          ) : (
-            <p>No hay detalles de instalación disponibles.</p>
-          )}
-        </div>
-    
-        {/* Modal para mostrar la imagen ampliada */}
-        {selectedImage && (
-          <div
-            className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
-            onClick={() => setSelectedImage(null)} // Cerrar el modal al hacer clic fuera de la imagen
-          >
-            <div className="relative">
-              <img
-                src={selectedImage}
-                alt="Imagen ampliada"
-                className="max-w-full max-h-screen rounded"
-              />
-              <button
-                className="absolute top-2 right-2 bg-white text-black p-2 rounded-full"
-                onClick={() => setSelectedImage(null)} // Cerrar el modal al hacer clic en el botón
-              >
-                ✕
-              </button>
             </div>
-
-            
           </div>
+        ))}
+      </div>
+
+      {/* Modal para mostrar la imagen ampliada */}
+      {selectedImage && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
+          onClick={() => setSelectedImage(null)} // Cerrar el modal al hacer clic fuera de la imagen
+        >
+          <div className="relative bg-white p-4 rounded shadow-lg">
+            <img
+              src={`data:image/jpeg;base64,${selectedImage.imageData}`}
+              alt="Imagen ampliada"
+              className="max-w-full max-h-screen rounded"
+            />
+            <p className="text-center mt-2">{selectedImage.dateTime}</p>
+            <div className="flex justify-between mt-4">
+              <button
+                className="bg-red-500 text-white px-4 py-2 rounded"
+                onClick={() => setSelectedImage(null)} // Cerrar el modal
+              >
+                Cerrar
+              </button>
+              <a
+                href={`data:image/jpeg;base64,${selectedImage.imageData}`}
+                download={`imagen_${selectedImage.id}.jpg`}
+                className="bg-blue-500 text-white px-4 py-2 rounded"
+              >
+                Descargar
+              </a>
+            </div>
+          </div>
+        </div>
         )}
       </div>
     );
