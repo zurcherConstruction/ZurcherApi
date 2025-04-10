@@ -52,7 +52,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image } = sequelize.models;
+const { Staff, Permit, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt } = sequelize.models;
 
 // Relaciones
 Permit.hasMany(Work, { foreignKey: 'propertyAddress', sourceKey: 'propertyAddress' });
@@ -93,6 +93,18 @@ Material.belongsTo(MaterialSet, { foreignKey: 'materialSetId' });
 // Relación entre Work y MaterialSet
 Work.hasMany(MaterialSet, { foreignKey: 'workId', as: 'MaterialSets' });
 MaterialSet.belongsTo(Work, { foreignKey: 'workId', as: 'Work' });
+
+// Relación lógica con Inspection
+Inspection.hasMany(Receipt, { foreignKey: 'relatedId', constraints: false, scope: { relatedModel: 'Inspection' } });
+Receipt.belongsTo(Inspection, { foreignKey: 'relatedId', constraints: false });
+
+// Relación lógica con MaterialSet
+MaterialSet.hasMany(Receipt, { foreignKey: 'relatedId', constraints: false, scope: { relatedModel: 'MaterialSet' } });
+Receipt.belongsTo(MaterialSet, { foreignKey: 'relatedId', constraints: false });
+
+// Relación entre Work y Receipt
+Work.hasMany(Receipt, { foreignKey: 'relatedId', constraints: false, scope: { relatedModel: 'Work' } });
+Receipt.belongsTo(Work, { foreignKey: 'relatedId', constraints: false });
 //---------------------------------------------------------------------------------//
 module.exports = {
   ...sequelize.models, // para poder importar los modelos así: const { Product, User } = require('./db.js');

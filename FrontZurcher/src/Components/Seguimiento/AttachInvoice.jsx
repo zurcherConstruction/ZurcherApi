@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorks } from "../../Redux/Actions/workActions"; // Acción para obtener todas las obras
-import { attachInvoiceToWork } from "../../Redux/Actions/workActions"; // Acción para adjuntar factura
+import { createReceipt } from "../../Redux/Actions/receiptActions"; // Acción para crear comprobantes
+import { toast } from "react-toastify";
 
-const AttachInvoice = () => {
+
+const AttachReceipt = () => {
   const dispatch = useDispatch();
 
   // Obtener las obras desde el estado global
@@ -11,8 +13,9 @@ const AttachInvoice = () => {
 
   // Estados locales
   const [selectedWork, setSelectedWork] = useState(""); // ID de la obra seleccionada
-  const [invoiceFile, setInvoiceFile] = useState(null); // Archivo de la factura
-  const [totalCost, setTotalCost] = useState(""); // Costo total
+  const [receiptType, setReceiptType] = useState(""); // Tipo de comprobante
+  const [file, setFile] = useState(null); // Archivo del comprobante
+  const [notes, setNotes] = useState(""); // Notas opcionales
 
   // Cargar las obras al montar el componente
   useEffect(() => {
@@ -23,28 +26,38 @@ const AttachInvoice = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!selectedWork || !invoiceFile || !totalCost) {
-      alert("Por favor, completa todos los campos.");
+    if (!selectedWork || !receiptType || !file) {
+      toast.error("Por favor, completa todos los campos.");
       return;
     }
 
     try {
-      // Llamar a la acción para adjuntar la factura
-      await dispatch(attachInvoiceToWork(selectedWork, invoiceFile, totalCost));
-      alert("Factura y costo total adjuntados correctamente.");
+      // Crear un FormData para enviar los datos
+      const formData = new FormData();
+      formData.append("relatedModel", "Work"); // Siempre será "Work"
+      formData.append("relatedId", selectedWork); // ID del Work asociado
+      formData.append("type", receiptType); // Tipo de comprobante
+      formData.append("pdfData", file); // Archivo PDF
+      formData.append("notes", notes); // Notas opcionales
+
+      // Llamar a la acción para crear el comprobante
+      await dispatch(createReceipt(formData));
+      toast.success("Comprobante adjuntado correctamente.");
+
       // Limpiar el formulario
       setSelectedWork("");
-      setInvoiceFile(null);
-      setTotalCost("");
+      setReceiptType("");
+      setFile(null);
+      setNotes("");
     } catch (error) {
-      console.error("Error al adjuntar la factura:", error);
-      alert("Hubo un error al adjuntar la factura.");
+      console.error("Error al adjuntar el comprobante:", error);
+      toast.error("Hubo un error al adjuntar el comprobante.");
     }
   };
 
   return (
     <div className="p-4 bg-white shadow-md rounded-lg max-w-md mx-auto">
-      <h2 className="text-xl font-bold mb-4">Adjuntar Factura y Costo Total</h2>
+      <h2 className="text-xl font-bold mb-4">Adjuntar Comprobante</h2>
 
       {loading && <p>Cargando obras...</p>}
       {error && <p>Error al cargar obras: {error}</p>}
@@ -70,30 +83,49 @@ const AttachInvoice = () => {
           </select>
         </div>
 
-        {/* Adjuntar factura */}
+        {/* Seleccionar tipo de comprobante */}
         <div>
-          <label htmlFor="invoiceFile" className="block text-gray-700 text-sm font-bold mb-2">
-            Adjuntar Factura:
+          <label htmlFor="receiptType" className="block text-gray-700 text-sm font-bold mb-2">
+            Tipo de Comprobante:
+          </label>
+          <select
+            id="receiptType"
+            value={receiptType}
+            onChange={(e) => setReceiptType(e.target.value)}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          >
+            <option value="">Seleccione un tipo</option>
+            <option value="Factura">Factura</option>
+            <option value="Pago inicial">Pago inicial</option>
+            <option value="Pago final">Pago final</option>
+            <option value="Inspección aprobada">Inspección aprobada</option>
+            <option value="Inspección rechazada">Inspección rechazada</option>
+          </select>
+        </div>
+
+        {/* Adjuntar archivo */}
+        <div>
+          <label htmlFor="file" className="block text-gray-700 text-sm font-bold mb-2">
+            Adjuntar Archivo:
           </label>
           <input
             type="file"
-            id="invoiceFile"
+            id="file"
             accept="application/pdf" // Solo permitir archivos PDF
-            onChange={(e) => setInvoiceFile(e.target.files[0])}
+            onChange={(e) => setFile(e.target.files[0])}
             className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
           />
         </div>
 
-        {/* Ingresar costo total */}
+        {/* Notas opcionales */}
         <div>
-          <label htmlFor="totalCost" className="block text-gray-700 text-sm font-bold mb-2">
-            Costo Total:
+          <label htmlFor="notes" className="block text-gray-700 text-sm font-bold mb-2">
+            Notas (Opcional):
           </label>
-          <input
-            type="number"
-            id="totalCost"
-            value={totalCost}
-            onChange={(e) => setTotalCost(e.target.value)}
+          <textarea
+            id="notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
             className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
           />
         </div>
@@ -103,11 +135,11 @@ const AttachInvoice = () => {
           type="submit"
           className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
         >
-          Adjuntar Factura
+          Adjuntar Comprobante
         </button>
       </form>
     </div>
   );
 };
 
-export default AttachInvoice;
+export default AttachReceipt;

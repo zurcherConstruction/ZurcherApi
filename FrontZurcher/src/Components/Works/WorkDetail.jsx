@@ -11,7 +11,7 @@ const WorkDetail = () => {
   // Obtener el estado de la obra desde Redux
   const { selectedWork: work, loading, error } = useSelector((state) => state.work);
 
-
+console.log("Detalles de la obra:", work); // Verificar los detalles de la obra
   // Estado para manejar el modal de la imagen
   const [selectedImage, setSelectedImage] = useState(null);
   const [fileBlob, setFileBlob] = useState(null);
@@ -76,7 +76,7 @@ const WorkDetail = () => {
           <p><strong>State:</strong> {work.status}</p>
           <p><strong>Aplicante:</strong> {work.Permit?.applicantName || "No disponible"}</p>
           <p><strong>Permit N°:</strong> {work.Permit?.idPermit || "No disponible"}</p>
-    
+
           {pdfUrl && (
             <div>
               <h3 className="text-lg font-bold mt-4">Vista previa del Permit</h3>
@@ -89,6 +89,41 @@ const WorkDetail = () => {
               ></iframe>
             </div>
           )}
+
+            {/* Comprobantes adjuntados */}
+{work.Receipts && work.Receipts.length > 0 && (
+  <div className="mt-6 p-4 border rounded shadow bg-gray-50 flex-1">
+    <h3 className="text-xl font-bold mb-4">Comprobantes Adjuntados</h3>
+    <ul className="space-y-4">
+      {work.Receipts.map((receipt) => (
+        <li key={receipt.idReceipt} className="border p-4 rounded shadow">
+          <p><strong>Tipo:</strong> {receipt.type}</p>
+          <p><strong>Notas:</strong> {receipt.notes || "Sin notas"}</p>
+          {receipt.pdfUrl ? (
+            <iframe
+              src={receipt.pdfUrl}
+              width="100%"
+              height="250px"
+              title={`Vista previa de ${receipt.type}`}
+              className="rounded"
+            ></iframe>
+          ) : (
+            <p>No hay archivo adjunto.</p>
+          )}
+          {receipt.pdfUrl && (
+            <a
+              href={receipt.pdfUrl}
+              download={`${receipt.type}.pdf`}
+              className="text-blue-500 underline mt-2 block"
+            >
+              Descargar {receipt.type}
+            </a>
+          )}
+        </li>
+      ))}
+    </ul>
+  </div>
+)}
     
           {/* Enlace para ver la factura de materiales */}
           {invoiceUrl && (
@@ -217,6 +252,8 @@ const WorkDetail = () => {
                 ✕
               </button>
             </div>
+
+            
           </div>
         )}
       </div>

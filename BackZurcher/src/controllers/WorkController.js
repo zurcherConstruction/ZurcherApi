@@ -1,7 +1,7 @@
-const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet } = require('../data');
+const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt } = require('../data');
 const {sendEmail} = require('../utils/nodeMailer/emailService');
 const { getNotificationDetails } = require('../utils/nodeMailer/notificationService');
-
+const convertPdfDataToUrl = require('../utils/convertPdfDataToUrl');
 
 const createWork = async (req, res) => {
   try {
@@ -140,31 +140,43 @@ const getWorkById = async (req, res) => {
           as: 'images',
           attributes: ['id', 'stage', 'dateTime','imageData', ],
         },
+        {
+          model: Receipt,
+          as: 'Receipts',
+          attributes: ['idReceipt', 'type', 'notes', 'pdfData', 'createdAt'],
+        },
       ],
     });
 
     if (!work) {
       return res.status(404).json({ error: true, message: 'Obra no encontrada' });
     }
-
-    // Fetch the Budget separately using the propertyAddress
-    const budget = await Budget.findOne({ where: { propertyAddress: work.propertyAddress } });
-
-    // Add the budget information to the work object
-    const workWithBudget = {
-      ...work.get({ plain: true }), // Convert Sequelize object to plain JavaScript object
-      budget: budget ? {
-        idBudget: budget.idBudget,
-        propertyAddress: budget.propertyAddress,
-        status: budget.status,
-        price: budget.price,
-        initialPayment: budget.initialPayment,
-        paymentInvoice: budget.paymentInvoice,
-        date: budget.date,
-      } : null
+    console.log("Receipts antes de procesar:", work.Receipts);
+    // Convertir los datos de los comprobantes (Receipts) a URLs base64
+    const workWithReceipts = {
+      ...work.get({ plain: true }), // Convertir a objeto plano
+      Receipts: work.Receipts ? convertPdfDataToUrl(work.Receipts) : [],
     };
+    console.log("Receipts después de procesar:", workWithReceipts.Receipts);
 
-    res.status(200).json(workWithBudget);
+    // Agregar información del presupuesto (Budget) si no está incluida en la relación
+    if (!workWithReceipts.budget) {
+      const budget = await Budget.findOne({ where: { propertyAddress: work.propertyAddress } });
+      workWithReceipts.budget = budget
+        ? {
+            idBudget: budget.idBudget,
+            propertyAddress: budget.propertyAddress,
+            status: budget.status,
+            price: budget.price,
+            initialPayment: budget.initialPayment,
+            paymentInvoice: budget.paymentInvoice,
+            date: budget.date,
+          }
+        : null;
+    }
+
+    // Enviar la respuesta con la obra y sus relaciones
+    res.status(200).json(workWithReceipts);
   } catch (error) {
     console.error('Error al obtener la obra:', error);
     res.status(500).json({ error: true, message: 'Error interno del servidor' });
