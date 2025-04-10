@@ -8,20 +8,16 @@ const WorkDetail = () => {
   const { idWork } = useParams();
   const dispatch = useDispatch();
 
-  // Obtener el estado de la obra desde Redux
   const { selectedWork: work, loading, error } = useSelector((state) => state.work);
 
-console.log("Detalles de la obra:", work); // Verificar los detalles de la obra
-  // Estado para manejar el modal de la imagen
   const [selectedImage, setSelectedImage] = useState(null);
   const [fileBlob, setFileBlob] = useState(null);
-  // Cargar los detalles de la obra al montar el componente
+  const [openSections, setOpenSections] = useState({}); // Cambiado a un objeto para manejar múltiples secciones
+
   useEffect(() => {
-    console.log("Cargando obra con ID:", idWork); // Verificar el ID de la obra
     dispatch(fetchWorkById(idWork));
   }, [dispatch, idWork]);
 
-  // Descargar el archivo como blob
   useEffect(() => {
     const fetchFile = async () => {
       try {
@@ -41,196 +37,196 @@ console.log("Detalles de la obra:", work); // Verificar los detalles de la obra
     fetchFile();
   }, [work?.budget?.paymentInvoice]);
 
-  if (loading) {
-    return <p>Cargando detalles de la obra...</p>;
-  }
+  if (loading) return <p>Cargando detalles de la obra...</p>;
+  if (error) return <p>Error: {error}</p>;
+  if (!work) return <p>No se encontró la obra.</p>;
 
-  if (error) {
-    return <p>Error: {error}</p>;
-  }
+  const groupedImages = work.images.reduce((acc, image) => {
+    if (!acc[image.stage]) acc[image.stage] = [];
+    acc[image.stage].push(image);
+    return acc;
+  }, {});
 
-  if (!work) {
-    return <p>No se encontró la obra.</p>;
-  }
-
-    // Agrupar imágenes por etapa
-    const groupedImages = work.images.reduce((acc, image) => {
-      if (!acc[image.stage]) {
-        acc[image.stage] = [];
-      }
-      acc[image.stage].push(image);
-      return acc;
-    }, {});
-
-  // Convertir el PDF del Permit a una URL para mostrarlo
   const pdfUrl = work.Permit?.pdfData
     ? URL.createObjectURL(new Blob([new Uint8Array(work.Permit.pdfData.data)], { type: "application/pdf" }))
     : null;
 
-  // Obtener la URL de la factura de materiales
   const validMaterialSet = work.MaterialSets?.find((set) => set.invoiceFile !== null);
-
-  // Construir la URL de la factura si existe
   const invoiceUrl = validMaterialSet
     ? `${api.defaults.baseURL}uploads/${validMaterialSet.invoiceFile}`
     : null;
 
-
-    return (
-      <div className="p-4 bg-white shadow-md rounded-lg flex flex-col lg:flex-row gap-8">
-        {/* Columna izquierda: Detalles principales */}
-        <div className="flex-1">
-          <h2 className="text-xl font-bold mb-4">Detalles de la Obra</h2>
-          <p><strong>Address:</strong> {work.propertyAddress}</p>
-          <p><strong>State:</strong> {work.status}</p>
-          <p><strong>Aplicante:</strong> {work.Permit?.applicantName || "No disponible"}</p>
-          <p><strong>Permit N°:</strong> {work.Permit?.idPermit || "No disponible"}</p>
-
-          {pdfUrl && (
-            <div>
-              <h3 className="text-lg font-bold mt-4">Vista previa del Permit</h3>
-              <iframe
-                src={pdfUrl}
-                width="100%"
-                height="250px"
-                title="Vista previa del PDF"
-                className="rounded"
-              ></iframe>
-            </div>
-          )}
-
-            {/* Comprobantes adjuntados */}
-{work.Receipts && work.Receipts.length > 0 && (
-  <div className="mt-6 p-4 border rounded shadow bg-gray-50 flex-1">
-    <h3 className="text-xl font-bold mb-4">Comprobantes Adjuntados</h3>
-    <ul className="space-y-4">
-      {work.Receipts.map((receipt) => (
-        <li key={receipt.idReceipt} className="border p-4 rounded shadow">
-          <p><strong>Tipo:</strong> {receipt.type}</p>
-          <p><strong>Notas:</strong> {receipt.notes || "Sin notas"}</p>
-          {receipt.pdfUrl ? (
-            <iframe
-              src={receipt.pdfUrl}
-              width="100%"
-              height="250px"
-              title={`Vista previa de ${receipt.type}`}
-              className="rounded"
-            ></iframe>
-          ) : (
-            <p>No hay archivo adjunto.</p>
-          )}
-          {receipt.pdfUrl && (
-            <a
-              href={receipt.pdfUrl}
-              download={`${receipt.type}.pdf`}
-              className="text-blue-500 underline mt-2 block"
+  const toggleSection = (section) => {
+    setOpenSections((prev) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  };
+  return (
+    <div className="p-4 bg-gray-100 min-h-screen">
+      {/* Título principal con dirección y estado */}
+      <div className="bg-blue-500 text-white p-6 rounded-lg shadow-md mb-6">
+        <h1 className="text-3xl font-semibold uppercase">{work.propertyAddress}</h1>
+        <p className="text-2xl text-slate-800 p-1 uppercase mt-2">
+          <strong>Status:</strong> {work.status}
+        </p>
+      </div>
+  
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Columna izquierda: Tarjetas desplegables */}
+        <div className="space-y-6">
+          {/* Tarjeta: Información principal */}
+          <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-blue-500">
+            <h2
+              className="text-xl font-bold mb-4 cursor-pointer"
+              onClick={() => toggleSection("info")}
             >
-              Descargar {receipt.type}
-            </a>
-          )}
-        </li>
-      ))}
-    </ul>
-  </div>
-)}
-    
-          {/* Enlace para ver la factura de materiales */}
-          {invoiceUrl && (
-            <div className="mt-4">
-              <h3 className="text-lg font-bold">Factura de Materiales</h3>
-              {invoiceUrl.endsWith(".pdf") ? (
-                <iframe
-                  src={invoiceUrl}
-                  width="100%"
-                  height="250px"
-                  title="Vista previa de la factura"
-                  className="rounded"
-                ></iframe>
-              ) : (
-                <img
-                  src={invoiceUrl}
-                  alt="Vista previa de la factura"
-                  className="w-full h-auto rounded shadow"
-                />
-              )}
-              <a
-                href={invoiceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-500 underline mt-2 block"
-              >
-                Descargar factura de materiales
-              </a>
-            </div>
-          )}
-        </div>
-    
-        {/* Factura y datos del presupuesto */}
-        {work.budget && (
-          <div className="mt-6 p-4 border rounded shadow bg-gray-50 flex-1">
-            <h3 className="text-xl font-bold mb-4">Información del Presupuesto</h3>
-            <p><strong>Precio Total:</strong> ${work.budget.price}</p>
-            <p><strong>Pago Inicial:</strong> ${work.budget.initialPayment}</p>
-            <p><strong>Fecha del Presupuesto:</strong> {work.budget.date}</p>
-            <p><strong>Estado:</strong> {work.budget.status}</p>
-           
-           
-    
-            {/* Vista previa de la factura del presupuesto */}
-            {work.budget.paymentInvoice && (
-          <div>
-          <h3 className="text-lg font-bold">Factura del Presupuesto</h3>
-          {work.budget.paymentInvoice.includes(".pdf") ? (
-            <iframe
-              src={work.budget.paymentInvoice}
-              width="100%"
-              height="250px"
-              title="Vista previa de la factura del presupuesto"
-              className="rounded"
-              onError={() => console.error("No se pudo cargar el archivo PDF.")}
-            ></iframe>
-          ) : (
-            <p>No se puede mostrar la vista previa. Descarga el archivo para verlo.</p>
-          )}
-          <a
-            href={work.budget.paymentInvoice}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-500 underline mt-2 block"
-          >
-            Descargar factura del presupuesto
-          </a>
-        </div>
+              Información Principal
+            </h2>
+            {openSections.info && (
+              <>
+                <p>
+                  <strong>Aplicante:</strong> {work.Permit?.applicantName || "No disponible"}
+                </p>
+                <p>
+                  <strong>Permit N°:</strong> {work.Permit?.idPermit || "No disponible"}
+                </p>
+                {pdfUrl && (
+                  <div className="mt-4">
+                    <h3 className="text-lg font-bold">Vista previa del Permit</h3>
+                    <iframe
+                      src={pdfUrl}
+                      width="100%"
+                      height="250px"
+                      title="Vista previa del PDF"
+                      className="rounded"
+                    ></iframe>
+                  </div>
+                )}
+              </>
             )}
           </div>
-        )}
-    
-        {/* Columna derecha: Detalles de instalación */}
-        <div className="flex-1">
-        <h2 className="text-xl font-bold mb-4">Imágenes de la Obra</h2>
-        {Object.entries(groupedImages).map(([stage, images]) => (
-          <div key={stage} className="mb-6">
-            <h3 className="text-lg font-semibold mb-2">{stage}</h3>
-            <div className="flex overflow-x-auto space-x-4">
-              {images.map((image) => (
-                <div
-                  key={image.id}
-                  className="flex-shrink-0 cursor-pointer"
-                  onClick={() => setSelectedImage(image)} // Seleccionar imagen al hacer clic
-                >
-                  <img
-                    src={`data:image/jpeg;base64,${image.imageData}`}
-                    alt={stage}
-                    className="w-24 h-24 object-cover rounded-md shadow"
-                  />
-                  <p className="text-sm text-center mt-2">{image.dateTime}</p>
-                </div>
-              ))}
+  
+          {/* Tarjeta: Presupuesto */}
+          {work.budget && (
+            <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-blue-500">
+              <h2
+                className="text-xl font-bold mb-4 cursor-pointer"
+                onClick={() => toggleSection("budget")}
+              >
+                Presupuesto
+              </h2>
+              {openSections.budget && (
+                <>
+                  <p>
+                    <strong>Precio Total:</strong> ${work.budget.price}
+                  </p>
+                  <p>
+                    <strong>Pago Inicial:</strong> ${work.budget.initialPayment}
+                  </p>
+                  <p>
+                    <strong>Fecha:</strong> {work.budget.date}
+                  </p>
+                  <p>
+                    <strong>Estado:</strong> {work.budget.status}
+                  </p>
+                </>
+              )}
             </div>
+          )}
+  
+          {/* Tarjeta: Comprobantes */}
+          {work.Receipts && work.Receipts.length > 0 && (
+            <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-yellow-500">
+              <h2
+                className="text-xl font-bold mb-4 cursor-pointer"
+                onClick={() => toggleSection("receipts")}
+              >
+                Comprobantes Adjuntados
+              </h2>
+              {openSections.receipts && (
+                <ul className="space-y-4">
+                  {work.Receipts.map((receipt) => (
+                    <li key={receipt.idReceipt} className="border p-4 rounded shadow">
+                      <p><strong>Tipo:</strong> {receipt.type}</p>
+                      <p><strong>Notas:</strong> {receipt.notes || "Sin notas"}</p>
+                      {receipt.pdfUrl ? (
+                        <iframe
+                          src={receipt.pdfUrl}
+                          width="100%"
+                          height="250px"
+                          title={`Vista previa de ${receipt.type}`}
+                          className="rounded"
+                        ></iframe>
+                      ) : (
+                        <p>No hay archivo adjunto.</p>
+                      )}
+                      {receipt.pdfUrl && (
+                        <a
+                          href={receipt.pdfUrl}
+                          download={`${receipt.type}.pdf`}
+                          className="text-blue-500 underline mt-2 block"
+                        >
+                          Descargar {receipt.type}
+                        </a>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+  
+          {/* Tarjeta: Imágenes */}
+          <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-yellow-500">
+            <h2
+              className="text-xl font-bold mb-4 cursor-pointer"
+              onClick={() => toggleSection("images")}
+            >
+              Imágenes de la Obra
+            </h2>
+            {openSections.images && (
+              Object.entries(groupedImages).map(([stage, images]) => (
+                <div key={stage} className="mb-6">
+                  <h3 className="text-lg font-semibold mb-2">{stage}</h3>
+                  <div className="flex overflow-x-auto space-x-4">
+                    {images.map((image) => (
+                      <div
+                        key={image.id}
+                        className="flex-shrink-0 cursor-pointer"
+                        onClick={() => setSelectedImage(image)}
+                      >
+                        <img
+                          src={`data:image/jpeg;base64,${image.imageData}`}
+                          alt={stage}
+                          className="w-24 h-24 object-cover rounded-md shadow"
+                        />
+                        <p className="text-sm text-center mt-2">{image.dateTime}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
-        ))}
+        </div>
+  
+        {/* Columna derecha: Tarjetas de gastos e ingresos */}
+        <div className="space-y-6">
+          {/* Tarjeta: Gastos */}
+          <div className="bg-red-100 shadow-md rounded-lg p-6 border-l-4 border-red-500">
+            <h2 className="text-xl font-bold mb-4">Gastos</h2>
+            <p>Detalles de los gastos aquí...</p>
+          </div>
+  
+          {/* Tarjeta: Ingresos */}
+          <div className="bg-green-100 shadow-md rounded-lg p-6 border-l-4 border-green-500">
+            <h2 className="text-xl font-bold mb-4">Ingresos</h2>
+            <p>Detalles de los ingresos aquí...</p>
+          </div>
+        </div>
       </div>
-
+  
       {/* Modal para mostrar la imagen ampliada */}
       {selectedImage && (
         <div
@@ -261,9 +257,9 @@ console.log("Detalles de la obra:", work); // Verificar los detalles de la obra
             </div>
           </div>
         </div>
-        )}
-      </div>
-    );
+      )}
+    </div>
+  );
 };
 
 export default WorkDetail;
