@@ -21,7 +21,9 @@ module.exports = (sequelize) => {
         'firstInspectionPending',
         'approvedInspection',  
         'rejectedInspection',
-        'completed', //se agrega installed
+        'coverPending', //se agrega installed
+        'invoiceFinal',
+        'paymentReceived',
         'finalInspectionPending', //cambiar por firstInspectionPending revisar inspecciones
         'finalApproved',
         'finalRejected',

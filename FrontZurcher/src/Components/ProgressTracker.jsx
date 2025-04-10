@@ -4,18 +4,18 @@ import { fetchWorks } from "../Redux/Actions/workActions"; // Acción para obten
 import { Link } from "react-router-dom";
 // Mapeo de estados del backend a nombres legibles
 const etapas = [
-  { backend: "pending", display: "Esperando Materiales" },
-  { backend: "inProgress", display: "Preparando Instalación" },
-  { backend: "installed", display: "Instalado" },
-  { backend: "firstInspectionPending", display: "Inspección Pendiente" },
-  { backend: "approvedInspection", display: "Inspección Aprobada" },
-  { backend: "coverPending", display: "Cover Pending" },
-  { backend: "completed", display: "Covered" },
-  { backend: "InvoiceFinal", display: "Invoice Final" },
-  { backend: "cobrado", display: "cobrado" },
-  { backend: "finalInspectionPending", display: "Inspección Final Pendiente" },
-  { backend: "finalApproved", display: "Inspección Final Aprobada" },
-  { backend: "maintenance", display: "Mantenimiento" },
+  { backend: "inProgress", display: "Purchase in Progress" },// compra en curso
+  // { backend: "inProgress", display: "Preparando Instalación" },
+  { backend: "installed", display: "Installing" },// instalado
+  { backend: "firstInspectionPending", display: "Inspection Pending" },// insp pendiente
+  // { backend: "approvedInspection", display: "Inspección Aprobada" },
+  { backend: "coverPending", display: "Cover Pending" },// cubierta pendiente
+  // { backend: "completed", display: "Covered" },
+  { backend: "invoiceFinal", display: "Send Final Invoice" },//enviar fac final
+  { backend: "paymentReceived", display: "Payment Received" },// pago recibido
+  { backend: "finalInspectionPending", display: "Final Inspection Pending" },
+  // { backend: "finalApproved", display: "Inspección Final Aprobada" },
+  { backend: "maintenance", display: "Maintenance" },
 ];
 
 const ProgressTracker = () => {
@@ -134,7 +134,7 @@ const ProgressTracker = () => {
         {index + 1}
       </div>
       <p
-  className={`text-xs text-center mt-16 ${
+  className={`text-xs text-center mt-16 p-1 ${
     getProgressIndex(status) === index
       ? "text-green-600 font-bold animate-pulse" // Resaltar el texto del estado actual
       : "text-gray-600"
