@@ -56,16 +56,23 @@ export const logoutStaff = () => (dispatch) => {
 
 // Acción para restaurar sesión
 export const restoreSession = () => (dispatch) => {
-  try {
-    const token = localStorage.getItem('token');
-    const staff = JSON.parse(localStorage.getItem('staff'));
+  return new Promise((resolve) => {
+    try {
+      const token = localStorage.getItem('token');
+      const staff = JSON.parse(localStorage.getItem('staff'));
 
-    if (token && staff) {
-      dispatch(loginSuccess({ token, staff }));
+      if (token && staff) {
+        dispatch(loginSuccess({ token, staff }));
+      } else {
+        dispatch(logout());
+      }
+    } catch (error) {
+      console.error('Error al restaurar la sesión:', error);
+      dispatch(logout());
+    } finally {
+      resolve();
     }
-  } catch (error) {
-    console.error('Error al restaurar la sesión:', error); // Registro en consola
-  }
+  });
 };
 
 // Acción para registrar un nuevo usuario

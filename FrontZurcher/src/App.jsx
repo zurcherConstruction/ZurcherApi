@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { restoreSession } from "./Redux/Actions/authActions";
 import PrivateRoute from "./Components/PrivateRoute";
@@ -17,7 +17,6 @@ import Landing from "./Components/Landing";
 import PdfReceipt from "./Components/PdfReceipt";
 import BarraLateral from "./Components/Dashboard/BarraLateral";
 import BudgetList from "./Components/Budget/BudgetList";
-//import PdfViewerPage from './Components/PdfViewerPage';
 import Works from "./Components/Works/Work";
 import ProgressTracker from "./Components/ProgressTracker";
 import WorkDetail from "./Components/Works/WorkDetail";
@@ -37,20 +36,29 @@ import VerImagenes from "./Components/Works/VerImagenes";
 
 function App() {
   const dispatch = useDispatch();
-  const [activeSection, setActiveSection] = useState("Overview");
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const { isAuthenticated } = useSelector((state) => state.auth);
+  const [isSessionRestored, setIsSessionRestored] = useState(false);
 
   useEffect(() => {
-    // Restaurar sesión al cargar la aplicación
-    dispatch(restoreSession());
+    dispatch(restoreSession()).finally(() => setIsSessionRestored(true));
   }, [dispatch]);
 
-  // Verifica si la ruta actual es "/"
-  const isLandingPage = location.pathname === "/";
+  useEffect(() => {
+    // Redirigir al dashboard si el usuario está autenticado y está en la página de login o landing
+    if (isAuthenticated && location.pathname === "/") {
+      navigate("/progress-tracker");
+    }
+  }, [isAuthenticated, location.pathname, navigate]);
+
+  if (!isSessionRestored) {
+    return <div>Cargando...</div>; // Indicador de carga
+  }
 
   return (
-    <BrowserRouter>
+    <>
       {isAuthenticated && <Header />}
       <div className={`flex ${isAuthenticated ? "pt-20" : ""}`}>
         {isAuthenticated && <BarraLateral />}
@@ -116,7 +124,6 @@ function App() {
                 </PrivateRoute>
               }
             />
-
             <Route
               path="/installation"
               element={
@@ -159,7 +166,6 @@ function App() {
                 </PrivateRoute>
               }
             />
-
             <Route
               path="/editBudget/:budgetId"
               element={
@@ -177,7 +183,6 @@ function App() {
               }
             />
             <Route path="/archives/:folder/:file" element={<FileDetail />} />
-
             <Route
               path="/send-notifications"
               element={
@@ -222,7 +227,7 @@ function App() {
         </div>
       </div>
       <ToastContainer />
-    </BrowserRouter>
+    </>
   );
 }
 
