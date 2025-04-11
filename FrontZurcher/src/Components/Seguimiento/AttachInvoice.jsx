@@ -2,8 +2,21 @@ import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorks } from "../../Redux/Actions/workActions"; // Acción para obtener todas las obras
 import { createReceipt } from "../../Redux/Actions/receiptActions"; // Acción para crear comprobantes
+import { incomeActions, expenseActions } from "../../Redux/Actions/balanceActions"; // Acciones para Income y Expense
 import { toast } from "react-toastify";
 
+const incomeTypes = [
+  "Factura Pago Inicial Budget",
+  "Factura Pago Final Budget",
+  "Diseño",
+];
+
+const expenseTypes = [
+  "Materiales",
+  "Diseño",
+  "Workers",
+  "Imprevistos",
+];
 
 const AttachReceipt = () => {
   const dispatch = useDispatch();
@@ -13,9 +26,10 @@ const AttachReceipt = () => {
 
   // Estados locales
   const [selectedWork, setSelectedWork] = useState(""); // ID de la obra seleccionada
-  const [receiptType, setReceiptType] = useState(""); // Tipo de comprobante
+  const [type, setType] = useState(""); // Tipo de comprobante (Income o Expense)
   const [file, setFile] = useState(null); // Archivo del comprobante
   const [notes, setNotes] = useState(""); // Notas opcionales
+  const [amount, setAmount] = useState(""); // Monto del ingreso o gasto
 
   // Cargar las obras al montar el componente
   useEffect(() => {
@@ -26,17 +40,38 @@ const AttachReceipt = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!selectedWork || !receiptType || !file) {
+    if (!selectedWork || !type || !file || !amount) {
       toast.error("Por favor, completa todos los campos.");
       return;
     }
 
     try {
-      // Crear un FormData para enviar los datos
+      // Crear el body dinámico según el tipo seleccionado
+      const isIncome = incomeTypes.includes(type);
+      const data = {
+        date: new Date().toISOString().split("T")[0], // Fecha actual
+        amount: parseFloat(amount),
+        notes,
+        workId: selectedWork,
+        ...(isIncome
+          ? { typeIncome: type } // Si es ingreso
+          : { typeExpense: type }), // Si es gasto
+      };
+
+      // Llamar a la acción correspondiente
+      if (isIncome) {
+        await incomeActions.create(data);
+        toast.success("Ingreso registrado correctamente.");
+      } else {
+        await expenseActions.create(data);
+        toast.success("Gasto registrado correctamente.");
+      }
+
+      // Crear un FormData para enviar el archivo PDF
       const formData = new FormData();
       formData.append("relatedModel", "Work"); // Siempre será "Work"
       formData.append("relatedId", selectedWork); // ID del Work asociado
-      formData.append("type", receiptType); // Tipo de comprobante
+      formData.append("type", type); // Tipo de comprobante
       formData.append("pdfData", file); // Archivo PDF
       formData.append("notes", notes); // Notas opcionales
 
@@ -46,12 +81,13 @@ const AttachReceipt = () => {
 
       // Limpiar el formulario
       setSelectedWork("");
-      setReceiptType("");
+      setType("");
       setFile(null);
       setNotes("");
+      setAmount("");
     } catch (error) {
-      console.error("Error al adjuntar el comprobante:", error);
-      toast.error("Hubo un error al adjuntar el comprobante.");
+      console.error("Error al procesar la solicitud:", error);
+      toast.error("Hubo un error al procesar la solicitud.");
     }
   };
 
@@ -85,22 +121,45 @@ const AttachReceipt = () => {
 
         {/* Seleccionar tipo de comprobante */}
         <div>
-          <label htmlFor="receiptType" className="block text-gray-700 text-sm font-bold mb-2">
+          <label htmlFor="type" className="block text-gray-700 text-sm font-bold mb-2">
             Tipo de Comprobante:
           </label>
           <select
-            id="receiptType"
-            value={receiptType}
-            onChange={(e) => setReceiptType(e.target.value)}
+            id="type"
+            value={type}
+            onChange={(e) => setType(e.target.value)}
             className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
           >
             <option value="">Seleccione un tipo</option>
-            <option value="Factura">Factura</option>
-            <option value="Pago inicial">Pago inicial</option>
-            <option value="Pago final">Pago final</option>
-            <option value="Inspección aprobada">Inspección aprobada</option>
-            <option value="Inspección rechazada">Inspección rechazada</option>
+            <optgroup label="Ingresos">
+              {incomeTypes.map((incomeType) => (
+                <option key={incomeType} value={incomeType}>
+                  {incomeType}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Gastos">
+              {expenseTypes.map((expenseType) => (
+                <option key={expenseType} value={expenseType}>
+                  {expenseType}
+                </option>
+              ))}
+            </optgroup>
           </select>
+        </div>
+
+        {/* Monto */}
+        <div>
+          <label htmlFor="amount" className="block text-gray-700 text-sm font-bold mb-2">
+            Monto:
+          </label>
+          <input
+            type="number"
+            id="amount"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          />
         </div>
 
         {/* Adjuntar archivo */}

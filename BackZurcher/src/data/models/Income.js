@@ -20,7 +20,7 @@ module.exports = (sequelize) => {
         type: DataTypes.ENUM(
             'Factura Pago Inicial Budget',
             'Factura Pago Final Budget',
-            'Diseño'
+            'DiseñoDif'
         ),
         allowNull: false,
     },
@@ -34,12 +34,7 @@ module.exports = (sequelize) => {
     }
   });
 
-  Income.associate = (models) => {
-    Income.belongsTo(models.Work, {
-      foreignKey: 'workId',
-      as: 'work',
-    });
-  };
+ 
 
   return Income;
 };

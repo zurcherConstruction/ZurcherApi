@@ -18,7 +18,12 @@ module.exports = (sequelize) => {
       allowNull: false,
     },
     type: {
-        type: DataTypes.ENUM('Factura', 'Pago inicial', 'Pago final', 'Inspección aprobada', 'Inspección rechazada'),
+        type: DataTypes.ENUM('Factura Pago Inicial Budget',
+            'Factura Pago Final Budget', 'Materiales',
+            'Diseño',
+            'Workers',
+            'Imprevistos',
+            'DiseñoDif' ),
         allowNull: false,
       },
     pdfData: {
