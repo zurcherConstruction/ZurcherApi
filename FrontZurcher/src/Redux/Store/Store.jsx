@@ -11,7 +11,7 @@ import permitReducer from '../Reducer/permitReducer';
 import workReducer from '../Reducer/workReducer';
 import notificationReducer from '../Reducer/notificationReducer';
 import receiptReducer from '../Reducer/receiptReducer';
-import balanceReducer from '../Reducer/balanceReducer'; // Asegúrate de importar el reducer de balance
+import balanceReducer from '../Reducer/balanceReducer';
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -24,8 +24,7 @@ const rootReducer = combineReducers({
   work: workReducer,
   notifications: notificationReducer,
   receipts: receiptReducer,
-  balance: balanceReducer, // Asegúrate de importar y agregar el reducer de balance aquí
-  // agrega otros reducers aquí
+  balance: balanceReducer,
 });
 
 export const store = configureStore({

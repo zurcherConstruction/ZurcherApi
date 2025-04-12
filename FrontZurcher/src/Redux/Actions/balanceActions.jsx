@@ -2,8 +2,8 @@ import api from '../../utils/axios';
 
 // Helper para manejar errores
 const handleError = (error, message) => {
-  console.error(message, error);
-  throw error;
+  console.error(`${message} - Detalles del error:`, error.response?.data || error.message);
+  return { error: true, message: error.response?.data?.message || error.message };
 };
 
 // Actions para Income
@@ -13,7 +13,7 @@ export const incomeActions = {
       const response = await api.post('/income', incomeData);
       return response.data;
     } catch (error) {
-      handleError(error, 'Error al crear el ingreso:');
+      return handleError(error, 'Error al crear el ingreso');
     }
   },
 
@@ -22,7 +22,7 @@ export const incomeActions = {
       const response = await api.get('/income');
       return response.data;
     } catch (error) {
-      handleError(error, 'Error al obtener los ingresos:');
+      return handleError(error, 'Error al obtener los ingresos');
     }
   },
 
@@ -31,7 +31,7 @@ export const incomeActions = {
       const response = await api.get(`/income/${id}`);
       return response.data;
     } catch (error) {
-      handleError(error, 'Error al obtener el ingreso:');
+      return handleError(error, 'Error al obtener el ingreso');
     }
   },
 
@@ -40,7 +40,7 @@ export const incomeActions = {
       const response = await api.put(`/income/${id}`, incomeData);
       return response.data;
     } catch (error) {
-      handleError(error, 'Error al actualizar el ingreso:');
+      return handleError(error, 'Error al actualizar el ingreso');
     }
   },
 
@@ -49,7 +49,7 @@ export const incomeActions = {
       const response = await api.delete(`/income/${id}`);
       return response.data;
     } catch (error) {
-      handleError(error, 'Error al eliminar el ingreso:');
+      return handleError(error, 'Error al eliminar el ingreso');
     }
   },
 };
@@ -61,7 +61,7 @@ export const expenseActions = {
       const response = await api.post('/expense', expenseData);
       return response.data;
     } catch (error) {
-      handleError(error, 'Error al crear el gasto:');
+      return handleError(error, 'Error al crear el gasto');
     }
   },
 
@@ -70,7 +70,7 @@ export const expenseActions = {
       const response = await api.get('/expense');
       return response.data;
     } catch (error) {
-      handleError(error, 'Error al obtener los gastos:');
+      return handleError(error, 'Error al obtener los gastos');
     }
   },
 
@@ -79,7 +79,7 @@ export const expenseActions = {
       const response = await api.get(`/expense/${id}`);
       return response.data;
     } catch (error) {
-      handleError(error, 'Error al obtener el gasto:');
+      return handleError(error, 'Error al obtener el gasto');
     }
   },
 
@@ -88,7 +88,7 @@ export const expenseActions = {
       const response = await api.put(`/expense/${id}`, expenseData);
       return response.data;
     } catch (error) {
-      handleError(error, 'Error al actualizar el gasto:');
+      return handleError(error, 'Error al actualizar el gasto');
     }
   },
 
@@ -97,7 +97,7 @@ export const expenseActions = {
       const response = await api.delete(`/expense/${id}`);
       return response.data;
     } catch (error) {
-      handleError(error, 'Error al eliminar el gasto:');
+      return handleError(error, 'Error al eliminar el gasto');
     }
   },
 };
@@ -109,7 +109,7 @@ export const balanceActions = {
       const response = await api.get(`/balance/work/${workId}`);
       return response.data;
     } catch (error) {
-      handleError(error, 'Error al obtener ingresos y gastos por workId:');
+      return handleError(error, 'Error al obtener ingresos y gastos por workId');
     }
   },
 
@@ -118,16 +118,19 @@ export const balanceActions = {
       const response = await api.get(`/balance/balance/${workId}`);
       return response.data;
     } catch (error) {
-      handleError(error, 'Error al obtener el balance por workId:');
+      return handleError(error, 'Error al obtener el balance por workId');
     }
   },
+ 
 
   getGeneralBalance: async (filters) => {
     try {
+      console.log('Enviando solicitud con filtros:', filters); // Log para depuración
       const response = await api.get('/balance/generalBalance', { params: filters });
+      console.log('Respuesta recibida:', response.data); // Log para depuración
       return response.data;
     } catch (error) {
-      handleError(error, 'Error al obtener el balance general:');
+      return handleError(error, 'Error al obtener el balance general');
     }
   },
 };

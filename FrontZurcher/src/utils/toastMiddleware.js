@@ -1,27 +1,30 @@
 import { toast } from 'react-toastify';
 
 const toastConfig = {
-  position: "top-center", // Ubicación del toast
-  autoClose: 3000, // Duración en ms
+  position: "top-center",
+  autoClose: 3000,
   hideProgressBar: false,
   closeOnClick: true,
   pauseOnHover: true,
   draggable: true,
   progress: undefined,
-  theme: "dark", // Tema del toast (light, dark, colored)
+  theme: "dark",
 };
 
 const toastMiddleware = () => (next) => (action) => {
-  // Si la acción es de éxito y tiene 'message' en payload, mostrar toast de éxito.
-  if (action.type.endsWith('SUCCESS') && action.payload?.message) {
-    toast.success(action.payload.message, toastConfig);
+  // Verifica que action.type sea una cadena antes de usar endsWith
+  if (typeof action.type === "string") {
+    // Si la acción es de éxito (fulfilled) y tiene 'message' en payload, mostrar toast de éxito
+    if (action.type.endsWith('/fulfilled') && action.payload?.message) {
+      toast.success(action.payload.message, toastConfig);
+    }
+
+    // Si la acción es de fallo (rejected) y tiene mensaje en payload, mostrar toast de error
+    if (action.type.endsWith('/rejected') && action.payload) {
+      toast.error(action.payload, toastConfig);
+    }
   }
-  
-  // Si la acción es de fallo y tiene mensaje en payload, mostrar toast de error.
-  if (action.type.endsWith('FAILURE') && action.payload) {
-    toast.error(action.payload, toastConfig);
-  }
-  
+
   return next(action);
 };
 
