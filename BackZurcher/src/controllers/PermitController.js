@@ -4,9 +4,9 @@ const { Permit } = require('../data');
 const createPermit = async (req, res) => {
   try {
     console.log("Request body:", req.body);
-    console.log("Request file:", req.file);
+    console.log("Request files:", req.files);
 
-    // Validaciones básicas (ajusta según tus requerimientos)
+    // Validaciones básicas
     if (!req.body.applicantName || !req.body.propertyAddress) {
       return res.status(400).json({ error: true, message: "Faltan campos obligatorios." });
     }
@@ -36,11 +36,11 @@ const createPermit = async (req, res) => {
       squareFeetSystem,
       other,
       pump,
-      
     } = req.body;
 
-    // Si el archivo PDF se envió correctamente, req.file tendrá la información
-    const pdfData = req.file ? req.file.buffer : null;
+    // Manejar los archivos enviados
+    const pdfData = req.files?.pdfData ? req.files.pdfData[0].buffer : null; // Archivo principal
+    const optionalDocs = req.files?.optionalDocs ? req.files.optionalDocs[0].buffer : null; // Documentación opcional
 
     // Crear el permiso en la base de datos
     const permit = await Permit.create({
@@ -68,7 +68,8 @@ const createPermit = async (req, res) => {
       squareFeetSystem,
       other,
       pump,
-      pdfData
+      pdfData,
+      optionalDocs, // Guardar la documentación opcional
     });
 
     console.log("Permiso creado correctamente:", permit.idPermit);

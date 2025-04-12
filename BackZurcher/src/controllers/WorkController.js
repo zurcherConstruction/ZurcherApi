@@ -107,6 +107,7 @@ const getWorkById = async (req, res) => {
             'permitNumber',
             'applicantName',
             'pdfData',
+            'optionalDocs',
           ],
         },
         {
@@ -345,7 +346,7 @@ const getAssignedWorks = async (req, res) => {
       include: [
         {
           model: Permit,
-          attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'pdfData'],
+          attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'pdfData', 'optionalDocs'],
         },
         {
           model: Material,

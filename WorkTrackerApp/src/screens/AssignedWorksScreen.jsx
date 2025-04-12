@@ -22,6 +22,10 @@ const AssignedWorksScreen = () => {
     dispatch(fetchAssignedWorks());
   }, [dispatch]);
 
+  useEffect(() => {
+    console.log("Datos de trabajos asignados:", works);
+  }, [works]);
+
   const handleOpenPdf = async (pdfData) => {
     try {
       const base64Pdf = Buffer.from(pdfData.data).toString("base64");
@@ -129,21 +133,44 @@ const AssignedWorksScreen = () => {
                     </Text>{" "}
                     {item.notes || "Sin notas"}
                   </Text>
-                  {item.Permit?.pdfData && (
-                    <TouchableOpacity
-                      onPress={() => handleOpenPdf(item.Permit.pdfData)}
-                      style={{
-                        marginTop: 10,
-                        padding: 10,
-                        backgroundColor: "#2563eb",
-                        borderRadius: 5,
-                      }}
-                    >
-                    <Text style={{ color: "white", textAlign: "center" }}>
-                      Leer PDF
-                    </Text>
-                  </TouchableOpacity>
-                )}
+                  {(item.Permit?.pdfData || item.Permit?.optionalDocs) && (
+  <View style={{ marginTop: 10 }}>
+    {(item.Permit?.pdfData || item.Permit?.optionalDocs) && (
+  <View style={{ marginTop: 10 }}>
+    {item.Permit?.pdfData && (
+      <TouchableOpacity
+        onPress={() => handleOpenPdf(item.Permit.pdfData)}
+        style={{
+          marginBottom: 10,
+          padding: 10,
+          backgroundColor: "#2563eb",
+          borderRadius: 5,
+        }}
+      >
+        <Text style={{ color: "white", textAlign: "center" }}>
+          Leer PDF Principal
+        </Text>
+      </TouchableOpacity>
+    )}
+    {item.Permit?.optionalDocs && (
+      <TouchableOpacity
+        onPress={() => handleOpenPdf(item.Permit.optionalDocs)}
+        style={{
+          padding: 10,
+          backgroundColor: "#f59e0b",
+          borderRadius: 5,
+        }}
+      >
+        <Text style={{ color: "white", textAlign: "center" }}>
+          Leer Documentación Opcional
+        </Text>
+      </TouchableOpacity>
+    )}
+  </View>
+)}
+   
+  </View>
+)}
                 <TouchableOpacity
                   onPress={() => navigation.navigate("UploadScreen", { idWork: item.idWork })}
                   style={{
