@@ -23,7 +23,7 @@ const FileDetail = () => {
     fetchFileContent();
   }, [folder, file]);
 
-  if (loading) return <p>Cargando archivo...</p>;
+  if (loading) return <p>Load file...</p>;
   if (error) return <p className="text-red-500">{error}</p>;
 
   // Si el contenido es un arreglo, renderizarlo como una tabla
@@ -72,7 +72,7 @@ const FileDetail = () => {
 
   return (
     <div className="p-4">
-      <h1 className="text-lg font-semibold mb-4">Detalle del Archivo</h1>
+      <h1 className="text-lg font-semibold mb-4">File Detail</h1>
       {renderTable(fileContent)}
     </div>
   );

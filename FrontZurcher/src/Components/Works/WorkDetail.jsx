@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorkById } from "../../Redux/Actions/workActions";
+import { balanceActions } from "../../Redux/Actions/balanceActions";
+import { fetchIncomesAndExpensesRequest, fetchIncomesAndExpensesSuccess, fetchIncomesAndExpensesFailure } from "../../Redux/Reducer/balanceReducer"; // Ajusta esta ruta si es necesario
 import { useParams } from "react-router-dom";
 import api from "../../utils/axios";
 
@@ -14,8 +16,16 @@ const WorkDetail = () => {
   const [fileBlob, setFileBlob] = useState(null);
   const [openSections, setOpenSections] = useState({}); // Cambiado a un objeto para manejar múltiples secciones
 
+  const {
+    incomes,
+    expenses,
+    loading: balanceLoading, // Renombrado para evitar conflicto
+    error: balanceError      // Renombrado para evitar conflicto
+  } = useSelector((state) => state.balance);
+  
   useEffect(() => {
     dispatch(fetchWorkById(idWork));
+
   }, [dispatch, idWork]);
 
   useEffect(() => {
@@ -36,6 +46,32 @@ const WorkDetail = () => {
 
     fetchFile();
   }, [work?.budget?.paymentInvoice]);
+
+  useEffect(() => {
+    const fetchBalanceData = async () => {
+      if (!idWork) return; // Asegurarse de que idWork exista
+
+      dispatch(fetchIncomesAndExpensesRequest()); // Inicia la carga
+      try {
+        // Pasar idWork a la acción
+        const data = await balanceActions.getIncomesAndExpensesByWorkId(idWork);
+        if (data.error) {
+          console.error("Error fetching incomes/expenses:", data.message);
+          dispatch(fetchIncomesAndExpensesFailure(data.message));
+        } else {
+          console.log("Incomes/Expenses data received:", data);
+          // El payload debe ser { incomes: [...], expenses: [...] } según el reducer
+          dispatch(fetchIncomesAndExpensesSuccess(data));
+        }
+      } catch (err) {
+        console.error("Unexpected error fetching incomes/expenses:", err);
+        dispatch(fetchIncomesAndExpensesFailure(err.message));
+      }
+    };
+
+    fetchBalanceData();
+  // Dependencia: dispatch y idWork
+  }, [dispatch, idWork]);
 
   if (loading) return <p>Cargando detalles de la obra...</p>;
   if (error) return <p>Error: {error}</p>;
@@ -215,17 +251,72 @@ const WorkDetail = () => {
         <div className="space-y-6">
           {/* Tarjeta: Gastos */}
           <div className="bg-red-100 shadow-md rounded-lg p-6 border-l-4 border-red-500">
-            <h2 className="text-xl font-bold mb-4">Gastos</h2>
-            <p>Detalles de los gastos aquí...</p>
+            <h2
+              className="text-xl font-bold mb-4 cursor-pointer flex justify-between items-center"
+              onClick={() => toggleSection("expenses")}
+            >
+              Gastos <span>{openSections.expenses ? '▲' : '▼'}</span>
+            </h2>
+            {openSections.expenses && (
+              <>
+                {balanceLoading && <p>Cargando gastos...</p>}
+                {balanceError && <p className="text-red-500">Error al cargar gastos: {balanceError}</p>}
+                {!balanceLoading && !balanceError && (
+                  // *** USAR 'expenses' del useSelector ***
+                  expenses && expenses.length > 0 ? (
+                    <ul className="space-y-3">
+                      {expenses.map((expense) => (
+                        <li key={expense.idExpense} className="border-b pb-3 last:border-b-0">
+                          <p><strong>Tipo:</strong> {expense.typeExpense}</p>
+                          <p><strong>Monto:</strong> ${parseFloat(expense.amount).toFixed(2)}</p>
+                          <p><strong>Fecha:</strong> {new Date(expense.date).toLocaleDateString()}</p>
+                          {expense.notes && <p><strong>Notas:</strong> {expense.notes}</p>}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-gray-500">No hay gastos registrados para esta obra.</p>
+                  )
+                )}
+              </>
+            )}
           </div>
-  
+
           {/* Tarjeta: Ingresos */}
           <div className="bg-green-100 shadow-md rounded-lg p-6 border-l-4 border-green-500">
-            <h2 className="text-xl font-bold mb-4">Ingresos</h2>
-            <p>Detalles de los ingresos aquí...</p>
+            <h2
+              className="text-xl font-bold mb-4 cursor-pointer flex justify-between items-center"
+              onClick={() => toggleSection("incomes")}
+            >
+              Ingresos <span>{openSections.incomes ? '▲' : '▼'}</span>
+            </h2>
+             {openSections.incomes && (
+              <>
+                {balanceLoading && <p>Cargando ingresos...</p>}
+                {balanceError && <p className="text-red-500">Error al cargar ingresos: {balanceError}</p>}
+                {!balanceLoading && !balanceError && (
+                  // *** USAR 'incomes' del useSelector ***
+                  incomes && incomes.length > 0 ? (
+                     <ul className="space-y-3">
+                      {incomes.map((income) => (
+                        <li key={income.idIncome} className="border-b pb-3 last:border-b-0">
+                          <p><strong>Tipo:</strong> {income.typeIncome}</p>
+                          <p><strong>Monto:</strong> ${parseFloat(income.amount).toFixed(2)}</p>
+                          <p><strong>Fecha:</strong> {new Date(income.date).toLocaleDateString()}</p>
+                          {income.notes && <p><strong>Notas:</strong> {income.notes}</p>}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-gray-500">No hay ingresos registrados para esta obra.</p>
+                  )
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>
+    
   
       {/* Modal para mostrar la imagen ampliada */}
       {selectedImage && (

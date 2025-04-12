@@ -73,12 +73,12 @@ const ArchiveBudget = () => {
     );
   };
 
-  if (loading) return <p>Cargando archivos archivados...</p>;
+  if (loading) return <p>Load Archived Budgets...</p>;
   if (error) return <p className="text-red-500">Error: {error}</p>;
 
   return (
     <div className="p-4">
-      <h1 className="text-lg font-semibold mb-4">Budgets Archivados</h1>
+      <h1 className="text-lg font-semibold mb-4">Archived Budgets</h1>
       {archivedBudgets.map((archive) => (
         <div key={archive.folder} className="mb-4">
           {/* Carpeta como encabezado del acordeón */}
