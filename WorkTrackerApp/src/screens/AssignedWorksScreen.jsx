@@ -4,11 +4,11 @@ import { fetchAssignedWorks } from "../Redux/Actions/workActions";
 import { View, Text, FlatList, TouchableOpacity, Platform } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Buffer } from "buffer";
-import * as FileSystem from 'expo-file-system';
-import * as IntentLauncher from 'expo-intent-launcher';
-import * as Sharing from 'expo-sharing';
-import UploadScreen from './UploadScreen'; // Importa UploadScreen
-import { createStackNavigator } from '@react-navigation/stack';
+import * as FileSystem from "expo-file-system";
+import * as IntentLauncher from "expo-intent-launcher";
+import * as Sharing from "expo-sharing";
+import UploadScreen from "./UploadScreen"; // Importa UploadScreen
+import { createStackNavigator } from "@react-navigation/stack";
 
 const Stack = createStackNavigator();
 
@@ -37,22 +37,25 @@ const AssignedWorksScreen = () => {
 
       console.log("PDF guardado en:", fileUri);
 
-      if (Platform.OS === 'android') {
+      if (Platform.OS === "android") {
         const contentUri = await FileSystem.getContentUriAsync(fileUri);
 
         const intent = {
-          action: 'android.intent.action.VIEW',
+          action: "android.intent.action.VIEW",
           data: contentUri,
           flags: 1,
-          type: 'application/pdf',
+          type: "application/pdf",
         };
 
-        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', intent);
-      } else if (Platform.OS === 'ios') {
+        await IntentLauncher.startActivityAsync(
+          "android.intent.action.VIEW",
+          intent
+        );
+      } else if (Platform.OS === "ios") {
         await Sharing.shareAsync(fileUri, {
-          mimeType: 'application/pdf',
-          dialogTitle: 'Compartir PDF',
-          UTI: 'com.adobe.pdf',
+          mimeType: "application/pdf",
+          dialogTitle: "Compartir PDF",
+          UTI: "com.adobe.pdf",
         });
       }
     } catch (error) {
@@ -82,8 +85,8 @@ const AssignedWorksScreen = () => {
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="AssignedWorksList" options={{headerShown: false}} >
-       {({navigation}) => (
+      <Stack.Screen name="AssignedWorksList" options={{ headerShown: false }}>
+        {({ navigation }) => (
           <View style={{ flex: 1, backgroundColor: "#f3f4f6", padding: 20 }}>
             <Text
               style={{
@@ -121,7 +124,9 @@ const AssignedWorksScreen = () => {
                   >
                     {item.propertyAddress || "Dirección no disponible"}
                   </Text>
-                  <Text style={{ fontSize: 14, color: "#4b5563", marginBottom: 4 }}>
+                  <Text
+                    style={{ fontSize: 14, color: "#4b5563", marginBottom: 4 }}
+                  >
                     <Text style={{ fontWeight: "bold", color: "#374151" }}>
                       Estado:
                     </Text>{" "}
@@ -134,60 +139,69 @@ const AssignedWorksScreen = () => {
                     {item.notes || "Sin notas"}
                   </Text>
                   {(item.Permit?.pdfData || item.Permit?.optionalDocs) && (
-  <View style={{ marginTop: 10 }}>
-    {(item.Permit?.pdfData || item.Permit?.optionalDocs) && (
-  <View style={{ marginTop: 10 }}>
-    {item.Permit?.pdfData && (
-      <TouchableOpacity
-        onPress={() => handleOpenPdf(item.Permit.pdfData)}
-        style={{
-          marginBottom: 10,
-          padding: 10,
-          backgroundColor: "#2563eb",
-          borderRadius: 5,
-        }}
-      >
-        <Text style={{ color: "white", textAlign: "center" }}>
-          Leer PDF Principal
-        </Text>
-      </TouchableOpacity>
-    )}
-    {item.Permit?.optionalDocs && (
-      <TouchableOpacity
-        onPress={() => handleOpenPdf(item.Permit.optionalDocs)}
-        style={{
-          padding: 10,
-          backgroundColor: "#f59e0b",
-          borderRadius: 5,
-        }}
-      >
-        <Text style={{ color: "white", textAlign: "center" }}>
-          Leer Documentación Opcional
-        </Text>
-      </TouchableOpacity>
-    )}
-  </View>
-)}
-   
-  </View>
-)}
-                <TouchableOpacity
-                  onPress={() => navigation.navigate("UploadScreen", { idWork: item.idWork })}
-                  style={{
-                    marginTop: 10,
-                    padding: 10,
-                    backgroundColor: "#10b981",
-                    borderRadius: 5,
-                  }}
-                >
-                  <Text style={{ color: "white", textAlign: "center" }}>
-                    Cargar Imágenes
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          />
-        </View>
+                    <View style={{ marginTop: 10 }}>
+                      {(item.Permit?.pdfData || item.Permit?.optionalDocs) && (
+                        <View style={{ marginTop: 10 }}>
+                          {item.Permit?.pdfData && (
+                            <TouchableOpacity
+                              onPress={() => handleOpenPdf(item.Permit.pdfData)}
+                              style={{
+                                marginBottom: 10,
+                                padding: 10,
+                                backgroundColor: "#2563eb",
+                                borderRadius: 5,
+                              }}
+                            >
+                              <Text
+                                style={{ color: "white", textAlign: "center" }}
+                              >
+                                Leer PDF Principal
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                          {item.Permit?.optionalDocs && (
+                            <TouchableOpacity
+                              onPress={() =>
+                                handleOpenPdf(item.Permit.optionalDocs)
+                              }
+                              style={{
+                                padding: 10,
+                                backgroundColor: "#f59e0b",
+                                borderRadius: 5,
+                              }}
+                            >
+                              <Text
+                                style={{ color: "white", textAlign: "center" }}
+                              >
+                                Leer Documentación Opcional
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    onPress={() =>
+                      navigation.navigate("UploadScreen", {
+                        idWork: item.idWork,
+                      })
+                    }
+                    style={{
+                      marginTop: 10,
+                      padding: 10,
+                      backgroundColor: "#10b981",
+                      borderRadius: 5,
+                    }}
+                  >
+                    <Text style={{ color: "white", textAlign: "center" }}>
+                      Cargar Imágenes
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            />
+          </View>
         )}
       </Stack.Screen>
       <Stack.Screen name="UploadScreen" component={UploadScreen} />

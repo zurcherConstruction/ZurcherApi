@@ -34,6 +34,7 @@ import FileDetail from "./Components/Budget/FileDetail";
 import PendingWorks from "./Components/Works/PendingWorks";
 import AttachInvoice from "./Components/Seguimiento/AttachInvoice";
 import VerImagenes from "./Components/Works/VerImagenes";
+import BalanceStats from "./Components/BalanceStats";
 
 function App() {
   const dispatch = useDispatch();
@@ -205,6 +206,16 @@ function App() {
                   allowedRoles={["owner", "recept", "worker", "admin"]}
                 >
                   <AttachInvoice />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/balance"
+              element={
+                <PrivateRoute
+                  allowedRoles={["owner", "admin"]}
+                >
+                  <BalanceStats />
                 </PrivateRoute>
               }
             />

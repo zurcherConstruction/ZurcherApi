@@ -47,6 +47,7 @@ const balanceSlice = createSlice({
       state.error = null;
     },
     fetchGeneralBalanceSuccess: (state, action) => {
+      console.log("Datos recibidos en el reducer:", action.payload);
       state.loading = false;
       state.balance = action.payload;
     },
