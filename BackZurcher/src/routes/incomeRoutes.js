@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { createIncome, getAllIncomes, getIncomeById, updateIncome, deleteIncome } = require('../controllers/IncomeController');
+const { createIncome, getAllIncomes, getIncomeById, updateIncome, deleteIncome } = require('../controllers/incomeController');
 
 router.post('/', createIncome);
 router.get('/', getAllIncomes);
