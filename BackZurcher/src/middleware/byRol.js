@@ -41,7 +41,9 @@ const isStaff = (req, res, next) => {
 
 const allowRoles = (roles) => {
   return (req, res, next) => {
-    if (!roles.includes(req.staff.role)) {
+    const userRole = req.staff.role.toLowerCase(); // Normaliza el rol del usuario a minúsculas
+    console.log("Rol del usuario autenticado:", userRole);
+    if (!roles.map((role) => role.toLowerCase()).includes(userRole)) {
       return res.status(403).json({
         error: true,
         message: 'No tienes permisos para realizar esta acción',

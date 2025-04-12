@@ -16,10 +16,10 @@ const WorkStatusManager = () => {
     'inProgress',
     'installed',
     'firstInspectionPending',
-    'approvedInspection',
-    'completed',
+    'coverPending',
+    'invoiceFinal',
+    'paymentReceived',
     'finalInspectionPending',
-    'finalApproved',
     'maintenance',
   ];
 
@@ -103,14 +103,14 @@ const WorkStatusManager = () => {
             const isDisabled = statusOrder.indexOf(selectedWork.status) < index - 1;
 
             const labels = {
-              inProgress: 'Materiales Comprados',
-              installed: 'Trabajo Instalado',
-              firstInspectionPending: 'Ya se pidió 1° Inspección',
-              approvedInspection: 'Primera Inspección Aprobada',
-              completed: 'Trabajo Completo y Tapado',
-              finalInspectionPending: 'Ya se pidió Inspección Final',
-              finalApproved: 'Inspección Final Aprobada',
-              maintenance: 'Terminado, Pasa a Mantenimiento',
+              inProgress: 'Purchase in Progress',
+              installed: 'Installing',
+              firstInspectionPending: 'Inspection Pending',
+              coverPending: 'Cover Pending',
+              invoiceFinal: 'Send Final Invoice',
+              paymentReceived: 'Payment Received',
+              finalInspectionPending: 'Final Inspection Pending',
+              maintenance: 'Maintenance',
             };
 
             return (

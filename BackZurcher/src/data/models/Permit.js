@@ -128,6 +128,10 @@ module.exports = (sequelize) => {
   type: DataTypes.BLOB, // Aquí es donde ocurre el problema
   allowNull: true,
 },
+optionalDocs: {
+      type: DataTypes.BLOB, 
+      allowNull: true,
+    },
   }, {
     timestamps: true
   });

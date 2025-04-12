@@ -52,7 +52,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Budget, Work, Material, Inspection, Notification, InstallationDetail } = sequelize.models;
+const { Staff, Permit, Income, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt } = sequelize.models;
 
 // Relaciones
 Permit.hasMany(Work, { foreignKey: 'propertyAddress', sourceKey: 'propertyAddress' });
@@ -64,6 +64,9 @@ Budget.belongsTo(Permit, { foreignKey: 'propertyAddress', targetKey: 'propertyAd
 Work.hasMany(Material, { foreignKey: 'workId' });
 Material.belongsTo(Work, { foreignKey: 'workId' });
 
+Staff.hasMany(Material, { foreignKey: 'staffId' });
+Material.belongsTo(Staff, { foreignKey: 'staffId' });
+
 Work.hasMany(Inspection, { foreignKey: 'workId' });
 Inspection.belongsTo(Work, { foreignKey: 'workId' });
 
@@ -71,7 +74,7 @@ Staff.hasMany(Work, { foreignKey: 'staffId' });
 Work.belongsTo(Staff, { foreignKey: 'staffId' });
 
 Work.belongsTo(Budget, { foreignKey: 'idBudget', as: 'budget' });
-
+Budget.hasMany(Work, { foreignKey: 'idBudget' });
 // Relación entre Staff y Notification
 Notification.belongsTo(Staff, { as: "sender", foreignKey: "senderId" });
 Staff.hasMany(Notification, { as: "sentNotifications", foreignKey: "senderId" });
@@ -81,6 +84,49 @@ Notification.belongsTo(Notification, { as: "parent", foreignKey: "parentId" });
 
 Work.hasMany(InstallationDetail, { foreignKey: 'idWork', as: 'installationDetails' });
 InstallationDetail.belongsTo(Work, { foreignKey: 'idWork', as: 'work' });
+
+Work.hasMany(Image, { foreignKey: 'idWork', as: 'images' });
+Image.belongsTo(Work, { foreignKey: 'idWork', as: 'work' });
+
+MaterialSet.hasMany(Material, { foreignKey: 'materialSetId' });
+Material.belongsTo(MaterialSet, { foreignKey: 'materialSetId' });
+// Relación entre Work y MaterialSet
+Work.hasMany(MaterialSet, { foreignKey: 'workId', as: 'MaterialSets' });
+MaterialSet.belongsTo(Work, { foreignKey: 'workId', as: 'Work' });
+
+// Relación lógica con Inspection
+Inspection.hasMany(Receipt, { foreignKey: 'relatedId', constraints: false, scope: { relatedModel: 'Inspection' } });
+Receipt.belongsTo(Inspection, { foreignKey: 'relatedId', constraints: false });
+
+// Relación lógica con MaterialSet
+MaterialSet.hasMany(Receipt, { foreignKey: 'relatedId', constraints: false, scope: { relatedModel: 'MaterialSet' } });
+Receipt.belongsTo(MaterialSet, { foreignKey: 'relatedId', constraints: false });
+
+// Relación entre Work y Receipt
+Work.hasMany(Receipt, { foreignKey: 'relatedId', constraints: false, scope: { relatedModel: 'Work' } });
+Receipt.belongsTo(Work, { foreignKey: 'relatedId', constraints: false });
+
+//Relaciones Work, Income, Expense
+Work.hasMany(Income, {
+  foreignKey: 'idWork',
+  as: 'incomes',
+});
+Income.belongsTo(Work, {
+  foreignKey: 'idWork',
+  as: 'work',
+});
+
+Work.hasMany(Expense, {
+  foreignKey: 'idWork',
+  as: 'expenses',
+});
+Expense.belongsTo(Work, {
+  foreignKey: 'idWork',
+  as: 'work',
+});
+
+
+
 
 //---------------------------------------------------------------------------------//
 module.exports = {

@@ -10,8 +10,11 @@ const materialRoutes = require('./materialRoutes');
 const workRoutes = require('./workRoutes');
 const permitRoutes = require('./permitRoutes');
 const notificationRoutes = require('./NotificationRoutes'); // Asegúrate de que la ruta sea correcta
-
-
+const archiveRoutes = require('./archiveRoutes'); // Asegúrate de que la ruta sea correcta
+const receiptRoutes = require('./receiptRoutes'); // Asegúrate de que la ruta sea correcta
+const incomeRoutes = require('./incomeRoutes'); // Asegúrate de que la ruta sea correcta
+const expenseRoutes = require('./expenseRoutes'); // Asegúrate de que la ruta sea correcta
+const balanceRoutes = require('./balanceRoutes'); // Asegúrate de que la ruta sea correcta
 // Rutas públicas
 router.use('/auth', authRoutes); // Registro y login no requieren token
 
@@ -26,6 +29,11 @@ router.use('/material', materialRoutes);
 router.use('/work', workRoutes);
 router.use('/permit', permitRoutes);
 router.use('/notification', notificationRoutes); // Rutas de notificaciones
+router.use('/archive', archiveRoutes); // Ruta para obtener presupuestos archivados
+router.use('/receipt', receiptRoutes); // Ruta para comprobantes
+router.use('/balance', balanceRoutes)
+router.use('/income', incomeRoutes); // Ruta para ingresos
+router.use('/expense', expenseRoutes); // Ruta para gastos
 
 
 module.exports = router;

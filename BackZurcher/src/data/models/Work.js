@@ -21,7 +21,9 @@ module.exports = (sequelize) => {
         'firstInspectionPending',
         'approvedInspection',  
         'rejectedInspection',
-        'completed', //se agrega installed
+        'coverPending', //se agrega installed
+        'invoiceFinal',
+        'paymentReceived',
         'finalInspectionPending', //cambiar por firstInspectionPending revisar inspecciones
         'finalApproved',
         'finalRejected',
@@ -42,5 +44,22 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    staffId: {
+      type: DataTypes.UUID, // Clave foránea que referencia a Staff
+      allowNull: true, // Permitir NULL si no todas las obras están asignadas
+      references: {
+        model: 'Staffs', // Nombre del modelo relacionado
+        key: 'id', // Clave primaria del modelo Staff
+      },
+    },
+    idBudget: {
+      type: DataTypes.INTEGER, // Cambiado a INTEGER para coincidir con Budget
+      allowNull: true,
+      references: {
+        model: 'Budgets',
+        key: 'idBudget',
+      },
+    },
+    
   });
 };

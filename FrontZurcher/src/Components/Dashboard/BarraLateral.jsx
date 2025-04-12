@@ -16,8 +16,12 @@ const BarraLateral = () => {
     { name: "Progresos", path: "/progress-tracker" },
     { name: "Enviar mensaje", path: "/send-notifications" },
     { name: "Staff", path: "/register" },
-    { name: "Estadísticas", path: "/estadisticas" },
-    { name: "Clientes", path: "/clientes" },
+    { name: "Calendar", path: "/workCalendar" },
+    { name: "BudgetsEnd", path: "/archive" },
+    { name: "Facturas", path: "/attachInvoice" },
+    { name: "Balance", path: "/balance" },
+    
+
   ];
 
   const handleNavigation = (path) => {

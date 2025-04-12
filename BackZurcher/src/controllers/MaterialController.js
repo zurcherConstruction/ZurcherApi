@@ -1,23 +1,37 @@
-const { Material, Work } = require('../data');
+const { Material, Work, MaterialSet } = require('../data');
 
-const createMaterial = async (req, res) => {
+const createMaterialSet = async (req, res) => {
   try {
-    const { workId, name, quantity, unit, cost } = req.body;
+    const { materials, workId, purchaseDate } = req.body;
 
-    // Verificar que la obra (Work) exista
-    const work = await Work.findByPk(workId);
-    if (!work) {
-      return res.status(404).json({ error: true, message: 'Obra no encontrada' });
-    }
+    // Crear el conjunto de materiales
+    const materialSet = await MaterialSet.create({
+      workId,
+      purchaseDate,
+    });
 
-    // Crear el material
-    const material = await Material.create({ workId, name, quantity, unit, cost });
-    res.status(201).json(material);
+    // Asociar los materiales al conjunto
+    const materialsToSave = materials.map((material) => ({
+      name: material.material,
+      quantity: material.quantity,
+      comment: material.comment || "",
+      materialSetId: materialSet.idMaterialSet,
+    }));
+
+    const savedMaterials = await Material.bulkCreate(materialsToSave);
+
+    res.status(201).json({
+      message: 'Conjunto de materiales guardado exitosamente.',
+      materialSet,
+      materials: savedMaterials,
+    });
   } catch (error) {
-    console.error('Error al crear el material:', error);
-    res.status(500).json({ error: true, message: 'Error interno del servidor' });
+    console.error('Error al guardar el conjunto de materiales:', error);
+    res.status(500).json({ error: 'Error al guardar el conjunto de materiales.' });
   }
 };
+
+
 
 const getMaterialsByWork = async (req, res) => {
   try {
@@ -41,7 +55,7 @@ const getMaterialsByWork = async (req, res) => {
 const updateMaterial = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, quantity, unit, cost } = req.body;
+    const { name, quantity, cost } = req.body;
 
     // Verificar que el material exista
     const material = await Material.findByPk(id);
@@ -52,7 +66,7 @@ const updateMaterial = async (req, res) => {
     // Actualizar el material
     material.name = name || material.name;
     material.quantity = quantity || material.quantity;
-    material.unit = unit || material.unit;
+   
     material.cost = cost || material.cost;
     await material.save();
 
@@ -64,7 +78,7 @@ const updateMaterial = async (req, res) => {
 };
 
 module.exports = {
-  createMaterial,
+  createMaterialSet,
   getMaterialsByWork,
   updateMaterial,
 };

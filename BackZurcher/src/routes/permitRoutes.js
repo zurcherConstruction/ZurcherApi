@@ -1,20 +1,33 @@
 const express = require('express');
 const PermitController = require('../controllers/PermitController');
 const { verifyToken } = require('../middleware/isAuth');
-const { allowRoles, isStaff, isOwner, isAdmin, isRecept, } = require('../middleware/byRol'); // Ajusta según tus middlewares
-const { upload } = require('../middleware/multer'); 
+const { allowRoles } = require('../middleware/byRol'); // Ajusta según tus middlewares
+const multer = require('multer');
 
+// Configuración de multer
+const upload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype !== "application/pdf") {
+      return cb(new Error("Solo se permiten archivos PDF"), false);
+    }
+    cb(null, true);
+  },
+});
 
 const router = express.Router();
 
 // Crear un permiso (permitido para admin, recept y owner)
 router.post(
-    '/', 
-    verifyToken, 
-    allowRoles(['admin', 'recept', 'owner']),
-    upload.single('file'),
-    PermitController.createPermit
-  );
+  '/',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner']),
+  upload.fields([
+    { name: 'pdfData', maxCount: 1 }, // Archivo principal
+    { name: 'optionalDocs', maxCount: 1 }, // Documentación opcional
+  ]),
+  PermitController.createPermit
+);
 
 // Obtener todos los permisos (permitido para staff)
 router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner']), PermitController.getPermits);
@@ -29,6 +42,6 @@ router.get('/contacts/:idPermit?', allowRoles(['admin', 'recept', 'owner']), Per
 router.get('/pdf/:idPermit', allowRoles(['admin', 'recept', 'owner']), PermitController.downloadPermitPdf);
 
 // Actualizar un permiso (permitido solo para admin)
-router.put('/:idPermit', verifyToken, allowRoles(['admin','recept', 'owner']), PermitController.updatePermit);
+router.put('/:idPermit', verifyToken, allowRoles(['admin', 'recept', 'owner']), PermitController.updatePermit);
 
 module.exports = router;
