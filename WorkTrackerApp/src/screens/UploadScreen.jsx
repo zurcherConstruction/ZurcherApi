@@ -159,6 +159,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  selectedStageButton: { // <-- AÑADE ESTE ESTILO
+    borderWidth: 3,
+    borderColor: '#FFFFFF', // Borde blanco para contraste
+    opacity: 0.8, // Ligeramente transparente para diferenciar
+  },
   stageButtonText: {
     color: 'white',
     fontSize: 16, // Slightly larger font size
