@@ -125,18 +125,18 @@ export const addInstallationDetail = (idWork, installationData) => async (dispat
   }
 };
 export const addImagesToWork = (idWork, imageData) => async (dispatch) => {
-  dispatch(addImagesRequest()); // Acción para iniciar la solicitud
+  dispatch(addImagesRequest()); 
   try {
-    const response = await api.post(`/work/${idWork}/images`, imageData); // Ruta del backend
-    dispatch(addImagesSuccess(response.data)); // Acción para éxito
-    return response.data; // Devolver los datos para usarlos en el componente
+    const response = await api.post(`/work/${idWork}/images`, imageData); 
+  
+    dispatch(addImagesSuccess(response.data)); 
+    return response.data; 
   } catch (error) {
     const errorMessage =
       error.response?.data?.message || 'Error al agregar las imágenes';
-    dispatch(addImagesFailure(errorMessage)); // Acción para error
-    Alert.alert('Error', errorMessage); // Mostrar error en una alerta
-    // throw error; // Lanzar el error para manejarlo en el componente
-    return { error: errorMessage }; // Return an object with an error property
+    dispatch(addImagesFailure(errorMessage)); 
+    Alert.alert('Error', errorMessage); 
+    return { error: errorMessage }; 
   }
 };
 
