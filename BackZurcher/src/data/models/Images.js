@@ -25,6 +25,10 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT('long'), // o DataTypes.BLOB si prefieres
       allowNull: false, // o true, dependiendo de si siempre quieres una imagen
     },
+    comment: {
+      type: DataTypes.STRING,
+      allowNull: true, // Permite valores nulos si no siempre se proporciona
+    },
     
   });
 };

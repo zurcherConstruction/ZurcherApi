@@ -11,7 +11,7 @@ const WorkDetail = () => {
   const dispatch = useDispatch();
 
   const { selectedWork: work, loading, error } = useSelector((state) => state.work);
-
+console.log("Datos de la obra:", work); // Para depuración
   const [selectedImage, setSelectedImage] = useState(null);
   const [fileBlob, setFileBlob] = useState(null);
   const [openSections, setOpenSections] = useState({}); // Cambiado a un objeto para manejar múltiples secciones
@@ -22,7 +22,7 @@ const WorkDetail = () => {
     loading: balanceLoading, // Renombrado para evitar conflicto
     error: balanceError      // Renombrado para evitar conflicto
   } = useSelector((state) => state.balance);
-  
+
   useEffect(() => {
     dispatch(fetchWorkById(idWork));
 
@@ -70,7 +70,7 @@ const WorkDetail = () => {
     };
 
     fetchBalanceData();
-  // Dependencia: dispatch y idWork
+    // Dependencia: dispatch y idWork
   }, [dispatch, idWork]);
 
   if (loading) return <p>Cargando detalles de la obra...</p>;
@@ -83,8 +83,12 @@ const WorkDetail = () => {
     return acc;
   }, {});
 
-  const pdfUrl = work.Permit?.pdfData
+  const pdfUrl = work.Permit?.pdfData  //optionalDocs
     ? URL.createObjectURL(new Blob([new Uint8Array(work.Permit.pdfData.data)], { type: "application/pdf" }))
+    : null;
+
+    const optionalDocs = work.Permit?.optionalDocs  //optionalDocs
+    ? URL.createObjectURL(new Blob([new Uint8Array(work.Permit.optionalDocs.data)], { type: "application/pdf" }))
     : null;
 
   const validMaterialSet = work.MaterialSets?.find((set) => set.invoiceFile !== null);
@@ -102,19 +106,19 @@ const WorkDetail = () => {
     <div className="p-4 bg-gray-100 min-h-screen">
       {/* Título principal con dirección y estado */}
       <div className="bg-blue-500 text-white p-6 rounded-lg shadow-md mb-6">
-        <h1 className="text-3xl font-semibold uppercase">{work.propertyAddress}</h1>
-        <p className="text-2xl text-slate-800 p-1 uppercase mt-2">
+        <h1 className="text-2xl font-semibold uppercase">{work.propertyAddress}</h1>
+        <p className="text-xl text-slate-800 p-1 uppercase mt-2">
           <strong>Status:</strong> {work.status}
         </p>
       </div>
-  
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Columna izquierda: Tarjetas desplegables */}
         <div className="space-y-6">
           {/* Tarjeta: Información principal */}
           <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-blue-500">
             <h2
-              className="text-xl font-bold mb-4 cursor-pointer"
+              className="text-xl font-semibold mb-4 cursor-pointer"
               onClick={() => toggleSection("info")}
             >
               Información Principal
@@ -129,9 +133,21 @@ const WorkDetail = () => {
                 </p>
                 {pdfUrl && (
                   <div className="mt-4">
-                    <h3 className="text-lg font-bold">Vista previa del Permit</h3>
+                    <h3 className="text-lg font-semibold">Permit</h3>
                     <iframe
                       src={pdfUrl}
+                      width="100%"
+                      height="250px"
+                      title="Vista previa del PDF"
+                      className="rounded"
+                    ></iframe>
+                  </div>
+                )}
+                 {optionalDocs && (
+                  <div className="mt-4">
+                    <h3 className="text-lg font-semibold">Optional Docs</h3>
+                    <iframe
+                      src={optionalDocs}
                       width="100%"
                       height="250px"
                       title="Vista previa del PDF"
@@ -142,12 +158,12 @@ const WorkDetail = () => {
               </>
             )}
           </div>
-  
+
           {/* Tarjeta: Presupuesto */}
           {work.budget && (
             <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-blue-500">
               <h2
-                className="text-xl font-bold mb-4 cursor-pointer"
+                className="text-xl font-semibold mb-4 cursor-pointer"
                 onClick={() => toggleSection("budget")}
               >
                 Presupuesto
@@ -170,12 +186,12 @@ const WorkDetail = () => {
               )}
             </div>
           )}
-  
+
           {/* Tarjeta: Comprobantes */}
           {work.Receipts && work.Receipts.length > 0 && (
             <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-yellow-500">
               <h2
-                className="text-xl font-bold mb-4 cursor-pointer"
+                className="text-xl font-semibold mb-4 cursor-pointer"
                 onClick={() => toggleSection("receipts")}
               >
                 Comprobantes Adjuntados
@@ -212,11 +228,11 @@ const WorkDetail = () => {
               )}
             </div>
           )}
-  
+
           {/* Tarjeta: Imágenes */}
           <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-yellow-500">
             <h2
-              className="text-xl font-bold mb-4 cursor-pointer"
+              className="text-xl font-semibold mb-4 cursor-pointer"
               onClick={() => toggleSection("images")}
             >
               Imágenes de la Obra
@@ -224,7 +240,7 @@ const WorkDetail = () => {
             {openSections.images && (
               Object.entries(groupedImages).map(([stage, images]) => (
                 <div key={stage} className="mb-6">
-                  <h3 className="text-lg font-semibold mb-2">{stage}</h3>
+                  <h3 className="text-sm text-white bg-indigo-900 p-1 text-center uppercase font-semibold mb-2">{stage}</h3>
                   <div className="flex overflow-x-auto space-x-4">
                     {images.map((image) => (
                       <div
@@ -238,6 +254,7 @@ const WorkDetail = () => {
                           className="w-24 h-24 object-cover rounded-md shadow"
                         />
                         <p className="text-sm text-center mt-2">{image.dateTime}</p>
+                        <p className="text-sm text-center mt-2">{image.comment}</p>
                       </div>
                     ))}
                   </div>
@@ -246,7 +263,7 @@ const WorkDetail = () => {
             )}
           </div>
         </div>
-  
+
         {/* Columna derecha: Tarjetas de gastos e ingresos */}
         <div className="space-y-6">
           {/* Tarjeta: Gastos */}
@@ -255,7 +272,13 @@ const WorkDetail = () => {
               className="text-xl font-bold mb-4 cursor-pointer flex justify-between items-center"
               onClick={() => toggleSection("expenses")}
             >
-              Gastos <span>{openSections.expenses ? '▲' : '▼'}</span>
+              Gastos
+              <span className="text-red-700 font-semibold">
+                {expenses && expenses.length > 0
+                  ? `$${expenses.reduce((total, expense) => total + parseFloat(expense.amount || 0), 0).toFixed(2)}`
+                  : "$0.00"}
+              </span>
+              <span>{openSections.expenses ? '▲' : '▼'}</span>
             </h2>
             {openSections.expenses && (
               <>
@@ -288,16 +311,22 @@ const WorkDetail = () => {
               className="text-xl font-bold mb-4 cursor-pointer flex justify-between items-center"
               onClick={() => toggleSection("incomes")}
             >
-              Ingresos <span>{openSections.incomes ? '▲' : '▼'}</span>
+              Ingresos
+              <span className="text-green-700 font-semibold">
+                {incomes && incomes.length > 0
+                  ? `$${incomes.reduce((total, income) => total + parseFloat(income.amount || 0), 0).toFixed(2)}`
+                  : "$0.00"}
+              </span>
+              <span>{openSections.incomes ? '▲' : '▼'}</span>
             </h2>
-             {openSections.incomes && (
+            {openSections.incomes && (
               <>
                 {balanceLoading && <p>Cargando ingresos...</p>}
                 {balanceError && <p className="text-red-500">Error al cargar ingresos: {balanceError}</p>}
                 {!balanceLoading && !balanceError && (
                   // *** USAR 'incomes' del useSelector ***
                   incomes && incomes.length > 0 ? (
-                     <ul className="space-y-3">
+                    <ul className="space-y-3">
                       {incomes.map((income) => (
                         <li key={income.idIncome} className="border-b pb-3 last:border-b-0">
                           <p><strong>Tipo:</strong> {income.typeIncome}</p>
@@ -316,8 +345,8 @@ const WorkDetail = () => {
           </div>
         </div>
       </div>
-    
-  
+
+
       {/* Modal para mostrar la imagen ampliada */}
       {selectedImage && (
         <div
