@@ -114,12 +114,21 @@ const workSlice = createSlice({
     },
     addImagesSuccess: (state, action) => {
       state.loading = false;
-      state.images = [...state.images, ...action.payload.imageUrls]; // Agregar las nuevas imágenes
-      state.error = null;
+      // Verifica que el payload y imageRecord existan antes de intentar agregarlo
+      if (action.payload && action.payload.imageRecord) {
+        // Agrega el objeto imageRecord completo al array state.images
+        state.images.push(action.payload.imageRecord); 
+      } else {
+        // Opcional: Loguea un error si la respuesta no es la esperada
+        console.error("addImagesSuccess: La respuesta no contiene imageRecord:", action.payload);
+        state.error = "Respuesta inesperada del servidor al agregar la imagen.";
+      }
+      // Limpia el error si la operación fue exitosa (incluso si la respuesta no fue perfecta)
+      // state.error = null; // Puedes decidir si limpiar el error aquí o no, dependiendo de si el 'else' debe considerarse un fallo
     },
     addImagesFailure: (state, action) => {
       state.loading = false;
-      state.error = action.payload; // Guardar el mensaje de error
+      state.error = action.payload; 
     },
 
     deleteImagesRequest: (state) => {
