@@ -2,7 +2,7 @@
   "expo": {
     "entryPoint": "./index.js",
     "name": "Zurcher Construction",
-    "slug": "zurcher-construction",
+    "slug": "WorkTrackerMovil",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
