@@ -142,6 +142,13 @@ useEffect(() => {
     return null;
   }, [selectedAddress, work]);
 
+  const optionalDocs = useMemo(() => {
+    if (selectedAddress && work?.Permit?.optionalDocs) {
+      return URL.createObjectURL(new Blob([new Uint8Array(work.Permit.optionalDocs.data)], { type: "application/pdf" }));
+    }
+    return null;
+  }, [selectedAddress, work]);
+
   const handleNewMaterialChange = (e) => {
     const { name, value } = e.target;
     setNewMaterial({
@@ -531,10 +538,22 @@ useEffect(() => {
         <div className="flex-1">
           {permitPdfUrl && (
             <div className="mb-4">
-              <h3 className="text-lg font-bold">Vista previa del Permit</h3>
+              <h3 className="text-lg font-semibold">Permit</h3>
               <div className="relative overflow-hidden">
                 <iframe
                   src={permitPdfUrl}
+                  className="w-full h-64 sm:h-72 md:h-80 lg:h-96"
+                  title="Vista previa del PDF del Permit"
+                ></iframe>
+              </div>
+            </div>
+          )}
+             {optionalDocs && (
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold">Permit Optional</h3>
+              <div className="relative overflow-hidden">
+                <iframe
+                  src={optionalDocs}
                   className="w-full h-64 sm:h-72 md:h-80 lg:h-96"
                   title="Vista previa del PDF del Permit"
                 ></iframe>

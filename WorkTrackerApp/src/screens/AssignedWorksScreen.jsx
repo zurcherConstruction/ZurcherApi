@@ -185,6 +185,7 @@ const AssignedWorksScreen = () => {
                     onPress={() =>
                       navigation.navigate("UploadScreen", {
                         idWork: item.idWork,
+                        propertyAddress: item.propertyAddress,
                       })
                     }
                     style={{

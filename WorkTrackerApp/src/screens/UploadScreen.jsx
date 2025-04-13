@@ -5,10 +5,11 @@ import { useDispatch } from 'react-redux';
 import { addImagesToWork } from '../Redux/Actions/workActions';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as FileSystem from 'expo-file-system';
-import { manipulateAsync, SaveFormat } from 'expo-image-manipulator'; // Importa manipulateAsync
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 const UploadScreen = () => {
-  const { idWork } = useRoute().params;
+  const { idWork, propertyAddress } = useRoute().params; // Se asume que propertyAddress viene en los params
   const navigation = useNavigation();
   const [imageUri, setImageUri] = useState(null);
   const [comment, setComment] = useState('');
@@ -52,6 +53,24 @@ const UploadScreen = () => {
     }
   };
 
+  const handleOpenCamera = async () => {
+    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+
+    if (!permissionResult.granted) {
+      Alert.alert('Permiso denegado', 'Se requieren permisos para acceder a la cámara.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.5, // Reduce la calidad al 50%
+    });
+
+    if (!result.canceled) {
+      setImageUri(result.assets[0].uri); // Guardar la URI de la imagen capturada
+    }
+  };
+
   const handleSubmit = async () => {
     if (!imageUri || !comment || !stage) {
       Alert.alert('Campos incompletos', 'Por favor, completa todos los campos.');
@@ -75,6 +94,7 @@ const UploadScreen = () => {
       const imageData = {
         stage: stage,
         image: base64Image, // Send base64 image
+        comment,
         dateTime: dateTimeString, // Send date and time
       };
 
@@ -86,7 +106,7 @@ const UploadScreen = () => {
       setImageUri(null);
       setComment('');
       setStage('');
-      navigation.goBack(); // Regresa a la pantalla anterior
+      
     } catch (error) {
       console.error('Error al cargar las imágenes:', error);
       // Mostrar un mensaje de error
@@ -96,21 +116,13 @@ const UploadScreen = () => {
 
   return (
     <ScrollView className="flex-1 bg-gray-100 p-5">
-      <Text className="text-3xl font-extrabold text-blue-600 mb-5 text-center">
-        Cargar Imagen
+      {/* Mostrar la dirección de la propiedad */}
+      <Text className="text-xl font-medium uppercase text-gray-800 mb-5 text-center">
+        {propertyAddress || 'Sin dirección'}
       </Text>
-      <Pressable
-        onPress={handlePickImage}
-        className="bg-blue-600 py-3 rounded-lg shadow-md mb-5"
-      >
-        <Text className="text-white text-center text-lg font-semibold">
-          Seleccionar Imagen
-        </Text>
-      </Pressable>
-      {imageUri && typeof imageUri === 'string' && (
-        <Image source={{ uri: imageUri }} className="w-full h-48 mb-5 rounded-lg" />
-      )}
-      <Text className="text-lg font-semibold text-gray-700 mb-2">Etapa:</Text>
+
+      {/* Mostrar las etapas */}
+
       <View style={styles.stagesContainer}>
         {stages.map((stageOption, index) => (
           <Pressable
@@ -126,13 +138,46 @@ const UploadScreen = () => {
           </Pressable>
         ))}
       </View>
+
+      {/* Botón para seleccionar imagen */}
+      <Pressable
+        onPress={handlePickImage}
+        className="bg-blue-600 py-3 rounded-lg shadow-md mb-5 flex-row justify-center items-center"
+      >
+        <Ionicons name="cloud-upload-outline" size={24} color="white" />
+        <Text className="text-white text-center text-lg font-semibold ml-2">
+          Image
+        </Text>
+      </Pressable>
+
+      {/* Botón para abrir la cámara */}
+      <Pressable
+        onPress={handleOpenCamera}
+        className="bg-green-600 py-3 rounded-lg shadow-md mb-5 flex-row justify-center items-center"
+      >
+        <Ionicons name="camera-outline" size={24} color="white" />
+        <Text className="text-white text-center text-lg font-semibold ml-2">
+          Cámara
+        </Text>
+      </Pressable>
+
+      {/* Mostrar la imagen seleccionada */}
+      {imageUri && typeof imageUri === 'string' && (
+        <Image source={{ uri: imageUri }} className="w-full h-48 mb-5 rounded-lg" />
+      )}
+
+      {/* Campo de comentario */}
       <TextInput
         className="border border-gray-300 rounded-lg px-4 py-2 mb-5"
         placeholder="Comentario"
         value={comment}
         onChangeText={setComment}
       />
+
+      {/* Mostrar la fecha */}
       <Text className="text-gray-600 mb-5">Fecha: {date || 'Sin fecha'}</Text>
+
+      {/* Botón para enviar */}
       <Pressable
         onPress={handleSubmit}
         className="bg-green-600 py-3 rounded-lg shadow-md"
@@ -147,26 +192,28 @@ const styles = StyleSheet.create({
   stagesContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-around', // Distribute items evenly
+    justifyContent: 'space-around',
     marginBottom: 10,
   },
   stageButton: {
-    width: '45%', // Two buttons per row with some space
-    paddingVertical: 12, // Slightly larger padding
+    width: '45%',
+    paddingVertical: 12,
     marginBottom: 10,
-    borderRadius: 0, // Square buttons
-    minHeight: 100, // Minimum height for each button
+    borderRadius: 8,
+    minHeight: 100,
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   selectedStageButton: { // <-- AÑADE ESTE ESTILO
     borderWidth: 3,
     borderColor: '#FFFFFF', // Borde blanco para contraste
     opacity: 0.8, // Ligeramente transparente para diferenciar
+
   },
   stageButtonText: {
     color: 'white',
-    fontSize: 16, // Slightly larger font size
+    fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
   },
