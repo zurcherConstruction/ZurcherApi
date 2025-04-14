@@ -13,13 +13,11 @@ import { loginRequest, loginSuccess, loginFailure, logout,forgotPasswordRequest,
 export const login = (email, password) => async (dispatch) => {
   dispatch(loginRequest());
   try {
-    // Verificar los datos enviados al backend
-    console.log('Datos enviados al backend:', { email, password });
+   
 
     const response = await api.post('/auth/login', { email, password });
 
-    // Verificar la respuesta del backend
-    console.log('Respuesta del backend:', response.data);
+   
 
     const { token, staff } = response.data.data;
 

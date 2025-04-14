@@ -73,9 +73,34 @@ console.log("Datos de la obra:", work); // Para depuración
     // Dependencia: dispatch y idWork
   }, [dispatch, idWork]);
 
-  if (loading) return <p>Cargando detalles de la obra...</p>;
-  if (error) return <p>Error: {error}</p>;
-  if (!work) return <p>No se encontró la obra.</p>;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex flex-col items-center">
+          {/* Spinner circular */}
+          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent border-solid rounded-full animate-spin"></div>
+          {/* Texto opcional */}
+          <p className="text-xl font-semibold mt-4">Cargando detalles de la obra...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-xl font-semibold text-red-500">Error: {error}</p>
+      </div>
+    );
+  }
+  
+  if (!work) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-xl font-semibold">No se encontró la obra.</p>
+      </div>
+    );
+  }
 
   const groupedImages = work.images.reduce((acc, image) => {
     if (!acc[image.stage]) acc[image.stage] = [];

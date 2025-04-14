@@ -1,7 +1,7 @@
 const { CustomError } = require("../error");
 
 const validateLogin = (req, res, next) => {
-  console.log('Datos recibidos en el backend:', req.body);
+  // console.log('Datos recibidos en el backend:', req.body);
   const { email, password} = req.body;
 
   if (!email) {
