@@ -84,7 +84,7 @@ console.log("Datos de la obra:", work); // Para depuración
         </div>
       </div>
     );
-  }
+  } // probando spiner
   
   if (error) {
     return (
