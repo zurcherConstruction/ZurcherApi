@@ -19,7 +19,7 @@ const PendingWorks = () => {
 
   const localizer = momentLocalizer(moment);
 
-  // Filtrar trabajos con estado "pending"
+ 
  // Filtrar trabajos con estado "pending" y limpiar el campo startDate si es necesario
  const pendingWorks = works
  .filter((work) => work.status === "pending")
@@ -47,6 +47,7 @@ console.log(pendingWorks, "pendingWorks"); // Verificar los trabajos pendientes
       updateWork(selectedWork.idWork, {
         startDate: formattedDate, // Fecha en formato YYYY-MM-DD
         staffId: selectedStaff, // ID del miembro del staff 
+        status: "assigned", // Cambiar el estado a "assigned"
       })
     );
     console.log(startDate, "startDate"); // Verificar la fecha seleccionada

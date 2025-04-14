@@ -318,7 +318,7 @@ useEffect(() => {
               >
                 <option value="">Seleccione una dirección</option>
                 {works
-                  .filter((work) => work.status === "pending")
+                  .filter((work) => work.status === "pending" || work.status === "assigned")
                   .map((work) => (
                     <option key={work.idWork} value={work.propertyAddress}>
                       {work.propertyAddress}

@@ -39,6 +39,15 @@ const BudgetController = {
         return res.status(400).json({ error: "Faltan campos obligatorios." });
       }
 
+        // Verificar si ya existe un presupuesto con la misma dirección de propiedad
+    const existingBudget = await Budget.findOne({ where: { propertyAddress } });
+    if (existingBudget) {
+      return res.status(400).json({
+        error: "Ya existe un presupuesto para esta dirección de propiedad.",
+      });
+    }
+
+
       // Verificar si el propertyAddress existe en Permit
       const permit = await Permit.findOne({ where: { propertyAddress } });
       if (!permit) {

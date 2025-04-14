@@ -16,6 +16,7 @@ module.exports = (sequelize) => {
     status: {
       type: DataTypes.ENUM(
         'pending',
+        'assigned',
         'inProgress',
         'installed',
         'firstInspectionPending',
