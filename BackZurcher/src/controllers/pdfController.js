@@ -91,15 +91,15 @@ const extractData = async (text) => {
       : null;
   }
 
-  const dateIssuedMatch = text.match(
-    /DATE ISSUED:\s*(\d{1,2}\/\d{1,2}\/\d{4})/i
-  );
-  if (dateIssuedMatch) {
-    const parsedDate = moment(dateIssuedMatch[1], "MM/DD/YYYY", true);
-    result.dateIssued = parsedDate.isValid()
-      ? parsedDate.format("YYYY-MM-DD")
-      : null;
-  }
+  // const dateIssuedMatch = text.match(
+  //   /DATE ISSUED:\s*(\d{1,2}\/\d{1,2}\/\d{4})/i
+  // );
+  // if (dateIssuedMatch) {
+  //   const parsedDate = moment(dateIssuedMatch[1], "MM/DD/YYYY", true);
+  //   result.dateIssued = parsedDate.isValid()
+  //     ? parsedDate.format("YYYY-MM-DD")
+  //     : null;
+  // }
 
   // Otros campos
   result.excavationRequired =
