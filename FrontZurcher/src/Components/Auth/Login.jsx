@@ -30,7 +30,7 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Datos enviados:', formData); // Verifica que email y password estén presentes
+  
     try {
       // Desestructura email y password de formData y pásalos como argumentos
       const { email, password } = formData;
