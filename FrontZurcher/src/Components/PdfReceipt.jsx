@@ -139,8 +139,14 @@ const PdfReceipt = () => {
           "La respuesta de createBudget no contiene idBudget:",
           createBudgetAction
         );
+        // Verificar si hay un error en la respuesta
+      if (createBudgetAction && createBudgetAction.payload && createBudgetAction.payload.error) {
+        alert(`Error al crear el presupuesto: ${createBudgetAction.payload.error}`);
+      } else {
         alert("Error al crear el presupuesto. No se recibió el id.");
       }
+    }
+      
     } catch (error) {
       console.error("Error al crear el permiso o presupuesto:", error);
       alert(
