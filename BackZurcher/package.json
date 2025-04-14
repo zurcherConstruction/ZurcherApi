@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon -L index.js",
+    "dev": "nodemon -L --watch src --ignore src/tasks/archives/* index.js",
     "build": "node index.js"
   },
   "keywords": [],
@@ -18,14 +18,17 @@
     "cloudinary": "^1.41.3",
     "colombian-invoice-library": "^1.0.0",
     "cors": "^2.8.5",
+    "date-fns": "^4.1.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "express-session": "^1.18.0",
     "express-validator": "^7.2.1",
     "jsonwebtoken": "^9.0.2",
+  
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
     "multer-storage-cloudinary": "^4.0.0",
+    "node-cron": "^3.0.3",
     "nodemailer": "^6.10.0",
     "nodemon": "^3.1.4",
     "passport": "^0.7.0",
@@ -34,6 +37,7 @@
     "pdfjs-dist": "^2.16.105",
     "pdfkit": "^0.16.0",
     "pg": "^8.12.0",
+  
     "sequelize": "^6.37.3",
     "sharp": "^0.33.4",
     "socket.io": "^4.8.1",

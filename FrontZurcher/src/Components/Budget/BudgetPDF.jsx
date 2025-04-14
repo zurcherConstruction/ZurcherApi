@@ -12,6 +12,7 @@ const BudgetPDF = ({ budget, editMode = false }) => {
       );
       return null;
     }
+    
 
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -495,7 +496,7 @@ $220 for rocks.`;
         onClick={handleDownload}
         className="bg-blue-950 text-white text-xs py-1 px-2 rounded-md hover:bg-indigo-700 p-2"
       >
-        {editMode ? "Descargar PDF Editado" : "Descargar PDF"}
+        {editMode ? "Download PDF edit" : "Download PDF"}
       </button>
     </div>
   );

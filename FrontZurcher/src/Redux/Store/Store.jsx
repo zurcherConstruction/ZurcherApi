@@ -10,23 +10,27 @@ import materialReducer from '../Reducer/materialReducer';
 import permitReducer from '../Reducer/permitReducer';
 import workReducer from '../Reducer/workReducer';
 import notificationReducer from '../Reducer/notificationReducer';
+import receiptReducer from '../Reducer/receiptReducer';
+import balanceReducer from '../Reducer/balanceReducer';
+
 const rootReducer = combineReducers({
   auth: authReducer,
   pdf: pdfReducer,
-   admin: adminReducer,
-   budget: BudgetReducer,
-   inspection: inspectionReducer,
-   material: materialReducer,
+  admin: adminReducer,
+  budget: BudgetReducer,
+  inspection: inspectionReducer,
+  material: materialReducer,
   permit: permitReducer,
-   work: workReducer,
+  work: workReducer,
   notifications: notificationReducer,
-  // agrega otros reducers aquí
+  receipts: receiptReducer,
+  balance: balanceReducer,
 });
 
 export const store = configureStore({
   reducer: rootReducer,
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
-      serializableCheck: false, 
-    }).concat(toastMiddleware), 
+      serializableCheck: false,
+    }).concat(toastMiddleware),
 });

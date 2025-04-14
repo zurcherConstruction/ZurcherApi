@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { restoreSession } from "./Redux/Actions/authActions";
 import PrivateRoute from "./Components/PrivateRoute";
@@ -17,7 +17,6 @@ import Landing from "./Components/Landing";
 import PdfReceipt from "./Components/PdfReceipt";
 import BarraLateral from "./Components/Dashboard/BarraLateral";
 import BudgetList from "./Components/Budget/BudgetList";
-//import PdfViewerPage from './Components/PdfViewerPage';
 import Works from "./Components/Works/Work";
 import ProgressTracker from "./Components/ProgressTracker";
 import WorkDetail from "./Components/Works/WorkDetail";
@@ -29,24 +28,38 @@ import InstallationForm from "./Components/Works/InstalationForm";
 import BudgetEditor from "./Components/Budget/BudgetEditor";
 import ForgotPassword from "./Components/Auth/ForgotPassword";
 import ResetPassword from "./Components/Auth/ResetPassword";
-  
+import ArchveBudget from "./Components/Budget/ArchiveBudget";
+import FileDetail from "./Components/Budget/FileDetail";
+import PendingWorks from "./Components/Works/PendingWorks";
+import AttachInvoice from "./Components/Seguimiento/AttachInvoice";
+import VerImagenes from "./Components/Works/VerImagenes";
+import BalanceStats from "./Components/BalanceStats";
 
 function App() {
   const dispatch = useDispatch();
-  const [activeSection, setActiveSection] = useState("Overview");
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const { isAuthenticated } = useSelector((state) => state.auth);
+  const [isSessionRestored, setIsSessionRestored] = useState(false);
 
   useEffect(() => {
-    // Restaurar sesión al cargar la aplicación
-    dispatch(restoreSession());
+    dispatch(restoreSession()).finally(() => setIsSessionRestored(true));
   }, [dispatch]);
 
-  // Verifica si la ruta actual es "/"
-  const isLandingPage = location.pathname === "/";
+  useEffect(() => {
+    // Redirigir al dashboard si el usuario está autenticado y está en la página de login o landing
+    if (isAuthenticated && location.pathname === "/") {
+      navigate("/progress-tracker");
+    }
+  }, [isAuthenticated, location.pathname, navigate]);
+
+  if (!isSessionRestored) {
+    return <div>Cargando...</div>; // Indicador de carga
+  }
 
   return (
-    <BrowserRouter>
+    <>
       {isAuthenticated && <Header />}
       <div className={`flex ${isAuthenticated ? "pt-20" : ""}`}>
         {isAuthenticated && <BarraLateral />}
@@ -105,6 +118,14 @@ function App() {
               }
             />
             <Route
+              path="/workCalendar"
+              element={
+                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
+                  <PendingWorks />
+                </PrivateRoute>
+              }
+            />
+            <Route
               path="/installation"
               element={
                 <PrivateRoute
@@ -146,7 +167,6 @@ function App() {
                 </PrivateRoute>
               }
             />
-
             <Route
               path="/editBudget/:budgetId"
               element={
@@ -155,6 +175,15 @@ function App() {
                 </PrivateRoute>
               }
             />
+            <Route
+              path="/archive"
+              element={
+                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
+                  <ArchveBudget />
+                </PrivateRoute>
+              }
+            />
+            <Route path="/archives/:folder/:file" element={<FileDetail />} />
             <Route
               path="/send-notifications"
               element={
@@ -175,13 +204,33 @@ function App() {
                 </PrivateRoute>
               }
             />
-
+            <Route
+              path="/attachInvoice"
+              element={
+                <PrivateRoute
+                  allowedRoles={["owner", "recept", "worker", "admin"]}
+                >
+                  <AttachInvoice />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/balance"
+              element={
+                <PrivateRoute
+                  allowedRoles={["owner", "admin"]}
+                >
+                  <BalanceStats />
+                </PrivateRoute>
+              }
+            />
+            <Route path="/ver-imagenes/:idWork" element={<VerImagenes />} />
             {/* Rutas de autenticación */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
-             <Route path="/reset-password/:token" element={<ResetPassword />} />
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
 
             {/* Ruta por defecto para 404 */}
             <Route path="*" element={<NotFound />} />
@@ -189,7 +238,7 @@ function App() {
         </div>
       </div>
       <ToastContainer />
-    </BrowserRouter>
+    </>
   );
 }
 

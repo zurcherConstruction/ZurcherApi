@@ -100,11 +100,11 @@ const navigate = useNavigate();
     <div className="container mx-auto p-4 space-y-8">
       {/* Card superior: Datos para editar */}
       <div className="bg-white shadow-md rounded-lg p-6">
-        <h1 className="text-xl font-bold mb-4">Revisar Presupuesto</h1>
+        <h1 className="text-xl font-bold mb-4">Review Budget</h1>
 
         {pdfPreview && (
           <div className="mb-4">
-            <h2 className="text-xl font-bold mb-2">Vista previa del PDF</h2>
+            <h2 className="text-xl font-bold mb-2">Preview PDF</h2>
             <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
               <Viewer
                 fileUrl={pdfPreview}
@@ -139,17 +139,17 @@ const navigate = useNavigate();
             type="submit"
             className="col-span-1 md:col-span-2 bg-blue-950 text-white py-2 px-4 rounded-md hover:bg-indigo-700"
           >
-            Guardar Cambios
+            Save
           </button>
         </form>
       </div>
 
       {/* Card inferior: Búsqueda de presupuesto */}
       <div className="bg-white shadow-md rounded-lg p-6">
-        <h2 className="text-xl font-bold mb-4">Buscar Presupuesto</h2>
+        <h2 className="text-xl font-bold mb-4">Search Budget</h2>
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700">
-            Ingresar ID de Presupuesto
+            Id Budget
           </label>
           <div className="flex items-center gap-2">
             <input
@@ -163,7 +163,7 @@ const navigate = useNavigate();
               onClick={handleLoadManualBudget}
               className="bg-blue-950 text-white py-2 px-4 rounded-md hover:bg-indigo-700"
             >
-              Cargar
+              Save
             </button>
           </div>
         </div>

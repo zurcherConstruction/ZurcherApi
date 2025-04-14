@@ -89,10 +89,6 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true
     },
-    dateIssued: {
-      type: DataTypes.DATEONLY,
-      allowNull: true
-    },
     expirationDate: {
       type: DataTypes.DATEONLY,
       allowNull: true
@@ -128,6 +124,10 @@ module.exports = (sequelize) => {
   type: DataTypes.BLOB, // Aquí es donde ocurre el problema
   allowNull: true,
 },
+optionalDocs: {
+      type: DataTypes.BLOB, 
+      allowNull: true,
+    },
   }, {
     timestamps: true
   });

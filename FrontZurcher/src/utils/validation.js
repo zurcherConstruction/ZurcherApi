@@ -60,3 +60,22 @@ export const validateForm = (formData, isEditing = false) => {
     // Filtrar errores nulos
     return Object.fromEntries(Object.entries(errors).filter(([_, value]) => value !== null));
   };
+
+  export const validateFile = (file) => {
+    if (!file) {
+      alert("Debe seleccionar un archivo.");
+      return false;
+    }
+  
+    if (file.type !== "application/pdf") {
+      alert("Solo se permiten archivos PDF.");
+      return false;
+    }
+  
+    if (file.size > 5 * 1024 * 1024) {
+      alert("El archivo no debe superar los 5 MB.");
+      return false;
+    }
+  
+    return true;
+  };
