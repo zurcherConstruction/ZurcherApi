@@ -89,10 +89,6 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true
     },
-    dateIssued: {
-      type: DataTypes.DATEONLY,
-      allowNull: true
-    },
     expirationDate: {
       type: DataTypes.DATEONLY,
       allowNull: true
