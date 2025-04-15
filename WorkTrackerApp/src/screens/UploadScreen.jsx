@@ -7,15 +7,20 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import * as FileSystem from 'expo-file-system';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import ImageManagerModal from './ImageManagerModal';
 
 const UploadScreen = () => {
   const { idWork, propertyAddress } = useRoute().params; // Se asume que propertyAddress viene en los params
   const navigation = useNavigation();
   const [imageUri, setImageUri] = useState(null);
   const [comment, setComment] = useState('');
+  const [selectedStage, setSelectedStage] = useState(null); // Etapa seleccionada para el modal
+  const [stageImages, setStageImages] = useState({}); // Almacena imágenes por etapa
   const [stage, setStage] = useState(''); // Etapa seleccionada
   const [date, setDate] = useState(new Date().toLocaleDateString());
   const dispatch = useDispatch();
+
+
 
   const stages = [
     'foto previa del lugar',
@@ -34,6 +39,13 @@ const UploadScreen = () => {
     '#e76f51', // Burnt Orange
     '#d62828', // Red
   ];
+
+  const handleAddImage = (stage, imageUri) => {
+    setStageImages((prev) => ({
+      ...prev,
+      [stage]: [...(prev[stage] || []), imageUri],
+    }));
+  };
 
   const handlePickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -127,7 +139,7 @@ const UploadScreen = () => {
         {stages.map((stageOption, index) => (
           <Pressable
             key={stageOption}
-            onPress={() => setStage(stageOption)}
+            onPress={() => setSelectedStage(stageOption)}
             style={[
               styles.stageButton,
               { backgroundColor: stageColors[index % stageColors.length] },
@@ -138,6 +150,15 @@ const UploadScreen = () => {
           </Pressable>
         ))}
       </View>
+        {/* Modal para gestionar imágenes */}
+        {selectedStage && (
+        <ImageManagerModal
+          visible={!!selectedStage}
+          onClose={() => setSelectedStage(null)}
+          images={stageImages[selectedStage] || []}
+          onAddImage={(imageUri) => handleAddImage(selectedStage, imageUri)}
+        />
+      )}
 
       {/* Botón para seleccionar imagen */}
       <Pressable
