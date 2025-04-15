@@ -2,11 +2,12 @@ import { configureStore } from '@reduxjs/toolkit';
 import { combineReducers } from 'redux';
 import authReducer from './features/authSlice';
 import workReducer from './features/workSlice'; // Importar el reducer del workSlice
-
+import balanceReducer from './features/balanceSlice'; // Importar el reducer del balanceSlice
 // Combinar los reducers
 const rootReducer = combineReducers({
   auth: authReducer, // Reducer de autenticación
   work: workReducer, // Reducer de obras
+  balance: balanceReducer // Reducer de balance
 });
 
 // Configurar el store

@@ -1,11 +1,22 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createStackNavigator } from '@react-navigation/stack';
 import HomeScreen from '../screens/HomeScreen';
-// import UploadScreen from '../screens/UploadScreen'; // Elimina esta línea
-import AssignedWorksScreen from '../screens/AssignedWorksScreen'; // Importar la pantalla de trabajos asignados
-import { Ionicons } from '@expo/vector-icons'; // Asegúrate de tener `expo-vector-icons` disponible
+import AssignedWorksScreen from '../screens/AssignedWorksScreen';
+import { Ionicons } from '@expo/vector-icons';
+import WorkDetail from '../screens/WorkDetail';
 
 const Tab = createBottomTabNavigator();
+const Stack = createStackNavigator();
+
+function HomeStackNavigator() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="HomeScreen" component={HomeScreen} />
+      <Stack.Screen name="WorkDetail" component={WorkDetail} />
+    </Stack.Navigator>
+  );
+}
 
 const BottomTabNavigator = () => {
   return (
@@ -13,20 +24,22 @@ const BottomTabNavigator = () => {
       screenOptions={({ route }) => ({
         tabBarIcon: ({ color, size }) => {
           let iconName;
-
           if (route.name === 'Home') {
             iconName = 'home';
           } else if (route.name === 'AssignedWorks') {
             iconName = 'list';
           }
-
           return <Ionicons name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: 'blue',
         tabBarInactiveTintColor: 'gray',
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen
+        name="Home"
+        component={HomeStackNavigator}
+        options={{ title: 'Home' }}
+      />
       <Tab.Screen
         name="AssignedWorks"
         component={AssignedWorksScreen}
