@@ -9,40 +9,95 @@ const Dashboard = () => {
   // Definir las opciones del Dashboard con sus rutas y roles permitidos
   const dashboardOptions = [
     {
-      path: '/firststage',
-      title: 'Generar Presupuesto',
-      description: 'Enviar un nuevo presupuesto a un cliente.',
-      allowedRoles: ['admin', 'recept'],
+      path: '/progress-tracker',
+      title: 'Progress Tracker',
+      color: 'bg-gray-100',
+      allowedRoles: ['owner'],
     },
     {
-      path: '/carga-materiales',
-      title: 'Carga de Materiales',
-      description: 'Registrar los materiales comprados.',
-      allowedRoles: ['admin', 'recept'],
+      path: '/works',
+      title: 'Works',
+      color: 'bg-gray-100',
+      allowedRoles: ['owner'],
     },
     {
-      path: '/seguimiento-trabajos',
-      title: 'Seguimiento de Trabajos',
-      description: 'Ver el estado de los trabajos en curso.',
+      path: '/work/:idWork',
+      title: 'Work Details',
+      color: 'bg-gray-100',
+      allowedRoles: ['owner'],
+    },
+    {
+      path: '/workCalendar',
+      title: 'Calendar',
+      color: 'bg-gray-100',
+      allowedRoles: ['owner'],
+    },
+    {
+      path: '/materiales',
+      title: 'Materials',
+      color: 'bg-gray-100',
+      allowedRoles: ['owner', 'recept'],
+    },
+    {
+      path: '/check',
+      title: 'Check Work',
+      color: 'bg-gray-100',
+      allowedRoles: ['owner', 'admin', 'recept'],
+    },
+    {
+      path: '/budgets',
+      title: 'Budgets List',
+      color: 'bg-gray-100',
       allowedRoles: ['owner', 'admin'],
     },
     {
-      path: '/pedido-primera-inspeccion',
-      title: 'Pedido de Primera Inspección',
-      description: 'Solicitar la primera inspección de obra.',
+      path: '/pdf',
+      title: 'Upload Permits',
+      color: 'bg-gray-100',
       allowedRoles: ['owner', 'admin'],
     },
     {
-      path: '/pedido-inspeccion-final',
-      title: 'Pedido de Inspección Final',
-      description: 'Solicitar la inspección final de obra.',
+      path: '/editBudget/:budgetId',
+      title: 'Budget Edit',
+      
+      color: 'bg-gray-100',
       allowedRoles: ['owner', 'admin'],
     },
     {
-      path: '/registrar-pagos',
-      title: 'Registrar Pagos',
-      description: 'Registrar los pagos realizados por los clientes.',
+      path: '/archive',
+      title: 'Budgets End',
+      color: 'bg-gray-100',
       allowedRoles: ['owner', 'admin'],
+    },
+    {
+      path: '/send-notifications',
+      title: 'Send Message',
+      color: 'bg-gray-100',
+      allowedRoles: ['owner', 'admin', 'recept', 'worker'],
+    },
+    {
+      path: '/attachInvoice',
+      title: 'Upload Vouchers',
+      color: 'bg-gray-100',
+      allowedRoles: ['owner', 'admin', 'recept'],
+    },
+    {
+      path: '/balance',
+      title: 'Balance',
+      color: 'bg-gray-100',
+      allowedRoles: ['owner'],
+    },
+    {
+      path: '/register',
+      title: 'Register Staff',
+      color: 'bg-gray-100',
+      allowedRoles: ['owner'],
+    },
+    {
+      path: '/check',
+      title: 'Check Work',
+      color: 'bg-gray-100',
+      allowedRoles: ['owner', 'admin', 'recept'],
     },
   ];
 
@@ -56,22 +111,20 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="container mx-auto py-8">
-      <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="container mx-auto py-4 px-2 h-screen overflow-hidden">
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 p-6">
         {filteredOptions.map((option) => (
           <div
             key={option.path}
-            className="p-4 border rounded shadow-md cursor-pointer hover:bg-gray-100"
+            className={`${option.color} w-36 h-36 flex flex-col justify-center items-center border border-gray-200 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 cursor-pointer`}
             onClick={() => navigateTo(option.path)}
           >
-            <h2 className="text-xl font-semibold">{option.title}</h2>
-            <p className="text-gray-600">{option.description}</p>
+            <h2 className="text-lg  text-blue-950 text-center uppercase p-1">{option.title}</h2>
           </div>
         ))}
       </div>
     </div>
   );
 };
-
 export default Dashboard;

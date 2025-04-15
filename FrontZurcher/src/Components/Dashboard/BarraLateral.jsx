@@ -1,10 +1,12 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useSelector } from "react-redux";
 
 const BarraLateral = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Estado para controlar el menú móvil
   const navigate = useNavigate(); // Hook para manejar la navegación
   const location = useLocation(); // Hook para detectar cambios en la URL
+  const { staff } = useSelector((state) => state.auth);
 
   const menuItems = [
     { name: "Upload Permits", path: "/pdf" },
@@ -28,7 +30,9 @@ const BarraLateral = () => {
     navigate(path); // Navega a la ruta seleccionada
     setIsMobileMenuOpen(false); // Cierra el menú móvil
   };
-
+ if (staff?.role !== "owner") {
+    return null; // No renderizar la barra lateral si no es "owner"
+  }
   return (
     <div className="flex">
       {/* Menú para pantallas grandes */}

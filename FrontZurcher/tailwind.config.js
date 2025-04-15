@@ -16,7 +16,8 @@ export const theme = {
       customPurple: "#0f766e",
       customPink: "#059669",
       textWhite: "white",
-      footer: "#49465a"
+      footer: "#49465a",
+      dash:"#f6d02c"
     },
     fontFamily: {
         Montserrat: ['Montserrat', 'sans-serif'], // Definir la fuente Nunito
