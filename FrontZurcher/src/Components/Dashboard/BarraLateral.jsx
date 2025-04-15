@@ -7,18 +7,18 @@ const BarraLateral = () => {
   const location = useLocation(); // Hook para detectar cambios en la URL
 
   const menuItems = [
-    { name: "Cargar Permits", path: "/pdf" },
-    { name: "Presupuestos", path: "/budgets" },
+    { name: "Upload Permits", path: "/pdf" },
+    { name: "Budgets", path: "/budgets" },
     { name: "Works", path: "/works" },
-    { name: "Seguimiento", path: "/inspecciones" },
-    { name: "Materiales", path: "/materiales" },
-    { name: "Instalacion", path: "/installation" },
-    { name: "Progresos", path: "/progress-tracker" },
-    { name: "Enviar mensaje", path: "/send-notifications" },
+    { name: "Tracking Work", path: "/check" },
+    { name: "Materials", path: "/materiales" },
+    // { name: "Instalacion", path: "/installation" },
+    { name: "Progress", path: "/progress-tracker" },
+    { name: "Send Message", path: "/send-notifications" },
     { name: "Staff", path: "/register" },
     { name: "Calendar", path: "/workCalendar" },
     { name: "BudgetsEnd", path: "/archive" },
-    { name: "Facturas", path: "/attachInvoice" },
+    { name: "Upload Vouchers", path: "/attachInvoice" },
     { name: "Balance", path: "/balance" },
     
 
