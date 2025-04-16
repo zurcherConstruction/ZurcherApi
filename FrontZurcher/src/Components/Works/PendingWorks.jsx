@@ -34,7 +34,7 @@ const PendingWorks = () => {
       return;
     }
 
-    const formattedDate = startDate.toISOString().split("T")[0];
+    const formattedDate = moment(startDate).format("YYYY-MM-DD"); // Asegúrate de usar la zona horaria local
 
     try {
       // Actualizar el trabajo en el backend
@@ -98,8 +98,8 @@ const PendingWorks = () => {
 
       return {
         title: `${work.propertyAddress} - (${staffName})`,
-        start: new Date(work.startDate),
-        end: new Date(work.startDate),
+        start: moment(work.startDate).toDate(), // Convertir a la zona horaria local
+      end: moment(work.startDate).toDate(), 
         work,
       };
     });
