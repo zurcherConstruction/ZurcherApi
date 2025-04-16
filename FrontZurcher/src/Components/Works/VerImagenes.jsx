@@ -36,46 +36,51 @@ const VerImagenes = () => {
   }, [selectedWork]);
 
   // filepath: c:\Users\merce\Desktop\desarrollo\ZurcherApi\FrontZurcher\src\Components\Works\VerImagenes.jsx
-const addDateTimeToImage = (imageData, dateTime, propertyAddress) => {
-  return new Promise((resolve, reject) => {
-    console.log("addDateTimeToImage called with:", imageData, dateTime, propertyAddress);
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    const img = new Image();
-
-    img.onload = () => {
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-      // Configuración del texto
-      const fontSize = 20; // Tamaño de la letra
-      ctx.font = `${fontSize}px Arial`;
-      ctx.fillStyle = 'white';
-      ctx.textAlign = 'center'; // Centrar horizontalmente
-
-      // Calcular la posición del texto
-      const textX = canvas.width / 2; // Centro horizontal
-      const textY = canvas.height - 40; // Ajustar la posición vertical
-      const addressY = textY + fontSize + 5; // Posición de la dirección
-
-      // Dibujar el texto
-      ctx.fillText(dateTime, textX, textY);
-      ctx.fillText(propertyAddress, textX, addressY);
-
-      const dataURL = canvas.toDataURL('image/jpeg');
-      console.log("dataURL:", dataURL);
-      resolve(dataURL);
-    };
-
-    img.onerror = (error) => {
-      console.error("Error loading image:", error);
-      reject(error);
-    };
-
-    img.src = `data:image/jpeg;base64,${imageData}`;
-  });
-};
+  const addDateTimeToImage = (imageData, dateTime, propertyAddress) => {
+    return new Promise((resolve, reject) => {
+      console.log("addDateTimeToImage called with:", imageData, dateTime, propertyAddress);
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+  
+      img.onload = () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  
+        // Configuración del texto
+        const fontSize = Math.floor(canvas.width * 0.05); // Tamaño de la letra dinámico basado en el ancho de la imagen
+        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.fillStyle = 'white'; // Color del texto
+        ctx.strokeStyle = 'black'; // Contorno del texto
+        ctx.lineWidth = 4; // Grosor del contorno
+        ctx.textAlign = 'center'; // Centrar horizontalmente
+  
+        // Calcular la posición del texto
+        const textX = canvas.width / 2; // Centro horizontal
+        const textY = canvas.height - fontSize * 2; // Ajustar la posición vertical para el texto de la fecha
+        const addressY = textY + fontSize + 10; // Posición del texto de la dirección
+  
+        // Dibujar el texto con contorno
+        ctx.strokeText(dateTime, textX, textY);
+        ctx.fillText(dateTime, textX, textY);
+  
+        ctx.strokeText(propertyAddress, textX, addressY);
+        ctx.fillText(propertyAddress, textX, addressY);
+  
+        const dataURL = canvas.toDataURL('image/jpeg');
+        console.log("dataURL:", dataURL);
+        resolve(dataURL);
+      };
+  
+      img.onerror = (error) => {
+        console.error("Error loading image:", error);
+        reject(error);
+      };
+  
+      img.src = `data:image/jpeg;base64,${imageData}`;
+    });
+  };
 
   if (loading) {
     return (

@@ -7,7 +7,7 @@ import { Buffer } from "buffer";
 import * as FileSystem from "expo-file-system";
 import * as IntentLauncher from "expo-intent-launcher";
 import * as Sharing from "expo-sharing";
-import UploadScreen from "./UploadScreen"; // Importa UploadScreen
+import UploadScreen from "./UploadScreen";
 import { createStackNavigator } from "@react-navigation/stack";
 
 const Stack = createStackNavigator();
@@ -69,17 +69,13 @@ const AssignedWorksScreen = () => {
 
   if (loading) {
     return (
-      <Text style={{ textAlign: "center", fontSize: 18, color: "blue" }}>
-        Cargando...
-      </Text>
+      <Text className="text-center text-lg text-blue-600">Cargando...</Text>
     );
   }
 
   if (error) {
     return (
-      <Text style={{ textAlign: "center", fontSize: 18, color: "red" }}>
-        Error: {error}
-      </Text>
+      <Text className="text-center text-lg text-red-600">Error: {error}</Text>
     );
   }
 
@@ -87,97 +83,46 @@ const AssignedWorksScreen = () => {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="AssignedWorksList" options={{ headerShown: false }}>
         {({ navigation }) => (
-          <View style={{ flex: 1, backgroundColor: "#f3f4f6", padding: 20 }}>
-            <Text
-              style={{
-                fontSize: 24,
-                fontWeight: "bold",
-                color: "#2563eb",
-                marginBottom: 20,
-                textAlign: "center",
-              }}
-            >
-              Trabajos Asignados
+          <View className="flex-1 bg-gray-100 p-5">
+            <Text className="text-xl font-bold text-blue-600 mb-5 text-center">
+              WORKS ASSIGNED
             </Text>
             <FlatList
               data={works}
               keyExtractor={(item) => item.idWork.toString()}
               renderItem={({ item }) => (
-                <View
-                  style={{
-                    marginBottom: 16,
-                    padding: 16,
-                    backgroundColor: "white",
-                    borderRadius: 8,
-                    shadowColor: "#000",
-                    shadowOpacity: 0.1,
-                    shadowRadius: 4,
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 18,
-                      fontWeight: "600",
-                      color: "#1f2937",
-                      marginBottom: 8,
-                    }}
-                  >
+                <View className="mb-4 p-4 bg-white rounded-lg shadow">
+                  <Text className="text-lg font-semibold uppercase text-gray-800 mb-2">
                     {item.propertyAddress || "Dirección no disponible"}
                   </Text>
-                  <Text
-                    style={{ fontSize: 14, color: "#4b5563", marginBottom: 4 }}
-                  >
-                    <Text style={{ fontWeight: "bold", color: "#374151" }}>
-                      Estado:
-                    </Text>{" "}
+                  <Text className="text-sm text-gray-600 mb-2">
+                    <Text className="font-bold text-gray-700">Estado:</Text>{" "}
                     {item.status || "Sin estado"}
                   </Text>
-                  <Text style={{ fontSize: 14, color: "#4b5563" }}>
-                    <Text style={{ fontWeight: "bold", color: "#374151" }}>
-                      Notas:
-                    </Text>{" "}
-                    {item.notes || "Sin notas"}
-                  </Text>
+
                   {(item.Permit?.pdfData || item.Permit?.optionalDocs) && (
-                    <View style={{ marginTop: 10 }}>
-                      {(item.Permit?.pdfData || item.Permit?.optionalDocs) && (
-                        <View style={{ marginTop: 10 }}>
-                          {item.Permit?.pdfData && (
-                            <TouchableOpacity
-                              onPress={() => handleOpenPdf(item.Permit.pdfData)}
-                              style={{
-                                marginBottom: 10,
-                                padding: 10,
-                                backgroundColor: "#2563eb",
-                                borderRadius: 5,
-                              }}
-                            >
-                              <Text
-                                style={{ color: "white", textAlign: "center" }}
-                              >
-                                Leer PDF Principal
-                              </Text>
-                            </TouchableOpacity>
-                          )}
-                          {item.Permit?.optionalDocs && (
-                            <TouchableOpacity
-                              onPress={() =>
-                                handleOpenPdf(item.Permit.optionalDocs)
-                              }
-                              style={{
-                                padding: 10,
-                                backgroundColor: "#f59e0b",
-                                borderRadius: 5,
-                              }}
-                            >
-                              <Text
-                                style={{ color: "white", textAlign: "center" }}
-                              >
-                                Leer Documentación Opcional
-                              </Text>
-                            </TouchableOpacity>
-                          )}
-                        </View>
+                    <View className="mt-2">
+                      {item.Permit?.pdfData && (
+                        <TouchableOpacity
+                          onPress={() => handleOpenPdf(item.Permit.pdfData)}
+                          className="mb-2 py-2 px-4 bg-blue-600 rounded"
+                        >
+                          <Text className="text-white text-center">
+                            Leer PDF Principal
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                      {item.Permit?.optionalDocs && (
+                        <TouchableOpacity
+                          onPress={() =>
+                            handleOpenPdf(item.Permit.optionalDocs)
+                          }
+                          className="py-2 px-4 bg-yellow-500 rounded"
+                        >
+                          <Text className="text-white text-center">
+                            Leer Documentación Opcional
+                          </Text>
+                        </TouchableOpacity>
                       )}
                     </View>
                   )}
@@ -188,14 +133,9 @@ const AssignedWorksScreen = () => {
                         propertyAddress: item.propertyAddress,
                       })
                     }
-                    style={{
-                      marginTop: 10,
-                      padding: 10,
-                      backgroundColor: "#10b981",
-                      borderRadius: 5,
-                    }}
+                    className="mt-2 py-2 px-4 bg-green-500 rounded"
                   >
-                    <Text style={{ color: "white", textAlign: "center" }}>
+                    <Text className="text-white text-center">
                       Cargar Imágenes
                     </Text>
                   </TouchableOpacity>

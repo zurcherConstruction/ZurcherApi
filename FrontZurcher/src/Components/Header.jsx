@@ -29,14 +29,19 @@ const Header = () => {
     <div className="bg-blue-950 text-white p-4 flex items-center justify-between shadow-lg fixed top-0 left-0 w-full z-10">
       {/* Logo y nombre */}
       <div className="flex items-center gap-4 lg:pl-4">
-        <img
-          src={logo}
-          alt="Logo"
-          className="w-10 h-10 md:w-12 md:h-12" // Tamaño del logo
-        />
-        <span className="hidden  text-sm md:text-lg lg:inline-block lg:ml-2">
-          ZURCHER CONSTRUCTION
-        </span>
+        <button
+          onClick={() => navigate("/dashboard")} // Redirigir al Dashboard al hacer clic
+          className="flex items-center gap-2 focus:outline-none"
+        >
+          <img
+            src={logo}
+            alt="Logo"
+            className="w-10 h-10 md:w-12 md:h-12" // Tamaño del logo
+          />
+          <span className="hidden text-sm md:text-lg lg:inline-block lg:ml-2">
+            ZURCHER CONSTRUCTION
+          </span>
+        </button>
       </div>
   
       {/* Acciones rápidas */}

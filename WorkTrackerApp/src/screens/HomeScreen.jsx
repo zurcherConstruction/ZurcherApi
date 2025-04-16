@@ -3,18 +3,12 @@ import {
   View,
   Text,
   TextInput,
-  StyleSheet,
   Pressable,
-  Dimensions,
   Animated,
-  Button,
 } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorks } from "../Redux/Actions/workActions";
-import { useNavigation } from "@react-navigation/native"; // Import useNavigation
-
-const { width } = Dimensions.get("window");
-const isSmallScreen = width < 600; // Adjust breakpoint as needed
+import { useNavigation } from "@react-navigation/native";
 
 const etapas = [
   { backend: "inProgress", display: "Purchase in Progress" },
@@ -29,7 +23,7 @@ const etapas = [
 
 const HomeScreen = () => {
   const dispatch = useDispatch();
-  const navigation = useNavigation(); // Use useNavigation to get the navigation object
+  const navigation = useNavigation();
 
   const { works, loading, error } = useSelector((state) => state.work);
   const [search, setSearch] = useState("");
@@ -58,7 +52,7 @@ const HomeScreen = () => {
 
   const getDisplayName = (status) => {
     const etapa = etapas.find((etapa) => etapa.backend === status);
-    return etapa ? etapa.display : "Estado desconocido";
+    return etapa ? etapa.display : "Unknown Status";
   };
 
   const filteredEtapas = etapas.filter(
@@ -80,220 +74,119 @@ const HomeScreen = () => {
           duration: 750,
           useNativeDriver: false,
         }),
-      ]),
+      ])
     ).start();
   };
 
   useEffect(() => {
     startPulseAnimation();
-
     return () => {
-      animation.stopAnimation();
+      animation.stopAnimation(); // Clean up animation on unmount
     };
-  }, []);
+  }, [animation]);
 
+  // Style for the pulsing effect (applied via style prop as it uses Animated.Value)
   const pulseStyle = {
-    opacity: animation,
+    transform: [
+      {
+        scale: animation.interpolate({
+          inputRange: [0, 0.5, 1],
+          outputRange: [1, 1.1, 1],
+        }),
+      },
+    ],
+    opacity: animation.interpolate({
+      inputRange: [0, 0.5, 1],
+      outputRange: [0.7, 1, 0.7],
+    }),
   };
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 p-3 bg-gray-100">
       <TextInput
-        style={styles.searchInput}
+        className="border border-gray-300 p-3 mb-3 rounded-lg bg-white shadow-sm text-base"
         placeholder="Buscar por Dirección"
         value={search}
         onChangeText={handleSearch}
+        placeholderTextColor="#9ca3af"
       />
 
       {loading && (
-        <Text style={styles.loadingText}>Cargando obras...</Text>
+        <Text className="text-blue-600 text-center text-lg py-4">
+          Cargando obras...
+        </Text>
       )}
-      {error && <Text style={styles.errorText}>Error: {error}</Text>}
+      {error && (
+        <Text className="text-red-600 text-center text-lg py-4">
+          Error: {error}
+        </Text>
+      )}
 
       {!loading &&
         !error &&
         filteredData.map(({ idWork, propertyAddress, status }) => (
           <Pressable
             key={idWork}
-            style={styles.workItem}
+            className="bg-white p-4 rounded-lg border border-gray-200 mb-3 shadow-md active:bg-gray-100"
             onPress={() => {
-              console.log("Navigating with idWork:", idWork); // Add this line
+              console.log("Navigating with idWork:", idWork);
               navigation.navigate("WorkDetail", { idWork });
-            }} // Navigate to WorkDetail screen
+            }}
           >
-            <Text style={styles.addressText}>Address: {propertyAddress}</Text>
+            <Text className="text-lg font-normal uppercase text-gray-800 text-center mb-2">
+              {propertyAddress}
+            </Text>
+            <Text className="text-sm font-medium text-green-600 text-center mb-4">
+              Status: {getDisplayName(status)}
+            </Text>
 
-            {!isSmallScreen ? (
-              <View style={styles.progressContainer}>
-                <View style={styles.progressBarBackground} />
-                <Animated.View
-                  style={[
-                    styles.progressBar,
-                    {
-                      width: `${
-                        (getProgressIndex(status) / (filteredEtapas.length - 1)) *
-                        100
-                      }%`,
-                    },
-                  ]}
-                />
+            <View className="relative flex-row items-center justify-between mt-5 mb-2 h-6">
+              {/* Background Bar */}
+              <View className="absolute left-0 right-0 top-1/2 h-1 bg-gray-200 rounded-full -translate-y-1/2" />
+              {/* Progress Fill Bar */}
+              <View
+                className="absolute left-0 top-1/2 h-1 bg-green-500 rounded-full -translate-y-1/2 transition-all duration-500"
+                style={{
+                  width: `${
+                    (getProgressIndex(status) / (filteredEtapas.length - 1)) *
+                    100
+                  }%`,
+                }}
+              />
 
-                {filteredEtapas.map((etapa, index) => (
+              {/* Progress Steps */}
+              {filteredEtapas.map((etapa, index) => {
+                const isActive = getProgressIndex(status) === index;
+                const isCompleted = getProgressIndex(status) > index;
+                const circleBg =
+                  isActive || isCompleted ? "bg-green-500" : "bg-gray-400";
+
+                return (
                   <View
                     key={etapa.backend}
-                    style={[
-                      styles.progressStepContainer,
-                      { width: `${100 / filteredEtapas.length}%` },
-                    ]}
+                    className="relative flex-1 flex-col items-center"
                   >
+                    {/* Animated Circle Wrapper */}
                     <Animated.View
-                      style={[
-                        styles.progressCircle,
-                        getProgressIndex(status) === index
-                          ? styles.activeCircle
-                          : getProgressIndex(status) > index
-                          ? styles.completedCircle
-                          : styles.pendingCircle,
-                        getProgressIndex(status) === index ? pulseStyle : null,
-                      ]}
+                      className={`w-4 h-4 rounded-full justify-center items-center shadow-md ${circleBg}`}
+                      style={{
+                        top: -8, // Adjust to center the circle on the bar
+                        position: "absolute",
+                        ...(isActive ? pulseStyle : {}),
+                      }}
                     >
-                      <Text style={styles.circleText}>{index + 1}</Text>
+                      <Text className="text-white font-bold text-xs">
+                        {index + 1}
+                      </Text>
                     </Animated.View>
-                    <Text style={styles.stepText}>{etapa.display}</Text>
                   </View>
-                ))}
-              </View>
-            ) : (
-              <View style={styles.mobileStatus}>
-                <Text style={styles.mobileStatusText}>
-                  Estado actual:{" "}
-                  <Text style={styles.currentStatusText}>
-                    {getDisplayName(status)}
-                  </Text>
-                </Text>
-              </View>
-            )}
+                );
+              })}
+            </View>
           </Pressable>
         ))}
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 10,
-  },
-  searchInput: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    padding: 10,
-    marginBottom: 10,
-    borderRadius: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  loadingText: {
-    color: "blue",
-    textAlign: "center",
-  },
-  errorText: {
-    color: "red",
-    textAlign: "center",
-  },
-  workItem: {
-    backgroundColor: "white",
-    padding: 15,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  addressText: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#333",
-    textAlign: "center",
-    marginBottom: 10,
-  },
-  progressContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    position: "relative",
-    marginTop: 20,
-  },
-  progressBarBackground: {
-    backgroundColor: "#ddd",
-    height: 8,
-    borderRadius: 4,
-    position: "absolute",
-    top: "50%",
-    left: 0,
-    right: 0,
-    transform: [{ translateY: -4 }],
-  },
-  progressBar: {
-    backgroundColor: "green",
-    height: 8,
-    borderRadius: 4,
-    position: "absolute",
-    top: "50%",
-    left: 0,
-    transform: [{ translateY: -4 }],
-  },
-  progressStepContainer: {
-    flexDirection: "column",
-    alignItems: "center",
-  },
-  progressCircle: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: "gray",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 5,
-  },
-  activeCircle: {
-    backgroundColor: "green",
-  },
-  completedCircle: {
-    backgroundColor: "green",
-  },
-  pendingCircle: {
-    backgroundColor: "gray",
-  },
-  circleText: {
-    color: "white",
-    fontWeight: "bold",
-  },
-  stepText: {
-    fontSize: 10,
-    color: "gray",
-    textAlign: "center",
-    marginTop: 35,
-    paddingHorizontal: 5,
-  },
-  mobileStatus: {
-    marginTop: 10,
-  },
-  mobileStatusText: {
-    fontSize: 14,
-    color: "gray",
-  },
-  currentStatusText: {
-    fontWeight: "bold",
-    color: "green",
-  },
-});
 
 export default HomeScreen;
