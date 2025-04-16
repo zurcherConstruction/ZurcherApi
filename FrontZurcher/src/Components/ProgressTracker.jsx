@@ -88,8 +88,8 @@ const ProgressTracker = () => {
           key={idWork}
           className="block bg-white p-4 md:p-4 shadow-lg rounded-lg border border-gray-200 hover:shadow-xl transition-shadow duration-300"
         >
-            <h3 className="font-semibold text-lg md:text-xl text-gray-700 text-center">
-              Address: {propertyAddress}
+            <h3 className=" font-varela uppercase text-lg md:text-xl text-gray-700 text-center">
+              {propertyAddress}
             </h3>
   
 {/* Diseño para pantallas grandes */}
@@ -134,7 +134,7 @@ const ProgressTracker = () => {
         {index + 1}
       </div>
       <p
-  className={`text-xs text-center mt-16 p-1 ${
+  className={`text-xs text-center font-varela mt-16 p-1 ${
     getProgressIndex(status) === index
       ? "text-green-600 font-bold animate-pulse" // Resaltar el texto del estado actual
       : "text-gray-600"

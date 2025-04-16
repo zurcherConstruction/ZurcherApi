@@ -3,7 +3,7 @@ const { Staff } = require('../../data');
 // Mapeo de estados a roles y mensajes
 const stateNotificationMap = {
   pending: {
-    roles: ['admin', 'owner'], 
+    roles: ['admin', 'owner', 'recept'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ya fue confirmado. Por favor, compra los materiales necesarios.`,
   },
   inProgress: {

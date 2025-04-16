@@ -17,7 +17,7 @@ const sendEmail = async (staff, message) => {
   try {
     const mailOptions = {
       from: 'guatapenocountry@gmail.com', // Dirección de correo del remitente
-      to: staff.email, // Correo del empleado, imagen traer de cloudinary
+      to: Array.isArray(staff.email) ? staff.email.join(",") : staff.email, // Correo del empleado, imagen traer de cloudinary
       subject: 'Notificación de cambio de estado de trabajo',
       html: `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">

@@ -20,7 +20,9 @@ export const theme = {
       dash:"#f6d02c"
     },
     fontFamily: {
-        Montserrat: ['Montserrat', 'sans-serif'], // Definir la fuente Nunito
+      varela: ['"Varela Round"', 'sans-serif'],  
+      Montserrat: ['Montserrat', 'sans-serif'],
+      nunito: [ 'Nunito Sans', 'sans-serif'] // Definir la fuente Nunito
       },
   },
 };

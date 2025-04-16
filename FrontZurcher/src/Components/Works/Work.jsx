@@ -16,7 +16,7 @@ const Works = () => {
 
   return (
     <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Works</h1>
+     
 
       {/* Mostrar estado de carga */}
       {loading && <p className="text-blue-950">Cargando obras...</p>}
@@ -32,22 +32,22 @@ const Works = () => {
             <table className="table-auto w-full border-collapse border border-gray-300">
               <thead>
                 <tr className="bg-gray-200">
-                  <th className="border border-gray-300 px-4 py-2">Address</th>
-                  <th className="border border-gray-300 px-4 py-2">State</th>
-                  <th className="border border-gray-300 px-4 py-2">Ver Detalle</th>
+                  <th className="border font-varela uppercase border-gray-300 px-4 py-2">Address</th>
+                  <th className="border font-varela uppercase border-gray-300 px-4 py-2">State</th>
+                  <th className="border font-varela uppercase border-gray-300 px-4 py-2">Detail</th>
                 </tr>
               </thead>
               <tbody>
                 {works.map((work) => (
                   <tr key={work.idWork} className="hover:bg-gray-100">
-                    <td className="border border-gray-300 px-4 py-2">{work.propertyAddress}</td>
+                    <td className="border border-gray-300 px-4 py-2 uppercase ">{work.propertyAddress}</td>
                     <td className="border text-center border-gray-300 px-4 py-2">{work.status}</td>
                     <td className="border text-center border-gray-300 px-4 py-2">
                       <button
                         onClick={() => navigate(`/work/${work.idWork}`)} // Redirigir al detalle
-                        className="px-2 py-1 bg-blue-950 text-white rounded hover:bg-blue-600"
+                        className="px-2 py-1 bg-blue-950 text-white rounded hover:bg-blue-600 font-varela"
                       >
-                        Ver Detalle
+                        
                       </button>
                     </td>
                   </tr>
@@ -63,14 +63,14 @@ const Works = () => {
                 key={work.idWork}
                 className="border border-gray-300 rounded-lg p-4 shadow-md hover:bg-gray-100"
               >
-                <p className="text-sm font-semibold">Address: {work.propertyAddress}</p>
+                <p className="text-sm font-semibold uppercase font-varela">Address: {work.propertyAddress}</p>
                 <p className="text-sm">State: {work.status}</p>
                 <div className="mt-2">
                   <button
                     onClick={() => navigate(`/work/${work.idWork}`)} // Redirigir al detalle
                     className="px-3 py-2 bg-blue-950 text-white rounded hover:bg-blue-600"
                   >
-                    Ver Detalle
+                   Detail
                   </button>
                 </div>
               </div>
