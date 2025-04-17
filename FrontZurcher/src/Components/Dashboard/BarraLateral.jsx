@@ -1,24 +1,26 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useSelector } from "react-redux";
 
 const BarraLateral = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Estado para controlar el menú móvil
   const navigate = useNavigate(); // Hook para manejar la navegación
   const location = useLocation(); // Hook para detectar cambios en la URL
+  const { staff } = useSelector((state) => state.auth);
 
   const menuItems = [
-    { name: "Cargar Permits", path: "/pdf" },
-    { name: "Presupuestos", path: "/budgets" },
+    { name: "Upload Permits", path: "/pdf" },
+    { name: "Budgets", path: "/budgets" },
     { name: "Works", path: "/works" },
-    { name: "Seguimiento", path: "/inspecciones" },
-    { name: "Materiales", path: "/materiales" },
-    { name: "Instalacion", path: "/installation" },
-    { name: "Progresos", path: "/progress-tracker" },
-    { name: "Enviar mensaje", path: "/send-notifications" },
+    { name: "Tracking Work", path: "/check" },
+    { name: "Materials", path: "/materiales" },
+    // { name: "Instalacion", path: "/installation" },
+    { name: "Progress", path: "/progress-tracker" },
+    { name: "Send Message", path: "/send-notifications" },
     { name: "Staff", path: "/register" },
     { name: "Calendar", path: "/workCalendar" },
     { name: "BudgetsEnd", path: "/archive" },
-    { name: "Facturas", path: "/attachInvoice" },
+    { name: "Upload Vouchers", path: "/attachInvoice" },
     { name: "Balance", path: "/balance" },
     
 
@@ -28,7 +30,9 @@ const BarraLateral = () => {
     navigate(path); // Navega a la ruta seleccionada
     setIsMobileMenuOpen(false); // Cierra el menú móvil
   };
-
+ if (staff?.role !== "owner") {
+    return null; // No renderizar la barra lateral si no es "owner"
+  }
   return (
     <div className="flex">
       {/* Menú para pantallas grandes */}

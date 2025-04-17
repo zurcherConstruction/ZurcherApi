@@ -6,7 +6,6 @@ import { incomeActions, expenseActions } from "../../Redux/Actions/balanceAction
 import { toast } from "react-toastify";
 
 const incomeTypes = [
-  "Factura Pago Inicial Budget",
   "Factura Pago Final Budget",
   "Diseño",
 ];

@@ -16,10 +16,13 @@ export const theme = {
       customPurple: "#0f766e",
       customPink: "#059669",
       textWhite: "white",
-      footer: "#49465a"
+      footer: "#49465a",
+      dash:"#f6d02c"
     },
     fontFamily: {
-        Montserrat: ['Montserrat', 'sans-serif'], // Definir la fuente Nunito
+      varela: ['"Varela Round"', 'sans-serif'],  
+      Montserrat: ['Montserrat', 'sans-serif'],
+      nunito: [ 'Nunito Sans', 'sans-serif'] // Definir la fuente Nunito
       },
   },
 };

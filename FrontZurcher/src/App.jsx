@@ -10,7 +10,6 @@ import "react-toastify/dist/ReactToastify.css";
 import Login from "./Components/Auth/Login";
 import Register from "./Components/Auth/Register";
 import Dashboard from "./Components/Dashboard/Dashboard";
-import Seguimiento from "./Components/Seguimiento/Seguimiento";
 import NotFound from "./Components/NotFound";
 import Unauthorized from "./Components/Auth/Unauthorized";
 import Landing from "./Components/Landing";
@@ -24,7 +23,7 @@ import Materiales from "./Components/Materiales";
 import MaterialsCheck from "./Components/Seguimiento/WorkStatusManager";
 import SendNotification from "./Components/SendNotification";
 import Notifications from "./Components/Notifications";
-import InstallationForm from "./Components/Works/InstalationForm";
+//import InstallationForm from "./Components/Works/InstalationForm";
 import BudgetEditor from "./Components/Budget/BudgetEditor";
 import ForgotPassword from "./Components/Auth/ForgotPassword";
 import ResetPassword from "./Components/Auth/ResetPassword";
@@ -72,39 +71,25 @@ function App() {
             <Route
               path="/dashboard"
               element={
-                <PrivateRoute allowedRoles={["owner", "admin"]}>
+                <PrivateRoute allowedRoles={["admin", "recept"]}>
                   <Dashboard />
                 </PrivateRoute>
               }
             />
-            <Route
-              path="/firststage"
-              element={
-                <PrivateRoute allowedRoles={["owner", "recept"]}>
-                  <firstStage />
-                </PrivateRoute>
-              }
-            />
+
             <Route
               path="/progress-tracker"
               element={
-                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
+                <PrivateRoute allowedRoles={["owner"]}>
                   <ProgressTracker />
                 </PrivateRoute>
               }
             />
-            <Route
-              path="/seguimiento"
-              element={
-                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
-                  <Seguimiento />
-                </PrivateRoute>
-              }
-            />
+
             <Route
               path="/works"
               element={
-                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
+                <PrivateRoute allowedRoles={["owner"]}>
                   <Works />
                 </PrivateRoute>
               }
@@ -112,7 +97,7 @@ function App() {
             <Route
               path="/work/:idWork"
               element={
-                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
+                <PrivateRoute allowedRoles={["owner"]}>
                   <WorkDetail />
                 </PrivateRoute>
               }
@@ -120,12 +105,12 @@ function App() {
             <Route
               path="/workCalendar"
               element={
-                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
+                <PrivateRoute allowedRoles={["owner"]}>
                   <PendingWorks />
                 </PrivateRoute>
               }
             />
-            <Route
+            {/* <Route
               path="/installation"
               element={
                 <PrivateRoute
@@ -134,19 +119,19 @@ function App() {
                   <InstallationForm />
                 </PrivateRoute>
               }
-            />
+            /> */}
             <Route
               path="/materiales"
               element={
-                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
+                <PrivateRoute allowedRoles={["owner", "recept"]}>
                   <Materiales />
                 </PrivateRoute>
               }
             />
             <Route
-              path="/inspecciones"
+              path="/check"
               element={
-                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
+                <PrivateRoute allowedRoles={["owner", "admin", "recept"]}>
                   <MaterialsCheck />
                 </PrivateRoute>
               }
@@ -154,7 +139,7 @@ function App() {
             <Route
               path="/budgets"
               element={
-                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
+                <PrivateRoute allowedRoles={["owner", "admin"]}>
                   <BudgetList />
                 </PrivateRoute>
               }
@@ -162,7 +147,7 @@ function App() {
             <Route
               path="/pdf"
               element={
-                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
+                <PrivateRoute allowedRoles={["owner", "admin"]}>
                   <PdfReceipt />
                 </PrivateRoute>
               }
@@ -170,7 +155,7 @@ function App() {
             <Route
               path="/editBudget/:budgetId"
               element={
-                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
+                <PrivateRoute allowedRoles={["owner", "admin"]}>
                   <BudgetEditor />
                 </PrivateRoute>
               }
@@ -178,12 +163,13 @@ function App() {
             <Route
               path="/archive"
               element={
-                <PrivateRoute allowedRoles={["owner", "admin", "user"]}>
+                <PrivateRoute allowedRoles={["owner", "admin"]}>
                   <ArchveBudget />
                 </PrivateRoute>
               }
             />
             <Route path="/archives/:folder/:file" element={<FileDetail />} />
+
             <Route
               path="/send-notifications"
               element={
@@ -208,7 +194,7 @@ function App() {
               path="/attachInvoice"
               element={
                 <PrivateRoute
-                  allowedRoles={["owner", "recept", "worker", "admin"]}
+                  allowedRoles={["owner", "recept", "admin"]}
                 >
                   <AttachInvoice />
                 </PrivateRoute>
@@ -218,16 +204,33 @@ function App() {
               path="/balance"
               element={
                 <PrivateRoute
-                  allowedRoles={["owner", "admin"]}
+                  allowedRoles={["owner"]}
                 >
                   <BalanceStats />
                 </PrivateRoute>
               }
             />
-            <Route path="/ver-imagenes/:idWork" element={<VerImagenes />} />
+              <Route
+              path="/register"
+              element={
+                <PrivateRoute
+                  allowedRoles={["owner"]}
+                >
+                  <Register />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/ver-imagenes/:idWork"
+              element={
+                <PrivateRoute
+                  allowedRoles={["owner", "admin"]}
+                >
+                  <VerImagenes />
+                </PrivateRoute>} />
+
             {/* Rutas de autenticación */}
             <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password/:token" element={<ResetPassword />} />
