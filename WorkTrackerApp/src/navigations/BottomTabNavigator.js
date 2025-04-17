@@ -36,7 +36,7 @@ const BottomTabNavigator = () => {
       })}
     >
       <Tab.Screen
-        name="Home"
+        name="HomeTab" // Cambia el nombre para evitar conflictos
         component={HomeStackNavigator}
         options={{ title: 'Home' }}
       />
