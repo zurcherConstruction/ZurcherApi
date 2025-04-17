@@ -1,7 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { FaEnvelope, FaCalendarAlt, FaTools, FaClipboardList, FaUserPlus } from 'react-icons/fa'; // Importar íconos específicos
 import InvoiceIcon from '../../assets/logos/invoice.png'; // Asegúrate de que la ruta sea correcta
 import CalendarIcon from '../../assets/logos/calendario.png';
 import MsmIcon from '../../assets/logos/msm.png';

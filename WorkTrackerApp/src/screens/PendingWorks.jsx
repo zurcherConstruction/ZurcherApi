@@ -120,71 +120,83 @@ const PendingWorks = () => {
 
     const pendingWorks = works.filter((work) => work.status === "pending");
 
+    const renderListFooter = () => {
+        if (!selectedWork) return null; // No mostrar si no hay trabajo seleccionado
+
+        return (
+            <>
+                <Text style={styles.subtitle}>Select a date:</Text>
+                <Calendar
+                    onDayPress={(day) => setStartDate(day.dateString)}
+                    minDate={new Date().toISOString().split("T")[0]}
+                    markedDates={{
+                        [startDate]: { selected: true, marked: true, selectedColor: "#80d4ff" },
+                    }}
+                    style={styles.calendar} // Añadir estilo si es necesario
+                />
+                <Text style={styles.subtitle}>Assign to a staff member:</Text>
+                <FlatList
+                    ref={flatListRef}
+                    data={staff}
+                    keyExtractor={(item) => item.id.toString()}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.staffList}
+                    onMomentumScrollEnd={handleScrollEnd}
+                    renderItem={({ item }) => (
+                        <TouchableOpacity
+                            style={[
+                                styles.staffItem,
+                                selectedStaff?.id === item.id && styles.selectedStaffItem,
+                            ]}
+                            onPress={() => confirmSelection(item)}
+                        >
+                            <Text style={styles.staffName}>{item.name}</Text>
+                        </TouchableOpacity>
+                    )}
+                />
+            </>
+        );
+    };
+
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>Assign Installation Date</Text>
             <View style={styles.row}>
                 <View style={styles.leftSection}>
-                    {pendingWorks.length === 0 ? (
-                        <Text style={styles.noWorksText}>No pending works</Text>
-                    ) : (
-                        <>
+                    {/* Usa FlatList como contenedor principal */}
+                    <FlatList
+                        data={pendingWorks}
+                        keyExtractor={(item) => item.idWork.toString()}
+                        renderItem={({ item }) => (
+                            <TouchableOpacity
+                                style={[
+                                    styles.workItem,
+                                    selectedWork?.idWork === item.idWork && styles.selectedWorkItem,
+                                ]}
+                                onPress={() => setSelectedWork(item)}
+                            >
+                                <Text>{item.propertyAddress} - {item.status}</Text>
+                            </TouchableOpacity>
+                        )}
+                        // Cabecera de la lista
+                        ListHeaderComponent={
                             <Text style={styles.subtitle}>Select an address:</Text>
-                            <FlatList
-                                data={pendingWorks}
-                                keyExtractor={(item) => item.idWork.toString()}
-                                renderItem={({ item }) => (
-                                    <TouchableOpacity
-                                        style={[
-                                            styles.workItem,
-                                            selectedWork?.idWork === item.idWork && styles.selectedWorkItem,
-                                        ]}
-                                        onPress={() => setSelectedWork(item)}
-                                    >
-                                        <Text>{item.propertyAddress} - {item.status}</Text>
-                                    </TouchableOpacity>
-                                )}
-                            />
-                            {selectedWork && (
-                                <>
-                                    <Text style={styles.subtitle}>Select a date:</Text>
-                                    <Calendar
-                                        onDayPress={(day) => setStartDate(day.dateString)}
-                                        minDate={new Date().toISOString().split("T")[0]}
-                                        markedDates={{
-                                            [startDate]: { selected: true, marked: true, selectedColor: "#80d4ff" },
-                                        }}
-                                    />
-                                    <Text style={styles.subtitle}>Assign to a staff member:</Text>
-                                    <FlatList
-                                        ref={flatListRef}
-                                        data={staff}
-                                        keyExtractor={(item) => item.id.toString()}
-                                        horizontal
-                                        showsHorizontalScrollIndicator={false}
-                                        contentContainerStyle={styles.staffList}
-                                        onMomentumScrollEnd={handleScrollEnd}
-                                        renderItem={({ item }) => (
-                                            <TouchableOpacity
-                                                style={[
-                                                    styles.staffItem,
-                                                    selectedStaff?.id === item.id && styles.selectedStaffItem,
-                                                ]}
-                                                onPress={() => confirmSelection(item)}
-                                            >
-                                                <Text style={styles.staffName}>{item.name}</Text>
-                                            </TouchableOpacity>
-                                        )}
-                                    />
-                                </>
-                            )}
-                        </>
-                    )}
+                        }
+                        // Pie de la lista (se renderiza solo si hay trabajo seleccionado via renderListFooter)
+                        ListFooterComponent={renderListFooter} 
+                        // Componente a mostrar si la lista está vacía
+                        ListEmptyComponent={
+                            <Text style={styles.noWorksText}>No pending works</Text>
+                        }
+                        // Añade algo de padding inferior si es necesario
+                        contentContainerStyle={{ paddingBottom: 20 }} 
+                    />
                 </View>
             </View>
         </View>
     );
 };
+
 
 const styles = StyleSheet.create({
     container: {
@@ -207,14 +219,25 @@ const styles = StyleSheet.create({
     leftSection: {
         flex: 1,
         backgroundColor: "#ffffff",
-        padding: 16,
+        // Quita el padding de aquí si lo pones en FlatList o sus componentes
+        // padding: 16, 
         borderRadius: 12,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 3, // Para Android
+        // Asegúrate de que leftSection pueda contener la FlatList
+        overflow: 'hidden', // Puede ayudar a contener los elementos hijos
     },
+    calendar: {
+        marginBottom: 10, // Añade margen al calendario si es necesario
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 8,
+    },
+
+
     noWorksText: {
         fontSize: 16,
         color: "#888",
