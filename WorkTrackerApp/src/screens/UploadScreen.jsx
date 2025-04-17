@@ -3,14 +3,14 @@ import { View, Text, Pressable, Image, Alert, ScrollView, Modal, FlatList } from
 import * as ImagePicker from 'expo-image-picker';
 import { useDispatch, useSelector } from 'react-redux';
 import { addImagesToWork } from '../Redux/Actions/workActions';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useRoute } from '@react-navigation/native';
 import * as FileSystem from 'expo-file-system';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 const UploadScreen = () => {
   const { idWork, propertyAddress } = useRoute().params;
-  const navigation = useNavigation();
+ 
   const dispatch = useDispatch();
 
   const { work } = useSelector((state) => state.work);
