@@ -6,7 +6,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { fetchWorks, updateWork } from "../Redux/Actions/workActions";
 import { fetchStaff } from "../Redux/Actions/staffActions";
 import { sendEmailNotification } from "../utils/sendNotification"; // Asegúrate de tener esta función para enviar correos electrónicos
-
+import { showNotification } from "../utils/notificationService";
 
 const PendingWorks = () => {
     const dispatch = useDispatch();
@@ -50,6 +50,11 @@ const PendingWorks = () => {
                 text1: "Éxito",
                 text2: "Trabajo asignado correctamente.",
             });
+
+            showNotification(
+                "Trabajo Asignado",
+                `El trabajo en ${selectedWork.propertyAddress} ha sido asignado a ${selectedStaff.name}.`
+            );
     
             // Enviar correo al miembro del staff asignado
             const subject = "Trabajo Asignado";
