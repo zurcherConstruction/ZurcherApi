@@ -1,4 +1,4 @@
-const { Notification, Staff } = require('../data');
+const { Notification, Staff, NotificationApp } = require('../data');
  // Asegúrate de importar `io` desde tu servidor
  const createNotification = async (req, res) => {
   try {
@@ -101,4 +101,45 @@ const getNotifications = async (req, res) => {
     }
   };
 
-module.exports = { createNotification, getNotifications, markAsRead };
+  const createNotificationApp = async (req, res) => {
+    const { title, message, staffId } = req.body;
+
+    try {
+        const notification = await NotificationApp.create({ title, message, staffId });
+        res.status(201).json(notification);
+    } catch (error) {
+        console.error('Error al crear la notificación:', error);
+        res.status(500).json({ error: 'Error al crear la notificación' });
+    }
+};
+
+const getNotificationsApp = async (req, res) => {
+    const { staffId } = req.params;
+
+    try {
+        const notifications = await NotificationApp.findAll({
+            where: { staffId },
+            order: [['createdAt', 'DESC']],
+        });
+        res.status(200).json(notifications);
+    } catch (error) {
+        console.error('Error al obtener las notificaciones:', error);
+        res.status(500).json({ error: 'Error al obtener las notificaciones' });
+    }
+};
+
+const markAsReadApp = async (req, res) => {
+    const { notificationId } = req.params;
+
+    try {
+        await Notification.update({ isRead: true }, { where: { id: notificationId } });
+        res.status(200).json({ success: true });
+    } catch (error) {
+        console.error('Error al marcar la notificación como leída:', error);
+        res.status(500).json({ error: 'Error al marcar la notificación como leída' });
+    }
+};
+
+
+
+module.exports = { createNotification, getNotifications, markAsRead, createNotificationApp, getNotificationsApp, markAsReadApp };

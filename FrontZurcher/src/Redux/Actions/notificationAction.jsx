@@ -15,7 +15,7 @@ import {
 export const fetchNotifications = (staffId) => async (dispatch) => {
     dispatch(fetchNotificationsRequest());
     try {
-      const response = await api.get(`/notification/${staffId}`);
+      const response = await api.get(`/notification/io/${staffId}`);
       console.log("Respuesta del backend:", response.data); // Agrega este log para depurar
       dispatch(fetchNotificationsSuccess(response.data.notifications));
     } catch (error) {
@@ -30,7 +30,7 @@ export const fetchNotifications = (staffId) => async (dispatch) => {
 export const createNotification = (notificationData) => async (dispatch) => {
   dispatch(createNotificationRequest());
   try {
-    const response = await api.post('/notification', notificationData);
+    const response = await api.post('/notification/io', notificationData);
     dispatch(createNotificationSuccess(response.data.notification));
   } catch (error) {
     const errorMessage =
@@ -43,7 +43,7 @@ export const createNotification = (notificationData) => async (dispatch) => {
 export const markNotificationAsRead = (notificationId) => async (dispatch) => {
   dispatch(markNotificationAsReadRequest());
   try {
-    await api.put(`/notification/${notificationId}/read`);
+    await api.put(`/notification/io/${notificationId}/read`);
     dispatch(markNotificationAsReadSuccess(notificationId));
   } catch (error) {
     const errorMessage =
