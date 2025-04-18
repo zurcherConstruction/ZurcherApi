@@ -65,7 +65,7 @@ const Notifications = ({ isDropdown = false, onClose }) => {
   
     try {
       // Enviar la respuesta al backend
-      await api.post("/notification", {
+      await api.post("/notification/io", {
         staffId: selectedNotification.senderId, // ID del remitente original
         message: responseMessage,
         type: "respuesta", // Tipo de notificación
