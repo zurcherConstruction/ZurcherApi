@@ -1,11 +1,12 @@
 {
-  "name": "Zurcherback",
+  "name": "zurcherback",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js"
+    "start": "cross-env NODE_ENV=production node index.js",
+    "dev": "nodemon index.js",
+    "railway:start": "cross-env NODE_ENV=production PORT=3001 node index.js"
   },
   "engines": {
     "node": "20.11.0",
