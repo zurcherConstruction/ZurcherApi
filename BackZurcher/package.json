@@ -5,13 +5,11 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon -L --watch src --ignore src/tasks/archives/* index.js",
-    "build": "node index.js",
-    "postinstall": "npm audit fix || true"
+    "dev": "nodemon index.js"
   },
   "engines": {
-    "node": ">=16.0.0",
-    "npm": ">=8.0.0"
+    "node": "20.11.0",
+    "npm": ">=10.0.0"
   },
   "keywords": [],
   "author": "",
