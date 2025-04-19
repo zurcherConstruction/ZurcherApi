@@ -4,7 +4,7 @@ import { logout } from '../Redux/Reducer/authReducer';
 
 // Crear instancia de axios con la URL base
 const api = axios.create({
-  baseURL: 'zurcherapi-production.up.railway.app/',
+  baseURL: 'https://zurcherapi.up.railway.app/',
   timeout: 10000,
 });
 

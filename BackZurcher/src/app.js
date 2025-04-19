@@ -16,7 +16,7 @@ const app = express();
 const server = http.createServer(app); // Crear el servidor HTTP
 const io = new Server(server, {
   cors: {
-    origin: 'https://zurcher-api-9526.vercel.app', // Cambia esto según el dominio de tu frontend
+    origin: 'https://zurcher-api.vercel.app/', // Cambia esto según el dominio de tu frontend
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -67,7 +67,7 @@ app.use(passport.initialize());
 
 // Session
 app.use(cors({
-  origin: 'https://zurcher-api-9526.vercel.app', // Permitir cualquier origen
+  origin: 'https://zurcher-api.vercel.app/', // Permitir cualquier origen
   methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'], // Métodos permitidos
   allowedHeaders: ['Content-Type', 'Authorization'], // Encabezados permitidos
   credentials: true, // Permitir el uso de credenciales
@@ -108,7 +108,9 @@ app.use((err, req, res, next) => {
 
 // Configuración de Socket.IO
 io.on('connection', (socket) => {
-  console.log('Usuario conectado:', socket.id);
+  console.log("Socket connection attempt");
+  console.log("Socket transport:", socket.conn.transport.name);
+  console.log("Socket ID:", socket.id);
 
   // Escuchar eventos personalizados
   socket.on('join', (staffId) => {
