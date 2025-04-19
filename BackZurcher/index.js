@@ -1,9 +1,18 @@
 require("dotenv").config();
-const { app, server } = require("./src/app.js");
+const { app, server, io } = require("./src/app.js");
 const { conn } = require("./src/data");
 
 // Use Railway's PORT environment variable
 const PORT = process.env.PORT || 3001;
+
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'ok',
+    message: 'Server is running',
+    port: PORT,
+    env: process.env.NODE_ENV
+  });
+});
 
 // Startup sequence
 const startServer = async () => {
@@ -49,6 +58,9 @@ const gracefulShutdown = async (signal) => {
       process.exit(1);
     }, 5000);
 
+    io.close(() => {
+      console.log('Socket.IO connections closed');
+    
     server.close(() => {
       console.log('HTTP server closed');
       conn.close().then(() => {
@@ -57,6 +69,7 @@ const gracefulShutdown = async (signal) => {
         process.exit(0);
       });
     });
+  });
   } catch (error) {
     console.error('Error during shutdown:', error);
     process.exit(1);
