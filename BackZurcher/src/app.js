@@ -1,23 +1,26 @@
+// 1. Core dependencies
 const express = require('express');
-const session = require('express-session');
-const morgan = require('morgan');
-const routes = require('./routes');
-const cors = require('cors');
-const path = require('path');
-const { passport } = require('./passport');
-const { JWT_SECRET_KEY } = require('./config/envs');
-const authRoutes = require('./routes/authRoutes');
 const http = require('http');
 const { Server } = require('socket.io');
+const cors = require('cors');
+const morgan = require('morgan');
+const session = require('express-session');
+const path = require('path');
 const fs = require('fs');
 const debug = require('debug')('app:server');
+
+// 2. Application dependencies
+const routes = require('./routes');
+const authRoutes = require('./routes/authRoutes');
+const { passport } = require('./passport');
+const { JWT_SECRET_KEY } = require('./config/envs');
 require('./tasks/cronJobs');
 
-// Initialize express and create HTTP server
+// 3. Initialize express and server
 const app = express();
 const server = http.createServer(app);
 
-// Environment-aware origins
+// 4. Configuration constants
 const RAILWAY_DOMAIN = 'zurcherapi.up.railway.app';
 const ALLOWED_ORIGINS = process.env.NODE_ENV === 'production' 
   ? [
@@ -26,7 +29,7 @@ const ALLOWED_ORIGINS = process.env.NODE_ENV === 'production'
     ]
   : ['http://localhost:5173', 'http://localhost:3000'];
 
-// CORS configuration
+// 5. CORS configuration
 const corsOptions = {
   origin: function(origin, callback) {
     if (!origin || ALLOWED_ORIGINS.includes(origin)) {
@@ -41,33 +44,39 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization']
 };
 
+// 6. Core middleware (before Socket.IO)
+app.set('trust proxy', 1);
 app.use(cors(corsOptions));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
+app.use(morgan(process.env.NODE_ENV === 'development' ? 'dev' : 'combined'));
+app.use(passport.initialize());
 
-// Socket.IO setup
+// 7. Socket.IO setup
 const io = new Server(server, {
-  cors: {
-    origin: ALLOWED_ORIGINS,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization']
-  },
+  cors: corsOptions,
   path: '/socket.io/',
   transports: ['websocket', 'polling'],
   pingTimeout: 60000,
   pingInterval: 25000,
   connectTimeout: 45000,
   allowEIO3: true,
-  // Railway-specific settings
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'none'
-  }
+    name: 'io',
+    path: '/',
+    httpOnly: true,
+    sameSite: 'none',
+    secure: process.env.NODE_ENV === 'production'
+  },
+  allowUpgrades: true,
+  serveClient: false,
+  maxHttpBufferSize: 1e8
 });
 
-// Connected users tracking
+// 8. Socket.IO state management
 const connectedUsers = new Map();
 
-// Socket.IO error handling and connection management
+// 9. Socket.IO error handling
 io.engine.on("connection_error", (err) => {
   debug("Socket.IO connection error:", {
     code: err.code,
@@ -76,6 +85,7 @@ io.engine.on("connection_error", (err) => {
   });
 });
 
+// 10. Socket.IO connection handling
 io.on("connection", (socket) => {
   debug(`New socket connection: ${socket.id}`);
 
@@ -112,58 +122,52 @@ io.on("connection", (socket) => {
   });
 });
 
-// Make io and connected users available throughout the app
+// 11. Make Socket.IO available to routes
 app.set('io', io);
 app.set('connectedUsers', connectedUsers);
 
-// Essential middleware
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ limit: "10mb", extended: true }));
+// 12. Static files middleware
 app.use('/images', express.static(path.join(__dirname, 'images')));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-app.use(morgan(process.env.NODE_ENV === 'development' ? 'dev' : 'combined'));
-app.use(passport.initialize());
 
-// Ensure uploads directory exists
+// 13. Ensure uploads directory exists
 const uploadsPath = path.join(__dirname, '../uploads');
 !fs.existsSync(uploadsPath) && fs.mkdirSync(uploadsPath, { recursive: true });
 
-// Health check endpoint
+// 14. HTTPS redirect middleware
+app.use((req, res, next) => {
+  if (process.env.NODE_ENV === 'production' && !req.secure) {
+    return res.redirect(`https://${req.headers.host}${req.url}`);
+  }
+  next();
+});
+
+// 15. Health check endpoint
 app.get('/health', async (req, res) => {
   try {
-    const dbStatus = await conn.authenticate()
-      .then(() => 'connected')
-      .catch(err => {
-        debug('Database error:', err);
-        return 'disconnected';
-      });
-
     res.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
-      database: dbStatus,
-      socket_connections: io.engine.clientsCount,
+      socket_connections: io.engine.clientsCount || 0,
       connected_users: Array.from(connectedUsers.keys()),
       uptime: process.uptime(),
-      memory: process.memoryUsage(),
-      node_version: process.version,
-      env: process.env.NODE_ENV
+      headers: req.headers,
+      secure: req.secure,
+      protocol: req.protocol,
+      env: process.env.NODE_ENV,
+      port: process.env.PORT
     });
   } catch (error) {
     debug('Health check error:', error);
-    res.status(500).json({
-      status: 'error',
-      message: error.message,
-      timestamp: new Date().toISOString()
-    });
+    res.status(500).json({ error: true, message: error.message });
   }
 });
 
-// Routes
+// 16. Main routes
 app.use('/', routes);
 app.use('/auth', authRoutes);
 
-// Error handling
+// 17. Error handling middleware
 app.use('*', (req, res) => {
   res.status(404).json({ error: true, message: 'Not found' });
 });
@@ -184,6 +188,7 @@ app.use((err, req, res, next) => {
   });
 });
 
+// 18. Export modules
 module.exports = { 
   app, 
   server, 
