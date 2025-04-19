@@ -1,5 +1,7 @@
 const { Income, Expense } = require('../data'); // Importa tus modelos
 const { Sequelize } = require('sequelize');
+
+
 const getIncomesAndExpensesByWorkId = async (req, res) => {
   const { workId } = req.params;
   try {
