@@ -145,21 +145,39 @@ app.use((req, res, next) => {
 // 15. Health check endpoint
 app.get('/health', async (req, res) => {
   try {
-    res.json({
+    // Verificación básica del servicio
+    const healthCheck = {
       status: 'ok',
       timestamp: new Date().toISOString(),
-      socket_connections: io.engine.clientsCount || 0,
-      connected_users: Array.from(connectedUsers.keys()),
       uptime: process.uptime(),
-      headers: req.headers,
-      secure: req.secure,
-      protocol: req.protocol,
-      env: process.env.NODE_ENV,
-      port: process.env.PORT
-    });
+      environment: process.env.NODE_ENV,
+      port: process.env.PORT || 3001
+    };
+
+    // Verificación de la base de datos
+    try {
+      await conn.authenticate();
+      healthCheck.database = 'connected';
+    } catch (error) {
+      healthCheck.database = 'error';
+      healthCheck.databaseError = error.message;
+    }
+
+    // Verificación de Socket.IO
+    healthCheck.socketio = {
+      status: io?.engine?.clientsCount !== undefined ? 'running' : 'not running',
+      connections: io?.engine?.clientsCount || 0
+    };
+
+    const statusCode = 
+      healthCheck.database === 'connected' ? 200 : 500;
+
+    res.status(statusCode).json(healthCheck);
   } catch (error) {
-    debug('Health check error:', error);
-    res.status(500).json({ error: true, message: error.message });
+    res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
   }
 });
 

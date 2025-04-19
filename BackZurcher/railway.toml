@@ -1,13 +1,12 @@
 [build]
 builder = "nixpacks"
-buildCommand = "npm install"
 
 [deploy]
 startCommand = "npm run railway:start"
 healthcheckPath = "/health"
 healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"
-restartPolicyMaxRetries = 10
+restartPolicyMaxRetries = 3
 
 [[ports]]
 port = "3001"
@@ -15,5 +14,3 @@ protocol = "tcp"
 
 [service]
 internal_port = "3001"
-auto_stop_machines = false
-auto_start_machines = true
