@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from "react";
+import  { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorkById } from "../../Redux/Actions/workActions";
 import { balanceActions } from "../../Redux/Actions/balanceActions";
 import { fetchIncomesAndExpensesRequest, fetchIncomesAndExpensesSuccess, fetchIncomesAndExpensesFailure } from "../../Redux/Reducer/balanceReducer"; // Ajusta esta ruta si es necesario
 import { useParams } from "react-router-dom";
-import api from "../../utils/axios";
+//import api from "../../utils/axios";
 
 const WorkDetail = () => {
   const { idWork } = useParams();
@@ -29,22 +29,21 @@ console.log("Datos de la obra:", work); // Para depuración
   }, [dispatch, idWork]);
 
   useEffect(() => {
-    const fetchFile = async () => {
+    const setInvoiceUrl = () => {
       try {
         if (work?.budget?.paymentInvoice) {
-          const response = await fetch(work.budget.paymentInvoice);
-          if (!response.ok) {
-            throw new Error("No se pudo descargar el archivo");
-          }
-          const blob = await response.blob();
-          setFileBlob(URL.createObjectURL(blob));
+          // Si la URL viene del backend, usarla directamente
+          setFileBlob(work.budget.paymentInvoice);
+        } else {
+          setFileBlob(null);
         }
       } catch (error) {
-        console.error("Error al descargar el archivo:", error);
+        console.error("Error al establecer la URL del archivo:", error);
+        setFileBlob(null);
       }
     };
-
-    fetchFile();
+  
+    setInvoiceUrl();
   }, [work?.budget?.paymentInvoice]);
 
   useEffect(() => {
@@ -116,10 +115,10 @@ console.log("Datos de la obra:", work); // Para depuración
     ? URL.createObjectURL(new Blob([new Uint8Array(work.Permit.optionalDocs.data)], { type: "application/pdf" }))
     : null;
 
-  const validMaterialSet = work.MaterialSets?.find((set) => set.invoiceFile !== null);
-  const invoiceUrl = validMaterialSet
-    ? `${api.defaults.baseURL}uploads/${validMaterialSet.invoiceFile}`
-    : null;
+  // const validMaterialSet = work.MaterialSets?.find((set) => set.invoiceFile !== null);
+  // const invoiceUrl = validMaterialSet
+  //   ? `${api.defaults.baseURL}uploads/${validMaterialSet.invoiceFile}`
+  //   : null;
 
   const toggleSection = (section) => {
     setOpenSections((prev) => ({
@@ -254,32 +253,57 @@ console.log("Datos de la obra:", work); // Para depuración
 
         {/* Mostrar el paymentInvoice si existe */}
         {work.budget?.paymentInvoice && (
-          <li className="border p-4 rounded shadow">
-            <p><strong>Tipo:</strong> Comprobante de Pago</p>
-            {work.budget.paymentInvoice.endsWith(".pdf") ? (
-              <iframe
-                src={work.budget.paymentInvoice}
-                width="100%"
-                height="250px"
-                title="Vista previa del comprobante de pago"
-                className="rounded"
-              ></iframe>
-            ) : (
-              <img
-                src={work.budget.paymentInvoice}
-                alt="Comprobante de Pago"
-                className="rounded w-full h-auto"
-              />
-            )}
-            <a
-              href={work.budget.paymentInvoice}
-              download="Comprobante_de_Pago"
-              className="text-blue-500 underline mt-2 block"
-            >
-              Descargar Comprobante de Pago
-            </a>
-          </li>
+  <li className="border p-4 rounded shadow">
+    <p><strong>Tipo:</strong> Comprobante de Pago</p>
+    {work.budget.paymentInvoice && (
+      <>
+        {/\.(pdf)$/i.test(work.budget.paymentInvoice) ? (
+          <div className="relative">
+            <iframe
+              src={work.budget.paymentInvoice}
+              width="100%"
+              height="250px"
+              title="Vista previa del comprobante de pago"
+              className="rounded"
+              onError={(e) => {
+                console.error('Error loading PDF:', e);
+                e.target.style.display = 'none';
+              }}
+            />
+          </div>
+        ) : /\.(jpg|jpeg|png|gif|webp)$/i.test(work.budget.paymentInvoice) ? (
+          <img
+            src={work.budget.paymentInvoice}
+            alt="Comprobante de Pago"
+            className="rounded w-full h-auto object-contain max-h-[250px]"
+            onError={(e) => {
+              console.error('Error loading image:', e);
+              e.target.src = '/placeholder-image.png'; // Añade una imagen de placeholder
+            }}
+          />
+        ) : (
+          <p className="text-yellow-600">
+            Archivo disponible para descarga
+          </p>
         )}
+        <a
+          href={work.budget.paymentInvoice}
+          download
+          className="text-blue-500 hover:text-blue-700 underline mt-2 block"
+          onClick={(e) => {
+            // Prevenir navegación si la URL no es válida
+            if (!work.budget.paymentInvoice.startsWith('http')) {
+              e.preventDefault();
+              console.error('URL inválida:', work.budget.paymentInvoice);
+            }
+          }}
+        >
+          Descargar Comprobante de Pago
+        </a>
+      </>
+    )}
+  </li>
+)}
       </ul>
     )}
   </div>

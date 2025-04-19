@@ -12,7 +12,7 @@ const incomeTypes = [
 
 const expenseTypes = [
   "Materiales",
-  "Diseño",
+  "DiseñoDif",
   "Workers",
   "Imprevistos",
 ];
