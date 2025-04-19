@@ -3,20 +3,16 @@ import { useDispatch, useSelector } from "react-redux";
 import {
   fetchBudgets,
   updateBudget,
-  uploadInvoice,
+  // uploadInvoice, // Ya no se usa aquí si se eliminó handleUploadPayment
 } from "../../Redux/Actions/budgetActions";
 
 import BudgetPDF from "./BudgetPDF";
 import { parseISO, isSameMonth, format } from "date-fns";
 
-
 const BudgetList = () => {
+  // ... (dispatch, useSelector, state, useEffect, filtros, ordenación, paginación) ...
   const dispatch = useDispatch();
-
-  // Obtener el estado de budgets desde Redux
   const { budgets, loading, error } = useSelector((state) => state.budget);
-
-  // Estados para el paginado
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
 
@@ -24,294 +20,193 @@ const BudgetList = () => {
     dispatch(fetchBudgets());
   }, [dispatch]);
 
-  // Obtener la fecha actual
   const currentDate = new Date();
+  // Asegúrate de que budgets no sea undefined antes de filtrar
+  const currentMonthBudgets = budgets ? budgets.filter((budget) => {
+    try {
+      const budgetDate = parseISO(budget.date); 
+      return isSameMonth(budgetDate, currentDate);
+    } catch (e) {
+      console.error("Error parsing budget date:", budget.date, e);
+      return false; // Excluir si la fecha es inválida
+    }
+  }) : [];
 
-  // Filtrar presupuestos del mes actual
-  const currentMonthBudgets = budgets.filter((budget) => {
-    const budgetDate = parseISO(budget.date); // Convierte la fecha de 'YYYY-MM-DD' a un objeto Date
-    return isSameMonth(budgetDate, currentDate);
-  });
-
-  // Ordenar los presupuestos por estado (priorizando "created")
   const sortedBudgets = currentMonthBudgets
-    .slice() // Crear una copia para no mutar el estado original
+    .slice() 
     .sort((a, b) => {
-      if (a.status === "created" && b.status !== "created") return -1;
-      if (a.status !== "created" && b.status === "created") return 1;
-      return 0;
+      // Orden más específico: created > send > approved > rejected
+      const statusOrder = { created: 1, send: 2, approved: 3, rejected: 4 };
+      return (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
     });
 
-  // Calcular los presupuestos para la página actual
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentBudgets = sortedBudgets.slice(indexOfFirstItem, indexOfLastItem);
+  const currentBudgetsForDisplay = sortedBudgets.slice(indexOfFirstItem, indexOfLastItem);
 
-  // Cambiar de página
   const handlePageChange = (pageNumber) => {
     setCurrentPage(pageNumber);
   };
 
-  const formatDate = (date) => format(new Date(date), "dd-MM-yyyy");
+  const formatDate = (dateString) => {
+    try {
+      return format(parseISO(dateString), "dd-MM-yyyy");
+    } catch (e) {
+      console.error("Error formatting date:", dateString, e);
+      return "Invalid Date";
+    }
+  };
 
   const handleUpdateStatus = (idBudget, newStatus, budget) => {
+    // La transición a 'approved' ya no se inicia desde aquí
     const validTransitions = {
       created: ["send"],
-      send: ["approved", "rejected"],
+      send: ["rejected"], // Solo se puede rechazar desde aquí
       approved: [],
       rejected: [],
     };
 
-    if (!validTransitions[budget.status].includes(newStatus)) {
-      alert("No se puede cambiar a este estado.");
+    if (!validTransitions[budget.status]?.includes(newStatus)) {
+      alert("Acción no permitida desde esta vista.");
       return;
     }
 
-    if (newStatus === "approved" && !budget.paymentInvoice) {
-      alert("Debe cargar la factura antes de aprobar el presupuesto.");
-      return;
-    }
+    // Ya no se necesita esta validación aquí si no se puede aprobar
+    // if (newStatus === "approved" && !budget.paymentInvoice) { ... }
 
-    // Excluir cualquier campo no deseado antes de enviar la solicitud
     const payload = { status: newStatus };
 
     dispatch(updateBudget(idBudget, payload))
       .then(() => {
         console.log(`Estado actualizado a: ${newStatus}`);
-        // Recargar los presupuestos desde el backend
         dispatch(fetchBudgets());
       })
       .catch((error) => {
         console.error("Error al actualizar el estado:", error);
+        alert("Error al actualizar el estado: " + (error.message || "Unknown error"));
       });
   };
-  const handleUploadPayment = async (idBudget, file) => {
-    if (!file) {
-      alert("You must select a file.");
-      return;
-    }
 
-    if (file.type !== "application/pdf") {
-      alert("Only PDF.");
-      return;
-    }
+  // --- ELIMINA handleUploadPayment si ya no se usa ---
+  // const handleUploadPayment = async (idBudget, file) => { ... };
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert("El archivo no debe superar los 5 MB.");
-      return;
-    }
-
-    const budget = budgets.find((b) => b.idBudget === idBudget);
-    if (budget.paymentInvoice) {
-      alert("Ya se ha cargado una factura para este presupuesto.");
-      return;
-    }
-
-    try {
-      await dispatch(uploadInvoice(idBudget, file));
-      alert("Factura cargada exitosamente.");
-      dispatch(fetchBudgets());
-    } catch (error) {
-      alert("Error al cargar la factura: " + error.message);
-    }
-  };
-
-  // Función para obtener el color de fondo según el estado
   const getStatusColor = (status) => {
-    switch (status) {
-      case "created":
-        return "bg-white"; // Blanco
-      case "send":
-        return "bg-yellow-200"; // Amarillo
-      case "approved":
-        return "bg-green-200"; // Verde
-      case "notResponded":
-        return "bg-orange-200"; // Naranja
-      case "rejected":
-        return "bg-red-200"; // Rojo
-      default:
-        return "bg-white"; // Blanco por defecto
+    // ... (sin cambios) ...
+     switch (status) {
+      case "created": return "bg-white";
+      case "send": return "bg-yellow-200";
+      case "approved": return "bg-green-200";
+      case "notResponded": return "bg-orange-200"; // Asumiendo que este estado existe
+      case "rejected": return "bg-red-200";
+      default: return "bg-gray-100"; // Un gris claro por defecto
     }
   };
 
-   
-
-  // Calcular el número total de páginas
   const totalPages = Math.ceil(sortedBudgets.length / itemsPerPage);
 
   return (
     <div className="p-4">
-      <h1 className="text-sm font-semibold mb-4">Budgets</h1>
+      <h1 className="text-lg font-semibold mb-4 text-gray-800">Monthly Budgets</h1>
 
-      {/* Mostrar estado de carga */}
-      {loading && <p className="text-blue-500">Load Budgets...</p>}
+      {/* --- YA NO SE RENDERIZA UploadInitialInvoice AQUÍ --- */}
 
-      {/* Mostrar error si ocurre */}
+      {loading && <p className="text-blue-500">Loading Budgets...</p>}
       {error && <p className="text-red-500">Error: {error}</p>}
-
-      {/* Mostrar lista de presupuestos */}
       {!loading && !error && (
         <>
           {/* Tabla para pantallas grandes y medianas */}
-          <div className="hidden lg:block">
-            <table className="table-auto w-full border-collapse border border-gray-300">
+          <div className="hidden lg:block overflow-x-auto">
+            <table className="min-w-full table-auto border-collapse border border-gray-300 bg-white shadow-md rounded-lg">
               <thead>
-                <tr className="bg-gray-200">
-                  <th className="border border-gray-300 font-Montserrat px-4 text-xs">
-                    Aplicant
-                  </th>
-                  <th className="border border-gray-300 font-Montserrat px-4 text-xs">
-                    Date
-                  </th>
-                  <th className="border border-gray-300 px-4 font-Montserrat text-xs">
-                    End Date
-                  </th>
-                  <th className="border border-gray-300 px-4 font-Montserrat text-xs">
-                    Price
-                  </th>
-                  <th className="border border-gray-300 px-4 font-Montserrat text-xs">
-                    Pay 60%
-                  </th>
-                  <th className="border border-gray-300 px-4 font-Montserrat text-xs">
-                    Status
-                  </th>
-                  <th className="border border-gray-300 px-4 font-Montserrat text-xs">
-                    Address
-                  </th>
-                  <th className="border border-gray-300 px-4 font-Montserrat text-xs">
-                    System Type
-                  </th>
-                  <th className="border border-gray-300 px-4 font-Montserrat text-xs">
-                    Actions
-                  </th>
+                <tr className="bg-gray-200 text-xs text-gray-600 uppercase">
+                  {/* ... (cabeceras th sin cambios) ... */}
+                   <th className="border border-gray-300 px-4 py-2 text-left">Applicant</th>
+                   <th className="border border-gray-300 px-4 py-2 text-left">Date</th>
+                   <th className="border border-gray-300 px-4 py-2 text-left">End Date</th>
+                   <th className="border border-gray-300 px-4 py-2 text-right">Price</th>
+                   <th className="border border-gray-300 px-4 py-2 text-right">Pay 60%</th>
+                   <th className="border border-gray-300 px-4 py-2 text-center">Status</th>
+                   <th className="border border-gray-300 px-4 py-2 text-left">Address</th>
+                   <th className="border border-gray-300 px-4 py-2 text-left">System</th>
+                   <th className="border border-gray-300 px-4 py-2 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {currentBudgets.map((budget) => (
+                {currentBudgetsForDisplay.map((budget) => (
                   <tr
                     key={budget.idBudget}
-                    className={`hover:bg-gray-100 ${getStatusColor(
-                      budget.status
-                    )}`}
+                    className={`hover:bg-gray-100 ${getStatusColor(budget.status)}`}
                   >
-                    <td className="border border-gray-300 px-4 text-xs">
-                      {budget.applicantName}
-                    </td>
-                    <td className="border border-gray-300 px-4 text-xs">
-                      {format(parseISO(budget.date), "dd-MM-yyyy")}
-                    </td>
-                    <td className="border border-gray-300 px-4 text-xs">
-                      {budget.expirationDate
-                        ? format(parseISO(budget.expirationDate), "dd-MM-yyyy")
-                        : "N/A"}
-                    </td>
-                    <td className="border border-gray-300 px-4 text-xs">
-                      ${budget.price}
-                    </td>
-                    <td className="border border-gray-300 px-4 text-xs">
-                      ${budget.initialPayment}
-                    </td>
-                    <td className="border border-gray-300 px-4 text-xs">
-                      {budget.status}
-                    </td>
-                    <td className="border border-gray-300 px-4 text-xs">
-                      {budget.propertyAddress || "No especificada"}
-                    </td>
-                    <td className="border border-gray-300 px-4 text-xs">
-                      {budget.systemType || "No especificada"}
-                    </td>
-                    <td className="border border-gray-300 px-4">
-                      {/* Acciones según el estado */}
+                    {/* ... (celdas td de datos sin cambios) ... */}
+                     <td className="border border-gray-300 px-4 py-2 text-xs">{budget.applicantName}</td>
+                     <td className="border border-gray-300 px-4 py-2 text-xs">{formatDate(budget.date)}</td>
+                     <td className="border border-gray-300 px-4 py-2 text-xs">{budget.expirationDate ? formatDate(budget.expirationDate) : "N/A"}</td>
+                     <td className="border border-gray-300 px-4 py-2 text-xs text-right">${budget.price}</td>
+                     <td className="border border-gray-300 px-4 py-2 text-xs text-right">${budget.initialPayment}</td>
+                     <td className="border border-gray-300 px-4 py-2 text-xs text-center">{budget.status}</td>
+                     <td className="border border-gray-300 px-4 py-2 text-xs">{budget.propertyAddress || "N/A"}</td>
+                     <td className="border border-gray-300 px-4 py-2 text-xs">{budget.systemType || "N/A"}</td>
+                    <td className="border border-gray-300 px-4 py-2 text-center"> {/* Centrado para acciones */}
                       {budget.status === "created" && (
                         <button
-                          onClick={() =>
-                            handleUpdateStatus(budget.idBudget, "send", budget)
-                          }
-                          className="bg-yellow-500 text-white px-2 py-1 rounded text-xs"
+                          onClick={() => handleUpdateStatus(budget.idBudget, "send", budget)}
+                          className="bg-yellow-500 text-white px-2 py-1 rounded text-xs hover:bg-yellow-600"
                         >
                           Send
                         </button>
                       )}
 
                       {budget.status === "send" && (
-                        <>
-                          {/* Subir factura - Botón personalizado */}
-                          {!budget.paymentInvoice && ( // Mostrar solo si no hay factura cargada
-                            <label htmlFor={`invoice-upload-${budget.idBudget}`} className="cursor-pointer bg-blue-500 text-white px-2 py-1 rounded text-xs inline-block mb-2 hover:bg-blue-600">
-                              Upload Invoice {/* <-- Cambiado de Select Invoice */}
-                            </label>
-                          )}
-                          <input
-                            id={`invoice-upload-${budget.idBudget}`} // ID para el label
-                            type="file"
-                            onChange={(e) =>
-                              handleUploadPayment(
-                                budget.idBudget,
-                                e.target.files[0]
-                              )
-                            }
-                            className="hidden" // Ocultar el input original
-                            disabled={!!budget.paymentInvoice} // Deshabilitar si ya hay una factura cargada
-                          />
-                          {budget.paymentInvoice && (
-                            <p className="text-green-500 text-xs mb-2">
-                              Invoice uploaded
-                            </p>
+                        <div className="flex flex-col items-center space-y-1"> {/* Flex para alinear */}
+                          {budget.paymentInvoice ? (
+                             <p className="text-green-600 text-xs font-semibold">Invoice Uploaded</p>
+                          ) : (
+                             <p className="text-orange-600 text-xs font-semibold">Pending Invoice</p>
                           )}
 
-                          {/* Aprobar presupuesto */}
-                          {budget.paymentInvoice && (
+                          {/* --- ELIMINAR EL BOTÓN DE APROBAR --- */}
+                          {/* {budget.paymentInvoice && (
                             <button
-                              onClick={() =>
-                                handleUpdateStatus(
-                                  budget.idBudget,
-                                  "approved",
-                                  budget
-                                )
-                              }
+                              onClick={() => handleUpdateStatus(budget.idBudget, "approved", budget)}
                               className="bg-green-500 text-white px-2 py-1 rounded text-xs"
                             >
                               Approve
                             </button>
-                          )}
+                          )} */}
 
-                          {/* Rechazar presupuesto */}
+                          {/* Botón Rechazar */}
                           <button
-                            onClick={() =>
-                              handleUpdateStatus(
-                                budget.idBudget,
-                                "rejected",
-                                budget
-                              )
-                            }
-                            className="bg-red-500 text-white px-2 py-1 rounded text-xs ml-2"
+                            onClick={() => handleUpdateStatus(budget.idBudget, "rejected", budget)}
+                            className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600"
                           >
                             Reject
                           </button>
-                        </>
+                        </div>
                       )}
 
                       {budget.status === "approved" && (
-                        <p className="text-green-500 text-xs">
-                          Budget Approved
+                        <p className="text-green-600 text-xs font-semibold">
+                          Approved
                         </p>
                       )}
 
                       {budget.status === "rejected" && (
-                        <p className="text-red-500 text-xs">
-                          Budget Rejected 
+                        <p className="text-red-600 text-xs font-semibold">
+                          Rejected
                         </p>
                       )}
 
-                      {/* Descargar PDF */}
-                      <BudgetPDF
-                        budget={{
-                          ...budget,
-                          price: parseFloat(budget.price),
-                          initialPayment: parseFloat(budget.initialPayment),
-                        }}
-                        editMode={false}
-                      />
+                      {/* Descargar PDF (siempre visible) */}
+                      <div className="mt-1"> {/* Espacio para el botón PDF */}
+                        <BudgetPDF
+                          budget={{
+                            ...budget,
+                            price: parseFloat(budget.price),
+                            initialPayment: parseFloat(budget.initialPayment),
+                          }}
+                          editMode={false}
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -321,112 +216,73 @@ const BudgetList = () => {
 
           {/* Tarjetas para pantallas pequeñas */}
           <div className="block lg:hidden space-y-4">
-            {currentBudgets.map((budget) => (
+            {currentBudgetsForDisplay.map((budget) => (
               <div
                 key={budget.idBudget}
-                className={`border border-gray-300 rounded-lg p-4 shadow-md ${getStatusColor(
-                  budget.status
-                )}`}
+                className={`border border-gray-300 rounded-lg p-4 shadow-md ${getStatusColor(budget.status)}`}
               >
-                <p className="text-xs font-semibold">
-                  Aplicant: {budget.applicantName}
-                </p>
-                <p className="text-xs">Date: {budget.date}</p>
-                <p className="text-xs">
-                  End Date: {budget.expirationDate || "N/A"}
-                </p>
-                <p className="text-xs">Price: ${budget.price}</p>
-                <p className="text-xs">Pay 60%: ${budget.initialPayment}</p>
-                <p className="text-xs">Status: {budget.status}</p>
-                <p className="text-xs">
-                  Address: {budget.propertyAddress || "No especificada"}
-                </p>
-                <p className="text-xs">
-                  System Type: {budget.systemType || "No especificada"}
-                </p>
-                <div className="mt-2">
-                  {/* Acciones según el estado */}
-                  {budget.status === "created" && (
-                    <button
-                      onClick={() =>
-                        handleUpdateStatus(budget.idBudget, "send", budget)
-                      }
-                      className="bg-yellow-500 text-white px-2 py-1 rounded text-xs"
-                    >
-                      Send
-                    </button>
-                  )}
-
-                  {budget.status === "send" && (
-                    <>
-                      {/* Subir factura - Botón personalizado */}
-                       {!budget.paymentInvoice && ( // Mostrar solo si no hay factura cargada
-                         <label htmlFor={`invoice-upload-mobile-${budget.idBudget}`} className="cursor-pointer bg-blue-500 text-white px-2 py-1 rounded text-xs inline-block mb-2 hover:bg-blue-600">
-                           Upload Invoice {/* <-- Cambiado de Select Invoice */}
-                         </label>
-                       )}
-                      <input
-                        id={`invoice-upload-mobile-${budget.idBudget}`} // ID único para el label móvil
-                        type="file"
-                        onChange={(e) =>
-                          handleUploadPayment(
-                            budget.idBudget,
-                            e.target.files[0]
-                          )
-                        }
-                        className="hidden" // Ocultar el input original
-                        disabled={!!budget.paymentInvoice} // Deshabilitar si ya hay una factura cargada
-                      />
-                      {budget.paymentInvoice && (
-                        <p className="text-green-500 text-xs mb-2">
-                          Invoice uploaded
-                        </p>
-                      )}
-
-                      {/* Aprobar presupuesto */}
-                      {budget.paymentInvoice && (
-                        <button
-                          onClick={() =>
-                            handleUpdateStatus(
-                              budget.idBudget,
-                              "approved",
-                              budget
-                            )
-                          }
-                          className="bg-green-500 text-white px-2 py-1 rounded text-xs"
-                        >
-                          Approve
-                        </button>
-                      )}
-                      {/* Rechazar presupuesto */}
+                {/* ... (detalles del presupuesto sin cambios) ... */}
+                 <p className="text-sm font-semibold text-gray-700">Applicant: {budget.applicantName}</p>
+                 <p className="text-xs text-gray-600">Date: {formatDate(budget.date)}</p>
+                 <p className="text-xs text-gray-600">End Date: {budget.expirationDate ? formatDate(budget.expirationDate) : "N/A"}</p>
+                 <p className="text-xs text-gray-600">Price: ${budget.price}</p>
+                 <p className="text-xs text-gray-600">Pay 60%: ${budget.initialPayment}</p>
+                 <p className="text-xs text-gray-600">Status: <span className="font-medium">{budget.status}</span></p>
+                 <p className="text-xs text-gray-600">Address: {budget.propertyAddress || "N/A"}</p>
+                 <p className="text-xs text-gray-600">System Type: {budget.systemType || "N/A"}</p>
+                <div className="mt-3 border-t pt-2 flex items-center justify-between"> {/* Separador y flex */}
+                  <div> {/* Contenedor para acciones de estado */}
+                    {budget.status === "created" && (
                       <button
-                        onClick={() =>
-                          handleUpdateStatus(
-                            budget.idBudget,
-                            "rejected",
-                            budget
-                          )
-                        }
-                        className="bg-red-500 text-white px-2 py-1 rounded text-xs ml-2"
+                        onClick={() => handleUpdateStatus(budget.idBudget, "send", budget)}
+                        className="bg-yellow-500 text-white px-2 py-1 rounded text-xs hover:bg-yellow-600"
                       >
-                        Reject
+                        Send
                       </button>
-                    </>
-                  )}
+                    )}
 
-                  {budget.status === "approved" && (
-                    <p className="text-green-500 text-xs">
-                    Budget Approved
-                    </p>
-                  )}
+                    {budget.status === "send" && (
+                      <div className="flex items-center space-x-2"> {/* Flex para alinear */}
+                        {budget.paymentInvoice ? (
+                           <p className="text-green-600 text-xs font-semibold">Invoice Uploaded</p>
+                        ) : (
+                           <p className="text-orange-600 text-xs font-semibold">Pending Invoice</p>
+                        )}
 
-                  {budget.status === "rejected" && (
-                    <p className="text-red-500 text-xs">
-                      Budget Rejected
-                    </p>
-                  )}
+                        {/* --- ELIMINAR EL BOTÓN DE APROBAR --- */}
+                        {/* {budget.paymentInvoice && (
+                          <button
+                            onClick={() => handleUpdateStatus(budget.idBudget, "approved", budget)}
+                            className="bg-green-500 text-white px-2 py-1 rounded text-xs"
+                          >
+                            Approve
+                          </button>
+                        )} */}
+                        
+                        {/* Botón Rechazar */}
+                        <button
+                          onClick={() => handleUpdateStatus(budget.idBudget, "rejected", budget)}
+                          className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    )}
 
-                  {/* Descargar PDF */}
+                    {budget.status === "approved" && (
+                      <p className="text-green-600 text-xs font-semibold">
+                        Approved
+                      </p>
+                    )}
+
+                    {budget.status === "rejected" && (
+                      <p className="text-red-600 text-xs font-semibold">
+                        Rejected
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Descargar PDF (siempre visible) */}
                   <BudgetPDF
                     budget={{
                       ...budget,
@@ -440,16 +296,16 @@ const BudgetList = () => {
             ))}
           </div>
 
-          {/* Paginado */}
-          <div className="flex justify-center mt-4">
+          {/* Paginado (sin cambios) */}
+          <div className="flex justify-center mt-6"> {/* Aumentado margen superior */}
             {Array.from({ length: totalPages }, (_, index) => (
               <button
                 key={index + 1}
                 onClick={() => handlePageChange(index + 1)}
-                className={`mx-1 px-2 py-1 text-xs rounded ${
+                className={`mx-1 px-3 py-1 text-xs rounded ${ // Ligeramente más grande
                   currentPage === index + 1
-                    ? "bg-blue-950 text-white"
-                    : "bg-gray-200 text-gray-700"
+                    ? "bg-blue-950 text-white shadow"
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                 }`}
               >
                 {index + 1}

@@ -1,7 +1,10 @@
-const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt } = require('../data');
+const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, NotificationApp } = require('../data');
 const {sendEmail} = require('../utils/nodeMailer/emailService');
 const { getNotificationDetails } = require('../utils/nodeMailer/notificationService');
+const { getNotificationDetailsApp } = require('../utils/notificationServiceApp');
 const convertPdfDataToUrl = require('../utils/convertPdfDataToUrl');
+const { sendNotifications } = require('../utils/notificationManager');
+ 
 
 const createWork = async (req, res) => {
   try {
@@ -32,25 +35,14 @@ const createWork = async (req, res) => {
       notes: `Work creado a partir del presupuesto N° ${idBudget}`,
     });
 
-     // Buscar a los usuarios con roles "owner" y "admin"
-     const staffToNotify = await Staff.findAll({
-      where: {
-        role: ['owner', 'admin'], // Roles a notificar
-      },
-    });
+     // Enviar notificaciones (correo y push)
+     await sendNotifications('pending', work, req.app.get('io'));
 
-    // Enviar correos electrónicos a los usuarios correspondientes
-    const notificationMessage = `El trabajo con ID ${work.id} y dirección ${work.propertyAddress} ha sido aprobado. Por favor, procedan a comprar los materiales necesarios.`;
-    for (const staff of staffToNotify) {
-      await sendEmail(staff, notificationMessage);
-    }
-
-
-    res.status(201).json({ message: 'Obra creada correctamente', work });
-  } catch (error) {
-    console.error('Error al crear la obra desde el presupuesto aprobado:', error);
-    res.status(500).json({ error: true, message: 'Error interno del servidor' });
-  }
+     res.status(201).json({ message: 'Obra creada correctamente', work });
+ } catch (error) {
+     console.error('Error al crear la obra:', error);
+     res.status(500).json({ error: true, message: 'Error interno del servidor' });
+ }
 };
 
 // Obtener todas las obras
