@@ -6,11 +6,11 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "railway:start": "cross-env NODE_ENV=production node index.js",
-    "postinstall": "npm install --production"
+    "postinstall": "npm ci --omit=dev"
   },
   "engines": {
-    "node": "20.11.0",
-    "npm": "10.2.4"
+    "node": ">=20.11.0",
+    "npm": ">=10.2.4"
   },
   "keywords": [],
   "author": "",
