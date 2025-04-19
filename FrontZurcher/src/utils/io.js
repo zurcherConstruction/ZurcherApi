@@ -1,53 +1,93 @@
 import { io } from 'socket.io-client';
 import api from './axios';
 
+// Define production URLs
+const PRODUCTION_URLS = [
+  'https://zurcherapi.up.railway.app',
+  'https://zurcher-api-9526.onrender.com'
+];
 
+let currentUrlIndex = 0;
+const getSocketURL = () => {
+  return import.meta.env.MODE === 'production' 
+    ? PRODUCTION_URLS[currentUrlIndex]
+    : api.defaults.baseURL;
+};
 
-const SOCKET_URL = import.meta.env.MODE === 'production'
-  ? 'https://zurcherapi.up.railway.app'
-  : api.defaults.baseURL;
+const createSocketConnection = (url) => {
+  return io(url, {
+    path: '/socket.io/',
+    transports: ['polling', 'websocket'], // Try polling first
+    secure: import.meta.env.MODE === 'production',
+    rejectUnauthorized: false,
+    reconnection: true,
+    reconnectionAttempts: 5,
+    reconnectionDelay: 1000,
+    timeout: 45000,
+    withCredentials: true,
+    autoConnect: false
+  });
+};
 
-const socket = io(SOCKET_URL, {
-  path: '/socket.io/',
-  transports: ['websocket', 'polling'],
-  secure: import.meta.env.MODE === 'production',
-  rejectUnauthorized: false,
-  reconnection: true,
-  reconnectionAttempts: 5,
-  reconnectionDelay: 1000,
-  timeout: 45000,
-  withCredentials: true,
-  autoConnect: false // Connect manually when needed
-});
+let socket = createSocketConnection(getSocketURL());
 
-// Socket event handlers
-socket.on("connect", () => {
-  console.log('Socket connected:', socket.id);
-});
-
+// Enhanced error handling with fallback
 socket.on("connect_error", (error) => {
   console.error("Socket connection error:", {
     message: error.message,
     type: error.type,
+    url: socket.io.uri,
     time: new Date().toISOString()
+  });
+
+  // Try fallback URL in production
+  if (import.meta.env.MODE === 'production' && currentUrlIndex < PRODUCTION_URLS.length - 1) {
+    currentUrlIndex++;
+    console.log(`Attempting connection to backup server: ${PRODUCTION_URLS[currentUrlIndex]}`);
+    socket.close();
+    socket = createSocketConnection(PRODUCTION_URLS[currentUrlIndex]);
+    socket.connect();
+  }
+});
+
+socket.on("connect", () => {
+  console.log('Socket connected:', {
+    id: socket.id,
+    url: socket.io.uri
   });
 });
 
 socket.on("disconnect", (reason) => {
-  console.log('Socket disconnected:', reason);
+  console.log('Socket disconnected:', {
+    reason,
+    url: socket.io.uri,
+    time: new Date().toISOString()
+  });
 });
 
-// Helper functions
-export const connectSocket = (staffId) => {
-  if (!socket.connected) {
-    socket.connect();
+// Helper functions with enhanced error handling
+export const connectSocket = async (staffId) => {
+  try {
+    if (!socket.connected) {
+      await socket.connect();
+    }
+    socket.emit('join', staffId);
+    return true;
+  } catch (error) {
+    console.error('Connection error:', error);
+    return false;
   }
-  socket.emit('join', staffId);
 };
 
 export const disconnectSocket = () => {
-  if (socket.connected) {
-    socket.disconnect();
+  try {
+    if (socket.connected) {
+      socket.disconnect();
+    }
+    return true;
+  } catch (error) {
+    console.error('Disconnect error:', error);
+    return false;
   }
 };
 
