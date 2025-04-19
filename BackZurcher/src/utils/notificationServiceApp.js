@@ -4,6 +4,9 @@ const getNotificationDetailsApp = async (newStatus, work) => {
     let staffToNotifyApp = [];
     let message = '';
 
+    console.log('Usuarios a notificar (push):', staffToNotifyApp);
+console.log('Mensaje de notificación (push):', message);
+
     switch (newStatus) {
         case 'pending':
             // Notificar a los roles admin y owner

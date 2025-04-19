@@ -23,7 +23,9 @@ const Header = () => {
     }
   };
 
-  const unreadCount = notifications.filter((notification) => !notification.isRead).length; // Contador de notificaciones no leídas
+  const unreadCount = Array.isArray(notifications)
+  ? notifications.filter((notification) => !notification.isRead).length
+  : 0;
 
   return (
     <div className="bg-blue-950 text-white p-4 flex items-center justify-between shadow-lg fixed top-0 left-0 w-full z-10">

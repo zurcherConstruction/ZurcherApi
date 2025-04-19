@@ -19,7 +19,7 @@ export const NotificationProvider = ({ children, staffId }) => {
     }, [staffId]);
     const fetchNotifications = async () => {
         try {
-            const response = await api.get(`/notification/app/${staffId}`);
+            const response = await api.get(`/notification/${staffId}`);
             setNotifications(response.data);
             const unread = response.data.filter((n) => !n.isRead).length;
             setUnreadCount(unread);
@@ -30,7 +30,7 @@ export const NotificationProvider = ({ children, staffId }) => {
 
     const markAsRead = async (notificationId) => {
         try {
-            await api.put(`/notification/app/${notificationId}/read`);
+            await api.put(`/notification/${notificationId}/read`);
             fetchNotifications();
         } catch (error) {
             console.error('Error al marcar la notificación como leída:', error);

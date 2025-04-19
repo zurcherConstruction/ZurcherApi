@@ -45,4 +45,5 @@ export const showNotification = async (title, body) => {
         },
         trigger: null, // Inmediatamente
     });
+    
 };

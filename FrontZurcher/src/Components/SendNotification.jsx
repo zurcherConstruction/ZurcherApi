@@ -20,7 +20,7 @@ const SendNotification = () => {
     }
 
     try {
-      await api.post('/notification/io', {
+      await api.post('/notification', {
         staffId: recipientId,
         message,
         type: 'alerta',

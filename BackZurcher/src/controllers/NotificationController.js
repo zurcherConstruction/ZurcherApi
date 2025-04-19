@@ -1,49 +1,53 @@
-const { Notification, Staff, NotificationApp } = require('../data');
- // Asegúrate de importar `io` desde tu servidor
- const createNotification = async (req, res) => {
+const { Notification, Staff } = require('../data');
+const { sendEmail } = require('../utils/nodeMailer/emailService');
+const { sendNotifications } = require('../utils/notificationManager');
+const { getNotificationDetailsApp } = require('../utils/notificationServiceApp');
+
+const createNotification = async (req, res) => {
   try {
-    const { staffId, message, type, parentId } = req.body;
-
-    // Obtener el usuario que envía la notificación (remitente)
-    const sender = req.staff;
-
-    if (!sender) {
-      return res.status(401).json({ error: true, message: "Usuario no autenticado" });
-    }
-
-    let recipientId = staffId; // Por defecto, el destinatario es el staffId proporcionado
-
-    // Si es una respuesta, verifica que la notificación original exista
-    if (parentId) {
-      const originalNotification = await Notification.findByPk(parentId);
-      if (!originalNotification) {
-        return res.status(404).json({ error: true, message: "Notificación original no encontrada" });
-      }
-
-      // El destinatario de la respuesta debe ser el remitente de la notificación original
-      recipientId = originalNotification.senderId;
-    }
-
-    // Crear la notificación
+    const { staffId, message, type, title, sendEmailFlag } = req.body;
+  // Validar que staffId sea un UUID
+  if (!/^[0-9a-fA-F-]{36}$/.test(staffId)) {
+    return res.status(400).json({ error: true, message: 'El ID del staff no es válido.' });
+  }
+    // Crear la notificación en la base de datos
     const notification = await Notification.create({
-      staffId: recipientId, // Destinatario
+      title: title || 'Nueva notificación',
       message,
+      staffId,
+      senderId: req.staff?.id || null,
       type,
-      parentId: parentId || null, // Asocia la respuesta con la notificación original
-      senderId: sender.id, // Remitente
     });
 
-    // Emitir la notificación en tiempo real
-    const io = req.app.get("io");
-    io.to(recipientId).emit("newNotification", notification);
+    console.log('Notificación creada:', notification);
 
-    res.status(201).json({ error: false, notification });
+    // Enviar notificación según el tipo
+    if (type === 'email' && sendEmailFlag) {
+      const staff = await Staff.findByPk(staffId);
+      if (staff && staff.email) {
+        await sendEmail(staff, message);
+        console.log(`Correo enviado a ${staff.email}`);
+      }
+    } else if (type === 'push') {
+      const appDetails = await getNotificationDetailsApp('custom', { staffId, message });
+      console.log('Detalles de notificación push:', appDetails);
+      // Aquí puedes manejar la lógica de Expo Push Notifications
+    } else if (type === 'socket') {
+      const io = req.app.get('io');
+      if (io) {
+        io.to(staffId).emit('newNotification', notification);
+        console.log(`Notificación enviada por Socket.IO a ${staffId}`);
+      }
+    }
+
+    res.status(201).json({ success: true, notification });
   } catch (error) {
-    console.error("Error al crear la notificación:", error);
-    res.status(500).json({ error: true, message: "Error interno del servidor" });
+    console.error('Error al crear la notificación:', error);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 };
-// Obtener notificaciones de un usuario
+
+
 const getNotifications = async (req, res) => {
   try {
     const { staffId } = req.params;
@@ -66,6 +70,11 @@ const getNotifications = async (req, res) => {
       order: [["createdAt", "DESC"]],
     });
 
+    // Si no hay notificaciones, devolver una lista vacía en lugar de un error
+    if (!notifications || notifications.length === 0) {
+      return res.status(200).json([]);
+    }
+
     // Formatear las notificaciones para incluir el nombre y el ID del remitente
     const formattedNotifications = notifications.map((notification) => ({
       ...notification.toJSON(),
@@ -73,73 +82,40 @@ const getNotifications = async (req, res) => {
       senderName: notification.sender?.name || "Desconocido",
     }));
 
-    res.status(200).json({ error: false, notifications: formattedNotifications });
+    res.status(200).json(formattedNotifications);
   } catch (error) {
     console.error("Error al obtener las notificaciones:", error);
     res.status(500).json({ error: true, message: "Error interno del servidor" });
   }
 };
-  // Marcar una notificación como leída
-  const markAsRead = async (req, res) => {
-    try {
-      const { notificationId } = req.params;
-  
-      // Buscar la notificación
-      const notification = await Notification.findByPk(notificationId);
-      if (!notification) {
-        return res.status(404).json({ error: true, message: 'Notificación no encontrada' });
-      }
-  
-      // Marcar como leída
-      notification.isRead = true;
-      await notification.save();
-  
-      res.status(200).json({ error: false, message: 'Notificación marcada como leída' });
-    } catch (error) {
-      console.error('Error al marcar la notificación como leída:', error);
-      res.status(500).json({ error: true, message: 'Error interno del servidor' });
-    }
-  };
-
-  const createNotificationApp = async (req, res) => {
-    const { title, message, staffId } = req.body;
-
-    try {
-        const notification = await NotificationApp.create({ title, message, staffId });
-        res.status(201).json(notification);
-    } catch (error) {
-        console.error('Error al crear la notificación:', error);
-        res.status(500).json({ error: 'Error al crear la notificación' });
-    }
-};
-
-const getNotificationsApp = async (req, res) => {
-    const { staffId } = req.params;
-
-    try {
-        const notifications = await NotificationApp.findAll({
-            where: { staffId },
-            order: [['createdAt', 'DESC']],
-        });
-        res.status(200).json(notifications);
-    } catch (error) {
-        console.error('Error al obtener las notificaciones:', error);
-        res.status(500).json({ error: 'Error al obtener las notificaciones' });
-    }
-};
-
-const markAsReadApp = async (req, res) => {
+const markAsRead = async (req, res) => {
+  try {
     const { notificationId } = req.params;
 
-    try {
-        await Notification.update({ isRead: true }, { where: { id: notificationId } });
-        res.status(200).json({ success: true });
-    } catch (error) {
-        console.error('Error al marcar la notificación como leída:', error);
-        res.status(500).json({ error: 'Error al marcar la notificación como leída' });
+    // Validar que notificationId sea un UUID
+    if (!/^[0-9a-fA-F-]{36}$/.test(notificationId)) {
+      return res.status(400).json({ error: true, message: 'El ID de la notificación no es válido.' });
     }
+
+    // Buscar la notificación
+    const notification = await Notification.findByPk(notificationId);
+    if (!notification) {
+      return res.status(404).json({ error: true, message: 'La notificación no existe.' });
+    }
+
+    // Verificar si ya está marcada como leída
+    if (notification.isRead) {
+      return res.status(200).json({ error: false, message: 'La notificación ya estaba marcada como leída.' });
+    }
+
+    // Marcar como leída
+    notification.isRead = true;
+    await notification.save();
+
+    res.status(200).json({ error: false, message: 'Notificación marcada como leída.' });
+  } catch (error) {
+    console.error('Error al marcar la notificación como leída:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor.' });
+  }
 };
-
-
-
-module.exports = { createNotification, getNotifications, markAsRead, createNotificationApp, getNotificationsApp, markAsReadApp };
+module.exports = { createNotification, getNotifications, markAsRead };

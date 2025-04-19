@@ -13,24 +13,23 @@ import {
 
 // Obtener notificaciones de un usuario
 export const fetchNotifications = (staffId) => async (dispatch) => {
-    dispatch(fetchNotificationsRequest());
-    try {
-      const response = await api.get(`/notification/io/${staffId}`);
-      console.log("Respuesta del backend:", response.data); // Agrega este log para depurar
-      dispatch(fetchNotificationsSuccess(response.data.notifications));
-    } catch (error) {
-      const errorMessage =
-        error.response?.data?.message || "Error al obtener las notificaciones";
-      console.error("Error al obtener las notificaciones:", errorMessage);
-      dispatch(fetchNotificationsFailure(errorMessage));
-    }
-  };
-
+  dispatch(fetchNotificationsRequest());
+  try {
+    const response = await api.get(`/notification/${staffId}`);
+    console.log("Respuesta del backend:", response.data); // Verifica la estructura de la respuesta
+    dispatch(fetchNotificationsSuccess(response.data)); // Pasa directamente response.data
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.message || "Error al obtener las notificaciones";
+    console.error("Error al obtener las notificaciones:", errorMessage);
+    dispatch(fetchNotificationsFailure(errorMessage));
+  }
+};
 // Crear una notificación
 export const createNotification = (notificationData) => async (dispatch) => {
   dispatch(createNotificationRequest());
   try {
-    const response = await api.post('/notification/io', notificationData);
+    const response = await api.post('/notification', notificationData);
     dispatch(createNotificationSuccess(response.data.notification));
   } catch (error) {
     const errorMessage =
@@ -43,7 +42,7 @@ export const createNotification = (notificationData) => async (dispatch) => {
 export const markNotificationAsRead = (notificationId) => async (dispatch) => {
   dispatch(markNotificationAsReadRequest());
   try {
-    await api.put(`/notification/io/${notificationId}/read`);
+    await api.put(`/notification/${notificationId}/read`);
     dispatch(markNotificationAsReadSuccess(notificationId));
   } catch (error) {
     const errorMessage =

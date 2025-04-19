@@ -13,16 +13,20 @@ const Notifications = ({ isDropdown = false, onClose }) => {
   const dispatch = useDispatch();
   const { staff } = useSelector((state) => state.auth);
   const { notifications, loading, error } = useSelector((state) => state.notifications);
+console.log("Notificaciones desde Redux:", notifications); // Verifica qué datos llegan al componente
 
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [responseMessage, setResponseMessage] = useState("");
 
+  // Asegúrate de que notifications sea siempre un array
+  const validNotifications = Array.isArray(notifications) ? notifications : [];
+
   useEffect(() => {
     if (staff) {
-      // Cargar notificaciones iniciales
+      // Llamar a fetchNotifications para cargar las notificaciones iniciales
       dispatch(fetchNotifications(staff.id));
 
-      // Escuchar notificaciones en tiempo real
+      // Configurar Socket.IO para manejar notificaciones en tiempo real
       socket.emit("join", staff.id);
       socket.on("newNotification", (notification) => {
         if (notification.staffId === staff.id) {
@@ -51,27 +55,27 @@ const Notifications = ({ isDropdown = false, onClose }) => {
 
   const handleResponseSubmit = async (e) => {
     e.preventDefault();
-  
+
     if (!responseMessage) {
       alert("Por favor, escribe una respuesta antes de enviarla.");
       return;
     }
-  
+
     if (!selectedNotification || !selectedNotification.senderId) {
       alert("No se puede enviar la respuesta porque no se encontró el remitente.");
       console.error("selectedNotification:", selectedNotification);
       return;
     }
-  
+
     try {
       // Enviar la respuesta al backend
-      await api.post("/notification/io", {
+      await api.post("/notification", {
         staffId: selectedNotification.senderId, // ID del remitente original
         message: responseMessage,
         type: "respuesta", // Tipo de notificación
         parentId: selectedNotification.id, // ID de la notificación original
       });
-  
+
       alert("Respuesta enviada con éxito.");
       setResponseMessage(""); // Limpiar el formulario
       handleCloseNotification(); // Cerrar el modal
@@ -80,62 +84,63 @@ const Notifications = ({ isDropdown = false, onClose }) => {
       alert("Hubo un error al enviar la respuesta.");
     }
   };
+
   if (loading) return <p>Cargando notificaciones...</p>;
   if (error) return <p>Error: {error}</p>;
 
   return (
-<div className={isDropdown ? "absolute bg-white shadow-lg rounded-lg" : ""}>
-  <h2 className="text-sm font-medium bg-sky-800 text-white p-2 border-">
-    Notificaciones
-  </h2>
-  <ul
-    className="divide-y divide-gray-200 overflow-y-auto"
-    style={{ maxHeight: "400px" }} // Altura máxima con scroll
-  >
-    {notifications.length > 0 ? (
-      notifications.map((notification) => (
-        <li
-          key={notification.id}
-          className={`p-2 ${notification.isRead ? "bg-gray-100" : "bg-blue-100"}`}
-        >
-          <p className="font-semibold">{notification.message}</p>
-          <p className="text-sm text-gray-500">
-            Tipo: {notification.type} | Enviado por: {notification.senderName || "Desconocido"}
-          </p>
-          <button
-            onClick={() => handleOpenNotification(notification)}
-            className="mt-2 text-blue-500 hover:underline"
-          >
-            Responder
-          </button>
-          {!notification.isRead && (
-            <button
-              onClick={() => handleMarkAsRead(notification.id)}
-              className="ml-2 text-green-500 hover:underline"
+    <div className={isDropdown ? "absolute bg-white shadow-lg rounded-lg" : ""}>
+      <h2 className="text-sm font-medium bg-sky-800 text-white p-2 border-">
+        Notificaciones
+      </h2>
+      <ul
+        className="divide-y divide-gray-200 overflow-y-auto"
+        style={{ maxHeight: "400px" }} // Altura máxima con scroll
+      >
+        {validNotifications.length > 0 ? (
+          validNotifications.map((notification) => (
+            <li
+              key={notification.id}
+              className={`p-2 ${notification.isRead ? "bg-gray-100" : "bg-blue-100"}`}
             >
-              Marcar como leída
-            </button>
-          )}
+              <p className="font-semibold">{notification.message}</p>
+              <p className="text-sm text-gray-500">
+                Tipo: {notification.type} | Enviado por: {notification.senderName || "Desconocido"}
+              </p>
+              <button
+                onClick={() => handleOpenNotification(notification)}
+                className="mt-2 text-blue-500 hover:underline"
+              >
+                Responder
+              </button>
+              {!notification.isRead && (
+                <button
+                  onClick={() => handleMarkAsRead(notification.id)}
+                  className="ml-2 text-green-500 hover:underline"
+                >
+                  Marcar como leída
+                </button>
+              )}
 
-          {/* Mostrar respuestas asociadas */}
-          {notification.responses && notification.responses.length > 0 && (
-            <ul className="mt-2 pl-4 border-l-2 border-gray-300">
-              {notification.responses.map((response) => (
-                <li key={response.id} className="text-sm text-gray-700">
-                  <p>Respuesta: {response.message}</p>
-                  <p className="text-xs text-gray-500">
-                    Enviado el: {new Date(response.createdAt).toLocaleString()}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </li>
-      ))
-    ) : (
-      <li className="p-2 text-center text-gray-500">No hay notificaciones</li>
-    )}
-</ul>
+              {/* Mostrar respuestas asociadas */}
+              {notification.responses && Array.isArray(notification.responses) && notification.responses.length > 0 && (
+                <ul className="mt-2 pl-4 border-l-2 border-gray-300">
+                  {notification.responses.map((response) => (
+                    <li key={response.id} className="text-sm text-gray-700">
+                      <p>Respuesta: {response.message}</p>
+                      <p className="text-xs text-gray-500">
+                        Enviado el: {new Date(response.createdAt).toLocaleString()}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          ))
+        ) : (
+          <li className="p-2 text-center text-gray-500">No hay notificaciones</li>
+        )}
+      </ul>
 
       {/* Modal para ver detalles */}
       {selectedNotification && (
