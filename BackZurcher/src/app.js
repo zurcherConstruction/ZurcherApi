@@ -42,14 +42,14 @@ app.use(cors(corsOptions));
 // Socket.IO setup
 const io = new Server(server, {
   cors: corsOptions,
-  transports: ['websocket', 'polling'],
+  transports: ['polling', 'websocket'], // Changed order to try polling first
   pingTimeout: 60000,
   pingInterval: 25000,
   path: '/socket.io/',
-  connectionStateRecovery: {
-    maxDisconnectionDuration: 2 * 60 * 1000,
-    skipMiddlewares: true,
-  }
+  allowEIO3: true, // Enable Engine.IO v3 compatibility
+  connectTimeout: 45000, // Increase connection timeout
+  secure: process.env.NODE_ENV === 'production', // Enable SSL in production
+  rejectUnauthorized: false // Allow self-signed certificates
 });
 
 // Connected users tracking
