@@ -2,9 +2,9 @@ require("dotenv").config();
 const { app, server, io } = require("./src/app.js");
 const { conn } = require("./src/data");
 
-// Use Railway's PORT environment variable
 const PORT = process.env.PORT || 3001;
 
+// Basic health check route
 app.get('/', (req, res) => {
   res.json({ 
     status: 'ok',
@@ -17,34 +17,30 @@ app.get('/', (req, res) => {
 // Startup sequence
 const startServer = async () => {
   try {
-    // Test database connection first
     await conn.authenticate();
     console.log('Database connection test successful');
 
-    // Sync database
     await conn.sync({ alter: true });
     console.log('Database synchronized successfully');
 
-    // Start server with explicit host binding
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Server listening on port: ${PORT} 🚀`);
-      console.log('Environment:', process.env.NODE_ENV);
-      console.log('Node version:', process.version);
-      console.log('Memory usage:', process.memoryUsage());
-    });
+    return new Promise((resolve, reject) => {
+      server.listen(PORT, '0.0.0.0', () => {
+        console.log(`🚀 Server listening on port: ${PORT} 🚀`);
+        console.log('Environment:', process.env.NODE_ENV);
+        console.log('Node version:', process.version);
+        console.log('Memory usage:', process.memoryUsage());
+        resolve();
+      });
 
-    // Register shutdown handlers
-    ['SIGTERM', 'SIGINT'].forEach(signal => {
-      process.on(signal, () => gracefulShutdown(signal));
+      server.on('error', reject);
     });
-
   } catch (error) {
     console.error('Failed to start server:', {
       error: error.message,
       stack: error.stack,
       time: new Date().toISOString()
     });
-    process.exit(1);
+    throw error; // Let the outer catch handle it
   }
 };
 
@@ -58,25 +54,37 @@ const gracefulShutdown = async (signal) => {
       process.exit(1);
     }, 5000);
 
-    io.close(() => {
-      console.log('Socket.IO connections closed');
-    
-    server.close(() => {
-      console.log('HTTP server closed');
+    // Close services in order
+    await Promise.all([
+      // Close Socket.IO
+      new Promise(resolve => {
+        io.close(() => {
+          console.log('Socket.IO connections closed');
+          resolve();
+        });
+      }),
+      // Close HTTP server
+      new Promise(resolve => {
+        server.close(() => {
+          console.log('HTTP server closed');
+          resolve();
+        });
+      }),
+      // Close database
       conn.close().then(() => {
         console.log('Database connection closed');
-        clearTimeout(timeout);
-        process.exit(0);
-      });
-    });
-  });
+      })
+    ]);
+
+    clearTimeout(timeout);
+    process.exit(0);
   } catch (error) {
     console.error('Error during shutdown:', error);
     process.exit(1);
   }
 };
 
-// Handle uncaught errors
+// Error handlers
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
   gracefulShutdown('UNCAUGHT_EXCEPTION');
@@ -85,6 +93,11 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (error) => {
   console.error('Unhandled Rejection:', error);
   gracefulShutdown('UNHANDLED_REJECTION');
+});
+
+// Signal handlers
+['SIGTERM', 'SIGINT'].forEach(signal => {
+  process.on(signal, () => gracefulShutdown(signal));
 });
 
 // Start the application
