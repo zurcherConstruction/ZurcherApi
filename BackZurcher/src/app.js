@@ -14,30 +14,69 @@ const debug = require('debug')('app:server');
 require('./tasks/cronJobs');
 
 const app = express();
-const server = http.createServer(app); // Crear el servidor HTTP
+const server = http.createServer(app);
 
+// Define allowed origins first
+const ALLOWED_ORIGINS = [
+  'https://zurcher-api-9526.vercel.app',
+  'http://localhost:5173'
+];
 
-app.use((req, res, next) => {
-  debug(`${req.method} ${req.url}`);
-  next();
+// Configure CORS - Move this before any route handlers
+const corsOptions = {
+  origin: function(origin, callback) {
+    if (!origin || ALLOWED_ORIGINS.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('Blocked origin:', origin); // Debug log
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+// Apply CORS middleware early
+app.use(cors(corsOptions));
+
+// Configure Socket.IO with matching CORS settings
+const io = new Server(server, {
+  cors: {
+    origin: ALLOWED_ORIGINS,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization']
+  },
+  transports: ['websocket', 'polling'],
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
-app.use((err, req, res, next) => {
-  console.error('Error details:', {
-    message: err.message,
-    stack: err.stack,
-    url: req.url,
-    method: req.method
-  });
-
-  res.status(err.statusCode || 500).json({
-    error: true,
-    message: process.env.NODE_ENV === 'production' 
-      ? 'Internal Server Error' 
-      : err.message
+// Socket.IO error handling
+io.engine.on("connection_error", (err) => {
+  console.error("Socket.IO connection error:", {
+    req: err.req?.url,
+    code: err.code,
+    message: err.message
   });
 });
 
+// Middlewares - Order matters!
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
+app.use('/images', express.static(path.join(__dirname, 'images')));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use(morgan('dev'));
+app.use(passport.initialize());
+
+// Create uploads directory if it doesn't exist
+const uploadsPath = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadsPath)) {
+  fs.mkdirSync(uploadsPath, { recursive: true });
+}
+
+// Health check endpoint
 app.get('/health', async (req, res) => {
   try {
     const dbStatus = await conn.authenticate()
@@ -67,133 +106,50 @@ app.get('/health', async (req, res) => {
   }
 });
 
-const ALLOWED_ORIGINS = [
-  'https://zurcher-api-9526.vercel.app',
-  'http://localhost:3000'
-];
-
-const io = new Server(server, {
-  cors: {
-    origin:ALLOWED_ORIGINS,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization"],
-  },
-  path: '/socket.io/',
-  transports: ['websocket', 'polling'],
-  allowEIO3: true,
-  pingTimeout: 60000,
-  pingInterval: 25000
-});
-
-io.engine.on("connection_error", (err) => {
-  console.log("Socket.IO connection error:", err.req);      // Log the full error
-  console.log("Socket.IO error code:", err.code);          // Log the error code
-  console.log("Socket.IO error message:", err.message);    // Log the error message
-});
-
-// Crear la carpeta "uploads" si no existe
-const uploadsPath = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadsPath)) {
-  fs.mkdirSync(uploadsPath, { recursive: true });
-}
-// Middleware para compartir `io` en toda la aplicación
-app.set('io', io);
-
-// Configuración de eventos de Socket.IO
-const connectedUsers = {}; // Objeto para almacenar los usuarios conectados
-
+// Socket.IO connection handling
 io.on("connection", (socket) => {
-  console.log("Usuario conectado:", socket.id);
+  console.log("Socket connected:", socket.id);
 
-  // Escuchar el evento "join" para asociar el staffId con el socket.id
   socket.on("join", (staffId) => {
-    connectedUsers[staffId] = socket.id; // Asociar el staffId con el socket.id
-    console.log(`Usuario con staffId ${staffId} conectado con socket.id ${socket.id}`);
+    connectedUsers[staffId] = socket.id;
+    console.log(`Staff ${staffId} connected with socket ${socket.id}`);
   });
 
-  // Eliminar al usuario del objeto cuando se desconecta
   socket.on("disconnect", () => {
     const staffId = Object.keys(connectedUsers).find(
       (key) => connectedUsers[key] === socket.id
     );
     if (staffId) {
       delete connectedUsers[staffId];
-      console.log(`Usuario con staffId ${staffId} desconectado`);
+      console.log(`Staff ${staffId} disconnected`);
     }
   });
 });
-
-// Middlewares
-app.use(express.json({ limit: "10mb" })); // Cambia "10mb" según tus necesidades
-app.use(express.urlencoded({ limit: "10mb", extended: true }));
-app.use('/images', express.static(path.join(__dirname, 'images')));
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-app.use(morgan('dev'));
-app.use(passport.initialize());
-
-
-// Session
-app.use(cors({
-  origin: function(origin, callback) {
-    if (!origin || ALLOWED_ORIGINS.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
-
-// CORS Headers
-// app.use((req, res, next) => {
-//   res.header('Access-Control-Allow-Origin', '*'); 
-//   res.header('Access-Control-Allow-Credentials', 'true');
-//   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-//   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
-//   next();
-// });
 
 // Routes
 app.use('/', routes);
 app.use('/auth', authRoutes);
 
-// Not Found Middleware
-app.use('*', (req, res) => {
-  res.status(404).send({
-    error: true,
-    message: 'Not found',
-  });
-});
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).send('Something broke!');
-});
-
 // Error Handling Middleware
-app.use((err, req, res, next) => {
-  res.status(err.statusCode || 500).send({
+app.use('*', (req, res) => {
+  res.status(404).json({
     error: true,
-    message: err.message,
+    message: 'Not found'
   });
 });
 
-// Configuración de Socket.IO
-// io.on('connection', (socket) => {
-//   console.log('Usuario conectado:', socket.id);
+app.use((err, req, res, next) => {
+  console.error('Error:', {
+    message: err.message,
+    stack: process.env.NODE_ENV === 'production' ? undefined : err.stack,
+    path: req.path,
+    method: req.method
+  });
 
-//   // Escuchar eventos personalizados
-//   socket.on('join', (staffId) => {
-//     console.log(`Usuario con ID ${staffId} se unió a la sala`);
-//     socket.join(staffId); // Unir al usuario a una sala específica basada en su ID
-//   });
+  res.status(err.statusCode || 500).json({
+    error: true,
+    message: process.env.NODE_ENV === 'production' ? 'Internal Server Error' : err.message
+  });
+});
 
-//   socket.on('disconnect', () => {
-//     console.log('Usuario desconectado:', socket.id);
-//   });
-// });
-
-module.exports =  { app, server, io };
+module.exports = { app, server, io };
