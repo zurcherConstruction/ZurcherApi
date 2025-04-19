@@ -29,10 +29,16 @@ const startServer = async () => {
         console.log('Environment:', process.env.NODE_ENV);
         console.log('Node version:', process.version);
         console.log('Memory usage:', process.memoryUsage());
+        console.log('Domain:', process.env.RAILWAY_DOMAIN || 'localhost');
         resolve();
       });
 
-      server.on('error', reject);
+      server.on('error', (error) => {
+        if (error.code === 'EADDRINUSE') {
+          console.error(`Port ${PORT} is already in use`);
+        }
+        reject(error);
+      });
     });
   } catch (error) {
     console.error('Failed to start server:', {

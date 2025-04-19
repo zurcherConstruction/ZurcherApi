@@ -18,8 +18,12 @@ const app = express();
 const server = http.createServer(app);
 
 // Environment-aware origins
+const RAILWAY_DOMAIN = 'zurcherapi.up.railway.app';
 const ALLOWED_ORIGINS = process.env.NODE_ENV === 'production' 
-  ? ['https://zurcher-api-9526.vercel.app']
+  ? [
+      `https://${RAILWAY_DOMAIN}`,
+      'https://zurcher-api-9526.vercel.app'
+    ]
   : ['http://localhost:5173', 'http://localhost:3000'];
 
 // CORS configuration
@@ -41,15 +45,23 @@ app.use(cors(corsOptions));
 
 // Socket.IO setup
 const io = new Server(server, {
-  cors: corsOptions,
-  transports: ['polling', 'websocket'], // Changed order to try polling first
+  cors: {
+    origin: ALLOWED_ORIGINS,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization']
+  },
+  path: '/socket.io/',
+  transports: ['websocket', 'polling'],
   pingTimeout: 60000,
   pingInterval: 25000,
-  path: '/socket.io/',
-  allowEIO3: true, // Enable Engine.IO v3 compatibility
-  connectTimeout: 45000, // Increase connection timeout
-  secure: process.env.NODE_ENV === 'production', // Enable SSL in production
-  rejectUnauthorized: false // Allow self-signed certificates
+  connectTimeout: 45000,
+  allowEIO3: true,
+  // Railway-specific settings
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'none'
+  }
 });
 
 // Connected users tracking
