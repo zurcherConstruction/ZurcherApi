@@ -19,7 +19,8 @@ const server = http.createServer(app);
 // Define allowed origins first
 const ALLOWED_ORIGINS = [
   'https://zurcher-api-9526.vercel.app',
-  'http://localhost:5173'
+  'http://localhost:5173',
+  'http://localhost:3000'
 ];
 
 // Configure CORS - Move this before any route handlers
@@ -50,9 +51,12 @@ const io = new Server(server, {
   },
   transports: ['websocket', 'polling'],
   pingTimeout: 60000,
-  pingInterval: 25000
+  pingInterval: 25000,
+  path: '/socket.io/'
 });
 
+let isDbConnected = false;
+let httpServer = null;
 // Socket.IO error handling
 io.engine.on("connection_error", (err) => {
   console.error("Socket.IO connection error:", {
@@ -152,4 +156,12 @@ app.use((err, req, res, next) => {
   });
 });
 
-module.exports = { app, server, io };
+module.exports = { 
+  app, 
+  server, 
+  io,
+  getConnectionState: () => ({
+    db: isDbConnected,
+    http: !!httpServer
+  })
+};
