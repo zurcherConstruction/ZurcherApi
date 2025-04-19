@@ -6,6 +6,10 @@ const stateNotificationMap = {
     roles: ['admin', 'owner', 'recept'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ya fue confirmado. Por favor, compra los materiales necesarios.`,
   },
+  assigned: {
+    roles: ['worker', 'recept', 'owner'], 
+    message: (work) => `Tienes una nueva istalacion pendiente ${work.propertyAddress}, para la fecha ${work.startDate} .`,
+  },
   inProgress: {
     roles: ['worker'], 
     message: (work) => `Los materiales ya fueron comprados para la dirección ${work.propertyAddress} .`,
