@@ -5,7 +5,7 @@ import { logout } from '../Redux/features/authSlice';
 
 // Crear instancia de Axios con la URL base
 const api = axios.create({
-  baseURL: 'https://zurcherapi.onrender.com/', // Reemplaza el puerto si tu backend usa otro
+  baseURL: 'zurcherapi-production.up.railway.app/', // Reemplaza el puerto si tu backend usa otro
   timeout: 10000,
 });
 
