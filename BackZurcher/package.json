@@ -2,11 +2,11 @@
   "name": "zurcherback",
   "version": "1.0.0",
   "main": "index.js",
-  "scripts": {
-    "start": "cross-env NODE_ENV=production node index.js",
+"scripts": {
+    "start": "node index.js",
     "dev": "nodemon index.js",
     "railway:start": "cross-env NODE_ENV=production PORT=3001 node index.js",
-    "postinstall": "npm audit fix --force"
+    "install:clean": "rm -rf node_modules package-lock.json && npm install"
   },
   "engines": {
     "node": "20.11.0",
