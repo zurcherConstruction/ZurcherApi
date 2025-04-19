@@ -16,12 +16,16 @@ const app = express();
 const server = http.createServer(app); // Crear el servidor HTTP
 const io = new Server(server, {
   cors: {
-    origin: 'https://zurcher-api.vercel.app/', // Cambia esto según el dominio de tu frontend
+    origin: ["https://zurcher-api.vercel.app", "https://zurcher-api-9526.vercel.app"],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"],
-    transports: ['websocket', 'polling']
+    transports: ['websocket', 'polling'],
   },
+  pingTimeout: 60000,
+  transports: ['websocket', 'polling'],
+  allowEIO3: true,
+  debug: true
 });
 
 // Crear la carpeta "uploads" si no existe
@@ -67,11 +71,19 @@ app.use(passport.initialize());
 
 // Session
 app.use(cors({
-  origin: 'https://zurcher-api.vercel.app/', // Permitir cualquier origen
-  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'], // Métodos permitidos
-  allowedHeaders: ['Content-Type', 'Authorization'], // Encabezados permitidos
-  credentials: true, // Permitir el uso de credenciales
+  origin: ["https://zurcher-api.vercel.app", "https://zurcher-api-9526.vercel.app"],
+  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
+
+io.engine.on("connection_error", (err) => {
+  console.log("Socket.IO connection error:", err);
+});
+
+io.on("connect_error", (err) => {
+  console.log("Socket.IO connect error:", err);
+});
 
 // CORS Headers
 app.use((req, res, next) => {
@@ -107,20 +119,20 @@ app.use((err, req, res, next) => {
 });
 
 // Configuración de Socket.IO
-io.on('connection', (socket) => {
-  console.log("Socket connection attempt");
-  console.log("Socket transport:", socket.conn.transport.name);
-  console.log("Socket ID:", socket.id);
+// io.on('connection', (socket) => {
+//   console.log("Socket connection attempt");
+//   console.log("Socket transport:", socket.conn.transport.name);
+//   console.log("Socket ID:", socket.id);
 
-  // Escuchar eventos personalizados
-  socket.on('join', (staffId) => {
-    console.log(`Usuario con ID ${staffId} se unió a la sala`);
-    socket.join(staffId); // Unir al usuario a una sala específica basada en su ID
-  });
+//   // Escuchar eventos personalizados
+//   socket.on('join', (staffId) => {
+//     console.log(`Usuario con ID ${staffId} se unió a la sala`);
+//     socket.join(staffId); // Unir al usuario a una sala específica basada en su ID
+//   });
 
-  socket.on('disconnect', () => {
-    console.log('Usuario desconectado:', socket.id);
-  });
-});
+//   socket.on('disconnect', () => {
+//     console.log('Usuario desconectado:', socket.id);
+//   });
+// });
 
 module.exports =  { app, server, io };
