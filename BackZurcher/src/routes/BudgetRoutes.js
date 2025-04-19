@@ -20,6 +20,8 @@ router.post(
     BudgetController.uploadInvoice
   );
 
+  
+
   router.put('/:idBudget', verifyToken, BudgetController.updateBudget); // Solo administradores pueden actualizar presupuestos
   router.get('/:idBudget', verifyToken, isStaff, BudgetController.getBudgetById); // Personal del hotel puede ver un presupuesto específico
 

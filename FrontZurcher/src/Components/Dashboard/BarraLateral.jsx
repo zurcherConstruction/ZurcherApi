@@ -14,7 +14,7 @@ const BarraLateral = () => {
     { name: "Works", path: "/works" },
     { name: "Tracking Work", path: "/check" },
     { name: "Materials", path: "/materiales" },
-    // { name: "Instalacion", path: "/installation" },
+    { name: "Initial Pay", path: "/initialPay" },
     { name: "Progress", path: "/progress-tracker" },
     { name: "Send Message", path: "/send-notifications" },
     { name: "Staff", path: "/register" },
@@ -22,6 +22,7 @@ const BarraLateral = () => {
     { name: "BudgetsEnd", path: "/archive" },
     { name: "Upload Vouchers", path: "/attachInvoice" },
     { name: "Balance", path: "/balance" },
+
     
 
   ];

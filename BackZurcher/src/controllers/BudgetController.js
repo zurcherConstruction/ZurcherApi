@@ -1,4 +1,4 @@
-const { Budget, Permit, Work } = require('../data');
+const { Budget, Permit, Work, Income } = require('../data');
 const { cloudinary } = require('../utils/cloudinaryConfig.js');
 
 const BudgetController = {
@@ -124,24 +124,27 @@ const BudgetController = {
   async updateBudget(req, res) {
     try {
       const { idBudget } = req.params;
-      const { date, expirationDate, price, initialPayment, status, paymentInvoice } = req.body;
+      const { date, expirationDate, price, initialPayment, status } = req.body; 
 
-      // Validar campos obligatorios
       if (!date && !price && !initialPayment && !status && !expirationDate) {
         return res.status(400).json({ error: 'No se proporcionaron campos para actualizar' });
       }
   
-      // Validar que la factura esté cargada si el estado es "approved"
+      let budget; // Definir budget fuera del if para usarlo después
+
+      // Validar que el COMPROBANTE esté cargado si el estado es "approved"
       if (status === "approved") {
-        const budget = await Budget.findByPk(idBudget);
-        if (!budget.paymentInvoice && !paymentInvoice) {
-          return res.status(400).json({ error: 'Debe cargar la factura antes de aprobar el presupuesto.' });
+        budget = await Budget.findByPk(idBudget); // Obtener el budget aquí
+        // Asegúrate que 'paymentInvoice' es el campo correcto para la URL del COMPROBANTE
+        if (!budget || !budget.paymentInvoice) { 
+          return res.status(400).json({ error: 'Debe cargar el comprobante de pago antes de aprobar el presupuesto.' });
         }
       }
 
       // Actualizar presupuesto
       const [updated] = await Budget.update(
-        { date, expirationDate, price, initialPayment, status, paymentInvoice },
+        // No incluyas paymentInvoice aquí si solo se actualiza en la ruta de subida
+        { date, expirationDate, price, initialPayment, status }, 
         { where: { idBudget } }
       );
 
@@ -149,25 +152,87 @@ const BudgetController = {
         return res.status(404).json({ error: 'Presupuesto no encontrado' });
       }
   
+      // --- LÓGICA AL APROBAR ---
       if (status === "approved") {
-        const budget = await Budget.findByPk(idBudget);
-      
+        // Si no obtuvimos el budget antes, obtenerlo ahora
+        if (!budget) {
+          budget = await Budget.findByPk(idBudget);
+        }
+        
+        if (!budget) {
+           // Esto no debería pasar si updated fue exitoso, pero por seguridad
+           console.error(`Error: Budget con ID ${idBudget} no encontrado después de actualizar.`);
+           return res.status(404).json({ error: 'Presupuesto no encontrado después de actualizar.' });
+        }
+
+        let workRecord; // Para guardar la referencia al Work creado o existente
+
         // Verificar si ya existe un Work asociado
         const existingWork = await Work.findOne({ where: { idBudget: budget.idBudget } });
       
         if (!existingWork) {
-          await Work.create({
+          console.log(`Creando Work para Budget ID: ${budget.idBudget}`);
+          workRecord = await Work.create({
             propertyAddress: budget.propertyAddress,
-            status: 'pending',
-            idBudget: budget.idBudget, // Asegúrate de que este campo se esté asignando correctamente
+            status: 'pending', // O el estado inicial que corresponda
+            idBudget: budget.idBudget,
             notes: `Work creado a partir del presupuesto N° ${budget.idBudget}`,
-            initialPayment: budget.initialPayment,
+            initialPayment: budget.initialPayment, // Guardar el pago inicial en Work también puede ser útil
+            // Asegúrate de incluir otros campos necesarios para Work si los hay
           });
+          console.log(`Work creado con ID: ${workRecord.idWork}`);
+
+          // --- CREAR REGISTRO DE INGRESO (Income) ---
+          try {
+            console.log(`Creando Income para Work ID: ${workRecord.idWork}`);
+            await Income.create({
+              date: new Date(), // Usar la fecha actual para el ingreso
+              amount: budget.initialPayment, // El monto del pago inicial
+              typeIncome: 'Factura Pago Inicial Budget', // Tipo específico
+              notes: `Pago inicial recibido para Budget #${budget.idBudget}`,
+              workId: workRecord.idWork // Asociar al Work recién creado
+            });
+            console.log(`Income creado exitosamente para Work ID: ${workRecord.idWork}`);
+          } catch (incomeError) {
+            // Manejar error si falla la creación del Income
+            console.error(`Error al crear el registro Income para Work ID ${workRecord.idWork}:`, incomeError);
+            // Considera qué hacer si falla: ¿revertir algo? ¿solo loggear?
+            // Por ahora, solo logueamos y continuamos.
+          }
+          // --- FIN CREAR INGRESO ---
+
+        } else {
+          console.log(`Work ya existente para Budget ID: ${budget.idBudget}, ID: ${existingWork.idWork}`);
+          workRecord = existingWork; 
+          // Podrías verificar si ya existe un Income para este pago inicial y evitar duplicados
+          const existingIncome = await Income.findOne({
+            where: {
+              workId: workRecord.idWork,
+              typeIncome: 'Factura Pago Inicial Budget' 
+              // Podrías añadir más condiciones si es necesario para identificarlo unívocamente
+            }
+          });
+          if (!existingIncome) {
+             console.warn(`Advertencia: Work ${workRecord.idWork} existía pero no se encontró Income de pago inicial. Creando ahora.`);
+             // Intentar crear el Income si no existía (situación anómala)
+             try {
+               await Income.create({
+                 date: new Date(), 
+                 amount: budget.initialPayment, 
+                 typeIncome: 'Factura Pago Inicial Budget', 
+                 notes: `Pago inicial (creado tardíamente) para Budget #${budget.idBudget}`,
+                 workId: workRecord.idWork 
+               });
+             } catch (lateIncomeError) {
+                console.error(`Error al crear registro Income tardío para Work ID ${workRecord.idWork}:`, lateIncomeError);
+             }
+          }
         }
       }
+      // --- FIN LÓGICA AL APROBAR ---
       
-
-      const updatedBudget = await Budget.findByPk(idBudget);
+      // Devolver el presupuesto actualizado (puede que no tenga el Work asociado si no se incluyó)
+      const updatedBudget = await Budget.findByPk(idBudget); 
       res.status(200).json(updatedBudget);
     } catch (error) {
       console.error('Error al actualizar el presupuesto:', error);
@@ -175,27 +240,43 @@ const BudgetController = {
     }
   },
 
-  async uploadInvoice(req, res) {
+  async uploadInvoice(req, res) { // Considera renombrar esta función a uploadPaymentProof para claridad
     try {
       const { idBudget } = req.params;
   
       if (!req.file) {
-        return res.status(400).json({ error: 'No se recibió ningún archivo' });
+        // Esta ruta debe usar el middleware 'upload' de multer.js
+        return res.status(400).json({ error: 'No se recibió ningún archivo de comprobante' }); 
       }
   
+      // --- 1. Determinar el tipo de archivo ---
+      let proofType;
+      if (req.file.mimetype.startsWith('image/')) {
+        proofType = 'image';
+      } else if (req.file.mimetype === 'application/pdf') {
+        proofType = 'pdf';
+      } else {
+        // Salvaguarda por si el filtro de Multer falla
+        return res.status(400).json({ error: 'Tipo de archivo de comprobante no soportado (PDF o Imagen requeridos)' });
+      }
+      // --- Fin Determinar tipo ---
+
       const buffer = req.file.buffer;
-      const fileName = `factura_${idBudget}_${Date.now()}`;
+      // Nombres genéricos para comprobantes
+      const fileName = `payment_proof_${idBudget}_${Date.now()}`; 
+      const folderName = 'payment_proofs'; // Carpeta genérica
   
+      // Subir a Cloudinary
       const uploadResult = await new Promise((resolve, reject) => {
         cloudinary.uploader.upload_stream(
           {
-            resource_type: 'raw',
-            folder: 'facturas',
+            resource_type: 'auto', // 'auto' para PDF o Imagen
+            folder: folderName,
             public_id: fileName,
           },
           (error, result) => {
             if (error) {
-              console.error('Cloudinary error:', error); // <- Agregado
+              console.error('Cloudinary error:', error); 
               reject(error);
             } else {
               resolve(result);
@@ -204,20 +285,27 @@ const BudgetController = {
         ).end(buffer);
       });
   
+      // Buscar presupuesto
       const budget = await Budget.findByPk(idBudget);
       if (!budget) {
+         // Limpiar Cloudinary
+         try { await cloudinary.uploader.destroy(uploadResult.public_id, { resource_type: uploadResult.resource_type || 'raw' }); } catch (e) {}
         return res.status(404).json({ error: 'Presupuesto no encontrado' });
       }
   
-      budget.paymentInvoice = uploadResult.secure_url;
+      // --- 2. Guardar URL y TIPO ---
+      budget.paymentInvoice = uploadResult.secure_url; // Guarda URL en este campo
+      budget.paymentProofType = proofType;             // Guarda TIPO en el nuevo campo
       await budget.save();
+      // --- Fin Guardar ---
   
       res.status(200).json({
-        message: 'Factura cargada exitosamente',
+        message: 'Comprobante de pago cargado exitosamente', // Mensaje actualizado
         cloudinaryUrl: uploadResult.secure_url,
+        proofType: proofType // Devuelve el tipo (opcional)
       });
     } catch (error) {
-      console.error('Error al subir la factura:', error);
+      console.error('Error al subir el comprobante de pago:', error); // Mensaje actualizado
       res.status(500).json({ error: error.message });
     }
   },

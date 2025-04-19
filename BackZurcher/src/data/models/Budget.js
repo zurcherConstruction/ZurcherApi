@@ -38,10 +38,10 @@ module.exports = (sequelize) => {
       type: DataTypes.ENUM("created","send", "approved", "notResponded", "rejected"),
       allowNull: false,
     },
-    propertyAddress: {
-      type: DataTypes.TEXT,
-      allowNull: false, // Asegúrate de que sea obligatorio
-    },
+    // propertyAddress: {
+    //   type: DataTypes.TEXT,
+    //   allowNull: false, // Asegúrate de que sea obligatorio
+    // },
      systemType: {
       type: DataTypes.TEXT,
       allowNull: true
@@ -54,10 +54,16 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true
     },
-    paymentInvoice: {
-      type: DataTypes.STRING, // Ruta o URL del archivo
-      allowNull: true, // Inicialmente puede ser null
+    paymentInvoice: { // Guarda la URL del comprobante
+      type: DataTypes.STRING, 
+      allowNull: true, 
     },
+    // --- NUEVO CAMPO ---
+    paymentProofType: { // Guarda el TIPO del comprobante
+      type: DataTypes.ENUM('pdf', 'image'), 
+      allowNull: true, 
+    },
+    
     
   });
 };

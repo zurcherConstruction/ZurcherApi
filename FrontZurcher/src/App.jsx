@@ -34,6 +34,8 @@ import AttachInvoice from "./Components/Seguimiento/AttachInvoice";
 import VerImagenes from "./Components/Works/VerImagenes";
 import BalanceStats from "./Components/BalanceStats";
 
+import UploadInitialPay from "./Components/Budget/UploadInitialPay";
+
 function App() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -227,6 +229,15 @@ function App() {
                   allowedRoles={["owner", "admin"]}
                 >
                   <VerImagenes />
+                </PrivateRoute>} />
+
+                <Route
+              path="/initialPay"
+              element={
+                <PrivateRoute
+                  allowedRoles={["owner"]}
+                >
+                  <UploadInitialPay />
                 </PrivateRoute>} />
 
             {/* Rutas de autenticación */}
