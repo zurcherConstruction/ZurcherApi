@@ -64,7 +64,7 @@ app.use(passport.initialize());
 
 // Session
 app.use(cors({
-  origin: 'https://zurcher-api.vercel.app', // Permitir cualquier origen
+  origin: '*', // Permitir cualquier origen
   methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'], // Métodos permitidos
   allowedHeaders: ['Content-Type', 'Authorization'], // Encabezados permitidos
   credentials: true, // Permitir el uso de credenciales
