@@ -1,16 +1,16 @@
 {
   "name": "zurcherback",
   "version": "1.0.0",
-  "description": "",
   "main": "index.js",
   "scripts": {
     "start": "cross-env NODE_ENV=production node index.js",
     "dev": "nodemon index.js",
-    "railway:start": "cross-env NODE_ENV=production PORT=3001 node index.js"
+    "railway:start": "cross-env NODE_ENV=production PORT=3001 node index.js",
+    "postinstall": "npm audit fix --force"
   },
   "engines": {
     "node": "20.11.0",
-    "npm": ">=10.0.0"
+    "npm": "10.2.4"
   },
   "keywords": [],
   "author": "",
