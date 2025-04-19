@@ -16,7 +16,7 @@ export const login = (email, password) => async (dispatch) => {
     await AsyncStorage.setItem('staff', JSON.stringify(staff));
 
     dispatch(loginSuccess({ token, staff }));
-
+    console.log('Login exitoso. Staff ID:', staff.id); 
     // Despachar la acción para obtener los trabajos asignados al staff
     dispatch(fetchWorks(staff.id)); // Aquí usamos staff.id como staffId
   } catch (error) {
@@ -47,6 +47,7 @@ export const restoreSession = () => async (dispatch) => {
 
     if (token && staff) {
       dispatch(loginSuccess({ token, staff }));
+      console.log('Sesión restaurada. Staff ID:', staff.id); // Verificar el staffId
     }
   } catch (error) {
     console.error('Error al restaurar la sesión:', error);

@@ -3,36 +3,39 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native
 import * as Notifications from 'expo-notifications';
 import api from '../utils/axios';
 
-
-
 const NotificationsScreen = ({ staffId }) => {
     const [notifications, setNotifications] = useState([]);
+    const [unreadCount, setUnreadCount] = useState(0);
 
     useEffect(() => {
         if (!staffId) {
             console.warn('No se puede obtener notificaciones: staffId es undefined');
             return;
         }
-    
+
+        console.log('Cargando notificaciones para staffId:', staffId);
         fetchNotifications();
-    
+
         const subscription = Notifications.addNotificationReceivedListener((notification) => {
             const { title, body } = notification.request.content;
             handlePushNotification(title, body);
         });
-    
+
         return () => subscription.remove(); // Limpiar el listener al desmontar el componente
     }, [staffId]);
 
     const fetchNotifications = async () => {
-        if (!staffId) {
-            console.warn('No se puede obtener notificaciones: staffId es undefined');
-            return;
-        }
-    
         try {
-            const response = await api.get(`/notification/app/${staffId}`);
+            const response = await api.get(`/notification/${staffId}`);
+            if (!response.data || !Array.isArray(response.data)) {
+                console.warn('Respuesta inesperada del servidor:', response.data);
+                setNotifications([]);
+                setUnreadCount(0);
+                return;
+            }
             setNotifications(response.data);
+            const unread = response.data.filter((n) => !n.isRead).length;
+            setUnreadCount(unread);
         } catch (error) {
             console.error('Error al obtener las notificaciones:', error);
         }
@@ -40,8 +43,13 @@ const NotificationsScreen = ({ staffId }) => {
 
     const markAsRead = async (notificationId) => {
         try {
-            await api.put(`/notification/app/${notificationId}/read`);
-            fetchNotifications(); // Refrescar la lista de notificaciones
+            await api.put(`/notification/${notificationId}/read`);
+            setNotifications((prevNotifications) =>
+                prevNotifications.map((n) =>
+                    n.id === notificationId ? { ...n, isRead: true } : n
+                )
+            );
+            setUnreadCount((prevCount) => prevCount - 1);
         } catch (error) {
             console.error('Error al marcar la notificación como leída:', error);
         }
@@ -74,12 +82,16 @@ const NotificationsScreen = ({ staffId }) => {
 
     return (
         <View style={styles.container}>
-            <Text style={styles.header}>Notificaciones</Text>
-            <FlatList
-                data={notifications}
-                keyExtractor={(item) => item.id.toString()}
-                renderItem={renderItem}
-            />
+            <Text style={styles.header}>Notificaciones ({unreadCount} sin leer)</Text>
+            {notifications.length === 0 ? (
+                <Text style={styles.noNotifications}>No tiene notificaciones</Text>
+            ) : (
+                <FlatList
+                    data={notifications}
+                    keyExtractor={(item) => item.id.toString()}
+                    renderItem={renderItem}
+                />
+            )}
         </View>
     );
 };
@@ -113,6 +125,12 @@ const styles = StyleSheet.create({
     message: {
         fontSize: 14,
         color: '#555',
+    },
+    noNotifications: {
+        fontSize: 16,
+        color: '#888',
+        textAlign: 'center',
+        marginTop: 20,
     },
 });
 

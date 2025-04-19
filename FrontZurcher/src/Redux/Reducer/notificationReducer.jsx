@@ -17,9 +17,9 @@ const notificationSlice = createSlice({
       state.error = null;
     },
     fetchNotificationsSuccess: (state, action) => {
-        state.loading = false;
-        state.notifications = action.payload; // Actualiza las notificaciones en el estado global
-      },
+      state.loading = false;
+      state.notifications = Array.isArray(action.payload) ? action.payload : []; // Asegúrate de que sea un array
+    },
     fetchNotificationsFailure: (state, action) => {
       state.loading = false;
       state.error = action.payload;

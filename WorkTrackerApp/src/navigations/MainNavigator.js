@@ -61,7 +61,9 @@ const MainNavigator = () => {
         ) : (
           <Stack.Screen name="Main" component={BottomTabNavigator} />
         )}
-        <Stack.Screen name="Notifications" component={Notifications} />
+        <Stack.Screen name="Notifications">
+          {(props) => <Notifications {...props} staffId={staff?.id} />}
+        </Stack.Screen>
       </Stack.Navigator>
     </NavigationContainer>
   );

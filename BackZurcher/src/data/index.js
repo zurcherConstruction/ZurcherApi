@@ -126,9 +126,10 @@ Expense.belongsTo(Work, {
   as: 'work',
 });
 // Relación entre Staff y NotificationApp
-NotificationApp.belongsTo(Staff, { foreignKey: 'staffId', as: 'staff' });
-Staff.hasMany(NotificationApp, { foreignKey: 'staffId', as: 'notifications' });
-
+NotificationApp.belongsTo(Staff, { as: 'sender', foreignKey: 'senderId' });
+Staff.hasMany(NotificationApp, { as: 'notifications', foreignKey: 'staffId' });
+NotificationApp.hasMany(NotificationApp, { as: 'responses', foreignKey: 'parentId' });
+NotificationApp.belongsTo(NotificationApp, { as: 'parent', foreignKey: 'parentId' });
 
 
 

@@ -9,7 +9,7 @@ import api from "../../utils/axios";
 const WorkDetail = () => {
   const { idWork } = useParams();
   const dispatch = useDispatch();
-
+console.log("ID de la obra:", idWork); // Para depuración
   const { selectedWork: work, loading, error } = useSelector((state) => state.work);
 console.log("Datos de la obra:", work); // Para depuración
   const [selectedImage, setSelectedImage] = useState(null);
@@ -212,47 +212,78 @@ console.log("Datos de la obra:", work); // Para depuración
             </div>
           )}
 
-          {/* Tarjeta: Comprobantes */}
-          {work.Receipts && work.Receipts.length > 0 && (
-            <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-yellow-500">
-              <h2
-                className="text-xl font-semibold mb-4 cursor-pointer"
-                onClick={() => toggleSection("receipts")}
+          
+{/* Tarjeta: Comprobantes */}
+{work.Receipts && work.Receipts.length > 0 && (
+  <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-yellow-500">
+    <h2
+      className="text-xl font-semibold mb-4 cursor-pointer"
+      onClick={() => toggleSection("receipts")}
+    >
+      Comprobantes Adjuntados
+    </h2>
+    {openSections.receipts && (
+      <ul className="space-y-4">
+        {/* Mostrar los recibos existentes */}
+        {work.Receipts.map((receipt) => (
+          <li key={receipt.idReceipt} className="border p-4 rounded shadow">
+            <p><strong>Tipo:</strong> {receipt.type}</p>
+            <p><strong>Notas:</strong> {receipt.notes || "Sin notas"}</p>
+            {receipt.pdfUrl ? (
+              <iframe
+                src={receipt.pdfUrl}
+                width="100%"
+                height="250px"
+                title={`Vista previa de ${receipt.type}`}
+                className="rounded"
+              ></iframe>
+            ) : (
+              <p>No hay archivo adjunto.</p>
+            )}
+            {receipt.pdfUrl && (
+              <a
+                href={receipt.pdfUrl}
+                download={`${receipt.type}.pdf`}
+                className="text-blue-500 underline mt-2 block"
               >
-                Comprobantes Adjuntados
-              </h2>
-              {openSections.receipts && (
-                <ul className="space-y-4">
-                  {work.Receipts.map((receipt) => (
-                    <li key={receipt.idReceipt} className="border p-4 rounded shadow">
-                      <p><strong>Tipo:</strong> {receipt.type}</p>
-                      <p><strong>Notas:</strong> {receipt.notes || "Sin notas"}</p>
-                      {receipt.pdfUrl ? (
-                        <iframe
-                          src={receipt.pdfUrl}
-                          width="100%"
-                          height="250px"
-                          title={`Vista previa de ${receipt.type}`}
-                          className="rounded"
-                        ></iframe>
-                      ) : (
-                        <p>No hay archivo adjunto.</p>
-                      )}
-                      {receipt.pdfUrl && (
-                        <a
-                          href={receipt.pdfUrl}
-                          download={`${receipt.type}.pdf`}
-                          className="text-blue-500 underline mt-2 block"
-                        >
-                          Descargar {receipt.type}
-                        </a>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
+                Descargar {receipt.type}
+              </a>
+            )}
+          </li>
+        ))}
+
+        {/* Mostrar el paymentInvoice si existe */}
+        {work.budget?.paymentInvoice && (
+          <li className="border p-4 rounded shadow">
+            <p><strong>Tipo:</strong> Comprobante de Pago</p>
+            {work.budget.paymentInvoice.endsWith(".pdf") ? (
+              <iframe
+                src={work.budget.paymentInvoice}
+                width="100%"
+                height="250px"
+                title="Vista previa del comprobante de pago"
+                className="rounded"
+              ></iframe>
+            ) : (
+              <img
+                src={work.budget.paymentInvoice}
+                alt="Comprobante de Pago"
+                className="rounded w-full h-auto"
+              />
+            )}
+            <a
+              href={work.budget.paymentInvoice}
+              download="Comprobante_de_Pago"
+              className="text-blue-500 underline mt-2 block"
+            >
+              Descargar Comprobante de Pago
+            </a>
+          </li>
+        )}
+      </ul>
+    )}
+  </div>
+)}
 
           {/* Tarjeta: Imágenes */}
           <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-yellow-500">

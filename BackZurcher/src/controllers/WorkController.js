@@ -36,8 +36,9 @@ const createWork = async (req, res) => {
     });
 
      // Enviar notificaciones (correo y push)
+     console.log('Work creado:', work);
      await sendNotifications('pending', work, req.app.get('io'));
-
+     
      res.status(201).json({ message: 'Obra creada correctamente', work });
  } catch (error) {
      console.error('Error al crear la obra:', error);
