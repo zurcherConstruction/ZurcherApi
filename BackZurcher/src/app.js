@@ -16,16 +16,9 @@ const app = express();
 const server = http.createServer(app); // Crear el servidor HTTP
 const io = new Server(server, {
   cors: {
-    origin: ["https://zurcher-api.vercel.app", "https://zurcher-api-9526.vercel.app"],
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization"],
-    transports: ['websocket', 'polling'],
+    origin: '*', // Cambia esto según el dominio de tu frontend
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
   },
-  pingTimeout: 60000,
-  transports: ['websocket', 'polling'],
-  allowEIO3: true,
-  debug: true
 });
 
 // Crear la carpeta "uploads" si no existe
@@ -71,19 +64,11 @@ app.use(passport.initialize());
 
 // Session
 app.use(cors({
-  origin: ["https://zurcher-api.vercel.app", "https://zurcher-api-9526.vercel.app"],
-  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  origin: '*', // Permitir cualquier origen
+  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'], // Métodos permitidos
+  allowedHeaders: ['Content-Type', 'Authorization'], // Encabezados permitidos
+  credentials: true, // Permitir el uso de credenciales
 }));
-
-io.engine.on("connection_error", (err) => {
-  console.log("Socket.IO connection error:", err);
-});
-
-io.on("connect_error", (err) => {
-  console.log("Socket.IO connect error:", err);
-});
 
 // CORS Headers
 app.use((req, res, next) => {
@@ -120,9 +105,7 @@ app.use((err, req, res, next) => {
 
 // Configuración de Socket.IO
 // io.on('connection', (socket) => {
-//   console.log("Socket connection attempt");
-//   console.log("Socket transport:", socket.conn.transport.name);
-//   console.log("Socket ID:", socket.id);
+//   console.log('Usuario conectado:', socket.id);
 
 //   // Escuchar eventos personalizados
 //   socket.on('join', (staffId) => {
