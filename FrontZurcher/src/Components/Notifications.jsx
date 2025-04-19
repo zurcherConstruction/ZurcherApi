@@ -8,9 +8,6 @@ import {
 import { addNotification } from "../Redux/Reducer/notificationReducer";
 import api from "../utils/axios";
 
-const MAX_RECONNECT_ATTEMPTS = 3;
-const RECONNECT_DELAY = 5000;
-
 
 const Notifications = ({ isDropdown = false, onClose }) => {
   const dispatch = useDispatch();
@@ -19,101 +16,25 @@ const Notifications = ({ isDropdown = false, onClose }) => {
 
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [responseMessage, setResponseMessage] = useState("");
-  const [connectionAttempts, setConnectionAttempts] = useState(0);
-  const [socketStatus, setSocketStatus] = useState({
-    connected: false,
-    error: null
-  });
-
-  const connectSocket = useCallback(async () => {
-    if (!staff || connectionAttempts >= MAX_RECONNECT_ATTEMPTS) return;
-
-    try {
-      if (!socket.connected) {
-        socket.connect();
-      }
-      socket.emit("join", staff.id);
-      setSocketStatus({ connected: true, error: null });
-      console.log('Socket connected successfully:', socket.id);
-    } catch (error) {
-      console.error('Socket connection error:', error);
-      setSocketStatus({ connected: false, error: error.message });
-      setConnectionAttempts(prev => prev + 1);
-      
-      // Try alternative server if available
-      if (connectionAttempts < MAX_RECONNECT_ATTEMPTS) {
-        setTimeout(connectSocket, RECONNECT_DELAY);
-      }
-    }
-  }, [staff, connectionAttempts]);
 
   useEffect(() => {
     if (staff) {
-      let mounted = true;
+      // Cargar notificaciones iniciales
+      dispatch(fetchNotifications(staff.id));
 
-      const initialize = async () => {
-        try {
-          // Load initial notifications
-          await dispatch(fetchNotifications(staff.id));
-          
-          // Setup socket connection
-          if (mounted) {
-            await connectSocket();
-          }
-        } catch (error) {
-          console.error('Initialization error:', error);
-          setSocketStatus({ connected: false, error: error.message });
-        }
-      };
-
-      initialize();
-
-      // Socket event handlers
-      const handleNewNotification = (notification) => {
-        if (notification.staffId === staff.id && mounted) {
+      // Escuchar notificaciones en tiempo real
+      socket.emit("join", staff.id);
+      socket.on("newNotification", (notification) => {
+        if (notification.staffId === staff.id) {
           dispatch(addNotification(notification));
         }
-      };
+      });
 
-      const handleSocketError = (error) => {
-        console.error('Socket error:', error);
-        if (mounted) {
-          setSocketStatus({ connected: false, error: error.message });
-          // Attempt reconnect if not maxed out
-          if (connectionAttempts < MAX_RECONNECT_ATTEMPTS) {
-            setTimeout(connectSocket, RECONNECT_DELAY);
-          }
-        }
-      };
-
-      const handleSocketDisconnect = (reason) => {
-        console.log('Socket disconnected:', reason);
-        if (mounted) {
-          setSocketStatus({ connected: false, error: `Disconnected: ${reason}` });
-          // Attempt reconnect for specific disconnect reasons
-          if (['io server disconnect', 'transport close'].includes(reason)) {
-            setTimeout(connectSocket, RECONNECT_DELAY);
-          }
-        }
-      };
-
-      // Register socket event listeners
-      socket.on("newNotification", handleNewNotification);
-      socket.on("connect_error", handleSocketError);
-      socket.on("disconnect", handleSocketDisconnect);
-
-      // Cleanup function
       return () => {
-        mounted = false;
-        socket.off("newNotification", handleNewNotification);
-        socket.off("connect_error", handleSocketError);
-        socket.off("disconnect", handleSocketDisconnect);
-        if (socket.connected) {
-          socket.disconnect();
-        }
+        socket.off("newNotification");
       };
     }
-  }, [staff, dispatch, connectSocket]);
+  }, [staff, dispatch]);
 
   const handleMarkAsRead = (notificationId) => {
     dispatch(markNotificationAsRead(notificationId));
@@ -164,13 +85,6 @@ const Notifications = ({ isDropdown = false, onClose }) => {
 
   return (
 <div className={isDropdown ? "absolute bg-white shadow-lg rounded-lg" : ""}>
-{socketStatus.error && (
-        <div className="bg-yellow-100 border-l-4 border-yellow-500 p-2 mb-2">
-          <p className="text-xs text-yellow-700">
-            Estado de conexión: {socketStatus.error}
-          </p>
-        </div>
-      )}
   <h2 className="text-sm font-medium bg-sky-800 text-white p-2 border-">
     Notificaciones
   </h2>

@@ -1,214 +1,121 @@
-// 1. Core dependencies
 const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const cors = require('cors');
-const morgan = require('morgan');
 const session = require('express-session');
-const path = require('path');
-const fs = require('fs');
-const debug = require('debug')('app:server');
-
-// 2. Application dependencies
+const morgan = require('morgan');
 const routes = require('./routes');
-const authRoutes = require('./routes/authRoutes');
+const cors = require('cors');
+const path = require('path');
 const { passport } = require('./passport');
 const { JWT_SECRET_KEY } = require('./config/envs');
+const authRoutes = require('./routes/authRoutes');
+const http = require('http');
+const { Server } = require('socket.io');
+const fs = require('fs');
 require('./tasks/cronJobs');
 
-// 3. Initialize express and server
 const app = express();
-const server = http.createServer(app);
-
-// 4. Configuration constants
-const RAILWAY_DOMAIN = 'zurcherapi.up.railway.app';
-const ALLOWED_ORIGINS = process.env.NODE_ENV === 'production' 
-  ? [
-      `https://${RAILWAY_DOMAIN}`,
-      'https://zurcher-api-9526.vercel.app'
-    ]
-  : ['http://localhost:5173', 'http://localhost:3000'];
-
-// 5. CORS configuration
-const corsOptions = {
-  origin: function(origin, callback) {
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
-      callback(null, true);
-    } else {
-      debug(`Blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-};
-
-// 6. Core middleware (before Socket.IO)
-app.set('trust proxy', 1);
-app.use(cors(corsOptions));
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ limit: "10mb", extended: true }));
-app.use(morgan(process.env.NODE_ENV === 'development' ? 'dev' : 'combined'));
-app.use(passport.initialize());
-
-// 7. Socket.IO setup
+const server = http.createServer(app); // Crear el servidor HTTP
 const io = new Server(server, {
-  cors: corsOptions,
-  path: '/socket.io/',
-  transports: ['websocket', 'polling'],
-  pingTimeout: 60000,
-  pingInterval: 25000,
-  connectTimeout: 45000,
-  allowEIO3: true,
-  cookie: {
-    name: 'io',
-    path: '/',
-    httpOnly: true,
-    sameSite: 'none',
-    secure: process.env.NODE_ENV === 'production'
+  cors: {
+    origin: '*', // Cambia esto según el dominio de tu frontend
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
   },
-  allowUpgrades: true,
-  serveClient: false,
-  maxHttpBufferSize: 1e8
 });
 
-// 8. Socket.IO state management
-const connectedUsers = new Map();
+// Crear la carpeta "uploads" si no existe
+const uploadsPath = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadsPath)) {
+  fs.mkdirSync(uploadsPath, { recursive: true });
+}
+// Middleware para compartir `io` en toda la aplicación
+app.set('io', io);
 
-// 9. Socket.IO error handling
-io.engine.on("connection_error", (err) => {
-  debug("Socket.IO connection error:", {
-    code: err.code,
-    message: err.message,
-    time: new Date().toISOString()
-  });
-});
+// Configuración de eventos de Socket.IO
+const connectedUsers = {}; // Objeto para almacenar los usuarios conectados
 
-// 10. Socket.IO connection handling
 io.on("connection", (socket) => {
-  debug(`New socket connection: ${socket.id}`);
+  console.log("Usuario conectado:", socket.id);
 
+  // Escuchar el evento "join" para asociar el staffId con el socket.id
   socket.on("join", (staffId) => {
-    if (!staffId) return;
-    
-    connectedUsers.set(staffId, socket.id);
-    debug(`Staff ${staffId} connected with socket ${socket.id}`);
-    
-    socket.emit('joined', { 
-      staffId, 
-      socketId: socket.id,
-      timestamp: new Date().toISOString()
-    });
+    connectedUsers[staffId] = socket.id; // Asociar el staffId con el socket.id
+    console.log(`Usuario con staffId ${staffId} conectado con socket.id ${socket.id}`);
   });
 
-  socket.on("disconnect", (reason) => {
-    debug(`Socket ${socket.id} disconnected. Reason: ${reason}`);
-    
-    for (const [staffId, socketId] of connectedUsers.entries()) {
-      if (socketId === socket.id) {
-        connectedUsers.delete(staffId);
-        debug(`Staff ${staffId} disconnected`);
-        break;
-      }
+  // Eliminar al usuario del objeto cuando se desconecta
+  socket.on("disconnect", () => {
+    const staffId = Object.keys(connectedUsers).find(
+      (key) => connectedUsers[key] === socket.id
+    );
+    if (staffId) {
+      delete connectedUsers[staffId];
+      console.log(`Usuario con staffId ${staffId} desconectado`);
     }
   });
-
-  socket.on("error", (error) => {
-    debug("Socket error:", {
-      socketId: socket.id,
-      error: error.message
-    });
-  });
 });
 
-// 11. Make Socket.IO available to routes
-app.set('io', io);
-app.set('connectedUsers', connectedUsers);
-
-// 12. Static files middleware
+// Middlewares
+app.use(express.json({ limit: "10mb" })); // Cambia "10mb" según tus necesidades
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
 app.use('/images', express.static(path.join(__dirname, 'images')));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use(morgan('dev'));
+app.use(passport.initialize());
 
-// 13. Ensure uploads directory exists
-const uploadsPath = path.join(__dirname, '../uploads');
-!fs.existsSync(uploadsPath) && fs.mkdirSync(uploadsPath, { recursive: true });
 
-// 14. HTTPS redirect middleware
+// Session
+app.use(cors({
+  origin: '*', // Permitir cualquier origen
+  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'], // Métodos permitidos
+  allowedHeaders: ['Content-Type', 'Authorization'], // Encabezados permitidos
+  credentials: true, // Permitir el uso de credenciales
+}));
+
+// CORS Headers
 app.use((req, res, next) => {
-  if (process.env.NODE_ENV === 'production' && !req.secure) {
-    return res.redirect(`https://${req.headers.host}${req.url}`);
-  }
+  res.header('Access-Control-Allow-Origin', '*'); 
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
   next();
 });
 
-// 15. Health check endpoint
-app.get('/health', async (req, res) => {
-  try {
-    // Verificación básica del servicio
-    const healthCheck = {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      environment: process.env.NODE_ENV,
-      port: process.env.PORT || 3001
-    };
-
-    // Verificación de la base de datos
-    try {
-      await conn.authenticate();
-      healthCheck.database = 'connected';
-    } catch (error) {
-      healthCheck.database = 'error';
-      healthCheck.databaseError = error.message;
-    }
-
-    // Verificación de Socket.IO
-    healthCheck.socketio = {
-      status: io?.engine?.clientsCount !== undefined ? 'running' : 'not running',
-      connections: io?.engine?.clientsCount || 0
-    };
-
-    const statusCode = 
-      healthCheck.database === 'connected' ? 200 : 500;
-
-    res.status(statusCode).json(healthCheck);
-  } catch (error) {
-    res.status(500).json({
-      status: 'error',
-      message: error.message
-    });
-  }
-});
-
-// 16. Main routes
+// Routes
 app.use('/', routes);
 app.use('/auth', authRoutes);
 
-// 17. Error handling middleware
+// Not Found Middleware
 app.use('*', (req, res) => {
-  res.status(404).json({ error: true, message: 'Not found' });
-});
-
-app.use((err, req, res, next) => {
-  debug('Error:', {
-    message: err.message,
-    stack: process.env.NODE_ENV === 'production' ? undefined : err.stack,
-    path: req.path,
-    method: req.method
-  });
-
-  res.status(err.statusCode || 500).json({
+  res.status(404).send({
     error: true,
-    message: process.env.NODE_ENV === 'production' 
-      ? 'Internal Server Error' 
-      : err.message
+    message: 'Not found',
+  });
+});
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).send('Something broke!');
+});
+
+// Error Handling Middleware
+app.use((err, req, res, next) => {
+  res.status(err.statusCode || 500).send({
+    error: true,
+    message: err.message,
   });
 });
 
-// 18. Export modules
-module.exports = { 
-  app, 
-  server, 
-  io 
-};
+// Configuración de Socket.IO
+io.on('connection', (socket) => {
+  console.log('Usuario conectado:', socket.id);
+
+  // Escuchar eventos personalizados
+  socket.on('join', (staffId) => {
+    console.log(`Usuario con ID ${staffId} se unió a la sala`);
+    socket.join(staffId); // Unir al usuario a una sala específica basada en su ID
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Usuario desconectado:', socket.id);
+  });
+});
+
+module.exports =  { app, server, io };

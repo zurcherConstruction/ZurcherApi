@@ -1,16 +1,12 @@
 {
-  "name": "zurcherback",
+  "name": "Zurcherback",
   "version": "1.0.0",
+  "description": "",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js",
-    "railway:start": "cross-env NODE_ENV=production node index.js",
-    "postinstall": "npm ci --omit=dev"
-  },
-  "engines": {
-    "node": ">=20.11.0",
-    "npm": ">=10.2.4"
+    "dev": "nodemon -L --watch src --ignore src/tasks/archives/* index.js",
+    "build": "node index.js"
   },
   "keywords": [],
   "author": "",
@@ -22,30 +18,29 @@
     "cloudinary": "^1.41.3",
     "colombian-invoice-library": "^1.0.0",
     "cors": "^2.8.5",
-    "cross-env": "^7.0.3",
     "date-fns": "^4.1.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "express-session": "^1.18.0",
     "express-validator": "^7.2.1",
     "jsonwebtoken": "^9.0.2",
+  
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
     "multer-storage-cloudinary": "^4.0.0",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.10.0",
+    "nodemon": "^3.1.4",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
     "pdf-parse": "^1.1.1",
     "pdfjs-dist": "^2.16.105",
     "pdfkit": "^0.16.0",
     "pg": "^8.12.0",
+  
     "sequelize": "^6.37.3",
     "sharp": "^0.33.4",
     "socket.io": "^4.8.1",
     "xlsx": "^0.18.5"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.4"
   }
 }
