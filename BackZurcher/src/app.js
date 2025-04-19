@@ -16,7 +16,7 @@ const app = express();
 const server = http.createServer(app); // Crear el servidor HTTP
 const io = new Server(server, {
   cors: {
-    origin: '*', // Cambia esto según el dominio de tu frontend
+    origin: 'https://zurcher-api.vercel.app', // Cambia esto según el dominio de tu frontend
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
   },
 });
@@ -64,7 +64,7 @@ app.use(passport.initialize());
 
 // Session
 app.use(cors({
-  origin: '*', // Permitir cualquier origen
+  origin: 'https://zurcher-api.vercel.app', // Permitir cualquier origen
   methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'], // Métodos permitidos
   allowedHeaders: ['Content-Type', 'Authorization'], // Encabezados permitidos
   credentials: true, // Permitir el uso de credenciales
