@@ -19,19 +19,60 @@ const Notifications = ({ isDropdown = false, onClose }) => {
 
   useEffect(() => {
     if (staff) {
-      // Cargar notificaciones iniciales
-      dispatch(fetchNotifications(staff.id));
-
-      // Escuchar notificaciones en tiempo real
-      socket.emit("join", staff.id);
-      socket.on("newNotification", (notification) => {
+      // Initial connection and notifications load
+      const loadNotifications = async () => {
+        try {
+          await dispatch(fetchNotifications(staff.id));
+          
+          // Connect socket and join room
+          if (!socket.connected) {
+            socket.connect();
+          }
+          socket.emit("join", staff.id);
+  
+          // Debug logs
+          console.log('Socket connection status:', {
+            connected: socket.connected,
+            id: socket.id,
+            url: socket.io?.uri
+          });
+        } catch (error) {
+          console.error('Error initializing notifications:', error);
+        }
+      };
+  
+      loadNotifications();
+  
+      // Socket event handlers
+      const handleNewNotification = (notification) => {
         if (notification.staffId === staff.id) {
           dispatch(addNotification(notification));
         }
-      });
-
+      };
+  
+      const handleSocketError = (error) => {
+        console.error('Socket error:', error);
+      };
+  
+      const handleSocketDisconnect = (reason) => {
+        console.log('Socket disconnected:', reason);
+        // Attempt to reconnect if disconnected unexpectedly
+        if (reason === 'io server disconnect' || reason === 'transport close') {
+          socket.connect();
+        }
+      };
+  
+      // Register socket event listeners
+      socket.on("newNotification", handleNewNotification);
+      socket.on("connect_error", handleSocketError);
+      socket.on("disconnect", handleSocketDisconnect);
+  
+      // Cleanup function
       return () => {
-        socket.off("newNotification");
+        socket.off("newNotification", handleNewNotification);
+        socket.off("connect_error", handleSocketError);
+        socket.off("disconnect", handleSocketDisconnect);
+        socket.disconnect();
       };
     }
   }, [staff, dispatch]);
