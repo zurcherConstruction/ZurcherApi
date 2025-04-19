@@ -6,7 +6,7 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "railway:start": "cross-env NODE_ENV=production node index.js",
-    "postinstall": "npm audit fix"
+    "postinstall": "npm install --production"
   },
   "engines": {
     "node": "20.11.0",
