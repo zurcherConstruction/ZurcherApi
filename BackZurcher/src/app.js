@@ -14,11 +14,31 @@ require('./tasks/cronJobs');
 
 const app = express();
 const server = http.createServer(app); // Crear el servidor HTTP
+
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    socket_connections: io.engine.clientsCount,
+    timestamp: new Date().toISOString()
+  });
+});
+
 const io = new Server(server, {
   cors: {
-    origin: '*', // Cambia esto según el dominio de tu frontend
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    origin: ["https://zurcher-api-9526.vercel.app", "http://localhost:3000"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"],
   },
+  path: '/socket.io/',
+  transports: ['websocket', 'polling'],
+  allowEIO3: true,
+});
+
+io.engine.on("connection_error", (err) => {
+  console.log("Socket.IO connection error:", err.req);      // Log the full error
+  console.log("Socket.IO error code:", err.code);          // Log the error code
+  console.log("Socket.IO error message:", err.message);    // Log the error message
 });
 
 // Crear la carpeta "uploads" si no existe
@@ -64,10 +84,10 @@ app.use(passport.initialize());
 
 // Session
 app.use(cors({
-  origin: '*', // Permitir cualquier origen
-  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'], // Métodos permitidos
-  allowedHeaders: ['Content-Type', 'Authorization'], // Encabezados permitidos
-  credentials: true, // Permitir el uso de credenciales
+  origin: ["https://zurcher-api-9526.vercel.app", "http://localhost:3000"],
+  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
 
 // CORS Headers
