@@ -3,6 +3,20 @@ const { conn } = require("./src/data");
 const { PORT } = require("./src/config/envs.js");
 require("dotenv").config();
 
+const gracefulShutdown = (signal) => {
+  console.log(`${signal} received. Starting graceful shutdown`);
+  server.close(() => {
+    console.log('HTTP server closed');
+    conn.close().then(() => {
+      console.log('Database connection closed');
+      process.exit(0);
+    });
+  });
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
 // Sincronizar todos los modelos
 conn.sync({ alter: true }).then(async () => {
   server.listen(PORT, '0.0.0.0', () => {

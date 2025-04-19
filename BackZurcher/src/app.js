@@ -16,11 +16,25 @@ const app = express();
 const server = http.createServer(app); // Crear el servidor HTTP
 
 app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    socket_connections: io.engine.clientsCount,
-    timestamp: new Date().toISOString()
-  });
+  try {
+    const dbStatus = conn.authenticate()
+      .then(() => 'connected')
+      .catch(() => 'disconnected');
+
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      database: dbStatus,
+      socket_connections: io?.engine?.clientsCount || 0,
+      uptime: process.uptime()
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'error',
+      message: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 const io = new Server(server, {
