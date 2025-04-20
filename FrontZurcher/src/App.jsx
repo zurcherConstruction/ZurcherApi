@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  useNavigate,
+  useLocation,
+} from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { restoreSession } from "./Redux/Actions/authActions";
 import PrivateRoute from "./Components/PrivateRoute";
@@ -33,8 +39,9 @@ import PendingWorks from "./Components/Works/PendingWorks";
 import AttachInvoice from "./Components/Seguimiento/AttachInvoice";
 import VerImagenes from "./Components/Works/VerImagenes";
 import BalanceStats from "./Components/BalanceStats";
-import LoadingSpinner from './Components/LoadingSpinner';
+import LoadingSpinner from "./Components/LoadingSpinner";
 import UploadInitialPay from "./Components/Budget/UploadInitialPay";
+import PriceBudgetManagement from "./Components/Budget/PriceBudgetManagement";
 
 function App() {
   const dispatch = useDispatch();
@@ -62,11 +69,10 @@ function App() {
   return (
     <>
       {isAuthenticated && <Header />}
-       <LoadingSpinner />
+      <LoadingSpinner />
       <div className={`flex ${isAuthenticated ? "pt-20" : ""}`}>
         {isAuthenticated && <BarraLateral />}
         <div className="flex-1">
-       
           <Routes>
             {/* Ruta pública */}
             <Route path="/" element={<Landing />} />
@@ -197,9 +203,7 @@ function App() {
             <Route
               path="/attachInvoice"
               element={
-                <PrivateRoute
-                  allowedRoles={["owner", "recept", "admin"]}
-                >
+                <PrivateRoute allowedRoles={["owner", "recept", "admin"]}>
                   <AttachInvoice />
                 </PrivateRoute>
               }
@@ -207,19 +211,15 @@ function App() {
             <Route
               path="/balance"
               element={
-                <PrivateRoute
-                  allowedRoles={["owner"]}
-                >
+                <PrivateRoute allowedRoles={["owner"]}>
                   <BalanceStats />
                 </PrivateRoute>
               }
             />
-              <Route
+            <Route
               path="/register"
               element={
-                <PrivateRoute
-                  allowedRoles={["owner"]}
-                >
+                <PrivateRoute allowedRoles={["owner"]}>
                   <Register />
                 </PrivateRoute>
               }
@@ -227,20 +227,29 @@ function App() {
             <Route
               path="/ver-imagenes/:idWork"
               element={
-                <PrivateRoute
-                  allowedRoles={["owner", "admin"]}
-                >
+                <PrivateRoute allowedRoles={["owner", "admin"]}>
                   <VerImagenes />
-                </PrivateRoute>} />
+                </PrivateRoute>
+              }
+            />
 
-                <Route
+            <Route
               path="/initialPay"
               element={
-                <PrivateRoute
-                  allowedRoles={["owner"]}
-                >
+                <PrivateRoute allowedRoles={["owner"]}>
                   <UploadInitialPay />
-                </PrivateRoute>} />
+                </PrivateRoute>
+              }
+            />
+
+            <Route
+              path="/priceBudget"
+              element={
+                <PrivateRoute allowedRoles={["owner"]}>
+                  <PriceBudgetManagement />
+                </PrivateRoute>
+              }
+            />
 
             {/* Rutas de autenticación */}
             <Route path="/login" element={<Login />} />

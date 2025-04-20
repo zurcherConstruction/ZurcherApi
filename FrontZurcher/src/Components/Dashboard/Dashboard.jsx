@@ -106,6 +106,15 @@ const Dashboard = () => {
       allowedRoles: ['owner'],
     },
     {
+      path: '/priceBudget',
+      title: 'Price Budget',
+      icon: <img src={EstadIcon} alt="Price" className="w-20 h-20" />,
+      color: 'bg-gray-300',
+      allowedRoles: ['owner'],
+    },
+
+
+    {
       path: '/register',
       title: 'Register Staff',
       icon: <img src={StaffIcon} alt="Register Staff" className="w-20 h-20" />,
