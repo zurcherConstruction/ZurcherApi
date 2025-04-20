@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, memo } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -8,9 +8,10 @@ import {
   Alert,
   Image,
 } from "react-native";
+import { Buffer } from "buffer";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorkById } from "../Redux/Actions/workActions";
-import { useRoute } from "@react-navigation/native";
+import { useRoute, useNavigation } from "@react-navigation/native";
 import * as FileSystem from "expo-file-system";
 import * as IntentLauncher from "expo-intent-launcher";
 import * as Sharing from "expo-sharing";
@@ -19,7 +20,6 @@ import * as ImageManipulator from "expo-image-manipulator";
 const WorkDetail = () => {
   const { idWork } = useRoute().params;
   const dispatch = useDispatch();
-
   const { work, loading, error } = useSelector((state) => state.work);
   const [imagesWithDataURLs, setImagesWithDataURLs] = useState({});
 
@@ -87,38 +87,41 @@ const WorkDetail = () => {
   };
 
   const handleOpenPdf = async (pdfData) => {
-    try {
-      if (!pdfData || !pdfData.data) {
-        Alert.alert("Error", "PDF data is missing.");
-        return;
-      }
-
-      const base64Pdf = `data:application/pdf;base64,${pdfData.data}`;
-      const fileUri = `${FileSystem.cacheDirectory}temp.pdf`;
-
-      await FileSystem.writeAsStringAsync(fileUri, base64Pdf, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      if (Platform.OS === "android") {
-        const contentUri = await FileSystem.getContentUriAsync(fileUri);
-        await IntentLauncher.startActivityAsync("android.intent.action.VIEW", {
-          data: contentUri,
-          flags: 1,
-          type: "application/pdf",
-        });
-      } else if (Platform.OS === "ios") {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: "application/pdf",
-          dialogTitle: "Compartir PDF",
-          UTI: "com.adobe.pdf",
-        });
-      }
-    } catch (error) {
-      console.error("Error al abrir el PDF:", error);
-      Alert.alert("Error", "No se pudo abrir el PDF. Inténtalo de nuevo.");
-    }
-  };
+     try {
+       const base64Pdf = Buffer.from(pdfData.data).toString("base64");
+       const fileUri = `${FileSystem.cacheDirectory}temp.pdf`;
+ 
+       await FileSystem.writeAsStringAsync(fileUri, base64Pdf, {
+         encoding: FileSystem.EncodingType.Base64,
+       });
+ 
+       console.log("PDF guardado en:", fileUri);
+ 
+       if (Platform.OS === "android") {
+         const contentUri = await FileSystem.getContentUriAsync(fileUri);
+ 
+         const intent = {
+           action: "android.intent.action.VIEW",
+           data: contentUri,
+           flags: 1,
+           type: "application/pdf",
+         };
+ 
+         await IntentLauncher.startActivityAsync(
+           "android.intent.action.VIEW",
+           intent
+         );
+       } else if (Platform.OS === "ios") {
+         await Sharing.shareAsync(fileUri, {
+           mimeType: "application/pdf",
+           dialogTitle: "Compartir PDF",
+           UTI: "com.adobe.pdf",
+         });
+       }
+     } catch (error) {
+       console.error("Error al abrir el PDF:", error);
+     }
+   };
 
   if (loading) {
     return (

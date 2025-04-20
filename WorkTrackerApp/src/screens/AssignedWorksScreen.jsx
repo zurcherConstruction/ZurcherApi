@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchAssignedWorks } from "../Redux/Actions/workActions";
-import { View, Text, FlatList, TouchableOpacity, Platform } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, Platform, ActivityIndicator} from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { Buffer } from "buffer";
 import * as FileSystem from "expo-file-system";
@@ -12,15 +12,19 @@ import { createStackNavigator } from "@react-navigation/stack";
 
 const Stack = createStackNavigator();
 
-const AssignedWorksScreen = () => {
+const AssignedWorksScreen = ({staffId}) => {
   const dispatch = useDispatch();
   const navigation = useNavigation();
 
   const { works, loading, error } = useSelector((state) => state.work);
 
   useEffect(() => {
-    dispatch(fetchAssignedWorks());
-  }, [dispatch]);
+    if (staffId) {
+      dispatch(fetchAssignedWorks(staffId)); // Filtrar trabajos por staffId
+    }
+  }, [dispatch, staffId]);
+
+
 
   useEffect(() => {
     console.log("Datos de trabajos asignados:", works);
@@ -69,84 +73,90 @@ const AssignedWorksScreen = () => {
 
   if (loading) {
     return (
-      <Text className="text-center text-lg text-blue-600">Cargando...</Text>
+      <View className="flex-1 justify-center items-center bg-gray-100">
+        <ActivityIndicator size="large" color="#1e3a8a" />
+        <Text className="text-lg text-blue-600 mt-4">Cargando trabajos asignados...</Text>
+      </View>
     );
   }
 
   if (error) {
     return (
-      <Text className="text-center text-lg text-red-600">Error: {error}</Text>
+      <View className="flex-1 justify-center items-center bg-gray-100">
+        <Text className="text-lg text-red-600">Error: {error}</Text>
+      </View>
+    );
+  }
+  if (!works || works.length === 0) {
+    return (
+      <View className="flex-1 justify-center items-center bg-gray-100">
+        <Text className="text-lg text-gray-600">
+          No tienes trabajos pendientes de instalación.
+        </Text>
+      </View>
     );
   }
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="AssignedWorksList" options={{ headerShown: false }}>
-        {({ navigation }) => (
-          <View className="flex-1 bg-gray-100 p-5">
-            <Text className="text-xl font-bold text-blue-600 mb-5 text-center">
-              WORKS ASSIGNED
-            </Text>
-            <FlatList
-              data={works}
-              keyExtractor={(item) => item.idWork.toString()}
-              renderItem={({ item }) => (
-                <View className="mb-4 p-4 bg-white rounded-lg shadow">
-                  <Text className="text-lg font-semibold uppercase text-gray-800 mb-2">
-                    {item.propertyAddress || "Dirección no disponible"}
-                  </Text>
-                  <Text className="text-sm text-gray-600 mb-2">
-                    <Text className="font-bold text-gray-700">Estado:</Text>{" "}
-                    {item.status || "Sin estado"}
-                  </Text>
-
-                  {(item.Permit?.pdfData || item.Permit?.optionalDocs) && (
-                    <View className="mt-2">
-                      {item.Permit?.pdfData && (
-                        <TouchableOpacity
-                          onPress={() => handleOpenPdf(item.Permit.pdfData)}
-                          className="mb-2 py-2 px-4 bg-blue-600 rounded"
-                        >
-                          <Text className="text-white text-center">
-                            Leer PDF Principal
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                      {item.Permit?.optionalDocs && (
-                        <TouchableOpacity
-                          onPress={() =>
-                            handleOpenPdf(item.Permit.optionalDocs)
-                          }
-                          className="py-2 px-4 bg-yellow-500 rounded"
-                        >
-                          <Text className="text-white text-center">
-                            Leer Documentación Opcional
-                          </Text>
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                  )}
-                  <TouchableOpacity
-                    onPress={() =>
-                      navigation.navigate("UploadScreen", {
-                        idWork: item.idWork,
-                        propertyAddress: item.propertyAddress,
-                      })
-                    }
-                    className="mt-2 py-2 px-4 bg-green-500 rounded"
-                  >
-                    <Text className="text-white text-center">
-                      Cargar Imágenes
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            />
-          </View>
-        )}
-      </Stack.Screen>
-      <Stack.Screen name="UploadScreen" component={UploadScreen} />
-    </Stack.Navigator>
+    <Stack.Navigator screenOptions={{ headerShown: true }}>
+    <Stack.Screen
+      name=" Works Assigned"
+     
+    >
+      {({ navigation }) => (
+        <View className="flex-1 bg-gray-100 p-5">
+          <FlatList
+            data={works}
+            keyExtractor={(item) => item.idWork.toString()}
+            renderItem={({ item }) => (
+              <View className="mb-4 p-4 bg-white rounded-lg shadow">
+                <Text className="text-lg font-semibold uppercase text-gray-800 mb-2">
+                  {item.propertyAddress || "Dirección no disponible"}
+                </Text>
+                <Text className="text-sm text-gray-600 mb-2">
+                  <Text className="font-bold text-gray-700">Estado:</Text>{" "}
+                  {item.status || "Sin estado"}
+                </Text>
+  
+                {(item.Permit?.pdfData || item.Permit?.optionalDocs) && (
+                  <View className="mt-2">
+                    {item.Permit?.pdfData && (
+                      <TouchableOpacity
+                        onPress={() => handleOpenPdf(item.Permit.pdfData)}
+                        className="mb-2 py-2 px-4 bg-blue-600 rounded"
+                      >
+                        <Text className="text-white text-center">Leer PDF Principal</Text>
+                      </TouchableOpacity>
+                    )}
+                    {item.Permit?.optionalDocs && (
+                      <TouchableOpacity
+                        onPress={() => handleOpenPdf(item.Permit.optionalDocs)}
+                        className="py-2 px-4 bg-yellow-500 rounded"
+                      >
+                        <Text className="text-white text-center">Leer Documentación Opcional</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+                <TouchableOpacity
+                  onPress={() =>
+                    navigation.navigate("UploadScreen", {
+                      idWork: item.idWork,
+                      propertyAddress: item.propertyAddress,
+                    })
+                  }
+                  className="mt-2 py-2 px-4 bg-green-500 rounded"
+                >
+                  <Text className="text-white text-center">Cargar Imágenes</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          />
+        </View>
+      )}
+    </Stack.Screen>
+    <Stack.Screen name="UploadScreen" component={UploadScreen} />
+  </Stack.Navigator>
   );
 };
 

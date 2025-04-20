@@ -1,15 +1,29 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, Pressable, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { login } from '../Redux/Actions/authActions';
-import Ionicons from 'react-native-vector-icons/Ionicons'; // Importar los íconos
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false); // Estado para alternar la visibilidad de la contraseña
+  const [showPassword, setShowPassword] = useState(false);
   const dispatch = useDispatch();
-  const { loading, error } = useSelector((state) => state.auth);
+  const { loading, error, isAuthenticated, staff } = useSelector((state) => state.auth);
+
+  // Manejar redirección basada en el rol
+  useEffect(() => {
+    if (isAuthenticated) {
+      console.log(`Login exitoso. Staff ID: ${staff?.id}, Rol: ${staff?.role}`);
+      if (staff?.role === 'owner') {
+        navigation.replace('OwnerDrawer'); // Redirige al Home del Owner
+      } else if (staff?.role === 'worker') {
+        navigation.replace('PendingWorks'); // Redirige a los Pending Works
+      } else {
+        console.log('Rol desconocido, no se realiza redirección');
+      }
+    }
+  }, [isAuthenticated, staff, navigation]);
 
   const handleLogin = async () => {
     await dispatch(login(email, password));
@@ -19,14 +33,13 @@ const LoginScreen = ({ navigation }) => {
     <View style={styles.container}>
       {/* Logo */}
       <Image
-        source={require('../../assets/logo.png')} // Asegúrate de tener un archivo logo.png en la carpeta assets
+        source={require('../../assets/logo.png')}
         style={styles.logo}
         resizeMode="contain"
       />
 
-      {/* Cuadro del formulario */}
+      {/* Formulario */}
       <View style={styles.formContainer}>
-        {/* Título */}
         <Text style={styles.title}>Iniciar Sesión</Text>
 
         {/* Mensaje de error */}
@@ -49,14 +62,14 @@ const LoginScreen = ({ navigation }) => {
             placeholder="Contraseña"
             value={password}
             onChangeText={setPassword}
-            secureTextEntry={!showPassword} // Alterna entre mostrar y ocultar la contraseña
+            secureTextEntry={!showPassword}
           />
           <TouchableOpacity
-            onPress={() => setShowPassword(!showPassword)} // Alterna el estado de visibilidad
+            onPress={() => setShowPassword(!showPassword)}
             style={styles.showPasswordButton}
           >
             <Ionicons
-              name={showPassword ? 'eye-off' : 'eye'} // Cambia el ícono según el estado
+              name={showPassword ? 'eye-off' : 'eye'}
               size={20}
               color="#1e3a8a"
             />
@@ -89,7 +102,7 @@ const styles = StyleSheet.create({
   },
   formContainer: {
     width: '90%',
-    maxWidth: 400, // Limita el ancho del cuadro
+    maxWidth: 400,
     backgroundColor: '#fff',
     padding: 20,
     borderRadius: 10,
@@ -125,7 +138,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   passwordInput: {
-    paddingRight: 50, // Espacio para el ícono de mostrar/ocultar
+    paddingRight: 50,
   },
   showPasswordButton: {
     position: 'absolute',
