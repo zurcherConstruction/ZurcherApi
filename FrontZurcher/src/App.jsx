@@ -33,7 +33,7 @@ import PendingWorks from "./Components/Works/PendingWorks";
 import AttachInvoice from "./Components/Seguimiento/AttachInvoice";
 import VerImagenes from "./Components/Works/VerImagenes";
 import BalanceStats from "./Components/BalanceStats";
-
+import LoadingSpinner from './Components/LoadingSpinner';
 import UploadInitialPay from "./Components/Budget/UploadInitialPay";
 
 function App() {
@@ -62,9 +62,11 @@ function App() {
   return (
     <>
       {isAuthenticated && <Header />}
+       <LoadingSpinner />
       <div className={`flex ${isAuthenticated ? "pt-20" : ""}`}>
         {isAuthenticated && <BarraLateral />}
         <div className="flex-1">
+       
           <Routes>
             {/* Ruta pública */}
             <Route path="/" element={<Landing />} />

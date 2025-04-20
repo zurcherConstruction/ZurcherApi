@@ -12,6 +12,7 @@ import workReducer from '../Reducer/workReducer';
 import notificationReducer from '../Reducer/notificationReducer';
 import receiptReducer from '../Reducer/receiptReducer';
 import balanceReducer from '../Reducer/balanceReducer';
+import uiReducer from '../Reducer/uiReducer';
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -25,6 +26,7 @@ const rootReducer = combineReducers({
   notifications: notificationReducer,
   receipts: receiptReducer,
   balance: balanceReducer,
+  ui:uiReducer,
 });
 
 export const store = configureStore({

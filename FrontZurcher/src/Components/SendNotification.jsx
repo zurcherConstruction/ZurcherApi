@@ -7,7 +7,7 @@ const SendNotification = () => {
   const dispatch = useDispatch();
   const [message, setMessage] = useState('');
   const [recipientId, setRecipientId] = useState('');
-  const { staff, loading, error } = useSelector((state) => state.admin);
+  const { staffList: staff, loading, error } = useSelector((state) => state.admin);
 
   useEffect(() => {
     dispatch(fetchStaff()); // Llama a la acción para cargar el staff

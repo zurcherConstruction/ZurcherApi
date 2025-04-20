@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { verifyToken } = require("../middleware/isAuth");
-const { isAdmin, isOwner, allowRoles } = require("../middleware/byRol");
+const { allowRoles } = require("../middleware/byRol");
 const {
   getAllStaff,
   createStaff,
@@ -9,18 +9,14 @@ const {
   deactivateOrDeleteStaff,
 } = require("../controllers/User/adminController");
 
-
-
+// All routes require authentication
 router.use(verifyToken);
 
-// Rutas de gestión de usuarios (solo owner)
+// Staff management routes with role-based access
 router.get("/staff", allowRoles(['admin', 'recept', 'owner', 'worker']), getAllStaff);
-router.post("/staff", allowRoles(['admin', 'recept', 'owner']),createStaff);
-router.put("/staff/:id", allowRoles(['admin', 'recept', 'owner']), updateStaff);
-router.post("/staff/:id/deactivate", allowRoles(['admin', 'recept', 'owner']), deactivateOrDeleteStaff); 
-router.delete("/staff/:id", allowRoles(['admin', 'recept', 'owner']), deactivateOrDeleteStaff);
-
-
-
+router.post("/staff", allowRoles(['owner']), createStaff); // Restrict staff creation to owner only
+router.put("/staff/:id", allowRoles(['owner']), updateStaff);
+router.post("/staff/:id/deactivate", allowRoles(['owner']), deactivateOrDeleteStaff);
+router.delete("/staff/:id", allowRoles(['owner']), deactivateOrDeleteStaff);
 
 module.exports = router;

@@ -17,7 +17,7 @@ import ChecksIcon from '../../assets/logos/checks.png';
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { staff } = useSelector((state) => state.auth); // Obtener el rol del usuario autenticado
+  const { currentStaff: staff  } = useSelector((state) => state.auth); // Obtener el rol del usuario autenticado
 
   // Definir las opciones del Dashboard con sus rutas y roles permitidos
   const dashboardOptions = [

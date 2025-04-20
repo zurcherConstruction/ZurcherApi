@@ -1,42 +1,47 @@
 import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
-  staff: [], // Lista de staff
-  loading: false, // Estado de carga
-  error: null, // Mensaje de error
+  staffList: [], // Renamed from staff to staffList for clarity
+  loading: false,
+  error: null,
+  successMessage: null,
 };
 
 const adminSlice = createSlice({
   name: 'admin',
   initialState,
   reducers: {
-    // Obtener staff
+    // Fetch staff list
     fetchStaffRequest: (state) => {
       state.loading = true;
       state.error = null;
     },
     fetchStaffSuccess: (state, action) => {
       state.loading = false;
-      state.staff = action.payload; // Los datos ya están transformados en la acción
+      state.staffList = action.payload;
+      state.error = null;
     },
     fetchStaffFailure: (state, action) => {
       state.loading = false;
-      state.error = action.payload || 'Error desconocido al obtener el staff';
+      state.error = action.payload;
     },
-    // Crear staff
+
+    // Create staff
     createStaffRequest: (state) => {
       state.loading = true;
       state.error = null;
     },
     createStaffSuccess: (state, action) => {
       state.loading = false;
-      state.staff.push(action.payload);
+      state.staffList.push(action.payload);
+      state.successMessage = 'Staff creado correctamente';
+      state.error = null;
     },
     createStaffFailure: (state, action) => {
       state.loading = false;
       state.error = action.payload;
+      state.successMessage = null;
     },
-
     // Actualizar staff
     updateStaffRequest: (state) => {
       state.loading = true;
@@ -44,9 +49,9 @@ const adminSlice = createSlice({
     },
     updateStaffSuccess: (state, action) => {
       state.loading = false;
-      const index = state.staff.findIndex((staff) => staff.id === action.payload.id);
+      const index = state.staffList.findIndex((staff) => staff.id === action.payload.id);
       if (index !== -1) {
-        state.staff[index] = action.payload;
+        state.staffList[index] = action.payload;
       }
     },
     updateStaffFailure: (state, action) => {
@@ -61,9 +66,9 @@ const adminSlice = createSlice({
     },
     deactivateStaffSuccess: (state, action) => {
       state.loading = false;
-      const index = state.staff.findIndex((staff) => staff.id === action.payload);
+      const index = state.staffList.findIndex((staff) => staff.id === action.payload);
       if (index !== -1) {
-        state.staff[index].isActive = false;
+        state.staffList[index].isActive = false;
       }
     },
     deactivateStaffFailure: (state, action) => {
@@ -72,7 +77,7 @@ const adminSlice = createSlice({
     },
     deleteStaffSuccess: (state, action) => {
       state.loading = false;
-      state.staff = state.staff.filter((staff) => staff.id !== action.payload); // Eliminar del estado global
+      state.staffList = state.staffList.filter((staff) => staff.id !== action.payload);
     },
   },
 });

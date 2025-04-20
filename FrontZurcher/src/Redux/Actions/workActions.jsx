@@ -65,15 +65,64 @@ export const createWork = (workData) => async (dispatch) => {
 export const updateWork = (idWork, workData) => async (dispatch) => {
   dispatch(updateWorkRequest());
   try {
-    console.log('Enviando datos al backend:', { idWork, workData }); // Log para depuración
-    const response = await api.put(`/work/${idWork}`, workData); // Ruta del backend
-    console.log('Respuesta del backend:', response.data); // Log para depuración
-    dispatch(updateWorkSuccess(response.data));
+    console.log('Enviando datos al backend:', { idWork, workData });
+    
+    const response = await api.put(`/work/${idWork}`, workData);
+    
+    // Verificar si la respuesta es exitosa
+    if (response.data) {
+      console.log('Trabajo actualizado:', response.data);
+      dispatch(updateWorkSuccess(response.data));
+      
+      if (workData.staffId && workData.startDate) {
+        // Verificar el estado actualizado después de un breve delay
+        setTimeout(async () => {
+          try {
+            const verificationResponse = await api.get(`/work/${idWork}`);
+            if (verificationResponse.data.staffId === workData.staffId) {
+              dispatch(updateWorkSuccess(verificationResponse.data));
+            }
+          } catch (verifyError) {
+            console.log('Verificación silenciosa fallida:', verifyError);
+          }
+        }, 1000);
+
+        return {
+          success: true,
+          data: response.data,
+          message: 'Trabajo asignado correctamente'
+        };
+      }
+      
+      return response.data;
+    }
   } catch (error) {
-    console.error('Error al actualizar la obra:', error); // Log para depuración
-    const errorMessage =
-      error.response?.data?.message || 'Error al actualizar la obra';
+    console.error('Error al actualizar la obra:', error);
+    
+    // Si es un error de timeout pero la operación podría haber sido exitosa
+    if (error.code === 'ECONNABORTED') {
+      try {
+        // Intentar verificar si la actualización fue exitosa
+        const verificationResponse = await api.get(`/work/${idWork}`);
+        if (verificationResponse.data.staffId === workData.staffId) {
+          dispatch(updateWorkSuccess(verificationResponse.data));
+          return {
+            success: true,
+            data: verificationResponse.data,
+            message: 'Trabajo asignado correctamente (verificado)'
+          };
+        }
+      } catch (verifyError) {
+        console.log('Error en verificación:', verifyError);
+      }
+    }
+    
+    const errorMessage = error.code === 'ECONNABORTED' 
+      ? 'La operación tomó más tiempo de lo esperado, pero podría haber sido exitosa. Por favor, verifique.' 
+      : error.response?.data?.message || 'Error al actualizar la obra';
+    
     dispatch(updateWorkFailure(errorMessage));
+    throw new Error(errorMessage);
   }
 };
 

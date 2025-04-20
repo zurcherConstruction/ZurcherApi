@@ -1,12 +1,12 @@
 import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
-  staff: null,
+  currentStaff: JSON.parse(localStorage.getItem('currentStaff')) || null,
   token: localStorage.getItem('token') || null,
-  isAuthenticated: !!localStorage.getItem('token'), // Autenticado si hay un token
+  isAuthenticated: !!localStorage.getItem('token'),
   loading: false,
   error: null,
-  successMessage: null,
+  successMessage: null
 };
 
 const authSlice = createSlice({
@@ -18,12 +18,15 @@ const authSlice = createSlice({
       state.error = null; // Limpiar errores previos
     },
     loginSuccess: (state, action) => {
+      console.log('Login Success Payload:', action.payload);
       state.loading = false;
-      state.staff = action.payload.staff; // Aquí se almacena el objeto staff
+      state.currentStaff = action.payload.staff; // Changed from currentStaff to staff
       state.token = action.payload.token;
       state.isAuthenticated = true;
       state.error = null;
-      localStorage.setItem('token', action.payload.token); // Almacena el token en localStorage
+      // Store both token and staff data
+      localStorage.setItem('token', action.payload.token);
+      localStorage.setItem('currentStaff', JSON.stringify(action.payload.staff));
     },
     loginFailure: (state, action) => {
       state.loading = false;
@@ -31,12 +34,14 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
     },
     logout: (state) => {
-      state.staff = null;
+      state.currentStaff = null;
       state.token = null;
       state.isAuthenticated = false;
       state.loading = false;
       state.error = null;
-      localStorage.removeItem('token'); // Eliminar token del almacenamiento local
+      // Clear both token and staff data
+      localStorage.removeItem('token');
+      localStorage.removeItem('currentStaff');
     },
     clearError: (state) => {
       state.error = null; // Acción para limpiar errores

@@ -11,7 +11,7 @@ import api from "../utils/axios";
 
 const Notifications = ({ isDropdown = false, onClose }) => {
   const dispatch = useDispatch();
-  const { staff } = useSelector((state) => state.auth);
+  const { currentStaff: staff } = useSelector((state) => state.auth);
   const { notifications, loading, error } = useSelector((state) => state.notifications);
 console.log("Notificaciones desde Redux:", notifications); // Verifica qué datos llegan al componente
 

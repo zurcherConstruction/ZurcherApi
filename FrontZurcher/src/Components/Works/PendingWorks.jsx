@@ -16,7 +16,7 @@ import "react-toastify/dist/ReactToastify.css";
 const PendingWorks = () => {
   const dispatch = useDispatch();
   const { works } = useSelector((state) => state.work);
-  const { staff, loading: staffLoading, error: staffError } = useSelector((state) => state.admin);
+  const { staffList: staff, loading: staffLoading, error: staffError } = useSelector((state) => state.admin);
 
   const [selectedWork, setSelectedWork] = useState(null);
   const [startDate, setStartDate] = useState(new Date());

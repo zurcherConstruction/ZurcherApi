@@ -65,12 +65,19 @@ export const createBudget = (budgetData) => async (dispatch) => {
 export const updateBudget = (idBudget, budgetData) => async (dispatch) => {
   dispatch(updateBudgetRequest());
   try {
-    const response = await api.put(`/budget/${idBudget}`, budgetData); // Ruta del backend
+    const response = await api.put(`/budget/${idBudget}`, budgetData);
     dispatch(updateBudgetSuccess(response.data));
+    return {
+      type: 'UPDATE_BUDGET_SUCCESS',
+      payload: response.data
+    };
   } catch (error) {
-    const errorMessage =
-      error.response?.data?.message || 'Error al actualizar el presupuesto';
+    const errorMessage = error.response?.data?.message || 'Error al actualizar el presupuesto';
     dispatch(updateBudgetFailure(errorMessage));
+    return {
+      type: 'UPDATE_BUDGET_FAILURE',
+      payload: errorMessage
+    };
   }
 };
 
@@ -100,24 +107,35 @@ export const fetchArchivedBudgets = () => async (dispatch) => {
   }
 };
 
-export const uploadInvoice = (idBudget, invoiceFile) => async (dispatch) => {
+export const uploadInvoice = (budgetId, file, onProgress) => async (dispatch) => {
   try {
-    // Crear un FormData para enviar el archivo
     const formData = new FormData();
-    formData.append('file', invoiceFile);
+    formData.append('invoice', file);
 
-    // Hacer la solicitud al backend
-    const response = await api.post(`/budget/${idBudget}/upload`, formData, {
+    const response = await api.post(`/budget/${budgetId}/upload`, formData, {
       headers: {
-        'Content-Type': 'multipart/form-data', // Asegurarse de que se envíe como multipart
+        'Content-Type': 'multipart/form-data',
       },
+      onUploadProgress: (progressEvent) => {
+        const percentCompleted = Math.round(
+          (progressEvent.loaded * 100) / progressEvent.total
+        );
+        if (onProgress) onProgress(percentCompleted);
+      },
+      timeout: 30000, // 30 seconds timeout
     });
 
-    return response.data; // Retorna la respuesta del backend
+    return {
+      type: 'UPLOAD_INVOICE_SUCCESS',
+      payload: response.data
+    };
+
   } catch (error) {
-    const errorMessage =
-      error.response?.data?.message || 'Error al subir la factura';
-    console.error(errorMessage);
-    throw new Error(errorMessage); // Lanza el error para manejarlo en el componente
+    const errorMessage = error.response?.data?.message || error.message || 'Error al subir el comprobante';
+    return {
+      type: 'UPLOAD_INVOICE_FAILURE',
+      payload: errorMessage
+    };
   }
 };
+;

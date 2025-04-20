@@ -12,8 +12,7 @@ const Register = () => {
   const dispatch = useDispatch();
 
   
-  const { staff, loading, error } = useSelector((state) => state.admin);
-
+  const { staffList: staff, loading, error } = useSelector((state) => state.admin);
   
   const [formData, setFormData] = useState({
     email: "",
