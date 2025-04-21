@@ -143,6 +143,7 @@ const AssignedWorksScreen = ({staffId}) => {
                     navigation.navigate("UploadScreen", {
                       idWork: item.idWork,
                       propertyAddress: item.propertyAddress,
+                      images: item.images,
                     })
                   }
                   className="mt-2 py-2 px-4 bg-green-500 rounded"
