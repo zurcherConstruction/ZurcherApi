@@ -89,7 +89,7 @@ const getWorkById = async (req, res) => {
 
           model: Budget,
           as: 'budget',
-          attributes: ['idBudget', 'propertyAddress', 'status', 'price', 'paymentInvoice','initialPayment', 'date'],
+          attributes: ['idBudget', 'propertyAddress', 'status', 'price', 'paymentInvoice','paymentProofType', 'initialPayment', 'date'],
         },
         {
 

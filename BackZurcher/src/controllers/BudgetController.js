@@ -243,12 +243,16 @@ const BudgetController = {
   async uploadInvoice(req, res) { // Considera renombrar esta función a uploadPaymentProof para claridad
     try {
       const { idBudget } = req.params;
-  
+
+      // Verificar si el archivo fue recibido
+      console.log("ID del presupuesto recibido:", idBudget);
+      console.log("Archivo recibido:", req.file);
+
       if (!req.file) {
         // Esta ruta debe usar el middleware 'upload' de multer.js
         return res.status(400).json({ error: 'No se recibió ningún archivo de comprobante' }); 
       }
-  
+
       // --- 1. Determinar el tipo de archivo ---
       let proofType;
       if (req.file.mimetype.startsWith('image/')) {
@@ -257,20 +261,24 @@ const BudgetController = {
         proofType = 'pdf';
       } else {
         // Salvaguarda por si el filtro de Multer falla
+        console.log("Tipo de archivo no soportado:", req.file.mimetype);
         return res.status(400).json({ error: 'Tipo de archivo de comprobante no soportado (PDF o Imagen requeridos)' });
       }
+      console.log("Tipo de archivo determinado:", proofType);
       // --- Fin Determinar tipo ---
 
       const buffer = req.file.buffer;
       // Nombres genéricos para comprobantes
       const fileName = `payment_proof_${idBudget}_${Date.now()}`; 
       const folderName = 'payment_proofs'; // Carpeta genérica
-  
+      console.log("Nombre del archivo:", fileName);
+      console.log("Carpeta de destino en Cloudinary:", folderName);
+
       // Subir a Cloudinary
       const uploadResult = await new Promise((resolve, reject) => {
         cloudinary.uploader.upload_stream(
           {
-            resource_type: 'auto', // 'auto' para PDF o Imagen
+            resource_type:proofType === 'pdf' ? 'raw' : 'image', // 'auto' para PDF o Imagen
             folder: folderName,
             public_id: fileName,
           },
@@ -279,26 +287,34 @@ const BudgetController = {
               console.error('Cloudinary error:', error); 
               reject(error);
             } else {
+              console.log("Resultado de la subida a Cloudinary:", result);
               resolve(result);
             }
           }
         ).end(buffer);
       });
-  
+
       // Buscar presupuesto
+      console.log("Buscando presupuesto con ID:", idBudget);
       const budget = await Budget.findByPk(idBudget);
       if (!budget) {
-         // Limpiar Cloudinary
-         try { await cloudinary.uploader.destroy(uploadResult.public_id, { resource_type: uploadResult.resource_type || 'raw' }); } catch (e) {}
+        console.log("Presupuesto no encontrado. Eliminando archivo de Cloudinary...");
+        try { 
+          await cloudinary.uploader.destroy(uploadResult.public_id, { resource_type: uploadResult.resource_type || 'raw' }); 
+        } catch (e) {
+          console.error("Error al eliminar archivo de Cloudinary:", e);
+        }
         return res.status(404).json({ error: 'Presupuesto no encontrado' });
       }
-  
+      console.log("Presupuesto encontrado:", budget);
+
       // --- 2. Guardar URL y TIPO ---
       budget.paymentInvoice = uploadResult.secure_url; // Guarda URL en este campo
       budget.paymentProofType = proofType;             // Guarda TIPO en el nuevo campo
       await budget.save();
+      console.log("Presupuesto actualizado con comprobante:", budget);
       // --- Fin Guardar ---
-  
+
       res.status(200).json({
         message: 'Comprobante de pago cargado exitosamente', // Mensaje actualizado
         cloudinaryUrl: uploadResult.secure_url,

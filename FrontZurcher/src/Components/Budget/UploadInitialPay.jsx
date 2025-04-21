@@ -172,6 +172,7 @@ const UploadInitialPay = () => {
           </label>
           <input
             id="invoice-upload-input"
+            name="file"
             type="file"
             accept="application/pdf,image/jpeg,image/png,image/gif,image/webp"
             onChange={handleFileChange}
