@@ -9,7 +9,7 @@ import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 const UploadScreen = () => {
-  const { idWork, propertyAddress } = useRoute().params;
+  const { idWork, propertyAddress, images } = useRoute().params;
   const navigation = useNavigation();
   const dispatch = useDispatch();
 
@@ -40,8 +40,9 @@ const UploadScreen = () => {
 
   // Load images from the state when the component mounts or when `work` changes
   useEffect(() => {
-    if (work && work.images) {
-      const groupedImages = work.images.reduce((acc, image) => {
+    if (images) {
+      // Agrupar imágenes por etapa
+      const groupedImages = images.reduce((acc, image) => {
         if (!acc[image.stage]) {
           acc[image.stage] = [];
         }
@@ -50,9 +51,10 @@ const UploadScreen = () => {
       }, {});
       setImagesByStage(groupedImages);
 
+      // Convertir imágenes a URLs
       const processImages = async () => {
         const dataURLs = {};
-        for (const image of work.images) {
+        for (const image of images) {
           try {
             const dataURL = `data:image/jpeg;base64,${image.imageData}`;
             dataURLs[image.id] = dataURL;
@@ -64,7 +66,7 @@ const UploadScreen = () => {
       };
       processImages();
     }
-  }, [work]);
+  }, [images]);
 
   const handlePickImage = async () => {
     if (imagesByStage[selectedStage]?.length >= 12) {
@@ -186,41 +188,25 @@ const UploadScreen = () => {
               Imágenes cargadas: {imagesByStage[selectedStage]?.length || 0}/12
             </Text>
             <FlatList
-              data={Array.from({ length: 12 })}
-              keyExtractor={(_, index) => index.toString()}
+              data={imagesByStage[selectedStage] || []}
+              keyExtractor={(item) => item.id.toString()}
               numColumns={4}
-              renderItem={({ index }) => {
-                const image = imagesByStage[selectedStage]?.[index];
-                return (
-                  <View className="w-20 h-20 m-2 rounded-lg bg-gray-300 justify-center items-center">
-                    {image && imagesWithDataURLs[image.id] ? (
-                      <Image
-                        source={{ uri: imagesWithDataURLs[image.id] }}
-                        className="w-full h-full rounded-lg"
-                      />
-                    ) : (
-                      <Text className="text-gray-500 text-xs"></Text>
-                    )}
-                  </View>
-                );
-              }}
+              renderItem={({ item }) => (
+                <View className="w-20 h-20 m-2 rounded-lg bg-gray-300 justify-center items-center">
+                  {imagesWithDataURLs[item.id] ? (
+                    <Image
+                      source={{ uri: imagesWithDataURLs[item.id] }}
+                      className="w-full h-full rounded-lg"
+                    />
+                  ) : (
+                    <Text className="text-gray-500 text-xs">Cargando...</Text>
+                  )}
+                </View>
+              )}
+              ListEmptyComponent={
+                <Text className="text-gray-500 text-center">No hay imágenes cargadas.</Text>
+              }
             />
-            <View className="flex-row justify-between mt-4">
-              <Pressable
-                onPress={handlePickImage}
-                className="flex-1 bg-blue-600 py-3 rounded-lg shadow-md flex-row justify-center items-center mr-2"
-              >
-                <Ionicons name="cloud-upload-outline" size={20} color="white" />
-                <Text className="text-white text-center text-sm font-semibold ml-2">Galería</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleTakePhoto}
-                className="flex-1 bg-green-600 py-3 rounded-lg shadow-md flex-row justify-center items-center ml-2"
-              >
-                <Ionicons name="camera-outline" size={20} color="white" />
-                <Text className="text-white text-center text-sm font-semibold ml-2">Cámara</Text>
-              </Pressable>
-            </View>
             <Pressable
               onPress={() => setModalVisible(false)}
               className="mt-4 bg-red-500 px-4 py-2 rounded-md"

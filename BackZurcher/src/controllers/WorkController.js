@@ -349,6 +349,11 @@ const getAssignedWorks = async (req, res) => {
           model: Inspection,
           attributes: ['idInspection', 'type', 'status', 'dateRequested', 'dateCompleted', 'notes'],
         },
+        {
+          model: Image,
+          as: 'images',
+          attributes: ['id', 'stage', 'dateTime','imageData','comment' ],
+        },
       ],
     });
 
