@@ -7,6 +7,7 @@ import {
   Platform,
   Alert,
   Image,
+  Modal,
 } from "react-native";
 import { Buffer } from "buffer";
 import { useDispatch, useSelector } from "react-redux";
@@ -22,6 +23,8 @@ const WorkDetail = () => {
   const dispatch = useDispatch();
   const { work, loading, error } = useSelector((state) => state.work);
   const [imagesWithDataURLs, setImagesWithDataURLs] = useState({});
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
 
   useEffect(() => {
     dispatch(fetchWorkById(idWork));
@@ -155,6 +158,17 @@ const WorkDetail = () => {
     return acc;
   }, {});
 
+  const openImageModal = (imageUri) => {
+    setSelectedImage(imageUri);
+    setIsModalVisible(true);
+  };
+
+  const closeImageModal = () => {
+    setSelectedImage(null);
+    setIsModalVisible(false);
+  };
+
+
   return (
     <ScrollView className="flex-1 bg-gray-100 p-4">
       {/* Header */}
@@ -205,22 +219,47 @@ const WorkDetail = () => {
         {stage} ({images.length} image)
       </Text>
       <ScrollView horizontal className="flex-row">
-        {images.map((image) => (
-          <View key={image.id} className="mr-4">
-            {imagesWithDataURLs[image.id] ? (
-              <Image
-                source={{ uri: imagesWithDataURLs[image.id] }}
-                className="w-32 h-32 rounded-lg"
-              />
-            ) : (
-              <Text className="text-gray-500">Cargando imagen...</Text>
-            )}
-          </View>
-        ))}
-      </ScrollView>
+              {images.map((image) => (
+                <TouchableOpacity
+                  key={image.id}
+                  onPress={() => openImageModal(imagesWithDataURLs[image.id])}
+                  className="mr-4"
+                >
+                  {imagesWithDataURLs[image.id] ? (
+                    <Image
+                      source={{ uri: imagesWithDataURLs[image.id] }}
+                      className="w-32 h-32 rounded-lg"
+                    />
+                  ) : (
+                    <Text className="text-gray-500">Cargando imagen...</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
     </View>
   ))}
 </View>
+
+ <Modal
+        visible={isModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeImageModal}
+      >
+        <View className="flex-1 justify-center items-center bg-black bg-opacity-75">
+          <Image
+            source={{ uri: selectedImage }}
+            className="w-4/5 h-4/5 rounded-lg"
+            resizeMode="contain"
+          />
+          <TouchableOpacity
+            onPress={closeImageModal}
+            className="absolute top-10 right-10 bg-white p-3 rounded-full"
+          >
+            <Text className="text-black font-bold">X</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
