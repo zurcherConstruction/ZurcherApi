@@ -1,8 +1,8 @@
 
 
 const cloudinaryConfig = {
-  cloudName: 'dv1xvijmn',
-  uploadPreset: 'balu_rooms',
+  cloudName: 'dfetjsfgl',
+  uploadPreset: 'Zurcher',
 };
 
 export const openCloudinaryWidget = (callback) => {

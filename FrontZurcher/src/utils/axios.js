@@ -1,22 +1,25 @@
 import axios from 'axios';
 import { store } from '../Redux/Store/Store';
 import { logout } from '../Redux/Reducer/authReducer';
+import { setLoading } from '../Redux/Reducer/uiReducer'; // You'll need to create this
 
-// Crear instancia de axios con la URL base
 const api = axios.create({
+
   baseURL: 'https://zurcherapi-production.up.railway.app/',
   timeout: 10000,
+
 });
 
-// Interceptor para requests
+// Request interceptor
 api.interceptors.request.use(
   (config) => {
+    store.dispatch(setLoading(true)); // Start loading
+    
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // No establecer Content-Type si es FormData
     if (config.data instanceof FormData) {
       delete config.headers['Content-Type'];
     } else {
@@ -26,14 +29,19 @@ api.interceptors.request.use(
     return config;
   },
   (error) => {
+    store.dispatch(setLoading(false)); // Stop loading on request error
     return Promise.reject(error);
   }
 );
 
-// Interceptor para responses
+// Response interceptor
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    store.dispatch(setLoading(false)); // Stop loading on success
+    return response;
+  },
   (error) => {
+    store.dispatch(setLoading(false)); // Stop loading on response error
     if (error.response?.status === 401) {
       store.dispatch(logout());
     }

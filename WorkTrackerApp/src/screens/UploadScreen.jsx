@@ -2,23 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, Image, Alert, ScrollView, Modal, FlatList } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useDispatch, useSelector } from 'react-redux';
-import { addImagesToWork } from '../Redux/Actions/workActions';
-import { useRoute } from '@react-navigation/native';
+import { addImagesToWork, fetchAssignedWorks, updateWork } from '../Redux/Actions/workActions';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import * as FileSystem from 'expo-file-system';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 const UploadScreen = () => {
-  const { idWork, propertyAddress } = useRoute().params;
- 
+  const { idWork, propertyAddress, images } = useRoute().params;
+  const navigation = useNavigation();
   const dispatch = useDispatch();
-
-  const { work } = useSelector((state) => state.work);
-
+// Verifica el ID del trabajo
+   const { works, loading, error } = useSelector((state) => state.work);
+  
   const [selectedStage, setSelectedStage] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [imagesByStage, setImagesByStage] = useState({});
   const [imagesWithDataURLs, setImagesWithDataURLs] = useState({});
+ 
 
   const stages = [
     'foto previa del lugar',
@@ -40,8 +41,11 @@ const UploadScreen = () => {
 
   // Load images from the state when the component mounts or when `work` changes
   useEffect(() => {
-    if (work && work.images) {
-      const groupedImages = work.images.reduce((acc, image) => {
+    const currentWork = works.find((work) => work.idWork === idWork);
+  
+    if (currentWork && currentWork.images) {
+      // Agrupar imágenes por etapa
+      const groupedImages = currentWork.images.reduce((acc, image) => {
         if (!acc[image.stage]) {
           acc[image.stage] = [];
         }
@@ -49,22 +53,14 @@ const UploadScreen = () => {
         return acc;
       }, {});
       setImagesByStage(groupedImages);
-
-      const processImages = async () => {
-        const dataURLs = {};
-        for (const image of work.images) {
-          try {
-            const dataURL = `data:image/jpeg;base64,${image.imageData}`;
-            dataURLs[image.id] = dataURL;
-          } catch (error) {
-            console.error('Error processing image:', image.id, error);
-          }
-        }
-        setImagesWithDataURLs(dataURLs);
-      };
-      processImages();
+  
+      const dataURLs = {};
+      currentWork.images.forEach((image) => {
+        dataURLs[image.id] = `data:image/jpeg;base64,${image.imageData}`;
+      });
+      setImagesWithDataURLs(dataURLs);
     }
-  }, [work]);
+  }, [works, idWork]);
 
   const handlePickImage = async () => {
     if (imagesByStage[selectedStage]?.length >= 12) {
@@ -112,51 +108,66 @@ const UploadScreen = () => {
     }
   };
 
-  const processAndUploadImage = async (imageUri) => {
-    try {
-      const resizedImage = await manipulateAsync(
-        imageUri,
-        [{ resize: { width: 800 } }],
-        { compress: 0.7, format: SaveFormat.JPEG }
-      );
+ const processAndUploadImage = async (imageUri) => {
+  try {
+    const resizedImage = await manipulateAsync(
+      imageUri,
+      [{ resize: { width: 800 } }],
+      { compress: 0.7, format: SaveFormat.JPEG }
+    );
 
-      const base64Image = await FileSystem.readAsStringAsync(resizedImage.uri, { encoding: 'base64' });
+    const base64Image = await FileSystem.readAsStringAsync(resizedImage.uri, { encoding: 'base64' });
 
-      const now = new Date();
-      const dateTimeString = now.toLocaleString();
-      const imageData = {
-        stage: selectedStage,
-        image: base64Image,
-        comment: '',
-        dateTime: dateTimeString,
-      };
+    const now = new Date();
+    const dateTimeString = now.toLocaleString();
+    const imageData = {
+      stage: selectedStage,
+      image: base64Image,
+      comment: '',
+      dateTime: dateTimeString,
+    };
 
-      // Dispatch the image to the backend
-      await dispatch(addImagesToWork(idWork, imageData));
+    // Dispatch the image to the backend
+    await dispatch(addImagesToWork(idWork, imageData));
 
-      // Update images by stage locally
-      setImagesByStage((prev) => ({
-        ...prev,
-        [selectedStage]: [...(prev[selectedStage] || []), imageData],
-      }));
+    // Fetch the updated assigned works to refresh the images
+    await dispatch(fetchAssignedWorks());
 
-      Alert.alert('Éxito', 'Imagen cargada correctamente.');
-    } catch (error) {
-      console.error('Error al cargar la imagen:', error);
-      Alert.alert('Error al cargar la imagen');
-    }
-  };
-
+    Alert.alert('Éxito', 'Imagen cargada correctamente.');
+  } catch (error) {
+    console.error('Error al cargar la imagen:', error);
+    Alert.alert('Error al cargar la imagen');
+  }
+};
   const handleStagePress = (stageOption) => {
     setSelectedStage(stageOption);
     setModalVisible(true);
   };
+
+  const handleWorkInstalled = async () => {
+    try {
+      await dispatch(updateWork(idWork, { status: 'installed' }));
+      Alert.alert('Éxito', 'El estado del trabajo se actualizó a "installed".');
+      if (navigation.canGoBack()) {
+        navigation.goBack();
+      } else {
+        navigation.navigate('AssignedWorksScreen'); // Navegar a una pantalla específica si no hay una previa
+      } // Opcional: Regresar a la pantalla anterior
+    } catch (error) {
+      console.error('Error al actualizar el estado del trabajo:', error);
+      Alert.alert('Error', 'No se pudo actualizar el estado del trabajo.');
+    }
+  };
+
+  const hasFinalInspectionImages = imagesByStage['foto inspección final']?.length > 0;
 
   return (
     <ScrollView className="flex-1 bg-gray-100 p-5">
       <Text className="text-xl font-medium uppercase text-gray-800 mb-5 text-center">
         {propertyAddress || 'Sin dirección'}
       </Text>
+     
+
 
       {/* Sección de selección de etapas */}
       <View className="flex-row flex-wrap justify-around mb-5">
@@ -175,6 +186,15 @@ const UploadScreen = () => {
           </Pressable>
         ))}
       </View>
+
+      {hasFinalInspectionImages && (
+        <Pressable
+          onPress={handleWorkInstalled}
+          className="mt-4 bg-blue-600 py-3 rounded-lg shadow-md"
+        >
+          <Text className="text-white text-center text-lg font-semibold">WORK INSTALLED</Text>
+        </Pressable>
+      )}
 
       <Modal visible={modalVisible} transparent={true} animationType="slide">
         <View className="flex-1 bg-black/50 justify-center items-center">

@@ -15,7 +15,9 @@ const receiptRoutes = require('./receiptRoutes'); // Asegúrate de que la ruta s
 const incomeRoutes = require('./incomeRoutes'); // Asegúrate de que la ruta sea correcta
 const expenseRoutes = require('./expenseRoutes'); // Asegúrate de que la ruta sea correcta
 const balanceRoutes = require('./balanceRoutes'); // Asegúrate de que la ruta sea correcta
-// Rutas públicas
+const systemRoutes = require('./systemRoutes'); // Asegúrate de que la ruta sea correcta
+
+
 router.use('/auth', authRoutes); // Registro y login no requieren token
 
 // Rutas protegidas (requieren token)
@@ -34,6 +36,6 @@ router.use('/receipt', receiptRoutes); // Ruta para comprobantes
 router.use('/balance', balanceRoutes)
 router.use('/income', incomeRoutes); // Ruta para ingresos
 router.use('/expense', expenseRoutes); // Ruta para gastos
-
+router.use('/system', systemRoutes); // Ruta para comprobantes
 
 module.exports = router;

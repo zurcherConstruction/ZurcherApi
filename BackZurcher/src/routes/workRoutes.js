@@ -16,7 +16,7 @@ router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker']),
 router.get('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner']), WorkController.getWorkById);
 
 // Actualizar una obra (solo administradores)
-router.put('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner']), WorkController.updateWork);
+router.put('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker']), WorkController.updateWork);
 
 // Eliminar una obra (solo administradores)
 router.delete('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker']), WorkController.deleteWork);

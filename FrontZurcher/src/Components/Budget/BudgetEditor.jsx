@@ -3,7 +3,10 @@ import { useDispatch, useSelector } from "react-redux";
 import { Viewer, Worker } from "@react-pdf-viewer/core";
 import { useParams, useNavigate } from "react-router-dom";
 import { defaultLayoutPlugin } from "@react-pdf-viewer/default-layout";
-import { fetchBudgetById, updateBudget } from "../../Redux/Actions/budgetActions";
+import {
+  fetchBudgetById,
+  updateBudget,
+} from "../../Redux/Actions/budgetActions";
 import "@react-pdf-viewer/core/lib/styles/index.css";
 import "@react-pdf-viewer/default-layout/lib/styles/index.css";
 
@@ -12,7 +15,8 @@ const BudgetEditor = () => {
   const dispatch = useDispatch();
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
   const budgetState = useSelector((state) => state.budget);
-const navigate = useNavigate();
+  const navigate = useNavigate();
+  
   const [formData, setFormData] = useState({
     idBudget: "",
     propertyAddress: "",
@@ -22,8 +26,8 @@ const navigate = useNavigate();
     price: "",
     initialPayment: "",
     systemType: "",
-    drainfieldDepth:"",
-    gpdCapacity: ""
+    drainfieldDepth: "",
+    gpdCapacity: "",
   });
   const [pdfPreview, setPdfPreview] = useState(null);
   const [manualBudgetId, setManualBudgetId] = useState(""); // Estado para el input del budgetId manual
@@ -45,7 +49,8 @@ const navigate = useNavigate();
   // Seleccionar el presupuesto desde el estado de Redux
   const budgetData = useSelector((state) =>
     (state.budget?.budgets || []).find(
-      (budget) => budget.idBudget.toString() === (paramBudgetId || manualBudgetId)
+      (budget) =>
+        budget.idBudget.toString() === (paramBudgetId || manualBudgetId)
     )
   );
 
@@ -90,7 +95,6 @@ const navigate = useNavigate();
   const handleLoadManualBudget = () => {
     if (manualBudgetId) {
       loadBudget(manualBudgetId);
-     
     } else {
       alert("Por favor, ingresa un ID de presupuesto válido.");
     }

@@ -1,32 +1,24 @@
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { balanceActions } from "../Redux/Actions/balanceActions";
-// Importa las acciones generadas por createSlice
 import {
   fetchGeneralBalanceRequest,
   fetchGeneralBalanceSuccess,
-  fetchGeneralBalanceFailure
-} from '../Redux/Reducer/balanceReducer'; // <-- Ajusta esta ruta si es necesario
+  fetchGeneralBalanceFailure,
+  fetchBalanceByWorkIdRequest,
+  fetchBalanceByWorkIdSuccess,
+  fetchBalanceByWorkIdFailure
+} from '../Redux/Reducer/balanceReducer';
 import {
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
+  BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, 
+  Tooltip, Legend, ResponsiveContainer
 } from "recharts";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
 
 const BalanceStats = () => {
   const dispatch = useDispatch();
-  const today = new Date();
-  const threeMonthsAgo = new Date();
-  threeMonthsAgo.setMonth(today.getMonth() - 3);
+  const { balance, loading, error } = useSelector((state) => state.balance);
   const [filters, setFilters] = useState({
     workId: "",
     type: "",
@@ -34,53 +26,98 @@ const BalanceStats = () => {
     endDate: "",
   });
 
-  // Accede al estado balance como un objeto
-  const { balance, loading, error } = useSelector((state) => state.balance);
-  console.log("Estado balance en el componente:", balance);
   useEffect(() => {
     const fetchBalance = async () => {
-      // dispatch({ type: "fetchGeneralBalanceRequest" }); // Antes
-      dispatch(fetchGeneralBalanceRequest()); // Ahora: Usa el action creator importado
       try {
-        const data = await balanceActions.getGeneralBalance(filters);
-        if (data.error) {
-          console.error("Error recibido:", data.message);
-          // dispatch({ type: "fetchGeneralBalanceFailure", payload: data.message }); // Antes
-          dispatch(fetchGeneralBalanceFailure(data.message)); // Ahora: Usa el action creator importado
+        if (filters.workId) {
+          dispatch(fetchBalanceByWorkIdRequest());
+          const data = await balanceActions.getBalanceByWorkId(
+            filters.workId, 
+            { type: filters.type }
+          );
+          
+          if (data.error) {
+            dispatch(fetchBalanceByWorkIdFailure(data.message));
+          } else {
+            dispatch(fetchBalanceByWorkIdSuccess(data));
+          }
         } else {
-          console.log("Datos recibidos:", data);
-          // dispatch({ type: "fetchGeneralBalanceSuccess", payload: data }); // Antes
-          dispatch(fetchGeneralBalanceSuccess(data)); // Ahora: Usa el action creator importado
+          dispatch(fetchGeneralBalanceRequest());
+          const data = await balanceActions.getGeneralBalance(filters);
+          
+          if (data.error) {
+            dispatch(fetchGeneralBalanceFailure(data.message));
+          } else {
+            dispatch(fetchGeneralBalanceSuccess(data));
+          }
         }
       } catch (err) {
-        console.error("Error inesperado:", err);
-        // dispatch({ type: "fetchGeneralBalanceFailure", payload: err.message }); // Antes
-        dispatch(fetchGeneralBalanceFailure(err.message)); // Ahora: Usa el action creator importado
+        console.error('Error fetching balance:', err);
+        dispatch(filters.workId ? 
+          fetchBalanceByWorkIdFailure(err.message) : 
+          fetchGeneralBalanceFailure(err.message)
+        );
       }
     };
 
     fetchBalance();
-}, [dispatch, filters]);
-
-  console.log("Estado balance:", balance);
+  }, [dispatch, filters]);
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
-    setFilters((prev) => ({ ...prev, [name]: value }));
+    setFilters(prev => ({ ...prev, [name]: value }));
   };
 
-  // Datos para los gráficos
-  const data = balance
-    ? [
-        { name: "Ingresos", value: balance.totalIncome || 0 },
-        { name: "Gastos", value: balance.totalExpense || 0 },
-      ]
-    : [];
+  const prepareChartData = () => {
+    if (!balance) return [];
+    console.log('Balance data:', balance); // Debug log
+  
+    // Para balance general
+    if (!filters.workId) {
+      return [
+        { name: "Ingresos Totales", value: Number(balance.totalIncome) || 0 },
+        { name: "Gastos Totales", value: Number(balance.totalExpense) || 0 }
+      ];
+    }
+  
+    // Para balance específico de una obra
+    if (balance.details) {
+      // Si se selecciona tipo "income", mostrar desglose de ingresos
+      if (filters.type === 'income' && Array.isArray(balance.details.incomes)) {
+        console.log('Income details:', balance.details.incomes); // Debug log
+        return balance.details.incomes.map(income => ({
+          name: income.name || 'Sin clasificar',
+          value: Number(income.value) || 0,
+          count: Number(income.count) || 0
+        }));
+      }
+  
+      // Si se selecciona tipo "expense", mostrar desglose de gastos
+      if (filters.type === 'expense' && Array.isArray(balance.details.expenses)) {
+        console.log('Expense details:', balance.details.expenses); // Debug log
+        return balance.details.expenses.map(expense => ({
+          name: expense.name || 'Sin clasificar',
+          value: Number(expense.value) || 0,
+          count: Number(expense.count) || 0
+        }));
+      }
+  
+      // Si no hay filtro de tipo, mostrar totales de la obra
+      return [
+        { name: "Ingresos", value: Number(balance.totalIncome) || 0 },
+        { name: "Gastos", value: Number(balance.totalExpense) || 0 }
+      ];
+    }
+  
+    return [];
+  };
+
+  const data = prepareChartData();
 
   return (
     <div className="p-6 bg-gray-100 rounded-lg shadow-md">
       <h2 className="text-2xl font-bold text-blue-600 mb-4">
-        Estadísticas de Balance
+        {filters.workId ? `Balance de Obra ${filters.workId}` : 'Balance General'}
       </h2>
 
       {/* Filtros */}

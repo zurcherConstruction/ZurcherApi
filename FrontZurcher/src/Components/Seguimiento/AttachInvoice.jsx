@@ -7,7 +7,7 @@ import { toast } from "react-toastify";
 
 const incomeTypes = [
   "Factura Pago Final Budget",
-  "Diseño",
+  "DiseñoDif",
 ];
 
 const expenseTypes = [
@@ -56,6 +56,14 @@ const AttachReceipt = () => {
           ? { typeIncome: type } // Si es ingreso
           : { typeExpense: type }), // Si es gasto
       };
+      console.log('Datos a enviar:', {
+        isIncome,
+        data,
+        selectedWork,
+        type,
+        amount,
+        notes
+      });
 
       // Llamar a la acción correspondiente
       if (isIncome) {

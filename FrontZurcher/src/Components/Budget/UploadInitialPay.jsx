@@ -1,126 +1,154 @@
-import  { useState, useEffect } from 'react';
-// import PropTypes from 'prop-types'; // Ya no se necesitan propTypes para sendBudgets/onUploadSuccess
+import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { uploadInvoice, fetchBudgets, updateBudget } from '../../Redux/Actions/budgetActions';
-// Opcional: para navegar después de la carga
- import { useNavigate } from 'react-router-dom'; 
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 
-// Ya no recibe props sendBudgets ni onUploadSuccess
-const UploadInitialPay = () => { 
+const UploadInitialPay = () => {
   const dispatch = useDispatch();
-   const navigate = useNavigate(); 
-
-  // Obtener TODOS los budgets y el estado de carga/error del store
+  const navigate = useNavigate();
   const { budgets, loading: budgetsLoading, error: budgetsError } = useSelector((state) => state.budget);
 
-  const [selectedBudgetId, setSelectedBudgetId] = useState(''); 
-  const [file, setFile] = useState(null); 
-  const [isLoading, setIsLoading] = useState(false); // Carga específica del upload
+  const [selectedBudgetId, setSelectedBudgetId] = useState('');
+  const [file, setFile] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
-  // Cargar los budgets al montar el componente
   useEffect(() => {
     dispatch(fetchBudgets());
   }, [dispatch]);
 
   const handleBudgetSelect = (event) => {
     setSelectedBudgetId(event.target.value);
-    setFile(null); 
+    setFile(null);
   };
 
   const handleFileChange = (event) => {
     const selectedFile = event.target.files[0];
-    const fileInput = event.target; // Guarda referencia al input
+    const fileInput = event.target;
+
     if (!selectedFile) {
       setFile(null);
       return;
     }
 
-    // --- Validación de Tipo (PDF o Imagen) ---
     const allowedTypes = ["application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp"];
     if (!allowedTypes.includes(selectedFile.type)) {
-      alert("Tipo de archivo no permitido. Sube un PDF o una imagen (JPG, PNG, GIF, WEBP).");
+      toast.error("Tipo de archivo no permitido. Sube un PDF o una imagen (JPG, PNG, GIF, WEBP).");
       setFile(null);
-      fileInput.value = null; // Limpia input
+      fileInput.value = null;
       return;
     }
-    // --- Fin Validación de Tipo ---
 
-    // --- Validación de Tamaño ---
-    if (selectedFile.size > 5 * 1024 * 1024) { // 5 MB
-      alert("El archivo no debe superar los 5 MB.");
+    if (selectedFile.size > 5 * 1024 * 1024) {
+      toast.error("El archivo no debe superar los 5 MB.");
       setFile(null);
-      fileInput.value = null; // Limpia input
+      fileInput.value = null;
       return;
     }
-    // --- Fin Validación de Tamaño ---
 
     setFile(selectedFile);
   };
 
   const handleUpload = async () => {
     if (!selectedBudgetId || !file) {
-      alert("Por favor, selecciona un presupuesto y un archivo PDF.");
+      toast.error("Por favor, selecciona un presupuesto y un archivo.");
       return;
     }
-    setIsLoading(true); 
+
+    setIsLoading(true);
+    setUploadProgress(0);
+    let uploadToast;
+
     try {
-      // 1. Sube la factura
-      await dispatch(uploadInvoice(selectedBudgetId, file));
-      
-      // 2. Si la subida fue exitosa, actualiza el estado a 'approved'
-      await dispatch(updateBudget(selectedBudgetId, { status: 'approved' })); 
+      uploadToast = toast.loading("Iniciando la carga del comprobante...");
 
-      alert("Pago cargado y presupuesto aprobado exitosamente."); // Mensaje actualizado
-      
-      setSelectedBudgetId(''); 
+      const uploadResult = await dispatch(uploadInvoice(selectedBudgetId, file, (progress) => {
+        setUploadProgress(progress);
+        if (uploadToast) {
+          toast.update(uploadToast, {
+            render: `Subiendo: ${progress}%`,
+            type: "info",
+          });
+        }
+      }));
+
+      if (!uploadResult?.payload) {
+        throw new Error('Error al subir el comprobante');
+      }
+
+      toast.update(uploadToast, {
+        render: "Actualizando estado del presupuesto...",
+        type: "info",
+        isLoading: true
+      });
+
+      const updateResult = await dispatch(updateBudget(selectedBudgetId, { 
+        status: 'approved',
+        invoiceUrl: uploadResult.payload.url
+      }));
+
+      if (!updateResult?.payload) {
+        throw new Error('Error al actualizar el estado del presupuesto');
+      }
+
+      toast.update(uploadToast, {
+        render: "¡Comprobante subido y presupuesto aprobado!",
+        type: "success",
+        isLoading: false,
+        autoClose: 3000,
+      });
+
+      // Limpiar formulario
+      setSelectedBudgetId('');
       setFile(null);
+      setUploadProgress(0);
+      const fileInput = document.getElementById('invoice-upload-input');
+      if (fileInput) fileInput.value = null;
 
-      const fileInput = document.getElementById('invoice-upload-input');
-      if (fileInput) fileInput.value = null;
-      
-      // 3. Navega al dashboard
-      navigate('/dashboard'); // <-- ¡AQUÍ!
-      
-      // 3. Refresca la lista para asegurar consistencia (opcional pero recomendado)
-      dispatch(fetchBudgets()); 
-      
-      // navigate('/budgets'); // O a donde quieras ir
+      // Recargar datos y navegar
+      await dispatch(fetchBudgets());
+      navigate('/dashboard');
+
     } catch (error) {
-      // Considera dar mensajes de error más específicos si es posible
-      console.error("Error durante la carga o actualización:", error); 
-      alert("Error al procesar el comprobante: " + (error.message || "Unknown error"));
+      console.error("Error durante la carga:", error);
+      
+      if (uploadToast) {
+        toast.update(uploadToast, {
+          render: error.message.includes('timeout') || error.code === 'ECONNABORTED'
+            ? "La carga está tomando más tiempo de lo esperado. Por favor, intenta con un archivo más pequeño."
+            : `Error: ${error.message || 'Error desconocido'}`,
+          type: "error",
+          isLoading: false,
+          autoClose: 5000,
+        });
+      }
     } finally {
-      setIsLoading(false); 
-      const fileInput = document.getElementById('invoice-upload-input');
-      if (fileInput) fileInput.value = null;
+      setIsLoading(false);
     }
   };
 
-  // Filtrar los budgets en estado 'send' DESPUÉS de obtenerlos del store
   const sendBudgets = budgets.filter(b => b.status === 'send');
 
-  // Manejar estado de carga de los budgets
   if (budgetsLoading) {
-    return <p className="text-blue-500 p-4">Loading budgets...</p>;
+    return <p className="text-blue-500 p-4">Cargando presupuestos...</p>;
   }
+
   if (budgetsError) {
-    return <p className="text-red-500 p-4">Error loading budgets: {budgetsError}</p>;
+    return <p className="text-red-500 p-4">Error al cargar presupuestos: {budgetsError}</p>;
   }
 
-  // Si no hay presupuestos en estado 'send' después de cargar
   if (sendBudgets.length === 0) {
-    return <p className="text-gray-500 text-sm p-4">No budgets awaiting invoice upload.</p>;
+    return <p className="text-gray-500 text-sm p-4">No hay presupuestos pendientes de comprobante.</p>;
   }
 
-  // El resto del return es igual, usando la variable local 'sendBudgets'
   return (
-    <div className="p-4 border border-gray-300 rounded-lg shadow-md my-4 bg-gray-50 max-w-md mx-auto"> {/* Estilo opcional */}
-      <h2 className="text-md font-semibold mb-3 text-gray-700">Upload Initial Payment Proof</h2>
+    <div className="p-4 border border-gray-300 rounded-lg shadow-md my-4 bg-gray-50 max-w-md mx-auto">
+      <h2 className="text-md font-semibold mb-3 text-gray-700">Subir Comprobante de Pago Inicial</h2>
       
-      {/* Selector de Presupuesto */}
       <div className="mb-3">
         <label htmlFor="budget-select" className="block text-sm font-medium text-gray-600 mb-1">
-          Select Budget (Status: Send):
+          Seleccionar Presupuesto (Estado: Enviado):
         </label>
         <select
           id="budget-select"
@@ -128,7 +156,7 @@ const UploadInitialPay = () => {
           onChange={handleBudgetSelect}
           className="block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
         >
-          <option value="" disabled>-- Select a Budget --</option>
+          <option value="">-- Seleccionar Presupuesto --</option>
           {sendBudgets.map((budget) => (
             <option key={budget.idBudget} value={budget.idBudget}>
               {budget.applicantName} - {budget.propertyAddress}
@@ -137,41 +165,57 @@ const UploadInitialPay = () => {
         </select>
       </div>
 
-      {/* Input de Archivo */}
       {selectedBudgetId && (
         <div className="mb-3">
-           {/* Label actualizada */}
           <label htmlFor="invoice-upload-input" className="block text-sm font-medium text-gray-600 mb-1">
-            Select Proof (PDF or Image): 
+            Seleccionar Comprobante (PDF o Imagen):
           </label>
           <input
             id="invoice-upload-input"
+            name="file"
             type="file"
-            // Accept actualizado
-            accept="application/pdf,image/jpeg,image/png,image/gif,image/webp" 
+            accept="application/pdf,image/jpeg,image/png,image/gif,image/webp"
             onChange={handleFileChange}
             className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
           />
         </div>
       )}
 
-      {/* Botón de Carga */}
+      {isLoading && uploadProgress > 0 && (
+        <div className="mb-4">
+          <div className="w-full bg-gray-200 rounded-full h-2.5">
+            <div 
+              className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+              style={{ width: `${uploadProgress}%` }}
+            />
+          </div>
+          <p className="text-sm text-gray-600 mt-1 text-center">{uploadProgress}% completado</p>
+        </div>
+      )}
+
       {selectedBudgetId && file && (
         <button
           onClick={handleUpload}
           disabled={isLoading}
           className={`w-full px-4 py-2 rounded text-white font-semibold text-sm ${
-            isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+            isLoading 
+              ? 'bg-gray-400 cursor-not-allowed' 
+              : 'bg-blue-600 hover:bg-blue-700'
           }`}
         >
-           {/* Texto actualizado */}
-          {isLoading ? 'Uploading...' : 'Upload Proof & Approve'} 
+          {isLoading ? (
+            <span className="flex items-center justify-center">
+              <svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+              </svg>
+              Subiendo...
+            </span>
+          ) : 'Subir Comprobante y Aprobar'}
         </button>
       )}
     </div>
   );
 };
-
-
 
 export default UploadInitialPay;

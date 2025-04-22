@@ -6,7 +6,7 @@ const BarraLateral = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Estado para controlar el menú móvil
   const navigate = useNavigate(); // Hook para manejar la navegación
   const location = useLocation(); // Hook para detectar cambios en la URL
-  const { staff } = useSelector((state) => state.auth);
+  const { currentStaff: staff } = useSelector((state) => state.auth);
 
   const menuItems = [
     { name: "Upload Permits", path: "/pdf" },

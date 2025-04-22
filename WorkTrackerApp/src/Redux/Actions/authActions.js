@@ -16,7 +16,7 @@ export const login = (email, password) => async (dispatch) => {
     await AsyncStorage.setItem('staff', JSON.stringify(staff));
 
     dispatch(loginSuccess({ token, staff }));
-    console.log('Login exitoso. Staff ID:', staff.id); 
+console.log('Login exitoso. Staff ID:', staff.id, 'Rol:', staff.role);
     // Despachar la acción para obtener los trabajos asignados al staff
     dispatch(fetchWorks(staff.id)); // Aquí usamos staff.id como staffId
   } catch (error) {

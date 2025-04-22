@@ -1,101 +1,187 @@
-const { Income, Expense } = require('../data'); // Importa tus modelos
+const { Income, Expense } = require('../data');
 const { Sequelize } = require('sequelize');
+
 const getIncomesAndExpensesByWorkId = async (req, res) => {
   const { workId } = req.params;
   try {
-    const incomes = await Income.findAll({ where: { workId: workId } });
-    const expenses = await Expense.findAll({ where: { workId: workId } });
+    const incomes = await Income.findAll({ where: { workId } });
+    const expenses = await Expense.findAll({ where: { workId } });
 
     res.status(200).json({ incomes, expenses });
   } catch (error) {
-    res.status(500).json({ message: 'Error al obtener ingresos y gastos', error: error.message });
+    res.status(500).json({ 
+      message: 'Error al obtener ingresos y gastos', 
+      error: error.message 
+    });
   }
 };
 
 const getBalanceByWorkId = async (req, res) => {
-    const { workId } = req.params;
-    try {
-      const incomes = await Income.findAll({ where: { workId: workId } });
-      const expenses = await Expense.findAll({ where: { workId: workId } });
-  
-      // Calcula el total de ingresos y gastos
-      const totalIncome = incomes.reduce((sum, income) => sum + parseFloat(income.amount), 0);
-      const totalExpense = expenses.reduce((sum, expense) => sum + parseFloat(expense.amount), 0);
-  
-      const balance = totalIncome - totalExpense;
-  
-      res.status(200).json({
-        totalIncome,
-        totalExpense,
-        balance,
-      });
-    } catch (error) {
-      res.status(500).json({ message: 'Error al obtener el balance', error: error.message });
-    }
-  };
+  const { workId } = req.params;
+  const { type } = req.query;
 
-  const getGeneralBalance = async (req, res) => {
-    const { type, startDate, endDate, workId } = req.query;
-  
-    try {
-      console.log("Parámetros recibidos:", { type, startDate, endDate, workId });
-  
-      // Validar fechas
-      if (startDate && isNaN(Date.parse(startDate))) {
-        return res.status(400).json({ message: 'Fecha de inicio inválida' });
+  try {
+    // Consultar ingresos y agruparlos por tipo
+    const incomes = await Income.findAll({ 
+      where: { workId },
+      attributes: [
+        'typeIncome',
+        [Sequelize.fn('SUM', Sequelize.col('amount')), 'total'],
+        [Sequelize.fn('COUNT', Sequelize.col('typeIncome')), 'count']
+      ],
+      group: ['typeIncome']
+    });
+
+    // Consultar gastos y agruparlos por tipo
+    const expenses = await Expense.findAll({
+      where: { workId },
+      attributes: [
+        'typeExpense',
+        [Sequelize.fn('SUM', Sequelize.col('amount')), 'total'],
+        [Sequelize.fn('COUNT', Sequelize.col('typeExpense')), 'count']
+      ],
+      group: ['typeExpense']
+    });
+
+    // Calcular totales
+    const totalIncome = incomes.reduce((sum, income) => 
+      sum + parseFloat(income.getDataValue('total') || 0), 0
+    );
+    const totalExpense = expenses.reduce((sum, expense) => 
+      sum + parseFloat(expense.getDataValue('total') || 0), 0
+    );
+    const balance = totalIncome - totalExpense;
+
+    // Formatear los datos para el gráfico
+    const incomesData = incomes.map(income => ({
+      name: income.typeIncome || 'Sin clasificar',
+      value: parseFloat(income.getDataValue('total')) || 0,
+      count: parseInt(income.getDataValue('count')) || 0,
+      type: 'income'
+    }));
+
+    const expensesData = expenses.map(expense => ({
+      name: expense.typeExpense || 'Sin clasificar',
+      value: parseFloat(expense.getDataValue('total')) || 0,
+      count: parseInt(expense.getDataValue('count')) || 0,
+      type: 'expense'
+    }));
+
+    // Preparar respuesta
+    const responseData = {
+      totalIncome,
+      totalExpense,
+      balance,
+      details: {
+        incomes: incomesData,
+        expenses: expensesData
       }
-      if (endDate && isNaN(Date.parse(endDate))) {
-        return res.status(400).json({ message: 'Fecha de fin inválida' });
-      }
-  
-      // Consultar ingresos
-      let incomes = await Income.findAll({
-        where: {
-          ...(workId && { workId }),
-          ...(type && { typeIncome: type }),
-          ...(startDate && endDate && {
-            date: {
-              [Sequelize.Op.between]: [startDate, endDate],
-            },
-          }),
-        },
-      });
-      console.log("Ingresos encontrados:", incomes);
-  
-      // Consultar gastos
-      let expenses = await Expense.findAll({
-        where: {
-          ...(workId && { workId }),
-          ...(type && { typeExpense: type }),
-          ...(startDate && endDate && {
-            date: {
-              [Sequelize.Op.between]: [startDate, endDate],
-            },
-          }),
-        },
-      });
-      console.log("Gastos encontrados:", expenses);
-  
-      // Calcular totales
-      const totalIncome = incomes.reduce((sum, income) => sum + parseFloat(income.amount || 0), 0);
-      const totalExpense = expenses.reduce((sum, expense) => sum + parseFloat(expense.amount || 0), 0);
-      const balance = totalIncome - totalExpense;
-  
-      console.log("Totales calculados:", { totalIncome, totalExpense, balance });
-  
-      res.status(200).json({
-        totalIncome,
-        totalExpense,
-        balance,
-      });
-    } catch (error) {
-      console.error("Error al obtener el balance general:", error);
-      res.status(500).json({ message: 'Error al obtener el balance general', error: error.message });
+    };
+
+    // Filtrar por tipo si se especifica
+    if (type === 'income') {
+      responseData.details = { incomes: incomesData };
+    } else if (type === 'expense') {
+      responseData.details = { expenses: expensesData };
     }
-  };
+
+    res.status(200).json(responseData);
+  } catch (error) {
+    console.error("Error en getBalanceByWorkId:", error);
+    res.status(500).json({ 
+      message: 'Error al obtener el balance', 
+      error: error.message 
+    });
+  }
+};
+
+const getGeneralBalance = async (req, res) => {
+  const { type, startDate, endDate, workId } = req.query;
+
+  try {
+    // Construir where clause base
+    const whereClause = {};
+    if (workId) whereClause.workId = workId;
+    if (startDate && endDate) {
+      whereClause.date = {
+        [Sequelize.Op.between]: [startDate, endDate]
+      };
+    }
+
+    // Consultar y agrupar ingresos
+    const incomes = await Income.findAll({
+      where: whereClause,
+      attributes: [
+        'typeIncome',
+        [Sequelize.fn('SUM', Sequelize.col('amount')), 'total'],
+        [Sequelize.fn('COUNT', Sequelize.col('typeIncome')), 'count']
+      ],
+      group: ['typeIncome']
+    });
+
+    // Consultar y agrupar gastos
+    const expenses = await Expense.findAll({
+      where: whereClause,
+      attributes: [
+        'typeExpense',
+        [Sequelize.fn('SUM', Sequelize.col('amount')), 'total'],
+        [Sequelize.fn('COUNT', Sequelize.col('typeExpense')), 'count']
+      ],
+      group: ['typeExpense']
+    });
+
+    // Calcular totales
+    const totalIncome = incomes.reduce((sum, income) => 
+      sum + parseFloat(income.getDataValue('total') || 0), 0
+    );
+    const totalExpense = expenses.reduce((sum, expense) => 
+      sum + parseFloat(expense.getDataValue('total') || 0), 0
+    );
+    const balance = totalIncome - totalExpense;
+
+    // Formatear datos para gráficos
+    const incomesData = incomes.map(income => ({
+      name: income.typeIncome || 'Sin clasificar',
+      value: parseFloat(income.getDataValue('total')) || 0,
+      count: parseInt(income.getDataValue('count')) || 0
+    }));
+
+    const expensesData = expenses.map(expense => ({
+      name: expense.typeExpense || 'Sin clasificar',
+      value: parseFloat(expense.getDataValue('total')) || 0,
+      count: parseInt(expense.getDataValue('count')) || 0
+    }));
+
+    // Preparar respuesta
+    const responseData = {
+      totalIncome,
+      totalExpense,
+      balance,
+      details: {
+        incomes: incomesData,
+        expenses: expensesData
+      }
+    };
+
+    // Filtrar por tipo si se especifica
+    if (type === 'income') {
+      responseData.details = { incomes: incomesData };
+    } else if (type === 'expense') {
+      responseData.details = { expenses: expensesData };
+    }
+
+    res.status(200).json(responseData);
+  } catch (error) {
+    console.error("Error en getGeneralBalance:", error);
+    res.status(500).json({ 
+      message: 'Error al obtener el balance general', 
+      error: error.message 
+    });
+  }
+};
 
 module.exports = {
   getIncomesAndExpensesByWorkId,
   getBalanceByWorkId,
-  getGeneralBalance,
+  getGeneralBalance
 };

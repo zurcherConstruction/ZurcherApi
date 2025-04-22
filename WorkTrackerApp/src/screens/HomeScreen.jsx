@@ -5,6 +5,7 @@ import {
   TextInput,
   Pressable,
   Animated,
+  ScrollView,
 } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorks } from "../Redux/Actions/workActions";
@@ -102,7 +103,7 @@ const HomeScreen = () => {
   };
 
   return (
-    <View className="flex-1 p-3 bg-gray-100">
+    <ScrollView className="flex-1 p-3 bg-gray-100">
       <TextInput
         className="border border-gray-300 p-3 mb-3 rounded-lg bg-white shadow-sm text-base"
         placeholder="Buscar por Dirección"
@@ -185,7 +186,7 @@ const HomeScreen = () => {
             </View>
           </Pressable>
         ))}
-    </View>
+    </ScrollView>
   );
 };
 
