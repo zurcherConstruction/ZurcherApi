@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { updateWork } from "../../Redux/Actions/workActions";
+import { fetchWorks, updateWork } from "../../Redux/Actions/workActions";
 import { fetchStaff } from "../../Redux/Actions/adminActions";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
@@ -29,6 +29,7 @@ const PendingWorks = () => {
 
   useEffect(() => {
     dispatch(fetchStaff());
+    dispatch(fetchWorks())
   }, [dispatch]);
 
   const handleAssign = async () => {
@@ -52,11 +53,11 @@ const PendingWorks = () => {
       // Enviar notificación por correo al miembro del staff asignado
       const assignedStaff = staff.find((member) => member.id === selectedStaff);
       if (assignedStaff) {
-        await api.post("/notification/email", {
-          email: assignedStaff.email,
-          subject: "Trabajo Asignado",
-          message: `Se te ha asignado el trabajo en ${selectedWork.propertyAddress} para la fecha ${formattedDate}.`,
-        });
+        // await api.post("/notification", {
+        //   email: assignedStaff.email,
+        //   subject: "Trabajo Asignado",
+        //   message: `Se te ha asignado el trabajo en ${selectedWork.propertyAddress} para la fecha ${formattedDate}.`,
+        // });
 
         // Enviar notificación por Socket.IO al miembro del staff
         socket.emit("notification", {
@@ -71,11 +72,11 @@ const PendingWorks = () => {
 
       if (receptEmails.length > 0) {
         // Enviar correo a los receptores
-        await api.post("/notification/email", {
-          email: receptEmails.join(","),
-          subject: "Compra de Materiales Pendiente",
-          message: `Hay una compra de materiales pendiente para el trabajo en ${selectedWork.propertyAddress}. Los materiales se necesitan para la fecha ${formattedDate}.`,
-        });
+        // await api.post("/notification/email", {
+        //   email: receptEmails.join(","),
+        //   subject: "Compra de Materiales Pendiente",
+        //   message: `Hay una compra de materiales pendiente para el trabajo en ${selectedWork.propertyAddress}. Los materiales se necesitan para la fecha ${formattedDate}.`,
+        // });
 
         // Notificar a los receptores por Socket.IO
         socket.emit("notification", {
@@ -184,9 +185,14 @@ const PendingWorks = () => {
   
                   <button
                     onClick={handleAssign}
-                    className="mt-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                    className={`mt-4 px-4 py-2 text-white rounded ${
+                      !selectedWork || !selectedStaff 
+                        ? 'bg-gray-400 cursor-not-allowed' 
+                        : 'bg-blue-500 hover:bg-blue-600'
+                    }`}
+                    disabled={!selectedWork || !selectedStaff} // Añadir esta línea
                   >
-                    Asignar Trabajo
+                    Assign work
                   </button>
                 </>
               )}
