@@ -21,6 +21,7 @@ const BarraLateral = () => {
     { name: "Calendar", path: "/workCalendar" },
     { name: "BudgetsEnd", path: "/archive" },
     { name: "Upload Vouchers", path: "/attachInvoice" },
+    { name: "Dashboard", path: "/dashboard" },
     { name: "Balance", path: "/balance" },
 
     
