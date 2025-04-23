@@ -13,9 +13,11 @@ import "@react-pdf-viewer/default-layout/lib/styles/index.css";
 const PdfReceipt = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const [pdfPreview, setPdfPreview] = useState(null);
-  const [optionalDocs, setOptionalDocs] = useState(null); // Documentación opcional
-  const [file, setFile] = useState(null); // Estado para almacenar el archivo PDF
+  const [pdfPreview, setPdfPreview] = useState(null); // Previsualización del PDF principal
+  const [optionalDocPreview, setOptionalDocPreview] = useState(null); // Previsualización del documento opcional
+  const [file, setFile] = useState(null); // Archivo PDF principal
+  const [optionalDocs, setOptionalDocs] = useState(null); // Documento opcional
+  const [currentPage, setCurrentPage] = useState(1); 
   const [formData, setFormData] = useState({
     permitNumber: "",
     applicationNumber: "",
@@ -70,6 +72,15 @@ const PdfReceipt = () => {
       ...prevFormData,
       [name]: value, // Actualiza el campo correspondiente
     }));
+  };
+
+  const handleOptionalDocUpload = (e) => {
+    const uploadedFile = e.target.files[0];
+    if (uploadedFile) {
+      const fileUrl = URL.createObjectURL(uploadedFile);
+      setOptionalDocPreview(fileUrl); // Previsualización del documento opcional
+      setOptionalDocs(uploadedFile); // Guardar el archivo opcional
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -153,39 +164,89 @@ const PdfReceipt = () => {
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">
-        Gestión de PDF, Permiso y Presupuesto
-      </h1>
+      <h1 className="text-2xl font-bold mb-4">Gestión de PDF y Permiso</h1>
 
-      {/* Contenedor principal con diseño responsivo */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Columna izquierda: Vista previa del PDF */}
-        <div className="bg-white shadow-md rounded-lg p-4 col-span-1 md:col-span-2">
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700">
-              Upload PDF Permit
-            </label>
-            <input
-              type="file"
-              accept="application/pdf"
-              onChange={handleFileUpload}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            />
+        <div className="bg-white shadow-md rounded-lg p-4 col-span-2">
+          <h2 className="text-xl font-bold mb-4">Vista previa del PDF</h2>
+
+          {/* Botones para alternar entre PDF principal y opcional */}
+          <div className="flex justify-between mb-4">
+            <button
+              onClick={() => setCurrentPage(1)}
+              className={`py-1 px-2 rounded-md ${
+                currentPage === 1
+                  ? "bg-blue-950 text-white"
+                  : "bg-gray-200 text-gray-700"
+              }`}
+            >
+              Ver PDF Principal
+            </button>
+            <button
+              onClick={() => setCurrentPage(2)}
+              className={`py-1 px-2 rounded-md ${
+                currentPage === 2
+                  ? "bg-blue-950 text-white"
+                  : "bg-gray-200 text-gray-700"
+              }`}
+            >
+              Ver Documento Opcional
+            </button>
           </div>
 
-          {pdfPreview && (
-            <div
-              className="overflow-y-auto max-h-[700px] border border-gray-300 rounded-md"
-              style={{ height: "700px" }} // Altura máxima para el contenedor del PDF
-            >
-              <Worker
-                workerUrl={`https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js`}
-              >
+          {/* Vista previa del PDF */}
+          {currentPage === 1 && pdfPreview ? (
+            <div className="overflow-y-auto max-h-[700px] border border-gray-300 rounded-md">
+              <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
                 <Viewer
                   fileUrl={pdfPreview}
-                  plugins={[defaultLayoutPluginInstance]} // Habilitar scroll y navegación
+                  plugins={[defaultLayoutPluginInstance]}
                 />
               </Worker>
+            </div>
+          ) : currentPage === 2 && optionalDocPreview ? (
+            <div className="overflow-y-auto max-h-[700px] border border-gray-300 rounded-md">
+              <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+                <Viewer
+                  fileUrl={optionalDocPreview}
+                  plugins={[defaultLayoutPluginInstance]}
+                />
+              </Worker>
+            </div>
+          ) : (
+            <p className="text-gray-500">
+              {currentPage === 1
+                ? "No se ha cargado ningún PDF principal."
+                : "No se ha cargado ningún documento opcional."}
+            </p>
+          )}
+
+          {/* Inputs para cargar los documentos */}
+          {currentPage === 1 && (
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Cargar PDF Principal
+              </label>
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={handleFileUpload}
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              />
+            </div>
+          )}
+          {currentPage === 2 && (
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700">
+                Cargar Documento Opcional
+              </label>
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={handleOptionalDocUpload}
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              />
             </div>
           )}
         </div>
@@ -201,62 +262,49 @@ const PdfReceipt = () => {
                   key !== "dateIssued" // Excluir estos campos
               )
               .map((key) => (
-                <div key={key}>
-                  {key === "applicantName" && (
-                    <h2 className="text-sm font-semibold mt-2 mb-2 bg-blue-950 text-white p-1 rounded-md">
-                      CUSTOMER CLIENT
-                    </h2>
-                  )}
-                  <label className="block text-xs font-medium capitalize text-gray-700">
-                    {key.replace(/([A-Z])/g, " $1").trim()}
-                  </label>
-                  {key === "systemType" ? (
-                    <select
-                      name={key}
-                      value={formData[key]}
-                      onChange={handleInputChange}
-                      className="block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-xs"
-                    >
-                      <option value="">Seleccione un tipo de sistema</option>
-                      {systemTypes.map((type) => (
-                        <option key={type.id} value={type.name}>
-                          {type.name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      name={key}
-                      value={formData[key] || ""}
-                      onChange={handleInputChange}
-                      className="block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-xs"
-                    />
-                  )}
-                </div>
-              ))}
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Subir Documentación Opcional
-              </label>
-              <input
-                type="file"
-                accept="application/pdf"
-                onChange={(e) => {
-                  const uploadedFile = e.target.files[0];
-                  if (uploadedFile) {
-                    console.log("Archivo opcional seleccionado:", uploadedFile);
-                    setOptionalDocs(uploadedFile); // Guardar la documentación opcional en el estado
-                  }
-                }}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              />
-            </div>
-
+              <div key={key}>
+                 {key === "applicantName" && (
+            <h2 className="text-sm font-semibold mt-2 mb-2 bg-blue-950 text-white p-1 rounded-md">
+              CUSTOMER CLIENT
+            </h2>
+          )}
+          <label className="block text-xs font-medium capitalize text-gray-700">
+            {key === "applicantName"
+              ? "Name"
+              : key === "applicantEmail"
+              ? "Email"
+              : key === "applicantPhone"
+              ? "Phone"
+              : key.replace(/([A-Z])/g, " $1").trim()}
+          </label>
+                {key === "systemType" ? (
+                  <select
+                    name={key}
+                    value={formData[key]}
+                    onChange={handleInputChange}
+                    className="block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  >
+                    <option value="">Seleccione un tipo de sistema</option>
+                    {systemTypes.map((type) => (
+                      <option key={type.id} value={type.name}>
+                        {type.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    name={key}
+                    value={formData[key]}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  />
+                )}
+              </div>
+            ))}
             <button
               type="submit"
-              className="bg-blue-950 text-white text-sm py-1 px-2 rounded-md hover:bg-indigo-700"
+              className="bg-blue-950 text-white py-2 px-4 rounded-md hover:bg-indigo-700"
             >
               Guardar
             </button>
@@ -266,5 +314,6 @@ const PdfReceipt = () => {
     </div>
   );
 };
+
 
 export default PdfReceipt;
