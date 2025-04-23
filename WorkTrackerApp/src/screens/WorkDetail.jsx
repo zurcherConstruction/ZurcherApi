@@ -90,41 +90,54 @@ const WorkDetail = () => {
   };
 
   const handleOpenPdf = async (pdfData) => {
-     try {
-       const base64Pdf = Buffer.from(pdfData.data).toString("base64");
-       const fileUri = `${FileSystem.cacheDirectory}temp.pdf`;
- 
-       await FileSystem.writeAsStringAsync(fileUri, base64Pdf, {
-         encoding: FileSystem.EncodingType.Base64,
-       });
- 
-       console.log("PDF guardado en:", fileUri);
- 
-       if (Platform.OS === "android") {
-         const contentUri = await FileSystem.getContentUriAsync(fileUri);
- 
-         const intent = {
-           action: "android.intent.action.VIEW",
-           data: contentUri,
-           flags: 1,
-           type: "application/pdf",
-         };
- 
-         await IntentLauncher.startActivityAsync(
-           "android.intent.action.VIEW",
-           intent
-         );
-       } else if (Platform.OS === "ios") {
-         await Sharing.shareAsync(fileUri, {
-           mimeType: "application/pdf",
-           dialogTitle: "Compartir PDF",
-           UTI: "com.adobe.pdf",
-         });
-       }
-     } catch (error) {
-       console.error("Error al abrir el PDF:", error);
-     }
-   };
+    try {
+      // Verificar si el pdfData es un objeto con una propiedad `data` o si ya es una cadena base64
+      const base64Pdf =
+        pdfData?.data
+          ? Buffer.from(pdfData.data).toString("base64") // Si es un objeto con `data`, convertirlo a base64
+          : pdfData.startsWith("data:application/pdf;base64,")
+          ? pdfData.split(",")[1] // Si ya es una cadena base64, extraer la parte después de "base64,"
+          : null;
+  
+      if (!base64Pdf) {
+        throw new Error("El PDF no está en un formato válido.");
+      }
+  
+      const fileUri = `${FileSystem.cacheDirectory}temp.pdf`;
+  
+      // Guardar el PDF en el sistema de archivos
+      await FileSystem.writeAsStringAsync(fileUri, base64Pdf, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+  
+      console.log("PDF guardado en:", fileUri);
+  
+      // Abrir el PDF según la plataforma
+      if (Platform.OS === "android") {
+        const contentUri = await FileSystem.getContentUriAsync(fileUri);
+  
+        const intent = {
+          action: "android.intent.action.VIEW",
+          data: contentUri,
+          flags: 1,
+          type: "application/pdf",
+        };
+  
+        await IntentLauncher.startActivityAsync(
+          "android.intent.action.VIEW",
+          intent
+        );
+      } else if (Platform.OS === "ios") {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: "application/pdf",
+          dialogTitle: "Compartir PDF",
+          UTI: "com.adobe.pdf",
+        });
+      }
+    } catch (error) {
+      console.error("Error al abrir el PDF:", error);
+    }
+  };
 
   if (loading) {
     return (
@@ -189,7 +202,15 @@ const WorkDetail = () => {
         onPress={() => handleOpenPdf(work.Permit.pdfData)}
         className="bg-blue-600 py-2 px-4 rounded-lg shadow-md"
       >
-        <Text className="text-white font-bold text-center">PDF Permit</Text>
+        <Text className="text-white font-bold text-center">Permit</Text>
+      </TouchableOpacity>
+    )}
+     {work.Permit?.optionalDocs && (
+      <TouchableOpacity
+        onPress={() => handleOpenPdf(work.Permit.optionalDocs)}
+        className="bg-green-600 py-2 px-4 rounded-lg shadow-md ml-2"
+      >
+        <Text className="text-white font-bold text-center">Permit Flat</Text>
       </TouchableOpacity>
     )}
   </View>
