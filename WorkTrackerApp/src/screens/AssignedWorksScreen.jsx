@@ -125,7 +125,7 @@ const AssignedWorksScreen = ({staffId}) => {
                         onPress={() => handleOpenPdf(item.Permit.pdfData)}
                         className="mb-2 py-2 px-4 bg-blue-600 rounded"
                       >
-                        <Text className="text-white text-center">Leer PDF Principal</Text>
+                        <Text className="text-white text-center"> PDF Permit</Text>
                       </TouchableOpacity>
                     )}
                     {item.Permit?.optionalDocs && (
@@ -133,7 +133,7 @@ const AssignedWorksScreen = ({staffId}) => {
                         onPress={() => handleOpenPdf(item.Permit.optionalDocs)}
                         className="py-2 px-4 bg-yellow-500 rounded"
                       >
-                        <Text className="text-white text-center">Leer Documentación Opcional</Text>
+                        <Text className="text-white text-center">Pdf Flat</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -148,7 +148,7 @@ const AssignedWorksScreen = ({staffId}) => {
                   }
                   className="mt-2 py-2 px-4 bg-green-500 rounded"
                 >
-                  <Text className="text-white text-center">Cargar Imágenes</Text>
+                  <Text className="text-white text-center">Upload Images</Text>
                 </TouchableOpacity>
               </View>
             )}

@@ -16,7 +16,7 @@ const BudgetEditor = () => {
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
   const budgetState = useSelector((state) => state.budget);
   const navigate = useNavigate();
-  
+
   const [formData, setFormData] = useState({
     idBudget: "",
     propertyAddress: "",
@@ -31,6 +31,8 @@ const BudgetEditor = () => {
   });
   const [pdfPreview, setPdfPreview] = useState(null);
   const [manualBudgetId, setManualBudgetId] = useState(""); // Estado para el input del budgetId manual
+  const [optionalDocPreview, setOptionalDocPreview] = useState(null); // Documento opcional
+  const [currentPage, setCurrentPage] = useState(1); // Página actual (1 = PDF principal, 2 = Documento opcional)
 
   // Función para cargar el presupuesto por ID
   const loadBudget = (budgetId) => {
@@ -65,13 +67,16 @@ const BudgetEditor = () => {
         expirationDate: budgetData.expirationDate || "",
         price: budgetData.price || "",
         initialPayment: budgetData.initialPayment || "",
-        pdfUrl: budgetData.pdfUrl || "",
+        pdfData: budgetData.pdfData || "",
         systemType: budgetData.systemType || "",
         drainfieldDepth: budgetData.drainfieldDepth || "",
         gpdCapacity: budgetData.gpdCapacity || "",
       });
-      if (budgetData.pdfUrl) {
-        setPdfPreview(budgetData.pdfUrl);
+      if (budgetData.pdfData) {
+        setPdfPreview(budgetData.pdfData);
+      }
+      if (budgetData.optionalDocs) {
+        setOptionalDocPreview(budgetData.optionalDocs); // Documento opcional en base64
       }
     }
   }, [budgetData]);
@@ -102,74 +107,87 @@ const BudgetEditor = () => {
 
   return (
     <div className="container mx-auto p-4 space-y-8">
-      {/* Card superior: Datos para editar */}
-      <div className="bg-white shadow-md rounded-lg p-6">
-        <h1 className="text-xl font-bold mb-4">Review Budget</h1>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Columna izquierda: Vista previa de los PDFs */}
+        <div className="bg-white shadow-md rounded-lg p-4 col-span-2">
+          <h2 className="text-xl font-bold mb-4">Vista previa de los PDFs</h2>
 
-        {pdfPreview && (
-          <div className="mb-4">
-            <h2 className="text-xl font-bold mb-2">Preview PDF</h2>
-            <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
-              <Viewer
-                fileUrl={pdfPreview}
-                plugins={[defaultLayoutPluginInstance]}
-              />
-            </Worker>
-          </div>
-        )}
-
-        <form
-          onSubmit={handleSubmit}
-          className="grid grid-cols-1 md:grid-cols-2 gap-4"
-        >
-          {Object.keys(formData).map((key) => {
-            if (key === "pdfUrl") return null;
-            return (
-              <div key={key}>
-                <label className="block text-sm font-medium capitalize text-gray-700">
-                  {key.replace(/([A-Z])/g, " $1").trim()}
-                </label>
-                <input
-                  type="text"
-                  name={key}
-                  value={formData[key]}
-                  onChange={handleInputChange}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                />
-              </div>
-            );
-          })}
-          <button
-            type="submit"
-            className="col-span-1 md:col-span-2 bg-blue-950 text-white py-2 px-4 rounded-md hover:bg-indigo-700"
-          >
-            Save
-          </button>
-        </form>
-      </div>
-
-      {/* Card inferior: Búsqueda de presupuesto */}
-      <div className="bg-white shadow-md rounded-lg p-6">
-        <h2 className="text-xl font-bold mb-4">Search Budget</h2>
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700">
-            Id Budget
-          </label>
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              value={manualBudgetId}
-              onChange={handleManualBudgetIdChange}
-              placeholder="Ingresa el ID del presupuesto"
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            />
+          {/* Botones para alternar entre PDF principal y opcional */}
+          <div className="flex justify-between mb-4">
             <button
-              onClick={handleLoadManualBudget}
-              className="bg-blue-950 text-white py-2 px-4 rounded-md hover:bg-indigo-700"
+              onClick={() => setCurrentPage(1)}
+              className={`py-1 px-2 rounded-md ${currentPage === 1
+                  ? "bg-blue-950 text-white"
+                  : "bg-gray-200 text-gray-700"
+                }`}
             >
-              Save
+              Ver PDF Principal
+            </button>
+            <button
+              onClick={() => setCurrentPage(2)}
+              className={`py-1 px-2 rounded-md ${currentPage === 2
+                  ? "bg-blue-950 text-white"
+                  : "bg-gray-200 text-gray-700"
+                }`}
+            >
+              Ver Documento Opcional
             </button>
           </div>
+
+          {/* Vista previa del PDF */}
+          {currentPage === 1 && pdfPreview ? (
+            <div className="overflow-y-auto max-h-[700px] border border-gray-300 rounded-md">
+              <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+                <Viewer
+                  fileUrl={pdfPreview}
+                  plugins={[defaultLayoutPluginInstance]}
+                />
+              </Worker>
+            </div>
+          ) : currentPage === 2 && optionalDocPreview ? (
+            <div className="overflow-y-auto max-h-[700px] border border-gray-300 rounded-md">
+              <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+                <Viewer
+                  fileUrl={optionalDocPreview}
+                  plugins={[defaultLayoutPluginInstance]}
+                />
+              </Worker>
+            </div>
+          ) : (
+            <p className="text-gray-500">
+              {currentPage === 1
+                ? "No se ha cargado ningún PDF principal."
+                : "No se ha cargado ningún documento opcional."}
+            </p>
+          )}
+        </div>
+
+        {/* Columna derecha: Formulario */}
+        <div className="bg-white shadow-md rounded-lg p-4 col-span-1">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4">
+            {Object.keys(formData)
+              .filter((key) => key !== "pdfData") // Excluir el campo pdfData
+              .map((key) => (
+                <div key={key}>
+                  <label className="block text-sm font-medium capitalize text-gray-700">
+                    {key.replace(/([A-Z])/g, " $1").trim()}
+                  </label>
+                  <input
+                    type="text"
+                    name={key}
+                    value={formData[key]}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  />
+                </div>
+              ))}
+            <button
+              type="submit"
+              className="bg-blue-950 text-white py-2 px-4 rounded-md hover:bg-indigo-700"
+            >
+              Guardar
+            </button>
+          </form>
         </div>
       </div>
     </div>

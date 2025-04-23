@@ -105,20 +105,37 @@ const BudgetController = {
       const budget = await Budget.findByPk(req.params.idBudget, {
         include: {
           model: Permit,
-          attributes: ['propertyAddress', 'permitNumber'], // Incluye los campos que necesitas
+          attributes: ['propertyAddress', 'permitNumber', 'pdfData', 'optionalDocs'], // Incluye los campos que necesitas
         },
       });
   
       if (!budget) {
         return res.status(404).json({ error: 'Presupuesto no encontrado' });
       }
-  
-      res.status(200).json(budget);
-    } catch (error) {
-      console.error('Error al obtener el presupuesto:', error);
-      res.status(500).json({ error: error.message });
-    }
-  },
+     // Función para convertir datos binarios a URLs base64
+     const convertPdfDataToUrl = (binaryData) => {
+      return binaryData
+        ? `data:application/pdf;base64,${binaryData.toString('base64')}`
+        : null;
+    };
+
+    // Convertir los datos binarios de los PDFs a URLs base64
+    const pdfDataUrl = convertPdfDataToUrl(budget.Permit?.pdfData);
+    const optionalDocsUrl = convertPdfDataToUrl(budget.Permit?.optionalDocs);
+
+    // Construir la respuesta con los datos del presupuesto y las URLs de los PDFs
+    const budgetWithPdfUrls = {
+      ...budget.get({ plain: true }), // Convertir a objeto plano
+      pdfData: pdfDataUrl,
+      optionalDocs: optionalDocsUrl,
+    };
+
+    res.status(200).json(budgetWithPdfUrls);
+  } catch (error) {
+    console.error('Error al obtener el presupuesto:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+},
 
   
   async updateBudget(req, res) {
