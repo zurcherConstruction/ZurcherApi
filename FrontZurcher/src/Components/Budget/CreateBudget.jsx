@@ -5,11 +5,11 @@ import { Viewer, Worker } from "@react-pdf-viewer/core";
 import { defaultLayoutPlugin } from "@react-pdf-viewer/default-layout";
 import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/solid'; 
 import { unwrapResult } from '@reduxjs/toolkit';
-// Actions necesarias
+import api from "../../utils/axios"; // Asegúrate de que la ruta sea correcta
 import { fetchBudgetItems } from "../../Redux/Actions/budgetItemActions";
 import { fetchPermitById } from "../../Redux/Actions/permitActions";
 import { createBudget } from "../../Redux/Actions/budgetActions"; // Removed fetchBudgetById, updateBudget
-
+import { generatePDF } from "../../utils/pdfGenerator";
 import "@react-pdf-viewer/core/lib/styles/index.css";
 import "@react-pdf-viewer/default-layout/lib/styles/index.css";
 
@@ -42,6 +42,14 @@ const CreateBudget = () => {
   const [pdfPreview, setPdfPreview] = useState(null);
   const [optionalDocPreview, setOptionalDocPreview] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  //items personalizado
+  const [customSystemType, setCustomSystemType] = useState({
+    name: '',
+    marca: '',
+    capacity: '',
+    unitPrice: 0,
+    quantity: 1,
+  });
 
   // --- Estado para visibilidad de secciones de items ---
   const [sectionVisibility, setSectionVisibility] = useState({
@@ -303,28 +311,54 @@ const CreateBudget = () => {
   };
 
   const addSystemTypeItem = () => {
-    if (!systemTypeSelection.type ||
-        !systemTypeSelection.brand || (systemTypeSelection.brand === 'OTROS' && !systemTypeManualBrand.trim()) ||
-        (systemTypeSelection.brand !== 'OTROS' && !systemTypeSelection.capacity) || // Capacidad requerida si no es OTROS
-        (systemTypeSelection.brand === 'OTROS' && !systemTypeManualCapacity.trim())) { // Capacidad manual requerida si marca es OTROS
-      alert("Por favor complete todos los campos de System Type, incluyendo los manuales si seleccionó 'OTROS'.");
-      return;
+    if (systemTypeSelection.type === 'OTROS') {
+      // Validar campos del item personalizado
+      if (!customSystemType.name || !customSystemType.marca || !customSystemType.capacity || customSystemType.unitPrice <= 0) {
+        alert("Por favor complete todos los campos del item personalizado.");
+        return;
+      }
+  
+      // Añadir el item personalizado
+      setFormData(prev => ({
+        ...prev,
+        lineItems: [
+          ...prev.lineItems,
+          {
+            _tempId: generateTempId(),
+            budgetItemId: null, // No tiene ID porque es personalizado
+            name: customSystemType.name,
+            category: systemTypeCategoryString,
+            marca: customSystemType.marca,
+            capacity: customSystemType.capacity,
+            unitPrice: parseFloat(customSystemType.unitPrice),
+            quantity: parseFloat(customSystemType.quantity),
+            notes: 'Item personalizado',
+          },
+        ],
+      }));
+  
+      // Resetear el estado del item personalizado
+      setCustomSystemType({ name: '', marca: '', capacity: '', unitPrice: 0, quantity: 1 });
+    } else {
+      // Lógica existente para items del catálogo
+      if (!systemTypeSelection.type || !systemTypeSelection.brand || !systemTypeSelection.capacity) {
+        alert("Por favor complete todos los campos de System Type.");
+        return;
+      }
+  
+      const brandToAdd = systemTypeSelection.brand;
+      const capacityToAdd = systemTypeSelection.capacity;
+  
+      addOrUpdateLineItem({
+        category: systemTypeCategoryString,
+        name: systemTypeSelection.type,
+        marca: brandToAdd,
+        capacity: capacityToAdd,
+        quantity: systemTypeSelection.quantity,
+      });
+  
+      setSystemTypeSelection({ type: '', brand: '', capacity: '', quantity: 1 });
     }
-
-    const brandToAdd = systemTypeSelection.brand === 'OTROS' ? systemTypeManualBrand.trim() : systemTypeSelection.brand;
-    // Capacidad es opcional si la marca no es 'OTROS', pero si la marca es 'OTROS', la capacidad manual es requerida.
-    const capacityToAdd = systemTypeSelection.brand === 'OTROS' ? systemTypeManualCapacity.trim() : systemTypeSelection.capacity;
-
-    addOrUpdateLineItem({
-      category: systemTypeCategoryString,
-      name: systemTypeSelection.type,
-      marca: brandToAdd,
-      capacity: capacityToAdd,
-      quantity: systemTypeSelection.quantity,
-    });
-    setSystemTypeSelection({ type: '', brand: '', capacity: '', quantity: 1 });
-    setSystemTypeManualBrand('');
-    setSystemTypeManualCapacity('');
   };
 
   // Drainfield
@@ -501,7 +535,7 @@ const CreateBudget = () => {
   };
 
   // --- Submit Handler (Solo Crear) ---
-  const handleSubmit = async (e) => { // Make the handler async
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!permitIdFromQuery) {
@@ -509,94 +543,70 @@ const CreateBudget = () => {
         return;
     }
     if (formData.lineItems.length === 0) {
-      alert("Debe añadir al menos un item al presupuesto.");
-      return;
+        alert("Debe añadir al menos un item al presupuesto.");
+        return;
     }
 
-    // Preparar datos solo para creación
+    // Preparar datos para la creación del presupuesto
     const dataToSend = {
-      permitNumber: formData.permitNumber,
-      propertyAddress: formData.propertyAddress,
-      applicantName: formData.applicantName,
-      lot: formData.lot,
-      block: formData.block,
-      date: formData.date,
-      expirationDate: formData.expirationDate || null,
-      initialPayment: formData.initialPayment,
-      status: formData.status,
-      discountDescription: formData.discountDescription,
-      discountAmount: formData.discountAmount,
-      generalNotes: formData.generalNotes,
-      initialPaymentPercentage: formData.initialPaymentPercentage,
-      lineItems: formData.lineItems.map(item => ({
-        budgetItemId: item.budgetItemId,
-        quantity: item.quantity,
-        notes: item.notes,
-      })),
-      permitId: permitIdFromQuery,
+        permitNumber: formData.permitNumber,
+        propertyAddress: formData.propertyAddress,
+        applicantName: formData.applicantName,
+        applicantEmail: selectedPermit?.applicantEmail || "",
+        lot: formData.lot,
+        block: formData.block,
+        date: formData.date,
+        expirationDate: formData.expirationDate || null,
+        initialPayment: formData.initialPayment,
+        status: formData.status,
+        discountDescription: formData.discountDescription,
+        discountAmount: formData.discountAmount,
+        generalNotes: formData.generalNotes,
+        initialPaymentPercentage: formData.initialPaymentPercentage,
+        lineItems: formData.lineItems.map(item => ({
+            budgetItemId: item.budgetItemId,
+            quantity: item.quantity,
+            notes: item.notes,
+            name: item.budgetItemId ? undefined : item.name,
+            category: item.budgetItemId ? undefined : item.category,
+            marca: item.budgetItemId ? undefined : item.marca,
+            capacity: item.budgetItemId ? undefined : item.capacity,
+            unitPrice: item.budgetItemId ? undefined : item.unitPrice,
+        })),
+        permitId: permitIdFromQuery,
     };
 
     console.log("Enviando al backend para CREAR:", dataToSend);
 
     try {
-      // Dispatch and wait for the result
-      const resultAction = await dispatch(createBudget(dataToSend));
+        const resultAction = await dispatch(createBudget(dataToSend));
+        const originalPromiseResult = unwrapResult(resultAction);
 
-      // --- Debugging Logs ---
-      console.log("Raw resultAction from dispatch:", JSON.stringify(resultAction, null, 2));
-      // Check the action type and if there's an error property even on success
-      if (resultAction.type.endsWith('/rejected')) {
-          console.error("Thunk was rejected:", resultAction.payload || resultAction.error);
-      } else if (resultAction.type.endsWith('/fulfilled')) {
-          console.log("Thunk was fulfilled. Payload:", JSON.stringify(resultAction.payload, null, 2));
-      }
-      // --- End Debugging Logs ---
+        console.log("Presupuesto creado exitosamente:", originalPromiseResult);
 
-      // Unwrap the result
-      const originalPromiseResult = unwrapResult(resultAction); // This will throw if the action was rejected
+        // Generar el PDF
+        const doc = generatePDF(originalPromiseResult);
+        if (!doc) throw new Error("Error al generar el PDF");
+        const pdfBlob = doc.output("blob");
 
-      // --- More Debugging ---
-      console.log("Unwrapped Result (Payload):", JSON.stringify(originalPromiseResult, null, 2));
-      // --- End Debugging ---
+        // Crear un FormData para enviar el archivo
+        const formData = new FormData();
+        formData.append("file", pdfBlob, `budget_${originalPromiseResult.idBudget}.pdf`);
 
-      // Check if the payload is actually what we expect BEFORE accessing idBudget
-      if (!originalPromiseResult || typeof originalPromiseResult.idBudget === 'undefined') {
-          console.error("Payload after unwrapResult is missing idBudget:", originalPromiseResult);
-          // Throw an error to be caught by the catch block with a more specific message
-          throw new Error("La respuesta del servidor no incluyó el ID del presupuesto esperado.");
-      }
+        // Subir el PDF al backend
+        const uploadResponse = await api.post(`/budget/${originalPromiseResult.idBudget}/upload-pdf`, formData);
 
-      // Access payload directly from the unwrapped result
-      const newBudgetId = originalPromiseResult.idBudget;
-      alert("Presupuesto creado exitosamente!");
-      navigate('/budgets');
+        if (uploadResponse.status !== 200) {
+            throw new Error("Error al subir el PDF al backend");
+        }
 
+        alert("Presupuesto creado y PDF subido exitosamente.");
+        navigate('/budgets');
     } catch (error) {
-      // unwrapResult throws an error if the thunk promise was rejected,
-      // or if we threw a new Error above.
-      console.error("Error caught during budget creation:", error); // Log the full error object caught
-
-      // Try to extract a meaningful message
-      let errorMessage = "Error desconocido al crear."; // Default message
-      if (error instanceof Error) {
-          // If it's a standard Error object (like the one we threw)
-          errorMessage = error.message;
-      } else if (error && error.message) {
-           // If the caught object has a message property (common for rejection payloads)
-           errorMessage = error.message;
-      } else if (typeof error === 'string') {
-          // If the caught object is just a string
-          errorMessage = error;
-      }
-      // You might want to check error.payload specifically if your rejectWithValue sends structured data
-      // else if (error?.payload?.message) { errorMessage = error.payload.message; }
-
-
-      console.error("Displaying error message:", errorMessage);
-      alert(`Error al crear el presupuesto: ${errorMessage}`);
+        console.error("Error al crear el presupuesto:", error);
+        alert(`Error al crear el presupuesto: ${error.message || "Error desconocido"}`);
     }
-  };
-
+};
   // --- Render ---
   const isLoading = loadingCatalog || loadingPermit; // Solo depende de catálogo y permit
   const hasError = errorCatalog || errorPermit; // Solo depende de catálogo y permit

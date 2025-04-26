@@ -3,10 +3,10 @@ const { getNotificationDetailsApp } = require('./notificationServiceApp');
 const { sendEmail } = require('./nodeMailer/emailService');
 const { Notification } = require('../data'); // Usar el modelo unificado de Notification
 
-const sendNotifications = async (status, work, io) => {
+const sendNotifications = async (status, work, budget, io) => {
     try {
         // Obtener detalles para notificaciones por correo
-        const emailDetails = await getNotificationDetails(status, work);
+        const emailDetails = await getNotificationDetails(status, work || budget);
         console.log('Detalles de correo:', emailDetails);
 
         if (emailDetails) {
@@ -24,7 +24,7 @@ const sendNotifications = async (status, work, io) => {
         }
 
         // Obtener detalles para notificaciones push
-        const appDetails = await getNotificationDetailsApp(status, work);
+        const appDetails = await getNotificationDetailsApp(status, work, budget);
         console.log('Detalles de notificaciones push:', appDetails);
 
         if (appDetails) {

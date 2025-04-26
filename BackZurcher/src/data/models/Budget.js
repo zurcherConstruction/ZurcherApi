@@ -81,6 +81,10 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true,
   },
+  pdfPath: {
+    type: DataTypes.STRING,
+    allowNull: true, // Puede ser null si no se ha subido un PDF
+},
   PermitIdPermit: {
     type: DataTypes.UUID, // Debe coincidir con el tipo de Permit.idPermit
     allowNull: false, // O true si un Budget puede existir sin Permit

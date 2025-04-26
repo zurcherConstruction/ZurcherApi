@@ -1,11 +1,11 @@
 const { Staff } = require('../data');
 
-const getNotificationDetailsApp = async (newStatus, work) => {
+const getNotificationDetailsApp = async (newStatus, work, budget) => {
     let staffToNotifyApp = [];
     let message = '';
 
     console.log('Usuarios a notificar (push):', staffToNotifyApp);
-console.log('Mensaje de notificación (push):', message);
+    console.log('Mensaje de notificación (push):', message);
 
     switch (newStatus) {
         case 'pending':
@@ -31,8 +31,25 @@ console.log('Mensaje de notificación (push):', message);
             message = `El trabajo en ${work.propertyAddress} ha sido completado.`;
             break;
 
+        // Casos específicos para Budget
+        case 'created':
+            message = `El presupuesto para ${budget.propertyAddress} ha sido creado.`;
+            break;
+
+        case 'send':
+            message = `El presupuesto para ${budget.propertyAddress} ha sido enviado al cliente.`;
+            break;
+
+        case 'approved':
+            message = `El presupuesto para ${budget.propertyAddress} ha sido aprobado por el cliente.`;
+            break;
+
+        case 'rejected':
+            message = `El presupuesto para ${budget.propertyAddress} ha sido rechazado por el cliente.`;
+            break;
+
         default:
-            message = `El estado del trabajo en ${work.propertyAddress} ha cambiado a ${newStatus}.`;
+            message = `El estado del trabajo en ${budget.propertyAddress} ha cambiado a ${newStatus}.`;
             break;
     }
 
