@@ -54,7 +54,7 @@ const getWorks = async (req, res) => {
         {
           model: Budget,
           as: 'budget',
-          attributes: ['idBudget', 'propertyAddress', 'status', 'price', 'paymentInvoice', 'initialPayment', 'date'],
+          attributes: ['idBudget', 'propertyAddress', 'status',  'paymentInvoice', 'initialPayment', 'date'],
         },
         {
           model: Permit,
@@ -89,7 +89,7 @@ const getWorkById = async (req, res) => {
 
           model: Budget,
           as: 'budget',
-          attributes: ['idBudget', 'propertyAddress', 'status', 'price', 'paymentInvoice','paymentProofType', 'initialPayment', 'date'],
+          attributes: ['idBudget', 'propertyAddress', 'status', 'paymentInvoice','paymentProofType', 'initialPayment', 'date', 'applicantName'],
         },
         {
 
@@ -161,7 +161,7 @@ const getWorkById = async (req, res) => {
             idBudget: budget.idBudget,
             propertyAddress: budget.propertyAddress,
             status: budget.status,
-            price: budget.price,
+          
             initialPayment: budget.initialPayment,
             paymentInvoice: budget.paymentInvoice,
             date: budget.date,

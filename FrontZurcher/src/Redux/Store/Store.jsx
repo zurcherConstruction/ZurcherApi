@@ -14,6 +14,7 @@ import receiptReducer from '../Reducer/receiptReducer';
 import balanceReducer from '../Reducer/balanceReducer';
 import uiReducer from '../Reducer/uiReducer';
 import systemReducer from '../Reducer/SystemReducer';
+import budgetItemReducer from '../Reducer/budgetItemReducer';
 
 
 const rootReducer = combineReducers({
@@ -30,6 +31,7 @@ const rootReducer = combineReducers({
   balance: balanceReducer,
   ui:uiReducer,
   systemType: systemReducer,
+  budgetItems: budgetItemReducer,
 });
 
 export const store = configureStore({

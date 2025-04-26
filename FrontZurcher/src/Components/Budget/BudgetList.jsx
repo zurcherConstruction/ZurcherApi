@@ -123,7 +123,7 @@ const BudgetList = () => {
                    <th className="border border-gray-300 px-4 py-2 text-left">Applicant</th>
                    <th className="border border-gray-300 px-4 py-2 text-left">Date</th>
                    <th className="border border-gray-300 px-4 py-2 text-left">End Date</th>
-                   <th className="border border-gray-300 px-4 py-2 text-right">Price</th>
+                   <th className="border border-gray-300 px-4 py-2 text-right">Total Price</th>
                    <th className="border border-gray-300 px-4 py-2 text-right">Pay 60%</th>
                    <th className="border border-gray-300 px-4 py-2 text-center">Status</th>
                    <th className="border border-gray-300 px-4 py-2 text-left">Address</th>
@@ -141,7 +141,7 @@ const BudgetList = () => {
                      <td className="border border-gray-300 px-4 py-2 text-xs">{budget.applicantName}</td>
                      <td className="border border-gray-300 px-4 py-2 text-xs">{formatDate(budget.date)}</td>
                      <td className="border border-gray-300 px-4 py-2 text-xs">{budget.expirationDate ? formatDate(budget.expirationDate) : "N/A"}</td>
-                     <td className="border border-gray-300 px-4 py-2 text-xs text-right">${budget.price}</td>
+                     <td className="border border-gray-300 px-4 py-2 text-xs text-right">${budget.totalPrice}</td>
                      <td className="border border-gray-300 px-4 py-2 text-xs text-right">${budget.initialPayment}</td>
                      <td className="border border-gray-300 px-4 py-2 text-xs text-center">{budget.status}</td>
                      <td className="border border-gray-300 px-4 py-2 text-xs">{budget.propertyAddress || "N/A"}</td>

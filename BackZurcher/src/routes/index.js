@@ -16,7 +16,7 @@ const incomeRoutes = require('./incomeRoutes'); // Asegúrate de que la ruta sea
 const expenseRoutes = require('./expenseRoutes'); // Asegúrate de que la ruta sea correcta
 const balanceRoutes = require('./balanceRoutes'); // Asegúrate de que la ruta sea correcta
 const systemRoutes = require('./systemRoutes'); // Asegúrate de que la ruta sea correcta
-
+const budgetItemRoutes = require('./BudgetItemRoutes'); // Asegúrate de que la ruta sea correcta
 
 router.use('/auth', authRoutes); // Registro y login no requieren token
 
@@ -25,6 +25,7 @@ const { verifyToken } = require('../middleware/isAuth');
 router.use(verifyToken); // Middleware global para rutas protegidas
 router.use('/admin', adminRoutes);
 router.use('/budget', budgetRoutes);
+router.use('/budget-item', budgetItemRoutes); // Rutas para BudgetItems
 router.use('/pdf', pdfRoutes);
 router.use('/inspection', inspectionRoutes);
 router.use('/material', materialRoutes);

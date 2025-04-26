@@ -23,6 +23,8 @@ const BarraLateral = () => {
     { name: "Upload Vouchers", path: "/attachInvoice" },
     { name: "Dashboard", path: "/dashboard" },
     { name: "Balance", path: "/balance" },
+    { name: "Items Budgets", path: "/itemBudget" },
+    { name: "Logout", path: "/logout" }, // Ruta para cerrar sesión
 
     
 

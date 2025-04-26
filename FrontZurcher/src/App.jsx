@@ -42,6 +42,7 @@ import BalanceStats from "./Components/BalanceStats";
 import LoadingSpinner from "./Components/LoadingSpinner";
 import UploadInitialPay from "./Components/Budget/UploadInitialPay";
 import PriceBudgetManagement from "./Components/Budget/PriceBudgetManagement";
+import ItemsBudgets from "./Components/Budget/ItemsBudgets";
 
 function App() {
   const dispatch = useDispatch();
@@ -138,6 +139,14 @@ function App() {
                 </PrivateRoute>
               }
             />
+              <Route
+              path="/itemBudget"
+              element={
+                <PrivateRoute allowedRoles={["owner", "recept","admin"]}>
+                  <ItemsBudgets />
+                </PrivateRoute>
+              }
+            />
             <Route
               path="/check"
               element={
@@ -163,7 +172,7 @@ function App() {
               }
             />
             <Route
-              path="/editBudget/:budgetId"
+              path="/editBudget"
               element={
                 <PrivateRoute allowedRoles={["owner", "admin"]}>
                   <BudgetEditor />

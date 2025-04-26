@@ -19,6 +19,7 @@ const WorkDetail = () => {
     loading,
     error,
   } = useSelector((state) => state.work);
+
   console.log("Datos de la obra:", work); // Para depuración
   const [selectedImage, setSelectedImage] = useState(null);
   const [fileBlob, setFileBlob] = useState(null);
@@ -170,11 +171,11 @@ const WorkDetail = () => {
               <>
                 <p>
                   <strong>Aplicante:</strong>{" "}
-                  {work.Permit?.applicantName || "No disponible"}
+                  {work.budget?.applicantName || "No disponible"}
                 </p>
                 <p>
                   <strong>Permit N°:</strong>{" "}
-                  {work.Permit?.idPermit || "No disponible"}
+                  {work.Permit?.permitNumber || "No disponible"}
                 </p>
                 {pdfUrl && (
                   <div className="mt-4">
@@ -215,9 +216,7 @@ const WorkDetail = () => {
               </h2>
               {openSections.budget && (
                 <>
-                  <p>
-                    <strong>Precio Total:</strong> ${work.budget.price}
-                  </p>
+                 
                   <p>
                     <strong>Pago Inicial:</strong> ${work.budget.initialPayment}
                   </p>
