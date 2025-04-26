@@ -124,7 +124,7 @@ const BudgetList = () => {
                    <th className="border border-gray-300 px-4 py-2 text-left">Date</th>
                    <th className="border border-gray-300 px-4 py-2 text-left">End Date</th>
                    <th className="border border-gray-300 px-4 py-2 text-right">Total Price</th>
-                   <th className="border border-gray-300 px-4 py-2 text-right">Pay 60%</th>
+                   <th className="border border-gray-300 px-4 py-2 text-right">Pay</th>
                    <th className="border border-gray-300 px-4 py-2 text-center">Status</th>
                    <th className="border border-gray-300 px-4 py-2 text-left">Address</th>
                    <th className="border border-gray-300 px-4 py-2 text-left">System</th>

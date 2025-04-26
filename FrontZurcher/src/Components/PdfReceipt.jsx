@@ -181,7 +181,7 @@ if (permitAction && permitAction.payload && permitAction.payload.idPermit) {
                 (key) =>
                   key !== "applicationNumber" &&
                   key !== "constructionPermitFor" &&
-                  key !== "dateIssued"
+                  key !== "dateIssued" 
               )
               .map((key) => (
               <div key={key}>

@@ -197,6 +197,52 @@ const getContactList = async (req, res) => {
   }
 };
 
+// *** NUEVO MÉTODO: Servir el PDF principal (pdfData) para visualización inline ***
+const getPermitPdfInline = async (req, res) => {
+  try {
+    const { idPermit } = req.params;
+    const permit = await Permit.findByPk(idPermit, {
+      attributes: ['pdfData'] // Solo necesitamos el BLOB principal
+    });
+
+    if (!permit || !permit.pdfData) {
+      return res.status(404).send('PDF principal no encontrado'); // Enviar texto simple para errores
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    // Sugiere mostrar inline en lugar de descargar
+    res.setHeader('Content-Disposition', `inline; filename="permit_${idPermit}.pdf"`);
+    res.send(permit.pdfData); // Enviar los datos binarios
+
+  } catch (error) {
+    console.error(`Error al obtener PDF principal del permit ${req.params.idPermit}:`, error);
+    res.status(500).send('Error al obtener el PDF principal'); // Enviar texto simple
+  }
+};
+
+// *** NUEVO MÉTODO: Servir el PDF opcional (optionalDocs) para visualización inline ***
+const getPermitOptionalDocInline = async (req, res) => {
+  try {
+    const { idPermit } = req.params;
+    const permit = await Permit.findByPk(idPermit, {
+      attributes: ['optionalDocs'] // Solo necesitamos el BLOB opcional
+    });
+
+    if (!permit || !permit.optionalDocs) {
+      return res.status(404).send('Documento opcional no encontrado'); // Enviar texto simple
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    // Sugiere mostrar inline
+    res.setHeader('Content-Disposition', `inline; filename="optional_${idPermit}.pdf"`);
+    res.send(permit.optionalDocs); // Enviar los datos binarios
+
+  } catch (error) {
+    console.error(`Error al obtener Doc Opcional del permit ${req.params.idPermit}:`, error);
+    res.status(500).send('Error al obtener el documento opcional'); // Enviar texto simple
+  }
+};
+
 
 
 module.exports = {
@@ -205,5 +251,7 @@ module.exports = {
   getPermitById,
   updatePermit,
   downloadPermitPdf,
+  getPermitPdfInline, 
+  getPermitOptionalDocInline,
   getContactList
 };

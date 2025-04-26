@@ -51,12 +51,12 @@ const BudgetController = {
       // --- Asegúrate de usar la propertyAddress del *permit encontrado* ---
       const permitPropertyAddress = permit.propertyAddress; // <-- USA ESTA
       // --- Verificar si ya existe Budget (Opcional) ---
-      // Descomenta si quieres evitar múltiples budgets por dirección/permiso
-      // const existingBudget = await Budget.findOne({ where: { propertyAddress }, transaction }); // O usa { where: { PermitIdPermit: permit.idPermit } }
-      // if (existingBudget) {
-      //   await transaction.rollback();
-      //   return res.status(400).json({ error: "Ya existe un presupuesto para esta dirección/permiso." });
-      // }
+      //Descomenta si quieres evitar múltiples budgets por dirección/permiso
+      const existingBudget = await Budget.findOne({ where: { propertyAddress }, transaction }); // O usa { where: { PermitIdPermit: permit.idPermit } }
+      if (existingBudget) {
+        await transaction.rollback();
+        return res.status(400).json({ error: "Ya existe un presupuesto para esta dirección/permiso." });
+      }
 
       // --- 1. Calcular Totales ANTES de crear el Budget ---
       let calculatedSubtotal = 0;
@@ -108,8 +108,8 @@ const BudgetController = {
         totalPrice: finalTotal,
         PermitIdPermit: permit.idPermit, // <-- Asocia por ID
         // Asegúrate que lot y block se guarden si existen en el modelo Budget
-        // lot: req.body.lot,
-        // block: req.body.block,
+        lot: req.body.lot,
+        block: req.body.block,
       }, { transaction });
       console.log("Budget principal creado con totales (ID):", newBudget.idBudget);
 
@@ -150,27 +150,33 @@ const BudgetController = {
   // Asegúrate de que getBudgetById incluya los lineItems:
   async getBudgetById(req, res) {
     try {
-      const { idBudget } = req.params; // Obtener el ID desde los parámetros
-      console.log(`Buscando Budget con ID: ${idBudget}`); // Log para depuración
+      const { idBudget } = req.params;
+      console.log(`Buscando Budget con ID: ${idBudget}`);
 
-      const budget = await Budget.findByPk(idBudget, { // Usar el ID obtenido
+      const budget = await Budget.findByPk(idBudget, {
         include: [
           {
             model: Permit,
-            // Incluir los campos que contienen las URLs directas
-            attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'pdfData', 'optionalDocs'],
+            // *** CAMBIO 1: Quitar los BLOBs de los atributos ***
+            attributes: [
+                'idPermit',
+                'propertyAddress',
+                'permitNumber',
+                // Quita 'pdfData' y 'optionalDocs' de aquí
+            ],
           },
           {
             model: BudgetLineItem,
-            as: 'lineItems', // Usa el alias definido en las relaciones
+            as: 'lineItems',
             include: [{
                 model: BudgetItem,
                 as: 'itemDetails',
-                // Incluir los detalles necesarios para el frontend
                 attributes: ['id', 'name', 'description', 'category', 'marca', 'capacity', 'unitPrice']
             }]
           }
         ],
+        // Opcional pero seguro: Excluir explícitamente si aún se obtienen
+        // attributes: { exclude: [] } // Asegúrate de incluir los campos que sí quieres de Budget
       });
 
       if (!budget) {
@@ -178,18 +184,34 @@ const BudgetController = {
         return res.status(404).json({ error: 'Presupuesto no encontrado' });
       }
 
-      console.log(`Budget encontrado:`, budget.toJSON()); // Log del budget encontrado
+      // *** CAMBIO 2: Añadir URLs dinámicamente si el Permit existe ***
+      if (budget.Permit) {
+        // Construye la URL base dinámicamente
+        // Asegúrate que la ruta base '/api/permits' sea correcta según tu configuración de rutas
+        const baseUrl = `${req.protocol}://${req.get('host')}/permits`; // Ajusta '/api/permits' si es diferente
 
-      // --- Devolver el budget directamente ---
-      // El frontend espera las URLs en budget.Permit.pdfData y budget.Permit.optionalDocs
+        // Añade las URLs a los dataValues del objeto Permit antes de enviarlo
+        // Apuntan a las rutas de visualización inline que creamos
+        budget.Permit.dataValues.pdfDataUrl = `${baseUrl}/${budget.Permit.idPermit}/view/pdf`;
+        budget.Permit.dataValues.optionalDocsUrl = `${baseUrl}/${budget.Permit.idPermit}/view/optional`;
+
+        console.log(`URLs añadidas: pdfDataUrl=${budget.Permit.dataValues.pdfDataUrl}, optionalDocsUrl=${budget.Permit.dataValues.optionalDocsUrl}`);
+      } else {
+        console.log(`Budget ID: ${idBudget} no tiene un Permit asociado.`);
+      }
+
+      // Log opcional (ya no debería mostrar los BLOBs grandes)
+      // console.log(`Budget encontrado (con URLs añadidas):`, budget.toJSON());
+
+      // Enviar el budget modificado (sin BLOBs, con URLs añadidas)
       res.status(200).json(budget);
 
     } catch (error) {
-      // --- Manejo de Errores Completo ---
       console.error(`Error al obtener el presupuesto ID: ${req.params.idBudget}:`, error);
       res.status(500).json({ error: 'Error interno del servidor al obtener el presupuesto.' });
     }
   },
+
 
  
   async getBudgets(req, res) {
