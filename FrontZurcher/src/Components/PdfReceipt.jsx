@@ -124,7 +124,7 @@ if (permitAction && permitAction.payload && permitAction.payload.idPermit) {
   const newPermitId = permitAction.payload.idPermit; // Correcto
   console.log("Permiso creado con ID:", newPermitId);
   alert("Permiso creado correctamente.");
-  navigate(`/editBudget?permitId=${newPermitId}`); // Navega a la página de edición del presupuesto
+  navigate(`/createBudget?permitId=${newPermitId}`); // Navega a la página de edición del presupuesto
 } else {
   // Si entra aquí, revisa el console.log anterior para ver por qué falló la condición
   console.error("Error: La estructura de permitAction.payload no es la esperada o falta idPermit.", permitAction);

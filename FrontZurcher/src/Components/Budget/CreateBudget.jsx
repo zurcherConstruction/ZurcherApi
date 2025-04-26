@@ -24,7 +24,7 @@ function useQuery() {
   return new URLSearchParams(useLocation().search);
 }
 
-const BudgetEditor = () => {
+const CreateBudget = () => {
   const { budgetId: paramBudgetId } = useParams(); // ID para editar
   const query = useQuery();
   const permitIdFromQuery = query.get("permitId"); // ID de Permit para crear
@@ -487,6 +487,7 @@ const BudgetEditor = () => {
       marca: inspectionSelection.marca,
       quantity: inspectionSelection.quantity,
       name: inspectionName, // Usar el nombre encontrado
+      unitPrice: 0, // Asumiendo que no tiene precio unitario específico
     });
     // Resetear selección si se desea
     // setInspectionSelection({ marca: '', quantity: 1 });
@@ -659,61 +660,106 @@ const BudgetEditor = () => {
 
 
         {/* --- Formulario --- */}
-        <div className="bg-white shadow-md rounded-lg p-4 md:col-span-1">
+      {/* --- Formulario (Columna Derecha - Reestructurada) --- */}
+      <div className="bg-white shadow-md rounded-lg p-4 md:col-span-1">
           <h2 className="text-xl font-bold mb-4">{isEditing ? "Editar Presupuesto" : "Crear Nuevo Presupuesto"}</h2>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* --- Campos Generales --- */}
-            <div><label className="block text-sm font-medium text-gray-700">Permin Number</label><input type="text" name="permitNumber" value={formData.permitNumber} onChange={handleGeneralInputChange} disabled={!isEditing} required className={`input-style ${!isEditing ? 'bg-gray-100' : ''}`} /></div>
-            <div><label className="block text-sm font-medium text-gray-700">Property Address</label><input type="text" name="propertyAddress" value={formData.propertyAddress} onChange={handleGeneralInputChange} disabled={!isEditing} required className={`input-style ${!isEditing ? 'bg-gray-100' : ''}`} /></div>
-            <div><label className="block text-sm font-medium text-gray-700">Applicant</label><input type="text" name="applicantName" value={formData.applicantName} onChange={handleGeneralInputChange} required className="input-style" /></div>
-            <div><label className="block text-sm font-medium text-gray-700">Lot</label><input type="text" name="lot" value={formData.lot} onChange={handleGeneralInputChange} className="input-style" /></div>
-            <div><label className="block text-sm font-medium text-gray-700">Block</label><input type="text" name="block" value={formData.block} onChange={handleGeneralInputChange} className="input-style" /></div>
-            <div><label className="block text-sm font-medium text-gray-700">Date</label><input type="date" name="date" value={formData.date} onChange={handleGeneralInputChange} required className="input-style" /></div>
-            <div><label className="block text-sm font-medium text-gray-700">Expiration Date</label><input
-              type="date"
-              name="expirationDate"
-              value={formData.expirationDate}
-              className="input-style"
-              readOnly // <-- Añadir esto
-            /></div>
+          {/* --- Cambiar space-y-4 por grid grid-cols-4 gap-4 --- */}
+          <form onSubmit={handleSubmit} className="grid grid-cols-4 gap-4">
+
+            {/* --- Sección Información General (4 columnas) --- */}
+            <div className="col-span-2"> {/* Ocupa 2 de 4 columnas */}
+              <label className="block text-sm font-medium text-gray-700">Permit Number: {formData.permitNumber}</label>
+             
+            </div>
+            <div className="col-span-2"> {/* Ocupa 2 de 4 columnas */}
+              <label className="block text-sm font-medium text-gray-700">Applicant: {formData.applicantName}</label>
+              
+            </div>
+
+            <div className="col-span-2"> {/* Ocupa 2 de 4 columnas */}
+              <label className="block text-sm font-medium text-gray-700">Property Address:<br></br> {formData.propertyAddress}</label>
+             
+            </div>
+            <div className="col-span-1"> {/* Ocupa 1 de 4 columnas */}
+              <label className="block text-sm font-medium text-gray-700">Lot: {formData.lot}</label>
+            
+            </div>
+            <div className="col-span-1"> {/* Ocupa 1 de 4 columnas */}
+              <label className="block text-sm font-medium text-gray-700">Block:  {formData.block}</label>
+              
+            </div>
+
+            <div className="col-span-2"> {/* Ocupa 2 de 4 columnas */}
+              <label className="block text-sm font-medium text-gray-700">Date</label>
+              <input type="date" name="date" value={formData.date} onChange={handleGeneralInputChange} required className="input-style" />
+            </div>
+            <div className="col-span-2"> {/* Ocupa 2 de 4 columnas */}
+              <label className="block text-sm font-medium text-gray-700">Expiration Date</label>
+              <input
+                type="date"
+                name="expirationDate"
+                value={formData.expirationDate}
+                className="input-style"
+                readOnly // Mantenlo readOnly
+              />
+            </div>
+
+            {/* --- Línea Divisoria --- */}
+            <hr className="col-span-4 my-4 border-t border-gray-300" />
+
            
 
             {/* --- Sección Items Presupuestables --- */}
-            <div className="border p-3 rounded mt-6 space-y-4">
-              <h3 className="text-lg font-medium">Items del Presupuesto</h3>
+            <div className="col-span-4 border p-3 rounded mt-2 space-y-4"> {/* Ajustado mt-2 */}
+             
 
               {/* System Type */}
-
               <fieldset className="border p-2 rounded">
                 <legend className="text-sm font-medium">System Type</legend>
-                <div className="grid grid-cols-2 gap-2 items-end">
-                  {/* Type */}
-                  <select name="type" value={systemTypeSelection.type} onChange={handleSystemTypeChange} className="input-style col-span-2">
-                    <option value="">Select Type</option>
-                    {systemTypeTypes.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
+                {/* Grid interno para los controles de System Type */}
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 items-end"> {/* Ajustado gap-x-4 */}
 
-                  {/* Brand Dropdown */}
-                  <select name="brand" value={systemTypeSelection.brand} onChange={handleSystemTypeChange} disabled={!systemTypeSelection.type} className="input-style">
-                    <option value="">Select Brand</option>
-                    {/* Asegúrate que el valor de la opción 'OTROS' sea 'OTROS' */}
-                    {systemTypeBrands.map(b => <option key={b} value={b}>{b}</option>)}
-                  </select>
+                  {/* Fila 1: Type Dropdown (ocupa ambas columnas) */}
+                  <div className="col-span-2">
+                    <label htmlFor="systemType_type" className="block text-xs font-medium text-gray-600">Type</label>
+                    <select id="systemType_type" name="type" value={systemTypeSelection.type} onChange={handleSystemTypeChange} className="input-style">
+                      <option value="">Select Type</option>
+                      {systemTypeTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
 
-                  {/* Manual Brand Input (SOLO si Brand es 'OTROS') */}
-                  {systemTypeSelection.brand === 'OTROS' ? (
-                    <input
-                      type="text"
-                      name="manualBrand"
-                      placeholder="Ingrese Marca"
-                      value={systemTypeManualBrand}
-                      onChange={handleSystemTypeManualChange}
-                      className="input-style"
-                    />
-                  ) : (
-                    // Espaciador si Brand NO es 'OTROS'
-                    <div></div>
-                  )}
+                  {/* Fila 2: Brand Dropdown o Manual Input */}
+                  <div>
+                    <label htmlFor="systemType_brand" className="block text-xs font-medium text-gray-600">Brand</label>
+                    <select id="systemType_brand" name="brand" value={systemTypeSelection.brand} onChange={handleSystemTypeChange} disabled={!systemTypeSelection.type} className="input-style">
+                      <option value="">Select Brand</option>
+                      {/* Asegúrate que el valor de la opción 'OTROS' sea 'OTROS' */}
+                      {systemTypeBrands.map(b => <option key={b} value={b}>{b}</option>)}
+                      {/* Añadir opción OTROS si no viene del catálogo */}
+                      {!systemTypeBrands.includes('OTROS') && <option value="OTROS">OTROS</option>}
+                    </select>
+                  </div>
+                  <div>
+                    {/* Mostrar input manual SOLO si Brand es 'OTROS' */}
+                    {systemTypeSelection.brand === 'OTROS' ? (
+                      <>
+                        <label htmlFor="systemType_manualBrand" className="block text-xs font-medium text-gray-600">Ingrese Marca</label>
+                        <input
+                          id="systemType_manualBrand"
+                          type="text"
+                          name="manualBrand"
+                          placeholder="Marca Manual"
+                          value={systemTypeManualBrand}
+                          onChange={handleSystemTypeManualChange}
+                          className="input-style"
+                          disabled={!systemTypeSelection.type} // Habilitado si hay tipo
+                        />
+                      </>
+                    ) : (
+                      // Espacio vacío si no es 'OTROS' para mantener alineación
+                      <div></div>
+                    )}
+                  </div>
 
                   {/* Capacity Dropdown (SOLO si Brand NO es 'OTROS') */}
                   {systemTypeSelection.brand !== 'OTROS' ? (
@@ -762,6 +808,7 @@ const BudgetEditor = () => {
                   <select name="system" value={drainfieldSelection.system} onChange={handleDrainfieldChange} className="input-style"><option value="">Select System</option>{drainfieldSystems.map(s => <option key={s} value={s}>{s}</option>)}</select>
                   <input type="number" name="quantity" value={drainfieldSelection.quantity} onChange={handleDrainfieldChange} min="1" className="input-style" />
                   <input type="text" name="sf" placeholder="SF (Optional)" value={drainfieldSelection.sf} onChange={handleDrainfieldChange} className="input-style" />
+                  
                   <button type="button" onClick={addDrainfieldItem} className="button-add-item col-span-2">Add Drainfield</button>
                 </div>
               </fieldset>
@@ -838,23 +885,28 @@ const BudgetEditor = () => {
               </div>
             </div>
 
-            {/* --- Descuento --- */}
-            <fieldset className="border p-3 rounded">
+            {/* --- Línea Divisoria --- */}
+            <hr className="col-span-4 my-4 border-t border-gray-300" />
+
+            {/* --- Descuento (Ocupa las 4 columnas, grid interno de 3) --- */}
+            <fieldset className="col-span-4 border p-3 rounded">
               <legend className="text-lg font-medium">Descuento</legend>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                <div className="md:col-span-2">
+              {/* Usar grid aquí también para alinear descripción y monto */}
+              <div className="grid grid-cols-4 gap-4"> {/* Grid interno de 4 */}
+                <div className="col-span-3"> {/* Descripción ocupa 3 */}
                   <label className="block text-sm font-medium text-gray-700">Descripción</label>
                   <input type="text" name="discountDescription" value={formData.discountDescription} onChange={handleGeneralInputChange} className="input-style" />
                 </div>
-                <div>
+                <div className="col-span-1"> {/* Monto ocupa 1 */}
                   <label className="block text-sm font-medium text-gray-700">Monto ($)</label>
                   <input type="number" name="discountAmount" value={formData.discountAmount} onChange={handleGeneralInputChange} min="0" step="0.01" className="input-style" />
                 </div>
               </div>
             </fieldset>
 
+
             {/* --- Totales y Pago Inicial --- */}
-            <div className="mt-6 text-right space-y-1 border-t pt-4">
+            <div className="col-span-4 mt-2 text-right space-y-1 border-t pt-4"> {/* Ajustado mt-2 */}
               <p className="text-lg">Subtotal: <span className="font-semibold">${formData.subtotalPrice.toFixed(2)}</span></p>
               {formData.discountAmount > 0 && (
                 <p className="text-lg text-red-600">Descuento ({formData.discountDescription || 'General'}): <span className="font-semibold">-${formData.discountAmount.toFixed(2)}</span></p>
@@ -871,19 +923,21 @@ const BudgetEditor = () => {
             </div>
 
             {/* --- Notas Generales --- */}
-            <div>
+            <div className="col-span-4">
               <label className="block text-sm font-medium text-gray-700">Notas Generales</label>
               <textarea name="generalNotes" value={formData.generalNotes} onChange={handleGeneralInputChange} rows="3" className="input-style w-full"></textarea>
             </div>
 
             {/* --- Botón Submit --- */}
-            <button
-              type="submit"
-              className="w-full bg-blue-950 text-white py-2 px-4 rounded-md hover:bg-indigo-700 mt-6 disabled:opacity-50"
-              disabled={isLoading || formData.lineItems.length === 0}
-            >
-              {isLoading ? 'Guardando...' : (isEditing ? "Guardar Cambios" : "Crear Presupuesto")}
-            </button>
+            <div className="col-span-4 mt-4"> {/* Añadido margen superior */}
+                <button
+                  type="submit"
+                  className="w-full bg-blue-950 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                  disabled={isLoading || formData.lineItems.length === 0}
+                >
+                  {isLoading ? 'Guardando...' : (isEditing ? "Guardar Cambios" : "Crear Presupuesto")}
+                </button>
+            </div>
           </form>
         </div>
       </div>
@@ -901,4 +955,4 @@ const BudgetEditor = () => {
   );
 };
 
-export default BudgetEditor;
+export default CreateBudget;

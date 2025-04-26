@@ -25,8 +25,8 @@ const BarraLateral = () => {
     { name: "Balance", path: "/balance" },
     { name: "Items Budgets", path: "/itemBudget" },
     { name: "Logout", path: "/logout" }, // Ruta para cerrar sesión
+    { name: "Edit Budgets", path: "/editBudget" }, // Ruta para configuración
 
-    
 
   ];
 
@@ -34,7 +34,7 @@ const BarraLateral = () => {
     navigate(path); // Navega a la ruta seleccionada
     setIsMobileMenuOpen(false); // Cierra el menú móvil
   };
- if (staff?.role !== "owner") {
+  if (staff?.role !== "owner") {
     return null; // No renderizar la barra lateral si no es "owner"
   }
   return (
@@ -46,9 +46,8 @@ const BarraLateral = () => {
             <li key={item.name} className="w-full">
               <button
                 onClick={() => navigate(item.path)}
-                className={`block py-3 px-4 text-sm font-medium transition-all duration-300 w-full text-left hover:bg-gray-700 hover:text-blue-300 ${
-                  location.pathname === item.path ? "bg-gray-700 text-blue-300" : ""
-                }`}
+                className={`block py-3 px-4 text-sm font-medium transition-all duration-300 w-full text-left hover:bg-gray-700 hover:text-blue-300 ${location.pathname === item.path ? "bg-gray-700 text-blue-300" : ""
+                  }`}
               >
                 {item.name}
               </button>
@@ -75,9 +74,8 @@ const BarraLateral = () => {
                 <li key={item.name} className="w-full">
                   <button
                     onClick={() => handleNavigation(item.path)}
-                    className={`block py-3 px-4 text-sm font-medium transition-all duration-300 w-full text-left hover:bg-gray-700 hover:text-blue-300 ${
-                      location.pathname === item.path ? "bg-gray-700 text-blue-300" : ""
-                    }`}
+                    className={`block py-3 px-4 text-sm font-medium transition-all duration-300 w-full text-left hover:bg-gray-700 hover:text-blue-300 ${location.pathname === item.path ? "bg-gray-700 text-blue-300" : ""
+                      }`}
                   >
                     {item.name}
                   </button>
@@ -99,7 +97,7 @@ const BarraLateral = () => {
       {/* Contenido principal */}
       <div className="flex-1 lg:ml-36 "> {/* Ajuste para que el contenido principal no quede debajo de la barra lateral */}
         {/* Aquí va el contenido principal de la página */}
-        
+
       </div>
     </div>
   );
