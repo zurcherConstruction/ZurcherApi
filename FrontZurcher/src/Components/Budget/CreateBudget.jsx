@@ -42,14 +42,14 @@ const CreateBudget = () => {
   const [pdfPreview, setPdfPreview] = useState(null);
   const [optionalDocPreview, setOptionalDocPreview] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  //items personalizado
-  // const [customSystemType, setCustomSystemType] = useState({
-  //   name: '',
-  //   marca: '',
-  //   capacity: '',
-  //   unitPrice: 0,
-  //   quantity: 1,
-  // });
+ 
+  //estados items manual 
+  const [manualItem, setManualItem] = useState({
+    category: "",
+    name: "",
+    unitPrice: 0,
+    quantity: 1,
+  });
   const [normalizedBudgetItemsCatalog, setNormalizedBudgetItemsCatalog] = useState([]);
   
   useEffect(() => {
@@ -142,6 +142,27 @@ const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).su
         status: "created",
         initialPaymentPercentage: '60',
       }));
+          // Poblar campos específicos desde el Permit
+    if (selectedPermit.drainfieldDepth) {
+      setDrainfieldSelection(prev => ({
+        ...prev,
+        sf: selectedPermit.drainfieldDepth,
+      }));
+    }
+
+    if (selectedPermit.systemType) {
+      setSystemTypeSelection(prev => ({
+        ...prev,
+        type: selectedPermit.systemType.includes("ATU") ? "ATU" : "REGULAR",
+      }));
+    }
+
+    if (selectedPermit.excavationRequired) {
+      setFormData(prev => ({
+        ...prev,
+        excavationRequired: selectedPermit.excavationRequired,
+      }));
+    }
 
       // Mostrar PDFs del Permit
       if (selectedPermit.pdfData) { // Asumiendo que ahora viene como URL
@@ -210,6 +231,9 @@ const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).su
        setFormData(prev => ({ ...prev, expirationDate: "" }));
     }
   }, [formData.date, formData.expirationDate]); // Añadida dependencia expirationDate
+
+
+
 
   // --- Handlers para Inputs Generales ---
   const handleGeneralInputChange = (e) => {
@@ -287,7 +311,38 @@ const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).su
     }));
   };
 
+//handle item manual
+const handleManualItemChange = (e) => {
+  const { name, value } = e.target;
+  const isNumeric = ['unitPrice', 'quantity'].includes(name);
+  setManualItem(prev => ({
+    ...prev,
+    [name]: isNumeric ? parseFloat(value) || 0 : value,
+  }));
+};
 
+const addManualItem = () => {
+  if (!manualItem.category || !manualItem.name || manualItem.unitPrice <= 0 || manualItem.quantity <= 0) {
+    alert("Por favor complete todos los campos del item manual.");
+    return;
+  }
+
+  setFormData(prev => ({
+    ...prev,
+    lineItems: [...prev.lineItems, {
+      _tempId: generateTempId(),
+      budgetItemId: null, // Item personalizado
+      category: manualItem.category.toUpperCase(),
+      name: manualItem.name.toUpperCase(),
+      unitPrice: manualItem.unitPrice,
+      quantity: manualItem.quantity,
+      notes: "Item Manual",
+    }],
+  }));
+
+  // Resetear el formulario del item manual
+  setManualItem({ category: "", name: "", unitPrice: 0, quantity: 1 });
+};
  
   // --- Estados y Handlers específicos para cada sección del formulario ---
 
@@ -1116,6 +1171,35 @@ console.log("Enviando al backend para CREAR:", dataToSend);
                   </fieldset>
                 )}
               </div>
+              <div className="border rounded bg-white">
+  <button type="button" onClick={() => toggleSection('manualItem')} className="w-full flex justify-between items-center p-2 bg-gray-100 hover:bg-gray-200 rounded-t">
+    <span className="font-medium text-sm">Agregar Item Manual</span>
+    {sectionVisibility.manualItem ? <ChevronUpIcon className="h-5 w-5 text-gray-600"/> : <ChevronDownIcon className="h-5 w-5 text-gray-600"/>}
+  </button>
+  {sectionVisibility.manualItem && (
+    <fieldset className="p-2 border-t">
+      <div className="grid grid-cols-2 gap-2 items-end">
+        <div>
+          <label htmlFor="manual_category" className="block text-xs font-medium text-gray-600">Categoría</label>
+          <input id="manual_category" type="text" name="category" value={manualItem.category} onChange={handleManualItemChange} placeholder="Ej: SYSTEM TYPE" className="input-style" />
+        </div>
+        <div>
+          <label htmlFor="manual_name" className="block text-xs font-medium text-gray-600">Nombre</label>
+          <input id="manual_name" type="text" name="name" value={manualItem.name} onChange={handleManualItemChange} placeholder="Ej: INFIL" className="input-style" />
+        </div>
+        <div>
+          <label htmlFor="manual_price" className="block text-xs font-medium text-gray-600">Precio Unitario</label>
+          <input id="manual_price" type="number" name="unitPrice" value={manualItem.unitPrice} onChange={handleManualItemChange} min="0" step="0.01" placeholder="0.00" className="input-style" />
+        </div>
+        <div>
+          <label htmlFor="manual_quantity" className="block text-xs font-medium text-gray-600">Cantidad</label>
+          <input id="manual_quantity" type="number" name="quantity" value={manualItem.quantity} onChange={handleManualItemChange} min="1" placeholder="1" className="input-style" />
+        </div>
+        <button type="button" onClick={addManualItem} className="button-add-item col-span-2 mt-2">Agregar Item Manual</button>
+      </div>
+    </fieldset>
+  )}
+</div>
 
               {/* --- Lista de Items Añadidos --- */}
               <div className="mt-6 border-t pt-4 bg-white p-3 rounded shadow-sm">
