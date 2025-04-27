@@ -15,17 +15,32 @@ module.exports = (sequelize) => {
         model: 'Budgets', // Asegúrate que coincida con el nombre de tu tabla Budget
         key: 'idBudget',
       },
+      onUpdate: 'CASCADE',
       onDelete: 'CASCADE', // Si se borra el budget, se borran sus líneas
     },
-    // Foreign Key a BudgetItem
-    budgetItemId: {
+    budgetItemId: { // Relación con BudgetItem (puede ser null para items personalizados)
       type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    name: { // Solo para items personalizados
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    category: { // Solo para items personalizados
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    marca: { // Solo para items personalizados
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    capacity: { // Solo para items personalizados
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    unitPrice: {
+      type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
-      references: {
-        model: 'BudgetItems', // Asegúrate que coincida con el nombre de tu tabla BudgetItem
-        key: 'id',
-      },
-      // onDelete: 'RESTRICT' // O 'SET NULL' si quieres mantener la línea aunque se borre el item base
     },
     quantity: {
       type: DataTypes.DECIMAL(10, 2), // DECIMAL por si usas fracciones de unidades (ej: 1.5 horas)

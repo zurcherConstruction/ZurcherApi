@@ -14,7 +14,6 @@ const ItemsBudgets = () => {
 
   const initialFormState = {
     name: "",
-    description: "",
     category: "", // Valor del select
     marca: "",
     capacity: "",
@@ -82,7 +81,6 @@ const ItemsBudgets = () => {
     // Convertir campos de texto a mayúsculas antes de enviar
     const dataToSend = {
       name: formData.name?.trim().toUpperCase() || "",
-      description: formData.description?.trim().toUpperCase() || "",
       category: finalCategory, // Ya está en mayúsculas
       marca: formData.marca?.trim().toUpperCase() || "",
       capacity: formData.capacity?.trim().toUpperCase() || "",
@@ -93,7 +91,7 @@ const ItemsBudgets = () => {
 
     // Validaciones adicionales (opcional, pero recomendado)
     if (!dataToSend.name) {
-        alert("La marca es obligatoria.");
+        alert("El nombre es obligatoria.");
         return;
     }
     if (dataToSend.unitPrice < 0) { // Permitir 0 pero no negativo
@@ -119,7 +117,6 @@ const ItemsBudgets = () => {
 
     setFormData({
       name: item.name || "",
-      description: item.description || "",
       category: categoryExists ? currentCategoryValue : "__NEW__", // Usar valor en mayúsculas
       marca: item.marca || "",
       capacity: item.capacity || "",
@@ -169,7 +166,7 @@ const ItemsBudgets = () => {
           <form onSubmit={handleCreateOrUpdate} className="space-y-4">
             {/* Selector de Categoría */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">Categoría</label>
+              <label className="block text-sm font-medium text-gray-700">Categoría: SUSTEM TYPE, DRAINFIELD, PUMP, MATERIALES, INSPECTION, LABOR FEE...</label>
               <select
                 name="category"
                 value={formData.category}
@@ -203,16 +200,12 @@ const ItemsBudgets = () => {
 
             {/* Resto de los campos */}
             <div>
-              <label className="block text-sm font-medium text-gray-700">Nombre (Ej: ATU, Regular, Chambers)</label>
+              <label className="block text-sm font-medium text-gray-700">Nombre (Ej: ATU, Regular, Chambers, Arena, Tanque, localizacion)</label>
               <input type="text" name="name" value={formData.name} onChange={handleInputChange} className="mt-1 block w-full input-style" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Marca (Ej: Fuji, Infiltrator) *</label>
-              <input type="text" name="marca" value={formData.marca} onChange={handleInputChange} className="mt-1 block w-full input-style" required />
-            </div>
-             <div>
-              <label className="block text-sm font-medium text-gray-700">Descripción (Opcional)</label>
-              <input type="text" name="description" value={formData.description} onChange={handleInputChange} className="mt-1 block w-full input-style" />
+              <label className="block text-sm font-medium text-gray-700">Marca (Ej: Fuji, Infiltrator, arc24, low profile...) *</label>
+              <input type="text" name="marca" value={formData.marca} onChange={handleInputChange} className="mt-1 block w-full input-style" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Capacidad / Especificación (Ej: 500 GPD)</label>
@@ -265,15 +258,16 @@ const ItemsBudgets = () => {
                 >
                   <div className="mb-2 md:mb-0 md:flex-1 mr-2"> {/* Añadido margen derecho */}
                     <p className="text-sm font-medium text-gray-900">
-                      {item.name || '(Sin Nombre)'}
+                      {item.category || '(Sin Nombre)'}
                     </p>
                     <p className="text-xs text-gray-500 font-semibold">
-                      {item.category}
+                      {item.name}
                     </p>
-                     {item.description && <p className="text-xs text-gray-600 italic">"{item.description}"</p>}
+                    
                     <p className="text-xs text-gray-500">
                       {item.marca ? `Marca: ${item.marca}` : ''} {item.capacity ? `(${item.capacity})` : ''}
                     </p>
+                   
                     <p className="text-xs text-gray-500 font-medium">
                       Precio: ${parseFloat(item.unitPrice).toFixed(2)}
                     </p>

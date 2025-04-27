@@ -43,13 +43,28 @@ const CreateBudget = () => {
   const [optionalDocPreview, setOptionalDocPreview] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   //items personalizado
-  const [customSystemType, setCustomSystemType] = useState({
-    name: '',
-    marca: '',
-    capacity: '',
-    unitPrice: 0,
-    quantity: 1,
-  });
+  // const [customSystemType, setCustomSystemType] = useState({
+  //   name: '',
+  //   marca: '',
+  //   capacity: '',
+  //   unitPrice: 0,
+  //   quantity: 1,
+  // });
+  const [normalizedBudgetItemsCatalog, setNormalizedBudgetItemsCatalog] = useState([]);
+  
+  useEffect(() => {
+    const normalizedCatalog = budgetItemsCatalog
+      .filter(item => item.isActive && item.category) // Filtrar solo items activos y con categoría válida
+      .map(item => ({
+        ...item,
+        category: item.category?.toUpperCase().trim() || '',
+        name: item.name?.toUpperCase().trim() || '',
+        marca: item.marca?.toUpperCase().trim() || '',
+        capacity: item.capacity?.toUpperCase().trim() || '',
+      }));
+    console.log("Categorías disponibles:", [...new Set(normalizedCatalog.map(item => item.category))]);
+    setNormalizedBudgetItemsCatalog(normalizedCatalog);
+  }, [budgetItemsCatalog]);
 
   // --- Estado para visibilidad de secciones de items ---
   const [sectionVisibility, setSectionVisibility] = useState({
@@ -60,6 +75,12 @@ const CreateBudget = () => {
     inspection: false,
     labor: false,
   });
+  const toggleSection = (sectionName) => {
+    setSectionVisibility(prev => ({ ...prev, [sectionName]: !prev[sectionName] }));
+  };
+
+  // --- Helper para generar IDs temporales ---
+const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
   // --- Estado del Formulario (Inicializado para creación) ---
   const [formData, setFormData] = useState({
@@ -204,56 +225,56 @@ const CreateBudget = () => {
     setFormData(prev => ({ ...prev, initialPaymentPercentage: e.target.value }));
   };
 
-  // --- Handlers para Manejar Line Items ---
-  const addOrUpdateLineItem = (itemDetails) => {
+   // --- Función addOrUpdateLineItem (Modificada para reemplazar opcionalmente) ---
+   const addOrUpdateLineItem = (itemDetails, replaceIfExists = false) => {
     console.log("Buscando item con:", itemDetails);
-    const foundItem = budgetItemsCatalog.find(catalogItem => {
-      // Normalizar comparación de categorías y nombres a mayúsculas
-      let match = catalogItem.category?.toUpperCase() === itemDetails.category?.toUpperCase();
-      if (match && itemDetails.name) match = catalogItem.name?.toUpperCase() === itemDetails.name?.toUpperCase();
-      // Comparar marca y capacidad (considerando nulos/vacíos)
-      if (match && itemDetails.marca !== undefined) match = (catalogItem.marca || '') === (itemDetails.marca || '');
-      if (match && itemDetails.capacity !== undefined) match = (catalogItem.capacity || '') === (itemDetails.capacity || '');
+  
+    // Buscar el item en el catálogo
+    const foundItem = normalizedBudgetItemsCatalog.find(catalogItem => {
+      let match = catalogItem.category === itemDetails.category?.toUpperCase();
+      if (match && itemDetails.name !== undefined) match = catalogItem.name === itemDetails.name?.toUpperCase();
+      if (match && itemDetails.marca !== undefined) match = (catalogItem.marca || '') === (itemDetails.marca?.toUpperCase() || '');
+      if (match && itemDetails.capacity !== undefined) match = (catalogItem.capacity || '') === (itemDetails.capacity?.toUpperCase() || '');
       return match;
     });
-
+  
     if (!foundItem) {
-      alert(`No se encontró un item en el catálogo para: ${itemDetails.category} - ${itemDetails.name} - ${itemDetails.marca || ''} - ${itemDetails.capacity || ''}`);
-      console.error("No se encontró item para:", itemDetails, "en", budgetItemsCatalog);
+      alert(`No se encontró un item en el catálogo para: ${itemDetails.category} - ${itemDetails.name || ''} - ${itemDetails.marca || ''} - ${itemDetails.capacity || ''}`);
+      console.error("No se encontró item para:", itemDetails, "en", normalizedBudgetItemsCatalog);
       return;
     }
+  
     console.log("Item encontrado en catálogo:", foundItem);
-
+  
     setFormData(prev => {
       const existingItemIndex = prev.lineItems.findIndex(line => line.budgetItemId === foundItem.id);
       let newLineItems;
-
+      const newItemData = {
+        _tempId: generateTempId(),
+        budgetItemId: foundItem.id,
+        quantity: parseFloat(itemDetails.quantity) || 1,
+        notes: itemDetails.notes || '',
+        name: foundItem.name,
+        category: foundItem.category,
+        marca: foundItem.marca || '',
+        capacity: foundItem.capacity || '',
+        unitPrice: parseFloat(foundItem.unitPrice) || 0,
+      };
+  
       if (existingItemIndex > -1) {
-        console.log("Actualizando item existente");
+        console.log("Item existente encontrado en índice:", existingItemIndex);
         newLineItems = [...prev.lineItems];
-        const currentItem = newLineItems[existingItemIndex];
-        // Sumar cantidad o usar la nueva si se prefiere reemplazar
-        const newQuantity = (parseFloat(currentItem.quantity) || 0) + (parseFloat(itemDetails.quantity) || 0);
-        newLineItems[existingItemIndex] = {
-          ...currentItem,
-          quantity: newQuantity, // Sumar cantidades
-          notes: itemDetails.notes || currentItem.notes, // Mantener notas existentes si no se proveen nuevas
-          // unitPrice se mantiene el del catálogo original al añadir
-        };
+        if (replaceIfExists) {
+          newItemData._tempId = newLineItems[existingItemIndex]._tempId;
+          newLineItems[existingItemIndex] = newItemData;
+        } else {
+          const currentItem = newLineItems[existingItemIndex];
+          const newQuantity = (parseFloat(currentItem.quantity) || 0) + (parseFloat(itemDetails.quantity) || 0);
+          newLineItems[existingItemIndex] = { ...currentItem, quantity: newQuantity, notes: itemDetails.notes || currentItem.notes };
+        }
       } else {
-        console.log("Añadiendo nuevo item");
-        const newItem = {
-          _tempId: generateTempId(),
-          budgetItemId: foundItem.id,
-          quantity: parseFloat(itemDetails.quantity) || 1, // Asegurar que sea número
-          notes: itemDetails.notes || '',
-          name: foundItem.name,
-          category: foundItem.category,
-          marca: foundItem.marca || '', // Asegurar que sea string
-          capacity: foundItem.capacity || '', // Asegurar que sea string
-          unitPrice: parseFloat(foundItem.unitPrice) || 0, // Asegurar que sea número
-        };
-        newLineItems = [...prev.lineItems, newItem];
+        console.log("Añadiendo nuevo item.");
+        newLineItems = [...prev.lineItems, newItemData];
       }
       return { ...prev, lineItems: newLineItems };
     });
@@ -267,272 +288,345 @@ const CreateBudget = () => {
   };
 
 
-  const toggleSection = (sectionName) => {
-    setSectionVisibility(prev => ({ ...prev, [sectionName]: !prev[sectionName] }));
-  };
-
+ 
   // --- Estados y Handlers específicos para cada sección del formulario ---
 
-  // System Type
-  const [systemTypeSelection, setSystemTypeSelection] = useState({ type: '', brand: '', capacity: '', quantity: 1 });
-  const [systemTypeManualBrand, setSystemTypeManualBrand] = useState('');
-  const [systemTypeManualCapacity, setSystemTypeManualCapacity] = useState('');
-  const systemTypeCategoryString = 'SYSTEM TYPE';
-  const systemTypeTypes = useMemo(() => [...new Set(budgetItemsCatalog.filter(i => i.category?.toUpperCase() === systemTypeCategoryString).map(i => i.name || ''))].sort(), [budgetItemsCatalog]);
-  const systemTypeBrands = useMemo(() => [...new Set(budgetItemsCatalog.filter(i => i.category?.toUpperCase() === systemTypeCategoryString && i.name === systemTypeSelection.type).map(i => i.marca || ''))].sort(), [budgetItemsCatalog, systemTypeSelection.type]);
-  const systemTypeCapacities = useMemo(() => [...new Set(budgetItemsCatalog.filter(i => i.category?.toUpperCase() === systemTypeCategoryString && i.name === systemTypeSelection.type && (i.marca || '') === systemTypeSelection.brand).map(i => i.capacity || ''))].sort(), [budgetItemsCatalog, systemTypeSelection.type, systemTypeSelection.brand]);
+ // --- System Type ---
+ const SYSTEM_TYPE_CATEGORY = 'SYSTEM TYPE'; // Usar constante para categoría normalizada
+ const [systemTypeSelection, setSystemTypeSelection] = useState({ type: '', brand: '', capacity: '', quantity: 1 });
+ const [customSystemType, setCustomSystemType] = useState({ name: '', brand: '', capacity: '', unitPrice: 0, quantity: 1 });
 
-  const handleSystemTypeChange = (e) => {
-    const { name, value } = e.target;
-    setSystemTypeSelection(prev => {
-      const newState = { ...prev, [name]: value };
-      if (name === 'type') {
-        newState.brand = '';
-        newState.capacity = '';
-        setSystemTypeManualBrand('');
-        setSystemTypeManualCapacity('');
-      }
-      if (name === 'brand') {
-        newState.capacity = '';
-        setSystemTypeManualCapacity('');
-        if (value !== 'OTROS') setSystemTypeManualBrand('');
-      }
-      if (name === 'capacity' && value !== 'OTROS') {
-        setSystemTypeManualCapacity('');
-      }
-      return newState;
-    });
-  };
+ const systemTypeTypes = useMemo(() => [...new Set(normalizedBudgetItemsCatalog.filter(i => i.category === SYSTEM_TYPE_CATEGORY).map(i => i.name || ''))].sort(), [normalizedBudgetItemsCatalog]);
+ const systemTypeBrands = useMemo(() => {
+   if (!systemTypeSelection.type) return [];
+   return [...new Set(normalizedBudgetItemsCatalog.filter(i => i.category === SYSTEM_TYPE_CATEGORY && i.name === systemTypeSelection.type).map(i => i.marca || ''))].sort();
+ }, [normalizedBudgetItemsCatalog, systemTypeSelection.type]);
+ const systemTypeCapacities = useMemo(() => {
+   if (!systemTypeSelection.type || !systemTypeSelection.brand || systemTypeSelection.brand === 'OTROS') return [];
+   return [...new Set(normalizedBudgetItemsCatalog.filter(i => i.category === SYSTEM_TYPE_CATEGORY && i.name === systemTypeSelection.type && i.marca === systemTypeSelection.brand).map(i => i.capacity || ''))].sort();
+ }, [normalizedBudgetItemsCatalog, systemTypeSelection.type, systemTypeSelection.brand]);
 
-  const handleSystemTypeManualChange = (e) => {
-    const { name, value } = e.target;
-    if (name === 'manualBrand') setSystemTypeManualBrand(value);
-    if (name === 'manualCapacity') setSystemTypeManualCapacity(value);
-  };
-
-  const addSystemTypeItem = () => {
-    if (systemTypeSelection.type === 'OTROS') {
-      // Validar campos del item personalizado
-      if (!customSystemType.name || !customSystemType.marca || !customSystemType.capacity || customSystemType.unitPrice <= 0) {
-        alert("Por favor complete todos los campos del item personalizado.");
-        return;
-      }
-  
-      // Añadir el item personalizado
-      setFormData(prev => ({
-        ...prev,
-        lineItems: [
-          ...prev.lineItems,
-          {
-            _tempId: generateTempId(),
-            budgetItemId: null, // No tiene ID porque es personalizado
-            name: customSystemType.name,
-            category: systemTypeCategoryString,
-            marca: customSystemType.marca,
-            capacity: customSystemType.capacity,
-            unitPrice: parseFloat(customSystemType.unitPrice),
-            quantity: parseFloat(customSystemType.quantity),
-            notes: 'Item personalizado',
-          },
-        ],
-      }));
-  
-      // Resetear el estado del item personalizado
-      setCustomSystemType({ name: '', marca: '', capacity: '', unitPrice: 0, quantity: 1 });
-    } else {
-      // Lógica existente para items del catálogo
-      if (!systemTypeSelection.type || !systemTypeSelection.brand || !systemTypeSelection.capacity) {
-        alert("Por favor complete todos los campos de System Type.");
-        return;
-      }
-  
-      const brandToAdd = systemTypeSelection.brand;
-      const capacityToAdd = systemTypeSelection.capacity;
-  
-      addOrUpdateLineItem({
-        category: systemTypeCategoryString,
-        name: systemTypeSelection.type,
-        marca: brandToAdd,
-        capacity: capacityToAdd,
-        quantity: systemTypeSelection.quantity,
-      });
-  
-      setSystemTypeSelection({ type: '', brand: '', capacity: '', quantity: 1 });
+ const handleSystemTypeChange = (e) => {
+   const { name, value } = e.target;
+   setSystemTypeSelection(prev => {
+     const newState = { ...prev, [name]: value };
+     if (name === 'type') { newState.brand = ''; newState.capacity = ''; }
+     if (name === 'brand') { newState.capacity = ''; }
+     // Limpiar custom si se cambia la selección principal
+     if (value !== 'OTROS') {
+       setCustomSystemType({ name: '', brand: '', capacity: '', unitPrice: 0, quantity: 1 });
+     }
+     return newState;
+   });
+ };
+ const handleCustomSystemTypeChange = (e) => {
+   const { name, value } = e.target;
+   const isNumeric = ['unitPrice', 'quantity'].includes(name);
+   setCustomSystemType(prev => ({ ...prev, [name]: isNumeric ? parseFloat(value) || 0 : value }));
+ };
+ const addSystemTypeItem = () => {
+  if (systemTypeSelection.brand === 'OTROS' || systemTypeSelection.capacity === 'OTROS') {
+    if (!customSystemType.name || !customSystemType.brand || !customSystemType.capacity || customSystemType.unitPrice <= 0) {
+      alert("Por favor complete todos los campos del item personalizado (Nombre, Marca, Capacidad, Precio).");
+      return;
     }
-  };
+    setFormData(prev => ({
+      ...prev,
+      lineItems: [...prev.lineItems, {
+        _tempId: generateTempId(),
+        budgetItemId: null,
+        name: customSystemType.name.toUpperCase(),
+        category: SYSTEM_TYPE_CATEGORY,
+        marca: customSystemType.brand.toUpperCase(),
+        capacity: customSystemType.capacity.toUpperCase(),
+        unitPrice: customSystemType.unitPrice,
+        quantity: customSystemType.quantity,
+        notes: 'Item Personalizado',
+      }],
+    }));
+    setCustomSystemType({ name: '', brand: '', capacity: '', unitPrice: 0, quantity: 1 });
+    setSystemTypeSelection({ type: '', brand: '', capacity: '', quantity: 1 });
+  } else {
+    if (!systemTypeSelection.type || !systemTypeSelection.brand || !systemTypeSelection.capacity) {
+      alert("Por favor seleccione Type, Brand y Capacity.");
+      return;
+    }
+    addOrUpdateLineItem({
+      category: SYSTEM_TYPE_CATEGORY,
+      name: systemTypeSelection.type,
+      marca: systemTypeSelection.brand,
+      capacity: systemTypeSelection.capacity,
+      quantity: systemTypeSelection.quantity,
+    });
+    setSystemTypeSelection({ type: '', brand: '', capacity: '', quantity: 1 });
+  }
+};
 
-  // Drainfield
+
+  // --- Drainfield ---
+  const DRAINFIELD_CATEGORY = 'SISTEMA CHAMBERS';
   const [drainfieldSelection, setDrainfieldSelection] = useState({ system: '', quantity: 1, sf: '' });
-  const drainfieldCategoryString = 'SISTEMA CHAMBERS';
-  const drainfieldSystems = useMemo(() => [...new Set(budgetItemsCatalog.filter(i => i.category?.toUpperCase() === drainfieldCategoryString).map(i => i.name || ''))].sort(), [budgetItemsCatalog]);
+  const [customDrainfield, setCustomDrainfield] = useState({ name: '', unitPrice: 0, quantity: 1 });
+
+  const drainfieldSystems = useMemo(() => [...new Set(normalizedBudgetItemsCatalog.filter(i => i.category === DRAINFIELD_CATEGORY).map(i => i.name || ''))].sort(), [normalizedBudgetItemsCatalog]);
 
   const handleDrainfieldChange = (e) => {
     const { name, value } = e.target;
     setDrainfieldSelection(prev => ({ ...prev, [name]: value }));
-  };
-
-  const addDrainfieldItem = () => {
-    if (!drainfieldSelection.system) {
-      alert("Por favor seleccione un sistema de Drainfield.");
-      return;
+    if (value !== 'OTROS') {
+      setCustomDrainfield({ name: '', unitPrice: 0, quantity: 1 });
     }
-    addOrUpdateLineItem({
-      category: drainfieldCategoryString,
-      name: drainfieldSelection.system,
-      quantity: drainfieldSelection.quantity,
-      notes: drainfieldSelection.sf ? `SF: ${drainfieldSelection.sf}` : '',
-    });
-    // Resetear selección
-    setDrainfieldSelection({ system: '', quantity: 1, sf: '' });
   };
-
-  // Pump
-  const [pumpSelection, setPumpSelection] = useState({ addPump: 'No', capacity: '', quantity: 1 });
-  const pumpCategoryString = 'PUMP';
-  // Asumiendo que el item de bomba se llama 'TANQUE'
-  const pumpCapacities = useMemo(() => [...new Set(budgetItemsCatalog.filter(i => i.category?.toUpperCase() === pumpCategoryString && i.name?.toUpperCase() === 'TANQUE').map(i => i.capacity || ''))].sort(), [budgetItemsCatalog]);
-
-  const handlePumpChange = (e) => {
+  const handleCustomDrainfieldChange = (e) => {
     const { name, value } = e.target;
-    setPumpSelection(prev => ({ ...prev, [name]: value, ...(name === 'addPump' && value === 'No' && { capacity: '', quantity: 1 }) })); // Resetear capacidad y cantidad si se selecciona 'No'
+    const isNumeric = ['unitPrice', 'quantity'].includes(name);
+    setCustomDrainfield(prev => ({ ...prev, [name]: isNumeric ? parseFloat(value) || 0 : value }));
+  };
+  const addDrainfieldItem = () => {
+    const notes = drainfieldSelection.sf ? `SF: ${drainfieldSelection.sf}` : '';
+    if (drainfieldSelection.system === 'OTROS') {
+      if (!customDrainfield.name || customDrainfield.unitPrice <= 0) {
+        alert("Por favor complete Nombre y Precio del sistema personalizado."); return;
+      }
+      setFormData(prev => ({
+        ...prev,
+        lineItems: [...prev.lineItems, {
+          _tempId: generateTempId(), budgetItemId: null,
+          name: customDrainfield.name.toUpperCase(), category: DRAINFIELD_CATEGORY,
+          marca: '', capacity: '', unitPrice: customDrainfield.unitPrice,
+          quantity: customDrainfield.quantity, notes: `${notes} (Personalizado)`.trim(),
+        }],
+      }));
+      setCustomDrainfield({ name: '', unitPrice: 0, quantity: 1 });
+      setDrainfieldSelection({ system: '', quantity: 1, sf: '' });
+    } else {
+      if (!drainfieldSelection.system) { alert("Por favor seleccione un sistema."); return; }
+      addOrUpdateLineItem({
+        category: DRAINFIELD_CATEGORY, name: drainfieldSelection.system,
+        quantity: drainfieldSelection.quantity, notes: notes,
+      });
+      setDrainfieldSelection({ system: '', quantity: 1, sf: '' });
+    }
   };
 
-  // Efecto para añadir/quitar bomba automáticamente
-  useEffect(() => {
-    // Encontrar el item PUMP existente, si lo hay
-    const existingPumpItemIndex = formData.lineItems.findIndex(item => item.category?.toUpperCase() === pumpCategoryString);
+ // --- Pump ---
+ const PUMP_CATEGORY = 'PUMP';
+ const PUMP_NAME = 'TANQUE'; // Asumiendo que el item de bomba siempre se llama TANQUE
+ const [pumpSelection, setPumpSelection] = useState({ addPump: 'No', capacity: '', quantity: 1 });
+ const [customPump, setCustomPump] = useState({ capacity: '', unitPrice: 0, quantity: 1 });
 
-    if (pumpSelection.addPump === 'Yes' && pumpSelection.capacity) {
-      const itemToAdd = {
-        category: pumpCategoryString,
-        name: 'TANQUE',
+ const pumpCapacities = useMemo(() => [...new Set(normalizedBudgetItemsCatalog.filter(i => i.category === PUMP_CATEGORY && i.name === PUMP_NAME).map(i => i.capacity || ''))].sort(), [normalizedBudgetItemsCatalog]);
+
+ const handlePumpChange = (e) => {
+  const { name, value } = e.target;
+  setPumpSelection(prev => ({ ...prev, [name]: value, ...(name === 'addPump' && value === 'No' && { capacity: '', quantity: 1 }) }));
+  if (value !== 'OTROS') {
+    setCustomPump({ capacity: '', unitPrice: 0, quantity: 1 });
+  }
+};
+  const handleCustomPumpChange = (e) => {
+   const { name, value } = e.target;
+   const isNumeric = ['unitPrice', 'quantity'].includes(name);
+   setCustomPump(prev => ({ ...prev, [name]: isNumeric ? parseFloat(value) || 0 : value }));
+ };
+ // Efecto para añadir/quitar bomba automáticamente (simplificado para usar addOrUpdate)
+ useEffect(() => {
+  const existingPumpItemIndex = formData.lineItems.findIndex(item => item.category === PUMP_CATEGORY);
+
+  if (pumpSelection.addPump === 'Yes') {
+    if (pumpSelection.capacity === 'OTROS') {
+      if (!customPump.capacity || customPump.unitPrice <= 0) {
+        if (existingPumpItemIndex > -1) {
+          setFormData(prev => ({ ...prev, lineItems: prev.lineItems.filter((_, index) => index !== existingPumpItemIndex) }));
+        }
+        return;
+      }
+      const customPumpData = {
+        _tempId: formData.lineItems[existingPumpItemIndex]?._tempId || generateTempId(),
+        budgetItemId: null,
+        name: PUMP_NAME,
+        category: PUMP_CATEGORY,
+        marca: '',
+        capacity: customPump.capacity.toUpperCase(),
+        unitPrice: customPump.unitPrice,
+        quantity: customPump.quantity,
+        notes: 'Bomba Personalizada',
+      };
+      setFormData(prev => {
+        let newLineItems = [...prev.lineItems];
+        if (existingPumpItemIndex > -1) newLineItems[existingPumpItemIndex] = customPumpData;
+        else newLineItems.push(customPumpData);
+        return { ...prev, lineItems: newLineItems };
+      });
+    } else if (pumpSelection.capacity) {
+      addOrUpdateLineItem({
+        category: PUMP_CATEGORY,
+        name: PUMP_NAME,
         capacity: pumpSelection.capacity,
         quantity: pumpSelection.quantity,
-      };
-      // Buscar el item específico en el catálogo para obtener ID y precio
-      const foundCatalogItem = budgetItemsCatalog.find(ci =>
-          ci.category?.toUpperCase() === pumpCategoryString &&
-          ci.name?.toUpperCase() === 'TANQUE' &&
-          (ci.capacity || '') === pumpSelection.capacity
-      );
-
-      if (foundCatalogItem) {
-          const newItemData = {
-              _tempId: generateTempId(),
-              budgetItemId: foundCatalogItem.id,
-              quantity: parseFloat(pumpSelection.quantity) || 1,
-              notes: '',
-              name: foundCatalogItem.name,
-              category: foundCatalogItem.category,
-              marca: foundCatalogItem.marca || '',
-              capacity: foundCatalogItem.capacity || '',
-              unitPrice: parseFloat(foundCatalogItem.unitPrice) || 0,
-          };
-
-          setFormData(prev => {
-              let newLineItems = [...prev.lineItems];
-              if (existingPumpItemIndex > -1) {
-                  // Reemplazar el existente
-                  newLineItems[existingPumpItemIndex] = newItemData;
-              } else {
-                  // Añadir nuevo
-                  newLineItems.push(newItemData);
-              }
-              return { ...prev, lineItems: newLineItems };
-          });
-      } else {
-          console.warn("No se encontró el item de bomba en el catálogo con capacidad:", pumpSelection.capacity);
-      }
-
-    } else if (pumpSelection.addPump === 'No' && existingPumpItemIndex > -1) {
-      // Remover el item PUMP si existe y se seleccionó 'No'
-      setFormData(prev => ({
-          ...prev,
-          lineItems: prev.lineItems.filter((_, index) => index !== existingPumpItemIndex)
-      }));
+      }, true);
     }
-  }, [pumpSelection.addPump, pumpSelection.capacity, pumpSelection.quantity, budgetItemsCatalog]); // Añadido budgetItemsCatalog como dependencia
+  } else if (pumpSelection.addPump === 'No' && existingPumpItemIndex > -1) {
+    setFormData(prev => ({ ...prev, lineItems: prev.lineItems.filter((_, index) => index !== existingPumpItemIndex) }));
+  }
+}, [pumpSelection.addPump, pumpSelection.capacity, pumpSelection.quantity, customPump.capacity, customPump.unitPrice, customPump.quantity]);
 
+   // --- Arena ---
+   const SAND_CATEGORY = 'MATERIALES'; // Corregido según imagen/datos
+   const SAND_NAME = 'ARENA'; // Asumiendo que el item de arena siempre se llama ARENA
+   const [sandSelection, setSandSelection] = useState({ capacity: '', quantity: 1, location: '' });
+   const [customSand, setCustomSand] = useState({ capacity: '', unitPrice: 0, quantity: 1 });
+ 
+   const sandCapacities = useMemo(() => [...new Set(normalizedBudgetItemsCatalog.filter(i => i.category === SAND_CATEGORY && i.name === SAND_NAME).map(i => i.capacity || ''))].sort(), [normalizedBudgetItemsCatalog]);
+ 
+   const handleSandChange = (e) => {
+     const { name, value } = e.target;
+     setSandSelection(prev => ({ ...prev, [name]: value }));
+      if (value !== 'OTROS') {
+       setCustomSand({ capacity: '', unitPrice: 0, quantity: 1 });
+     }
+   };
+   const handleCustomSandChange = (e) => {
+     const { name, value } = e.target;
+     const isNumeric = ['unitPrice', 'quantity'].includes(name);
+     setCustomSand(prev => ({ ...prev, [name]: isNumeric ? parseFloat(value) || 0 : value }));
+   };
+   const addSandItem = () => {
+     const notes = sandSelection.location ? `Location: ${sandSelection.location}` : '';
+     if (sandSelection.capacity === 'OTROS') {
+        if (!customSand.capacity || customSand.unitPrice <= 0) {
+         alert("Por favor complete Capacidad y Precio de la arena personalizada."); return;
+       }
+       setFormData(prev => ({
+         ...prev,
+         lineItems: [...prev.lineItems, {
+           _tempId: generateTempId(), budgetItemId: null,
+           name: SAND_NAME, category: SAND_CATEGORY, marca: '',
+           capacity: customSand.capacity.toUpperCase(), unitPrice: customSand.unitPrice,
+           quantity: customSand.quantity, notes: `${notes} (Personalizada)`.trim(),
+         }],
+       }));
+       setCustomSand({ capacity: '', unitPrice: 0, quantity: 1 });
+       setSandSelection({ capacity: '', quantity: 1, location: '' });
+     } else {
+       if (!sandSelection.capacity) { alert("Por favor seleccione capacidad."); return; }
+       addOrUpdateLineItem({
+         category: SAND_CATEGORY, name: SAND_NAME,
+         capacity: sandSelection.capacity, quantity: sandSelection.quantity, notes: notes,
+       });
+       setSandSelection({ capacity: '', quantity: 1, location: '' });
+     }
+   };
 
-  // Arena
-  const [sandSelection, setSandSelection] = useState({ capacity: '', quantity: 1, location: '' });
-  const sandCategoryString = 'ARENA';
-  const sandCapacities = useMemo(() => [...new Set(budgetItemsCatalog.filter(i => i.category?.toUpperCase() === sandCategoryString && i.name?.toUpperCase() === sandCategoryString).map(i => i.capacity || ''))].sort(), [budgetItemsCatalog]);
+ // --- Inspección ---
+ const INSPECTION_CATEGORY = 'INSPECCION';
 
-  const handleSandChange = (e) => {
-    const { name, value } = e.target;
-    setSandSelection(prev => ({ ...prev, [name]: value }));
-  };
+ const [inspectionSelection, setInspectionSelection] = useState({ marca: '', quantity: 1 });
+ const [customInspection, setCustomInspection] = useState({ marca: '', unitPrice: 0, quantity: 1 });
 
-  const addSandItem = () => {
-    if (!sandSelection.capacity) {
-      alert("Por favor seleccione la capacidad/tipo de Arena.");
+ // Usamos 'marca' para el tipo de inspección (PRIVADA, HEALT DEPARTMENT)
+ const inspectionMarcas = useMemo(() => 
+  [...new Set(normalizedBudgetItemsCatalog
+    .filter(i => i.category === INSPECTION_CATEGORY)
+    .map(i => i.marca || '')
+  )].sort(), 
+  [normalizedBudgetItemsCatalog]
+);
+ const handleInspectionChange = (e) => {
+   const { name, value } = e.target;
+   setInspectionSelection(prev => ({ ...prev, [name]: value }));
+    if (value !== 'OTROS') {
+     setCustomInspection({ marca: '', unitPrice: 0, quantity: 1 });
+   }
+ };
+  const handleCustomInspectionChange = (e) => {
+   const { name, value } = e.target;
+   const isNumeric = ['unitPrice', 'quantity'].includes(name);
+   setCustomInspection(prev => ({ ...prev, [name]: isNumeric ? parseFloat(value) || 0 : value }));
+ };
+ const addInspectionItem = () => {
+  const inspectionName = 'INSPECCION INICIAL AND FEE HEALTH DEPARTMENT'; // Nombre fijo
+
+  if (inspectionSelection.marca === 'OTROS') {
+    // Agregar item personalizado
+    if (!customInspection.marca || customInspection.unitPrice <= 0) {
+      alert("Por favor complete Tipo y Precio de la inspección personalizada.");
       return;
     }
-    addOrUpdateLineItem({
-      category: sandCategoryString,
-      name: sandCategoryString,
-      capacity: sandSelection.capacity,
-      quantity: sandSelection.quantity,
-      notes: sandSelection.location ? `Location: ${sandSelection.location}` : '',
-    });
-    // Resetear selección
-    setSandSelection({ capacity: '', quantity: 1, location: '' });
-  };
-
-  // Inspección
-  const [inspectionSelection, setInspectionSelection] = useState({ marca: '', quantity: 1 });
-  const inspectionCategoryString = 'INSPECCION INICIAL AND FEE HEALTH DEPARMENT';
-  const inspectionMarcas = useMemo(() => [...new Set(budgetItemsCatalog.filter(i => i.category?.toUpperCase() === inspectionCategoryString).map(i => i.marca || ''))].sort(), [budgetItemsCatalog]);
-
-  const handleInspectionChange = (e) => {
-    const { name, value } = e.target;
-    setInspectionSelection(prev => ({ ...prev, [name]: value }));
-  };
-
-  const addInspectionItem = () => {
+    setFormData(prev => ({
+      ...prev,
+      lineItems: [...prev.lineItems, {
+        _tempId: generateTempId(),
+        budgetItemId: null, // Item personalizado
+        name: inspectionName,
+        category: INSPECTION_CATEGORY,
+        marca: customInspection.marca.toUpperCase(),
+        unitPrice: customInspection.unitPrice,
+        quantity: customInspection.quantity,
+        notes: 'Inspección Personalizada',
+      }],
+    }));
+    setCustomInspection({ marca: '', unitPrice: 0, quantity: 1 });
+    setInspectionSelection({ marca: '', quantity: 1 });
+  } else {
+    // Agregar item del catálogo
     if (!inspectionSelection.marca) {
-      alert("Por favor seleccione la marca/tipo de Inspección.");
+      alert("Por favor seleccione tipo.");
       return;
     }
-    const inspectionItemDetails = budgetItemsCatalog.find(i => i.category?.toUpperCase() === inspectionCategoryString && i.marca === inspectionSelection.marca);
-    const inspectionName = inspectionItemDetails?.name || 'Inspection Fee'; // Usar nombre del catálogo o default
-
     addOrUpdateLineItem({
-      category: inspectionCategoryString,
+      category: INSPECTION_CATEGORY,
+      name: inspectionName,
       marca: inspectionSelection.marca,
       quantity: inspectionSelection.quantity,
-      name: inspectionName,
-      // unitPrice se tomará del catálogo via addOrUpdateLineItem
     });
-    // Resetear selección
     setInspectionSelection({ marca: '', quantity: 1 });
-  };
+  }
+};
 
-  // Labor Fee
-  const [laborSelection, setLaborSelection] = useState({ name: '', quantity: 1 });
-  const laborCategoryString = 'LABOR FEE';
-  const laborNames = useMemo(() => [...new Set(budgetItemsCatalog.filter(i => i.category?.toUpperCase() === laborCategoryString).map(i => i.name || ''))].sort(), [budgetItemsCatalog]);
+ // --- Labor Fee ---
+ const LABOR_CATEGORY = 'LABOR FEE';
+ const [laborSelection, setLaborSelection] = useState({ name: '', quantity: 1 });
+ const [customLabor, setCustomLabor] = useState({ name: '', unitPrice: 0, quantity: 1 });
 
-  const handleLaborChange = (e) => {
-    const { name, value } = e.target;
-    setLaborSelection(prev => ({ ...prev, [name]: value }));
-  };
+ const laborNames = useMemo(() => [...new Set(normalizedBudgetItemsCatalog.filter(i => i.category === LABOR_CATEGORY).map(i => i.name || ''))].sort(), [normalizedBudgetItemsCatalog]);
 
-  const addLaborItem = () => {
-    if (!laborSelection.name) {
-      alert("Por favor seleccione el tipo de Labor Fee.");
-      return;
-    }
-    addOrUpdateLineItem({
-      category: laborCategoryString,
-      name: laborSelection.name,
-      quantity: laborSelection.quantity,
-      // unitPrice se tomará del catálogo via addOrUpdateLineItem
-    });
-    // Resetear selección
-    setLaborSelection({ name: '', quantity: 1 });
-  };
+ const handleLaborChange = (e) => {
+   const { name, value } = e.target;
+   setLaborSelection(prev => ({ ...prev, [name]: value }));
+    if (value !== 'OTROS') {
+     setCustomLabor({ name: '', unitPrice: 0, quantity: 1 });
+   }
+ };
+ const handleCustomLaborChange = (e) => {
+   const { name, value } = e.target;
+   const isNumeric = ['unitPrice', 'quantity'].includes(name);
+   setCustomLabor(prev => ({ ...prev, [name]: isNumeric ? parseFloat(value) || 0 : value }));
+ };
+ const addLaborItem = () => {
+    if (laborSelection.name === 'OTROS') {
+      if (!customLabor.name || customLabor.unitPrice <= 0) {
+       alert("Por favor complete Nombre y Precio del Labor Fee personalizado."); return;
+     }
+     setFormData(prev => ({
+       ...prev,
+       lineItems: [...prev.lineItems, {
+         _tempId: generateTempId(), budgetItemId: null,
+         name: customLabor.name.toUpperCase(), category: LABOR_CATEGORY, marca: '', capacity: '',
+         unitPrice: customLabor.unitPrice, quantity: customLabor.quantity, notes: 'Labor Personalizado',
+       }],
+     }));
+     setCustomLabor({ name: '', unitPrice: 0, quantity: 1 });
+     setLaborSelection({ name: '', quantity: 1 });
+   } else {
+     if (!laborSelection.name) { alert("Por favor seleccione tipo."); return; }
+     addOrUpdateLineItem({
+       category: LABOR_CATEGORY, name: laborSelection.name,
+       quantity: laborSelection.quantity,
+     });
+     setLaborSelection({ name: '', quantity: 1 });
+   }
+ };
 
   // --- Submit Handler (Solo Crear) ---
   const handleSubmit = async (e) => {
@@ -547,36 +641,39 @@ const CreateBudget = () => {
         return;
     }
 
-    // Preparar datos para la creación del presupuesto
-    const dataToSend = {
-        permitNumber: formData.permitNumber,
-        propertyAddress: formData.propertyAddress,
-        applicantName: formData.applicantName,
-        applicantEmail: selectedPermit?.applicantEmail || "",
-        lot: formData.lot,
-        block: formData.block,
-        date: formData.date,
-        expirationDate: formData.expirationDate || null,
-        initialPayment: formData.initialPayment,
-        status: formData.status,
-        discountDescription: formData.discountDescription,
-        discountAmount: formData.discountAmount,
-        generalNotes: formData.generalNotes,
-        initialPaymentPercentage: formData.initialPaymentPercentage,
-        lineItems: formData.lineItems.map(item => ({
-            budgetItemId: item.budgetItemId,
-            quantity: item.quantity,
-            notes: item.notes,
-            name: item.budgetItemId ? undefined : item.name,
-            category: item.budgetItemId ? undefined : item.category,
-            marca: item.budgetItemId ? undefined : item.marca,
-            capacity: item.budgetItemId ? undefined : item.capacity,
-            unitPrice: item.budgetItemId ? undefined : item.unitPrice,
-        })),
-        permitId: permitIdFromQuery,
-    };
+// Preparar datos para la creación del presupuesto
+const dataToSend = {
+  permitNumber: formData.permitNumber,
+  propertyAddress: formData.propertyAddress,
+  applicantName: formData.applicantName,
+  applicantEmail: selectedPermit?.applicantEmail || "",
+  lot: formData.lot,
+  block: formData.block,
+  date: formData.date,
+  expirationDate: formData.expirationDate || null,
+  initialPayment: formData.initialPayment,
+  status: formData.status,
+  discountDescription: formData.discountDescription,
+  discountAmount: formData.discountAmount,
+  generalNotes: formData.generalNotes,
+  initialPaymentPercentage: formData.initialPaymentPercentage,
+  lineItems: formData.lineItems.map(item => ({
+    budgetItemId: item.budgetItemId || null, // Si es personalizado, será null
+    quantity: item.quantity,
+    notes: item.notes || null,
+    priceAtTimeOfBudget: item.unitPrice,
+    ...(item.budgetItemId === null && {
+      category: item.category,
+      name: item.name,
+      unitPrice: item.unitPrice,
+    }),
+    ...(item.marca && { marca: item.marca }),
+    ...(item.capacity && { capacity: item.capacity }),
+  })),
+  permitId: permitIdFromQuery,
+};
 
-    console.log("Enviando al backend para CREAR:", dataToSend);
+console.log("Enviando al backend para CREAR:", dataToSend);
 
     try {
         const resultAction = await dispatch(createBudget(dataToSend));
@@ -713,61 +810,79 @@ const CreateBudget = () => {
              <div className="border p-3 rounded space-y-2 bg-gray-50">
               <h3 className="text-lg font-semibold text-center text-gray-700 mb-2">Añadir Items</h3>
 
-              {/* System Type Toggle */}
-              <div className="border rounded bg-white">
+             {/* --- System Type --- */}
+             <div className="border rounded bg-white">
                 <button type="button" onClick={() => toggleSection('systemType')} className="w-full flex justify-between items-center p-2 bg-gray-100 hover:bg-gray-200 rounded-t">
                   <span className="font-medium text-sm">System Type</span>
                   {sectionVisibility.systemType ? <ChevronUpIcon className="h-5 w-5 text-gray-600"/> : <ChevronDownIcon className="h-5 w-5 text-gray-600"/>}
                 </button>
                 {sectionVisibility.systemType && (
                   <fieldset className="p-2 border-t">
-                    {/* Content of System Type fieldset */}
                     <div className="grid grid-cols-2 gap-x-4 gap-y-2 items-end">
+                      {/* Type */}
                       <div className="col-span-2">
                         <label htmlFor="systemType_type" className="block text-xs font-medium text-gray-600">Type</label>
                         <select id="systemType_type" name="type" value={systemTypeSelection.type} onChange={handleSystemTypeChange} className="input-style">
                           <option value="">Select Type</option>
                           {systemTypeTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                          {/* <option value="OTROS">OTROS (Manual)</option> */} {/* Considerar si el tipo puede ser manual */}
                         </select>
                       </div>
+                      {/* Brand */}
                       <div>
                         <label htmlFor="systemType_brand" className="block text-xs font-medium text-gray-600">Brand</label>
                         <select id="systemType_brand" name="brand" value={systemTypeSelection.brand} onChange={handleSystemTypeChange} disabled={!systemTypeSelection.type} className="input-style">
                           <option value="">Select Brand</option>
                           {systemTypeBrands.map(b => <option key={b} value={b}>{b}</option>)}
-                          <option value="OTROS">OTROS</option>
+                          <option value="OTROS">OTROS (Manual)</option>
                         </select>
                       </div>
+                      {/* Capacity */}
                       <div>
-                        {systemTypeSelection.brand === 'OTROS' ? (
-                          <>
-                            <label htmlFor="systemType_manualBrand" className="block text-xs font-medium text-gray-600">Ingrese Marca</label>
-                            <input id="systemType_manualBrand" type="text" name="manualBrand" placeholder="Marca Manual" value={systemTypeManualBrand} onChange={handleSystemTypeManualChange} className="input-style" disabled={!systemTypeSelection.type} />
-                          </>
-                        ) : <div></div>}
+                         <label htmlFor="systemType_capacity" className="block text-xs font-medium text-gray-600">Capacity</label>
+                         <select id="systemType_capacity" name="capacity" value={systemTypeSelection.capacity} onChange={handleSystemTypeChange} disabled={!systemTypeSelection.brand || systemTypeSelection.brand === 'OTROS'} className="input-style">
+                           <option value="">Select Capacity</option>
+                           {systemTypeCapacities.map(c => <option key={c} value={c}>{c}</option>)}
+                           <option value="OTROS">OTROS (Manual)</option>
+                         </select>
                       </div>
-                      <div>
-                        <label htmlFor="systemType_capacity" className="block text-xs font-medium text-gray-600">Capacity</label>
-                        {systemTypeSelection.brand !== 'OTROS' ? (
-                          <select id="systemType_capacity" name="capacity" value={systemTypeSelection.capacity} onChange={handleSystemTypeChange} disabled={!systemTypeSelection.brand} className="input-style">
-                            <option value="">Select Capacity</option>
-                            {systemTypeCapacities.map(c => <option key={c} value={c}>{c}</option>)}
-                          </select>
-                        ) : (
-                          <input id="systemType_manualCapacity" type="text" name="manualCapacity" placeholder="Ingrese Capacidad" value={systemTypeManualCapacity} onChange={handleSystemTypeManualChange} className="input-style" disabled={!systemTypeManualBrand.trim()} />
-                        )}
-                      </div>
-                       <div>
+                      {/* Custom Fields */}
+                      {(systemTypeSelection.brand === 'OTROS' || systemTypeSelection.capacity === 'OTROS') && (
+                        <>
+                          <div className="col-span-2 border-t mt-2 pt-2">
+                            <p className="text-xs font-semibold text-blue-600 mb-1">Detalles Personalizados:</p>
+                          </div>
+                          <div>
+                            <label htmlFor="custom_sys_name" className="block text-xs font-medium text-gray-600">Nombre Item</label>
+                            <input id="custom_sys_name" type="text" name="name" placeholder="Nombre" value={customSystemType.name} onChange={handleCustomSystemTypeChange} className="input-style" />
+                          </div>
+                           <div>
+                            <label htmlFor="custom_sys_brand" className="block text-xs font-medium text-gray-600">Marca</label>
+                            <input id="custom_sys_brand" type="text" name="brand" placeholder="Marca" value={customSystemType.brand} onChange={handleCustomSystemTypeChange} className="input-style" />
+                          </div>
+                          <div>
+                            <label htmlFor="custom_sys_capacity" className="block text-xs font-medium text-gray-600">Capacidad</label>
+                            <input id="custom_sys_capacity" type="text" name="capacity" placeholder="Capacidad" value={customSystemType.capacity} onChange={handleCustomSystemTypeChange} className="input-style" />
+                          </div>
+                          <div>
+                            <label htmlFor="custom_sys_price" className="block text-xs font-medium text-gray-600">Precio Unitario</label>
+                            <input id="custom_sys_price" type="number" name="unitPrice" placeholder="0.00" value={customSystemType.unitPrice} onChange={handleCustomSystemTypeChange} min="0" step="0.01" className="input-style" />
+                          </div>
+                        </>
+                      )}
+                      {/* Quantity */}
+                      <div className={ (systemTypeSelection.brand === 'OTROS' || systemTypeSelection.capacity === 'OTROS') ? "col-span-1" : "col-span-2"}> {/* Ajustar span si hay custom */}
                         <label htmlFor="systemType_quantity" className="block text-xs font-medium text-gray-600">Quantity</label>
-                        <input id="systemType_quantity" type="number" name="quantity" value={systemTypeSelection.quantity} onChange={handleSystemTypeChange} min="1" className="input-style" />
+                        <input id="systemType_quantity" type="number" name="quantity" value={(systemTypeSelection.brand === 'OTROS' || systemTypeSelection.capacity === 'OTROS') ? customSystemType.quantity : systemTypeSelection.quantity} onChange={(systemTypeSelection.brand === 'OTROS' || systemTypeSelection.capacity === 'OTROS') ? handleCustomSystemTypeChange : handleSystemTypeChange} min="1" className="input-style" />
                       </div>
+                      {/* Add Button */}
                       <button type="button" onClick={addSystemTypeItem} className="button-add-item col-span-2 mt-2">Add System</button>
                     </div>
                   </fieldset>
                 )}
               </div>
 
-              {/* Drainfield Toggle */}
+              {/* --- Drainfield --- */}
               <div className="border rounded bg-white">
                  <button type="button" onClick={() => toggleSection('drainfield')} className="w-full flex justify-between items-center p-2 bg-gray-100 hover:bg-gray-200 rounded-t">
                   <span className="font-medium text-sm">Drainfield</span>
@@ -775,29 +890,52 @@ const CreateBudget = () => {
                 </button>
                 {sectionVisibility.drainfield && (
                   <fieldset className="p-2 border-t">
-                    {/* Content of Drainfield fieldset */}
                      <div className="grid grid-cols-2 gap-2 items-end">
-                      <div>
-                        <label htmlFor="drainfield_system" className="block text-xs font-medium text-gray-600">System</label>
-                        <select id="drainfield_system" name="system" value={drainfieldSelection.system} onChange={handleDrainfieldChange} className="input-style"><option value="">Select System</option>{drainfieldSystems.map(s => <option key={s} value={s}>{s}</option>)}</select>
-                      </div>
-                      <div>
-                        <label htmlFor="drainfield_quantity" className="block text-xs font-medium text-gray-600">Quantity</label>
-                        <input id="drainfield_quantity" type="number" name="quantity" value={drainfieldSelection.quantity} onChange={handleDrainfieldChange} min="1" className="input-style" />
-                      </div>
-                      <div className="col-span-2">
-                        <label htmlFor="drainfield_sf" className="block text-xs font-medium text-gray-600">SF (Optional)</label>
-                        <input id="drainfield_sf" type="text" name="sf" placeholder="Square Footage" value={drainfieldSelection.sf} onChange={handleDrainfieldChange} className="input-style" />
-                      </div>
-                      <button type="button" onClick={addDrainfieldItem} className="button-add-item col-span-2 mt-2">Add Drainfield</button>
-                    </div>
+                       {/* SF Input */}
+                       <div className="col-span-2">
+                         <label htmlFor="drainfield_sf" className="block text-xs font-medium text-gray-600">Drainfield SF</label>
+                         <input id="drainfield_sf" type="text" name="sf" placeholder="Ingrese SF (ej: 450)" value={drainfieldSelection.sf} onChange={handleDrainfieldChange} className="input-style" />
+                       </div>
+                       {/* System Selection */}
+                       <div>
+                         <label htmlFor="drainfield_system" className="block text-xs font-medium text-gray-600">Sistema Chambers</label>
+                         <select id="drainfield_system" name="system" value={drainfieldSelection.system} onChange={handleDrainfieldChange} className="input-style">
+                           <option value="">Select System</option>
+                           {drainfieldSystems.map(s => <option key={s} value={s}>{s}</option>)}
+                           <option value="OTROS">OTROS (Manual)</option>
+                         </select>
+                       </div>
+                       {/* Quantity */}
+                       <div>
+                         <label htmlFor="drainfield_quantity" className="block text-xs font-medium text-gray-600">Quantity (System)</label>
+                         <input id="drainfield_quantity" type="number" name="quantity" value={drainfieldSelection.system === 'OTROS' ? customDrainfield.quantity : drainfieldSelection.quantity} onChange={drainfieldSelection.system === 'OTROS' ? handleCustomDrainfieldChange : handleDrainfieldChange} min="1" className="input-style" />
+                       </div>
+                       {/* Custom Fields */}
+                       {drainfieldSelection.system === 'OTROS' && (
+                         <>
+                           <div className="col-span-2 border-t mt-2 pt-2">
+                             <p className="text-xs font-semibold text-blue-600 mb-1">Detalles Personalizados (Sistema):</p>
+                           </div>
+                           <div>
+                             <label htmlFor="custom_drain_name" className="block text-xs font-medium text-gray-600">Nombre Sistema</label>
+                             <input id="custom_drain_name" type="text" name="name" placeholder="Nombre" value={customDrainfield.name} onChange={handleCustomDrainfieldChange} className="input-style" />
+                           </div>
+                           <div>
+                             <label htmlFor="custom_drain_price" className="block text-xs font-medium text-gray-600">Precio Unitario</label>
+                             <input id="custom_drain_price" type="number" name="unitPrice" placeholder="0.00" value={customDrainfield.unitPrice} onChange={handleCustomDrainfieldChange} min="0" step="0.01" className="input-style" />
+                           </div>
+                         </>
+                       )}
+                       {/* Add Button */}
+                       <button type="button" onClick={addDrainfieldItem} className="button-add-item col-span-2 mt-2">Add Drainfield System</button>
+                     </div>
                   </fieldset>
                 )}
               </div>
 
-              {/* Pump (Simplified - No Toggle, always visible but styled similarly) */}
+              {/* --- Pump --- */}
               <fieldset className="border p-2 rounded bg-white">
-                <legend className="text-sm font-medium px-1">Pump</legend> {/* Use legend for simpler sections */}
+                <legend className="text-sm font-medium px-1">Pump</legend>
                 <div className="grid grid-cols-2 gap-2 items-center pt-1">
                   <label htmlFor="pump_add" className="text-sm">Add Pump?</label>
                   <select id="pump_add" name="addPump" value={pumpSelection.addPump} onChange={handlePumpChange} className="input-style">
@@ -806,16 +944,37 @@ const CreateBudget = () => {
                   </select>
                   {pumpSelection.addPump === 'Yes' && (
                     <>
-                      <label htmlFor="pump_capacity" className="text-sm">Capacity</label>
-                      <select id="pump_capacity" name="capacity" value={pumpSelection.capacity} onChange={handlePumpChange} className="input-style"><option value="">Select Capacity</option>{pumpCapacities.map(c => <option key={c} value={c}>{c}</option>)}</select>
+                      <label htmlFor="pump_capacity" className="text-sm">Tank Capacity</label>
+                      <select id="pump_capacity" name="capacity" value={pumpSelection.capacity} onChange={handlePumpChange} className="input-style">
+                        <option value="">Select Capacity</option>
+                        {pumpCapacities.map(c => <option key={c} value={c}>{c}</option>)}
+                        <option value="OTROS">OTROS (Manual)</option>
+                      </select>
+                      {/* Custom Pump Fields */}
+                      {pumpSelection.capacity === 'OTROS' && (
+                         <>
+                           <div className="col-span-2 border-t mt-2 pt-2">
+                             <p className="text-xs font-semibold text-blue-600 mb-1">Detalles Personalizados (Bomba):</p>
+                           </div>
+                           <div>
+                             <label htmlFor="custom_pump_capacity" className="block text-xs font-medium text-gray-600">Capacidad</label>
+                             <input id="custom_pump_capacity" type="text" name="capacity" placeholder="Capacidad" value={customPump.capacity} onChange={handleCustomPumpChange} className="input-style" />
+                           </div>
+                           <div>
+                             <label htmlFor="custom_pump_price" className="block text-xs font-medium text-gray-600">Precio Unitario</label>
+                             <input id="custom_pump_price" type="number" name="unitPrice" placeholder="0.00" value={customPump.unitPrice} onChange={handleCustomPumpChange} min="0" step="0.01" className="input-style" />
+                           </div>
+                         </>
+                      )}
+                      {/* Quantity */}
                       <label htmlFor="pump_quantity" className="text-sm">Quantity</label>
-                      <input id="pump_quantity" type="number" name="quantity" value={pumpSelection.quantity} onChange={handlePumpChange} min="1" className="input-style" />
+                      <input id="pump_quantity" type="number" name="quantity" value={pumpSelection.capacity === 'OTROS' ? customPump.quantity : pumpSelection.quantity} onChange={pumpSelection.capacity === 'OTROS' ? handleCustomPumpChange : handlePumpChange} min="1" className="input-style" />
                     </>
                   )}
                 </div>
               </fieldset>
 
-              {/* Arena Toggle */}
+              {/* --- Arena --- */}
               <div className="border rounded bg-white">
                  <button type="button" onClick={() => toggleSection('sand')} className="w-full flex justify-between items-center p-2 bg-gray-100 hover:bg-gray-200 rounded-t">
                   <span className="font-medium text-sm">Arena</span>
@@ -823,27 +982,50 @@ const CreateBudget = () => {
                 </button>
                 {sectionVisibility.sand && (
                   <fieldset className="p-2 border-t">
-                    {/* Content of Arena fieldset */}
                     <div className="grid grid-cols-2 gap-2 items-end">
+                      {/* Capacity */}
                       <div>
-                        <label htmlFor="sand_capacity" className="block text-xs font-medium text-gray-600">Type/Capacity</label>
-                        <select id="sand_capacity" name="capacity" value={sandSelection.capacity} onChange={handleSandChange} className="input-style"><option value="">Select Type/Capacity</option>{sandCapacities.map(c => <option key={c} value={c}>{c}</option>)}</select>
+                        <label htmlFor="sand_capacity" className="block text-xs font-medium text-gray-600">Capacity</label>
+                        <select id="sand_capacity" name="capacity" value={sandSelection.capacity} onChange={handleSandChange} className="input-style">
+                          <option value="">Select Capacity</option>
+                          {sandCapacities.map(c => <option key={c} value={c}>{c}</option>)}
+                          <option value="OTROS">OTROS (Manual)</option>
+                        </select>
                       </div>
+                      {/* Quantity */}
                       <div>
                         <label htmlFor="sand_quantity" className="block text-xs font-medium text-gray-600">Quantity</label>
-                        <input id="sand_quantity" type="number" name="quantity" value={sandSelection.quantity} onChange={handleSandChange} min="1" className="input-style" />
+                        <input id="sand_quantity" type="number" name="quantity" value={sandSelection.capacity === 'OTROS' ? customSand.quantity : sandSelection.quantity} onChange={sandSelection.capacity === 'OTROS' ? handleCustomSandChange : handleSandChange} min="1" className="input-style" />
                       </div>
+                       {/* Custom Fields */}
+                       {sandSelection.capacity === 'OTROS' && (
+                         <>
+                           <div className="col-span-2 border-t mt-2 pt-2">
+                             <p className="text-xs font-semibold text-blue-600 mb-1">Detalles Personalizados (Arena):</p>
+                           </div>
+                           <div>
+                             <label htmlFor="custom_sand_capacity" className="block text-xs font-medium text-gray-600">Capacidad</label>
+                             <input id="custom_sand_capacity" type="text" name="capacity" placeholder="Capacidad" value={customSand.capacity} onChange={handleCustomSandChange} className="input-style" />
+                           </div>
+                           <div>
+                             <label htmlFor="custom_sand_price" className="block text-xs font-medium text-gray-600">Precio Unitario</label>
+                             <input id="custom_sand_price" type="number" name="unitPrice" placeholder="0.00" value={customSand.unitPrice} onChange={handleCustomSandChange} min="0" step="0.01" className="input-style" />
+                           </div>
+                         </>
+                       )}
+                      {/* Location */}
                       <div className="col-span-2">
                         <label htmlFor="sand_location" className="block text-xs font-medium text-gray-600">Location (Optional)</label>
                         <input id="sand_location" type="text" name="location" placeholder="Ej: Bajo casa" value={sandSelection.location} onChange={handleSandChange} className="input-style" />
                       </div>
+                      {/* Add Button */}
                       <button type="button" onClick={addSandItem} className="button-add-item col-span-2 mt-2">Add Sand</button>
                     </div>
                   </fieldset>
                 )}
               </div>
 
-              {/* Inspección Toggle */}
+              {/* --- Inspección --- */}
               <div className="border rounded bg-white">
                  <button type="button" onClick={() => toggleSection('inspection')} className="w-full flex justify-between items-center p-2 bg-gray-100 hover:bg-gray-200 rounded-t">
                   <span className="font-medium text-sm">Inspección/Fee</span>
@@ -851,23 +1033,45 @@ const CreateBudget = () => {
                 </button>
                 {sectionVisibility.inspection && (
                   <fieldset className="p-2 border-t">
-                    {/* Content of Inspección fieldset */}
                     <div className="grid grid-cols-2 gap-2 items-end">
+                      {/* Type (Marca) */}
                       <div>
                         <label htmlFor="inspection_marca" className="block text-xs font-medium text-gray-600">Type</label>
-                        <select id="inspection_marca" name="marca" value={inspectionSelection.marca} onChange={handleInspectionChange} className="input-style"><option value="">Select Type</option>{inspectionMarcas.map(m => <option key={m} value={m}>{m}</option>)}</select>
+                        <select id="inspection_marca" name="marca" value={inspectionSelection.marca} onChange={handleInspectionChange} className="input-style">
+                          <option value="">Select Type</option>
+                          {inspectionMarcas.map(m => <option key={m} value={m}>{m}</option>)}
+                          <option value="OTROS">OTROS (Manual)</option>
+                        </select>
                       </div>
+                      {/* Quantity */}
                       <div>
                         <label htmlFor="inspection_quantity" className="block text-xs font-medium text-gray-600">Quantity</label>
-                        <input id="inspection_quantity" type="number" name="quantity" value={inspectionSelection.quantity} onChange={handleInspectionChange} min="1" className="input-style" />
+                        <input id="inspection_quantity" type="number" name="quantity" value={inspectionSelection.marca === 'OTROS' ? customInspection.quantity : inspectionSelection.quantity} onChange={inspectionSelection.marca === 'OTROS' ? handleCustomInspectionChange : handleInspectionChange} min="1" className="input-style" />
                       </div>
+                      {/* Custom Fields */}
+                       {inspectionSelection.marca === 'OTROS' && (
+                         <>
+                           <div className="col-span-2 border-t mt-2 pt-2">
+                             <p className="text-xs font-semibold text-blue-600 mb-1">Detalles Personalizados (Inspección):</p>
+                           </div>
+                           <div>
+                             <label htmlFor="custom_insp_marca" className="block text-xs font-medium text-gray-600">Tipo/Marca</label>
+                             <input id="custom_insp_marca" type="text" name="marca" placeholder="Tipo/Marca" value={customInspection.marca} onChange={handleCustomInspectionChange} className="input-style" />
+                           </div>
+                           <div>
+                             <label htmlFor="custom_insp_price" className="block text-xs font-medium text-gray-600">Precio Unitario</label>
+                             <input id="custom_insp_price" type="number" name="unitPrice" placeholder="0.00" value={customInspection.unitPrice} onChange={handleCustomInspectionChange} min="0" step="0.01" className="input-style" />
+                           </div>
+                         </>
+                       )}
+                      {/* Add Button */}
                       <button type="button" onClick={addInspectionItem} className="button-add-item col-span-2 mt-2">Add Inspection</button>
                     </div>
                   </fieldset>
                 )}
               </div>
 
-              {/* Labor Fee Toggle */}
+              {/* --- Labor Fee --- */}
               <div className="border rounded bg-white">
                  <button type="button" onClick={() => toggleSection('labor')} className="w-full flex justify-between items-center p-2 bg-gray-100 hover:bg-gray-200 rounded-t">
                   <span className="font-medium text-sm">Labor Fee</span>
@@ -875,16 +1079,38 @@ const CreateBudget = () => {
                 </button>
                 {sectionVisibility.labor && (
                   <fieldset className="p-2 border-t">
-                    {/* Content of Labor Fee fieldset */}
                     <div className="grid grid-cols-2 gap-2 items-end">
+                      {/* Type (Name) */}
                       <div>
                         <label htmlFor="labor_name" className="block text-xs font-medium text-gray-600">Fee Type</label>
-                        <select id="labor_name" name="name" value={laborSelection.name} onChange={handleLaborChange} className="input-style"><option value="">Select Fee</option>{laborNames.map(n => <option key={n} value={n}>{n}</option>)}</select>
+                        <select id="labor_name" name="name" value={laborSelection.name} onChange={handleLaborChange} className="input-style">
+                          <option value="">Select Fee</option>
+                          {laborNames.map(n => <option key={n} value={n}>{n}</option>)}
+                          <option value="OTROS">OTROS (Manual)</option>
+                        </select>
                       </div>
+                      {/* Quantity */}
                       <div>
                         <label htmlFor="labor_quantity" className="block text-xs font-medium text-gray-600">Quantity</label>
-                        <input id="labor_quantity" type="number" name="quantity" value={laborSelection.quantity} onChange={handleLaborChange} min="1" className="input-style" />
+                        <input id="labor_quantity" type="number" name="quantity" value={laborSelection.name === 'OTROS' ? customLabor.quantity : laborSelection.quantity} onChange={laborSelection.name === 'OTROS' ? handleCustomLaborChange : handleLaborChange} min="1" className="input-style" />
                       </div>
+                       {/* Custom Fields */}
+                       {laborSelection.name === 'OTROS' && (
+                         <>
+                           <div className="col-span-2 border-t mt-2 pt-2">
+                             <p className="text-xs font-semibold text-blue-600 mb-1">Detalles Personalizados (Labor):</p>
+                           </div>
+                           <div>
+                             <label htmlFor="custom_labor_name" className="block text-xs font-medium text-gray-600">Nombre Fee</label>
+                             <input id="custom_labor_name" type="text" name="name" placeholder="Nombre" value={customLabor.name} onChange={handleCustomLaborChange} className="input-style" />
+                           </div>
+                           <div>
+                             <label htmlFor="custom_labor_price" className="block text-xs font-medium text-gray-600">Precio Unitario</label>
+                             <input id="custom_labor_price" type="number" name="unitPrice" placeholder="0.00" value={customLabor.unitPrice} onChange={handleCustomLaborChange} min="0" step="0.01" className="input-style" />
+                           </div>
+                         </>
+                       )}
+                      {/* Add Button */}
                       <button type="button" onClick={addLaborItem} className="button-add-item col-span-2 mt-2">Add Labor Fee</button>
                     </div>
                   </fieldset>
@@ -892,8 +1118,7 @@ const CreateBudget = () => {
               </div>
 
               {/* --- Lista de Items Añadidos --- */}
-              {/* ... (List remains the same) ... */}
-               <div className="mt-6 border-t pt-4 bg-white p-3 rounded shadow-sm">
+              <div className="mt-6 border-t pt-4 bg-white p-3 rounded shadow-sm">
                 <h4 className="text-md font-medium mb-2 text-gray-800">Items Añadidos:</h4>
                 {formData.lineItems.length === 0 ? (
                   <p className="text-gray-500 text-sm">Aún no se han añadido items.</p>
@@ -903,7 +1128,8 @@ const CreateBudget = () => {
                       <li key={item._tempId} className="flex justify-between items-start text-sm border-b pb-1 hover:bg-gray-50">
                         <div className="flex-grow mr-2">
                           <span className="font-medium text-gray-700">{item.name}</span>
-                          <span className="text-gray-600"> ({item.marca || item.capacity || item.category})</span>
+                          {item.marca && <span className="text-gray-600"> ({item.marca})</span>}
+                          {item.capacity && <span className="text-gray-600"> [{item.capacity}]</span>}
                           <span className="text-gray-800"> x {item.quantity} @ ${parseFloat(item.unitPrice).toFixed(2)}</span>
                           {item.notes && <span className="block text-xs text-gray-500 italic ml-2">- {item.notes}</span>}
                         </div>
@@ -914,7 +1140,6 @@ const CreateBudget = () => {
                 )}
               </div>
             </div>
-
             {/* --- Descuento --- */}
             <fieldset className="border p-3 rounded bg-white">
               <legend className="text-lg font-medium px-1">Descuento</legend>

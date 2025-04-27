@@ -79,43 +79,45 @@ const applicantEmail = permit.applicantEmail || null;
             if (!budgetItemDetails || !budgetItemDetails.isActive) {
                 throw new Error(`El item con ID ${item.budgetItemId} no se encontró o no está activo.`);
             }
-
+    
             const priceAtTime = parseFloat(budgetItemDetails.unitPrice);
             const quantity = parseFloat(item.quantity);
             const lineTotal = priceAtTime * quantity;
-
+    
             calculatedSubtotal += lineTotal;
-
+    
             lineItemsDataForCreation.push({
-                budgetItemId: item.budgetItemId,
-                quantity: quantity,
-                priceAtTimeOfBudget: priceAtTime,
-                lineTotal: lineTotal,
-                notes: item.notes || null
-            });
+              budgetItemId: item.budgetItemId,
+              quantity: quantity,
+              unitPrice: priceAtTime, // Asignar el precio desde la base de datos
+              priceAtTimeOfBudget: priceAtTime,
+              lineTotal: lineTotal,
+              notes: item.notes || null,
+          });
         } else {
             // Item personalizado
-            if (!item.name || !item.category || !item.marca || !item.capacity || item.unitPrice === undefined || item.quantity <= 0) {
-                throw new Error(`Item personalizado inválido: falta name, category, marca, capacity, unitPrice o quantity.`);
+            if (!item.name || !item.category || !item.unitPrice || item.quantity <= 0) {
+                throw new Error(`Item personalizado inválido: falta name, category, unitPrice o quantity.`);
             }
-
+    
             const priceAtTime = parseFloat(item.unitPrice);
             const quantity = parseFloat(item.quantity);
             const lineTotal = priceAtTime * quantity;
-
+    
             calculatedSubtotal += lineTotal;
-
+    
             lineItemsDataForCreation.push({
-                budgetItemId: null, // No tiene ID porque es personalizado
-                name: item.name,
-                category: item.category,
-                marca: item.marca,
-                capacity: item.capacity,
-                unitPrice: priceAtTime,
-                quantity: quantity,
-                lineTotal: lineTotal,
-                notes: item.notes || null
-            });
+              budgetItemId: null, // No tiene ID porque es personalizado
+              name: item.name,
+              category: item.category,
+              unitPrice: priceAtTime,
+              priceAtTimeOfBudget: priceAtTime,
+              quantity: quantity,
+              lineTotal: lineTotal,
+              notes: item.notes || null,
+              ...(item.marca && { marca: item.marca }),
+              ...(item.capacity && { capacity: item.capacity }),
+          });
         }
     }
     console.log("Subtotal Pre-calculado:", calculatedSubtotal);
@@ -195,60 +197,53 @@ const applicantEmail = permit.applicantEmail || null;
         include: [
           {
             model: Permit,
-            // *** CAMBIO 1: Quitar los BLOBs de los atributos ***
-            attributes: [
-                'idPermit',
-                'propertyAddress',
-                'permitNumber',
-                // Quita 'pdfData' y 'optionalDocs' de aquí
-            ],
+            attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail'],
           },
           {
             model: BudgetLineItem,
             as: 'lineItems',
-            include: [{
+            include: [
+              {
                 model: BudgetItem,
                 as: 'itemDetails',
-                attributes: ['id', 'name', 'description', 'category', 'marca', 'capacity', 'unitPrice']
-            }]
-          }
+                attributes: ['id', 'name', 'category', 'marca', 'capacity', 'unitPrice'],
+              },
+            ],
+          },
         ],
-        // Opcional pero seguro: Excluir explícitamente si aún se obtienen
-        // attributes: { exclude: [] } // Asegúrate de incluir los campos que sí quieres de Budget
       });
-
+  
       if (!budget) {
-        console.log(`Budget con ID: ${idBudget} no encontrado.`);
         return res.status(404).json({ error: 'Presupuesto no encontrado' });
       }
+  
+      // Convertir el presupuesto y sus relaciones a objetos planos
+      const budgetData = budget.toJSON();
+      
+     // Mapear los datos de itemDetails directamente en los lineItems
+     budgetData.lineItems = budgetData.lineItems.map(lineItem => ({
+      ...lineItem,
+      name: lineItem.name || lineItem.itemDetails?.name || null,
+      category: lineItem.category || lineItem.itemDetails?.category || null,
+      marca: lineItem.marca || lineItem.itemDetails?.marca || null,
+      capacity: lineItem.capacity || lineItem.itemDetails?.capacity || null,
+      unitPrice: lineItem.unitPrice || lineItem.itemDetails?.unitPrice || null,
+    }));
 
       // *** CAMBIO 2: Añadir URLs dinámicamente si el Permit existe ***
-      if (budget.Permit) {
-        // Construye la URL base dinámicamente
-        // Asegúrate que la ruta base '/api/permits' sea correcta según tu configuración de rutas
-        const baseUrl = `${req.protocol}://${req.get('host')}/permits`; // Ajusta '/api/permits' si es diferente
-
-        // Añade las URLs a los dataValues del objeto Permit antes de enviarlo
-        // Apuntan a las rutas de visualización inline que creamos
-        budget.Permit.dataValues.pdfDataUrl = `${baseUrl}/${budget.Permit.idPermit}/view/pdf`;
-        budget.Permit.dataValues.optionalDocsUrl = `${baseUrl}/${budget.Permit.idPermit}/view/optional`;
-
-        console.log(`URLs añadidas: pdfDataUrl=${budget.Permit.dataValues.pdfDataUrl}, optionalDocsUrl=${budget.Permit.dataValues.optionalDocsUrl}`);
-      } else {
-        console.log(`Budget ID: ${idBudget} no tiene un Permit asociado.`);
-      }
-
-      // Log opcional (ya no debería mostrar los BLOBs grandes)
-      // console.log(`Budget encontrado (con URLs añadidas):`, budget.toJSON());
-
-      // Enviar el budget modificado (sin BLOBs, con URLs añadidas)
-      res.status(200).json(budget);
-
-    } catch (error) {
-      console.error(`Error al obtener el presupuesto ID: ${req.params.idBudget}:`, error);
-      res.status(500).json({ error: 'Error interno del servidor al obtener el presupuesto.' });
+       // Añadir URLs dinámicamente si el Permit existe
+    if (budgetData.Permit) {
+      const baseUrl = `${req.protocol}://${req.get('host')}/permits`;
+      budgetData.Permit.pdfDataUrl = `${baseUrl}/${budgetData.Permit.idPermit}/view/pdf`;
+      budgetData.Permit.optionalDocsUrl = `${baseUrl}/${budgetData.Permit.idPermit}/view/optional`;
     }
-  },
+
+    res.status(200).json(budgetData);
+  } catch (error) {
+    console.error(`Error al obtener el presupuesto ID: ${req.params.idBudget}:`, error);
+    res.status(500).json({ error: 'Error interno del servidor al obtener el presupuesto.' });
+  }
+},
 
 
  
@@ -260,6 +255,7 @@ const applicantEmail = permit.applicantEmail || null;
           model: Permit,
           attributes: ['propertyAddress'], // Solo incluye el campo propertyAddress
         },
+        
       });
 
       res.status(200).json(budgets);
