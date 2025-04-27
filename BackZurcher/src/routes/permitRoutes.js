@@ -30,7 +30,7 @@ router.post(
 );
 
 // Obtener todos los permisos (permitido para staff)
-router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner']), PermitController.getPermits);
+router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker']), PermitController.getPermits);
 
 // Obtener un permiso por ID (permitido para staff)
 router.get('/:idPermit', allowRoles(['admin', 'recept', 'owner']), PermitController.getPermitById);

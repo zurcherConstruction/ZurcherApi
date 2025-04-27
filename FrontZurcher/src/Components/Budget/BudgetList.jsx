@@ -145,7 +145,7 @@ const BudgetList = () => {
                     <td className="border border-gray-300 px-4 py-2 text-xs text-right">${budget.initialPayment}</td>
                     <td className="border border-gray-300 px-4 py-2 text-xs text-center">{budget.status}</td>
                     <td className="border border-gray-300 px-4 py-2 text-xs">{budget.propertyAddress || "N/A"}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-xs">{budget.systemType || "N/A"}</td>
+                    <td className="border border-gray-300 px-4 py-2 text-xs"> {budget.Permit?.systemType || "N/A"}</td>
                     <td className="border border-gray-300 px-4 py-2 text-center"> {/* Centrado para acciones */}
                     {budget.status === "created" && (
     <button

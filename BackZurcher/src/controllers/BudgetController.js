@@ -197,7 +197,7 @@ const applicantEmail = permit.applicantEmail || null;
         include: [
           {
             model: Permit,
-            attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail'],
+            attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'systemType', 'drainfieldDepth', 'excavationRequired'],
           },
           {
             model: BudgetLineItem,
@@ -253,7 +253,7 @@ const applicantEmail = permit.applicantEmail || null;
       const budgets = await Budget.findAll({
         include: {
           model: Permit,
-          attributes: ['propertyAddress'], // Solo incluye el campo propertyAddress
+          attributes: ['propertyAddress', 'systemType'], // Solo incluye el campo propertyAddress
         },
         
       });
