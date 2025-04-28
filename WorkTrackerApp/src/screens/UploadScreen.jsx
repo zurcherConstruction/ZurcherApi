@@ -255,7 +255,7 @@ const UploadScreen = () => {
     }
   };
 
-  const hasFinalInspectionImages = imagesByStage['foto inspección final']?.length > 0;
+  const hasFinalInspectionImages = imagesByStage['foto tanque instalado']?.length > 0;
 
   return (
     <ScrollView className="flex-1 bg-gray-100 p-5">
