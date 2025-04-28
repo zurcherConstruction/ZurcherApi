@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, Pressable, Image, Alert, ScrollView, Modal, FlatList, TouchableOpacity, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useDispatch, useSelector } from 'react-redux';
-import { addImagesToWork, fetchAssignedWorks, updateWork } from '../Redux/Actions/workActions';
+import { addImagesToWork, fetchAssignedWorks, updateWork, deleteImagesFromWork} from '../Redux/Actions/workActions';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as FileSystem from 'expo-file-system';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
@@ -22,7 +22,8 @@ const UploadScreen = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [imagesByStage, setImagesByStage] = useState({});
   const [imagesWithDataURLs, setImagesWithDataURLs] = useState({});
- 
+  const [isInstallationSubmitted, setIsInstallationSubmitted] = useState(false);
+
 
   const stages = [
     'foto previa del lugar',
@@ -97,6 +98,14 @@ const UploadScreen = () => {
         Alert.alert('Error', `No se pudo abrir el PDF: ${error.message}`);
       }
     };
+    useEffect(() => {
+      // Si el trabajo ya está 'installed' o en un estado posterior, marcar como enviado
+      if (currentWork?.status === 'installed' || currentWork?.status === 'inspectionPending' /* u otros estados posteriores */) {
+        setIsInstallationSubmitted(true);
+      } else {
+        setIsInstallationSubmitted(false); // Resetear si el estado cambia a uno anterior (poco probable pero seguro)
+      }
+    }, [currentWork]);
 
     // Load images from the state when the component mounts or when `currentWork` changes
     useEffect(() => {
@@ -241,10 +250,14 @@ const UploadScreen = () => {
   };
 
   const handleWorkInstalled = async () => {
+    if (isInstallationSubmitted) return;
     try {
       await dispatch(updateWork(idWork, { status: 'installed' }));
+      await dispatch(fetchAssignedWorks());
+      setIsInstallationSubmitted(true);
       Alert.alert('Éxito', 'El estado del trabajo se actualizó a "installed".');
       if (navigation.canGoBack()) {
+
         navigation.goBack();
       } else {
         navigation.navigate('AssignedWorksScreen'); // Navegar a una pantalla específica si no hay una previa
@@ -256,6 +269,34 @@ const UploadScreen = () => {
   };
 
   const hasFinalInspectionImages = imagesByStage['foto tanque instalado']?.length > 0;
+
+  const handleDeleteImage = (imageIdToDelete) => {
+    Alert.alert(
+      "Confirmar Eliminación",
+      "¿Estás seguro de que quieres eliminar esta imagen?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          onPress: async () => {
+            try {
+              console.log(`Intentando eliminar imagen ID: ${imageIdToDelete} del trabajo ID: ${idWork}`);
+              // Despachar la acción de eliminación
+              await dispatch(deleteImagesFromWork(idWork, imageIdToDelete));
+              // fetchAssignedWorks() ya se llama dentro de deleteImageFromWork si se implementa así
+              Alert.alert("Éxito", "Imagen eliminada correctamente.");
+              await dispatch(fetchAssignedWorks());
+              // El modal se actualizará solo al refrescar el estado
+            } catch (error) {
+              console.error("Error al eliminar la imagen:", error);
+              Alert.alert("Error", "No se pudo eliminar la imagen.");
+            }
+          },
+          style: "destructive",
+        },
+      ]
+    );
+  };
 
   return (
     <ScrollView className="flex-1 bg-gray-100 p-5">
@@ -317,14 +358,29 @@ const UploadScreen = () => {
         ))}
       </View>
 
+      {/* --- MODIFICAR RENDERIZADO DEL BOTÓN --- */}
+      {/* Mostrar el botón o el texto de espera solo si hay imágenes de inspección final */}
       {hasFinalInspectionImages && (
         <Pressable
           onPress={handleWorkInstalled}
-          className="mt-4 bg-blue-600 py-3 rounded-lg shadow-md"
+          // Deshabilitar si ya se envió
+          disabled={isInstallationSubmitted}
+          // Cambiar estilo si está deshabilitado
+          className={`mt-4 py-3 rounded-lg shadow-md ${
+            isInstallationSubmitted
+              ? 'bg-gray-400' // Color deshabilitado
+              : 'bg-blue-600' // Color normal
+          }`}
         >
-          <Text className="text-white text-center text-lg font-semibold">WORK INSTALLED</Text>
+          <Text className="text-white text-center text-lg font-semibold">
+            {/* Cambiar texto condicionalmente */}
+            {isInstallationSubmitted
+              ? 'Esperando Aprobación de Inspección'
+              : 'WORK INSTALLED'}
+          </Text>
         </Pressable>
       )}
+      {/* --- FIN MODIFICACIÓN BOTÓN --- */}
 
       <Modal visible={modalVisible} transparent={true} animationType="slide">
         <View className="flex-1 bg-black/50 justify-center items-center">
@@ -344,10 +400,21 @@ const UploadScreen = () => {
                 return (
                   <View className="w-20 h-20 m-2 rounded-lg bg-gray-300 justify-center items-center">
                     {image && imagesWithDataURLs[image.id] ? (
-                      <Image
-                        source={{ uri: imagesWithDataURLs[image.id] }}
-                        className="w-full h-full rounded-lg"
-                      />
+                      <>
+                        <Image
+                          source={{ uri: imagesWithDataURLs[image.id] }}
+                          className="w-full h-full rounded-lg"
+                        />
+                        {/* --- BOTÓN ELIMINAR --- */}
+                        <Pressable
+                          onPress={() => handleDeleteImage(image.id)}
+                          className="absolute top-0 right-0 bg-red-600/80 rounded-full p-1" // Estilo del botón
+                          style={{ transform: [{ translateX: 5 }, { translateY: -5 }] }} // Ajustar posición
+                        >
+                          <Ionicons name="close-circle" size={20} color="white" />
+                        </Pressable>
+                        {/* --- FIN BOTÓN ELIMINAR --- */}
+                      </>
                     ) : (
                       <Text className="text-gray-500 text-xs"></Text>
                     )}

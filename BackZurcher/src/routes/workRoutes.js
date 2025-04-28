@@ -28,7 +28,7 @@ router.put('/:idWork/invoice', verifyToken, allowRoles(['admin', 'recept', 'owne
 
 router.post('/:idWork/images', verifyToken, allowRoles([ 'owner','worker']), WorkController.addImagesToWork);
 
-router.delete('/:idWork/images', verifyToken, allowRoles(['owner', 'worker']), WorkController.deleteImagesFromWork);
+router.delete('/:idWork/images/:imageId', verifyToken, allowRoles(['owner', 'worker']), WorkController.deleteImagesFromWork);
 
 
 module.exports = router;

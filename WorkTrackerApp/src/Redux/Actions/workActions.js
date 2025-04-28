@@ -140,15 +140,26 @@ export const addImagesToWork = (idWork, imageData) => async (dispatch) => {
   }
 };
 
-export const deleteImagesFromWork = (idWork, imageData) => async (dispatch) => {
+export const deleteImagesFromWork = (idWork, imageId) => async (dispatch) => { // Cambiado imageData por imageId
   dispatch(deleteImagesRequest()); // Acción para iniciar la solicitud
   try {
-    const response = await api.delete(`/work/${idWork}/images`, { data: imageData }); // Ruta del backend
-    dispatch(deleteImagesSuccess(response.data)); // Acción para éxito
-    return response.data; // Devolver los datos para usarlos en el componente
+    // URL corregida, sin cuerpo (data)
+    const response = await api.delete(`/work/${idWork}/images/${imageId}`);
+
+    // Verificar si la respuesta es 204 No Content (éxito sin cuerpo)
+    if (response.status === 204) {
+      // Payload opcional, podría ser útil para el reducer si no se refresca
+      dispatch(deleteImagesSuccess({ idWork, imageId })); // Acción para éxito
+      // *** CLAVE: Refrescar la lista de trabajos para actualizar la UI ***
+      dispatch(fetchAssignedWorks());
+    } else {
+      // Manejar otros códigos de estado si es necesario
+      throw new Error(`Error inesperado al eliminar: ${response.status}`);
+    }
+    // No necesitas devolver response.data porque es 204 No Content
   } catch (error) {
     const errorMessage =
-      error.response?.data?.message || 'Error al eliminar las imágenes';
+      error.response?.data?.message || error.message || 'Error al eliminar la imagen';
     dispatch(deleteImagesFailure(errorMessage)); // Acción para error
     Alert.alert('Error', errorMessage); // Mostrar error en una alerta
     throw error; // Lanzar el error para manejarlo en el componente
