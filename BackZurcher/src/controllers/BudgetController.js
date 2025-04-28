@@ -381,9 +381,9 @@ await sendNotifications('budgetCreated', workDetails, null, req.io);
       if (generalNotes !== undefined) generalUpdateData.generalNotes = generalNotes;
 
       if (Object.keys(generalUpdateData).length > 0) {
-          await budget.update(generalUpdateData, { transaction });
+        await budget.update(generalUpdateData, { transaction });
           console.log("Campos generales del Budget actualizados.");
-      }
+    }
 
 
       // --- 6. Sincronizar BudgetLineItems ---

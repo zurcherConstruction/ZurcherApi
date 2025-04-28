@@ -31,41 +31,54 @@ const AssignedWorksScreen = ({staffId}) => {
   }, [works]);
 
   const handleOpenPdf = async (pdfData) => {
-    try {
-      const base64Pdf = Buffer.from(pdfData.data).toString("base64");
-      const fileUri = `${FileSystem.cacheDirectory}temp.pdf`;
-
-      await FileSystem.writeAsStringAsync(fileUri, base64Pdf, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-
-      console.log("PDF guardado en:", fileUri);
-
-      if (Platform.OS === "android") {
-        const contentUri = await FileSystem.getContentUriAsync(fileUri);
-
-        const intent = {
-          action: "android.intent.action.VIEW",
-          data: contentUri,
-          flags: 1,
-          type: "application/pdf",
-        };
-
-        await IntentLauncher.startActivityAsync(
-          "android.intent.action.VIEW",
-          intent
-        );
-      } else if (Platform.OS === "ios") {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: "application/pdf",
-          dialogTitle: "Compartir PDF",
-          UTI: "com.adobe.pdf",
+      try {
+        // Verificar si el pdfData es un objeto con una propiedad `data` o si ya es una cadena base64
+        const base64Pdf =
+          pdfData?.data
+            ? Buffer.from(pdfData.data).toString("base64") // Si es un objeto con `data`, convertirlo a base64
+            : pdfData.startsWith("data:application/pdf;base64,")
+            ? pdfData.split(",")[1] // Si ya es una cadena base64, extraer la parte después de "base64,"
+            : null;
+    
+        if (!base64Pdf) {
+          throw new Error("El PDF no está en un formato válido.");
+        }
+    
+        const fileUri = `${FileSystem.cacheDirectory}temp.pdf`;
+    
+        // Guardar el PDF en el sistema de archivos
+        await FileSystem.writeAsStringAsync(fileUri, base64Pdf, {
+          encoding: FileSystem.EncodingType.Base64,
         });
+    
+        console.log("PDF guardado en:", fileUri);
+    
+        // Abrir el PDF según la plataforma
+        if (Platform.OS === "android") {
+          const contentUri = await FileSystem.getContentUriAsync(fileUri);
+    
+          const intent = {
+            action: "android.intent.action.VIEW",
+            data: contentUri,
+            flags: 1,
+            type: "application/pdf",
+          };
+    
+          await IntentLauncher.startActivityAsync(
+            "android.intent.action.VIEW",
+            intent
+          );
+        } else if (Platform.OS === "ios") {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: "application/pdf",
+            dialogTitle: "Compartir PDF",
+            UTI: "com.adobe.pdf",
+          });
+        }
+      } catch (error) {
+        console.error("Error al abrir el PDF:", error);
       }
-    } catch (error) {
-      console.error("Error al abrir el PDF:", error);
-    }
-  };
+    };
 
   const handleUploadImages = (idWork) => {
     navigation.navigate("UploadScreen", { idWork });

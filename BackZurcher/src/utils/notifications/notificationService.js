@@ -64,6 +64,10 @@ const stateNotificationMap = {
     roles: ['admin', 'owner'],
     message: (income) => `Se ha registrado un ingreso de $${income.amount} para el Work asociado a la dirección ${income.propertyAddress}.`,
   },
+  workApproved: {
+    roles: ['owner', 'admin'], // Solo notificar al owner
+    message: (work) => `El trabajo para la dirección ${work.propertyAddress} (Work ID: ${work.idWork}) ha sido aprobado y está listo para ser agendado.`,
+  },
 };
 
 // Función para obtener los empleados a notificar y el mensaje
