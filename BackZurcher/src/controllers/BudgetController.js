@@ -1,10 +1,11 @@
 const { Budget, Permit, Work, Income, BudgetItem, BudgetLineItem, conn } = require('../data');
 const { cloudinary } = require('../utils/cloudinaryConfig.js');
-const {sendNotifications} = require('../utils/notificationManager.js');
+const {sendNotifications} = require('../utils/notifications/notificationManager.js');
 const fs = require('fs');
 const multer = require('multer');
 const upload = multer();
 const path = require('path');
+const {sendEmail} = require('../utils/notifications/emailService.js');
 
 const BudgetController = {
   async createBudget(req, res) {
@@ -159,20 +160,16 @@ const applicantEmail = permit.applicantEmail || null;
     // --- 4. Confirmar la Transacción ---
     await transaction.commit();
 
-      // --- 5. Enviar Notificaciones ---
-      const workDetails = {
-        propertyAddress: permitPropertyAddress,
-        idBudget: newBudget.idBudget,
-        applicantEmail: applicantEmail || null, // Asegúrate de manejar el caso en que sea null
-    };
+     // --- 5. Enviar Notificaciones ---
+const workDetails = {
+  propertyAddress: permit.propertyAddress,
+  idBudget: newBudget.idBudget,
+  applicantEmail: permit.applicantEmail || null, // Correo del cliente
+};
 
-    // Notificar a roles específicos (owner, recept, admin)
-    await sendNotifications('created', workDetails, req.io);
-
-    // Notificar al cliente por correo solo si applicantEmail está definido
-    if (applicantEmail) {
-        await sendNotifications('applicantEmail', workDetails, req.io);
-    }
+// Notificar a roles específicos (admin, owner)
+await sendNotifications('budgetCreated', workDetails, null, req.io);
+   
     // --- 6. Responder ---
     const finalBudgetResponse = newBudget.get({ plain: true });
     finalBudgetResponse.lineItems = createdLineItems;
@@ -278,7 +275,16 @@ const applicantEmail = permit.applicantEmail || null;
 
       // --- 1. Buscar el Budget Existente ---
       const budget = await Budget.findByPk(idBudget, {
-        include: [{ model: BudgetLineItem, as: 'lineItems' }], // Incluir items actuales
+        include: [
+          { 
+            model: Permit, 
+            attributes: ['idPermit', 'propertyAddress', 'applicantEmail'] // Incluye applicantEmail aquí
+          },
+          { 
+            model: BudgetLineItem, 
+            as: 'lineItems' 
+          }
+        ],
         transaction
       });
 
@@ -288,25 +294,49 @@ const applicantEmail = permit.applicantEmail || null;
       }
   // --- 2. Actualizar el Estado del Presupuesto ---
   if (status === 'send') {
-    if (!budget.pdfPath) {
-        throw new Error('El presupuesto no tiene un PDF asociado. No se puede enviar al cliente.');
+    if (!budget.pdfPath || !fs.existsSync(budget.pdfPath)) { // Verifica también que el archivo exista
+         throw new Error('El presupuesto no tiene un PDF asociado o el archivo no se encuentra.');
     }
 
-    // Enviar correo al cliente con el PDF adjunto
-    const emailDetails = {
-        to: budget.applicantEmail,
-        subject: 'Presupuesto Listo',
-        text: 'Adjunto encontrará su presupuesto.',
-        attachments: [
-            {
-                filename: `budget_${idBudget}.pdf`,
-                path: budget.pdfPath,
-            },
-        ],
-    };
-    await sendNotifications(emailDetails);
-}
+    if (!budget.Permit?.applicantEmail || !budget.Permit.applicantEmail.includes('@')) {
+      throw new Error('El cliente no tiene un correo electrónico válido.');
+    }
 
+    // *** ENVIAR CORREO AL CLIENTE DIRECTAMENTE ***
+    const clientMailOptions = {
+      to: budget.Permit.applicantEmail,
+      subject: `Presupuesto #${budget.idBudget} Listo - ${budget.propertyAddress}`,
+      text: `Estimado/a ${budget.Permit.applicantName || 'Cliente'},\n\nAdjunto encontrará su presupuesto para la dirección ${budget.propertyAddress}.\n\nSaludos,\nZURCHER CONSTRUCTION`,
+      // html: `<p>Estimado/a ${budget.Permit.applicantName || 'Cliente'},</p><p>Adjunto encontrará su presupuesto...</p>`, // Opcional: versión HTML
+      attachments: [
+        {
+          filename: `budget_${idBudget}.pdf`,
+          path: budget.pdfPath, // Ruta al archivo PDF guardado localmente
+          contentType: 'application/pdf'
+        },
+      ],
+    };
+
+    try {
+      console.log(`Intentando enviar correo con PDF al cliente: ${budget.Permit.applicantEmail}`);
+      await sendEmail(clientMailOptions);
+      console.log(`Correo con PDF enviado exitosamente al cliente: ${budget.Permit.applicantEmail}`);
+    } catch (clientEmailError) {
+      console.error(`Error al enviar correo con PDF al cliente ${budget.Permit.applicantEmail}:`, clientEmailError);
+      // Decide si este error debe detener la actualización o solo registrarse
+      // Por ahora, solo lo registramos y continuamos para notificar al staff
+    }
+
+    // *** NOTIFICAR AL STAFF INTERNO (Opcional, si aún lo necesitas) ***
+    // Esto notificará a 'admin' y 'owner' que el presupuesto fue enviado.
+    await sendNotifications('budgetSent', {
+      propertyAddress: budget.propertyAddress,
+      applicantEmail: budget.Permit.applicantEmail, // Puedes pasar esto si el mensaje lo usa
+      idBudget: budget.idBudget,
+    }, null, req.io); // Pasamos null para 'budget' ya que no es necesario para el mensaje interno
+    console.log(`Notificaciones internas 'budgetSent' enviadas.`);
+
+  }
 // --- 3. Extraer Datos de la Solicitud ---
       const {
         date,
@@ -435,12 +465,11 @@ const applicantEmail = permit.applicantEmail || null;
 
 
       // --- 7. Lógica al Aprobar (Crear Work e Income si aplica) ---
-      // Esta lógica se mantiene igual que antes
       if (generalUpdateData.status === "approved") { // Verificar si el status *cambió* a approved en esta llamada
         console.log("El estado cambió a 'approved'. Verificando/Creando Work e Income...");
         let workRecord;
         const existingWork = await Work.findOne({ where: { idBudget: budget.idBudget }, transaction });
-
+      
         if (!existingWork) {
           console.log(`Creando Work para Budget ID: ${budget.idBudget}`);
           workRecord = await Work.create({
@@ -451,7 +480,15 @@ const applicantEmail = permit.applicantEmail || null;
             initialPayment: budget.initialPayment,
           }, { transaction });
           console.log(`Work creado con ID: ${workRecord.idWork}`);
-
+      
+          // Enviar notificación de creación de Work
+          const workDetails = {
+            propertyAddress: budget.propertyAddress,
+            idWork: workRecord.idWork,
+            idBudget: budget.idBudget,
+          };
+          await sendNotifications('workCreated', workDetails, null, req.io);
+      
           // Crear Income solo si el Work es nuevo
           try {
             console.log(`Creando Income para Work ID: ${workRecord.idWork}`);
@@ -463,29 +500,52 @@ const applicantEmail = permit.applicantEmail || null;
               workId: workRecord.idWork
             }, { transaction });
             console.log(`Income creado exitosamente para Work ID: ${workRecord.idWork}`);
+      
+            // Enviar notificación de creación de Income
+            const incomeDetails = {
+              propertyAddress: budget.propertyAddress,
+              idWork: workRecord.idWork,
+              amount: budget.initialPayment,
+            };
+            await sendNotifications('incomeCreated', incomeDetails, null, req.io);
           } catch (incomeError) {
             console.error(`Error al crear el registro Income para Work ID ${workRecord.idWork}:`, incomeError);
-            // Considerar si lanzar un error aquí para revertir la transacción
-            // throw new Error("Fallo al crear el registro de ingreso asociado.");
+            throw new Error("Fallo al crear el registro de ingreso asociado.");
           }
         } else {
           console.log(`Work ya existente para Budget ID: ${budget.idBudget}, ID: ${existingWork.idWork}`);
           workRecord = existingWork;
-          // Opcional: Verificar si el Income ya existe para evitar duplicados
+      
+          // Verificar si el Income ya existe para evitar duplicados
           const existingIncome = await Income.findOne({
             where: { workId: workRecord.idWork, typeIncome: 'Factura Pago Inicial Budget' },
             transaction
           });
           if (!existingIncome) {
-             console.warn(`Advertencia: Work ${workRecord.idWork} existía pero no se encontró Income de pago inicial. Creando ahora.`);
-             try {
-               await Income.create({ /* ... datos del income ... */ }, { transaction });
-             } catch (lateIncomeError) { /* ... manejo de error ... */ }
+            console.warn(`Advertencia: Work ${workRecord.idWork} existía pero no se encontró Income de pago inicial. Creando ahora.`);
+            try {
+              await Income.create({
+                date: new Date(),
+                amount: budget.initialPayment,
+                typeIncome: 'Factura Pago Inicial Budget',
+                notes: `Pago inicial recibido para Budget #${budget.idBudget}`,
+                workId: workRecord.idWork
+              }, { transaction });
+      
+              // Enviar notificación de creación de Income
+              const incomeDetails = {
+                propertyAddress: budget.propertyAddress,
+                idWork: workRecord.idWork,
+                amount: budget.initialPayment,
+              };
+              await sendNotifications('incomeCreated', incomeDetails, null, req.io);
+            } catch (lateIncomeError) {
+              console.error(`Error al crear el registro Income para Work ID ${workRecord.idWork}:`, lateIncomeError);
+              throw new Error("Fallo al crear el registro de ingreso asociado.");
+            }
           }
         }
       }
-      // --- Fin Lógica al Aprobar ---
-
       // --- 8. Confirmar Transacción ---
       await transaction.commit();
       console.log(`Budget ID: ${idBudget} actualizado exitosamente.`);

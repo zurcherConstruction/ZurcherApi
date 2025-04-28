@@ -1,9 +1,9 @@
 const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, NotificationApp } = require('../data');
-const {sendEmail} = require('../utils/nodeMailer/emailService');
-const { getNotificationDetails } = require('../utils/nodeMailer/notificationService');
-const { getNotificationDetailsApp } = require('../utils/notificationServiceApp');
+const {sendEmail} = require('../utils/notifications/emailService');
+const { getNotificationDetails } = require('../utils/notifications/notificationService');
+const { getNotificationDetailsApp } = require('../utils/notifications/notificationServiceApp');
 const convertPdfDataToUrl = require('../utils/convertPdfDataToUrl');
-const { sendNotifications } = require('../utils/notificationManager');
+const { sendNotifications } = require('../utils/notifications/notificationManager');
  
 
 const createWork = async (req, res) => {
