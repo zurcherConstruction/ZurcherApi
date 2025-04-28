@@ -21,6 +21,7 @@ import * as ImageManipulator from "expo-image-manipulator";
 const WorkDetail = () => {
   const { idWork } = useRoute().params;
   const dispatch = useDispatch();
+  const navigation = useNavigation();
   const { work, loading, error } = useSelector((state) => state.work);
   const [imagesWithDataURLs, setImagesWithDataURLs] = useState({});
   const [selectedImage, setSelectedImage] = useState(null);
@@ -197,6 +198,15 @@ const WorkDetail = () => {
     <Text className="text-lg text-gray-700">
       <Text className="font-semibold">Status:</Text> {work.status || "Sin estado"}
     </Text>
+    <TouchableOpacity
+            onPress={() => navigation.navigate('WorkBalanceDetail', {
+              idWork: work.idWork,
+              propertyAddress: work.propertyAddress
+            })}
+            className="bg-purple-600 py-2 px-4 rounded-lg shadow-md"
+          >
+            <Text className="text-white font-bold text-center">Ver Balance</Text>
+          </TouchableOpacity>
     {work.Permit?.pdfData && (
       <TouchableOpacity
         onPress={() => handleOpenPdf(work.Permit.pdfData)}
