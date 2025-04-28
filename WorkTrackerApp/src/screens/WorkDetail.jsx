@@ -192,39 +192,56 @@ const WorkDetail = () => {
         </Text>
       </View>
 
-      {/* Info Section */}
-      <View className="bg-white p-4 rounded-lg shadow-md mb-4">
-  <View className="flex-row justify-between items-center">
-    <Text className="text-lg text-gray-700">
-      <Text className="font-semibold">Status:</Text> {work.status || "Sin estado"}
-    </Text>
-    <TouchableOpacity
+        {/* Info Section */}
+        <View className="bg-white p-4 rounded-lg shadow-md mb-4">
+            {/* Status */}
+            <Text className="text-lg text-gray-700 mb-4"> {/* Aumentado margen inferior */}
+          <Text className="font-semibold">Status:</Text> {work.status || "Sin estado"}
+        </Text>
+
+        {/* Buttons Row (Permit, Permit Flat, Balance) */}
+        <View className="flex-row justify-between items-center"> {/* Contenedor para los 3 botones */}
+
+          {/* Permit Button */}
+          {work.Permit?.pdfData ? (
+            <TouchableOpacity
+              onPress={() => handleOpenPdf(work.Permit.pdfData)}
+              // --- MODIFICACIÓN: Añadir flex-1 y margen ---
+              className="flex-1 bg-blue-600 py-2 px-3 rounded-lg shadow-md mx-1" /* flex-1 para ancho igual, px-3, mx-1 */
+            >
+              <Text className="text-white font-bold text-center text-sm">Permit</Text> {/* Texto más pequeño si es necesario */}
+            </TouchableOpacity>
+          ) : (
+             <View className="flex-1 mx-1" /> // Placeholder para mantener el espacio si no hay botón
+          )}
+
+          {/* Permit Flat Button */}
+          {work.Permit?.optionalDocs ? (
+            <TouchableOpacity
+              onPress={() => handleOpenPdf(work.Permit.optionalDocs)}
+              // --- MODIFICACIÓN: Añadir flex-1 y margen ---
+              className="flex-1 bg-green-600 py-2 px-3 rounded-lg shadow-md mx-1" /* flex-1 para ancho igual, px-3, mx-1 */
+            >
+              <Text className="text-white font-bold text-center text-sm">Permit Flat</Text> {/* Texto más pequeño */}
+            </TouchableOpacity>
+           ) : (
+             <View className="flex-1 mx-1" /> // Placeholder
+          )}
+
+          {/* Balance Button */}
+          <TouchableOpacity
             onPress={() => navigation.navigate('WorkBalanceDetail', {
               idWork: work.idWork,
               propertyAddress: work.propertyAddress
             })}
-            className="bg-purple-600 py-2 px-4 rounded-lg shadow-md"
+            // --- MODIFICACIÓN: Añadir flex-1 y margen ---
+            className="flex-1 bg-purple-600 py-2 px-3 rounded-lg shadow-md mx-1" /* flex-1 para ancho igual, px-3, mx-1 */
           >
-            <Text className="text-white font-bold text-center">Ver Balance</Text>
+            <Text className="text-white font-bold text-center text-sm">Ver Balance</Text> {/* Texto más pequeño */}
           </TouchableOpacity>
-    {work.Permit?.pdfData && (
-      <TouchableOpacity
-        onPress={() => handleOpenPdf(work.Permit.pdfData)}
-        className="bg-blue-600 py-2 px-4 rounded-lg shadow-md"
-      >
-        <Text className="text-white font-bold text-center">Permit</Text>
-      </TouchableOpacity>
-    )}
-     {work.Permit?.optionalDocs && (
-      <TouchableOpacity
-        onPress={() => handleOpenPdf(work.Permit.optionalDocs)}
-        className="bg-green-600 py-2 px-4 rounded-lg shadow-md ml-2"
-      >
-        <Text className="text-white font-bold text-center">Permit Flat</Text>
-      </TouchableOpacity>
-    )}
-  </View>
-</View>
+
+        </View>
+      </View>
 
       {/* Permit Section */}
       {work.Permit && (
