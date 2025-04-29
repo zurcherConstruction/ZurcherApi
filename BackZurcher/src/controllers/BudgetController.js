@@ -228,7 +228,7 @@ const BudgetController = {
         include: [
           {
             model: Permit,
-            attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'systemType', 'drainfieldDepth', 'excavationRequired', 'lot', 'block'],
+            attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'systemType', 'drainfieldDepth', 'excavationRequired', 'lot', 'block', 'pdfData', 'optionalDocs'],
           },
           {
             model: BudgetLineItem,
@@ -538,7 +538,7 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
          const clientMailOptions = {
             to: budget.Permit.applicantEmail,
             subject: `Presupuesto Actualizado #${budget.idBudget} - ${budget.propertyAddress}`,
-            text: `Estimado/a ${budget.applicantName || 'Cliente'},\n\nAdjunto encontrará su presupuesto actualizado...\n\nSaludos,\nZURCHER CONSTRUCTION`,
+            text: `Estimado/a ${budget.applicantName || 'Cliente'},\n\nAdjunto encontrará su presupuesto ...\n\nSaludos,\nZURCHER CONSTRUCTION`,
             attachments: [ { filename: `budget_${idBudget}.pdf`, path: pdfPathForEmail, contentType: 'application/pdf' } ],
          };
          try {
@@ -579,7 +579,11 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
           initialPayment: budget.initialPayment, // Usa el valor recalculado
         }, { transaction });
         console.log(`Nuevo Work creado con ID: ${workRecord.idWork}`);
-        await sendNotifications('workCreated', { /* ... */ }, null, req.io);
+        const notificationDataForIncome = {
+          amount: budget.initialPayment, // Usar el valor del budget
+          propertyAddress: budget.propertyAddress // Usar el valor del budget
+        };
+        await sendNotifications('incomeCreated', notificationDataForIncome, null, req.io);
 
         try {
           console.log(`Creando nuevo Income para Work ID: ${workRecord.idWork}`);
@@ -591,7 +595,11 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
             workId: workRecord.idWork
           }, { transaction });
           console.log(`Nuevo Income creado exitosamente.`);
-          await sendNotifications('incomeCreated', { /* ... */ }, null, req.io);
+          const notificationDataForIncome = {
+            amount: budget.initialPayment, // Usar el valor del budget
+            propertyAddress: budget.propertyAddress // Usar el valor del budget
+          };
+          await sendNotifications('incomeCreated', notificationDataForIncome, null, req.io);
         } catch (incomeError) {
           console.error(`Error CRÍTICO al crear Income para nuevo Work ID ${workRecord.idWork}:`, incomeError);
           throw new Error("Fallo al crear el registro de ingreso asociado al nuevo Work."); // Esto revertirá la transacción
@@ -614,7 +622,11 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
            try {
              await Income.create({ /* ... como en el bloque if(!existingWork) ... */ }, { transaction });
              console.log(`Income (tardío) creado exitosamente.`);
-             await sendNotifications('incomeCreated', { /* ... */ }, null, req.io);
+             const notificationDataForIncome = {
+              amount: budget.initialPayment, // Usar el valor del budget
+              propertyAddress: budget.propertyAddress // Usar el valor del budget
+            };
+            await sendNotifications('incomeCreated', notificationDataForIncome, null, req.io);
            } catch (lateIncomeError) {
              console.error(`Error CRÍTICO al crear Income (tardío) para Work ID ${workRecord.idWork}:`, lateIncomeError);
              throw new Error("Fallo al crear el registro de ingreso (tardío) asociado."); // Revertirá

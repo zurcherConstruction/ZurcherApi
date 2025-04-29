@@ -180,87 +180,86 @@ useEffect(() => {
                     <td className="border border-gray-300 px-4 py-2 text-xs text-center">{budget.status}</td>
                     <td className="border border-gray-300 px-4 py-2 text-xs">{budget.propertyAddress || "N/A"}</td>
                     <td className="border border-gray-300 px-4 py-2 text-xs"> {budget.Permit?.systemType || "N/A"}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-center"> {/* Centrado para acciones */}
-                    {budget.status === "created" && (
-    <button
-                          onClick={() => handleUpdateStatus(budget.idBudget, "send", budget)}
-      className="bg-yellow-500 text-white px-2 py-1 rounded text-xs hover:bg-yellow-600"
-    >
-      Send
-    </button>
-  )}
+                    <td className="border border-gray-300 px-4 py-2">
+                      <div className="flex items-center justify-center space-x-2"> {/* Contenedor Flex */}
 
-  {budget.status === "send" && (
-    <button
-      disabled
-      className="bg-gray-400 text-white px-2 py-1 rounded text-xs cursor-not-allowed"
-    >
-      Sent
-    </button>
-  )}
-
-                      {budget.status === "send" && (
-                        <div className="flex flex-col items-center space-y-1"> {/* Flex para alinear */}
-                          {budget.paymentInvoice ? (
-                            <p className="text-green-600 text-xs font-semibold">Invoice Uploaded</p>
-                          ) : (
-                            <p className="text-orange-600 text-xs font-semibold">Pending Invoice</p>
-                          )}
-
-                          {/* --- ELIMINAR EL BOTÓN DE APROBAR --- */}
-                          {/* {budget.paymentInvoice && (
-                            <button
-                              onClick={() => handleUpdateStatus(budget.idBudget, "approved", budget)}
-                              className="bg-green-500 text-white px-2 py-1 rounded text-xs"
-                            >
-                              Approve
-                            </button>
-                          )} */}
-
-                          {/* Botón Rechazar */}
+                        {/* --- Lógica de Botones de Estado --- */}
+                        {budget.status === "created" && (
                           <button
-                            onClick={() => handleUpdateStatus(budget.idBudget, "rejected", budget)}
-                            className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600"
+                            onClick={() => handleUpdateStatus(budget.idBudget, "send", budget)}
+                            className="inline-flex items-center justify-center bg-yellow-500 text-white px-2 py-1 rounded text-xs hover:bg-yellow-600 w-16" // Añadido w-16 para ancho fijo
+                            title="Send Budget"
                           >
-                            Reject
+                            Send
                           </button>
-                        </div>
-                      )}
+                        )}
 
-                      {budget.status === "approved" && (
-                        <p className="text-green-600 text-xs font-semibold">
-                          Approved
-                        </p>
-                      )}
+                        {budget.status === "send" && (
+                          <div className="flex flex-col items-center space-y-1">
+                             {/* Botón "Sent" deshabilitado */}
+                             <button
+                               disabled
+                               className="inline-flex items-center justify-center bg-gray-400 text-white px-2 py-1 rounded text-xs cursor-not-allowed w-16" // Añadido w-16
+                               title="Budget Sent"
+                             >
+                               Sent
+                             </button>
+                             {/* Indicador de Invoice */}
+                             {budget.paymentInvoice ? (
+                               <p className="text-green-600 text-[10px] font-semibold mt-1">Invoice OK</p> // Más pequeño
+                             ) : (
+                               <p className="text-orange-600 text-[10px] font-semibold mt-1">Need Invoice</p> // Más pequeño
+                             )}
+                             {/* Botón Reject */}
+                             <button
+                               onClick={() => handleUpdateStatus(budget.idBudget, "rejected", budget)}
+                               className="inline-flex items-center justify-center bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600 w-16 mt-1" // Añadido w-16 y margen
+                               title="Reject Budget"
+                             >
+                               Reject
+                             </button>
+                          </div>
+                        )}
 
-                      {budget.status === "rejected" && (
-                        <p className="text-red-600 text-xs font-semibold">
-                          Rejected
-                        </p>
-                      )}
+                        {budget.status === "approved" && (
+                          <p className="text-green-600 text-xs font-semibold px-2 py-1 w-16 text-center"> {/* Añadido w-16 y text-center */}
+                            Approved
+                          </p>
+                        )}
 
-                      {/* Descargar PDF (siempre visible) */}
-                      {budget.pdfPath ? ( // Usar pdfPath o budgetPdfUrl según lo que llegue del backend
-        <button
-          onClick={() => handleDownloadPdf(budget.idBudget, `budget_${budget.idBudget}.pdf`)}
-          disabled={downloadingPdfId === budget.idBudget} // Deshabilitar mientras descarga
-          className="mt-1 inline-flex items-center bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 w-16 justify-center disabled:opacity-50 disabled:cursor-wait" // Estilo deshabilitado
-          title="Download PDF"
-        >
-          {downloadingPdfId === budget.idBudget ? (
-            <svg className="animate-spin h-4 w-4 mr-1 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-             </svg>
-          ) : (
-            <DocumentArrowDownIcon className="h-4 w-4 mr-1" />
-          )}
-          PDF
-        </button>
-      ) : (
-        <span className="text-xs text-gray-400 mt-1 italic">No PDF</span>
-      )}
-                    
+                        {budget.status === "rejected" && (
+                          <p className="text-red-600 text-xs font-semibold px-2 py-1 w-16 text-center"> {/* Añadido w-16 y text-center */}
+                            Rejected
+                          </p>
+                        )}
+                        {/* --- Fin Lógica de Botones de Estado --- */}
+
+
+                        {/* --- Botón Descargar PDF (siempre visible si existe path) --- */}
+                        {budget.pdfPath ? (
+                          <button
+                            onClick={() => handleDownloadPdf(budget.idBudget, `budget_${budget.idBudget}.pdf`)}
+                            disabled={downloadingPdfId === budget.idBudget}
+                            className="inline-flex items-center justify-center bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 w-16 disabled:opacity-50 disabled:cursor-wait" // Mismo w-16
+                            title="Download PDF"
+                          >
+                            {downloadingPdfId === budget.idBudget ? (
+                              <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                            ) : (
+                              <DocumentArrowDownIcon className="h-4 w-4" /> // Quitado mr-1 si solo es icono
+                            )}
+                            <span className="ml-1">PDF</span> {/* Añadido span y ml-1 */}
+                          </button>
+                        ) : (
+                          // Espaciador si no hay PDF para mantener alineación (opcional)
+                          <div className="w-16 h-px"></div> // O un span vacío con ancho
+                        )}
+                        {/* --- Fin Botón Descargar PDF --- */}
+
+                      </div> {/* Fin Contenedor Flex */}
                     </td>
                   </tr>
                 ))}

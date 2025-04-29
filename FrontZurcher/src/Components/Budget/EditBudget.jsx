@@ -4,8 +4,11 @@ import { useNavigate } from "react-router-dom";
 import { fetchBudgets, fetchBudgetById, updateBudget, } from "../../Redux/Actions/budgetActions";
 import { parseISO, format } from 'date-fns';
 import { unwrapResult } from '@reduxjs/toolkit';
+import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
 // import { generatePDF } from "../../utils/pdfGenerator";
 import api from "../../utils/axios";
+// --- Helper para generar IDs temporales ---
+const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
 const EditBudget = () => {
   console.log('--- EditBudget Component Rendered ---');
@@ -31,7 +34,7 @@ const EditBudget = () => {
   const [selectedBudgetId, setSelectedBudgetId] = useState(null);
   const [formData, setFormData] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
+  const [viewingFile, setViewingFile] = useState(false);
 
   const [manualItemData, setManualItemData] = useState({
     category: "",
@@ -93,7 +96,7 @@ const EditBudget = () => {
   useEffect(() => {
     console.log('Form population effect triggered. selectedBudgetId:', selectedBudgetId, 'currentBudget:', currentBudget);
 
-    if (currentBudget && currentBudget.idBudget === selectedBudgetId) {
+    if (currentBudget && currentBudget.idBudget === selectedBudgetId && (!formData || formData.idBudget !== selectedBudgetId)) {
       console.log(`✅ Condition met: Populating formData for budget ID: ${currentBudget.idBudget}`);
       console.log('Current budget data:', JSON.stringify(currentBudget, null, 2));
 
@@ -102,6 +105,7 @@ const EditBudget = () => {
         const lineItemsData = currentBudget.lineItems || [];
 
         const newFormData = {
+          idBudget: currentBudget.idBudget,
           permitNumber: permitData.permitNumber || "",
           propertyAddress: currentBudget.propertyAddress || "",
           applicantName: currentBudget.applicantName || "",
@@ -114,20 +118,18 @@ const EditBudget = () => {
           discountAmount: parseFloat(currentBudget.discountAmount) || 0,
           generalNotes: currentBudget.generalNotes || "",
           initialPaymentPercentage: currentBudget.initialPaymentPercentage || '60',
-          lineItems: lineItemsData.map(item => {
-            const itemDetails = item.itemDetails || {};
-            return {
-              id: item.id,
-              budgetItemId: item.budgetItemId,
-              quantity: parseInt(item.quantity) || 0,
-              notes: item.notes || '',
-              name: itemDetails.name || 'N/A',
-              category: itemDetails.category || 'N/A',
-              marca: itemDetails.marca || '',
-              capacity: itemDetails.capacity || '',
-              unitPrice: parseFloat(item.priceAtTimeOfBudget || itemDetails.unitPrice || 0),
-            };
-          }),
+          lineItems: (currentBudget.lineItems || []).map(item => ({
+            _tempId: generateTempId(), // Añadir ID temporal para la key en React si no hay 'id' real
+            id: item.id, // ID real de la base de datos si existe
+            budgetItemId: item.budgetItemId,
+            quantity: parseInt(item.quantity) || 0,
+            notes: item.notes || '',
+            name: item.itemDetails?.name || item.name || 'N/A', // Priorizar itemDetails si existe
+            category: item.itemDetails?.category || item.category || 'N/A',
+            marca: item.itemDetails?.marca || item.marca || '',
+            capacity: item.itemDetails?.capacity || item.capacity || '',
+            unitPrice: parseFloat(item.priceAtTimeOfBudget || item.itemDetails?.unitPrice || item.unitPrice || 0), // Mejorar obtención de precio
+          })),
           pdfDataUrl: permitData.pdfDataUrl || null,
           optionalDocsUrl: permitData.optionalDocsUrl || null,
           pdfDataFile: null,
@@ -145,16 +147,13 @@ const EditBudget = () => {
         setFormData(null);
       }
     } else {
-      if (!currentBudget) {
-        console.log('Condition not met: currentBudget is null or undefined (API call might be pending).');
-      } else if (currentBudget.idBudget !== selectedBudgetId) {
-        console.log(`Condition not met: Mismatch! currentBudget ID (${currentBudget.idBudget}) !== selectedBudgetId (${selectedBudgetId}). Stale data?`);
-      } else {
-         console.log('Condition not met: Unknown reason.');
-      }
+      // Log por qué no se pobló
+      if (!currentBudget) console.log('Condition not met: currentBudget is null/undefined.');
+      else if (currentBudget.idBudget !== selectedBudgetId) console.log(`Condition not met: ID mismatch (${currentBudget.idBudget} !== ${selectedBudgetId}).`);
+      else if (formData && formData.idBudget === selectedBudgetId) console.log('Condition not met: formData already exists for this budgetId.');
+      else console.log('Condition not met: Unknown reason.');
     }
-  }, [currentBudget, selectedBudgetId]);
-
+  }, [currentBudget, selectedBudgetId, formData]);
   // --- Recalcular Totales ---
   useEffect(() => {
     if (!formData) return;
@@ -374,10 +373,38 @@ const handleAddManualItem = () => {
     }
   };
 
+  //  // *** NUEVA FUNCIÓN PARA VER ARCHIVOS DEL PERMIT ***
+  //  const handleViewPermitFile = async (fileUrl, fileType = 'application/pdf') => {
+  //   if (!fileUrl) return;
+  //   setViewingFile(true);
+  //   try {
+  //     // Extraer la ruta relativa de la URL completa si es necesario
+  //     // Asumiendo que fileUrl es algo como 'http://localhost:3001/permits/ID/view/pdf'
+  //     const url = new URL(fileUrl);
+  //     const relativePath = url.pathname; // Debería ser '/permits/ID/view/pdf'
+
+  //     const response = await api.get(relativePath, { // Usar la ruta relativa con Axios
+  //       responseType: 'blob',
+  //     });
+
+  //     const blob = new Blob([response.data], { type: fileType });
+  //     const blobUrl = window.URL.createObjectURL(blob);
+  //     window.open(blobUrl, '_blank'); // Abrir en nueva pestaña
+  //     // No necesitamos revocar inmediatamente si se abre en nueva pestaña
+  //     // window.URL.revokeObjectURL(blobUrl); // Podría cerrarse antes de cargar
+
+  //   } catch (error) {
+  //     console.error(`Error al obtener el archivo del permiso (${fileUrl}):`, error);
+  //     alert(`No se pudo cargar el archivo: ${error.response?.data?.message || error.message}`);
+  //   } finally {
+  //     setViewingFile(false);
+  //   }
+  // };
+
   // --- Renderizado ---
   return (
     <div className="container mx-auto p-4 max-w-4xl">
-      <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">Editar Presupuesto</h2>
+     
 
       {/* --- Sección de Búsqueda --- */}
       {!selectedBudgetId && (
@@ -430,7 +457,7 @@ const handleAddManualItem = () => {
       {selectedBudgetId && (
         <>
           <button onClick={handleSearchAgain} className="mb-4 text-sm text-blue-600 hover:text-blue-800 hover:underline">
-            &larr; Volver a buscar otro presupuesto
+            &larr; Back
           </button>
 
           {loadingCurrentBudget && !formData && <div className="text-center p-4 text-blue-600">Cargando datos del presupuesto...</div>}
@@ -586,38 +613,58 @@ const handleAddManualItem = () => {
                  </div>
                  <div className="mt-4 space-y-2 text-right">
                    <p className="text-sm text-gray-600">Subtotal: <span className="font-medium text-gray-900">${formData.subtotalPrice.toFixed(2)}</span></p>
-                   <p className="text-sm text-gray-600">Descuento: <span className="font-medium text-red-600">-${formData.discountAmount.toFixed(2)}</span></p>
+                   {/* --- LÍNEA MODIFICADA --- */}
+                   <p className="text-sm text-gray-600">Descuento: <span className="font-medium text-red-600">-${(parseFloat(formData.discountAmount) || 0).toFixed(2)}</span></p>
+                   {/* --- FIN LÍNEA MODIFICADA --- */}
                    <p className="text-lg font-semibold text-gray-900">Total: ${formData.totalPrice.toFixed(2)}</p>
                    <p className="text-md font-medium text-blue-700">Pago Inicial Requerido: ${formData.initialPayment.toFixed(2)}</p>
                  </div>
                </fieldset>
 
-               {/* --- Archivos Adjuntos --- */}
+               {/* --- Archivos Adjuntos ---
                <fieldset className="border border-gray-200 p-4 rounded-md">
-                 <legend className="text-lg font-medium text-gray-600 px-2">Archivos Adjuntos</legend>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   <div>
-                     <label className="block text-sm font-medium text-gray-700">Permiso PDF</label>
-                     {formData.pdfDataUrl ? (
-                       <a href={formData.pdfDataUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm mt-1 block">Ver PDF Actual</a>
-                     ) : (
-                       <p className="text-sm text-gray-500 mt-1">No disponible</p>
-                     )}
-                     <label htmlFor="pdfDataFile" className="block text-xs font-medium text-gray-500 mt-2">Reemplazar PDF:</label>
-                     <input type="file" id="pdfDataFile" name="pdfDataFile" onChange={handleFileChange} accept=".pdf" className="input-style mt-1 text-sm" />
-                   </div>
-                   <div>
-                     <label className="block text-sm font-medium text-gray-700">Documentos Opcionales</label>
-                     {formData.optionalDocsUrl ? (
-                       <a href={formData.optionalDocsUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm mt-1 block">Ver Documentos Actuales</a>
-                     ) : (
-                       <p className="text-sm text-gray-500 mt-1">No disponible</p>
-                     )}
-                     <label htmlFor="optionalDocsFile" className="block text-xs font-medium text-gray-500 mt-2">Reemplazar Documentos:</label>
-                     <input type="file" id="optionalDocsFile" name="optionalDocsFile" onChange={handleFileChange} accept=".pdf,.zip,.rar" className="input-style mt-1 text-sm" />
-                   </div>
-                 </div>
-               </fieldset>
+            <legend className="text-lg font-medium text-gray-600 px-2">Archivos Adjuntos del Permiso</legend>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Permiso PDF</label>
+                {formData.pdfDataUrl ? (
+                  // *** BOTÓN EN LUGAR DE ENLACE ***
+                  <button
+                    type="button"
+                    onClick={() => handleViewPermitFile(formData.pdfDataUrl, 'application/pdf')}
+                    disabled={viewingFile}
+                    className="inline-flex items-center text-blue-600 hover:underline text-sm mt-1 disabled:opacity-50 disabled:cursor-wait"
+                  >
+                    Ver PDF Actual
+                    <ArrowTopRightOnSquareIcon className="h-4 w-4 ml-1"/>
+                  </button>
+                ) : (
+                  <p className="text-sm text-gray-500 mt-1">No disponible</p>
+                )}
+                <label htmlFor="pdfDataFile" className="block text-xs font-medium text-gray-500 mt-2">Reemplazar PDF:</label>
+                <input type="file" id="pdfDataFile" name="pdfDataFile" onChange={handleFileChange} accept=".pdf" className="input-style mt-1 text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Documentos Opcionales</label>
+                {formData.optionalDocsUrl ? (
+                  // *** BOTÓN EN LUGAR DE ENLACE ***
+                  <button
+                    type="button"
+                    onClick={() => handleViewPermitFile(formData.optionalDocsUrl)} // Asume PDF o tipo detectable por el navegador
+                    disabled={viewingFile}
+                    className="inline-flex items-center text-blue-600 hover:underline text-sm mt-1 disabled:opacity-50 disabled:cursor-wait"
+                  >
+                    Ver Documentos Actuales
+                    <ArrowTopRightOnSquareIcon className="h-4 w-4 ml-1"/>
+                  </button>
+                ) : (
+                  <p className="text-sm text-gray-500 mt-1">No disponible</p>
+                )}
+                <label htmlFor="optionalDocsFile" className="block text-xs font-medium text-gray-500 mt-2">Reemplazar Documentos:</label>
+                <input type="file" id="optionalDocsFile" name="optionalDocsFile" onChange={handleFileChange} accept=".pdf,.zip,.rar" className="input-style mt-1 text-sm" />
+              </div>
+            </div>
+          </fieldset> */}
 
                {/* --- Botón de Envío --- */}
                <div className="flex justify-end pt-4">
