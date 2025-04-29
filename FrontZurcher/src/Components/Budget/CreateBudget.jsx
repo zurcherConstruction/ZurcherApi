@@ -501,47 +501,98 @@ const CreateBudget = () => {
     setCustomPump(prev => ({ ...prev, [name]: isNumeric ? parseFloat(value) || 0 : value }));
   };
   // Efecto para añadir/quitar bomba automáticamente (simplificado para usar addOrUpdate)
-  useEffect(() => {
-    const existingPumpItemIndex = formData.lineItems.findIndex(item => item.category === PUMP_CATEGORY);
+  // useEffect(() => {
+  //   const existingPumpItemIndex = formData.lineItems.findIndex(item => item.category === PUMP_CATEGORY);
 
-    if (pumpSelection.addPump === 'Yes') {
-      if (pumpSelection.capacity === 'OTROS') {
-        if (!customPump.capacity || customPump.unitPrice <= 0) {
-          if (existingPumpItemIndex > -1) {
-            setFormData(prev => ({ ...prev, lineItems: prev.lineItems.filter((_, index) => index !== existingPumpItemIndex) }));
-          }
-          return;
-        }
-        const customPumpData = {
-          _tempId: formData.lineItems[existingPumpItemIndex]?._tempId || generateTempId(),
-          budgetItemId: null,
-          name: PUMP_NAME,
+  //   if (pumpSelection.addPump === 'Yes') {
+  //     if (pumpSelection.capacity === 'OTROS') {
+  //       if (!customPump.capacity || customPump.unitPrice <= 0) {
+  //         if (existingPumpItemIndex > -1) {
+  //           setFormData(prev => ({ ...prev, lineItems: prev.lineItems.filter((_, index) => index !== existingPumpItemIndex) }));
+  //         }
+  //         return;
+  //       }
+  //       const customPumpData = {
+  //         _tempId: formData.lineItems[existingPumpItemIndex]?._tempId || generateTempId(),
+  //         budgetItemId: null,
+  //         name: PUMP_NAME,
+  //         category: PUMP_CATEGORY,
+  //         marca: '',
+  //         capacity: customPump.capacity.toUpperCase(),
+  //         unitPrice: customPump.unitPrice,
+  //         quantity: customPump.quantity,
+  //         notes: 'Bomba Personalizada',
+  //       };
+  //       setFormData(prev => {
+  //         let newLineItems = [...prev.lineItems];
+  //         if (existingPumpItemIndex > -1) newLineItems[existingPumpItemIndex] = customPumpData;
+  //         else newLineItems.push(customPumpData);
+  //         return { ...prev, lineItems: newLineItems };
+  //       });
+  //     } else if (pumpSelection.capacity) {
+  //       addOrUpdateLineItem({
+  //         category: PUMP_CATEGORY,
+  //         name: PUMP_NAME,
+  //         capacity: pumpSelection.capacity,
+  //         quantity: pumpSelection.quantity,
+  //       }, true);
+  //     }
+  //   } else if (pumpSelection.addPump === 'No' && existingPumpItemIndex > -1) {
+  //     setFormData(prev => ({ ...prev, lineItems: prev.lineItems.filter((_, index) => index !== existingPumpItemIndex) }));
+  //   }
+  // }, [pumpSelection.addPump, pumpSelection.capacity, pumpSelection.quantity, customPump.capacity, customPump.unitPrice, customPump.quantity]);
+  
+  
+  //PUMP
+  const addPumpItem = () => {
+    // Solo añadir si se seleccionó 'Yes'
+    if (pumpSelection.addPump !== 'Yes') {
+      alert("Seleccione 'Yes' en 'Add Pump?' para poder añadir una bomba.");
+      return;
+    }
+
+    if (pumpSelection.capacity === 'OTROS') {
+      // Añadir bomba personalizada
+      if (!customPump.capacity || customPump.unitPrice <= 0) {
+        alert("Por favor complete Capacidad y Precio de la bomba personalizada.");
+        return;
+      }
+      setFormData(prev => ({
+        ...prev,
+        lineItems: [...prev.lineItems, {
+          _tempId: generateTempId(),
+          budgetItemId: null, // Item personalizado
+          name: PUMP_NAME, // Usar nombre constante
           category: PUMP_CATEGORY,
-          marca: '',
+          marca: '', // Marca vacía para bombas personalizadas o según necesites
           capacity: customPump.capacity.toUpperCase(),
           unitPrice: customPump.unitPrice,
           quantity: customPump.quantity,
           notes: 'Bomba Personalizada',
-        };
-        setFormData(prev => {
-          let newLineItems = [...prev.lineItems];
-          if (existingPumpItemIndex > -1) newLineItems[existingPumpItemIndex] = customPumpData;
-          else newLineItems.push(customPumpData);
-          return { ...prev, lineItems: newLineItems };
-        });
-      } else if (pumpSelection.capacity) {
-        addOrUpdateLineItem({
-          category: PUMP_CATEGORY,
-          name: PUMP_NAME,
-          capacity: pumpSelection.capacity,
-          quantity: pumpSelection.quantity,
-        }, true);
-      }
-    } else if (pumpSelection.addPump === 'No' && existingPumpItemIndex > -1) {
-      setFormData(prev => ({ ...prev, lineItems: prev.lineItems.filter((_, index) => index !== existingPumpItemIndex) }));
-    }
-  }, [pumpSelection.addPump, pumpSelection.capacity, pumpSelection.quantity, customPump.capacity, customPump.unitPrice, customPump.quantity]);
+        }],
+      }));
+      // Resetear estados de bomba personalizada y selección
+      setCustomPump({ capacity: '', unitPrice: 0, quantity: 1 });
+      setPumpSelection({ addPump: 'No', capacity: '', quantity: 1 }); // Resetear a 'No' después de añadir
 
+    } else {
+      // Añadir bomba del catálogo
+      if (!pumpSelection.capacity) {
+        alert("Por favor seleccione una capacidad para la bomba.");
+        return;
+      }
+      // Llamar a addOrUpdateLineItem SIN el 'true' para que no reemplace, sino que añada o incremente cantidad
+      addOrUpdateLineItem({
+        category: PUMP_CATEGORY,
+        name: PUMP_NAME, // Usar nombre constante
+        capacity: pumpSelection.capacity,
+        quantity: pumpSelection.quantity,
+        // notes: '', // Puedes añadir notas si es necesario
+      });
+      // Resetear selección (opcionalmente mantener 'Yes' si quieres añadir otra igual fácilmente)
+      setPumpSelection({ addPump: 'Yes', capacity: '', quantity: 1 }); // Mantener 'Yes', limpiar capacidad
+    }
+  };
   // --- Arena ---
   const SAND_CATEGORY = 'MATERIALES'; // Corregido según imagen/datos
   const SAND_NAME = 'ARENA'; // Asumiendo que el item de arena siempre se llama ARENA
@@ -1060,6 +1111,8 @@ const CreateBudget = () => {
                     <option value="No">No</option>
                     <option value="Yes">Yes</option>
                   </select>
+
+                  {/* Mostrar campos solo si addPump es 'Yes' */}
                   {pumpSelection.addPump === 'Yes' && (
                     <>
                       <label htmlFor="pump_capacity" className="text-sm">Tank Capacity</label>
@@ -1068,6 +1121,7 @@ const CreateBudget = () => {
                         {pumpCapacities.map(c => <option key={c} value={c}>{c}</option>)}
                         <option value="OTROS">OTROS (Manual)</option>
                       </select>
+
                       {/* Custom Pump Fields */}
                       {pumpSelection.capacity === 'OTROS' && (
                         <>
@@ -1084,14 +1138,34 @@ const CreateBudget = () => {
                           </div>
                         </>
                       )}
+
                       {/* Quantity */}
                       <label htmlFor="pump_quantity" className="text-sm">Quantity</label>
-                      <input id="pump_quantity" type="number" name="quantity" value={pumpSelection.capacity === 'OTROS' ? customPump.quantity : pumpSelection.quantity} onChange={pumpSelection.capacity === 'OTROS' ? handleCustomPumpChange : handlePumpChange} min="1" className="input-style" />
+                      <input
+                        id="pump_quantity"
+                        type="number"
+                        name="quantity"
+                        value={pumpSelection.capacity === 'OTROS' ? customPump.quantity : pumpSelection.quantity}
+                        onChange={pumpSelection.capacity === 'OTROS' ? handleCustomPumpChange : handlePumpChange}
+                        min="1"
+                        className="input-style"
+                      />
+
+                      {/* --- AÑADIR ESTE BOTÓN --- */}
+                      <div className="col-span-2 mt-2">
+                        <button
+                          type="button"
+                          onClick={addPumpItem}
+                          className="button-add-item w-full" // Añadido w-full para que ocupe el ancho
+                        >
+                          Add Pump
+                        </button>
+                      </div>
+                      {/* --- FIN BOTÓN AÑADIDO --- */}
                     </>
                   )}
                 </div>
               </fieldset>
-
               {/* --- Arena --- */}
               <div className="border rounded bg-white">
                 <button type="button" onClick={() => toggleSection('sand')} className="w-full flex justify-between items-center p-2 bg-gray-100 hover:bg-gray-200 rounded-t">

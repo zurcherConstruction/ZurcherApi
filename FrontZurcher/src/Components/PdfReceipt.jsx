@@ -91,6 +91,15 @@ const PdfReceipt = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const confirmPlan = window.confirm(
+      "El permit que adjuntaste contiene el plano? Recorda cargarlo!!!"
+    );
+
+    // Si el usuario presiona "Cancelar" (o "No"), detener el envío
+    if (!confirmPlan) {
+      console.log("El usuario canceló el envío para verificar el plano.");
+      return; // Detiene la ejecución de handleSubmit
+    }
 
     if (!formData.applicantName) {
       alert("El campo Applicant Name es obligatorio.");

@@ -34,7 +34,13 @@ router.get(
   isStaff,     // O el rol/roles adecuados (ej: allowRoles(['admin', 'recept', 'owner', 'staff']))
   BudgetController.downloadBudgetPDF // Controlador para manejar la descarga
 );
-
+// Ruta para VER el PDF
+router.get(
+  '/:idBudget/view/pdf',
+  verifyToken, // Verificar que hay un token válido
+  isStaff,     // O el rol/roles adecuados (ej: allowRoles(['admin', 'recept', 'owner', 'staff']))
+  BudgetController.viewBudgetPDF // Controlador para manejar la descarga
+);
   
 
   router.put('/:idBudget', verifyToken, BudgetController.updateBudget); // Solo administradores pueden actualizar presupuestos
