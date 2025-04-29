@@ -3,13 +3,13 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useLocation } from "react-router-dom"; // Removed useParams
 import { Viewer, Worker } from "@react-pdf-viewer/core";
 import { defaultLayoutPlugin } from "@react-pdf-viewer/default-layout";
-import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/solid';
+import { ChevronDownIcon, ChevronUpIcon, DocumentArrowDownIcon, ArrowUturnLeftIcon  } from '@heroicons/react/24/solid';
 import { unwrapResult } from '@reduxjs/toolkit';
 import api from "../../utils/axios"; // Asegúrate de que la ruta sea correcta
 import { fetchBudgetItems } from "../../Redux/Actions/budgetItemActions";
 import { fetchPermitById } from "../../Redux/Actions/permitActions";
 import { createBudget } from "../../Redux/Actions/budgetActions"; // Removed fetchBudgetById, updateBudget
-import { generatePDF } from "../../utils/pdfGenerator";
+// import { generatePDF } from "../../utils/pdfGenerator";
 import "@react-pdf-viewer/core/lib/styles/index.css";
 import "@react-pdf-viewer/default-layout/lib/styles/index.css";
 
@@ -42,6 +42,9 @@ const CreateBudget = () => {
   const [pdfPreview, setPdfPreview] = useState(null);
   const [optionalDocPreview, setOptionalDocPreview] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Estado para deshabilitar botón
+  const [createdBudgetInfo, setCreatedBudgetInfo] = useState(null); // Para guardar info del budget creado
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false); // Estado para descarga
 
   //estados items manual 
   const [manualItem, setManualItem] = useState({
@@ -699,79 +702,110 @@ const CreateBudget = () => {
   // --- Submit Handler (Solo Crear) ---
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true); // Deshabilitar botón
+    setCreatedBudgetInfo(null); // Limpiar info previa
 
     if (!permitIdFromQuery) {
       alert("Error: No se encontró el ID del permiso asociado.");
+      setIsSubmitting(false);
       return;
     }
     if (formData.lineItems.length === 0) {
       alert("Debe añadir al menos un item al presupuesto.");
+      setIsSubmitting(false);
       return;
     }
 
     // Preparar datos para la creación del presupuesto
     const dataToSend = {
-      permitNumber: formData.permitNumber,
-      propertyAddress: formData.propertyAddress,
-      applicantName: formData.applicantName,
-      applicantEmail: selectedPermit?.applicantEmail || "",
-      lot: formData.lot,
-      block: formData.block,
+      permitId: permitIdFromQuery, // Asegúrate que este es el nombre correcto esperado por el backend
       date: formData.date,
       expirationDate: formData.expirationDate || null,
-      initialPayment: formData.initialPayment,
-      status: formData.status,
+      status: formData.status, // Enviar el estado ('created' o el que sea)
       discountDescription: formData.discountDescription,
       discountAmount: formData.discountAmount,
       generalNotes: formData.generalNotes,
       initialPaymentPercentage: formData.initialPaymentPercentage,
       lineItems: formData.lineItems.map(item => ({
-        budgetItemId: item.budgetItemId || null, // Si es personalizado, será null
+        budgetItemId: item.budgetItemId || null,
         quantity: item.quantity,
         notes: item.notes || null,
-        priceAtTimeOfBudget: item.unitPrice,
+        // Enviar datos de item manual si es necesario
         ...(item.budgetItemId === null && {
           category: item.category,
           name: item.name,
-          unitPrice: item.unitPrice,
+          unitPrice: item.unitPrice, // El backend usará este
         }),
-        ...(item.marca && { marca: item.marca }),
-        ...(item.capacity && { capacity: item.capacity }),
+        // Enviar otros campos si el backend los espera
+        marca: item.marca || null,
+        capacity: item.capacity || null,
+        // priceAtTimeOfBudget y unitPrice (para items de catálogo) los determinará el backend
       })),
-      permitId: permitIdFromQuery,
+      // No enviar totales, el backend los calcula
     };
 
     console.log("Enviando al backend para CREAR:", dataToSend);
 
     try {
+      // Llamar a la acción createBudget
       const resultAction = await dispatch(createBudget(dataToSend));
-      const originalPromiseResult = unwrapResult(resultAction);
+      const newBudget = unwrapResult(resultAction); // Obtener el budget creado desde la respuesta
 
-      console.log("Presupuesto creado exitosamente:", originalPromiseResult);
+      console.log("Presupuesto creado exitosamente por backend:", newBudget);
 
-      // Generar el PDF
-      const doc = generatePDF(originalPromiseResult);
-      if (!doc) throw new Error("Error al generar el PDF");
-      const pdfBlob = doc.output("blob");
+      // --- YA NO SE GENERA NI SUBE PDF DESDE AQUÍ ---
+      // const doc = generatePDF(newBudget);
+      // const pdfBlob = doc.output("blob");
+      // const formDataPdf = new FormData();
+      // formDataPdf.append("file", pdfBlob, `budget_${newBudget.idBudget}.pdf`);
+      // await api.post(`/budget/${newBudget.idBudget}/upload-pdf`, formDataPdf);
 
-      // Crear un FormData para enviar el archivo
-      const formData = new FormData();
-      formData.append("file", pdfBlob, `budget_${originalPromiseResult.idBudget}.pdf`);
+      // Guardar la información del budget creado (incluyendo la URL del PDF)
+      setCreatedBudgetInfo(newBudget);
 
-      // Subir el PDF al backend
-      const uploadResponse = await api.post(`/budget/${originalPromiseResult.idBudget}/upload-pdf`, formData);
+      alert(`Presupuesto #${newBudget.idBudget} creado exitosamente.`);
+      // Opcional: No navegar inmediatamente, permitir descargar primero
+      // navigate('/budgets');
 
-      if (uploadResponse.status !== 200) {
-        throw new Error("Error al subir el PDF al backend");
-      }
-
-      alert("Presupuesto creado y PDF subido exitosamente.");
-      navigate('/budgets');
     } catch (error) {
       console.error("Error al crear el presupuesto:", error);
-      alert(`Error al crear el presupuesto: ${error.message || "Error desconocido"}`);
+      // Mostrar mensaje de error más detallado si viene del backend
+      const errorMsg = error?.error || error?.message || "Error desconocido al crear el presupuesto.";
+      alert(`Error al crear el presupuesto: ${errorMsg}`);
+    } finally {
+      setIsSubmitting(false); // Habilitar botón de nuevo
     }
   };
+ // --- Función para manejar la descarga del PDF ---
+ const handleDownloadPdf = async (budgetId, filename) => {
+  if (!budgetId) return;
+  setIsDownloadingPdf(true);
+  try {
+    // Usa tu instancia de Axios que ya incluye el token
+    const response = await api.get(`/budget/${budgetId}/pdf`, {
+      responseType: 'blob', // Importante: obtener la respuesta como Blob
+    });
+
+    // Crear un enlace temporal para iniciar la descarga
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename || `budget_${budgetId}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+
+    // Limpiar el enlace temporal
+    link.parentNode.removeChild(link);
+    window.URL.revokeObjectURL(url);
+
+  } catch (error) {
+    console.error("Error al descargar el PDF:", error);
+    alert(`Error al descargar el PDF: ${error.response?.data?.message || error.message}`);
+  } finally {
+    setIsDownloadingPdf(false);
+  }
+};
+
   // --- Render ---
   const isLoading = loadingCatalog || loadingPermit; // Solo depende de catálogo y permit
   const hasError = errorCatalog || errorPermit; // Solo depende de catálogo y permit
@@ -1293,14 +1327,51 @@ const CreateBudget = () => {
             </div>
 
             {/* --- Botón Submit --- */}
-            <div className="mt-4">
-              <button
-                type="submit"
-                className="w-full bg-blue-950 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={isLoading || formData.lineItems.length === 0 || !selectedPermit}
-              >
-                {isLoading ? 'Cargando...' : "Crear Presupuesto"}
-              </button>
+      
+       <div className="mt-6 border-t pt-4">
+              {!createdBudgetInfo ? (
+                <button
+                  type="submit"
+                  className="w-full bg-blue-950 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isSubmitting || isLoading || formData.lineItems.length === 0 || !selectedPermit}
+                >
+                  {isSubmitting ? 'Creando...' : "Crear Presupuesto"}
+                </button>
+              ) : (
+                <div className="text-center p-4 bg-green-100 border border-green-300 rounded-md">
+                  <p className="font-semibold text-green-800">¡Presupuesto #{createdBudgetInfo.idBudget} creado!</p>
+                  {/* --- REEMPLAZO DE <a> POR <button> --- */}
+                  {createdBudgetInfo.pdfPath ? ( // Verificar si hay ruta (o budgetPdfUrl si lo prefieres)
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadPdf(createdBudgetInfo.idBudget, `budget_${createdBudgetInfo.idBudget}.pdf`)}
+                      disabled={isDownloadingPdf}
+                      className="mt-2 inline-flex items-center justify-center bg-blue-600 text-white py-1 px-3 rounded-md hover:bg-blue-700 text-sm disabled:opacity-50 disabled:cursor-wait"
+                    >
+                      {isDownloadingPdf ? (
+                         <svg className="animate-spin h-4 w-4 mr-1 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                         </svg>
+                      ) : (
+                        <DocumentArrowDownIcon className="h-4 w-4 mr-1" />
+                      )}
+                      Descargar PDF
+                    </button>
+                  ) : (
+                    <p className="text-sm text-yellow-700 mt-1">(PDF aún no disponible para descarga)</p>
+                  )}
+                  {/* --- FIN REEMPLAZO --- */}
+                  <button
+                    type="button"
+                    onClick={() => navigate('/budgets')} // Navega a la lista
+                    className="mt-3 inline-flex items-center text-sm text-indigo-600 hover:underline" // Usar inline-flex para alinear icono y texto
+                  >
+                    <ArrowUturnLeftIcon className="h-4 w-4 mr-1" /> {/* Icono de atrás */}
+                    Back {/* Nuevo texto */}
+                  </button>
+                </div>
+              )}
             </div>
           </form>
         </div>

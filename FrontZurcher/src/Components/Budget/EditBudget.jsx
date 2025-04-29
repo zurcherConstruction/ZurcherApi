@@ -3,6 +3,9 @@ import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { fetchBudgets, fetchBudgetById, updateBudget, } from "../../Redux/Actions/budgetActions";
 import { parseISO, format } from 'date-fns';
+import { unwrapResult } from '@reduxjs/toolkit';
+// import { generatePDF } from "../../utils/pdfGenerator";
+import api from "../../utils/axios";
 
 const EditBudget = () => {
   console.log('--- EditBudget Component Rendered ---');
@@ -29,6 +32,14 @@ const EditBudget = () => {
   const [formData, setFormData] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+
+  const [manualItemData, setManualItemData] = useState({
+    category: "",
+    name: "",
+    unitPrice: "", // Usar string para el input
+    quantity: "1", // Default a 1 como string
+    notes: "",
+});
   // --- Cargar Lista de Budgets para Búsqueda ---
   useEffect(() => {
     dispatch(fetchBudgets());
@@ -189,6 +200,54 @@ const EditBudget = () => {
     setFormData(prev => prev ? { ...prev, [name]: value } : null);
   };
 
+  const handleManualItemChange = (e) => {
+    const { name, value } = e.target;
+    setManualItemData(prev => ({ ...prev, [name]: value }));
+};
+
+const handleAddManualItem = () => {
+    // Validaciones básicas
+    const unitPriceNum = parseFloat(manualItemData.unitPrice);
+    const quantityNum = parseFloat(manualItemData.quantity);
+
+    if (!manualItemData.category.trim() || !manualItemData.name.trim()) {
+        alert("Por favor, completa la categoría y el nombre del item manual.");
+        return;
+    }
+    if (isNaN(unitPriceNum) || unitPriceNum < 0) {
+        alert("Por favor, ingresa un precio unitario válido.");
+        return;
+    }
+    if (isNaN(quantityNum) || quantityNum <= 0) {
+        alert("Por favor, ingresa una cantidad válida.");
+        return;
+    }
+
+    const newItem = {
+        // id: undefined, // El backend asignará ID
+        // budgetItemId: null, // No viene del catálogo
+        category: manualItemData.category.trim(),
+        name: manualItemData.name.trim(),
+        unitPrice: unitPriceNum,
+        quantity: quantityNum,
+        notes: manualItemData.notes.trim(),
+        // Puedes añadir marca/capacity si los pides en el form manual
+        marca: '',
+        capacity: '',
+    };
+
+    setFormData(prev => {
+        if (!prev) return null;
+        return {
+            ...prev,
+            lineItems: [...prev.lineItems, newItem]
+        };
+    });
+
+    // Resetear formulario manual
+    setManualItemData({ category: "", name: "", unitPrice: "", quantity: "1", notes: "" });
+};
+
   const handleLineItemChange = (index, field, value) => {
     setFormData(prev => {
       if (!prev) return null;
@@ -235,28 +294,38 @@ const EditBudget = () => {
       return;
     }
     setIsSubmitting(true);
+    console.log("--- Iniciando handleSubmit (Backend PDF Gen) ---");
+    console.log("Datos del formulario (formData) al inicio:", formData);
 
-    const dataToSend = {};
-    let useFormData = false;
-
-    dataToSend.date = formData.date;
-    dataToSend.expirationDate = formData.expirationDate || null;
-    dataToSend.status = formData.status;
-    dataToSend.discountDescription = formData.discountDescription;
-    dataToSend.discountAmount = formData.discountAmount;
-    dataToSend.generalNotes = formData.generalNotes;
-    dataToSend.initialPaymentPercentage = formData.initialPaymentPercentage;
+    // --- 1. Preparar datos para la actualización (Incluyendo status: 'send' si aplica) ---
+    const dataToSend = {
+      date: formData.date,
+      expirationDate: formData.expirationDate || null,
+      status: formData.status, // Enviar el estado deseado directamente
+      discountDescription: formData.discountDescription,
+      discountAmount: parseFloat(formData.discountAmount) || 0,
+      generalNotes: formData.generalNotes,
+      initialPaymentPercentage: parseFloat(formData.initialPaymentPercentage) || 60,
+      applicantName: formData.applicantName,
+      propertyAddress: formData.propertyAddress,
+    };
 
     const lineItemsPayload = formData.lineItems.map(item => ({
       id: item.id,
       budgetItemId: item.budgetItemId,
-      quantity: item.quantity,
+      category: item.category,
+      name: item.name,
+      unitPrice: item.unitPrice,
+      quantity: parseFloat(item.quantity) || 0,
       notes: item.notes,
+      marca: item.marca,
+      capacity: item.capacity,
     }));
 
     let payload;
+    // Verificar si se están actualizando los archivos del PERMIT
     if (formData.pdfDataFile || formData.optionalDocsFile) {
-      useFormData = true;
+      console.log("Detectados archivos del Permit. Usando FormData.");
       payload = new FormData();
       Object.keys(dataToSend).forEach(key => {
         if (dataToSend[key] !== undefined) {
@@ -264,37 +333,44 @@ const EditBudget = () => {
         }
       });
       payload.append('lineItems', JSON.stringify(lineItemsPayload));
-      if (formData.pdfDataFile) {
-        payload.append('pdfFile', formData.pdfDataFile, formData.pdfDataFile.name);
-      }
-      if (formData.optionalDocsFile) {
-        payload.append('optionalDocFile', formData.optionalDocsFile, formData.optionalDocsFile.name);
-      }
+      if (formData.pdfDataFile) payload.append('permitPdfFile', formData.pdfDataFile, formData.pdfDataFile.name);
+      if (formData.optionalDocsFile) payload.append('permitOptionalDocsFile', formData.optionalDocsFile, formData.optionalDocsFile.name);
     } else {
+      console.log("No hay archivos del Permit. Usando JSON.");
       payload = { ...dataToSend, lineItems: lineItemsPayload };
     }
 
-    console.log("Enviando actualización para ID:", selectedBudgetId, useFormData ? 'con FormData' : 'como JSON');
+    console.log("Payload para la actualización:", payload);
 
     try {
+      // --- 2. Ejecutar la Actualización (UNA SOLA LLAMADA) ---
+      console.log(`Dispatching updateBudget for ID: ${selectedBudgetId}`);
       const resultAction = await dispatch(updateBudget(selectedBudgetId, payload));
+      const updatedBudget = unwrapResult(resultAction); // El backend hizo todo (incluido PDF si status='send')
+      console.log("✅ Actualización completada por el backend:", updatedBudget);
 
-      if (resultAction && resultAction.type === 'UPDATE_BUDGET_SUCCESS') {
-        alert("Presupuesto actualizado exitosamente!");
-        handleSearchAgain();
-      } else if (resultAction && resultAction.type === 'UPDATE_BUDGET_FAILURE') {
-         const errorMessage = resultAction.payload || "Error desconocido al actualizar.";
-         console.error("Error al actualizar:", errorMessage);
-         alert(`Error al actualizar: ${errorMessage}`);
-      } else {
-          console.warn("Resultado inesperado de updateBudget:", resultAction);
-          alert("Ocurrió una respuesta inesperada del servidor.");
-      }
+      // --- 3. YA NO SE GENERA NI SUBE PDF DESDE AQUÍ ---
+
+      // --- 4. Finalización Exitosa ---
+      alert("Presupuesto actualizado exitosamente!");
+      handleSearchAgain();
+
     } catch (err) {
-      console.error("Error inesperado en handleSubmit:", err);
-      alert(`Error inesperado: ${err.message || 'Ocurrió un problema de red o del servidor.'}`);
+      // --- 5. Manejo de Errores ---
+      console.error("❌ Error durante el proceso de handleSubmit:", err);
+      let errorMsg = "Ocurrió un error desconocido.";
+      if (err.response) { // Axios error
+        errorMsg = err.response.data?.error || err.response.data?.message || `Error ${err.response.status}`;
+      } else if (err.request) {
+        errorMsg = "No se pudo conectar con el servidor.";
+      } else {
+        errorMsg = err.message || errorMsg; // Error de Redux/unwrapResult o JS
+      }
+      alert(`Error al actualizar el presupuesto: ${errorMsg}`);
     } finally {
+      // --- 6. Limpieza ---
       setIsSubmitting(false);
+      console.log("--- Finalizando handleSubmit ---");
     }
   };
 
@@ -454,12 +530,47 @@ const EditBudget = () => {
                          </div>
                        </div>
                        {/* Botón para eliminar item (opcional) */}
-                       {/* <button type="button" onClick={() => handleRemoveLineItem(index)} className="text-red-500 text-xs mt-1">Eliminar Item</button> */}
+                       <button type="button" onClick={() => handleRemoveLineItem(index)} className="text-red-500 text-xs mt-1">Eliminar Item</button>
                      </div>
+                     
                    ))}
                  </div>
                </fieldset>
-
+ {/* --- Añadir Item Manualmente --- */}
+ <fieldset className="border border-gray-200 p-4 rounded-md">
+             <legend className="text-lg font-medium text-gray-600 px-2">Añadir Item Manualmente</legend>
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+               <div>
+                 <label htmlFor="manualCategory" className="block text-xs font-medium text-gray-700">Categoría</label>
+                 <input type="text" id="manualCategory" name="category" value={manualItemData.category} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Ej: SYSTEM TYPE" />
+               </div>
+               <div className="md:col-span-2">
+                 <label htmlFor="manualName" className="block text-xs font-medium text-gray-700">Nombre del Item</label>
+                 <input type="text" id="manualName" name="name" value={manualItemData.name} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Ej: NEW SYSTEM INSTALLATION" />
+               </div>
+               <div>
+                 <label htmlFor="manualUnitPrice" className="block text-xs font-medium text-gray-700">Precio Unitario ($)</label>
+                 <input type="number" id="manualUnitPrice" name="unitPrice" value={manualItemData.unitPrice} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Ej: 150.00" min="0" step="0.01" />
+               </div>
+               <div>
+                 <label htmlFor="manualQuantity" className="block text-xs font-medium text-gray-700">Cantidad</label>
+                 <input type="number" id="manualQuantity" name="quantity" value={manualItemData.quantity} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Ej: 1" min="0.01" step="0.01" />
+               </div>
+               <div className="md:col-span-3">
+                 <label htmlFor="manualNotes" className="block text-xs font-medium text-gray-700">Notas (Opcional)</label>
+                 <input type="text" id="manualNotes" name="notes" value={manualItemData.notes} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Detalles adicionales..." />
+               </div>
+             </div>
+             <div className="mt-4 text-right">
+               <button
+                 type="button"
+                 onClick={handleAddManualItem}
+                 className="px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+               >
+                 Añadir Item al Presupuesto
+               </button>
+             </div>
+           </fieldset>
                {/* --- Descuento y Totales --- */}
                <fieldset className="border border-gray-200 p-4 rounded-md">
                  <legend className="text-lg font-medium text-gray-600 px-2">Resumen Financiero</legend>

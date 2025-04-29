@@ -5,9 +5,10 @@ import {
   updateBudget,
   // uploadInvoice, // Ya no se usa aquí si se eliminó handleUploadPayment
 } from "../../Redux/Actions/budgetActions";
-
-import BudgetPDF from "./BudgetPDF";
+import { DocumentArrowDownIcon } from '@heroicons/react/24/outline'; // Icono para descarga
+//import BudgetPDF from "./BudgetPDF";
 import { parseISO, isSameMonth, format } from "date-fns";
+import api from "../../utils/axios";
 
 const BudgetList = () => {
   // ... (dispatch, useSelector, state, useEffect, filtros, ordenación, paginación) ...
@@ -15,8 +16,10 @@ const BudgetList = () => {
   const { budgets, loading, error } = useSelector((state) => state.budget);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6;
-
-  useEffect(() => {
+console.log("Presupuestos:", budgets); // Verifica si los presupuestos se están obteniendo correctamente
+ 
+const [downloadingPdfId, setDownloadingPdfId] = useState(null); // Estado para indicar descarga
+useEffect(() => {
     dispatch(fetchBudgets());
   }, [dispatch]);
 
@@ -47,6 +50,37 @@ const BudgetList = () => {
   const handlePageChange = (pageNumber) => {
     setCurrentPage(pageNumber);
   };
+
+   // Función para manejar la descarga del PDF
+   const handleDownloadPdf = async (budgetId, filename) => {
+    setDownloadingPdfId(budgetId); // Marcar como descargando
+    try {
+      // Usa tu instancia de Axios que ya incluye el token
+      const response = await api.get(`/budget/${budgetId}/pdf`, {
+        responseType: 'blob', // Importante: obtener la respuesta como Blob
+      });
+
+      // Crear un enlace temporal para iniciar la descarga
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename || `budget_${budgetId}.pdf`); // Usar nombre sugerido o default
+      document.body.appendChild(link);
+      link.click();
+
+      // Limpiar el enlace temporal
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+    } catch (error) {
+      console.error("Error al descargar el PDF:", error);
+      // Mostrar un mensaje de error al usuario
+      alert(`Error al descargar el PDF: ${error.response?.data?.message || error.message}`);
+    } finally {
+      setDownloadingPdfId(null); // Terminar estado de descarga
+    }
+  };
+
 
   const formatDate = (dateString) => {
     try {
@@ -206,16 +240,27 @@ const BudgetList = () => {
                       )}
 
                       {/* Descargar PDF (siempre visible) */}
-                      <div className="mt-1"> {/* Espacio para el botón PDF */}
-                        <BudgetPDF
-                          budget={{
-                            ...budget,
-                            price: parseFloat(budget.price),
-                            initialPayment: parseFloat(budget.initialPayment),
-                          }}
-                          editMode={false}
-                        />
-                      </div>
+                      {budget.pdfPath ? ( // Usar pdfPath o budgetPdfUrl según lo que llegue del backend
+        <button
+          onClick={() => handleDownloadPdf(budget.idBudget, `budget_${budget.idBudget}.pdf`)}
+          disabled={downloadingPdfId === budget.idBudget} // Deshabilitar mientras descarga
+          className="mt-1 inline-flex items-center bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 w-16 justify-center disabled:opacity-50 disabled:cursor-wait" // Estilo deshabilitado
+          title="Download PDF"
+        >
+          {downloadingPdfId === budget.idBudget ? (
+            <svg className="animate-spin h-4 w-4 mr-1 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+             </svg>
+          ) : (
+            <DocumentArrowDownIcon className="h-4 w-4 mr-1" />
+          )}
+          PDF
+        </button>
+      ) : (
+        <span className="text-xs text-gray-400 mt-1 italic">No PDF</span>
+      )}
+                    
                     </td>
                   </tr>
                 ))}
@@ -292,14 +337,26 @@ const BudgetList = () => {
                   </div>
 
                   {/* Descargar PDF (siempre visible) */}
-                  <BudgetPDF
-                    budget={{
-                      ...budget,
-                      price: parseFloat(budget.price),
-                      initialPayment: parseFloat(budget.initialPayment),
-                    }}
-                    editMode={false}
-                  />
+                  {budget.pdfPath ? ( // Usar pdfPath o budgetPdfUrl según lo que llegue del backend
+        <button
+          onClick={() => handleDownloadPdf(budget.idBudget, `budget_${budget.idBudget}.pdf`)}
+          disabled={downloadingPdfId === budget.idBudget} // Deshabilitar mientras descarga
+          className="mt-1 inline-flex items-center bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 w-16 justify-center disabled:opacity-50 disabled:cursor-wait" // Estilo deshabilitado
+          title="Download PDF"
+        >
+          {downloadingPdfId === budget.idBudget ? (
+            <svg className="animate-spin h-4 w-4 mr-1 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+             </svg>
+          ) : (
+            <DocumentArrowDownIcon className="h-4 w-4 mr-1" />
+          )}
+          PDF
+        </button>
+      ) : (
+        <span className="text-xs text-gray-400 mt-1 italic">No PDF</span>
+      )}
                 </div>
               </div>
             ))}

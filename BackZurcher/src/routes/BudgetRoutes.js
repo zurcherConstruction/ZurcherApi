@@ -27,6 +27,14 @@ router.post(
     BudgetController.uploadBudgetPDF // Controlador para manejar la lógica
 );
 
+// Ruta para descargar el PDF
+router.get(
+  '/:idBudget/pdf',
+  verifyToken, // Verificar que hay un token válido
+  isStaff,     // O el rol/roles adecuados (ej: allowRoles(['admin', 'recept', 'owner', 'staff']))
+  BudgetController.downloadBudgetPDF // Controlador para manejar la descarga
+);
+
   
 
   router.put('/:idBudget', verifyToken, BudgetController.updateBudget); // Solo administradores pueden actualizar presupuestos
