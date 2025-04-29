@@ -19,6 +19,21 @@ router.post(
     upload.single('file'), // Middleware correcto
     BudgetController.uploadInvoice
   );
+  router.post(
+    '/:idBudget/upload-pdf',
+    verifyToken,
+    allowRoles(['admin', 'recept', 'owner']), // Roles permitidos
+    upload.single('file'), // Middleware para manejar el archivo
+    BudgetController.uploadBudgetPDF // Controlador para manejar la lógica
+);
+
+// Ruta para descargar el PDF
+router.get(
+  '/:idBudget/pdf',
+  verifyToken, // Verificar que hay un token válido
+  isStaff,     // O el rol/roles adecuados (ej: allowRoles(['admin', 'recept', 'owner', 'staff']))
+  BudgetController.downloadBudgetPDF // Controlador para manejar la descarga
+);
 
   
 

@@ -6,7 +6,7 @@ const { CustomError } = require('../../middleware/error');
 const { transporter } = require('../../utils/transporter');
 const { emailTemplates } = require('../../utils/emailTemplates');
 const crypto = require('crypto');
-const { sendEmail } = require('../../utils/nodeMailer/emailService');
+const { sendEmail } = require('../../utils/notifications/emailService');
 const { Op } = require('sequelize');
 
 const register = async (req, res, next) => {

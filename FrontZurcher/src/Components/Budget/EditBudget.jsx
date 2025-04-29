@@ -1,0 +1,693 @@
+import React, { useState, useEffect, useMemo } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
+import { fetchBudgets, fetchBudgetById, updateBudget, } from "../../Redux/Actions/budgetActions";
+import { parseISO, format } from 'date-fns';
+import { unwrapResult } from '@reduxjs/toolkit';
+import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
+// import { generatePDF } from "../../utils/pdfGenerator";
+import api from "../../utils/axios";
+// --- Helper para generar IDs temporales ---
+const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+const EditBudget = () => {
+  console.log('--- EditBudget Component Rendered ---');
+
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  // --- Selectores de Redux ---
+  const {
+    budgets = [],
+    currentBudget,
+    loading: loadingList,
+    error: listError,
+    loadingCurrent: loadingCurrentBudget,
+    errorCurrent: currentBudgetError,
+  } = useSelector(state => state.budget);
+
+  console.log('Value of currentBudget from useSelector:', currentBudget);
+
+  // --- Estados Locales ---
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [selectedBudgetId, setSelectedBudgetId] = useState(null);
+  const [formData, setFormData] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [viewingFile, setViewingFile] = useState(false);
+
+  const [manualItemData, setManualItemData] = useState({
+    category: "",
+    name: "",
+    unitPrice: "", // Usar string para el input
+    quantity: "1", // Default a 1 como string
+    notes: "",
+});
+  // --- Cargar Lista de Budgets para Búsqueda ---
+  useEffect(() => {
+    dispatch(fetchBudgets());
+  }, [dispatch]);
+
+   // *** NUEVO: Filtrar budgets por estado para la búsqueda ***
+   const editableBudgets = useMemo(() => {
+    const allowedStatus = ["created", "send", "notResponded", "rejected"];
+    // Asegúrate que 'budgets' no sea undefined o null antes de filtrar
+    return (budgets || []).filter(budget => allowedStatus.includes(budget.status));
+  }, [budgets]); // Depende de la lista completa de budgets
+
+
+   // --- Obtener Direcciones Únicas para Datalist (desde los editables) ---
+   const uniqueAddresses = useMemo(() => {
+    if (!editableBudgets || editableBudgets.length === 0) return []; // Usa editableBudgets
+    const addresses = editableBudgets // Usa editableBudgets
+      .map(budget => budget.propertyAddress?.trim())
+      .filter(Boolean);
+    return [...new Set(addresses)].sort();
+  }, [editableBudgets]); // Depende de la lista filtrada por estado
+
+  // --- Filtrar Budgets basado en searchTerm (desde los editables) ---
+  useEffect(() => {
+    if (!searchTerm) {
+      setSearchResults([]);
+      return;
+    }
+    const lowerCaseSearchTerm = searchTerm.toLowerCase();
+    // *** MODIFICADO: Busca dentro de 'editableBudgets' ***
+    const filtered = editableBudgets.filter(budget =>
+      budget.propertyAddress?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      budget.Permit?.permitNumber?.toLowerCase().includes(lowerCaseSearchTerm) ||
+      budget.applicantName?.toLowerCase().includes(lowerCaseSearchTerm)
+    );
+    setSearchResults(filtered);
+  }, [searchTerm, editableBudgets]); // Depende del término y la lista filtrada por estado
+
+  // --- Cargar Datos del Budget Seleccionado (sin cambios) ---
+  useEffect(() => {
+    if (selectedBudgetId) {
+      console.log(`Dispatching fetchBudgetById for ID: ${selectedBudgetId}`);
+      setFormData(null);
+      dispatch(fetchBudgetById(selectedBudgetId));
+    } else {
+      setFormData(null);
+    }
+  }, [dispatch, selectedBudgetId]);
+
+  // --- Poblar Estado Local (formData) cuando currentBudget cambia ---
+  useEffect(() => {
+    console.log('Form population effect triggered. selectedBudgetId:', selectedBudgetId, 'currentBudget:', currentBudget);
+
+    if (currentBudget && currentBudget.idBudget === selectedBudgetId && (!formData || formData.idBudget !== selectedBudgetId)) {
+      console.log(`✅ Condition met: Populating formData for budget ID: ${currentBudget.idBudget}`);
+      console.log('Current budget data:', JSON.stringify(currentBudget, null, 2));
+
+      try {
+        const permitData = currentBudget.Permit || {};
+        const lineItemsData = currentBudget.lineItems || [];
+
+        const newFormData = {
+          idBudget: currentBudget.idBudget,
+          permitNumber: permitData.permitNumber || "",
+          propertyAddress: currentBudget.propertyAddress || "",
+          applicantName: currentBudget.applicantName || "",
+          lot: permitData.lot || "",
+          block: permitData.block || "",
+          date: currentBudget.date ? currentBudget.date.split('T')[0] : "",
+          expirationDate: currentBudget.expirationDate ? currentBudget.expirationDate.split('T')[0] : "",
+          status: currentBudget.status || "created",
+          discountDescription: currentBudget.discountDescription || "",
+          discountAmount: parseFloat(currentBudget.discountAmount) || 0,
+          generalNotes: currentBudget.generalNotes || "",
+          initialPaymentPercentage: currentBudget.initialPaymentPercentage || '60',
+          lineItems: (currentBudget.lineItems || []).map(item => ({
+            _tempId: generateTempId(), // Añadir ID temporal para la key en React si no hay 'id' real
+            id: item.id, // ID real de la base de datos si existe
+            budgetItemId: item.budgetItemId,
+            quantity: parseInt(item.quantity) || 0,
+            notes: item.notes || '',
+            name: item.itemDetails?.name || item.name || 'N/A', // Priorizar itemDetails si existe
+            category: item.itemDetails?.category || item.category || 'N/A',
+            marca: item.itemDetails?.marca || item.marca || '',
+            capacity: item.itemDetails?.capacity || item.capacity || '',
+            unitPrice: parseFloat(item.priceAtTimeOfBudget || item.itemDetails?.unitPrice || item.unitPrice || 0), // Mejorar obtención de precio
+          })),
+          pdfDataUrl: permitData.pdfDataUrl || null,
+          optionalDocsUrl: permitData.optionalDocsUrl || null,
+          pdfDataFile: null,
+          optionalDocsFile: null,
+          subtotalPrice: 0,
+          totalPrice: 0,
+          initialPayment: 0,
+        };
+        console.log('Calling setFormData with:', newFormData);
+        setFormData(newFormData);
+        console.log('✅ setFormData called successfully.');
+
+      } catch (error) {
+        console.error('❌ Error during setFormData:', error, 'currentBudget was:', currentBudget);
+        setFormData(null);
+      }
+    } else {
+      // Log por qué no se pobló
+      if (!currentBudget) console.log('Condition not met: currentBudget is null/undefined.');
+      else if (currentBudget.idBudget !== selectedBudgetId) console.log(`Condition not met: ID mismatch (${currentBudget.idBudget} !== ${selectedBudgetId}).`);
+      else if (formData && formData.idBudget === selectedBudgetId) console.log('Condition not met: formData already exists for this budgetId.');
+      else console.log('Condition not met: Unknown reason.');
+    }
+  }, [currentBudget, selectedBudgetId, formData]);
+  // --- Recalcular Totales ---
+  useEffect(() => {
+    if (!formData) return;
+
+    console.log('Recalculating totals effect triggered.');
+
+    const subtotal = formData.lineItems.reduce((sum, item) => {
+      const quantity = parseFloat(item.quantity) || 0;
+      const price = parseFloat(item.unitPrice) || 0;
+      return sum + (quantity * price);
+    }, 0);
+
+    const discount = parseFloat(formData.discountAmount) || 0;
+    const total = subtotal - discount;
+
+    let payment = 0;
+    const percentage = parseFloat(formData.initialPaymentPercentage);
+    if (!isNaN(percentage)) {
+      payment = (total * percentage) / 100;
+    } else if (formData.initialPaymentPercentage === 'total') {
+      payment = total;
+    }
+
+    if (subtotal !== formData.subtotalPrice || total !== formData.totalPrice || payment !== formData.initialPayment) {
+      console.log(`Updating totals: Subtotal=${subtotal}, Total=${total}, Payment=${payment}`);
+      setFormData(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          subtotalPrice: subtotal,
+          totalPrice: total,
+          initialPayment: payment,
+        };
+      });
+    } else {
+       console.log('Totals are already up-to-date.');
+    }
+  }, [formData?.lineItems, formData?.discountAmount, formData?.initialPaymentPercentage, formData?.subtotalPrice, formData?.totalPrice, formData?.initialPayment]);
+
+  // --- Handlers ---
+  const handleGeneralInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => prev ? { ...prev, [name]: value } : null);
+  };
+
+  const handleManualItemChange = (e) => {
+    const { name, value } = e.target;
+    setManualItemData(prev => ({ ...prev, [name]: value }));
+};
+
+const handleAddManualItem = () => {
+    // Validaciones básicas
+    const unitPriceNum = parseFloat(manualItemData.unitPrice);
+    const quantityNum = parseFloat(manualItemData.quantity);
+
+    if (!manualItemData.category.trim() || !manualItemData.name.trim()) {
+        alert("Por favor, completa la categoría y el nombre del item manual.");
+        return;
+    }
+    if (isNaN(unitPriceNum) || unitPriceNum < 0) {
+        alert("Por favor, ingresa un precio unitario válido.");
+        return;
+    }
+    if (isNaN(quantityNum) || quantityNum <= 0) {
+        alert("Por favor, ingresa una cantidad válida.");
+        return;
+    }
+
+    const newItem = {
+        // id: undefined, // El backend asignará ID
+        // budgetItemId: null, // No viene del catálogo
+        category: manualItemData.category.trim(),
+        name: manualItemData.name.trim(),
+        unitPrice: unitPriceNum,
+        quantity: quantityNum,
+        notes: manualItemData.notes.trim(),
+        // Puedes añadir marca/capacity si los pides en el form manual
+        marca: '',
+        capacity: '',
+    };
+
+    setFormData(prev => {
+        if (!prev) return null;
+        return {
+            ...prev,
+            lineItems: [...prev.lineItems, newItem]
+        };
+    });
+
+    // Resetear formulario manual
+    setManualItemData({ category: "", name: "", unitPrice: "", quantity: "1", notes: "" });
+};
+
+  const handleLineItemChange = (index, field, value) => {
+    setFormData(prev => {
+      if (!prev) return null;
+      const updatedLineItems = [...prev.lineItems];
+      updatedLineItems[index] = { ...updatedLineItems[index], [field]: value };
+      return { ...prev, lineItems: updatedLineItems };
+    });
+  };
+
+  const handleRemoveLineItem = (indexToRemove) => {
+    setFormData(prev => {
+      if (!prev) return null;
+      const updatedLineItems = prev.lineItems.filter((_, index) => index !== indexToRemove);
+      return { ...prev, lineItems: updatedLineItems };
+    });
+  };
+
+  const handleFileChange = (e) => {
+    const { name, files } = e.target;
+    if (files.length > 0) {
+      setFormData(prev => prev ? { ...prev, [name]: files[0] } : null);
+    }
+  };
+
+  const handleSelectBudget = (id) => {
+    console.log(`>>> handleSelectBudget called with ID: ${id}`);
+    setSelectedBudgetId(id);
+    setSearchTerm("");
+    setSearchResults([]);
+  };
+
+  const handleSearchAgain = () => {
+    console.log(">>> handleSearchAgain called");
+    setSelectedBudgetId(null);
+    setFormData(null);
+    setSearchTerm("");
+    setSearchResults([]);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData || !selectedBudgetId) {
+      alert("No hay datos de formulario o budget seleccionado.");
+      return;
+    }
+    setIsSubmitting(true);
+    console.log("--- Iniciando handleSubmit (Backend PDF Gen) ---");
+    console.log("Datos del formulario (formData) al inicio:", formData);
+
+    // --- 1. Preparar datos para la actualización (Incluyendo status: 'send' si aplica) ---
+    const dataToSend = {
+      date: formData.date,
+      expirationDate: formData.expirationDate || null,
+      status: formData.status, // Enviar el estado deseado directamente
+      discountDescription: formData.discountDescription,
+      discountAmount: parseFloat(formData.discountAmount) || 0,
+      generalNotes: formData.generalNotes,
+      initialPaymentPercentage: parseFloat(formData.initialPaymentPercentage) || 60,
+      applicantName: formData.applicantName,
+      propertyAddress: formData.propertyAddress,
+    };
+
+    const lineItemsPayload = formData.lineItems.map(item => ({
+      id: item.id,
+      budgetItemId: item.budgetItemId,
+      category: item.category,
+      name: item.name,
+      unitPrice: item.unitPrice,
+      quantity: parseFloat(item.quantity) || 0,
+      notes: item.notes,
+      marca: item.marca,
+      capacity: item.capacity,
+    }));
+
+    let payload;
+    // Verificar si se están actualizando los archivos del PERMIT
+    if (formData.pdfDataFile || formData.optionalDocsFile) {
+      console.log("Detectados archivos del Permit. Usando FormData.");
+      payload = new FormData();
+      Object.keys(dataToSend).forEach(key => {
+        if (dataToSend[key] !== undefined) {
+          payload.append(key, dataToSend[key] === null ? '' : dataToSend[key]);
+        }
+      });
+      payload.append('lineItems', JSON.stringify(lineItemsPayload));
+      if (formData.pdfDataFile) payload.append('permitPdfFile', formData.pdfDataFile, formData.pdfDataFile.name);
+      if (formData.optionalDocsFile) payload.append('permitOptionalDocsFile', formData.optionalDocsFile, formData.optionalDocsFile.name);
+    } else {
+      console.log("No hay archivos del Permit. Usando JSON.");
+      payload = { ...dataToSend, lineItems: lineItemsPayload };
+    }
+
+    console.log("Payload para la actualización:", payload);
+
+    try {
+      // --- 2. Ejecutar la Actualización (UNA SOLA LLAMADA) ---
+      console.log(`Dispatching updateBudget for ID: ${selectedBudgetId}`);
+      const resultAction = await dispatch(updateBudget(selectedBudgetId, payload));
+      const updatedBudget = unwrapResult(resultAction); // El backend hizo todo (incluido PDF si status='send')
+      console.log("✅ Actualización completada por el backend:", updatedBudget);
+
+      // --- 3. YA NO SE GENERA NI SUBE PDF DESDE AQUÍ ---
+
+      // --- 4. Finalización Exitosa ---
+      alert("Presupuesto actualizado exitosamente!");
+      handleSearchAgain();
+
+    } catch (err) {
+      // --- 5. Manejo de Errores ---
+      console.error("❌ Error durante el proceso de handleSubmit:", err);
+      let errorMsg = "Ocurrió un error desconocido.";
+      if (err.response) { // Axios error
+        errorMsg = err.response.data?.error || err.response.data?.message || `Error ${err.response.status}`;
+      } else if (err.request) {
+        errorMsg = "No se pudo conectar con el servidor.";
+      } else {
+        errorMsg = err.message || errorMsg; // Error de Redux/unwrapResult o JS
+      }
+      alert(`Error al actualizar el presupuesto: ${errorMsg}`);
+    } finally {
+      // --- 6. Limpieza ---
+      setIsSubmitting(false);
+      console.log("--- Finalizando handleSubmit ---");
+    }
+  };
+
+  //  // *** NUEVA FUNCIÓN PARA VER ARCHIVOS DEL PERMIT ***
+  //  const handleViewPermitFile = async (fileUrl, fileType = 'application/pdf') => {
+  //   if (!fileUrl) return;
+  //   setViewingFile(true);
+  //   try {
+  //     // Extraer la ruta relativa de la URL completa si es necesario
+  //     // Asumiendo que fileUrl es algo como 'http://localhost:3001/permits/ID/view/pdf'
+  //     const url = new URL(fileUrl);
+  //     const relativePath = url.pathname; // Debería ser '/permits/ID/view/pdf'
+
+  //     const response = await api.get(relativePath, { // Usar la ruta relativa con Axios
+  //       responseType: 'blob',
+  //     });
+
+  //     const blob = new Blob([response.data], { type: fileType });
+  //     const blobUrl = window.URL.createObjectURL(blob);
+  //     window.open(blobUrl, '_blank'); // Abrir en nueva pestaña
+  //     // No necesitamos revocar inmediatamente si se abre en nueva pestaña
+  //     // window.URL.revokeObjectURL(blobUrl); // Podría cerrarse antes de cargar
+
+  //   } catch (error) {
+  //     console.error(`Error al obtener el archivo del permiso (${fileUrl}):`, error);
+  //     alert(`No se pudo cargar el archivo: ${error.response?.data?.message || error.message}`);
+  //   } finally {
+  //     setViewingFile(false);
+  //   }
+  // };
+
+  // --- Renderizado ---
+  return (
+    <div className="container mx-auto p-4 max-w-4xl">
+     
+
+      {/* --- Sección de Búsqueda --- */}
+      {!selectedBudgetId && (
+        <div className="mb-6 p-4 bg-gray-100 rounded-lg shadow-md">
+           <label htmlFor="searchAddress" className="block text-sm font-medium text-gray-700 mb-1">
+            Buscar por Dirección, Permit # o Applicant
+          </label>
+          <input
+            type="text"
+            id="searchAddress"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Escribe para buscar..."
+            className="input-style w-full border border-gray-300 rounded px-3 py-2"
+            list="address-suggestions"
+            autoComplete="off"
+          />
+          <datalist id="address-suggestions">
+            {uniqueAddresses.map((address, index) => (
+              <option key={index} value={address} />
+            ))}
+          </datalist>
+
+          {loadingList && <p className="text-sm text-blue-500 mt-2">Buscando presupuestos...</p>}
+          {listError && <p className="text-sm text-red-600 mt-2">Error al buscar: {listError}</p>}
+          {searchResults.length > 0 && (
+             <ul className="mt-4 border border-gray-300 rounded max-h-60 overflow-y-auto bg-white shadow">
+              {searchResults.map(budget => (
+                <li key={budget.idBudget} className="border-b border-gray-200 last:border-b-0">
+                  <button
+                    onClick={() => handleSelectBudget(budget.idBudget)}
+                    className="w-full text-left p-3 hover:bg-blue-50 focus:outline-none focus:bg-blue-100 transition duration-150 ease-in-out"
+                  >
+                    <p className="font-medium text-sm text-gray-900">{budget.propertyAddress}</p>
+                    <p className="text-xs text-gray-600">
+                      Permit: {budget.Permit?.permitNumber || 'N/A'} | Applicant: {budget.applicantName || 'N/A'} | Fecha: {budget.date ? format(parseISO(budget.date), 'MM/dd/yyyy') : 'N/A'}
+                    </p>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+           {searchTerm && searchResults.length === 0 && !loadingList && (
+            <p className="text-sm text-gray-500 mt-2">No se encontraron presupuestos que coincidan.</p>
+          )}
+        </div>
+      )}
+
+      {/* --- Sección de Edición --- */}
+      {selectedBudgetId && (
+        <>
+          <button onClick={handleSearchAgain} className="mb-4 text-sm text-blue-600 hover:text-blue-800 hover:underline">
+            &larr; Back
+          </button>
+
+          {loadingCurrentBudget && !formData && <div className="text-center p-4 text-blue-600">Cargando datos del presupuesto...</div>}
+          {currentBudgetError && !formData && <div className="text-center p-4 text-red-600">Error al cargar datos: {currentBudgetError}</div>}
+
+          {formData && (
+            <form onSubmit={handleSubmit} className="space-y-6 bg-white shadow-lg rounded-lg p-6 border border-gray-200">
+               <h3 className="text-xl font-semibold border-b border-gray-300 pb-2 mb-4 text-gray-700">Editando Presupuesto #{selectedBudgetId}</h3>
+
+               {/* --- Datos del Permit (No editables) --- */}
+               <fieldset className="border border-gray-200 p-4 rounded-md">
+                 <legend className="text-lg font-medium text-gray-600 px-2">Información del Permiso</legend>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <div>
+                     <label className="block text-sm font-medium text-gray-500">Permit #</label>
+                     <p className="mt-1 text-sm text-gray-900">{formData.permitNumber || 'N/A'}</p>
+                   </div>
+                   <div>
+                     <label className="block text-sm font-medium text-gray-500">Dirección</label>
+                     <p className="mt-1 text-sm text-gray-900">{formData.propertyAddress || 'N/A'}</p>
+                   </div>
+                   <div>
+                     <label className="block text-sm font-medium text-gray-500">Applicant</label>
+                     <p className="mt-1 text-sm text-gray-900">{formData.applicantName || 'N/A'}</p>
+                   </div>
+                   <div>
+                     <label className="block text-sm font-medium text-gray-500">Lot / Block</label>
+                     <p className="mt-1 text-sm text-gray-900">{formData.lot || 'N/A'} / {formData.block || 'N/A'}</p>
+                   </div>
+                 </div>
+               </fieldset>
+
+               {/* --- Datos Generales del Presupuesto (Editables) --- */}
+               <fieldset className="border border-gray-200 p-4 rounded-md">
+                 <legend className="text-lg font-medium text-gray-600 px-2">Detalles del Presupuesto</legend>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <div>
+                     <label htmlFor="date" className="block text-sm font-medium text-gray-700">Fecha</label>
+                     <input type="date" id="date" name="date" value={formData.date} onChange={handleGeneralInputChange} className="input-style mt-1" />
+                   </div>
+                   <div>
+                     <label htmlFor="expirationDate" className="block text-sm font-medium text-gray-700">Fecha de Expiración</label>
+                     <input type="date" id="expirationDate" name="expirationDate" value={formData.expirationDate} onChange={handleGeneralInputChange} className="input-style mt-1" />
+                   </div>
+                   <div>
+                     <label htmlFor="status" className="block text-sm font-medium text-gray-700">Estado</label>
+                     <select id="status" name="status" value={formData.status} onChange={handleGeneralInputChange} className="input-style mt-1">
+                       <option value="created">Creado</option>
+                       <option value="sent">Enviado</option>
+                       <option value="approved">Aprobado</option>
+                       <option value="rejected">Rechazado</option>
+                       <option value="expired">Expirado</option>
+                     </select>
+                   </div>
+                   <div>
+                     <label htmlFor="initialPaymentPercentage" className="block text-sm font-medium text-gray-700">Pago Inicial (%)</label>
+                     <input type="number" id="initialPaymentPercentage" name="initialPaymentPercentage" value={formData.initialPaymentPercentage} onChange={handleGeneralInputChange} className="input-style mt-1" min="0" max="100" step="1" />
+                     {/* Podrías añadir opción 'total' si es necesario */}
+                   </div>
+                 </div>
+                 <div className="mt-4">
+                   <label htmlFor="generalNotes" className="block text-sm font-medium text-gray-700">Notas Generales</label>
+                   <textarea id="generalNotes" name="generalNotes" value={formData.generalNotes} onChange={handleGeneralInputChange} rows="3" className="input-style mt-1"></textarea>
+                 </div>
+               </fieldset>
+
+               {/* --- Líneas de Items (Editables: Cantidad y Notas) --- */}
+               <fieldset className="border border-gray-200 p-4 rounded-md">
+                 <legend className="text-lg font-medium text-gray-600 px-2">Items del Presupuesto</legend>
+                 <div className="space-y-4">
+                   {formData.lineItems.map((item, index) => (
+                     <div key={item.id || index} className="border-b border-gray-100 pb-4 last:border-b-0">
+                       <p className="font-medium text-gray-800">{item.name} ({item.category})</p>
+                       <p className="text-sm text-gray-600">Marca: {item.marca || 'N/A'} | Capacidad: {item.capacity || 'N/A'} | Precio Unitario: ${item.unitPrice.toFixed(2)}</p>
+                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
+                         <div>
+                           <label htmlFor={`quantity-${index}`} className="block text-xs font-medium text-gray-700">Cantidad</label>
+                           <input
+                             type="number"
+                             id={`quantity-${index}`}
+                             value={item.quantity}
+                             onChange={(e) => handleLineItemChange(index, 'quantity', e.target.value)}
+                             className="input-style mt-1 text-sm"
+                             min="0"
+                             step="0.01"
+                           />
+                         </div>
+                         <div className="md:col-span-2">
+                           <label htmlFor={`notes-${index}`} className="block text-xs font-medium text-gray-700">Notas del Item</label>
+                           <input
+                             type="text"
+                             id={`notes-${index}`}
+                             value={item.notes}
+                             onChange={(e) => handleLineItemChange(index, 'notes', e.target.value)}
+                             className="input-style mt-1 text-sm"
+                           />
+                         </div>
+                       </div>
+                       {/* Botón para eliminar item (opcional) */}
+                       <button type="button" onClick={() => handleRemoveLineItem(index)} className="text-red-500 text-xs mt-1">Eliminar Item</button>
+                     </div>
+                     
+                   ))}
+                 </div>
+               </fieldset>
+ {/* --- Añadir Item Manualmente --- */}
+ <fieldset className="border border-gray-200 p-4 rounded-md">
+             <legend className="text-lg font-medium text-gray-600 px-2">Añadir Item Manualmente</legend>
+             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+               <div>
+                 <label htmlFor="manualCategory" className="block text-xs font-medium text-gray-700">Categoría</label>
+                 <input type="text" id="manualCategory" name="category" value={manualItemData.category} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Ej: SYSTEM TYPE" />
+               </div>
+               <div className="md:col-span-2">
+                 <label htmlFor="manualName" className="block text-xs font-medium text-gray-700">Nombre del Item</label>
+                 <input type="text" id="manualName" name="name" value={manualItemData.name} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Ej: NEW SYSTEM INSTALLATION" />
+               </div>
+               <div>
+                 <label htmlFor="manualUnitPrice" className="block text-xs font-medium text-gray-700">Precio Unitario ($)</label>
+                 <input type="number" id="manualUnitPrice" name="unitPrice" value={manualItemData.unitPrice} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Ej: 150.00" min="0" step="0.01" />
+               </div>
+               <div>
+                 <label htmlFor="manualQuantity" className="block text-xs font-medium text-gray-700">Cantidad</label>
+                 <input type="number" id="manualQuantity" name="quantity" value={manualItemData.quantity} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Ej: 1" min="0.01" step="0.01" />
+               </div>
+               <div className="md:col-span-3">
+                 <label htmlFor="manualNotes" className="block text-xs font-medium text-gray-700">Notas (Opcional)</label>
+                 <input type="text" id="manualNotes" name="notes" value={manualItemData.notes} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Detalles adicionales..." />
+               </div>
+             </div>
+             <div className="mt-4 text-right">
+               <button
+                 type="button"
+                 onClick={handleAddManualItem}
+                 className="px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+               >
+                 Añadir Item al Presupuesto
+               </button>
+             </div>
+           </fieldset>
+               {/* --- Descuento y Totales --- */}
+               <fieldset className="border border-gray-200 p-4 rounded-md">
+                 <legend className="text-lg font-medium text-gray-600 px-2">Resumen Financiero</legend>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                   <div>
+                     <label htmlFor="discountDescription" className="block text-sm font-medium text-gray-700">Descripción Descuento</label>
+                     <input type="text" id="discountDescription" name="discountDescription" value={formData.discountDescription} onChange={handleGeneralInputChange} className="input-style mt-1" />
+                   </div>
+                   <div>
+                     <label htmlFor="discountAmount" className="block text-sm font-medium text-gray-700">Monto Descuento ($)</label>
+                     <input type="number" id="discountAmount" name="discountAmount" value={formData.discountAmount} onChange={handleGeneralInputChange} className="input-style mt-1" min="0" step="0.01" />
+                   </div>
+                 </div>
+                 <div className="mt-4 space-y-2 text-right">
+                   <p className="text-sm text-gray-600">Subtotal: <span className="font-medium text-gray-900">${formData.subtotalPrice.toFixed(2)}</span></p>
+                   {/* --- LÍNEA MODIFICADA --- */}
+                   <p className="text-sm text-gray-600">Descuento: <span className="font-medium text-red-600">-${(parseFloat(formData.discountAmount) || 0).toFixed(2)}</span></p>
+                   {/* --- FIN LÍNEA MODIFICADA --- */}
+                   <p className="text-lg font-semibold text-gray-900">Total: ${formData.totalPrice.toFixed(2)}</p>
+                   <p className="text-md font-medium text-blue-700">Pago Inicial Requerido: ${formData.initialPayment.toFixed(2)}</p>
+                 </div>
+               </fieldset>
+
+               {/* --- Archivos Adjuntos ---
+               <fieldset className="border border-gray-200 p-4 rounded-md">
+            <legend className="text-lg font-medium text-gray-600 px-2">Archivos Adjuntos del Permiso</legend>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Permiso PDF</label>
+                {formData.pdfDataUrl ? (
+                  // *** BOTÓN EN LUGAR DE ENLACE ***
+                  <button
+                    type="button"
+                    onClick={() => handleViewPermitFile(formData.pdfDataUrl, 'application/pdf')}
+                    disabled={viewingFile}
+                    className="inline-flex items-center text-blue-600 hover:underline text-sm mt-1 disabled:opacity-50 disabled:cursor-wait"
+                  >
+                    Ver PDF Actual
+                    <ArrowTopRightOnSquareIcon className="h-4 w-4 ml-1"/>
+                  </button>
+                ) : (
+                  <p className="text-sm text-gray-500 mt-1">No disponible</p>
+                )}
+                <label htmlFor="pdfDataFile" className="block text-xs font-medium text-gray-500 mt-2">Reemplazar PDF:</label>
+                <input type="file" id="pdfDataFile" name="pdfDataFile" onChange={handleFileChange} accept=".pdf" className="input-style mt-1 text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Documentos Opcionales</label>
+                {formData.optionalDocsUrl ? (
+                  // *** BOTÓN EN LUGAR DE ENLACE ***
+                  <button
+                    type="button"
+                    onClick={() => handleViewPermitFile(formData.optionalDocsUrl)} // Asume PDF o tipo detectable por el navegador
+                    disabled={viewingFile}
+                    className="inline-flex items-center text-blue-600 hover:underline text-sm mt-1 disabled:opacity-50 disabled:cursor-wait"
+                  >
+                    Ver Documentos Actuales
+                    <ArrowTopRightOnSquareIcon className="h-4 w-4 ml-1"/>
+                  </button>
+                ) : (
+                  <p className="text-sm text-gray-500 mt-1">No disponible</p>
+                )}
+                <label htmlFor="optionalDocsFile" className="block text-xs font-medium text-gray-500 mt-2">Reemplazar Documentos:</label>
+                <input type="file" id="optionalDocsFile" name="optionalDocsFile" onChange={handleFileChange} accept=".pdf,.zip,.rar" className="input-style mt-1 text-sm" />
+              </div>
+            </div>
+          </fieldset> */}
+
+               {/* --- Botón de Envío --- */}
+               <div className="flex justify-end pt-4">
+                 <button
+                   type="submit"
+                   disabled={isSubmitting}
+                   className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+                 >
+                   {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
+                 </button>
+               </div>
+
+            </form>
+          )}
+          {!formData && !loadingCurrentBudget && !currentBudgetError && (
+             <div className="text-center p-4 text-orange-600">No se pudieron mostrar los datos del formulario. Verifique la consola.</div>
+           )}
+        </>
+      )}
+      {/* Estilo base para inputs si no está global */}
+      <style>{`.input-style { border: 1px solid #d1d5db; border-radius: 0.375rem; padding: 0.5rem 0.75rem; width: 100%; box-sizing: border-box; } .input-style:focus { outline: 2px solid transparent; outline-offset: 2px; border-color: #2563eb; box-shadow: 0 0 0 2px #bfdbfe; }`}</style>
+    </div>
+  );
+};
+
+export default EditBudget;

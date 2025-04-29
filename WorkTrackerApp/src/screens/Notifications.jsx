@@ -83,11 +83,13 @@ const NotificationsScreen = ({ staffId }) => {
     return (
         <View style={styles.container}>
             <Text style={styles.header}>Notificaciones ({unreadCount} sin leer)</Text>
-            {notifications.length === 0 ? (
-                <Text style={styles.noNotifications}>No tiene notificaciones</Text>
+            {/* Filtrar notificaciones antes de pasarlas a FlatList */}
+            {notifications.filter(n => !n.isRead).length === 0 ? (
+                <Text style={styles.noNotifications}>No tiene notificaciones sin leer</Text>
             ) : (
                 <FlatList
-                    data={notifications}
+                    // Solo pasar las no leídas a la lista
+                    data={notifications.filter(n => !n.isRead)}
                     keyExtractor={(item) => item.id.toString()}
                     renderItem={renderItem}
                 />

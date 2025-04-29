@@ -5,6 +5,9 @@ const initialState = {
   archivedBudgets: [],
   loading: false, // Estado de carga
   error: null, // Mensaje de error
+  currentBudget: null, // El presupuesto cargado por ID
+  loadingCurrent: false, // Loading específico para fetchBudgetById
+  errorCurrent: null,  
 };
 
 const budgetSlice = createSlice({
@@ -27,21 +30,28 @@ const budgetSlice = createSlice({
 
     // Obtener un presupuesto por ID
     fetchBudgetByIdRequest: (state) => {
-      state.loading = true;
-      state.error = null;
+      // Actualiza los estados específicos para la carga individual
+      state.loadingCurrent = true;
+      state.errorCurrent = null;
+      state.currentBudget = null; // Limpia el anterior mientras carga
     },
     fetchBudgetByIdSuccess: (state, action) => {
-      state.loading = false;
-      const index = state.budgets.findIndex((budget) => budget.id === action.payload.id);
+      state.loadingCurrent = false;
+      // *** LA CLAVE: Guarda el presupuesto obtenido en currentBudget ***
+      state.currentBudget = action.payload;
+
+      // Opcional: Mantener la actualización en la lista 'budgets' si es necesario
+      const index = state.budgets.findIndex((budget) => budget.idBudget === action.payload.idBudget); // Usa idBudget si ese es el campo correcto
       if (index !== -1) {
         state.budgets[index] = action.payload;
-      } else {
-        state.budgets.push(action.payload);
       }
+      // No es necesario el 'else { state.budgets.push(...) }' aquí generalmente
     },
     fetchBudgetByIdFailure: (state, action) => {
-      state.loading = false;
-      state.error = action.payload;
+      state.loadingCurrent = false;
+      // Guarda el error específico
+      state.errorCurrent = action.payload;
+      state.currentBudget = null; // Asegura que no queden datos viejos
     },
 
     // Crear presupuesto

@@ -1,15 +1,16 @@
 const { Notification, Staff } = require('../data');
-const { sendEmail } = require('../utils/nodeMailer/emailService');
-const { sendNotifications } = require('../utils/notificationManager');
-const { getNotificationDetailsApp } = require('../utils/notificationServiceApp');
+const { sendNotifications } = require('../utils/notifications/notificationManager');
+const { getNotificationDetailsApp } = require('../utils/notifications/notificationServiceApp');
 
 const createNotification = async (req, res) => {
   try {
     const { staffId, message, type, title, sendEmailFlag } = req.body;
-  // Validar que staffId sea un UUID
-  if (!/^[0-9a-fA-F-]{36}$/.test(staffId)) {
-    return res.status(400).json({ error: true, message: 'El ID del staff no es válido.' });
-  }
+
+    // Validar que staffId sea un UUID
+    if (!/^[0-9a-fA-F-]{36}$/.test(staffId)) {
+      return res.status(400).json({ error: true, message: 'El ID del staff no es válido.' });
+    }
+
     // Crear la notificación en la base de datos
     const notification = await Notification.create({
       title: title || 'Nueva notificación',
@@ -25,11 +26,11 @@ const createNotification = async (req, res) => {
     if (type === 'email' && sendEmailFlag) {
       const staff = await Staff.findByPk(staffId);
       if (staff && staff.email) {
-        await sendEmail(staff, message);
+        await sendNotifications('customEmail', { staff, message });
         console.log(`Correo enviado a ${staff.email}`);
       }
     } else if (type === 'push') {
-      const appDetails = await getNotificationDetailsApp('custom', { staffId, message });
+      const appDetails = await getNotificationDetailsApp('customPush', { staffId, message });
       console.log('Detalles de notificación push:', appDetails);
       // Aquí puedes manejar la lógica de Expo Push Notifications
     } else if (type === 'socket') {
@@ -47,7 +48,6 @@ const createNotification = async (req, res) => {
   }
 };
 
-
 const getNotifications = async (req, res) => {
   try {
     const { staffId } = req.params;
@@ -58,16 +58,16 @@ const getNotifications = async (req, res) => {
       include: [
         {
           model: Staff,
-          as: "sender", // Alias definido en la relación
-          attributes: ["id", "name"], // Incluye el ID y el nombre del remitente
+          as: 'sender', // Alias definido en la relación
+          attributes: ['id', 'name'], // Incluye el ID y el nombre del remitente
         },
         {
           model: Notification,
-          as: "responses", // Alias para las respuestas
-          attributes: ["id", "message", "createdAt"], // Incluye los campos necesarios de las respuestas
+          as: 'responses', // Alias para las respuestas
+          attributes: ['id', 'message', 'createdAt'], // Incluye los campos necesarios de las respuestas
         },
       ],
-      order: [["createdAt", "DESC"]],
+      order: [['createdAt', 'DESC']],
     });
 
     // Si no hay notificaciones, devolver una lista vacía en lugar de un error
@@ -79,15 +79,16 @@ const getNotifications = async (req, res) => {
     const formattedNotifications = notifications.map((notification) => ({
       ...notification.toJSON(),
       senderId: notification.sender?.id || null,
-      senderName: notification.sender?.name || "Desconocido",
+      senderName: notification.sender?.name || 'Desconocido',
     }));
 
     res.status(200).json(formattedNotifications);
   } catch (error) {
-    console.error("Error al obtener las notificaciones:", error);
-    res.status(500).json({ error: true, message: "Error interno del servidor" });
+    console.error('Error al obtener las notificaciones:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor' });
   }
 };
+
 const markAsRead = async (req, res) => {
   try {
     const { notificationId } = req.params;
@@ -118,4 +119,5 @@ const markAsRead = async (req, res) => {
     res.status(500).json({ error: true, message: 'Error interno del servidor.' });
   }
 };
+
 module.exports = { createNotification, getNotifications, markAsRead };

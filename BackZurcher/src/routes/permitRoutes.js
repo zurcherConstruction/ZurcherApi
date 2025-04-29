@@ -30,7 +30,7 @@ router.post(
 );
 
 // Obtener todos los permisos (permitido para staff)
-router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner']), PermitController.getPermits);
+router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker']), PermitController.getPermits);
 
 // Obtener un permiso por ID (permitido para staff)
 router.get('/:idPermit', allowRoles(['admin', 'recept', 'owner']), PermitController.getPermitById);
@@ -40,6 +40,13 @@ router.get('/contacts/:idPermit?', allowRoles(['admin', 'recept', 'owner']), Per
 
 // Descargar PDF de un permiso (permitido para staff)
 router.get('/pdf/:idPermit', allowRoles(['admin', 'recept', 'owner']), PermitController.downloadPermitPdf);
+
+// *** NUEVA RUTA: Visualizar INLINE el PDF principal (pdfData) ***
+router.get('/:idPermit/view/pdf', allowRoles(['admin', 'recept', 'owner']), PermitController.getPermitPdfInline);
+
+// *** NUEVA RUTA: Visualizar INLINE el documento opcional (optionalDocs) ***
+router.get('/:idPermit/view/optional', allowRoles(['admin', 'recept', 'owner']), PermitController.getPermitOptionalDocInline);
+
 
 // Actualizar un permiso (permitido solo para admin)
 router.put('/:idPermit', verifyToken, allowRoles(['admin', 'recept', 'owner']), PermitController.updatePermit);

@@ -30,7 +30,7 @@ import MaterialsCheck from "./Components/Seguimiento/WorkStatusManager";
 import SendNotification from "./Components/SendNotification";
 import Notifications from "./Components/Notifications";
 //import InstallationForm from "./Components/Works/InstalationForm";
-import BudgetEditor from "./Components/Budget/BudgetEditor";
+import CreateBudget from "./Components/Budget/CreateBudget";
 import ForgotPassword from "./Components/Auth/ForgotPassword";
 import ResetPassword from "./Components/Auth/ResetPassword";
 import ArchveBudget from "./Components/Budget/ArchiveBudget";
@@ -42,6 +42,8 @@ import BalanceStats from "./Components/BalanceStats";
 import LoadingSpinner from "./Components/LoadingSpinner";
 import UploadInitialPay from "./Components/Budget/UploadInitialPay";
 import PriceBudgetManagement from "./Components/Budget/PriceBudgetManagement";
+import ItemsBudgets from "./Components/Budget/ItemsBudgets";
+import EditBudget from "./Components/Budget/EditBudget";
 
 function App() {
   const dispatch = useDispatch();
@@ -138,6 +140,14 @@ function App() {
                 </PrivateRoute>
               }
             />
+              <Route
+              path="/itemBudget"
+              element={
+                <PrivateRoute allowedRoles={["owner", "recept","admin"]}>
+                  <ItemsBudgets />
+                </PrivateRoute>
+              }
+            />
             <Route
               path="/check"
               element={
@@ -154,6 +164,14 @@ function App() {
                 </PrivateRoute>
               }
             />
+              <Route
+              path="/editBudget"
+              element={
+                <PrivateRoute allowedRoles={["owner", "admin"]}>
+                  <EditBudget />
+                </PrivateRoute>
+              }
+            />
             <Route
               path="/pdf"
               element={
@@ -163,10 +181,10 @@ function App() {
               }
             />
             <Route
-              path="/editBudget/:budgetId"
+              path="/createBudget"
               element={
                 <PrivateRoute allowedRoles={["owner", "admin"]}>
-                  <BudgetEditor />
+                  <CreateBudget />
                 </PrivateRoute>
               }
             />

@@ -53,14 +53,14 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, SystemType, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp } = sequelize.models;
+const { Staff, Permit, Income, SystemType, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem } = sequelize.models;
 
 // Relaciones
 Permit.hasMany(Work, { foreignKey: 'propertyAddress', sourceKey: 'propertyAddress' });
 Work.belongsTo(Permit, { foreignKey: 'propertyAddress', targetKey: 'propertyAddress' });
 
-Permit.hasMany(Budget, { foreignKey: 'propertyAddress', sourceKey: 'propertyAddress' });
-Budget.belongsTo(Permit, { foreignKey: 'propertyAddress', targetKey: 'propertyAddress' });
+// Permit.hasMany(Budget, { foreignKey: 'propertyAddress', sourceKey: 'propertyAddress' });
+// Budget.belongsTo(Permit, { foreignKey: 'propertyAddress', targetKey: 'propertyAddress' });
 
 Work.hasMany(Material, { foreignKey: 'workId' });
 Material.belongsTo(Work, { foreignKey: 'workId' });
@@ -131,6 +131,43 @@ Staff.hasMany(NotificationApp, { as: 'notifications', foreignKey: 'staffId' });
 NotificationApp.hasMany(NotificationApp, { as: 'responses', foreignKey: 'parentId' });
 NotificationApp.belongsTo(NotificationApp, { as: 'parent', foreignKey: 'parentId' });
 
+
+// --- NUEVAS RELACIONES PARA BUDGET ITEMS ---
+
+// Un Budget tiene muchas BudgetLineItems
+Budget.hasMany(BudgetLineItem, {
+  foreignKey: 'budgetId', // La clave foránea en BudgetLineItem que apunta a Budget
+  as: 'lineItems'         // Alias para usar al incluir BudgetLineItems en consultas de Budget
+});
+
+// Una BudgetLineItem pertenece a un Budget
+BudgetLineItem.belongsTo(Budget, {
+  foreignKey: 'budgetId'
+});
+
+// Un BudgetItem (del catálogo) puede estar en muchas BudgetLineItems (en diferentes presupuestos)
+BudgetItem.hasMany(BudgetLineItem, {
+  foreignKey: 'budgetItemId' // La clave foránea en BudgetLineItem que apunta a BudgetItem
+});
+
+// Una BudgetLineItem pertenece a un BudgetItem (referencia al item del catálogo)
+BudgetLineItem.belongsTo(BudgetItem, {
+  foreignKey: 'budgetItemId',
+  as: 'itemDetails'       // Alias para usar al incluir detalles del BudgetItem en consultas de BudgetLineItem
+});
+
+// filepath: c:\Users\yaniz\Documents\ZurcherApi\BackZurcher\src\data\index.js
+// ...
+Permit.hasMany(Budget, { foreignKey: 'PermitIdPermit' });
+Budget.belongsTo(Permit, { foreignKey: 'PermitIdPermit' });
+
+// Permit.hasMany(Work, { foreignKey: 'idPermit' });
+// Work.belongsTo(Permit, { foreignKey: 'idPermit' });
+
+
+Budget.hasOne(Work, { foreignKey: 'idBudget' }); // O hasMany si un budget puede tener varios works
+Work.belongsTo(Budget, { foreignKey: 'idBudget' });
+// ...
 
 
 //---------------------------------------------------------------------------------//

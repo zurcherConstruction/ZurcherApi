@@ -1,4 +1,6 @@
 const { Staff } = require('../../data');
+const { Op } = require('sequelize'); // Asegúrate de importar Op para usar operadores de Sequelize
+ // Asegúrate de importar el modelo Budget si lo necesitas
 
 // Mapeo de estados a roles y mensajes
 const stateNotificationMap = {
@@ -50,30 +52,40 @@ const stateNotificationMap = {
     roles: ['owner'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} está en mantenimiento. Por favor, realiza las tareas asignadas.`,
   },
+  budgetCreated: {
+    roles: ['admin', 'owner'],
+    message: (work) => `El presupuesto para la dirección ${work.propertyAddress} está listo para ser enviado al cliente.`,
+  },
+  budgetSent: {
+    roles: ['admin', 'owner'],
+    message: (work) => `El presupuesto para la dirección ${work.propertyAddress} ha sido enviado al cliente.`,
+  },
+  incomeCreated: {
+    roles: ['admin', 'owner'],
+    message: (income) => `Se ha registrado un ingreso de $${income.amount} para el Work asociado a la dirección ${income.propertyAddress}.`,
+  },
+  workApproved: {
+    roles: ['owner', 'admin'], // Solo notificar al owner
+    message: (work) => `El trabajo para la dirección ${work.propertyAddress} (Work ID: ${work.idWork}) ha sido aprobado y está listo para ser agendado.`,
+  },
 };
 
 // Función para obtener los empleados a notificar y el mensaje
 const getNotificationDetails = async (status, work) => {
-    const notificationConfig = stateNotificationMap[status];
-    if (!notificationConfig) {
-      return null; 
-    }
-  
-    console.log('Roles a notificar:', notificationConfig.roles);
-  
-    // Buscar empleados con los roles especificados
-    const staffToNotify = await Staff.findAll({
-      where: {
-        role: notificationConfig.roles,
-      },
-    });
-  
-    console.log('Empleados a notificar:', staffToNotify);
-  
-    // Generar el mensaje
-    const message = notificationConfig.message(work);
-  
-    return { staffToNotify, message };
-  };
-  
+  const notificationConfig = stateNotificationMap[status];
+  if (!notificationConfig) {
+    throw new Error(`Estado de notificación no configurado: ${status}`);
+  }
+
+  const roles = notificationConfig.roles;
+  const message = notificationConfig.message(work);
+
+  // Obtener usuarios con los roles especificados
+  const staffToNotify = await Staff.findAll({
+    where: { role: { [Op.in]: roles } },
+  });
+
+  return { staffToNotify, message };
+};
+
 module.exports = { getNotificationDetails };

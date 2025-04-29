@@ -1,9 +1,9 @@
 const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, NotificationApp } = require('../data');
-const {sendEmail} = require('../utils/nodeMailer/emailService');
-const { getNotificationDetails } = require('../utils/nodeMailer/notificationService');
-const { getNotificationDetailsApp } = require('../utils/notificationServiceApp');
+const {sendEmail} = require('../utils/notifications/emailService');
+const { getNotificationDetails } = require('../utils/notifications/notificationService');
+const { getNotificationDetailsApp } = require('../utils/notifications/notificationServiceApp');
 const convertPdfDataToUrl = require('../utils/convertPdfDataToUrl');
-const { sendNotifications } = require('../utils/notificationManager');
+const { sendNotifications } = require('../utils/notifications/notificationManager');
  
 
 const createWork = async (req, res) => {
@@ -54,7 +54,7 @@ const getWorks = async (req, res) => {
         {
           model: Budget,
           as: 'budget',
-          attributes: ['idBudget', 'propertyAddress', 'status', 'price', 'paymentInvoice', 'initialPayment', 'date'],
+          attributes: ['idBudget', 'propertyAddress', 'status',  'paymentInvoice', 'initialPayment', 'date'],
         },
         {
           model: Permit,
@@ -89,7 +89,7 @@ const getWorkById = async (req, res) => {
 
           model: Budget,
           as: 'budget',
-          attributes: ['idBudget', 'propertyAddress', 'status', 'price', 'paymentInvoice','paymentProofType', 'initialPayment', 'date'],
+          attributes: ['idBudget', 'propertyAddress', 'status', 'paymentInvoice','paymentProofType', 'initialPayment', 'date', 'applicantName'],
         },
         {
 
@@ -161,7 +161,7 @@ const getWorkById = async (req, res) => {
             idBudget: budget.idBudget,
             propertyAddress: budget.propertyAddress,
             status: budget.status,
-            price: budget.price,
+          
             initialPayment: budget.initialPayment,
             paymentInvoice: budget.paymentInvoice,
             date: budget.date,
@@ -413,41 +413,39 @@ const addImagesToWork = async (req, res) => {
 
 const deleteImagesFromWork = async (req, res) => {
   try {
-    const { idWork } = req.params; // ID del trabajo
-    const { stage, imageUrls } = req.body; // Etapa y URLs de las imágenes a eliminar
+    const { idWork, imageId } = req.params; // Obtener IDs de los parámetros de la URL
 
-    // Verificar que el trabajo exista
+    console.log(`Recibida petición para eliminar imagen ID: ${imageId} del trabajo ID: ${idWork}`);
+
+    // Verificar que el trabajo exista (opcional pero bueno para seguridad)
     const work = await Work.findByPk(idWork);
     if (!work) {
+      console.log(`Trabajo no encontrado: ${idWork}`);
       return res.status(404).json({ error: true, message: 'Trabajo no encontrado' });
     }
 
-    // Buscar el registro de imágenes para la etapa especificada
-    const imageRecord = await Image.findOne({ where: { idWork, stage } });
-    if (!imageRecord) {
-      return res.status(404).json({ error: true, message: 'No se encontraron imágenes para esta etapa' });
-    }
-
-    // Filtrar las imágenes que no se quieren eliminar
-    const updatedImageUrls = imageRecord.imageUrls.filter((url) => !imageUrls.includes(url));
-
-    // Actualizar el registro de imágenes
-    if (updatedImageUrls.length === 0) {
-      // Si no quedan imágenes, eliminar el registro completo
-      await imageRecord.destroy();
-    } else {
-      // Si quedan imágenes, actualizar el registro
-      imageRecord.imageUrls = updatedImageUrls;
-      await imageRecord.save();
-    }
-
-    res.status(200).json({
-      message: 'Imágenes eliminadas correctamente',
-      updatedImageUrls,
+    // Intentar eliminar la imagen por su ID, asegurándose que pertenece al work correcto
+    const result = await Image.destroy({
+      where: {
+        id: imageId,
+        idWork: idWork // Asegura que la imagen pertenezca al trabajo especificado
+      }
     });
+
+    // Verificar si se eliminó alguna fila
+    if (result === 0) {
+      console.log(`Imagen no encontrada o no pertenece al trabajo: Imagen ID ${imageId}, Trabajo ID ${idWork}`);
+      // Podría ser 404 Not Found o 403 Forbidden si no pertenece al trabajo
+      return res.status(404).json({ error: true, message: 'Imagen no encontrada o no pertenece a este trabajo' });
+    }
+
+    console.log(`Imagen ID: ${imageId} eliminada exitosamente.`);
+    // Enviar respuesta de éxito sin contenido (estándar para DELETE)
+    res.status(204).send();
+
   } catch (error) {
-    console.error('Error al eliminar imágenes del trabajo:', error);
-    res.status(500).json({ error: true, message: 'Error interno del servidor' });
+    console.error('Error al eliminar imagen del trabajo:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor al eliminar imagen' });
   }
 };
 

@@ -20,6 +20,8 @@ import {
   fetchArchivedBudgetsFailure,
 } from '../Reducer/BudgetReducer';
 
+import { createAsyncThunk } from '@reduxjs/toolkit';
+
 // Obtener todos los presupuestos
 export const fetchBudgets = () => async (dispatch) => {
   dispatch(fetchBudgetsRequest());
@@ -47,19 +49,22 @@ export const fetchBudgetById = (idBudget) => async (dispatch) => {
 };
 
 // Crear un presupuesto
-export const createBudget = (budgetData) => async (dispatch) => {
-  dispatch(createBudgetRequest());
-  try {
-    const response = await api.post('/budget', budgetData); // Ruta del backend
-    dispatch(createBudgetSuccess(response.data));
-    return response.data; // Retorna la data para poder usarla en el front
-  } catch (error) {
-    const errorMessage =
-      error.response?.data?.message || 'Error al crear el presupuesto';
-    dispatch(createBudgetFailure(errorMessage));
-    return undefined;
+export const createBudget = createAsyncThunk(
+  'budgets/create', // Nombre base de la acción (generará budgets/create/pending, /fulfilled, /rejected)
+  async (budgetData, { rejectWithValue }) => {
+    try {
+      const response = await api.post('/budget', budgetData); // Ruta del backend
+      // Simplemente retorna los datos exitosos. RTK los pondrá en el payload de 'fulfilled'.
+      return response.data;
+    } catch (error) {
+      // Usa rejectWithValue para enviar un payload de error estructurado.
+      const errorMessage =
+        error.response?.data?.message || 'Error al crear el presupuesto';
+      // RTK despachará la acción 'rejected' con este payload.
+      return rejectWithValue(errorMessage);
+    }
   }
-};
+);
 
 // Actualizar un presupuesto
 export const updateBudget = (idBudget, budgetData) => async (dispatch) => {
