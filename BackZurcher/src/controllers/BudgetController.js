@@ -316,10 +316,11 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
   async updateBudget(req, res) {
     const { idBudget } = req.params;
     const transaction = await conn.transaction();
+    let generatedPdfPath = null;
 
     try {
       console.log(`--- Iniciando actualización para Budget ID: ${idBudget} ---`);
-      console.log("Datos recibidos en req.body:", req.body);
+      //console.log("Datos recibidos en req.body:", req.body);
 
       // --- 1. Buscar el Budget Existente ---
       const budget = await Budget.findByPk(idBudget, {
@@ -474,7 +475,11 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
     const finalDiscount = parseFloat(budget.discountAmount) || 0;
     const finalTotal = calculatedSubtotal - finalDiscount;
     const percentage = parseFloat(budget.initialPaymentPercentage) || 60;
-    const calculatedInitialPayment = finalTotal * (percentage / 100);
+   // ... antes de calcular initialPayment ...
+console.log(`DEBUG: Calculando Initial Payment con: finalTotal=${finalTotal} (Subtotal=${calculatedSubtotal}, Discount=${finalDiscount}), Percentage=${percentage}`);
+const calculatedInitialPayment = finalTotal * (percentage / 100);
+console.log(`DEBUG: Initial Payment Calculado = ${calculatedInitialPayment}`);
+// ...
 
     // Actualizar el objeto budget en memoria con los nuevos totales
     Object.assign(budget, {
@@ -492,62 +497,64 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
     console.log(`Totales finales para Budget ID ${idBudget} actualizados: Subtotal=${calculatedSubtotal}, Total=${finalTotal}, InitialPayment=${calculatedInitialPayment}`);
 
     // --- 7. Lógica Condicional por Estado ---
+         // --- NUEVO: 7. Generar/Regenerar PDF SIEMPRE que haya cambios ---
+         if (hasGeneralUpdates || hasLineItemUpdates) {
+          console.log("Detectados cambios generales o en items. Regenerando PDF...");
+          try {
+              const budgetDataForPdf = {
+                  ...budget.toJSON(), // Usar datos actualizados en memoria
+                  initialPaymentPercentage: budget.initialPaymentPercentage,
+                  lineItems: finalLineItemsForPdf
+              };
+
+              console.log("Datos para PDF:", JSON.stringify(budgetDataForPdf, null, 2));
+              generatedPdfPath = await generateAndSaveBudgetPDF(budgetDataForPdf); // Guardar en variable externa
+
+              // Actualizar la ruta del PDF en la BD DENTRO de la transacción
+              await budget.update({ pdfPath: generatedPdfPath }, { transaction });
+              console.log(`PDF regenerado y ruta actualizada en BD para Budget ID ${idBudget}: ${generatedPdfPath}`);
+
+          } catch (pdfError) {
+              console.error(`Error CRÍTICO al regenerar PDF para Budget ID ${idBudget}:`, pdfError);
+              // Lanzar error para revertir la transacción si la generación del PDF falla
+              throw new Error(`Error al regenerar PDF: ${pdfError.message}`);
+          }
+      } else {
+          console.log("No hubo cambios relevantes, no se regenera el PDF.");
+          generatedPdfPath = budget.pdfPath; // Usar la ruta existente si no hubo cambios
+      }
 
     // --- 7a. Lógica si el estado es 'send' (Genera PDF y envía correo) ---
     if (budget.status === 'send') {
-      console.log("El estado es 'send'. Generando PDF y procesando envío...");
-      let pdfPathForEmail = null; // Variable para guardar la ruta del PDF generado
+      console.log("El estado es 'send'. Procesando envío de correo...");
 
-      try {
-        console.log("Intentando generar PDF en backend...");
-        // Crear objeto con todos los datos actualizados para pasar al generador de PDF
-        // Incluye datos generales, Permit, totales recalculados y los items finales
-        const budgetDataForPdf = {
-          ...budget.toJSON(), // Convierte el objeto Sequelize a plano
-          lineItems: finalLineItemsForPdf // Usa el array de items preparado
-        };
+      // --- Enviar Correo (Usa generatedPdfPath o budget.pdfPath actualizado) ---
+      const pdfPathForEmail = generatedPdfPath; // Usar la ruta (nueva o existente)
 
-        // Llamar a la función para generar y guardar el PDF
-        const generatedPath = await generateAndSaveBudgetPDF(budgetDataForPdf);
-
-        // Actualizar la ruta del PDF en la BD DENTRO de la transacción
-        await budget.update({ pdfPath: generatedPath }, { transaction });
-        pdfPathForEmail = generatedPath; // Guardar la ruta para usarla en el correo
-        console.log(`PDF generado y ruta actualizada en BD para Budget ID ${idBudget}: ${pdfPathForEmail}`);
-
-      } catch (pdfError) {
-        console.error(`Error CRÍTICO al generar/guardar PDF para Budget ID ${idBudget}:`, pdfError);
-        // Revertir toda la transacción si la generación del PDF falla
-        await transaction.rollback();
-        return res.status(500).json({ error: `Error al generar PDF antes de enviar: ${pdfError.message}` });
-      }
-
-      // --- Enviar Correo (Solo si la generación de PDF fue exitosa) ---
-      if (!pdfPathForEmail) {
-         // Salvaguarda, aunque no debería ocurrir si no hubo error arriba
-         console.error(`Error: pdfPathForEmail es nulo después de generar PDF para Budget ID ${idBudget}.`);
-         await transaction.rollback(); // Revertir por seguridad
-         return res.status(500).json({ error: 'Error interno: No se pudo obtener la ruta del PDF generado.' });
-      }
-
-      console.log(`Usando PDF en ${pdfPathForEmail} para enviar correo...`);
-      // Verificar email del cliente (usando datos del Permit asociado al budget)
-      if (!budget.Permit?.applicantEmail || !budget.Permit.applicantEmail.includes('@')) {
-         console.warn(`Advertencia: El cliente para Budget ID ${idBudget} (Permit ID: ${budget.Permit?.idPermit}) no tiene un correo válido. No se enviará email.`);
+      if (!pdfPathForEmail || !fs.existsSync(pdfPathForEmail)) {
+         console.error(`Error: No se encontró el archivo PDF en ${pdfPathForEmail} para enviar por correo (Budget ID: ${idBudget}).`);
+         // Considera si esto debe revertir o solo loggear. Por ahora, log y continúa.
+          await transaction.rollback(); // Descomentar si es crítico
+          return res.status(500).json({ error: 'Error interno: No se pudo encontrar el PDF para enviar.' });
       } else {
-         const clientMailOptions = {
-            to: budget.Permit.applicantEmail,
-            subject: `Presupuesto Actualizado #${budget.idBudget} - ${budget.propertyAddress}`,
-            text: `Estimado/a ${budget.applicantName || 'Cliente'},\n\nAdjunto encontrará su presupuesto ...\n\nSaludos,\nZURCHER CONSTRUCTION`,
+         console.log(`Usando PDF en ${pdfPathForEmail} para enviar correo...`);
+         if (!budget.Permit?.applicantEmail || !budget.Permit.applicantEmail.includes('@')) {
+            console.warn(`Advertencia: Cliente para Budget ID ${idBudget} sin correo válido. No se enviará email.`);
+         } else {
+          const clientMailOptions = {
+            to: budget.Permit.applicantEmail, // Destinatario cliente
+            subject: `Budget Proposal #${idBudget} for ${budget.propertyAddress}`, // Asunto claro
+            text: `Dear ${budget.applicantName || 'Customer'},\n\nPlease find attached the budget proposal #${idBudget} for the property located at ${budget.propertyAddress}.\n\nExpiration Date: ${budget.expirationDate ? new Date(budget.expirationDate).toLocaleDateString() : 'N/A'}\nTotal Amount: $${parseFloat(budget.totalPrice || 0).toFixed(2)}\nInitial Payment (${budget.initialPaymentPercentage || 60}%): $${parseFloat(budget.initialPayment || 0).toFixed(2)}\n\n${budget.generalNotes ? 'Notes:\n' + budget.generalNotes + '\n\n' : ''}Best regards,\nZurcher Construction`, // Cuerpo del correo (o usa HTML)
+            // html: `<h1>Budget Proposal #${idBudget}</h1><p>...</p>`, // Alternativa con HTML
             attachments: [ { filename: `budget_${idBudget}.pdf`, path: pdfPathForEmail, contentType: 'application/pdf' } ],
          };
-         try {
-            console.log(`Intentando enviar correo con PDF generado al cliente: ${budget.Permit.applicantEmail}`);
-            await sendEmail(clientMailOptions);
-            console.log(`Correo con PDF generado enviado exitosamente al cliente.`);
-         } catch (clientEmailError) {
-            console.error(`Error al enviar correo con PDF generado al cliente ${budget.Permit.applicantEmail}:`, clientEmailError);
-            // Considera si este error debe revertir la transacción o solo loggearse
+            try {
+               console.log(`Intentando enviar correo con PDF al cliente: ${budget.Permit.applicantEmail}`);
+               await sendEmail(clientMailOptions);
+               console.log(`Correo con PDF enviado exitosamente al cliente.`);
+            } catch (clientEmailError) {
+               console.error(`Error al enviar correo con PDF al cliente ${budget.Permit.applicantEmail}:`, clientEmailError);
+            }
          }
       }
       // --- Fin Enviar Correo ---
@@ -875,5 +882,49 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
         console.error('Error al subir el PDF:', error);
         res.status(500).json({ error: 'Error interno al subir el PDF' });
     }
-}}
+},
+//vista previa pdf
+async viewBudgetPDF(req, res) { // Nueva función para vista previa
+  try {
+    const { idBudget } = req.params;
+    console.log(`Solicitud para ver PDF de Budget ID: ${idBudget}`);
+
+    const budget = await Budget.findByPk(idBudget, { attributes: ['pdfPath'] });
+
+    if (!budget || !budget.pdfPath) {
+      console.log(`PDF no encontrado en BD para Budget ID: ${idBudget}`);
+      return res.status(404).send('PDF no encontrado para este presupuesto.');
+    }
+
+    // Verificar si el archivo existe
+    if (!fs.existsSync(budget.pdfPath)) {
+      console.error(`Error: Archivo PDF no encontrado en la ruta física: ${budget.pdfPath}`);
+      return res.status(404).send('Archivo PDF no encontrado en el servidor.');
+    }
+
+    // *** Establecer cabeceras para visualización inline ***
+    res.setHeader('Content-Type', 'application/pdf');
+    // Opcional: 'inline' es el valor por defecto si no se especifica 'attachment'
+     res.setHeader('Content-Disposition', 'inline');
+
+    // Enviar el archivo
+    res.sendFile(budget.pdfPath, (err) => {
+      if (err) {
+        console.error(`Error al enviar el archivo PDF para visualización (ID ${idBudget}):`, err);
+        if (!res.headersSent) {
+          res.status(500).send('Error al enviar el archivo PDF.');
+        }
+      } else {
+        console.log(`PDF para Budget ID ${idBudget} enviado para visualización.`);
+      }
+    });
+
+  } catch (error) {
+    console.error(`Error general en viewBudgetPDF para ID ${req.params.idBudget}:`, error);
+    if (!res.headersSent) {
+      res.status(500).send('Error interno al procesar la solicitud del PDF.');
+    }
+  }
+}
+}
 module.exports = BudgetController;

@@ -5,10 +5,11 @@ import {
   updateBudget,
   // uploadInvoice, // Ya no se usa aquí si se eliminó handleUploadPayment
 } from "../../Redux/Actions/budgetActions";
-import { DocumentArrowDownIcon } from '@heroicons/react/24/outline'; // Icono para descarga
+import { DocumentArrowDownIcon, EyeIcon } from '@heroicons/react/24/outline'; // Icono para descarga
 //import BudgetPDF from "./BudgetPDF";
 import { parseISO, isSameMonth, format } from "date-fns";
 import api from "../../utils/axios";
+
 
 const BudgetList = () => {
   // ... (dispatch, useSelector, state, useEffect, filtros, ordenación, paginación) ...
@@ -19,6 +20,8 @@ const BudgetList = () => {
 console.log("Presupuestos:", budgets); // Verifica si los presupuestos se están obteniendo correctamente
  
 const [downloadingPdfId, setDownloadingPdfId] = useState(null); // Estado para indicar descarga
+const [viewingPdfId, setViewingPdfId] = useState(null);
+
 useEffect(() => {
     dispatch(fetchBudgets());
   }, [dispatch]);
@@ -60,6 +63,7 @@ useEffect(() => {
         responseType: 'blob', // Importante: obtener la respuesta como Blob
       });
 
+
       // Crear un enlace temporal para iniciar la descarga
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
@@ -80,6 +84,55 @@ useEffect(() => {
       setDownloadingPdfId(null); // Terminar estado de descarga
     }
   };
+
+   // *** NUEVA FUNCIÓN para manejar la vista previa del PDF ***
+   const handleViewPdf = async (budgetId) => {
+    setViewingPdfId(budgetId); // Indicar que se está cargando la vista previa
+    let objectUrl = null; // Variable para guardar la URL temporal
+
+    try {
+      console.log(`Intentando obtener PDF para vista previa: /budget/${budgetId}/pdf`);
+      // Usa la misma ruta que la descarga, ya que Axios enviará el token
+      const response = await api.get(`/budget/${budgetId}/pdf`, {
+        responseType: 'blob', // Obtener como Blob
+      });
+
+      // Crear una URL temporal para el Blob
+      objectUrl = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      console.log("Object URL creada:", objectUrl);
+
+      // Abrir la URL temporal en una nueva pestaña
+      const pdfWindow = window.open(objectUrl, '_blank', 'noopener,noreferrer');
+
+      // Opcional: Revocar la URL después de un tiempo o cuando la ventana se cierre
+      // Esto es más complejo de manejar de forma fiable, pero ayuda a liberar memoria.
+      // Una forma simple es revocarla después de un tiempo razonable.
+      if (pdfWindow) {
+         setTimeout(() => {
+            if (objectUrl) {
+               console.log("Revocando Object URL (timeout):", objectUrl);
+               window.URL.revokeObjectURL(objectUrl);
+            }
+         }, 60000); // Revocar después de 1 minuto
+      } else {
+         // Si window.open fue bloqueado por el navegador
+         alert("No se pudo abrir la ventana de vista previa. Revisa si tu navegador bloqueó las ventanas emergentes.");
+         if (objectUrl) window.URL.revokeObjectURL(objectUrl); // Limpiar si no se abrió
+      }
+
+
+    } catch (error) {
+      console.error('Error fetching PDF for viewing:', error);
+      alert('Error al obtener el PDF para visualizar. Verifique que exista y tenga permisos.');
+      if (objectUrl) {
+         // Asegurarse de revocar si hubo error después de crear la URL
+         window.URL.revokeObjectURL(objectUrl);
+      }
+    } finally {
+      setViewingPdfId(null); // Dejar de indicar carga
+    }
+  };
+  
 
 
   const formatDate = (dateString) => {
@@ -237,22 +290,37 @@ useEffect(() => {
 
                         {/* --- Botón Descargar PDF (siempre visible si existe path) --- */}
                         {budget.pdfPath ? (
-                          <button
-                            onClick={() => handleDownloadPdf(budget.idBudget, `budget_${budget.idBudget}.pdf`)}
-                            disabled={downloadingPdfId === budget.idBudget}
-                            className="inline-flex items-center justify-center bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 w-16 disabled:opacity-50 disabled:cursor-wait" // Mismo w-16
-                            title="Download PDF"
-                          >
-                            {downloadingPdfId === budget.idBudget ? (
-                              <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                              </svg>
-                            ) : (
-                              <DocumentArrowDownIcon className="h-4 w-4" /> // Quitado mr-1 si solo es icono
-                            )}
-                            <span className="ml-1">PDF</span> {/* Añadido span y ml-1 */}
-                          </button>
+                          <>
+                            {/* Botón Ver PDF */}
+                            <button
+                              onClick={() => handleViewPdf(budget.idBudget)}
+                              disabled={viewingPdfId === budget.idBudget} // Deshabilitar mientras carga
+                              className="inline-flex items-center justify-center bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700 w-16 disabled:opacity-50 disabled:cursor-wait"
+                              title="View PDF"
+                            >
+                              {viewingPdfId === budget.idBudget ? (
+                                <svg className="animate-spin h-4 w-4 text-white" /* ... spinner ... */ ></svg>
+                              ) : (
+                                <EyeIcon className="h-4 w-4" />
+                              )}
+                              <span className="ml-1">View</span>
+                            </button>
+
+                            {/* Botón Descargar PDF */}
+                            <button
+                              onClick={() => handleDownloadPdf(budget.idBudget, `budget_${budget.idBudget}.pdf`)}
+                              disabled={downloadingPdfId === budget.idBudget}
+                              className="inline-flex items-center justify-center bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 w-16 disabled:opacity-50 disabled:cursor-wait"
+                              title="Download PDF"
+                            >
+                              {downloadingPdfId === budget.idBudget ? (
+                                <svg className="animate-spin h-4 w-4 text-white" /* ... */ ></svg>
+                              ) : (
+                                <DocumentArrowDownIcon className="h-4 w-4" />
+                              )}
+                              <span className="ml-1">PDF</span>
+                            </button>
+                            </>
                         ) : (
                           // Espaciador si no hay PDF para mantener alineación (opcional)
                           <div className="w-16 h-px"></div> // O un span vacío con ancho
@@ -336,26 +404,34 @@ useEffect(() => {
                   </div>
 
                   {/* Descargar PDF (siempre visible) */}
-                  {budget.pdfPath ? ( // Usar pdfPath o budgetPdfUrl según lo que llegue del backend
-        <button
-          onClick={() => handleDownloadPdf(budget.idBudget, `budget_${budget.idBudget}.pdf`)}
-          disabled={downloadingPdfId === budget.idBudget} // Deshabilitar mientras descarga
-          className="mt-1 inline-flex items-center bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 w-16 justify-center disabled:opacity-50 disabled:cursor-wait" // Estilo deshabilitado
-          title="Download PDF"
-        >
-          {downloadingPdfId === budget.idBudget ? (
-            <svg className="animate-spin h-4 w-4 mr-1 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-             </svg>
-          ) : (
-            <DocumentArrowDownIcon className="h-4 w-4 mr-1" />
-          )}
-          PDF
-        </button>
-      ) : (
-        <span className="text-xs text-gray-400 mt-1 italic">No PDF</span>
-      )}
+                  <div className="flex items-center space-x-1"> {/* Contenedor para botones PDF */}
+                    {budget.pdfPath ? (
+                      <>
+                        {/* Botón Ver PDF (móvil) */}
+                        <button
+                                  onClick={() => handleViewPdf(budget.idBudget)}
+                                  disabled={viewingPdfId === budget.idBudget}
+                                  className="inline-flex items-center justify-center bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700 w-16 disabled:opacity-50 disabled:cursor-wait"
+                                  title="View PDF"
+                               >
+                                  {viewingPdfId === budget.idBudget ? ( <svg /* spinner */></svg> ) : ( <EyeIcon className="h-4 w-4" /> )}
+                                  <span className="ml-1">View</span>
+                               </button>
+                        {/* Botón Descargar PDF (móvil) */}
+                        <button
+                          onClick={() => handleDownloadPdf(budget.idBudget, `budget_${budget.idBudget}.pdf`)}
+                          disabled={downloadingPdfId === budget.idBudget}
+                          className="inline-flex items-center justify-center bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 w-16 disabled:opacity-50 disabled:cursor-wait"
+                          title="Download PDF"
+                        >
+                          {downloadingPdfId === budget.idBudget ? ( <svg /* ... */></svg> ) : ( <DocumentArrowDownIcon className="h-4 w-4" /> )}
+                          <span className="ml-1">PDF</span>
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-xs text-gray-400 italic">No PDF</span>
+                    )}
+                  </div> {/* Fin contenedor PDF */}
                 </div>
               </div>
             ))}
