@@ -24,7 +24,6 @@ const BarraLateral = () => {
     { name: "Dashboard", path: "/dashboard" },
     { name: "Balance", path: "/balance" },
     { name: "Items Budgets", path: "/itemBudget" },
-    { name: "Logout", path: "/logout" }, // Ruta para cerrar sesión
     { name: "Edit Budgets", path: "/editBudget" }, // Ruta para configuración
 
 

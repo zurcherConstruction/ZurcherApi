@@ -14,6 +14,7 @@ import EstadIcon from '../../assets/logos/estad.png';
 import ProgressIcon from '../../assets/logos/progress.png';
 import MaterialIcon from '../../assets/logos/materiales.png';
 import ChecksIcon from '../../assets/logos/checks.png';
+import Precio from '../../assets/logos/precio.png'; 
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -71,7 +72,7 @@ const Dashboard = () => {
       allowedRoles: ['owner', 'admin'],
     },
     {
-      path: '/editBudget/:budgetId',
+      path: '/editBudget',
       title: 'Budget Edit',
       icon: <img src={ChecksIcon} alt="Budget Edit" className="w-20 h-20" />,
       color: 'bg-gray-300',
@@ -106,9 +107,9 @@ const Dashboard = () => {
       allowedRoles: ['owner'],
     },
     {
-      path: '/priceBudget',
-      title: 'Price Budget',
-      icon: <img src={EstadIcon} alt="Price" className="w-20 h-20" />,
+      path: '/itemBudget',
+      title: 'Price Item Budget',
+      icon: <img src={Precio} alt="Price" className="w-20 h-20" />,
       color: 'bg-gray-300',
       allowedRoles: ['owner'],
     },
