@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, AppState } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import api from '../utils/axios';
 
 const NotificationsScreen = ({ staffId }) => {
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
+    const [appState, setAppState] = useState(AppState.currentState);
 
     useEffect(() => {
         if (!staffId) {
@@ -14,82 +15,111 @@ const NotificationsScreen = ({ staffId }) => {
         }
 
         console.log('Cargando notificaciones para staffId:', staffId);
-        fetchNotifications();
+        fetchNotifications(); // Carga inicial
 
-        const subscription = Notifications.addNotificationReceivedListener((notification) => {
+        // Listener para notificaciones recibidas mientras la app está abierta
+        const notificationListener = Notifications.addNotificationReceivedListener((notification) => {
             const { title, body } = notification.request.content;
-            handlePushNotification(title, body);
+            console.log('Notificación push recibida:', title);
+            // Opcional: Mostrar alerta o UI sutil en lugar de notificación local si la app está activa
+            // handlePushNotification(title, body); // Comentado para evitar duplicados si el backend ya envía
+            fetchNotifications(); // Recargar para obtener la nueva notificación y actualizar el badge
         });
 
-        return () => subscription.remove(); // Limpiar el listener al desmontar el componente
+        // Listener para cambios de estado de la app (para recargar al volver a primer plano)
+        const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+
+        return () => {
+            notificationListener.remove();
+            appStateSubscription.remove(); // Limpiar suscripción de AppState
+        };
     }, [staffId]);
 
+    // Función para manejar cambios de estado de la app
+    const handleAppStateChange = (nextAppState) => {
+        if (appState.match(/inactive|background/) && nextAppState === 'active') {
+            console.log('App ha vuelto a primer plano. Recargando notificaciones...');
+            if (staffId) {
+                fetchNotifications(); // Recargar notificaciones al volver a la app
+            }
+        }
+        setAppState(nextAppState);
+    };
+
     const fetchNotifications = async () => {
+        if (!staffId) return; // Evitar llamada si staffId no está listo
         try {
+            console.log('Fetching notifications...'); // Log para depuración
             const response = await api.get(`/notification/${staffId}`);
             if (!response.data || !Array.isArray(response.data)) {
                 console.warn('Respuesta inesperada del servidor:', response.data);
                 setNotifications([]);
                 setUnreadCount(0);
+                // *** ACTUALIZAR BADGE A 0 SI HAY ERROR O NO HAY DATOS ***
+                await Notifications.setBadgeCountAsync(0);
                 return;
             }
             setNotifications(response.data);
             const unread = response.data.filter((n) => !n.isRead).length;
             setUnreadCount(unread);
+            console.log('Unread count:', unread); // Log para depuración
+
+            // *** ACTUALIZAR EL BADGE DE LA APP ***
+            try {
+                await Notifications.setBadgeCountAsync(unread);
+                console.log('Badge count set to:', unread); // Log para depuración
+            } catch (badgeError) {
+                console.error("Error setting badge count:", badgeError);
+            }
+            // *** FIN ACTUALIZACIÓN BADGE ***
+
         } catch (error) {
             console.error('Error al obtener las notificaciones:', error);
+            // Considera poner el badge a 0 o mantener el último valor conocido en caso de error
+            // await Notifications.setBadgeCountAsync(0);
         }
     };
 
+
     const markAsRead = async (notificationId) => {
         try {
+            console.log('Marking notification as read:', notificationId); // Log
             await api.put(`/notification/${notificationId}/read`);
-            setNotifications((prevNotifications) =>
-                prevNotifications.map((n) =>
-                    n.id === notificationId ? { ...n, isRead: true } : n
-                )
-            );
-            setUnreadCount((prevCount) => prevCount - 1);
+            console.log('Notification marked as read on server.'); // Log
+
+            // *** RECARGAR NOTIFICACIONES DESPUÉS DE MARCAR COMO LEÍDA ***
+            // Esto actualizará la lista local, el contador local Y el badge de la app.
+            await fetchNotifications();
+            console.log('Notifications re-fetched after marking as read.'); // Log
+
         } catch (error) {
             console.error('Error al marcar la notificación como leída:', error);
         }
     };
 
-    const handlePushNotification = (title, body) => {
-        // Mostrar la notificación local
-        Notifications.scheduleNotificationAsync({
-            content: {
-                title,
-                body,
-                sound: true,
-            },
-            trigger: null, // Mostrar inmediatamente
-        });
-
-        // Opcional: Actualizar la lista de notificaciones desde el backend
-        fetchNotifications();
-    };
+   
 
     const renderItem = ({ item }) => (
         <TouchableOpacity
-            style={[styles.notificationItem, item.isRead && styles.readNotification]}
-            onPress={() => markAsRead(item.id)}
+            style={[styles.notificationItem, item.isRead ? styles.readNotification : null]} // Simplificado
+            onPress={() => !item.isRead && markAsRead(item.id)} // Solo marcar si no está leída
+            disabled={item.isRead} // Deshabilitar si ya está leída
         >
-            <Text style={styles.title}>{item.title}</Text>
-            <Text style={styles.message}>{item.message}</Text>
+            <Text style={[styles.title, item.isRead ? styles.readText : null]}>{item.title}</Text>
+            <Text style={[styles.message, item.isRead ? styles.readText : null]}>{item.message}</Text>
+            {/* Opcional: Mostrar fecha */}
+            {/* <Text style={styles.date}>{new Date(item.createdAt).toLocaleString()}</Text> */}
         </TouchableOpacity>
     );
-
     return (
         <View style={styles.container}>
             <Text style={styles.header}>Notificaciones ({unreadCount} sin leer)</Text>
-            {/* Filtrar notificaciones antes de pasarlas a FlatList */}
-            {notifications.filter(n => !n.isRead).length === 0 ? (
-                <Text style={styles.noNotifications}>No tiene notificaciones sin leer</Text>
+            {/* Mostrar todas las notificaciones, diferenciadas por estilo */}
+            {notifications.length === 0 ? (
+                 <Text style={styles.noNotifications}>No tiene notificaciones</Text>
             ) : (
                 <FlatList
-                    // Solo pasar las no leídas a la lista
-                    data={notifications.filter(n => !n.isRead)}
+                    data={notifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))} // Ordenar por fecha descendente
                     keyExtractor={(item) => item.id.toString()}
                     renderItem={renderItem}
                 />

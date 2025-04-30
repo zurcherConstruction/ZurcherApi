@@ -19,18 +19,25 @@ export const getIncomesAndExpensesByWorkId = createAsyncThunk(
   'balance/getIncomesAndExpensesByWorkId',
   async (idWork, { rejectWithValue }) => { // Recibe idWork
     try {
-      // Asume endpoints separados o uno combinado. Ajusta según tu API.
-      const [incomeRes, expenseRes] = await Promise.all([
-        api.get(`/income/work/${idWork}`),
-        api.get(`/expense/work/${idWork}`)
-      ]);
-      return { incomes: incomeRes.data || [], expenses: expenseRes.data || [] };
+      // *** LLAMAR AL ENDPOINT ÚNICO DEL BALANCE CONTROLLER ***
+      console.log(`Llamando a /balance/work/${idWork}`); // Log para depuración
+      const response = await api.get(`/balance/balance/${idWork}`); // <--- ÚNICA LLAMADA
+
+      // Asume que el backend devuelve un objeto como { incomes: [...], expenses: [...] }
+      console.log('Respuesta del backend:', response.data); // Log para depuración
+      // *** AJUSTAR EL RETURN PARA LA RESPUESTA ÚNICA ***
+      return {
+         incomes: response.data?.incomes || [], // Asegura que sean arrays
+         expenses: response.data?.expenses || [] // Asegura que sean arrays
+      };
     } catch (error) {
-      console.error("Error getIncomesAndExpensesByWorkId:", error.response?.data || error.message);
+      // El error ahora vendrá de la llamada a /balance/work/...
+      console.error("Error en getIncomesAndExpensesByWorkId:", error.response?.data || error.message);
       return rejectWithValue(error.response?.data?.message || error.message || 'Error al obtener ingresos y gastos');
     }
   }
 );
+
 
 export const getBalanceByWorkId = createAsyncThunk(
   'balance/getBalanceByWorkId',

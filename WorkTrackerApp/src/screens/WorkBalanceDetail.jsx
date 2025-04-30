@@ -8,7 +8,8 @@ const WorkBalanceDetail = () => {
   const route = useRoute();
   const dispatch = useDispatch();
   const { idWork, propertyAddress } = route.params; // Recibir idWork y dirección
-
+console.log('ID del trabajo:', idWork); // Log para depuración
+  console.log('Dirección de la propiedad:', propertyAddress); // Log para depuración
   // Obtener datos del estado de Redux
   const { incomes, expenses, loading, error } = useSelector((state) => state.balance);
 
@@ -17,7 +18,6 @@ const WorkBalanceDetail = () => {
     if (idWork) {
       dispatch(getIncomesAndExpensesByWorkId(idWork));
     }
-    // Limpiar errores al desmontar
     return () => {
       dispatch(clearBalanceError());
     };
@@ -44,7 +44,6 @@ const WorkBalanceDetail = () => {
       </View>
       <Text style={styles.itemDate}>Fecha: {formatDate(item.date)}</Text>
       {item.notes && <Text style={styles.itemNotes}>Notas: {item.notes}</Text>}
-      {/* Aquí podrías añadir un botón para ver el Receipt si tienes esa info */}
     </View>
   );
 
@@ -69,8 +68,6 @@ const WorkBalanceDetail = () => {
     <ScrollView style={styles.container}>
       <Text style={styles.headerTitle}>Balance del Trabajo</Text>
       <Text style={styles.subHeaderTitle}>{propertyAddress || 'Sin dirección'}</Text>
-
-      {/* Lista de Ingresos */}
       <Text style={styles.sectionTitle}>Ingresos ({incomes.length})</Text>
       {incomes.length === 0 ? (
          <Text style={styles.emptyText}>No hay ingresos registrados.</Text>

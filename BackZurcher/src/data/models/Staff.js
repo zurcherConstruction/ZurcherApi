@@ -57,6 +57,10 @@ module.exports = (sequelize) => {
         type: DataTypes.DATE,
         allowNull: true,
       },
+      pushToken: {
+        type: DataTypes.STRING, // Expo push tokens son strings
+        allowNull: true,       // Puede ser nulo si el usuario no usa la app o no ha dado permiso
+      },
       deletedAt: {
         type: DataTypes.DATE,
         allowNull: true,
