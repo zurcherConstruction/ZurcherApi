@@ -20,7 +20,7 @@ const BudgetController = {
       // ... (Extracción de req.body, validaciones, búsqueda de Permit) ...
       const {
         permitId, date, expirationDate, status = 'pending', discountDescription,
-        discountAmount = 0, generalNotes, initialPaymentPercentage = 60, lineItems
+        discountAmount = 0, generalNotes, initialPaymentPercentage: initialPaymentPercentageInput, lineItems
       } = req.body;
 
       if (!permitId) throw new Error('permitId es requerido.');
@@ -90,8 +90,23 @@ const BudgetController = {
       // --- Calcular Totales Finales ---
       const finalDiscount = parseFloat(discountAmount) || 0;
       const finalTotal = calculatedSubtotal - finalDiscount;
-      const percentage = parseFloat(initialPaymentPercentage) || 60;
-      const calculatedInitialPayment = finalTotal * (percentage / 100);
+
+      // *** CORRECCIÓN: Interpretar initialPaymentPercentageInput ***
+      let actualPercentage = 60; // Valor por defecto
+      if (initialPaymentPercentageInput === 'total') {
+          actualPercentage = 100;
+      } else {
+          const parsedPercentage = parseFloat(initialPaymentPercentageInput);
+          if (!isNaN(parsedPercentage)) {
+              actualPercentage = parsedPercentage;
+          }
+          // Si no es 'total' ni un número válido, se queda con el default 60
+      }
+      console.log(`Porcentaje de pago inicial interpretado: ${actualPercentage}%`);
+      // *** FIN CORRECCIÓN ***
+
+      // *** Usar actualPercentage para el cálculo ***
+      const calculatedInitialPayment = finalTotal * (actualPercentage / 100);
       console.log(`Totales calculados: Subtotal=${calculatedSubtotal}, Total=${finalTotal}, InitialPayment=${calculatedInitialPayment}`);
 
       // --- Crear Budget ---
@@ -103,7 +118,7 @@ const BudgetController = {
         discountDescription,
         discountAmount: finalDiscount,
         generalNotes,
-        initialPaymentPercentage: percentage,
+        initialPaymentPercentage: actualPercentage,
         applicantName: permit.applicantName,
         propertyAddress: permit.propertyAddress,
         subtotalPrice: calculatedSubtotal,
@@ -354,7 +369,7 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
         discountDescription,
         discountAmount,
         generalNotes,
-        initialPaymentPercentage,
+        initialPaymentPercentage: initialPaymentPercentageInput, 
         lineItems
       } = req.body;
 
@@ -388,7 +403,21 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
       if (discountAmount !== undefined) generalUpdateData.discountAmount = parseFloat(discountAmount) || 0;
       if (generalNotes !== undefined) generalUpdateData.generalNotes = generalNotes;
       // Asegurar que initialPaymentPercentage sea numérico
-      if (initialPaymentPercentage !== undefined) generalUpdateData.initialPaymentPercentage = parseFloat(initialPaymentPercentage) || 60;
+      let actualPercentageForUpdate = undefined; // Solo actualiza si viene en el input
+      if (initialPaymentPercentageInput !== undefined) {
+          if (initialPaymentPercentageInput === 'total') {
+              actualPercentageForUpdate = 100;
+          } else {
+              const parsedPercentage = parseFloat(initialPaymentPercentageInput);
+              if (!isNaN(parsedPercentage)) {
+                  actualPercentageForUpdate = parsedPercentage;
+              } else {
+                  actualPercentageForUpdate = 60; // Default si viene algo inválido que no sea 'total'
+              }
+          }
+          generalUpdateData.initialPaymentPercentage = actualPercentageForUpdate; // Añadir al objeto de actualización
+          console.log(`Porcentaje de pago inicial para actualizar: ${actualPercentageForUpdate}%`);
+      }
 
       // Aplicar actualizaciones generales al objeto budget en memoria (importante para cálculos posteriores)
       Object.assign(budget, generalUpdateData);
@@ -474,11 +503,13 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
     // Usar los valores actualizados en el objeto 'budget' en memoria
     const finalDiscount = parseFloat(budget.discountAmount) || 0;
     const finalTotal = calculatedSubtotal - finalDiscount;
-    const percentage = parseFloat(budget.initialPaymentPercentage) || 60;
-   // ... antes de calcular initialPayment ...
-console.log(`DEBUG: Calculando Initial Payment con: finalTotal=${finalTotal} (Subtotal=${calculatedSubtotal}, Discount=${finalDiscount}), Percentage=${percentage}`);
-const calculatedInitialPayment = finalTotal * (percentage / 100);
-console.log(`DEBUG: Initial Payment Calculado = ${calculatedInitialPayment}`);
+     // *** CORRECCIÓN: Usar el porcentaje actualizado en memoria para el cálculo ***
+     const percentageForCalculation = parseFloat(budget.initialPaymentPercentage) || 60; // Lee el valor ya actualizado (o el original si no se actualizó)
+     console.log(`DEBUG: Calculando Initial Payment con: finalTotal=${finalTotal}, Percentage=${percentageForCalculation}`);
+     const calculatedInitialPayment = finalTotal * (percentageForCalculation / 100);
+     console.log(`DEBUG: Initial Payment Calculado = ${calculatedInitialPayment}`);
+     // *** FIN CORRECCIÓN ***
+
 // ...
 
     // Actualizar el objeto budget en memoria con los nuevos totales
