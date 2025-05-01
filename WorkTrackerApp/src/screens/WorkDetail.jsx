@@ -45,7 +45,7 @@ const WorkDetail = () => {
             dataURLs[image.id] = dataURL;
           } catch (error) {
             console.error("Error processing image:", image.id, error);
-            dataURLs[image.id] = `data:image/jpeg;base64,${image.imageData}`; 
+            dataURLs[image.id] = `data:image/jpeg;base64,${image.imageData}`;
           }
         }
         setImagesWithDataURLs(dataURLs);
@@ -92,38 +92,38 @@ const WorkDetail = () => {
 
   const handleOpenPdf = async (pdfData) => {
     try {
-      
+
       const base64Pdf =
         pdfData?.data
-          ? Buffer.from(pdfData.data).toString("base64") 
+          ? Buffer.from(pdfData.data).toString("base64")
           : pdfData.startsWith("data:application/pdf;base64,")
-          ? pdfData.split(",")[1] 
-          : null;
-  
+            ? pdfData.split(",")[1]
+            : null;
+
       if (!base64Pdf) {
         throw new Error("El PDF no está en un formato válido.");
       }
-  
+
       const fileUri = `${FileSystem.cacheDirectory}temp.pdf`;
-  
-    
+
+
       await FileSystem.writeAsStringAsync(fileUri, base64Pdf, {
         encoding: FileSystem.EncodingType.Base64,
       });
-  
+
       console.log("PDF guardado en:", fileUri);
-  
-      // Abrir el PDF según la plataforma
+
+     
       if (Platform.OS === "android") {
         const contentUri = await FileSystem.getContentUriAsync(fileUri);
-  
+
         const intent = {
           action: "android.intent.action.VIEW",
           data: contentUri,
           flags: 1,
           type: "application/pdf",
         };
-  
+
         await IntentLauncher.startActivityAsync(
           "android.intent.action.VIEW",
           intent
@@ -185,63 +185,75 @@ const WorkDetail = () => {
 
   return (
     <ScrollView className="flex-1 bg-gray-100 p-4">
-      <View className="bg-white p-4 rounded-lg shadow-md mb-4">
-        <Text className="text-xl uppercase font-semibold text-gray-800 text-center">
+
+      <View className="bg-white p-4 rounded-lg shadow-md mb-4 items-center">
+
+        <Text className="text-xl uppercase font-semibold text-gray-800 text-center mb-1">
           {work.propertyAddress || "Dirección no disponible"}
         </Text>
-      </View>
-        <View className="bg-white p-4 rounded-lg shadow-md mb-4">
-            <Text className="text-lg text-gray-700 mb-4"> 
+
+        <Text className="text-lg text-gray-700 text-center">
           <Text className="font-semibold">Status:</Text> {work.status || "Sin estado"}
         </Text>
-        <View className="flex-row justify-between items-center">
+      </View>
+      <View className="bg-white p-4 rounded-lg shadow-md mb-4">
+        <View className="flex-row items-stretch">
+          {/* Botón Permit */}
           {work.Permit?.pdfData ? (
             <TouchableOpacity
               onPress={() => handleOpenPdf(work.Permit.pdfData)}
-              className="flex-1 bg-blue-600 py-2 px-3 rounded-lg shadow-md mx-1"
+              className="flex-1 bg-blue-600 py-2 px-3 rounded-lg shadow-md mx-1 h-12 justify-center"
             >
-              <Text className="text-white font-bold text-center text-sm">Permit</Text> 
+
+              <Text className="text-white font-bold text-center text-xs">Permit</Text>
             </TouchableOpacity>
           ) : (
-             <View className="flex-1 mx-1" /> 
+            <View className="flex-1 mx-1 h-12" />
           )}
+
+
           {work.Permit?.optionalDocs ? (
             <TouchableOpacity
               onPress={() => handleOpenPdf(work.Permit.optionalDocs)}
-              className="flex-1 bg-green-600 py-2 px-3 rounded-lg shadow-md mx-1">
-              <Text className="text-white font-bold text-center text-sm">Permit Flat</Text> 
+              className="flex-1 bg-green-600 py-2 px-3 rounded-lg shadow-md mx-1 h-12 justify-center"
+            >
+
+              <Text className="text-white font-bold text-center text-xs">Permit Flat</Text>
             </TouchableOpacity>
-           ) : (
-             <View className="flex-1 mx-1" /> 
+          ) : (
+            <View className="flex-1 mx-1 h-12" />
           )}
+
+
           <TouchableOpacity
             onPress={() => navigation.navigate('WorkBalanceDetail', {
               idWork: work.idWork,
               propertyAddress: work.propertyAddress
             })}
-            className="flex-1 bg-purple-600 py-2 px-3 rounded-lg shadow-md mx-1" 
+            className="flex-1 bg-purple-600 py-2 px-3 rounded-lg shadow-md mx-1 h-12 justify-center"
           >
-            <Text className="text-white font-bold text-center text-sm">Ver Balance</Text>
+
+            <Text className="text-white font-bold text-center text-xs">BALANCE</Text>
           </TouchableOpacity>
-           <TouchableOpacity
-            onPress={() => navigation.navigate('BalanceUpload', { 
-              idWork: work.idWork, 
-              propertyAddress: work.propertyAddress 
+
+
+          <TouchableOpacity
+            onPress={() => navigation.navigate('BalanceUpload', {
+              idWork: work.idWork,
+              propertyAddress: work.propertyAddress
             })}
-            className="flex-1 bg-yellow-500 py-2 px-3 rounded-lg shadow-md" 
+            className="flex-1 bg-yellow-500 py-2 px-3 rounded-lg shadow-md mx-1 h-12 justify-center"
           >
-            <Text className="text-white font-bold text-center text-sm">Cargar Mov.</Text>
+
+            <Text className="text-white font-bold text-center text-xs">GASTOS.</Text>
           </TouchableOpacity>
-        
-
-
         </View>
       </View>
 
-    
+
       {work.Permit && (
         <View className="bg-white p-4 rounded-lg shadow-md mb-4">
-   
+
           <Text className="text-lg text-gray-700">
             <Text className="font-semibold">Aplicant:</Text>
             {work.Permit.applicantName || "N/A"}
@@ -253,12 +265,12 @@ const WorkDetail = () => {
         </View>
       )}
       <View>
-  {Object.entries(groupedImages).map(([stage, images]) => (
-    <View key={stage} className="mb-6">
-      <Text className="text-lg font-bold text-gray-700 mb-2">
-        {stage} ({images.length} image)
-      </Text>
-      <ScrollView horizontal className="flex-row">
+        {Object.entries(groupedImages).map(([stage, images]) => (
+          <View key={stage} className="mb-6">
+            <Text className="text-lg font-bold text-gray-700 mb-2">
+              {stage} ({images.length} image)
+            </Text>
+            <ScrollView horizontal className="flex-row">
               {images.map((image) => (
                 <TouchableOpacity
                   key={image.id}
@@ -276,11 +288,11 @@ const WorkDetail = () => {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-    </View>
-  ))}
-</View>
+          </View>
+        ))}
+      </View>
 
- <Modal
+      <Modal
         visible={isModalVisible}
         transparent={true}
         animationType="fade"
