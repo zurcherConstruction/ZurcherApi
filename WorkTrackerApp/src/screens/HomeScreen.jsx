@@ -142,9 +142,7 @@ const HomeScreen = () => {
             </Text>
 
             <View className="relative flex-row items-center justify-between mt-5 mb-2 h-6">
-              {/* Background Bar */}
               <View className="absolute left-0 right-0 top-1/2 h-1 bg-gray-200 rounded-full -translate-y-1/2" />
-              {/* Progress Fill Bar */}
               <View
                 className="absolute left-0 top-1/2 h-1 bg-green-500 rounded-full -translate-y-1/2 transition-all duration-500"
                 style={{
@@ -167,7 +165,6 @@ const HomeScreen = () => {
                     key={etapa.backend}
                     className="relative flex-1 flex-col items-center"
                   >
-                    {/* Animated Circle Wrapper */}
                     <Animated.View
                       className={`w-4 h-4 rounded-full justify-center items-center shadow-md ${circleBg}`}
                       style={{

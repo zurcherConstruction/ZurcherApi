@@ -25,7 +25,9 @@ module.exports = (sequelize) => {
             'Imprevistos',
             'DiseñoDif',
             'Comprobante Gasto',
-            'Comprobante Ingreso'
+            'Comprobante Ingreso',
+            'Gastos Generales',
+
            ),
         allowNull: false,
       },

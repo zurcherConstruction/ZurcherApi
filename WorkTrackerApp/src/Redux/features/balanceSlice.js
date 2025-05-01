@@ -123,6 +123,68 @@ export const getReceipts = createAsyncThunk(
   }
 );
 
+// Thunk para crear Gasto General y opcionalmente subir Recibo
+export const createGeneralExpenseWithReceipt = createAsyncThunk(
+  'balance/createGeneralExpenseWithReceipt',
+  async ({ amount, notes, image }, { rejectWithValue }) => {
+    try {
+      // 1. Crear el Gasto General
+      const expenseData = {
+        amount: parseFloat(amount),
+        notes,
+        typeExpense: "Gastos Generales", // Tipo por defecto
+        date: new Date().toISOString(), // Fecha actual
+        // NO incluimos workId
+      };
+      console.log("Enviando datos de gasto general:", expenseData);
+      const expenseResponse = await api.post('/expense', expenseData);
+      const newExpense = expenseResponse.data;
+      console.log("Gasto general creado:", newExpense);
+
+      // 2. Si hay imagen, subir el Recibo asociado
+      if (image && newExpense.idExpense) {
+        const formData = new FormData();
+        formData.append('file', {
+          uri: image.uri,
+          name: image.fileName || `general_expense_${newExpense.idExpense}.jpg`,
+          type: image.mimeType || 'image/jpeg',
+        });
+        // Asociar con el ID del gasto recién creado
+        formData.append('relatedModel', 'Expense'); // Nombre del modelo asociado
+        formData.append('relatedId', newExpense.idExpense);
+        formData.append('type', 'Gastos Generales');  // ID del gasto creado
+        // Puedes añadir notas al recibo si quieres, aquí usamos las mismas del gasto
+        if (notes) {
+            formData.append('notes', notes);
+        }
+
+
+        // Log actualizado para incluir 'type'
+        console.log("Subiendo recibo para:", {
+          relatedModel: 'Expense',
+          relatedId: newExpense.idExpense,
+          type: 'Gastos Generales' // Ajusta este valor si cambias el de arriba
+      });
+        const receiptResponse = await api.post('/receipt', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+        console.log("Recibo subido:", receiptResponse.data);
+        // Podrías retornar el gasto con la info del recibo si el backend lo devuelve
+        return { ...newExpense, Receipt: receiptResponse.data };
+      }
+
+      // Si no hay imagen, solo retornar el gasto creado
+      return newExpense;
+
+    } catch (error) {
+      console.error("Error creando gasto general con recibo:", error.response?.data || error.message);
+      return rejectWithValue(error.response?.data?.message || error.message || 'Error al crear el gasto general');
+    }
+  }
+);
+
 // --- Slice Definition ---
 const balanceSlice = createSlice({
   name: 'balance',
@@ -178,7 +240,22 @@ const balanceSlice = createSlice({
       // Get Receipts
       .addCase(getReceipts.pending, (state) => { state.loading = true; state.error = null; })
       .addCase(getReceipts.fulfilled, (state, action) => { state.loading = false; state.receipts = action.payload || []; })
-      .addCase(getReceipts.rejected, (state, action) => { state.loading = false; state.error = action.payload; });
+      .addCase(getReceipts.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
+      // Create General Expense with Receipt
+      .addCase(createGeneralExpenseWithReceipt.pending, (state) => {
+        state.loading = true; // O un loading específico
+        state.error = null;
+      })
+      .addCase(createGeneralExpenseWithReceipt.fulfilled, (state, action) => {
+        state.loading = false;
+        // Opcional: podrías añadir el gasto a una lista si necesitas mostrarla
+        console.log("Gasto general añadido exitosamente (con/sin recibo):", action.payload);
+        // state.generalExpenses = [...state.generalExpenses, action.payload]; // Si tienes un array state.generalExpenses
+      })
+      .addCase(createGeneralExpenseWithReceipt.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
   },
 });
 

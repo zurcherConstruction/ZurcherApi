@@ -45,7 +45,7 @@ const WorkDetail = () => {
             dataURLs[image.id] = dataURL;
           } catch (error) {
             console.error("Error processing image:", image.id, error);
-            dataURLs[image.id] = `data:image/jpeg;base64,${image.imageData}`; // Fallback
+            dataURLs[image.id] = `data:image/jpeg;base64,${image.imageData}`; 
           }
         }
         setImagesWithDataURLs(dataURLs);
@@ -92,12 +92,12 @@ const WorkDetail = () => {
 
   const handleOpenPdf = async (pdfData) => {
     try {
-      // Verificar si el pdfData es un objeto con una propiedad `data` o si ya es una cadena base64
+      
       const base64Pdf =
         pdfData?.data
-          ? Buffer.from(pdfData.data).toString("base64") // Si es un objeto con `data`, convertirlo a base64
+          ? Buffer.from(pdfData.data).toString("base64") 
           : pdfData.startsWith("data:application/pdf;base64,")
-          ? pdfData.split(",")[1] // Si ya es una cadena base64, extraer la parte después de "base64,"
+          ? pdfData.split(",")[1] 
           : null;
   
       if (!base64Pdf) {
@@ -106,7 +106,7 @@ const WorkDetail = () => {
   
       const fileUri = `${FileSystem.cacheDirectory}temp.pdf`;
   
-      // Guardar el PDF en el sistema de archivos
+    
       await FileSystem.writeAsStringAsync(fileUri, base64Pdf, {
         encoding: FileSystem.EncodingType.Base64,
       });
@@ -223,17 +223,16 @@ const WorkDetail = () => {
           >
             <Text className="text-white font-bold text-center text-sm">Ver Balance</Text>
           </TouchableOpacity>
-           {/* *** BOTÓN PARA CARGAR BALANCE *** */}
            <TouchableOpacity
-            onPress={() => navigation.navigate('BalanceUpload', { // Navega a la pantalla definida en MainNavigator
-              idWork: work.idWork, // Pasa el idWork
-              propertyAddress: work.propertyAddress // Pasa la dirección
+            onPress={() => navigation.navigate('BalanceUpload', { 
+              idWork: work.idWork, 
+              propertyAddress: work.propertyAddress 
             })}
-            className="flex-1 bg-yellow-500 py-2 px-3 rounded-lg shadow-md" // Estilo diferente
+            className="flex-1 bg-yellow-500 py-2 px-3 rounded-lg shadow-md" 
           >
-            <Text className="text-white font-bold text-center text-sm">Cargar Mov.</Text> {/* Texto corto */}
+            <Text className="text-white font-bold text-center text-sm">Cargar Mov.</Text>
           </TouchableOpacity>
-          {/* *** FIN BOTÓN PARA CARGAR BALANCE *** */}
+        
 
 
         </View>

@@ -16,7 +16,7 @@ const AssignedWorksScreen = ({staffId}) => {
   const dispatch = useDispatch();
   const navigation = useNavigation();
 
-  const { works, loading, error } = useSelector((state) => state.work);
+  const { works, loading: reduxLoading, error } = useSelector((state) => state.work);
 
   useEffect(() => {
     if (staffId) {
@@ -83,8 +83,9 @@ const AssignedWorksScreen = ({staffId}) => {
   const handleUploadImages = (idWork) => {
     navigation.navigate("UploadScreen", { idWork });
   };
+  const isLoading = reduxLoading || !works;
 
-  if (loading) {
+  if (isLoading && !error) {
     return (
       <View className="flex-1 justify-center items-center bg-gray-100">
         <ActivityIndicator size="large" color="#1e3a8a" />
@@ -100,7 +101,7 @@ const AssignedWorksScreen = ({staffId}) => {
       </View>
     );
   }
-  if (!works || works.length === 0) {
+  if (!isLoading && (!works || works.length === 0)) {
     return (
       <View className="flex-1 justify-center items-center bg-gray-100">
         <Text className="text-lg text-gray-600">

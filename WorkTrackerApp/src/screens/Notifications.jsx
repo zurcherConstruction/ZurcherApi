@@ -107,14 +107,12 @@ const NotificationsScreen = ({ staffId }) => {
         >
             <Text style={[styles.title, item.isRead ? styles.readText : null]}>{item.title}</Text>
             <Text style={[styles.message, item.isRead ? styles.readText : null]}>{item.message}</Text>
-            {/* Opcional: Mostrar fecha */}
-            {/* <Text style={styles.date}>{new Date(item.createdAt).toLocaleString()}</Text> */}
+           <Text style={styles.date}>{new Date(item.createdAt).toLocaleString()}</Text>
         </TouchableOpacity>
     );
     return (
         <View style={styles.container}>
             <Text style={styles.header}>Notificaciones ({unreadCount} sin leer)</Text>
-            {/* Mostrar todas las notificaciones, diferenciadas por estilo */}
             {notifications.length === 0 ? (
                  <Text style={styles.noNotifications}>No tiene notificaciones</Text>
             ) : (

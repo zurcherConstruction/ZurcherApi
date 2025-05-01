@@ -17,6 +17,7 @@ const incomeTypes = [
     'Diseño',
     'Workers',
     'Imprevistos',
+    'Gastos Generales',
   ];
 
 const BalanceUploadScreen = () => {
