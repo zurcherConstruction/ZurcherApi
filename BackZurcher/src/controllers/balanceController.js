@@ -1,11 +1,27 @@
-const { Income, Expense } = require('../data');
+const { Income, Expense, Receipt } = require('../data');
 const { Sequelize } = require('sequelize');
 
 const getIncomesAndExpensesByWorkId = async (req, res) => {
   const { workId } = req.params;
   try {
-    const incomes = await Income.findAll({ where: { workId } });
-    const expenses = await Expense.findAll({ where: { workId } });
+    const incomes = await Income.findAll({ 
+      where: { workId },
+      include: [{ // <-- Incluir Recibos
+        model: Receipt,
+        as: 'Receipts',
+        attributes: ['idReceipt', 'fileUrl', 'mimeType', 'originalName', 'notes'], // Especifica columnas
+        required: false // Para que no falle si no hay recibo
+    }]
+     });
+    const expenses = await Expense.findAll({ 
+      where: { workId },
+      include: [{ // <-- Include para Expense (AÑADIDO)
+        model: Receipt,
+        as: 'Receipts', // Asegúrate que este alias coincida con tu definición en index.js
+        attributes: ['idReceipt', 'fileUrl', 'mimeType', 'originalName', 'notes'],
+        required: false
+      }]
+     });
 
     res.status(200).json({ incomes, expenses });
   } catch (error) {

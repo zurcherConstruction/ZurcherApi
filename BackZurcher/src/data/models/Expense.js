@@ -22,6 +22,7 @@ module.exports = (sequelize) => {
             'Diseño',
             'Workers',
             'Imprevistos',
+             "Comprobante Gasto",
         ),
         allowNull: false,
     },

@@ -23,13 +23,33 @@ module.exports = (sequelize) => {
             'Diseño',
             'Workers',
             'Imprevistos',
-            'DiseñoDif' ),
+            'DiseñoDif',
+            'Comprobante Gasto',
+            'Comprobante Ingreso'
+           ),
         allowNull: false,
       },
-    pdfData: {
-      type: DataTypes.BLOB, // Archivo PDF del comprobante
-      allowNull: true,
+       // --- Campos para Cloudinary ---
+    fileUrl: {
+      type: DataTypes.STRING, // URL segura devuelta por Cloudinary
+      allowNull: false,
     },
+    publicId: {
+      type: DataTypes.STRING, // ID público de Cloudinary (útil para borrar/gestionar)
+      allowNull: false,
+    },
+    mimeType: {
+      type: DataTypes.STRING, // Tipo MIME original del archivo
+      allowNull: true, // Puede ser null si algo falla antes de guardarlo
+    },
+    originalName: {
+       type: DataTypes.STRING, // Nombre original del archivo subido
+       allowNull: true,
+    },
+    // pdfData: {
+    //   type: DataTypes.BLOB, // Archivo PDF del comprobante
+    //   allowNull: true,
+    // },
     notes: {
         type: DataTypes.TEXT, // Notas adicionales sobre el comprobante
         allowNull: true,

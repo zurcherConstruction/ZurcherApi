@@ -223,6 +223,18 @@ const WorkDetail = () => {
           >
             <Text className="text-white font-bold text-center text-sm">Ver Balance</Text>
           </TouchableOpacity>
+           {/* *** BOTÓN PARA CARGAR BALANCE *** */}
+           <TouchableOpacity
+            onPress={() => navigation.navigate('BalanceUpload', { // Navega a la pantalla definida en MainNavigator
+              idWork: work.idWork, // Pasa el idWork
+              propertyAddress: work.propertyAddress // Pasa la dirección
+            })}
+            className="flex-1 bg-yellow-500 py-2 px-3 rounded-lg shadow-md" // Estilo diferente
+          >
+            <Text className="text-white font-bold text-center text-sm">Cargar Mov.</Text> {/* Texto corto */}
+          </TouchableOpacity>
+          {/* *** FIN BOTÓN PARA CARGAR BALANCE *** */}
+
 
         </View>
       </View>

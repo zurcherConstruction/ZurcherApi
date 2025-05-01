@@ -20,7 +20,8 @@ module.exports = (sequelize) => {
         type: DataTypes.ENUM(
             'Factura Pago Inicial Budget',
             'Factura Pago Final Budget',
-            'DiseñoDif'
+            'DiseñoDif',
+            "Comprobante Ingreso",
         ),
         allowNull: false,
     },

@@ -73,8 +73,8 @@ Inspection.belongsTo(Work, { foreignKey: 'workId' });
 Staff.hasMany(Work, { foreignKey: 'staffId' });
 Work.belongsTo(Staff, { foreignKey: 'staffId' });
 
-Work.belongsTo(Budget, { foreignKey: 'idBudget', as: 'budget' });
-Budget.hasMany(Work, { foreignKey: 'idBudget' });
+// Work.belongsTo(Budget, { foreignKey: 'idBudget', as: 'budget' });
+// Budget.hasMany(Work, { foreignKey: 'idBudget' });
 // Relación entre Staff y Notification
 Notification.belongsTo(Staff, { as: "sender", foreignKey: "senderId" });
 Staff.hasMany(Notification, { as: "sentNotifications", foreignKey: "senderId" });
@@ -126,7 +126,7 @@ Expense.belongsTo(Work, {
 });
 // Relación entre Staff y NotificationApp
 NotificationApp.belongsTo(Staff, { as: 'sender', foreignKey: 'senderId' });
-Staff.hasMany(NotificationApp, { as: 'notifications', foreignKey: 'staffId' });
+Staff.hasMany(NotificationApp, { as: 'notifications', foreignKey: 'staffId' }); // <-- FK diferente
 NotificationApp.hasMany(NotificationApp, { as: 'responses', foreignKey: 'parentId' });
 NotificationApp.belongsTo(NotificationApp, { as: 'parent', foreignKey: 'parentId' });
 
@@ -165,9 +165,15 @@ Budget.belongsTo(Permit, { foreignKey: 'PermitIdPermit' });
 
 
 Budget.hasOne(Work, { foreignKey: 'idBudget' }); // O hasMany si un budget puede tener varios works
-Work.belongsTo(Budget, { foreignKey: 'idBudget' });
+Work.belongsTo(Budget, { foreignKey: 'idBudget', as: 'budget' });
 // ...
+// Relación lógica con Income
+Income.hasMany(Receipt, { foreignKey: 'relatedId', constraints: false, scope: { relatedModel: 'Income' }, as: 'Receipts' }); // Añadir alias
+Receipt.belongsTo(Income, { foreignKey: 'relatedId', constraints: false });
 
+// Relación lógica con Expense
+Expense.hasMany(Receipt, { foreignKey: 'relatedId', constraints: false, scope: { relatedModel: 'Expense' }, as: 'Receipts' }); // Añadir alias
+Receipt.belongsTo(Expense, { foreignKey: 'relatedId', constraints: false });
 
 //---------------------------------------------------------------------------------//
 module.exports = {

@@ -1,10 +1,10 @@
 const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, NotificationApp } = require('../data');
-const {sendEmail} = require('../utils/notifications/emailService');
+const { sendEmail } = require('../utils/notifications/emailService');
 const { getNotificationDetails } = require('../utils/notifications/notificationService');
 const { getNotificationDetailsApp } = require('../utils/notifications/notificationServiceApp');
 const convertPdfDataToUrl = require('../utils/convertPdfDataToUrl');
 const { sendNotifications } = require('../utils/notifications/notificationManager');
- 
+
 
 const createWork = async (req, res) => {
   try {
@@ -35,15 +35,15 @@ const createWork = async (req, res) => {
       notes: `Work creado a partir del presupuesto N° ${idBudget}`,
     });
 
-     // Enviar notificaciones (correo y push)
-     console.log('Work creado:', work);
-     await sendNotifications('pending', work, req.app.get('io'));
-     
-     res.status(201).json({ message: 'Obra creada correctamente', work });
- } catch (error) {
-     console.error('Error al crear la obra:', error);
-     res.status(500).json({ error: true, message: 'Error interno del servidor' });
- }
+    // Enviar notificaciones (correo y push)
+    console.log('Work creado:', work);
+    await sendNotifications('pending', work, req.app.get('io'));
+
+    res.status(201).json({ message: 'Obra creada correctamente', work });
+  } catch (error) {
+    console.error('Error al crear la obra:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor' });
+  }
 };
 
 // Obtener todas las obras
@@ -54,7 +54,7 @@ const getWorks = async (req, res) => {
         {
           model: Budget,
           as: 'budget',
-          attributes: ['idBudget', 'propertyAddress', 'status',  'paymentInvoice', 'initialPayment', 'date'],
+          attributes: ['idBudget', 'propertyAddress', 'status', 'paymentInvoice', 'initialPayment', 'date'],
         },
         {
           model: Permit,
@@ -89,7 +89,7 @@ const getWorkById = async (req, res) => {
 
           model: Budget,
           as: 'budget',
-          attributes: ['idBudget', 'propertyAddress', 'status', 'paymentInvoice','paymentProofType', 'initialPayment', 'date', 'applicantName'],
+          attributes: ['idBudget', 'propertyAddress', 'status', 'paymentInvoice', 'paymentProofType', 'initialPayment', 'date', 'applicantName'],
         },
         {
 
@@ -132,12 +132,12 @@ const getWorkById = async (req, res) => {
         {
           model: Image,
           as: 'images',
-          attributes: ['id', 'stage', 'dateTime','imageData','comment' ],
+          attributes: ['id', 'stage', 'dateTime', 'imageData', 'comment'],
         },
         {
           model: Receipt,
           as: 'Receipts',
-          attributes: ['idReceipt', 'type', 'notes', 'pdfData', 'createdAt'],
+          attributes: ['idReceipt', 'type', 'notes', 'fileUrl', 'publicId', 'mimeType', 'originalName','createdAt'],
         },
       ],
     });
@@ -158,14 +158,14 @@ const getWorkById = async (req, res) => {
       const budget = await Budget.findOne({ where: { propertyAddress: work.propertyAddress } });
       workWithReceipts.budget = budget
         ? {
-            idBudget: budget.idBudget,
-            propertyAddress: budget.propertyAddress,
-            status: budget.status,
-          
-            initialPayment: budget.initialPayment,
-            paymentInvoice: budget.paymentInvoice,
-            date: budget.date,
-          }
+          idBudget: budget.idBudget,
+          propertyAddress: budget.propertyAddress,
+          status: budget.status,
+
+          initialPayment: budget.initialPayment,
+          paymentInvoice: budget.paymentInvoice,
+          date: budget.date,
+        }
         : null;
     }
 
@@ -181,7 +181,7 @@ const getWorkById = async (req, res) => {
 const updateWork = async (req, res) => {
   try {
     const { idWork } = req.params;
-    const { propertyAddress, status, startDate,  notes, staffId } = req.body;
+    const { propertyAddress, status, startDate, notes, staffId } = req.body;
 
     const work = await Work.findByPk(idWork);
     if (!work) {
@@ -189,7 +189,7 @@ const updateWork = async (req, res) => {
     }
     if (status && status === 'inProgress' && work.status !== 'inProgress') {
       work.status = status;
-    
+
       // Solo asignar startDate si no está ya definido
       if (!work.startDate) {
         work.startDate = new Date();
@@ -198,26 +198,26 @@ const updateWork = async (req, res) => {
     // Actualizar los campos
     work.propertyAddress = propertyAddress || work.propertyAddress;
     work.status = status || work.status;
-   work.startDate = startDate || work.startDate; // Asignar la fecha de inicio;
+    work.startDate = startDate || work.startDate; // Asignar la fecha de inicio;
     work.staffId = staffId || work.staffId; // Asignar el ID del empleado;
     work.notes = notes || work.notes;
-  
+
 
     await work.save();
 
- // Obtener detalles de notificación
- const notificationDetails = await getNotificationDetails(status, work);
-console.log('Detalles de notificación:', notificationDetails);
+    // Obtener detalles de notificación
+    const notificationDetails = await getNotificationDetails(status, work);
+    console.log('Detalles de notificación:', notificationDetails);
 
- if (notificationDetails) {
-   const { staffToNotify, message } = notificationDetails;
+    if (notificationDetails) {
+      const { staffToNotify, message } = notificationDetails;
 
-   // Enviar correos electrónicos a los empleados correspondientes
-   for (const staff of staffToNotify) {
-    console.log('Enviando correo a:', staff.email);
-    await sendEmail(staff, message);
-  }
- }
+      // Enviar correos electrónicos a los empleados correspondientes
+      for (const staff of staffToNotify) {
+        console.log('Enviando correo a:', staff.email);
+        await sendEmail(staff, message);
+      }
+    }
 
     res.status(200).json(work);
   } catch (error) {
@@ -352,7 +352,7 @@ const getAssignedWorks = async (req, res) => {
         {
           model: Image,
           as: 'images',
-          attributes: ['id', 'stage', 'dateTime','imageData','comment' ],
+          attributes: ['id', 'stage', 'dateTime', 'imageData', 'comment'],
         },
       ],
     });

@@ -7,7 +7,7 @@ import {
 } from "../../Redux/Actions/budgetActions";
 import { DocumentArrowDownIcon, EyeIcon } from '@heroicons/react/24/outline'; // Icono para descarga
 //import BudgetPDF from "./BudgetPDF";
-import { parseISO, isSameMonth, format } from "date-fns";
+import { parseISO,  format } from "date-fns";
 import api from "../../utils/axios";
 
 
@@ -16,7 +16,7 @@ const BudgetList = () => {
   const dispatch = useDispatch();
   const { budgets, loading, error } = useSelector((state) => state.budget);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 6;
+  const itemsPerPage = 10;
 console.log("Presupuestos:", budgets); // Verifica si los presupuestos se están obteniendo correctamente
  
 const [downloadingPdfId, setDownloadingPdfId] = useState(null); // Estado para indicar descarga
@@ -26,28 +26,36 @@ useEffect(() => {
     dispatch(fetchBudgets());
   }, [dispatch]);
 
-  const currentDate = new Date();
-  // Asegúrate de que budgets no sea undefined antes de filtrar
-  const currentMonthBudgets = budgets ? budgets.filter((budget) => {
-    try {
-      const budgetDate = parseISO(budget.date);
-      return isSameMonth(budgetDate, currentDate);
-    } catch (e) {
-      console.error("Error parsing budget date:", budget.date, e);
-      return false; // Excluir si la fecha es inválida
-    }
-  }) : [];
+  // const currentDate = new Date();
+  // // Asegúrate de que budgets no sea undefined antes de filtrar
+  // const currentMonthBudgets = budgets ? budgets.filter((budget) => {
+  //   try {
+  //     const budgetDate = parseISO(budget.date);
+  //     return isSameMonth(budgetDate, currentDate);
+  //   } catch (e) {
+  //     console.error("Error parsing budget date:", budget.date, e);
+  //     return false; // Excluir si la fecha es inválida
+  //   }
+  // }) : [];
 
-  const sortedBudgets = currentMonthBudgets
-    .slice()
+  const sortedBudgets = budgets ? budgets
+    .slice() // Crear una copia superficial para no mutar el estado original
     .sort((a, b) => {
-      // Orden más específico: created > send > approved > rejected
-      const statusOrder = { created: 1, send: 2, approved: 3, rejected: 4 };
-      return (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
-    });
-
+      try {
+        // Parsear las fechas de creación
+        const dateA = parseISO(a.createdAt);
+        const dateB = parseISO(b.createdAt);
+        // Orden descendente (más reciente primero)
+        return dateB - dateA;
+      } catch (e) {
+        console.error("Error parsing createdAt date for sorting:", a.createdAt, b.createdAt, e);
+        return 0; // Mantener orden original si hay error de parseo
+      }
+    }) : [];
+     // --- 3. APLICAR PAGINACIÓN A LA LISTA COMPLETA Y ORDENADA ---
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  // Usar sortedBudgets (que ahora contiene todos los presupuestos ordenados)
   const currentBudgetsForDisplay = sortedBudgets.slice(indexOfFirstItem, indexOfLastItem);
 
   const handlePageChange = (pageNumber) => {

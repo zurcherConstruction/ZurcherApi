@@ -17,27 +17,28 @@ const initialState = {
 
 export const getIncomesAndExpensesByWorkId = createAsyncThunk(
   'balance/getIncomesAndExpensesByWorkId',
-  async (idWork, { rejectWithValue }) => { // Recibe idWork
+  async (idWork, { rejectWithValue }) => {
     try {
-      // *** LLAMAR AL ENDPOINT ÚNICO DEL BALANCE CONTROLLER ***
-      console.log(`Llamando a /balance/work/${idWork}`); // Log para depuración
-      const response = await api.get(`/balance/balance/${idWork}`); // <--- ÚNICA LLAMADA
+      // Usamos la URL que funcionó según tus logs
+      const url = `/balance/balance/${idWork}`;
+      console.log(`Llamando a ${url}`);
+      const response = await api.get(url);
+      console.log('Respuesta del backend:', response.data);
 
-      // Asume que el backend devuelve un objeto como { incomes: [...], expenses: [...] }
-      console.log('Respuesta del backend:', response.data); // Log para depuración
-      // *** AJUSTAR EL RETURN PARA LA RESPUESTA ÚNICA ***
+      // --- AJUSTE CLAVE ---
+      // Extraer los arrays desde la propiedad 'details'
       return {
-         incomes: response.data?.incomes || [], // Asegura que sean arrays
-         expenses: response.data?.expenses || [] // Asegura que sean arrays
+         incomes: response.data?.details?.incomes || [], // Accede a response.data.details.incomes
+         expenses: response.data?.details?.expenses || [] // Accede a response.data.details.expenses
       };
+      // --- FIN AJUSTE ---
+
     } catch (error) {
-      // El error ahora vendrá de la llamada a /balance/work/...
       console.error("Error en getIncomesAndExpensesByWorkId:", error.response?.data || error.message);
       return rejectWithValue(error.response?.data?.message || error.message || 'Error al obtener ingresos y gastos');
     }
   }
 );
-
 
 export const getBalanceByWorkId = createAsyncThunk(
   'balance/getBalanceByWorkId',
@@ -138,10 +139,16 @@ const balanceSlice = createSlice({
       .addCase(getIncomesAndExpensesByWorkId.pending, (state) => { state.loading = true; state.error = null; })
       .addCase(getIncomesAndExpensesByWorkId.fulfilled, (state, action) => {
         state.loading = false;
+        console.log("Payload recibido en extraReducer.fulfilled:", action.payload);
         state.incomes = action.payload.incomes || [];
         state.expenses = action.payload.expenses || [];
+      // --- AÑADIR ESTOS LOGS ---
+      console.log("Estado 'incomes' actualizado en Redux:", JSON.stringify(state.incomes, null, 2));
+      console.log("Estado 'expenses' actualizado en Redux:", JSON.stringify(state.expenses, null, 2));
+      // --- FIN LOGS ---
+     
       })
-      .addCase(getIncomesAndExpensesByWorkId.rejected, (state, action) => { state.loading = false; state.error = action.payload; }) // Usa action.payload
+      .addCase(getIncomesAndExpensesByWorkId.rejected, (state, action) => { state.loading = false; state.error = action.payload; console.error("Error recibido en extraReducer.rejected:", action.payload);}) // Usa action.payload
 
       // Get Balance by Work ID
       .addCase(getBalanceByWorkId.pending, (state) => { state.loading = true; state.error = null; })

@@ -12,7 +12,8 @@ console.log('ID del trabajo:', idWork); // Log para depuración
   console.log('Dirección de la propiedad:', propertyAddress); // Log para depuración
   // Obtener datos del estado de Redux
   const { incomes, expenses, loading, error } = useSelector((state) => state.balance);
-
+  console.log("Incomes desde useSelector:", incomes); // <-- Añade este log
+  console.log("Expenses desde useSelector:", expenses); // <-- Añade este log
   // Cargar datos al montar el componente
   useEffect(() => {
     if (idWork) {
@@ -36,14 +37,14 @@ console.log('ID del trabajo:', idWork); // Log para depuración
   // Renderizar item de la lista
   const renderItem = ({ item, type }) => (
     <View style={[styles.itemContainer, type === 'income' ? styles.incomeItem : styles.expenseItem]}>
-      <View style={styles.itemHeader}>
-        <Text style={styles.itemType}>{item.typeIncome || item.typeExpense || 'Sin tipo'}</Text>
-        <Text style={[styles.itemAmount, type === 'income' ? styles.incomeAmount : styles.expenseAmount]}>
-          ${parseFloat(item.amount || 0).toFixed(2)}
-        </Text>
-      </View>
-      <Text style={styles.itemDate}>Fecha: {formatDate(item.date)}</Text>
-      {item.notes && <Text style={styles.itemNotes}>Notas: {item.notes}</Text>}
+    <View style={styles.itemHeader}>
+      {/* Usar item.name */}
+      <Text style={styles.itemType}>{item.name || 'Sin nombre'}</Text>
+      {/* Usar item.value */}
+      <Text style={[styles.itemAmount, type === 'income' ? styles.incomeAmount : styles.expenseAmount]}>
+        ${parseFloat(item.value || 0).toFixed(2)}
+      </Text>
+    </View>
     </View>
   );
 

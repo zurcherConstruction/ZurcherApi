@@ -8,6 +8,7 @@ import { toast } from "react-toastify";
 const incomeTypes = [
   "Factura Pago Final Budget",
   "DiseñoDif",
+  "Comprobante Ingreso",
 ];
 
 const expenseTypes = [
@@ -15,6 +16,8 @@ const expenseTypes = [
   "Diseño",
   "Workers",
   "Imprevistos",
+  "Comprobante Gasto",
+  
 ];
 
 const AttachReceipt = () => {
@@ -39,64 +42,89 @@ const AttachReceipt = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!selectedWork || !type || !file || !amount) {
+    if (!selectedWork || !type || !amount) {
       toast.error("Por favor, completa todos los campos.");
       return;
     }
+    if (!file) { // Validar archivo por separado si es obligatorio
+      toast.error("Por favor, adjunta un archivo de comprobante.");
+      return;
+  }
 
-    try {
-      // Crear el body dinámico según el tipo seleccionado
-      const isIncome = incomeTypes.includes(type);
-      const data = {
-        date: new Date().toISOString().split("T")[0], // Fecha actual
-        amount: parseFloat(amount),
-        notes,
-        workId: selectedWork,
-        ...(isIncome
-          ? { typeIncome: type } // Si es ingreso
-          : { typeExpense: type }), // Si es gasto
-      };
-      console.log('Datos a enviar:', {
-        isIncome,
-        data,
-        selectedWork,
-        type,
-        amount,
-        notes
-      });
 
-      // Llamar a la acción correspondiente
-      if (isIncome) {
-        await incomeActions.create(data);
-        toast.success("Ingreso registrado correctamente.");
-      } else {
-        await expenseActions.create(data);
-        toast.success("Gasto registrado correctamente.");
+  let createdRecordId = null; // Variable para guardar el ID del Income/Expense
+  let createdRecord; 
+
+  try {
+    // --- 1. Crear Income o Expense y CAPTURAR el resultado ---
+    const isIncome = incomeTypes.includes(type);
+    const data = {
+      date: new Date().toISOString().split("T")[0],
+      amount: parseFloat(amount),
+      notes,
+      workId: selectedWork,
+      ...(isIncome ? { typeIncome: type } : { typeExpense: type }),
+    };
+
+    console.log('Datos a enviar (Income/Expense):', data);
+
+    if (isIncome) {
+      // Asumiendo que la acción devuelve el objeto creado
+      createdRecord = await incomeActions.create(data);
+      console.log("Resultado de incomeActions.create:", createdRecord); // <--- ESTE LOG
+      if (!createdRecord || !createdRecord.idIncome) { // Ajusta 'idIncome' si el nombre es diferente
+          throw new Error("No se pudo obtener el ID del ingreso creado.");
       }
-
-      // Crear un FormData para enviar el archivo PDF
-      const formData = new FormData();
-      formData.append("relatedModel", "Work"); // Siempre será "Work"
-      formData.append("relatedId", selectedWork); // ID del Work asociado
-      formData.append("type", type); // Tipo de comprobante
-      formData.append("pdfData", file); // Archivo PDF
-      formData.append("notes", notes); // Notas opcionales
-
-      // Llamar a la acción para crear el comprobante
-      await dispatch(createReceipt(formData));
-      toast.success("Comprobante adjuntado correctamente.");
-
-      // Limpiar el formulario
-      setSelectedWork("");
-      setType("");
-      setFile(null);
-      setNotes("");
-      setAmount("");
-    } catch (error) {
-      console.error("Error al procesar la solicitud:", error);
-      toast.error("Hubo un error al procesar la solicitud.");
+      createdRecordId = createdRecord.idIncome; // Guardar el ID del Ingreso
+      toast.success("Ingreso registrado correctamente.");
+    } else {
+      // Asumiendo que la acción devuelve el objeto creado
+      createdRecord = await expenseActions.create(data);
+       if (!createdRecord || !createdRecord.idExpense) { // Ajusta 'idExpense' si el nombre es diferente
+          throw new Error("No se pudo obtener el ID del gasto creado.");
+      }
+      createdRecordId = createdRecord.idExpense; // Guardar el ID del Gasto
+      toast.success("Gasto registrado correctamente.");
     }
-  };
+
+    // --- 2. Crear FormData para el Recibo USANDO el ID obtenido ---
+    if (file && createdRecordId) { // Asegurarse de que tenemos archivo y ID
+        const formData = new FormData();
+        formData.append("relatedModel", isIncome ? "Income" : "Expense"); // Modelo correcto
+        formData.append("relatedId", createdRecordId); // <-- ID del Gasto/Ingreso recién creado
+        formData.append("type", type); // Tipo (puede ser el mismo o uno genérico)
+        formData.append("file", file); // Archivo
+        formData.append("notes", notes); // Notas
+
+        console.log('Enviando FormData para Receipt:', Object.fromEntries(formData));
+
+        // --- 3. Llamar a la acción para crear el comprobante ---
+        await dispatch(createReceipt(formData));
+        toast.success("Comprobante adjuntado correctamente.");
+    } else if (file && !createdRecordId) {
+        // Esto no debería ocurrir si la lógica anterior es correcta
+        console.error("Se intentó adjuntar archivo pero no se obtuvo ID del registro asociado.");
+        toast.warn("Se creó el registro, pero hubo un problema al obtener su ID para adjuntar el comprobante.");
+    }
+
+
+    // Limpiar el formulario
+    setSelectedWork("");
+    setType("");
+    setFile(null);
+    if (e.target.elements.file) {
+       e.target.elements.file.value = null;
+    }
+    setNotes("");
+    setAmount("");
+
+  } catch (error) {
+    console.error("Error al procesar la solicitud:", error);
+    const errorMsg = error?.response?.data?.message || error?.message || "Hubo un error al procesar la solicitud.";
+    toast.error(errorMsg);
+  }
+};
+
 
   return (
     <div className="p-4 bg-white shadow-md rounded-lg max-w-md mx-auto">
@@ -172,15 +200,16 @@ const AttachReceipt = () => {
         {/* Adjuntar archivo */}
         <div>
           <label htmlFor="file" className="block text-gray-700 text-sm font-bold mb-2">
-            Adjuntar Archivo:
+          Adjuntar Comprobante (PDF o Imagen):
           </label>
           <input
             type="file"
             id="file"
-            accept="application/pdf" // Solo permitir archivos PDF
+            accept="application/pdf, image/jpeg, image/png, image/gif" // Solo permitir archivos PDF
             onChange={(e) => setFile(e.target.files[0])}
             className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
           />
+            {file && <p className="text-sm text-gray-600 mt-1">Archivo seleccionado: {file.name}</p>}
         </div>
 
         {/* Notas opcionales */}

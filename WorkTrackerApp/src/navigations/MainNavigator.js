@@ -15,7 +15,7 @@ import AssignedWorksScreen from '../screens/AssignedWorksScreen';
 import WorkDetail from '../screens/WorkDetail';
 import UploadScreen from '../screens/UploadScreen';
 import WorkBalanceDetail from '../screens/WorkBalanceDetail';
-//import BalanceUploadScreen from '../screens/BalanceUploadScreen'; // Asegúrate que esté descomentado si lo usas
+import BalanceUploadScreen from '../screens/BalanceUploadScreen'; // Asegúrate que esté descomentado si lo usas
 
 // --- Context & Actions ---
 import { NotificationContext } from '../utils/notificationContext';
@@ -143,7 +143,7 @@ const MainNavigator = () => {
             <Stack.Screen name="WorkDetail" component={WorkDetail} options={{ title: 'Detalle de Obra' }} />
             <Stack.Screen name="UploadScreen" component={UploadScreen} options={{ title: 'Cargar Imágenes' }} />
             <Stack.Screen name="WorkBalanceDetail" component={WorkBalanceDetail} options={{ title: 'Detalle de Balance' }} />
-            {/* <Stack.Screen name="BalanceUpload" component={BalanceUploadScreen} options={{ title: 'Cargar Balance' }} /> */}
+           <Stack.Screen name="BalanceUpload" component={BalanceUploadScreen} options={{ title: 'Cargar Balance' }} /> 
 
           </Stack.Group>
         )}

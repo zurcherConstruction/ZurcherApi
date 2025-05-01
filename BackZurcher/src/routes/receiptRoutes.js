@@ -5,7 +5,7 @@ const { createReceipt, getReceiptsByRelated, deleteReceipt } = require('../contr
 
 const router = express.Router();
 
-router.post('/', upload.single('pdfData'), createReceipt); // Procesa el archivo PDF
+router.post('/', upload.single('file'), createReceipt); // Procesa el archivo PDF
 router.get('/:relatedModel/:relatedId', getReceiptsByRelated);
 router.delete('/:idReceipt', deleteReceipt);
 
