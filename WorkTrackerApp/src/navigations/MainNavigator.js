@@ -2,7 +2,7 @@ import React, { useContext } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { createDrawerNavigator, DrawerContentScrollView,DrawerItemList, DrawerItem } from '@react-navigation/drawer';
+import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList, DrawerItem } from '@react-navigation/drawer';
 import { useSelector, useDispatch } from 'react-redux';
 import { StyleSheet, TouchableOpacity, View, Text } from 'react-native';
 import HomeScreen from '../screens/HomeScreen'; // Asumiendo que existe
@@ -48,7 +48,7 @@ const AuthenticatedHeaderRight = () => {
           )}
         </TouchableOpacity>
       )}
-     
+
     </View>
   );
 };
@@ -80,8 +80,8 @@ const AppDrawerNavigator = () => {
 
   return (
     <Drawer.Navigator
-       drawerContent={(props) => <CustomDrawerContent {...props} />} // Usar contenido personalizado
-       screenOptions={({ navigation }) => ({
+      drawerContent={(props) => <CustomDrawerContent {...props} />} // Usar contenido personalizado
+      screenOptions={({ navigation }) => ({
         headerShown: true, // Mostrar header gestionado por el Drawer
         headerLeft: () => ( // Botón de menú
           <TouchableOpacity
@@ -118,23 +118,23 @@ const AppDrawerNavigator = () => {
         <>
           {/* Renderizar AssignedWorksScreen pasando staffId */}
           <Drawer.Screen name="MyAssignedWorks" options={{ title: 'Mis Trabajos Asignados' }}>
-             {(props) => <AssignedWorksScreen {...props} staffId={staff?.id} />}
+            {(props) => <AssignedWorksScreen {...props} staffId={staff?.id} />}
           </Drawer.Screen>
           {/* GeneralExpense se añade abajo como común */}
         </>
       )}
 
-       {/* --- Receipt / Admin --- */}
-       {(staff?.role === 'receipt' || staff?.role === 'admin') && (
-         <>
-            <Drawer.Screen
-                name="AllWorksAdminReceipt" // Nombre único
-                component={WorkScreen} // Usamos la misma pantalla
-                options={{ title: 'Ver Todos los Trabajos' }}
-            />
-             {/* GeneralExpense se añade abajo como común */}
-         </>
-       )}
+      {/* --- Receipt / Admin --- */}
+      {(staff?.role === 'receipt' || staff?.role === 'admin') && (
+        <>
+          <Drawer.Screen
+            name="AllWorksAdminReceipt" // Nombre único
+            component={WorkScreen} // Usamos la misma pantalla
+            options={{ title: 'Ver Todos los Trabajos' }}
+          />
+          {/* GeneralExpense se añade abajo como común */}
+        </>
+      )}
 
       {/* --- Pantallas Comunes para TODOS los roles autenticados --- */}
       <Drawer.Screen
@@ -152,7 +152,7 @@ const AppDrawerNavigator = () => {
 
 // --- Main Application Navigator ---
 const MainNavigator = () => {
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const { isAuthenticated, staff } = useSelector((state) => state.auth);
 
   return (
     <NavigationContainer>
@@ -187,9 +187,10 @@ const MainNavigator = () => {
               options={{ headerShown: false }} // El Drawer maneja su propio header
             />
 
-            {/* Pantallas Adicionales (a las que se navega DESDE el Drawer u otras pantallas) */}
-            {/* Estas SÍ usarán los screenOptions del Stack.Group */}
-            <Stack.Screen name="Notifications" component={Notifications} options={{ title: 'Notificaciones' }} />
+
+            <Stack.Screen name="Notifications" options={{ title: 'Notificaciones' }}>
+              {(props) => <Notifications {...props} staffId={staff?.id} />}
+            </Stack.Screen>
             <Stack.Screen name="WorkDetail" component={WorkDetail} options={{ title: 'Detalle de Obra' }} />
             {/* UploadScreen genérico (si se necesita navegar a él fuera del contexto de AssignedWorks) */}
             {/* <Stack.Screen name="UploadScreen" component={UploadScreen} options={{ title: 'Cargar Imágenes' }} /> */}
