@@ -8,16 +8,18 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Picker } from '@react-native-picker/picker';
 
 const incomeTypes = [
-    'Factura Pago Inicial Budget',
-    'Factura Pago Final Budget',
-    'DiseñoDif'
+           'Factura Pago Inicial Budget',
+            'Factura Pago Final Budget',
+            'DiseñoDif',
+            "Comprobante Ingreso",
   ];
   const expenseTypes = [
-    'Materiales',
-    'Diseño',
-    'Workers',
-    'Imprevistos',
-    'Gastos Generales',
+           'Materiales',
+            'Diseño',
+            'Workers',
+            'Imprevistos',
+            "Comprobante Gasto",
+            "Gastos Generales",
   ];
 
 const BalanceUploadScreen = () => {
@@ -93,9 +95,10 @@ const BalanceUploadScreen = () => {
       return;
     }
 
-    let createdRecord; // Para guardar el resultado de createIncome/createExpense
+     // Para guardar el resultado de createIncome/createExpense
 
     try {
+      let createdRecord;
       // --- Paso 1: Crear el registro de Income o Expense usando Thunks ---
       if (uploadType === 'income') {
         const incomeData = {
@@ -122,9 +125,15 @@ const BalanceUploadScreen = () => {
         console.log('Expense creado:', createdRecord);
         console.log('archivo seleccionado:', selectedFile);
       }
+      console.log('Verificando condición para subir Receipt:', {
+        isFileSelected: !!selectedFile,
+        isRecordCreated: !!createdRecord,
+        recordId: createdRecord?.idExpense || createdRecord?.idIncome
+    });
 
+    const recordId = createdRecord?.idExpense || createdRecord?.idIncome; // Obtén el ID correcto
       // --- Paso 2: Si hay archivo seleccionado y el registro se creó, subir el Receipt ---
-      if (selectedFile && createdRecord && createdRecord.id) {
+      if (selectedFile && createdRecord && recordId) {
         console.log('Preparando FormData para Receipt...');
         const relatedModel = uploadType === 'income' ? 'Income' : 'Expense';
         const formData = new FormData();
@@ -138,11 +147,16 @@ const BalanceUploadScreen = () => {
        
         // Adjuntar otros datos necesarios para el Receipt
         formData.append('relatedModel', relatedModel);
-        formData.append('relatedId', createdRecord.id); // ID del registro recién creado
-        formData.append('type', `Comprobante ${typeDetail}`); // Tipo descriptivo
+        formData.append('relatedId', recordId); // ID del registro recién creado
+        formData.append('type', typeDetail); // Tipo descriptivo
         formData.append('notes', `Comprobante para ${relatedModel} - ${typeDetail}`);
 
-        console.log('FormData para Receipt:', formData);
+        console.log('FormData para Receipt (solo campos, no archivo):', {
+          relatedModel: formData.get('relatedModel'),
+          relatedId: formData.get('relatedId'),
+          type: formData.get('type'),
+          notes: formData.get('notes'),
+      });
 
         // Despachar el Thunk para crear el Receipt
         await dispatch(createReceipt(formData)).unwrap();
