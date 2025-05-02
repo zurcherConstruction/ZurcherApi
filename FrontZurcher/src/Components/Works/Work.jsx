@@ -45,9 +45,9 @@ const Works = () => {
                     <td className="border text-center border-gray-300 px-4 py-2">
                       <button
                         onClick={() => navigate(`/work/${work.idWork}`)} // Redirigir al detalle
-                        className="px-2 py-1 bg-blue-950 text-white rounded hover:bg-blue-600 font-varela"
+                        className="px-2 py-1 text-xs bg-blue-950 text-white rounded hover:bg-blue-600 font-varela"
                       >
-                        
+                        Detail
                       </button>
                     </td>
                   </tr>

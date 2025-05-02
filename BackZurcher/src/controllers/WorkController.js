@@ -187,11 +187,19 @@ const updateWork = async (req, res) => {
     if (!work) {
       return res.status(404).json({ error: true, message: 'Obra no encontrada' });
     }
-    if (status && status === 'inProgress' && work.status !== 'inProgress') {
-      work.status = status;
+    // --- Guardar el estado anterior ---
+    const oldStatus = work.status;
+    let statusChanged = false;
 
-      // Solo asignar startDate si no está ya definido
-      if (!work.startDate) {
+    // --- Actualizar los campos ---
+    work.propertyAddress = propertyAddress || work.propertyAddress;
+
+    // Manejar la actualización del estado y la fecha de inicio
+    if (status && status !== oldStatus) {
+      work.status = status;
+      statusChanged = true;
+      // Lógica especial para 'inProgress': solo establece startDate si no existe
+      if (status === 'inProgress' && !work.startDate) {
         work.startDate = new Date();
       }
     }
@@ -205,26 +213,47 @@ const updateWork = async (req, res) => {
 
     await work.save();
 
-    // Obtener detalles de notificación
-    const notificationDetails = await getNotificationDetails(status, work);
-    console.log('Detalles de notificación:', notificationDetails);
-
-    if (notificationDetails) {
-      const { staffToNotify, message } = notificationDetails;
-
-      // Enviar correos electrónicos a los empleados correspondientes
-      for (const staff of staffToNotify) {
-        console.log('Enviando correo a:', staff.email);
-        await sendEmail(staff, message);
+    // --- Enviar notificaciones SOLO SI el estado cambió ---
+    if (statusChanged) {
+      console.log(`Work ${idWork}: Status changed from '${oldStatus}' to '${work.status}'. Sending notifications...`);
+      try {
+        // Llamar a sendNotifications con el NUEVO estado y el objeto work actualizado
+        // Asumimos que sendNotifications usa notificationService internamente
+        await sendNotifications(work.status, work, req.app.get('io')); // Pasar io si es necesario para push
+        console.log(`Notifications sent for status '${work.status}'.`);
+      } catch (notificationError) {
+        // Capturar errores específicos de la configuración de notificaciones
+        console.error(`Error sending notifications for work ${idWork} status ${work.status}:`, notificationError);
+        // Podrías decidir si continuar o devolver un error específico
+        if (notificationError.message.includes('Estado de notificación no configurado')) {
+          // No detener la operación principal, pero informar el problema
+          console.warn(notificationError.message);
+        } else {
+          // Otro error inesperado al enviar notificaciones
+          // Considera si esto debe fallar la solicitud completa o solo registrarse
+        }
       }
+    } else if (status && status === oldStatus) {
+       console.log(`Work ${idWork}: Status received ('${status}') is the same as current ('${oldStatus}'). No notifications sent.`);
+    } else {
+       console.log(`Work ${idWork}: Status not provided or not changed. No status notifications sent.`);
     }
 
+    // --- Eliminar la lógica redundante de notificación manual ---
+    // await sendNotifications('assigned', notificationDetails, null, req.io); // INCORRECTO Y REDUNDANTE
+    // const notificationDetails = await getNotificationDetails(status, work); // REDUNDANTE
+    // console.log('Detalles de notificación:', notificationDetails); // REDUNDANTE
+    // if (notificationDetails) { ... } // BUCLE DE EMAIL REDUNDANTE
+
+    // Devolver la obra actualizada
     res.status(200).json(work);
+
   } catch (error) {
-    console.error('Error al actualizar la obra:', error);
-    res.status(500).json({ error: true, message: 'Error interno del servidor' });
+    console.error(`Error al actualizar la obra ${req.params.idWork}:`, error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor al actualizar la obra' });
   }
 };
+
 
 // Eliminar una obra
 const deleteWork = async (req, res) => {
@@ -264,20 +293,40 @@ const addInstallationDetail = async (req, res) => {
       images,
     });
 
-    // Actualizar el estado del Work a "installed"
+    // --- Actualizar el estado del Work a "installed" ---
+    const oldStatus = work.status; // Guardar estado anterior por si acaso
     work.status = 'installed';
     await work.save();
+    const statusChanged = work.status !== oldStatus; // Verificar si realmente cambió
+
+    // --- INICIO: Enviar Notificación ---
+    if (statusChanged) { // Solo notificar si el estado cambió a 'installed'
+      console.log(`Work ${idWork}: Status changed to '${work.status}'. Sending 'installed' notifications...`);
+      try {
+        // Usar el estado 'installed' y el objeto work actualizado
+        await sendNotifications(work.status, work, null, req.app.get('io')); // Pasas work, null para budget, y io
+        console.log(`Notifications sent for status '${work.status}'.`);
+      } catch (notificationError) {
+        console.error(`Error sending notifications for work ${idWork} status ${work.status}:`, notificationError);
+        // Manejar el error como en updateWork (opcionalmente)
+        if (notificationError.message.includes('Estado de notificación no configurado')) {
+          console.warn(notificationError.message);
+        }
+      }
+    }
+    // --- FIN: Enviar Notificación ---
 
     res.status(201).json({
-      message: 'Detalle de instalación agregado correctamente',
+      message: 'Detalle de instalación agregado correctamente y estado actualizado a installed.',
       installationDetail,
-      work,
+      work, // Devolver el work actualizado
     });
   } catch (error) {
     console.error('Error al agregar el detalle de instalación:', error);
     res.status(500).json({ error: true, message: 'Error interno del servidor' });
   }
 };
+
 const attachInvoiceToWork = async (req, res) => {
   try {
     const { idWork } = req.params; // ID de la obra

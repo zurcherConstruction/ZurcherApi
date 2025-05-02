@@ -50,7 +50,7 @@ const sendNotifications = async (status, work, budget, io) => {
            message: pushMessageBase, // Usar el mensaje específico para push
            staffId: staffMember.id,
            type: 'push',
-           // isRead: false por defecto
+           isRead: false,
          });
 
          // 2. Emitir por Socket.IO (como antes)
