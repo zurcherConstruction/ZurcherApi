@@ -22,6 +22,8 @@ module.exports = (sequelize) => {
             'Diseño',
             'Workers',
             'Imprevistos',
+            "Comprobante Gasto",
+            "Gastos Generales",
         ),
         allowNull: false,
     },

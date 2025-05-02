@@ -145,9 +145,9 @@ const UploadScreen = () => {
  
  
     const handlePickImage = async () => {
-      if (imagesByStage[selectedStage]?.length >= 12) { /* ... Límite ... */ return; }
+      if (imagesByStage[selectedStage]?.length >= 12) {  return; }
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permissionResult.granted) { /* ... Permiso ... */ return; }
+      if (!permissionResult.granted) {  return; }
   
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -181,9 +181,9 @@ const UploadScreen = () => {
     };
 
     const handleTakePhoto = async () => {
-      if (imagesByStage[selectedStage]?.length >= 12) { /* ... Límite ... */ return; }
+      if (imagesByStage[selectedStage]?.length >= 12) {  return; }
       const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permissionResult.granted) { /* ... Permiso ... */ return; }
+      if (!permissionResult.granted) {  return; }
   
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -308,28 +308,24 @@ const UploadScreen = () => {
   {currentWork?.Permit && (currentWork.Permit.pdfData || currentWork.Permit.optionalDocs) && (
         <View className="my-4 border-y border-gray-300 py-3">
           <Text className="text-sm font-semibold text-gray-700 mb-2 text-center">Documentos del Permiso:</Text>
-          {/* Contenedor para alinear botones horizontalmente */}
           <View className="flex-row justify-between items-center">
-            {/* Botón PDF Permit */}
             {currentWork.Permit.pdfData && (
               <TouchableOpacity
                 onPress={() => handleOpenPdf(currentWork.Permit.pdfData)}
-                // Ajustar ancho y añadir margen si ambos botones están presentes
                 className={`py-2 px-4 bg-blue-600 rounded shadow ${
-                  currentWork.Permit.optionalDocs ? 'w-[48%]' : 'w-full' // Ocupa todo si es el único
+                  currentWork.Permit.optionalDocs ? 'w-[48%]' : 'w-full' 
                 }`}
               >
                 <Text className="text-white text-center font-medium">Ver PDF Permit</Text>
               </TouchableOpacity>
             )}
 
-            {/* Botón PDF Flat (Optional Docs) */}
             {currentWork.Permit.optionalDocs && (
               <TouchableOpacity
                 onPress={() => handleOpenPdf(currentWork.Permit.optionalDocs)}
-                 // Ajustar ancho y añadir margen si ambos botones están presentes
+                
                  className={`py-2 px-4 bg-yellow-500 rounded shadow ${
-                  currentWork.Permit.pdfData ? 'w-[48%]' : 'w-full' // Ocupa todo si es el único
+                  currentWork.Permit.pdfData ? 'w-[48%]' : 'w-full' 
                 }`}
               >
                 <Text className="text-white text-center font-medium">Ver PDF Flat</Text>
@@ -373,7 +369,6 @@ const UploadScreen = () => {
           }`}
         >
           <Text className="text-white text-center text-lg font-semibold">
-            {/* Cambiar texto condicionalmente */}
             {isInstallationSubmitted
               ? 'Esperando Aprobación de Inspección'
               : 'WORK INSTALLED'}

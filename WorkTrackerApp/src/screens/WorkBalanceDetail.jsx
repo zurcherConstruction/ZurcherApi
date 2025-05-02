@@ -7,17 +7,17 @@ import { getIncomesAndExpensesByWorkId, clearBalanceError } from '../Redux/featu
 const WorkBalanceDetail = () => {
   const route = useRoute();
   const dispatch = useDispatch();
-  const { idWork, propertyAddress } = route.params; // Recibir idWork y dirección
-
-  // Obtener datos del estado de Redux
+  const { idWork, propertyAddress } = route.params; 
+console.log('ID del trabajo:', idWork); 
+  console.log('Dirección de la propiedad:', propertyAddress); 
   const { incomes, expenses, loading, error } = useSelector((state) => state.balance);
-
-  // Cargar datos al montar el componente
+  console.log("Incomes desde useSelector:", incomes); 
+  console.log("Expenses desde useSelector:", expenses); 
+ 
   useEffect(() => {
     if (idWork) {
       dispatch(getIncomesAndExpensesByWorkId(idWork));
     }
-    // Limpiar errores al desmontar
     return () => {
       dispatch(clearBalanceError());
     };
@@ -29,22 +29,19 @@ const WorkBalanceDetail = () => {
     try {
       return new Date(dateString).toLocaleDateString();
     } catch (e) {
-      return dateString; // Devolver original si falla
+      return dateString; 
     }
   };
 
   // Renderizar item de la lista
   const renderItem = ({ item, type }) => (
     <View style={[styles.itemContainer, type === 'income' ? styles.incomeItem : styles.expenseItem]}>
-      <View style={styles.itemHeader}>
-        <Text style={styles.itemType}>{item.typeIncome || item.typeExpense || 'Sin tipo'}</Text>
-        <Text style={[styles.itemAmount, type === 'income' ? styles.incomeAmount : styles.expenseAmount]}>
-          ${parseFloat(item.amount || 0).toFixed(2)}
-        </Text>
-      </View>
-      <Text style={styles.itemDate}>Fecha: {formatDate(item.date)}</Text>
-      {item.notes && <Text style={styles.itemNotes}>Notas: {item.notes}</Text>}
-      {/* Aquí podrías añadir un botón para ver el Receipt si tienes esa info */}
+    <View style={styles.itemHeader}>
+      <Text style={styles.itemType}>{item.name || 'Sin nombre'}</Text>
+      <Text style={[styles.itemAmount, type === 'income' ? styles.incomeAmount : styles.expenseAmount]}>
+        ${parseFloat(item.value || 0).toFixed(2)}
+      </Text>
+    </View>
     </View>
   );
 
@@ -69,8 +66,6 @@ const WorkBalanceDetail = () => {
     <ScrollView style={styles.container}>
       <Text style={styles.headerTitle}>Balance del Trabajo</Text>
       <Text style={styles.subHeaderTitle}>{propertyAddress || 'Sin dirección'}</Text>
-
-      {/* Lista de Ingresos */}
       <Text style={styles.sectionTitle}>Ingresos ({incomes.length})</Text>
       {incomes.length === 0 ? (
          <Text style={styles.emptyText}>No hay ingresos registrados.</Text>
@@ -79,12 +74,12 @@ const WorkBalanceDetail = () => {
           data={incomes}
           renderItem={(props) => renderItem({ ...props, type: 'income' })}
           keyExtractor={(item) => item.idIncome ? item.idIncome.toString() : Math.random().toString()} // Asegurar key única
-          scrollEnabled={false} // Deshabilitar scroll si está dentro de ScrollView
+          scrollEnabled={false} 
         />
       )}
 
 
-      {/* Lista de Gastos */}
+     
       <Text style={styles.sectionTitle}>Gastos ({expenses.length})</Text>
        {expenses.length === 0 ? (
          <Text style={styles.emptyText}>No hay gastos registrados.</Text>
@@ -104,7 +99,7 @@ const WorkBalanceDetail = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f3f4f6', // gray-100
+    backgroundColor: '#f3f4f6', 
     padding: 15,
   },
   centered: {

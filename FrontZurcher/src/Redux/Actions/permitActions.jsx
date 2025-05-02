@@ -43,7 +43,7 @@ export const fetchPermitById = (idPermit) => async (dispatch) => {
   }
 };
 
-// ... otras importaciones y acciones ...
+
 
 // Crear un permiso
 export const createPermit = (formData) => async (dispatch) => {
@@ -51,15 +51,21 @@ export const createPermit = (formData) => async (dispatch) => {
   try {
     const response = await api.post('/permit', formData);
     // --- DEVUELVE explícitamente la acción de éxito ---
-    return dispatch(createPermitSuccess(response.data));
+    dispatch(createPermitSuccess(response.data));
+    // Devuelve los datos para que el componente pueda usarlos si es necesario
+    return response.data;
   } catch (error) {
-    const errorMessage = error.response?.data?.message || 'Error al crear el permiso';
-    dispatch(createPermitFailure(errorMessage));
-    // --- Opcional: Lanza el error para que el catch del componente lo maneje ---
-    // O devuelve la acción de fallo si prefieres manejarlo en el .then/.catch del componente
-    // return dispatch(createPermitFailure(errorMessage));
-    // Lanzar el error suele ser más directo con async/await
-    throw new Error(errorMessage);
+    console.error("Error en createPermit action:", error.response?.data || error.message);
+    let errorPayload;
+    if (error.response && error.response.data) {
+        errorPayload = error.response.data;
+    } else {
+        errorPayload = { message: error.message || 'Error de red o servidor no disponible.' };
+    }
+    dispatch(createPermitFailure(errorPayload)); // Despacha estado de error
+    const errorToThrow = new Error(errorPayload.message || 'Error al crear el permiso');
+    errorToThrow.details = errorPayload; // <-- ¡ASEGÚRATE DE QUE ESTA LÍNEA EXISTE!
+    throw errorToThrow; // <-- ¡ASEGÚRATE DE QUE SE LANZA EL ERROR!
   }
 };
 

@@ -1,0 +1,20 @@
+{
+  "idBudget": 2,
+  "propertyAddress": "4130 NW 33rd St  Cape Coral, FL 33993",
+  "applicantName": "MAURO",
+  "date": "2025-05-01",
+  "expirationDate": "2025-05-31",
+  "initialPayment": "12840.00",
+  "status": "approved",
+  "paymentInvoice": "https://res.cloudinary.com/dv1xvijmn/image/upload/v1746058651/payment_proofs/payment_proof_2_1746058649322.jpg",
+  "paymentProofType": "image",
+  "discountDescription": "",
+  "discountAmount": "0.00",
+  "subtotalPrice": "21400.00",
+  "totalPrice": "21400.00",
+  "generalNotes": "",
+  "pdfPath": "C:\\Users\\yaniz\\Documents\\ZurcherApi\\BackZurcher\\src\\uploads\\budget_2.pdf",
+  "PermitIdPermit": "751b8b92-6704-48bf-b5fa-101dac2a8a1d",
+  "createdAt": "2025-05-01T00:03:03.180Z",
+  "updatedAt": "2025-05-01T00:17:31.583Z"
+}

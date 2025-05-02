@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, Pressable, Image, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { login } from '../Redux/Actions/authActions';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -30,64 +30,78 @@ const LoginScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
-      {/* Logo */}
-      <Image
-        source={require('../../assets/logo.png')}
-        style={styles.logo}
-        resizeMode="contain"
-      />
+    <KeyboardAvoidingView
+      style={styles.keyboardAvoidingContainer} // Usa un estilo con flex: 1
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'} // 'padding' para iOS
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0} // Ajuste opcional del offset
+    >
 
-      {/* Formulario */}
-      <View style={styles.formContainer}>
-        <Text style={styles.title}>Iniciar Sesión</Text>
-
-        {/* Mensaje de error */}
-        {error && <Text style={styles.error}>{error}</Text>}
-
-        {/* Campo de correo electrónico */}
-        <TextInput
-          style={styles.input}
-          placeholder="Correo electrónico"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <Image
+          source={require('../../assets/logo.png')}
+          style={styles.logo}
+          resizeMode="contain"
         />
 
-        {/* Campo de contraseña */}
-        <View style={styles.passwordContainer}>
-          <TextInput
-            style={[styles.input, styles.passwordInput]}
-            placeholder="Contraseña"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
-          />
-          <TouchableOpacity
-            onPress={() => setShowPassword(!showPassword)}
-            style={styles.showPasswordButton}
-          >
-            <Ionicons
-              name={showPassword ? 'eye-off' : 'eye'}
-              size={20}
-              color="#1e3a8a"
-            />
-          </TouchableOpacity>
-        </View>
 
-        {/* Botón de inicio de sesión */}
-        <Pressable onPress={handleLogin} style={styles.button}>
-          <Text style={styles.buttonText}>
-            {loading ? 'Cargando...' : 'Iniciar Sesión'}
-          </Text>
-        </Pressable>
-      </View>
-    </View>
+        <View style={styles.formContainer}>
+          <Text style={styles.title}>Iniciar Sesión</Text>
+
+
+          {error && <Text style={styles.error}>{error}</Text>}
+
+
+          <TextInput
+            style={styles.input}
+            placeholder="Correo electrónico"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+
+
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={[styles.input, styles.passwordInput]}
+              placeholder="Contraseña"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+            />
+            <TouchableOpacity
+              onPress={() => setShowPassword(!showPassword)}
+              style={styles.showPasswordButton}
+            >
+              <Ionicons
+                name={showPassword ? 'eye-off' : 'eye'}
+                size={20}
+                color="#1e3a8a"
+              />
+            </TouchableOpacity>
+          </View>
+          <Pressable onPress={handleLogin} style={styles.button}>
+            <Text style={styles.buttonText}>
+              {loading ? 'Cargando...' : 'Iniciar Sesión'}
+            </Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
+  keyboardAvoidingContainer: {
+    flex: 1, // Necesario para que KeyboardAvoidingView funcione correctamente
+  },
+  scrollContainer: {
+    flexGrow: 1, // Permite que el ScrollView crezca
+    justifyContent: 'center', // Centra el contenido verticalmente
+    alignItems: 'center', // Centra el contenido horizontalmente
+    paddingVertical: 20, // Añade padding vertical si es necesario
+    backgroundColor: '#f9f9f9', // Mueve el color de fondo aquí
+  },
   container: {
     flex: 1,
     justifyContent: 'center',

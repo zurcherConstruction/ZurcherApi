@@ -1,247 +1,403 @@
-// import React, { useState } from 'react';
-// import { View, Text, TextInput, Button, Alert, ScrollView, Pressable, Platform, ActivityIndicator } from 'react-native';
-// import { useRoute } from '@react-navigation/native';
-// import * as DocumentPicker from 'expo-document-picker';
-// import { incomeActions, expenseActions } from '../../FrontZurcher/src/Redux/Actions/balanceActions'; // Ajusta la ruta si es necesario
-// import { createReceipt } from '../../FrontZurcher/src/Redux/Actions/receiptActions'; // Ajusta la ruta si es necesario
-// import { useDispatch } from 'react-redux'; // Importar useDispatch si usas Redux para manejar estado de carga/errores globalmente
+import React, { useState } from 'react';
+import { View, Text, TextInput, Alert, ScrollView, Pressable, Platform, ActivityIndicator, StyleSheet } from 'react-native';
+import { useRoute, useNavigation } from '@react-navigation/native';
+import * as DocumentPicker from 'expo-document-picker';
+// *** Importar los Thunks desde balanceSlice.js ***
+import { createIncome, createExpense, createReceipt } from '../Redux/features/balanceSlice';
+import { useDispatch, useSelector } from 'react-redux';
+import { Picker } from '@react-native-picker/picker';
 
-// const BalanceUploadScreen = () => {
-//   const route = useRoute();
-//   const dispatch = useDispatch(); // Para acciones de Redux si las usas aquí
-//   const { idWork, propertyAddress } = route.params; // Recibir idWork y dirección
+const incomeTypes = [
+           'Factura Pago Inicial Budget',
+            'Factura Pago Final Budget',
+            'DiseñoDif',
+            "Comprobante Ingreso",
+  ];
+  const expenseTypes = [
+           'Materiales',
+            'Diseño',
+            'Workers',
+            'Imprevistos',
+            "Comprobante Gasto",
+            "Gastos Generales",
+  ];
 
-//   const [uploadType, setUploadType] = useState('expense'); // 'expense' or 'income'
-//   const [amount, setAmount] = useState('');
-//   const [typeDetail, setTypeDetail] = useState(''); // Ej: 'Factura Luz', 'Pago Inicial Cliente'
-//   const [notes, setNotes] = useState('');
-//   const [selectedFile, setSelectedFile] = useState(null); // { name: string, uri: string, mimeType: string, size: number }
-//   const [loading, setLoading] = useState(false);
+const BalanceUploadScreen = () => {
+  const route = useRoute();
+  const navigation = useNavigation();
+  const dispatch = useDispatch();
+  const { idWork, propertyAddress } = route.params; // Recibir idWork y dirección
 
-//   const handlePickDocument = async () => {
-//     try {
-//       const result = await DocumentPicker.getDocumentAsync({
-//         type: ['application/pdf', 'image/*'], // Permite PDF e imágenes
-//         copyToCacheDirectory: true, // Necesario para poder subirlo
-//       });
+  // Estado local del formulario
+  const [uploadType, setUploadType] = useState('expense'); // 'expense' or 'income'
+  const [amount, setAmount] = useState('');
+  const [typeDetail, setTypeDetail] = useState(''); // Ej: 'Factura Luz', 'Pago Inicial Cliente'
+  const [notes, setNotes] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null); // { name: string, uri: string, mimeType: string, size: number }
 
-//       console.log('Document Picker Result:', result);
+  // Obtener estado de carga/error de Redux (opcional, pero útil para feedback)
+  const { loading: balanceLoading, error: balanceError } = useSelector((state) => state.balance);
 
-//       // Expo Document Picker cambió la estructura de la respuesta
-//       if (!result.canceled && result.assets && result.assets.length > 0) {
-//         const asset = result.assets[0];
-//         // Validar tamaño si es necesario
-//         if (asset.size > 10 * 1024 * 1024) { // Límite de 10MB (ejemplo)
-//              Alert.alert('Error', 'El archivo es demasiado grande (máx 10MB).');
-//              setSelectedFile(null);
-//              return;
-//         }
-//         setSelectedFile({
-//             uri: asset.uri,
-//             name: asset.name,
-//             mimeType: asset.mimeType,
-//             size: asset.size,
-//         });
-//       } else {
-//         setSelectedFile(null); // Limpiar si cancela o no selecciona
-//       }
-//     } catch (error) {
-//       console.error('Error picking document:', error);
-//       Alert.alert('Error', 'No se pudo seleccionar el archivo.');
-//       setSelectedFile(null);
-//     }
-//   };
+  React.useEffect(() => {
+    if (uploadType === 'income') {
+      setTypeDetail(incomeTypes[0]);
+    } else {
+      setTypeDetail(expenseTypes[0]);
+    }
+  }, [uploadType]);
 
-//   const handleUpload = async () => {
-//     if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-//       Alert.alert('Error', 'Por favor, ingresa un monto válido.');
-//       return;
-//     }
-//     if (!typeDetail.trim()) {
-//       Alert.alert('Error', 'Por favor, ingresa el tipo de ingreso/gasto.');
-//       return;
-//     }
-//     if (!selectedFile) {
-//       Alert.alert('Error', 'Por favor, selecciona un archivo como comprobante.');
-//       return;
-//     }
 
-//     setLoading(true);
+  const handlePickDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'image/*'], // Permite PDF e imágenes
+        copyToCacheDirectory: true, // Necesario para poder subirlo
+      });
 
-//     try {
-//       let createdRecordId = null;
-//       let relatedModel = '';
+      console.log('Document Picker Result:', result);
 
-//       // --- Paso 1: Crear el registro de Income o Expense ---
-//       if (uploadType === 'income') {
-//         relatedModel = 'Income';
-//         const incomeData = {
-//           date: new Date().toISOString(), // O usar un DatePicker
-//           amount: parseFloat(amount),
-//           typeIncome: typeDetail, // Asegúrate que el backend espera 'typeIncome'
-//           notes: notes,
-//           workId: idWork,
-//         };
-//         const incomeResult = await incomeActions.create(incomeData);
-//         if (incomeResult.error) throw new Error(incomeResult.message);
-//         createdRecordId = incomeResult.id; // Asume que la respuesta tiene 'id'
-//         console.log('Income creado:', incomeResult);
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        if (asset.size > 15 * 1024 * 1024) { // Límite de 15MB (ejemplo)
+             Alert.alert('Error', 'El archivo es demasiado grande (máx 15MB).');
+             setSelectedFile(null);
+             return;
+        }
+        setSelectedFile({
+            uri: asset.uri,
+            name: asset.name,
+            mimeType: asset.mimeType,
+            size: asset.size,
+        });
+      } else {
+        setSelectedFile(null);
+      }
+    } catch (error) {
+      console.error('Error picking document:', error);
+      Alert.alert('Error', 'No se pudo seleccionar el archivo.');
+      setSelectedFile(null);
+    }
+  };
 
-//       } else { // 'expense'
-//         relatedModel = 'Expense';
-//         const expenseData = {
-//           date: new Date().toISOString(), // O usar un DatePicker
-//           amount: parseFloat(amount),
-//           typeExpense: typeDetail, // Asegúrate que el backend espera 'typeExpense'
-//           notes: notes,
-//           workId: idWork,
-//         };
-//         const expenseResult = await expenseActions.create(expenseData);
-//         if (expenseResult.error) throw new Error(expenseResult.message);
-//         createdRecordId = expenseResult.id; // Asume que la respuesta tiene 'id'
-//         console.log('Expense creado:', expenseResult);
-//       }
+  const handleUpload = async () => {
+    // Validaciones
+    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+      Alert.alert('Error de Validación', 'Por favor, ingresa un monto válido.');
+      return;
+    }
+    if (!typeDetail.trim()) {
+      Alert.alert('Error de Validación', 'Por favor, ingresa el tipo de ingreso/gasto.');
+      return;
+    }
+    // El archivo es opcional ahora, se puede cargar solo el ingreso/gasto
+    if (!selectedFile) {
+      Alert.alert('Error de Validación', 'Por favor, selecciona un archivo como comprobante.');
+      return;
+    }
 
-//       if (!createdRecordId) {
-//           throw new Error(`No se pudo obtener el ID del ${relatedModel} creado.`);
-//       }
+     // Para guardar el resultado de createIncome/createExpense
 
-//       // --- Paso 2: Crear el FormData para el Receipt ---
-//       const formData = new FormData();
-//       formData.append('relatedModel', relatedModel);
-//       formData.append('relatedId', createdRecordId);
-//       formData.append('type', `Comprobante ${relatedModel}`); // Tipo de comprobante
-//       formData.append('notes', `Comprobante para ${relatedModel} ID: ${createdRecordId}`);
+    try {
+      let createdRecord;
+      // --- Paso 1: Crear el registro de Income o Expense usando Thunks ---
+      if (uploadType === 'income') {
+        const incomeData = {
+          date: new Date().toISOString(),
+          amount: parseFloat(amount),
+          typeIncome: typeDetail,
+          notes: notes,
+          workId: idWork,
+        };
+        // Despachar y esperar el resultado usando unwrap()
+        createdRecord = await dispatch(createIncome(incomeData)).unwrap();
+        console.log('Income creado:', createdRecord);
 
-//       // Adjuntar el archivo
-//       // El nombre del archivo en FormData debe coincidir con el esperado por Multer en el backend (usualmente 'file' o 'pdfData')
-//       // Revisando ReceiptController, parece que espera 'req.file', lo que sugiere que Multer usa 'file' por defecto.
-//       formData.append('file', {
-//         uri: selectedFile.uri,
-//         name: selectedFile.name,
-//         type: selectedFile.mimeType,
-//       });
+      } else { // 'expense'
+        const expenseData = {
+          date: new Date().toISOString(),
+          amount: parseFloat(amount),
+          typeExpense: typeDetail,
+          notes: notes,
+          workId: idWork,
+        };
+        // Despachar y esperar el resultado usando unwrap()
+        createdRecord = await dispatch(createExpense(expenseData)).unwrap();
+        console.log('Expense creado:', createdRecord);
+        console.log('archivo seleccionado:', selectedFile);
+      }
+      console.log('Verificando condición para subir Receipt:', {
+        isFileSelected: !!selectedFile,
+        isRecordCreated: !!createdRecord,
+        recordId: createdRecord?.idExpense || createdRecord?.idIncome
+    });
 
-//       console.log('FormData para Receipt:', formData);
+    const recordId = createdRecord?.idExpense || createdRecord?.idIncome; // Obtén el ID correcto
+      // --- Paso 2: Si hay archivo seleccionado y el registro se creó, subir el Receipt ---
+      if (selectedFile && createdRecord && recordId) {
+        console.log('Preparando FormData para Receipt...');
+        const relatedModel = uploadType === 'income' ? 'Income' : 'Expense';
+        const formData = new FormData();
 
-//       // --- Paso 3: Subir el Receipt (usando la acción de Redux si existe o directamente) ---
-//       // Asumiendo que createReceipt es una acción Thunk que maneja la llamada API
-//       // Nota: createReceipt debe estar configurada para enviar 'multipart/form-data'
-//       // La acción que proporcionaste ya lo hace.
-//       await dispatch(createReceipt(formData)); // Usar dispatch si createReceipt es una acción Thunk
+        // Adjuntar el archivo (el nombre 'file' debe coincidir con el esperado por Multer en el backend)
+        formData.append('file', {
+          uri: selectedFile.uri,
+          name: selectedFile.name,
+          type: selectedFile.mimeType,
+        });
+       
+        // Adjuntar otros datos necesarios para el Receipt
+        formData.append('relatedModel', relatedModel);
+        formData.append('relatedId', recordId); // ID del registro recién creado
+        formData.append('type', typeDetail); // Tipo descriptivo
+        formData.append('notes', `Comprobante para ${relatedModel} - ${typeDetail}`);
 
-//       // Si createReceipt no es una acción Thunk, harías la llamada API aquí:
-//       // const receiptResult = await api.post('/receipt', formData, {
-//       //   headers: { 'Content-Type': 'multipart/form-data' },
-//       // });
-//       // if (receiptResult.status !== 201) throw new Error('Error al subir el comprobante');
-//       // console.log('Receipt creado:', receiptResult.data);
+        console.log('FormData para Receipt (solo campos, no archivo):', {
+          relatedModel: formData.get('relatedModel'),
+          relatedId: formData.get('relatedId'),
+          type: formData.get('type'),
+          notes: formData.get('notes'),
+      });
 
-//       Alert.alert('Éxito', `${relatedModel} y comprobante cargados correctamente.`);
-//       // Limpiar formulario
-//       setAmount('');
-//       setTypeDetail('');
-//       setNotes('');
-//       setSelectedFile(null);
+        // Despachar el Thunk para crear el Receipt
+        await dispatch(createReceipt(formData)).unwrap();
+        console.log('Receipt creado y asociado.');
+      }
 
-//     } catch (error) {
-//       console.error(`Error al cargar ${uploadType}:`, error);
-//       Alert.alert('Error', `No se pudo cargar el ${uploadType}. ${error.message}`);
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
+      Alert.alert('Éxito', `${uploadType === 'income' ? 'Ingreso' : 'Gasto'} ${selectedFile ? 'y comprobante cargados' : 'cargado'} correctamente.`);
+      // Limpiar formulario
+      setAmount('');
+      setTypeDetail('');
+      setNotes('');
+      setSelectedFile(null);
+      // Opcional: Navegar hacia atrás o a otra pantalla
+       navigation.goBack();
 
-//   return (
-//     <ScrollView className="flex-1 bg-gray-100 p-5">
-//       <Text className="text-xl font-medium uppercase text-gray-800 mb-2 text-center">
-//         Cargar Ingreso/Gasto
-//       </Text>
-//       <Text className="text-lg font-normal text-gray-600 mb-5 text-center">
-//         {propertyAddress || 'Trabajo sin dirección'} (ID: {idWork})
-//       </Text>
+    } catch (error) {
+      // unwrap() rechaza con el valor de rejectWithValue o un error serializado
+      console.error(`Error al cargar ${uploadType}:`, error);
+      Alert.alert(
+        'Error',
+        `No se pudo cargar el ${uploadType}. ${error?.message || error || 'Error desconocido'}`
+      );
+    }
+    // El estado de carga es manejado por Redux (balanceLoading)
+  };
 
-//       {/* Selector Income/Expense */}
-//       <View className="flex-row justify-center mb-5">
-//         <Pressable
-//           onPress={() => setUploadType('expense')}
-//           className={`py-2 px-6 rounded-l-lg ${uploadType === 'expense' ? 'bg-red-600' : 'bg-gray-400'}`}
-//         >
-//           <Text className="text-white font-bold">Gasto</Text>
-//         </Pressable>
-//         <Pressable
-//           onPress={() => setUploadType('income')}
-//           className={`py-2 px-6 rounded-r-lg ${uploadType === 'income' ? 'bg-green-600' : 'bg-gray-400'}`}
-//         >
-//           <Text className="text-white font-bold">Ingreso</Text>
-//         </Pressable>
-//       </View>
+  return (
+    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
+      <Text style={styles.title}>
+        Cargar Ingreso/Gasto
+      </Text>
+      <Text style={styles.subtitle}>
+        {propertyAddress || 'Trabajo sin dirección'} (ID: {idWork})
+      </Text>
 
-//       {/* Formulario */}
-//       <View className="mb-4">
-//         <Text className="text-gray-700 mb-1">Monto:</Text>
-//         <TextInput
-//           className="bg-white border border-gray-300 rounded p-3"
-//           placeholder="Ej: 150.75"
-//           keyboardType="numeric"
-//           value={amount}
-//           onChangeText={setAmount}
-//         />
-//       </View>
+      {/* Selector Income/Expense */}
+      <View style={styles.typeSelectorContainer}>
+        <Pressable
+          onPress={() => setUploadType('expense')}
+          style={[styles.typeButton, styles.typeButtonLeft, uploadType === 'expense' ? styles.typeButtonActiveExpense : styles.typeButtonInactive]}
+        >
+          <Text style={styles.typeButtonText}>Gasto</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setUploadType('income')}
+          style={[styles.typeButton, styles.typeButtonRight, uploadType === 'income' ? styles.typeButtonActiveIncome : styles.typeButtonInactive]}
+        >
+          <Text style={styles.typeButtonText}>Ingreso</Text>
+        </Pressable>
+      </View>
 
-//       <View className="mb-4">
-//         <Text className="text-gray-700 mb-1">
-//           Tipo de {uploadType === 'income' ? 'Ingreso' : 'Gasto'}:
-//         </Text>
-//         <TextInput
-//           className="bg-white border border-gray-300 rounded p-3"
-//           placeholder={uploadType === 'income' ? "Ej: Pago Cliente" : "Ej: Compra Material"}
-//           value={typeDetail}
-//           onChangeText={setTypeDetail}
-//         />
-//       </View>
+      {/* Formulario */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Monto:</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Ej: 150.75"
+          keyboardType="numeric"
+          value={amount}
+          onChangeText={setAmount}
+        />
+      </View>
 
-//       <View className="mb-4">
-//         <Text className="text-gray-700 mb-1">Notas (Opcional):</Text>
-//         <TextInput
-//           className="bg-white border border-gray-300 rounded p-3 h-20"
-//           placeholder="Añade detalles adicionales..."
-//           multiline
-//           value={notes}
-//           onChangeText={setNotes}
-//         />
-//       </View>
+      <View style={styles.pickerContainer}>
+           <Picker
+             selectedValue={typeDetail}
+             onValueChange={(itemValue, itemIndex) => setTypeDetail(itemValue)}
+             style={styles.picker}
+             dropdownIconColor="#6b7280" // Color del icono de flecha
+           >
+             {(uploadType === 'income' ? incomeTypes : expenseTypes).map((type) => (
+               <Picker.Item key={type} label={type} value={type} />
+             ))}
+           </Picker>
+        </View>
 
-//       {/* Selector de Archivo */}
-//       <View className="mb-6">
-//          <Pressable
-//             onPress={handlePickDocument}
-//             className="bg-blue-600 py-3 rounded-lg shadow-md mb-2"
-//           >
-//             <Text className="text-white text-center font-semibold">Seleccionar Comprobante (PDF/Imagen)</Text>
-//           </Pressable>
-//         {selectedFile && (
-//           <Text className="text-gray-600 text-center">Archivo: {selectedFile.name}</Text>
-//         )}
-//       </View>
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Notas (Opcional):</Text>
+        <TextInput
+          style={[styles.input, styles.textArea]}
+          placeholder="Añade detalles adicionales..."
+          multiline
+          value={notes}
+          onChangeText={setNotes}
+        />
+      </View>
 
-//       {/* Botón de Carga */}
-//       <Pressable
-//         onPress={handleUpload}
-//         disabled={loading}
-//         className={`py-3 rounded-lg shadow-md ${loading ? 'bg-gray-400' : 'bg-purple-600'}`}
-//       >
-//         {loading ? (
-//           <ActivityIndicator color="#fff" />
-//         ) : (
-//           <Text className="text-white text-center text-lg font-semibold">
-//             Cargar {uploadType === 'income' ? 'Ingreso' : 'Gasto'}
-//           </Text>
-//         )}
-//       </Pressable>
+      {/* Selector de Archivo */}
+      <View style={styles.inputGroup}>
+         <Pressable
+            onPress={handlePickDocument}
+            style={[styles.button, styles.selectFileButton]}
+          >
+            <Text style={styles.buttonText}>Seleccionar Comprobante (PDF/Imagen)</Text>
+          </Pressable>
+        {selectedFile && (
+          <Text style={styles.fileNameText}>Archivo: {selectedFile.name}</Text>
+        )}
+      </View>
 
-//     </ScrollView>
-//   );
-// };
+      {/* Botón de Carga */}
+      <Pressable
+        onPress={handleUpload}
+        disabled={balanceLoading} // Usar estado de carga de Redux
+        style={[styles.button, styles.uploadButton, balanceLoading ? styles.buttonDisabled : {}]}
+      >
+        {balanceLoading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>
+            Cargar {uploadType === 'income' ? 'Ingreso' : 'Gasto'}
+          </Text>
+        )}
+      </Pressable>
 
-// export default BalanceUploadScreen;
+      {/* Mostrar error de Redux si existe */}
+      {balanceError && (
+        <Text style={styles.errorText}>Error: {balanceError}</Text>
+      )}
+
+    </ScrollView>
+  );
+};
+
+// Añadir algunos estilos básicos
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f3f4f6', // gray-100
+    padding: 20,
+  },
+  pickerContainer: {
+    backgroundColor: '#ffffff', // bg-white
+    borderWidth: 1,
+    borderColor: '#d1d5db', // border-gray-300
+    borderRadius: 6, // rounded
+    // No añadir padding aquí, el Picker maneja su propio espaciado interno
+  },
+  title: {
+    fontSize: 20, // text-xl
+    fontWeight: '500', // font-medium
+    textTransform: 'uppercase',
+    color: '#374151', // gray-800
+    marginBottom: 8, // mb-2
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 16, // text-lg
+    color: '#4b5563', // gray-600
+    marginBottom: 20, // mb-5
+    textAlign: 'center',
+  },
+  typeSelectorContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: 20, // mb-5
+  },
+  typeButton: {
+    paddingVertical: 8, // py-2
+    paddingHorizontal: 24, // px-6
+  },
+  typeButtonLeft: {
+    borderTopLeftRadius: 8, // rounded-l-lg
+    borderBottomLeftRadius: 8,
+  },
+  typeButtonRight: {
+    borderTopRightRadius: 8, // rounded-r-lg
+    borderBottomRightRadius: 8,
+  },
+  typeButtonActiveExpense: {
+    backgroundColor: '#dc2626', // bg-red-600
+  },
+  typeButtonActiveIncome: {
+    backgroundColor: '#16a34a', // bg-green-600
+  },
+  typeButtonInactive: {
+    backgroundColor: '#9ca3af', // bg-gray-400
+  },
+  typeButtonText: {
+    color: '#ffffff', // text-white
+    fontWeight: 'bold',
+  },
+  inputGroup: {
+    marginBottom: 16, // mb-4
+  },
+  label: {
+    color: '#374151', // gray-700
+    marginBottom: 4, // mb-1
+  },
+  input: {
+    backgroundColor: '#ffffff', // bg-white
+    borderWidth: 1,
+    borderColor: '#d1d5db', // border-gray-300
+    borderRadius: 6, // rounded
+    padding: 12, // p-3
+    fontSize: 16,
+  },
+  textArea: {
+    height: 80, // h-20
+    textAlignVertical: 'top', // Para que el texto empiece arriba en multiline
+  },
+  selectFileButton: {
+    backgroundColor: '#2563eb', // bg-blue-600
+    marginBottom: 8, // mb-2
+  },
+  fileNameText: {
+    color: '#4b5563', // gray-600
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  button: {
+    paddingVertical: 12, // py-3
+    borderRadius: 8, // rounded-lg
+    alignItems: 'center',
+    justifyContent: 'center',
+    // Sombra (aproximada, ajustar para iOS/Android)
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2, },
+    shadowOpacity: 0.23,
+    shadowRadius: 2.62,
+    elevation: 4,
+  },
+  uploadButton: {
+    backgroundColor: '#7c3aed', // bg-purple-600
+    marginTop: 10, // Añadir espacio arriba
+  },
+  buttonText: {
+    color: '#ffffff', // text-white
+    textAlign: 'center',
+    fontWeight: '600', // font-semibold
+    fontSize: 16, // text-lg (ajustado)
+  },
+  buttonDisabled: {
+    backgroundColor: '#9ca3af', // bg-gray-400
+  },
+  errorText: {
+      color: '#dc2626', // text-red-600
+      marginTop: 10,
+      textAlign: 'center',
+      fontWeight: 'bold',
+  }
+});
+
+export default BalanceUploadScreen;

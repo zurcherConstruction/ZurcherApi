@@ -11,6 +11,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const fs = require('fs');
 require('./tasks/cronJobs');
+const { errorHandler } = require('./middleware/error');
 
 const app = express();
 const server = http.createServer(app); // Crear el servidor HTTP
@@ -65,7 +66,7 @@ app.use(passport.initialize());
 // Session
 app.use(cors({
   origin: '*', // Permitir cualquier origen
-  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'], // Métodos permitidos
+  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE', 'PATCH'], // Métodos permitidos
   allowedHeaders: ['Content-Type', 'Authorization'], // Encabezados permitidos
   credentials: true, // Permitir el uso de credenciales
 }));
@@ -75,7 +76,7 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*'); 
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE', 'PATCH');
   next();
 });
 
@@ -90,18 +91,10 @@ app.use('*', (req, res) => {
     message: 'Not found',
   });
 });
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).send('Something broke!');
-});
 
-// Error Handling Middleware
-app.use((err, req, res, next) => {
-  res.status(err.statusCode || 500).send({
-    error: true,
-    message: err.message,
-  });
-});
+
+
+app.use(errorHandler);
 
 // Configuración de Socket.IO
 io.on('connection', (socket) => {

@@ -38,7 +38,7 @@ const WorksScreen = () => {
         Trabajos Asignados
       </Text>
       
-      {/* Si quieres usar un select para elegir una obra */}
+      
       <View className="border border-gray-300 rounded-lg mb-5">
         <Picker
           selectedValue={selectedWorkId}
@@ -54,7 +54,7 @@ const WorksScreen = () => {
         </Picker>
       </View>
       
-      {/* Mostrar detalles de la obra seleccionada o listar todas */}
+    
       {selectedWorkId ? (
         <FlatList
           data={works.filter(work => work.idWork === selectedWorkId)}
@@ -74,7 +74,7 @@ const WorksScreen = () => {
           )}
         />
       ) : (
-        // Si no se selecciona una obra, puedes listar todas
+       
         <FlatList
           data={works}
           keyExtractor={(item) => item.idWork.toString()}

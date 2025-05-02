@@ -157,6 +157,27 @@ const BudgetController = {
         console.log(`Intentando generar PDF post-creación para Budget ID ${newBudgetId}...`);
         // Necesitamos los datos completos del budget recién creado
         const budgetForPdf = await Budget.findByPk(newBudgetId, {
+          attributes: [
+            'idBudget',
+            'propertyAddress',
+            'applicantName',
+            'date',
+            'expirationDate',
+            'initialPayment',
+            'status',
+            'paymentInvoice',
+            'paymentProofType',
+            'discountDescription',
+            'discountAmount',
+            'subtotalPrice',
+            'totalPrice',
+            'generalNotes',
+            'pdfPath',
+            'PermitIdPermit',
+            'createdAt',
+            'updatedAt',
+            'initialPaymentPercentage' // <-- Asegúrate de incluir este campo
+          ],
           include: [
             { model: Permit, attributes: ['idPermit', 'propertyAddress', 'applicantEmail', 'applicantName', 'permitNumber', 'lot', 'block'] },
             // No necesitamos incluir lineItems aquí, ya los tenemos en createdLineItemsForPdf
@@ -164,12 +185,17 @@ const BudgetController = {
         });
 
         if (!budgetForPdf) throw new Error("No se encontró el budget recién creado para generar PDF.");
+ // --- DEBUG CONTROLLER ---
+ console.log('DEBUG CONTROLLER - Datos leídos de BD para PDF:', budgetForPdf.toJSON ? budgetForPdf.toJSON() : budgetForPdf);
+ // --- FIN DEBUG ---
 
         const budgetDataForPdf = {
           ...budgetForPdf.toJSON(),
           lineItems: createdLineItemsForPdf // Usar los datos planos guardados
         };
-
+// --- DEBUG CONTROLLER 2 ---
+console.log('DEBUG CONTROLLER - Datos FINALES pasados a PDF Gen:', budgetDataForPdf);
+// --- FIN DEBUG ---
         generatedPdfPath = await generateAndSaveBudgetPDF(budgetDataForPdf);
         console.log(`PDF generado en: ${generatedPdfPath}`);
 

@@ -7,7 +7,7 @@ import {
 } from "../../Redux/Actions/budgetActions";
 import { DocumentArrowDownIcon, EyeIcon } from '@heroicons/react/24/outline'; // Icono para descarga
 //import BudgetPDF from "./BudgetPDF";
-import { parseISO, isSameMonth, format } from "date-fns";
+import { parseISO,  format } from "date-fns";
 import api from "../../utils/axios";
 
 
@@ -16,7 +16,7 @@ const BudgetList = () => {
   const dispatch = useDispatch();
   const { budgets, loading, error } = useSelector((state) => state.budget);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 6;
+  const itemsPerPage = 10;
 console.log("Presupuestos:", budgets); // Verifica si los presupuestos se están obteniendo correctamente
  
 const [downloadingPdfId, setDownloadingPdfId] = useState(null); // Estado para indicar descarga
@@ -26,28 +26,36 @@ useEffect(() => {
     dispatch(fetchBudgets());
   }, [dispatch]);
 
-  const currentDate = new Date();
-  // Asegúrate de que budgets no sea undefined antes de filtrar
-  const currentMonthBudgets = budgets ? budgets.filter((budget) => {
-    try {
-      const budgetDate = parseISO(budget.date);
-      return isSameMonth(budgetDate, currentDate);
-    } catch (e) {
-      console.error("Error parsing budget date:", budget.date, e);
-      return false; // Excluir si la fecha es inválida
-    }
-  }) : [];
+  // const currentDate = new Date();
+  // // Asegúrate de que budgets no sea undefined antes de filtrar
+  // const currentMonthBudgets = budgets ? budgets.filter((budget) => {
+  //   try {
+  //     const budgetDate = parseISO(budget.date);
+  //     return isSameMonth(budgetDate, currentDate);
+  //   } catch (e) {
+  //     console.error("Error parsing budget date:", budget.date, e);
+  //     return false; // Excluir si la fecha es inválida
+  //   }
+  // }) : [];
 
-  const sortedBudgets = currentMonthBudgets
-    .slice()
+  const sortedBudgets = budgets ? budgets
+    .slice() // Crear una copia superficial para no mutar el estado original
     .sort((a, b) => {
-      // Orden más específico: created > send > approved > rejected
-      const statusOrder = { created: 1, send: 2, approved: 3, rejected: 4 };
-      return (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
-    });
-
+      try {
+        // Parsear las fechas de creación
+        const dateA = parseISO(a.createdAt);
+        const dateB = parseISO(b.createdAt);
+        // Orden descendente (más reciente primero)
+        return dateB - dateA;
+      } catch (e) {
+        console.error("Error parsing createdAt date for sorting:", a.createdAt, b.createdAt, e);
+        return 0; // Mantener orden original si hay error de parseo
+      }
+    }) : [];
+     // --- 3. APLICAR PAGINACIÓN A LA LISTA COMPLETA Y ORDENADA ---
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  // Usar sortedBudgets (que ahora contiene todos los presupuestos ordenados)
   const currentBudgetsForDisplay = sortedBudgets.slice(indexOfFirstItem, indexOfLastItem);
 
   const handlePageChange = (pageNumber) => {
@@ -190,12 +198,12 @@ useEffect(() => {
   };
 
   const totalPages = Math.ceil(sortedBudgets.length / itemsPerPage);
-
+  console.log("IDs en currentBudgetsForDisplay:", currentBudgetsForDisplay.map(b => b.idBudget));
   return (
     <div className="p-4">
       <h1 className="text-lg font-semibold mb-4 text-gray-800">Monthly Budgets</h1>
 
-      {/* --- YA NO SE RENDERIZA UploadInitialInvoice AQUÍ --- */}
+      
 
       {loading && <p className="text-blue-500">Loading Budgets...</p>}
       {error && <p className="text-red-500">Error: {error}</p>}
@@ -224,7 +232,7 @@ useEffect(() => {
                     key={budget.idBudget}
                     className={`hover:bg-gray-100 ${getStatusColor(budget.status)}`}
                   >
-                    {/* ... (celdas td de datos sin cambios) ... */}
+                   
                     <td className="border border-gray-300 px-4 py-2 text-xs">{budget.applicantName}</td>
                     <td className="border border-gray-300 px-4 py-2 text-xs">{formatDate(budget.date)}</td>
                     <td className="border border-gray-300 px-4 py-2 text-xs">{budget.expirationDate ? formatDate(budget.expirationDate) : "N/A"}</td>
@@ -234,9 +242,8 @@ useEffect(() => {
                     <td className="border border-gray-300 px-4 py-2 text-xs">{budget.propertyAddress || "N/A"}</td>
                     <td className="border border-gray-300 px-4 py-2 text-xs"> {budget.Permit?.systemType || "N/A"}</td>
                     <td className="border border-gray-300 px-4 py-2">
-                      <div className="flex items-center justify-center space-x-2"> {/* Contenedor Flex */}
+                      <div className="flex items-center justify-center space-x-2"> 
 
-                        {/* --- Lógica de Botones de Estado --- */}
                         {budget.status === "created" && (
                           <button
                             onClick={() => handleUpdateStatus(budget.idBudget, "send", budget)}
@@ -285,13 +292,10 @@ useEffect(() => {
                             Rejected
                           </p>
                         )}
-                        {/* --- Fin Lógica de Botones de Estado --- */}
-
-
-                        {/* --- Botón Descargar PDF (siempre visible si existe path) --- */}
+                      
                         {budget.pdfPath ? (
                           <>
-                            {/* Botón Ver PDF */}
+                           
                             <button
                               onClick={() => handleViewPdf(budget.idBudget)}
                               disabled={viewingPdfId === budget.idBudget} // Deshabilitar mientras carga
@@ -306,7 +310,7 @@ useEffect(() => {
                               <span className="ml-1">View</span>
                             </button>
 
-                            {/* Botón Descargar PDF */}
+                            
                             <button
                               onClick={() => handleDownloadPdf(budget.idBudget, `budget_${budget.idBudget}.pdf`)}
                               disabled={downloadingPdfId === budget.idBudget}
@@ -325,9 +329,9 @@ useEffect(() => {
                           // Espaciador si no hay PDF para mantener alineación (opcional)
                           <div className="w-16 h-px"></div> // O un span vacío con ancho
                         )}
-                        {/* --- Fin Botón Descargar PDF --- */}
+                       
 
-                      </div> {/* Fin Contenedor Flex */}
+                      </div> 
                     </td>
                   </tr>
                 ))}
@@ -337,7 +341,15 @@ useEffect(() => {
 
           {/* Tarjetas para pantallas pequeñas */}
           <div className="block lg:hidden space-y-4">
-            {currentBudgetsForDisplay.map((budget) => (
+            {currentBudgetsForDisplay.map((budget) => {
+              // --- INICIO CAMBIO: Determinar etiqueta de pago ---
+              let paymentLabel = `Pay ${budget.initialPaymentPercentage || 60}%`; // Default o valor guardado
+              if (budget.initialPaymentPercentage === 100) {
+                paymentLabel = `Pay 100%`; // Etiqueta específica para 100%
+              }
+              // --- FIN CAMBIO ---
+
+              return (
               <div
                 key={budget.idBudget}
                 className={`border border-gray-300 rounded-lg p-4 shadow-md ${getStatusColor(budget.status)}`}
@@ -346,13 +358,14 @@ useEffect(() => {
                 <p className="text-sm font-semibold text-gray-700">Applicant: {budget.applicantName}</p>
                 <p className="text-xs text-gray-600">Date: {formatDate(budget.date)}</p>
                 <p className="text-xs text-gray-600">End Date: {budget.expirationDate ? formatDate(budget.expirationDate) : "N/A"}</p>
-                <p className="text-xs text-gray-600">Price: ${budget.price}</p>
-                <p className="text-xs text-gray-600">Pay 60%: ${budget.initialPayment}</p>
+                <p className="text-xs text-gray-600">Price: ${budget.totalPrice}</p>
+                <p className="text-xs text-gray-600">{paymentLabel}: ${budget.initialPayment}</p>
                 <p className="text-xs text-gray-600">Status: <span className="font-medium">{budget.status}</span></p>
                 <p className="text-xs text-gray-600">Address: {budget.propertyAddress || "N/A"}</p>
                 <p className="text-xs text-gray-600">System Type: {budget.systemType || "N/A"}</p>
                 <div className="mt-3 border-t pt-2 flex items-center justify-between"> {/* Separador y flex */}
-                  <div> {/* Contenedor para acciones de estado */}
+                  
+                  <div> 
                     {budget.status === "created" && (
                       <button
                         onClick={() => handleUpdateStatus(budget.idBudget, "send", budget)}
@@ -370,17 +383,7 @@ useEffect(() => {
                           <p className="text-orange-600 text-xs font-semibold">Pending Invoice</p>
                         )}
 
-                        {/* --- ELIMINAR EL BOTÓN DE APROBAR --- */}
-                        {/* {budget.paymentInvoice && (
-                          <button
-                            onClick={() => handleUpdateStatus(budget.idBudget, "approved", budget)}
-                            className="bg-green-500 text-white px-2 py-1 rounded text-xs"
-                          >
-                            Approve
-                          </button>
-                        )} */}
-
-                        {/* Botón Rechazar */}
+                       
                         <button
                           onClick={() => handleUpdateStatus(budget.idBudget, "rejected", budget)}
                           className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600"
@@ -403,11 +406,11 @@ useEffect(() => {
                     )}
                   </div>
 
-                  {/* Descargar PDF (siempre visible) */}
-                  <div className="flex items-center space-x-1"> {/* Contenedor para botones PDF */}
+                  
+                  <div className="flex items-center space-x-1"> 
                     {budget.pdfPath ? (
                       <>
-                        {/* Botón Ver PDF (móvil) */}
+                        
                         <button
                                   onClick={() => handleViewPdf(budget.idBudget)}
                                   disabled={viewingPdfId === budget.idBudget}
@@ -417,7 +420,7 @@ useEffect(() => {
                                   {viewingPdfId === budget.idBudget ? ( <svg /* spinner */></svg> ) : ( <EyeIcon className="h-4 w-4" /> )}
                                   <span className="ml-1">View</span>
                                </button>
-                        {/* Botón Descargar PDF (móvil) */}
+                        
                         <button
                           onClick={() => handleDownloadPdf(budget.idBudget, `budget_${budget.idBudget}.pdf`)}
                           disabled={downloadingPdfId === budget.idBudget}
@@ -431,19 +434,20 @@ useEffect(() => {
                     ) : (
                       <span className="text-xs text-gray-400 italic">No PDF</span>
                     )}
-                  </div> {/* Fin contenedor PDF */}
+                  </div> 
                 </div>
               </div>
-            ))}
+               );
+              })}
           </div>
 
           {/* Paginado (sin cambios) */}
-          <div className="flex justify-center mt-6"> {/* Aumentado margen superior */}
+          <div className="flex justify-center mt-6">
             {Array.from({ length: totalPages }, (_, index) => (
               <button
-                key={index + 1}
+                key={`page-${index + 1}`} // <--- AÑADE UN PREFIJO A LA KEY
                 onClick={() => handlePageChange(index + 1)}
-                className={`mx-1 px-3 py-1 text-xs rounded ${ // Ligeramente más grande
+                className={`mx-1 px-3 py-1 text-xs rounded ${
                   currentPage === index + 1
                     ? "bg-blue-950 text-white shadow"
                     : "bg-gray-200 text-gray-700 hover:bg-gray-300"

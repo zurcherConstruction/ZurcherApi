@@ -53,7 +53,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, SystemType, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem } = sequelize.models;
+const { Staff, Permit, Income, SystemType, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem } = sequelize.models;
 
 // Relaciones
 Permit.hasMany(Work, { foreignKey: 'propertyAddress', sourceKey: 'propertyAddress' });
@@ -74,8 +74,8 @@ Inspection.belongsTo(Work, { foreignKey: 'workId' });
 Staff.hasMany(Work, { foreignKey: 'staffId' });
 Work.belongsTo(Staff, { foreignKey: 'staffId' });
 
-Work.belongsTo(Budget, { foreignKey: 'idBudget', as: 'budget' });
-Budget.hasMany(Work, { foreignKey: 'idBudget' });
+// Work.belongsTo(Budget, { foreignKey: 'idBudget', as: 'budget' });
+// Budget.hasMany(Work, { foreignKey: 'idBudget' });
 // Relación entre Staff y Notification
 Notification.belongsTo(Staff, { as: "sender", foreignKey: "senderId" });
 Staff.hasMany(Notification, { as: "sentNotifications", foreignKey: "senderId" });
@@ -127,7 +127,7 @@ Expense.belongsTo(Work, {
 });
 // Relación entre Staff y NotificationApp
 NotificationApp.belongsTo(Staff, { as: 'sender', foreignKey: 'senderId' });
-Staff.hasMany(NotificationApp, { as: 'notifications', foreignKey: 'staffId' });
+Staff.hasMany(NotificationApp, { as: 'notifications', foreignKey: 'staffId' }); // <-- FK diferente
 NotificationApp.hasMany(NotificationApp, { as: 'responses', foreignKey: 'parentId' });
 NotificationApp.belongsTo(NotificationApp, { as: 'parent', foreignKey: 'parentId' });
 
@@ -166,10 +166,45 @@ Budget.belongsTo(Permit, { foreignKey: 'PermitIdPermit' });
 
 
 Budget.hasOne(Work, { foreignKey: 'idBudget' }); // O hasMany si un budget puede tener varios works
-Work.belongsTo(Budget, { foreignKey: 'idBudget' });
+Work.belongsTo(Budget, { foreignKey: 'idBudget', as: 'budget' });
 // ...
+// Relación lógica con Income
+Income.hasMany(Receipt, { foreignKey: 'relatedId', constraints: false, scope: { relatedModel: 'Income' }, as: 'Receipts' }); // Añadir alias
+Receipt.belongsTo(Income, { foreignKey: 'relatedId', constraints: false });
 
+// Relación lógica con Expense
+Expense.hasMany(Receipt, { foreignKey: 'relatedId', constraints: false, scope: { relatedModel: 'Expense' }, as: 'Receipts' }); // Añadir alias
+Receipt.belongsTo(Expense, { foreignKey: 'relatedId', constraints: false });
 
+// Un Work tiene una FinalInvoice
+Work.hasOne(FinalInvoice, {
+  foreignKey: 'workId', // La clave foránea en FinalInvoice que apunta a Work
+  as: 'finalInvoice'    // Alias para incluir FinalInvoice en consultas de Work
+});
+// Una FinalInvoice pertenece a un Work
+FinalInvoice.belongsTo(Work, {
+  foreignKey: 'workId'
+});
+
+// Un Budget tiene una FinalInvoice (opcional, pero útil para referencia)
+Budget.hasOne(FinalInvoice, {
+  foreignKey: 'budgetId', // La clave foránea en FinalInvoice que apunta a Budget
+  as: 'finalInvoice'
+});
+// Una FinalInvoice pertenece a un Budget
+FinalInvoice.belongsTo(Budget, {
+  foreignKey: 'budgetId'
+});
+
+// Una FinalInvoice tiene muchos WorkExtraItems
+FinalInvoice.hasMany(WorkExtraItem, {
+  foreignKey: 'finalInvoiceId', // La clave foránea en WorkExtraItem que apunta a FinalInvoice
+  as: 'extraItems'         // Alias para incluir WorkExtraItems en consultas de FinalInvoice
+});
+// Un WorkExtraItem pertenece a una FinalInvoice
+WorkExtraItem.belongsTo(FinalInvoice, {
+  foreignKey: 'finalInvoiceId'
+});
 //---------------------------------------------------------------------------------//
 module.exports = {
   ...sequelize.models, // para poder importar los modelos así: const { Product, User } = require('./db.js');

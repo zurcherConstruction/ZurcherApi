@@ -136,13 +136,43 @@ const workSlice = createSlice({
     },
     deleteImagesSuccess: (state, action) => {
       state.loading = false;
-      const { imageUrls } = action.payload;
-      state.images = state.images.filter((url) => !imageUrls.includes(url)); // Eliminar las imágenes especificadas
+      // 1. Obtener idWork y imageId del payload correcto
+      const { idWork, imageId } = action.payload;
+
+      // 2. Encontrar el índice del trabajo afectado en state.works
+      const workIndex = state.works.findIndex(work => work.idWork === idWork);
+
+      if (workIndex !== -1) {
+        // 3. Obtener una copia del trabajo para modificar
+        const workToUpdate = { ...state.works[workIndex] };
+
+        // 4. Asegurarse de que el array 'images' exista dentro del trabajo
+        if (workToUpdate.images && Array.isArray(workToUpdate.images)) {
+          // 5. Filtrar el array 'images' DENTRO del trabajo, manteniendo las que NO coinciden
+          workToUpdate.images = workToUpdate.images.filter(
+            (image) => image.id !== imageId // Comparación directa de IDs
+          );
+
+          // 6. Actualizar el trabajo en el array 'works' del estado
+          state.works[workIndex] = workToUpdate;
+          console.log(`Imagen ID ${imageId} eliminada del trabajo ID ${idWork} en el estado.`);
+        } else {
+           console.warn(`El trabajo con ID ${idWork} no tiene un array 'images' válido para filtrar.`);
+        }
+      } else {
+         console.warn(`No se encontró el trabajo con ID ${idWork} en el estado para eliminar la imagen.`);
+      }
+
+      // 7. Eliminar la lógica incorrecta que modificaba state.images globalmente
+      // state.images = state.images.filter((url) => !imageUrls.includes(url));
+
       state.error = null;
     },
+    // --- FIN REDUCER CORREGIDO ---
     deleteImagesFailure: (state, action) => {
       state.loading = false;
       state.error = action.payload; // Guardar el mensaje de error
+      console.error("Error en deleteImagesFailure:", action.payload); // Log del error
     },
     fetchAssignedWorksRequest: (state) => {
       state.loading = true;

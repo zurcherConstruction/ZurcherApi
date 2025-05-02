@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorkById } from "../../Redux/Actions/workActions";
 import { balanceActions } from "../../Redux/Actions/balanceActions";
@@ -9,6 +9,7 @@ import {
 } from "../../Redux/Reducer/balanceReducer"; // Ajusta esta ruta si es necesario
 import { useParams } from "react-router-dom";
 //import api from "../../utils/axios";
+import FinalInvoice from "../Budget/FinalInvoice"
 
 const WorkDetail = () => {
   const { idWork } = useParams();
@@ -24,13 +25,88 @@ const WorkDetail = () => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [fileBlob, setFileBlob] = useState(null);
   const [openSections, setOpenSections] = useState({}); // Cambiado a un objeto para manejar múltiples secciones
-
+  const [showFinalInvoice, setShowFinalInvoice] = useState(false);
   const {
     incomes,
     expenses,
     loading: balanceLoading, // Renombrado para evitar conflicto
     error: balanceError, // Renombrado para evitar conflicto
   } = useSelector((state) => state.balance);
+
+    // --- 1. CALCULAR TOTALES Y BALANCE ---
+    const { totalIncome, totalExpense, balance } = useMemo(() => {
+      const incomeSum = incomes?.reduce((sum, income) => sum + parseFloat(income.amount || 0), 0) || 0;
+      const expenseSum = expenses?.reduce((sum, expense) => sum + parseFloat(expense.amount || 0), 0) || 0;
+      const calculatedBalance = incomeSum - expenseSum;
+      return {
+        totalIncome: incomeSum,
+        totalExpense: expenseSum,
+        balance: calculatedBalance,
+      };
+    }, [incomes, expenses]);
+  
+
+    // --- 1. Consolidar todos los recibos usando useMemo ---
+    const allReceipts = useMemo(() => {
+      const consolidated = [];
+
+       // --- AÑADIR COMPROBANTE PAGO INICIAL (BUDGET) ---
+    if (work?.budget?.paymentInvoice && work.budget.idBudget) { // Asegurarse que hay URL y ID de budget
+      let mimeType = 'application/octet-stream'; // Tipo por defecto
+      if (work.budget.paymentProofType === 'pdf') {
+        mimeType = 'application/pdf';
+      } else if (work.budget.paymentProofType === 'image') {
+        // Intentar inferir tipo de imagen desde la URL si es posible, sino usar genérico
+        const extension = work.budget.paymentInvoice.split('.').pop().toLowerCase();
+        if (['jpg', 'jpeg'].includes(extension)) mimeType = 'image/jpeg';
+        else if (extension === 'png') mimeType = 'image/png';
+        else if (extension === 'gif') mimeType = 'image/gif';
+        else mimeType = 'image/jpeg'; // O un tipo de imagen genérico
+      }
+
+      consolidated.push({
+        idReceipt: `budget-${work.budget.idBudget}-payment`, // ID único generado
+        fileUrl: work.budget.paymentInvoice,
+        mimeType: mimeType,
+        originalName: 'Comprobante Pago Inicial',
+        notes: `Pago inicial del presupuesto por $${work.budget.initialPayment || 'N/A'}`,
+        type: 'Comprobante Pago Inicial', // Tipo específico
+        relatedRecordType: 'Presupuesto', // Indicar que pertenece al Budget
+        relatedRecordDesc: `Pago Inicial - $${work.budget.initialPayment || 'N/A'}`,
+        // createdAt: work.budget.updatedAt || work.budget.createdAt // Opcional: usar fecha del budget
+      });
+    }
+    // --- FIN AÑADIR COMPROBANTE PAGO INICIAL ---
+  
+      // Recibos de Work
+      if (work?.Receipts) {
+        consolidated.push(...work.Receipts.map(r => ({ ...r, relatedRecordType: 'Obra', relatedRecordDesc: work.propertyAddress })));
+      }
+  
+      // Recibos de Income
+      if (incomes) {
+        incomes.forEach(income => {
+          if (income.Receipts) {
+            consolidated.push(...income.Receipts.map(r => ({ ...r, relatedRecordType: 'Ingreso', relatedRecordDesc: `${income.typeIncome} - $${income.amount}` })));
+          }
+        });
+      }
+  
+      // Recibos de Expense
+      if (expenses) {
+        expenses.forEach(expense => {
+          if (expense.Receipts) {
+            consolidated.push(...expense.Receipts.map(r => ({ ...r, relatedRecordType: 'Gasto', relatedRecordDesc: `${expense.typeExpense} - $${expense.amount}` })));
+          }
+        });
+      }
+  
+      // Opcional: Ordenar por fecha si los recibos tienen createdAt/updatedAt
+      consolidated.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  
+      return consolidated;
+    }, [work?.budget, work?.Receipts, incomes, expenses, work?.propertyAddress]); // Dependencias
+  
 
   useEffect(() => {
     dispatch(fetchWorkById(idWork));
@@ -146,6 +222,8 @@ const WorkDetail = () => {
       [section]: !prev[section],
     }));
   };
+
+
   return (
     <div className="p-4 bg-gray-100 min-h-screen">
       {/* Título principal con dirección y estado */}
@@ -233,110 +311,77 @@ const WorkDetail = () => {
             </div>
           )}
 
-          {/* Tarjeta: Comprobantes */}
-          {/* Mostrar los recibos existentes */}
-          {work.Receipts && work.Receipts.length > 0 && (
+          {/* --- 2. SECCIÓN DE COMPROBANTES ACTUALIZADA --- */}
+          {allReceipts && allReceipts.length > 0 && (
             <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-yellow-500">
               <h2
                 className="text-xl font-semibold mb-4 cursor-pointer"
-                onClick={() => toggleSection("receipts")}
+                onClick={() => toggleSection("allReceipts")} // Cambiar ID si es necesario
               >
-                Comprobantes Adjuntados
+                Todos los Comprobantes ({allReceipts.length})
               </h2>
-              {openSections.receipts && (
-                <ul className="space-y-4">
-                  {work.Receipts.map((receipt) => (
-                    <li
-                      key={receipt.idReceipt}
-                      className="border p-4 rounded shadow"
-                    >
-                      <p>
-                        <strong>Tipo:</strong> {receipt.type}
-                      </p>
-                      <p>
-                        <strong>Notas:</strong> {receipt.notes || "Sin notas"}
-                      </p>
-                      {receipt.pdfUrl ? (
-                        <iframe
-                          src={receipt.pdfUrl}
-                          width="100%"
-                          height="250px"
-                          title={`Vista previa de ${receipt.type}`}
-                          className="rounded"
-                        ></iframe>
-                      ) : (
-                        <p>No hay archivo adjunto.</p>
-                      )}
-                      {receipt.pdfUrl && (
-                        <a
-                          href={receipt.pdfUrl}
-                          download={`${receipt.type}.pdf`}
-                          className="text-blue-500 underline mt-2 block"
-                        >
-                          Descargar {receipt.type}
-                        </a>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
-
-          {/* Mostrar el paymentInvoice si existe */}
-          {work.budget?.paymentInvoice && (
-            <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-blue-500 mt-4">
-              <p>
-                <strong>Tipo:</strong> Comprobante de Pago
-              </p>
-              {work.budget.paymentProofType === "pdf" ? (
-                <div className="relative">
-                  <iframe
-                    src={`https://docs.google.com/gview?url=${work.budget.paymentInvoice}&embedded=true`}
-                    width="100%"
-                    height="250px"
-                    title="Vista previa del comprobante de pago"
-                    className="rounded"
-                    onError={(e) => {
-                      console.error("Error loading PDF:", e);
-                      e.target.style.display = "none";
-                      alert(
-                        "No se pudo cargar el archivo PDF. Por favor, descárgalo directamente."
-                      );
-                    }}
-                  />
+              {openSections.allReceipts && (
+                // Contenedor con scroll
+                <div className="max-h-[600px] overflow-y-auto pr-2"> {/* Ajusta max-h según necesites */}
+                  <ul className="space-y-4">
+                    {allReceipts.map((receipt) => ( // Iterar sobre el array consolidado
+                      <li
+                        key={receipt.idReceipt} // Usar idReceipt como key único
+                        className="border p-4 rounded shadow bg-gray-50" // Fondo ligero para diferenciar
+                      >
+                        {/* Mostrar a qué registro pertenece */}
+                        <p className="text-sm font-medium text-blue-700 mb-1">
+                          Asociado a: {receipt.relatedRecordType} ({receipt.relatedRecordDesc})
+                        </p>
+                        <p>
+                          <strong>Tipo (Recibo):</strong> {receipt.type}
+                        </p>
+                        <p>
+                          <strong>Notas:</strong> {receipt.notes || "Sin notas"}
+                        </p>
+                        {/* Visualización del archivo (igual que antes) */}
+                        {receipt.fileUrl && receipt.mimeType ? (
+                          <div className="mt-2">
+                            {receipt.mimeType.startsWith('image/') ? (
+                              <img
+                                src={receipt.fileUrl}
+                                alt={`Comprobante ${receipt.originalName || receipt.type}`}
+                                className="rounded w-full h-auto object-contain max-h-[200px] border" // Altura ajustada
+                                onError={(e) => { e.target.style.display = 'none'; }}
+                              />
+                            ) : receipt.mimeType === 'application/pdf' ? (
+                              <iframe
+                                src={`https://docs.google.com/gview?url=${encodeURIComponent(receipt.fileUrl)}&embedded=true`}
+                                width="100%"
+                                height="200px" // Altura ajustada
+                                title={`Vista previa de ${receipt.originalName || receipt.type}`}
+                                className="rounded border"
+                                onError={(e) => { e.target.outerHTML = '<p class="text-red-500 text-xs">No se pudo cargar la vista previa.</p>'; }}
+                              ></iframe>
+                            ) : (
+                              <p className="text-gray-600 text-xs">Archivo no previsualizable.</p>
+                            )}
+                            <a
+                              href={receipt.fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-500 hover:text-blue-700 underline text-xs mt-1 block"
+                            >
+                              Ver/Descargar {receipt.originalName || receipt.type}
+                            </a>
+                          </div>
+                        ) : (
+                          <p className="text-gray-500 text-xs mt-1">Info de archivo incompleta.</p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              ) : work.budget.paymentProofType === "image" ? (
-                <img
-                  src={work.budget.paymentInvoice}
-                  alt="Comprobante de Pago"
-                  className="rounded w-full h-auto object-contain max-h-[250px]"
-                  onError={(e) => {
-                    console.error("Error loading image:", e);
-                    e.target.src = "/placeholder-image.png"; // Imagen de reemplazo
-                  }}
-                />
-              ) : (
-                <p className="text-yellow-600">
-                  Archivo disponible para descarga
-                </p>
               )}
-              <a
-                href={work.budget.paymentInvoice}
-                download
-                className="text-blue-500 hover:text-blue-700 underline mt-2 block"
-                onClick={(e) => {
-                  if (!work.budget.paymentInvoice.startsWith("http")) {
-                    e.preventDefault();
-                    console.error("URL inválida:", work.budget.paymentInvoice);
-                    alert("La URL del archivo no es válida.");
-                  }
-                }}
-              >
-                Descargar Comprobante de Pago
-              </a>
             </div>
           )}
+          {/* --- FIN SECCIÓN COMPROBANTES ACTUALIZADA --- */}
+
 
           {/* Tarjeta: Imágenes */}
           <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-yellow-500">
@@ -380,6 +425,44 @@ const WorkDetail = () => {
 
         {/* Columna derecha: Tarjetas de gastos e ingresos */}
         <div className="space-y-6">
+           {/* --- 2. TARJETA DE BALANCE TOTAL --- */}
+           <div className={`
+            shadow-lg rounded-lg p-6 border-l-8
+            ${balance > 0 ? 'bg-green-100 border-green-500' : ''}
+            ${balance < 0 ? 'bg-red-100 border-red-500' : ''}
+            ${balance === 0 ? 'bg-gray-100 border-gray-500' : ''}
+          `}>
+            <h2 className="text-2xl font-bold mb-3 text-center text-gray-800">
+              Balance de la Obra
+            </h2>
+            <div className="text-center">
+              <p className={`text-4xl font-extrabold mb-1
+                ${balance > 0 ? 'text-green-700' : ''}
+                ${balance < 0 ? 'text-red-700' : ''}
+                ${balance === 0 ? 'text-gray-700' : ''}
+              `}>
+                ${balance.toFixed(2)}
+              </p>
+              <p className={`text-lg font-semibold
+                ${balance > 0 ? 'text-green-600' : ''}
+                ${balance < 0 ? 'text-red-600' : ''}
+                ${balance === 0 ? 'text-gray-600' : ''}
+              `}>
+                {balance > 0 ? 'Ganancia' : (balance < 0 ? 'Pérdida' : 'Equilibrio')}
+              </p>
+            </div>
+            <div className="mt-4 pt-3 border-t border-gray-300 flex justify-around text-sm">
+              <div className="text-center">
+                <p className="font-semibold text-green-600">Ingresos Totales</p>
+                <p className="text-gray-700">${totalIncome.toFixed(2)}</p>
+              </div>
+              <div className="text-center">
+                <p className="font-semibold text-red-600">Gastos Totales</p>
+                <p className="text-gray-700">${totalExpense.toFixed(2)}</p>
+              </div>
+            </div>
+          </div>
+          {/* --- FIN TARJETA BALANCE --- */}
           {/* Tarjeta: Gastos */}
           <div className="bg-red-100 shadow-md rounded-lg p-6 border-l-4 border-red-500">
             <h2
@@ -513,7 +596,28 @@ const WorkDetail = () => {
           </div>
         </div>
       </div>
+ {/* --- SECCIÓN PARA FACTURA FINAL --- */}
+      {/* Mostrar solo si la obra está en un estado apropiado (ej: 'completed', 'finalApproved') */}
+      {(work.status === 'coverPending' || work.status === 'finalApproved' || work.status === 'maintenance' || work.status === 'installed' || work.status === 'inProgress') && ( // Ajusta estados según tu lógica
+        <div className="mt-6 bg-white shadow-md rounded-lg p-6 border-l-4 border-purple-500">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Factura Final</h2>
+            <button
+              onClick={() => setShowFinalInvoice(!showFinalInvoice)}
+              className="text-sm text-white bg-purple-600 hover:bg-purple-700 px-3 py-1 rounded"
+            >
+              {showFinalInvoice ? 'Ocultar' : 'Ver/Gestionar'} Factura Final
+            </button>
+          </div>
 
+          {/* Renderizar el componente de la factura final condicionalmente */}
+          {showFinalInvoice && (
+            <div className="mt-4 border-t pt-4">
+              <FinalInvoice workId={idWork} />
+            </div>
+          )}
+        </div>
+      )}
       {/* Modal para mostrar la imagen ampliada */}
       {selectedImage && (
         <div
