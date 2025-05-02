@@ -52,7 +52,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, SystemType, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem } = sequelize.models;
+const { Staff, Permit, Income, SystemType, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem } = sequelize.models;
 
 // Relaciones
 Permit.hasMany(Work, { foreignKey: 'propertyAddress', sourceKey: 'propertyAddress' });
@@ -175,6 +175,35 @@ Receipt.belongsTo(Income, { foreignKey: 'relatedId', constraints: false });
 Expense.hasMany(Receipt, { foreignKey: 'relatedId', constraints: false, scope: { relatedModel: 'Expense' }, as: 'Receipts' }); // Añadir alias
 Receipt.belongsTo(Expense, { foreignKey: 'relatedId', constraints: false });
 
+// Un Work tiene una FinalInvoice
+Work.hasOne(FinalInvoice, {
+  foreignKey: 'workId', // La clave foránea en FinalInvoice que apunta a Work
+  as: 'finalInvoice'    // Alias para incluir FinalInvoice en consultas de Work
+});
+// Una FinalInvoice pertenece a un Work
+FinalInvoice.belongsTo(Work, {
+  foreignKey: 'workId'
+});
+
+// Un Budget tiene una FinalInvoice (opcional, pero útil para referencia)
+Budget.hasOne(FinalInvoice, {
+  foreignKey: 'budgetId', // La clave foránea en FinalInvoice que apunta a Budget
+  as: 'finalInvoice'
+});
+// Una FinalInvoice pertenece a un Budget
+FinalInvoice.belongsTo(Budget, {
+  foreignKey: 'budgetId'
+});
+
+// Una FinalInvoice tiene muchos WorkExtraItems
+FinalInvoice.hasMany(WorkExtraItem, {
+  foreignKey: 'finalInvoiceId', // La clave foránea en WorkExtraItem que apunta a FinalInvoice
+  as: 'extraItems'         // Alias para incluir WorkExtraItems en consultas de FinalInvoice
+});
+// Un WorkExtraItem pertenece a una FinalInvoice
+WorkExtraItem.belongsTo(FinalInvoice, {
+  foreignKey: 'finalInvoiceId'
+});
 //---------------------------------------------------------------------------------//
 module.exports = {
   ...sequelize.models, // para poder importar los modelos así: const { Product, User } = require('./db.js');

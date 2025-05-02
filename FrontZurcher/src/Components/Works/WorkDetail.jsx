@@ -9,6 +9,7 @@ import {
 } from "../../Redux/Reducer/balanceReducer"; // Ajusta esta ruta si es necesario
 import { useParams } from "react-router-dom";
 //import api from "../../utils/axios";
+import FinalInvoice from "../Budget/FinalInvoice"
 
 const WorkDetail = () => {
   const { idWork } = useParams();
@@ -24,7 +25,7 @@ const WorkDetail = () => {
   const [selectedImage, setSelectedImage] = useState(null);
   const [fileBlob, setFileBlob] = useState(null);
   const [openSections, setOpenSections] = useState({}); // Cambiado a un objeto para manejar múltiples secciones
-
+  const [showFinalInvoice, setShowFinalInvoice] = useState(false);
   const {
     incomes,
     expenses,
@@ -593,7 +594,28 @@ const WorkDetail = () => {
           </div>
         </div>
       </div>
+ {/* --- SECCIÓN PARA FACTURA FINAL --- */}
+      {/* Mostrar solo si la obra está en un estado apropiado (ej: 'completed', 'finalApproved') */}
+      {(work.status === 'coverPending' || work.status === 'finalApproved' || work.status === 'maintenance' || work.status === 'installed' || work.status === 'inProgress') && ( // Ajusta estados según tu lógica
+        <div className="mt-6 bg-white shadow-md rounded-lg p-6 border-l-4 border-purple-500">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Factura Final</h2>
+            <button
+              onClick={() => setShowFinalInvoice(!showFinalInvoice)}
+              className="text-sm text-white bg-purple-600 hover:bg-purple-700 px-3 py-1 rounded"
+            >
+              {showFinalInvoice ? 'Ocultar' : 'Ver/Gestionar'} Factura Final
+            </button>
+          </div>
 
+          {/* Renderizar el componente de la factura final condicionalmente */}
+          {showFinalInvoice && (
+            <div className="mt-4 border-t pt-4">
+              <FinalInvoice workId={idWork} />
+            </div>
+          )}
+        </div>
+      )}
       {/* Modal para mostrar la imagen ampliada */}
       {selectedImage && (
         <div
