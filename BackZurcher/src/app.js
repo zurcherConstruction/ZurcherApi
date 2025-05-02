@@ -11,6 +11,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const fs = require('fs');
 require('./tasks/cronJobs');
+const { errorHandler } = require('./middleware/error');
 
 const app = express();
 const server = http.createServer(app); // Crear el servidor HTTP
@@ -90,18 +91,10 @@ app.use('*', (req, res) => {
     message: 'Not found',
   });
 });
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).send('Something broke!');
-});
 
-// Error Handling Middleware
-app.use((err, req, res, next) => {
-  res.status(err.statusCode || 500).send({
-    error: true,
-    message: err.message,
-  });
-});
+
+
+app.use(errorHandler);
 
 // Configuración de Socket.IO
 io.on('connection', (socket) => {

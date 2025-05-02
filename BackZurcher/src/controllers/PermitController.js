@@ -1,7 +1,7 @@
 const { Permit } = require('../data');
 
 // Crear un nuevo permiso
-const createPermit = async (req, res) => {
+const createPermit = async (req, res, next) => {
   try {
     console.log("Request body:", req.body);
     console.log("Request files:", req.files);
@@ -73,8 +73,8 @@ const createPermit = async (req, res) => {
     console.log("Permiso creado correctamente:", permit.idPermit);
     res.status(201).json(permit);
   } catch (error) {
-    console.error("Error al crear el permiso:", error);
-    res.status(500).json({ error: true, message: "Error interno del servidor" });
+    console.error("Error al crear el permiso (en controller):", error.name);
+    next(error);
   }
 };
 

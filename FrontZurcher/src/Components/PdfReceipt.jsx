@@ -5,12 +5,11 @@ import { Viewer, Worker } from "@react-pdf-viewer/core";
 import { defaultLayoutPlugin } from "@react-pdf-viewer/default-layout";
 import { uploadPdf } from "../Redux/Actions/pdfActions";
 import { createPermit } from "../Redux/Actions/permitActions";
-// Ya no necesitas createBudget aquí
-// import { createBudget } from "../Redux/Actions/budgetActions";
-// Ya no necesitas fetchSystemTypes aquí si el precio no se calcula aquí
-// import { fetchSystemTypes } from "../Redux/Actions/SystemActions";
 import "@react-pdf-viewer/core/lib/styles/index.css";
 import "@react-pdf-viewer/default-layout/lib/styles/index.css";
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import Swal from 'sweetalert2';
 
 const PdfReceipt = () => {
   const dispatch = useDispatch();
@@ -40,16 +39,11 @@ const PdfReceipt = () => {
     applicantPhone: "",
   });
 
-  // Ya no necesitas systemTypes aquí si no calculas precio
-  // const { systemTypes } = useSelector((state) => state.systemType);
+  
 
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
 
-  // Ya no necesitas cargar systemTypes aquí
-  // useEffect(() => {
-  //   dispatch(fetchSystemTypes());
-  // }, [dispatch]);
-
+  
   const handleFileUpload = (e) => {
     const uploadedFile = e.target.files[0];
     console.log("Archivo seleccionado:", uploadedFile);
@@ -58,15 +52,15 @@ const PdfReceipt = () => {
       setPdfPreview(fileUrl);
       setFile(uploadedFile);
       dispatch(uploadPdf(uploadedFile)).then((action) => {
-        if (action.payload && action.payload.data) { // Verificar que payload y data existan
+        if (action.payload && action.payload.data) { 
           setFormData((prevFormData) => ({
             ...prevFormData,
             ...action.payload.data,
-            // Asegúrate de que los campos extraídos no sobrescriban los editados manualmente si es necesario
+           
           }));
         } else if (action.error) {
             console.error("Error al procesar PDF:", action.error);
-            alert("Error al extraer datos del PDF.");
+            toast.error(`Error de Extracción: ${errorMsg}`);
         }
       });
     }
@@ -91,75 +85,128 @@ const PdfReceipt = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const confirmPlan = window.confirm(
-      "El permit que adjuntaste contiene el plano? Recorda cargarlo!!!"
-    );
+    const confirmationResult = await Swal.fire({
+      title: '¿Plano Cargado?',
+      text: "Si este permit requiere un plano (documento opcional), ¿ya lo has cargado?",
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Sí, continuar',
+      cancelButtonText: 'No, revisar'
+    });
 
-    // Si el usuario presiona "Cancelar" (o "No"), detener el envío
-    if (!confirmPlan) {
+    // Si el usuario presiona "No, revisar" o cierra la alerta, detener el envío
+    if (!confirmationResult.isConfirmed) {
       console.log("El usuario canceló el envío para verificar el plano.");
-      return; // Detiene la ejecución de handleSubmit
+      toast.info("Envío cancelado. Verifica si necesitas cargar el plano opcional."); // Toast informativo
+      return;
     }
 
     if (!formData.applicantName) {
-      alert("El campo Applicant Name es obligatorio.");
+      toast.warn("El campo 'Name' (Applicant Name) es obligatorio.");
+      return;
+    }
+    if (!formData.propertyAddress) {
+      toast.warn("El campo 'Property Address' es obligatorio.");
       return;
     }
     if (!file) {
-      alert("No se ha seleccionado ningún archivo PDF principal.");
+      toast.warn("No se ha seleccionado ningún archivo PDF principal.");
       return;
     }
 
+    let loadingToastId; // Definir fuera para que sea accesible en catch
     try {
+      // --- Preparar FormData (sin cambios) ---
       const formDataToSend = new FormData();
       formDataToSend.append("pdfData", file);
       if (optionalDocs) {
         formDataToSend.append("optionalDocs", optionalDocs);
       }
       Object.keys(formData).forEach((key) => {
-        // Asegurarse de no enviar valores undefined o null si el backend no los maneja bien
         formDataToSend.append(key, formData[key] ?? '');
       });
 
       console.log("Enviando datos para crear el permiso...");
-      // --- 1. Crear el Permiso ---
-    // filepath: c:\Users\yaniz\Documents\ZurcherApi\FrontZurcher\src\Components\PdfReceipt.jsx
-// ... dentro de handleSubmit ...
-const permitAction = await dispatch(createPermit(formDataToSend));
-console.log('Respuesta de createPermit:', permitAction); // Verifica esto
+      loadingToastId = toast.loading("Guardando permiso...");
 
-// La condición debería funcionar si la estructura es como se espera:
-if (permitAction && permitAction.payload && permitAction.payload.idPermit) {
-  const newPermitId = permitAction.payload.idPermit; // Correcto
-  console.log("Permiso creado con ID:", newPermitId);
-  alert("Permiso creado correctamente.");
-  navigate(`/createBudget?permitId=${newPermitId}`); // Navega a la página de edición del presupuesto
-} else {
-  // Si entra aquí, revisa el console.log anterior para ver por qué falló la condición
-  console.error("Error: La estructura de permitAction.payload no es la esperada o falta idPermit.", permitAction);
-  const errorMessage = permitAction?.error?.message || permitAction?.payload?.error || "No se pudo obtener el ID del permiso de la respuesta.";
-  alert(`Error al procesar la respuesta del permiso: ${errorMessage}`);
-}
-// ...
+      // --- Llamar al dispatch ---
+      // La acción createPermit debe lanzar un error en caso de fallo
+      const permitData = await dispatch(createPermit(formDataToSend));
+
+      // --- Si llegamos aquí, fue exitoso ---
+      toast.dismiss(loadingToastId);
+      const newPermitId = permitData?.idPermit; // Asumiendo que la acción devuelve los datos en éxito
+      if (newPermitId) {
+        console.log("Permiso creado con ID:", newPermitId);
+        toast.success("¡Permit creado correctamente!");
+        navigate(`/createBudget?permitId=${newPermitId}`);
+      } else {
+        console.error("Respuesta de éxito inesperada:", permitData);
+        toast.error("Éxito, pero no se recibió el ID del permiso.");
+      }
 
     } catch (error) {
-      // Captura errores generales de la red o del dispatch
-      console.error("Error en handleSubmit:", error);
-      alert(
-        `Hubo un error inesperado. Por favor, inténtalo de nuevo. Detalles: ${error.message}`
-      );
+      // --- Manejo de Error Simplificado ---
+      console.error(">>> ERROR CAPTURADO EN handleSubmit:", error); // Log detallado del error
+      if (loadingToastId) {
+        toast.dismiss(loadingToastId);
+      }
+
+      // --- Examinar el error directamente ---
+      const errorDetails = error?.details; // Intenta acceder a la propiedad adjunta
+      const responseData = error?.response?.data; // Intenta acceder a datos de respuesta Axios (si no se lanzó explícitamente)
+
+      console.log(">>> error.details:", errorDetails);
+      console.log(">>> error.response?.data:", responseData);
+
+      let displayMessage = "Error al crear el permiso.";
+
+      // Prioridad 1: Usar error.details si existe y tiene el código específico
+      if (errorDetails && errorDetails.code === '23505' && errorDetails.constraint === 'Permits_propertyAddress_key1') {
+        displayMessage = `Dirección ya existe: "${formData.propertyAddress}".`;
+        toast.error(displayMessage, { autoClose: 7000 });
+      }
+      // Prioridad 2: Usar error.details.message si existe
+      else if (errorDetails && errorDetails.message) {
+        displayMessage = errorDetails.message;
+        toast.error(`Error: ${displayMessage}`);
+      }
+      // Prioridad 3: Usar error.message (del objeto Error base)
+      else if (error.message) {
+        displayMessage = error.message;
+        toast.error(`Error: ${displayMessage}`);
+      }
+      // Prioridad 4: Mensaje genérico
+      else {
+        toast.error(displayMessage);
+      }
     }
+    // --- FIN SIMPLIFICADO try/catch ---
   };
 
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Gestión de PDF y Permiso</h1>
+      <ToastContainer
+        position="top-right" // Puedes cambiar la posición
+        autoClose={3000} // Duración por defecto
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="colored" 
+        />
+      <h1 className="text-xl font-bold">Gestión de PDF y Permit</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Columna izquierda: Vista previa del PDF */}
+       
         <div className="bg-white shadow-md rounded-lg p-4 col-span-2">
-          {/* ... (código de previsualización sin cambios) ... */}
-           <h2 className="text-xl font-bold mb-4">Vista previa del PDF</h2>
+         
+          
            <div className="flex justify-between mb-4">
              <button onClick={() => setCurrentPage(1)} className={`py-1 px-2 rounded-md ${ currentPage === 1 ? "bg-blue-950 text-white" : "bg-gray-200 text-gray-700" }`}>Ver PDF Principal</button>
              <button onClick={() => setCurrentPage(2)} className={`py-1 px-2 rounded-md ${ currentPage === 2 ? "bg-blue-950 text-white" : "bg-gray-200 text-gray-700" }`}>Ver Documento Opcional</button>
@@ -198,7 +245,7 @@ if (permitAction && permitAction.payload && permitAction.payload.idPermit) {
                  <label className="block text-xs font-medium capitalize text-gray-700">
                    {key === "applicantName" ? "Name" : key === "applicantEmail" ? "Email" : key === "applicantPhone" ? "Phone" : key.replace(/([A-Z])/g, " $1").trim()}
                  </label>
-                 {/* Ya no necesitas el select especial para systemType aquí si no afecta el precio */}
+                
                  <input
                    type={key === 'applicantEmail' ? 'email' : key === 'applicantPhone' ? 'tel' : 'text'} // Ajustar tipos de input
                    name={key}

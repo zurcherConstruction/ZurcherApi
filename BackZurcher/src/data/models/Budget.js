@@ -76,6 +76,11 @@ module.exports = (sequelize) => {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
   },
+  initialPaymentPercentage: {
+    type: DataTypes.INTEGER, // O FLOAT, DECIMAL si necesitas decimales
+    allowNull: true, // O false si siempre debe tener un valor
+    defaultValue: 60 // Opcional: poner un valor por defecto
+  },
   // Notas generales del presupuesto (opcional)
   generalNotes: {
       type: DataTypes.TEXT,

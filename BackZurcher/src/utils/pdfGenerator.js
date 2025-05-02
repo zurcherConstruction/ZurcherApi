@@ -173,13 +173,29 @@ async function generateAndSaveBudgetPDF(budgetData) {
       doc.font('Helvetica'); // Volver a normal
       doc.moveDown(0.5);
 
-      // --- Pago Inicial ---
-      currentY = doc.y; // Guardar Y actual
-      const initialPaymentNum = parseFloat(initialPayment);
-      // Etiqueta del Pago Inicial (puede ser larga, ajustar si es necesario)
-      doc.text(`Initial Payment (${initialPaymentPercentage || 60}%):`, totalsLabelStartX, currentY, { width: labelWidth, align: 'right' });
-      doc.text(`$${!isNaN(initialPaymentNum) ? initialPaymentNum.toFixed(2) : '0.00'}`, totalsValueStartX, currentY, { width: valueWidth, align: 'right' });
-      doc.moveDown(2); // Espacio después de los totales
+     // --- Pago Inicial ---
+     currentY = doc.y; // Guardar Y actual
+     const initialPaymentNum = parseFloat(initialPayment);
+
+     // --- DEBUG: Verificar el valor y tipo ---
+     console.log('DEBUG PDF - initialPaymentPercentage:', initialPaymentPercentage, typeof initialPaymentPercentage);
+     // --- FIN DEBUG ---
+
+     let paymentLabel = `Initial Payment (60%)`;
+     // La comparación === requiere que sea el NÚMERO 100
+     if (initialPaymentPercentage === 100) {
+       paymentLabel = `Total Payment (100%)`; // Cambiar etiqueta para 100%
+     } else {
+       const storedPercentage = parseFloat(initialPaymentPercentage);
+       if (!isNaN(storedPercentage) && storedPercentage !== 100) {
+           paymentLabel = `Initial Payment (${storedPercentage}%)`;
+       }
+       // Si no, se queda con el default "Initial Payment (60%)"
+     }
+     doc.text(`${paymentLabel}:`, totalsLabelStartX, currentY, { width: labelWidth, align: 'right' });
+     doc.text(`$${!isNaN(initialPaymentNum) ? initialPaymentNum.toFixed(2) : '0.00'}`, totalsValueStartX, currentY, { width: valueWidth, align: 'right' });
+     doc.moveDown(2); // Espacio después de los totales
+// ... (resto del código) ...
 
       // === SECCIÓN NOTAS GENERALES ===
       if (generalNotes) {
