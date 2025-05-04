@@ -626,86 +626,96 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
     } // --- Fin Lógica if (status === 'send') ---
 
     // --- 7b. Lógica si el estado es 'approved' ---
-    if (budget.status === "approved") {
-      console.log("El estado es 'approved'. Procesando creación de Work/Income...");
-      // ... (La lógica existente para crear Work/Income se mantiene igual) ...
-      // Asegúrate que usa budget.initialPayment (que ya fue recalculado y actualizado)
-      let workRecord;
-      const existingWork = await Work.findOne({ where: { idBudget: budget.idBudget }, transaction });
-
-      if (!existingWork) {
-        console.log(`Creando nuevo Work para Budget ID: ${budget.idBudget}`);
-        workRecord = await Work.create({
-          propertyAddress: budget.propertyAddress,
-          status: 'pending',
-          idBudget: budget.idBudget,
-          notes: `Work creado automáticamente al aprobar presupuesto N° ${budget.idBudget}`,
-          initialPayment: budget.initialPayment, // Usa el valor recalculado
-        }, { transaction });
-        console.log(`Nuevo Work creado con ID: ${workRecord.idWork}`);
-        const notificationDataForIncome = {
-          amount: budget.initialPayment, // Usar el valor del budget
-          propertyAddress: budget.propertyAddress // Usar el valor del budget
-        };
-        await sendNotifications('incomeCreated', notificationDataForIncome, null, req.io);
-
-        try {
-          console.log(`Creando nuevo Income para Work ID: ${workRecord.idWork}`);
-          await Income.create({
-            date: new Date(),
-            amount: budget.initialPayment, // Usa el valor recalculado
-            typeIncome: 'Factura Pago Inicial Budget',
-            notes: `Pago inicial registrado al aprobar Budget #${budget.idBudget}`,
-            workId: workRecord.idWork
+      // --- 7b. Lógica si el estado es 'approved' ---
+      if (budget.status === "approved") {
+        console.log("El estado es 'approved'. Procesando creación/actualización de Work/Income...");
+        let workRecord;
+        const existingWork = await Work.findOne({ where: { idBudget: budget.idBudget }, transaction });
+  
+        if (!existingWork) {
+          // --- Crear Nuevo Work y Nuevo Income ---
+          console.log(`Creando nuevo Work para Budget ID: ${budget.idBudget}`);
+          workRecord = await Work.create({
+            propertyAddress: budget.propertyAddress,
+            status: 'pending',
+            idBudget: budget.idBudget,
+            notes: `Work creado automáticamente al aprobar presupuesto N° ${budget.idBudget}`,
+            initialPayment: budget.initialPayment, // Usa el valor recalculado
           }, { transaction });
-          console.log(`Nuevo Income creado exitosamente.`);
-          const notificationDataForIncome = {
-            amount: budget.initialPayment, // Usar el valor del budget
-            propertyAddress: budget.propertyAddress // Usar el valor del budget
-          };
-          await sendNotifications('incomeCreated', notificationDataForIncome, null, req.io);
-        } catch (incomeError) {
-          console.error(`Error CRÍTICO al crear Income para nuevo Work ID ${workRecord.idWork}:`, incomeError);
-          throw new Error("Fallo al crear el registro de ingreso asociado al nuevo Work."); // Esto revertirá la transacción
-        }
-      } else {
-         console.log(`Work ya existente (ID: ${existingWork.idWork}) para Budget ID: ${budget.idBudget}. Verificando/Actualizando Income...`);
-         workRecord = existingWork;
-         // Opcional: Actualizar el initialPayment del Work si cambió el del budget
-         if (parseFloat(workRecord.initialPayment) !== parseFloat(budget.initialPayment)) {
-             console.log(`Actualizando initialPayment en Work existente ${workRecord.idWork} de ${workRecord.initialPayment} a ${budget.initialPayment}`);
-             await workRecord.update({ initialPayment: budget.initialPayment }, { transaction });
-         }
-
-         const existingIncome = await Income.findOne({
-           where: { workId: workRecord.idWork, typeIncome: 'Factura Pago Inicial Budget' },
-           transaction
-         });
-         if (!existingIncome) {
-           console.warn(`Advertencia: Work ${workRecord.idWork} existía pero no se encontró Income inicial. Creando ahora.`);
-           try {
-             await Income.create({ /* ... como en el bloque if(!existingWork) ... */ }, { transaction });
-             console.log(`Income (tardío) creado exitosamente.`);
-             const notificationDataForIncome = {
-              amount: budget.initialPayment, // Usar el valor del budget
-              propertyAddress: budget.propertyAddress // Usar el valor del budget
-            };
-            await sendNotifications('incomeCreated', notificationDataForIncome, null, req.io);
-           } catch (lateIncomeError) {
-             console.error(`Error CRÍTICO al crear Income (tardío) para Work ID ${workRecord.idWork}:`, lateIncomeError);
-             throw new Error("Fallo al crear el registro de ingreso (tardío) asociado."); // Revertirá
-           }
-         } else {
+          console.log(`Nuevo Work creado con ID: ${workRecord.idWork}`);
+  
+          try {
+            console.log(`Creando nuevo Income para Work ID: ${workRecord.idWork}`);
+            await Income.create({
+              date: new Date(),
+              amount: budget.initialPayment, // Usa el valor recalculado
+              typeIncome: 'Factura Pago Inicial Budget',
+              notes: `Pago inicial registrado al aprobar Budget #${budget.idBudget}`,
+              workId: workRecord.idWork
+            }, { transaction });
+            console.log(`Nuevo Income creado exitosamente.`);
+          } catch (incomeError) {
+            console.error(`Error CRÍTICO al crear Income para nuevo Work ID ${workRecord.idWork}:`, incomeError);
+            // Lanzar error para revertir la transacción
+            throw new Error("Fallo al crear el registro de ingreso asociado al nuevo Work.");
+          }
+        } else {
+          // --- Work Existente: Verificar/Actualizar Work y Verificar/Crear/Actualizar Income ---
+          console.log(`Work ya existente (ID: ${existingWork.idWork}) para Budget ID: ${budget.idBudget}. Verificando/Actualizando...`);
+          workRecord = existingWork;
+          // Opcional: Actualizar el initialPayment del Work si cambió el del budget
+          if (parseFloat(workRecord.initialPayment) !== parseFloat(budget.initialPayment)) {
+              console.log(`Actualizando initialPayment en Work existente ${workRecord.idWork} de ${workRecord.initialPayment} a ${budget.initialPayment}`);
+              await workRecord.update({ initialPayment: budget.initialPayment }, { transaction });
+          }
+  
+          const existingIncome = await Income.findOne({
+            where: { workId: workRecord.idWork, typeIncome: 'Factura Pago Inicial Budget' },
+            transaction
+          });
+  
+          if (!existingIncome) {
+            // Crear Income (tardío) si no existía
+            console.warn(`Advertencia: Work ${workRecord.idWork} existía pero no se encontró Income inicial. Creando ahora.`);
+            try {
+              await Income.create({
+                date: new Date(),
+                amount: budget.initialPayment, // Usa el valor recalculado
+                typeIncome: 'Factura Pago Inicial Budget',
+                notes: `Pago inicial (tardío) registrado al aprobar Budget #${budget.idBudget}`,
+                workId: workRecord.idWork
+              }, { transaction });
+              console.log(`Income (tardío) creado exitosamente.`);
+            } catch (lateIncomeError) {
+              console.error(`Error CRÍTICO al crear Income (tardío) para Work ID ${workRecord.idWork}:`, lateIncomeError);
+              // Lanzar error para revertir la transacción
+              throw new Error("Fallo al crear el registro de ingreso (tardío) asociado.");
+            }
+          } else {
+            // Income Existente: Actualizar monto si cambió el initialPayment del budget
             console.log(`Income inicial ya existente para Work ID: ${workRecord.idWork}. Verificando monto...`);
-            // Opcional: Actualizar monto del Income si cambió el initialPayment
             if (parseFloat(existingIncome.amount) !== parseFloat(budget.initialPayment)) {
                 console.log(`Actualizando monto en Income existente ${existingIncome.id} de ${existingIncome.amount} a ${budget.initialPayment}`);
                 await existingIncome.update({ amount: budget.initialPayment }, { transaction });
             }
-         }
-      }
-    } // --- Fin Lógica if (status === 'approved') ---
-
+          }
+        } // --- Fin Lógica Work Existente ---
+  
+        // *** Enviar Notificación DESPUÉS de todas las operaciones de Work/Income ***
+        console.log("Preparando datos para notificación 'incomeCreated'...");
+        // Crear el objeto de datos para la notificación usando los valores finales del budget
+        const notificationDataForIncome = {
+          amount: budget.initialPayment, // Monto del ingreso actual (recalculado)
+          propertyAddress: budget.propertyAddress,
+          budgetTotal: budget.totalPrice, // Total del presupuesto (recalculado)
+          budgetInitialPercentage: budget.initialPaymentPercentage // % del presupuesto (actualizado)
+        };
+        console.log("Datos para notificación:", notificationDataForIncome);
+        // Llamar a sendNotifications con el objeto de datos completo
+        await sendNotifications('incomeCreated', notificationDataForIncome, null, req.io);
+        console.log("Notificación 'incomeCreated' enviada.");
+  
+      }  
     // --- 8. Confirmar Transacción ---
     await transaction.commit();
     console.log(`--- Transacción para Budget ID: ${idBudget} confirmada exitosamente. ---`);
