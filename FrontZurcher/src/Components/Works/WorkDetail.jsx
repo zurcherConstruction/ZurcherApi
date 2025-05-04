@@ -20,6 +20,7 @@ const WorkDetail = () => {
     loading,
     error,
   } = useSelector((state) => state.work);
+ 
 
   console.log("Datos de la obra:", work); // Para depuración
   const [selectedImage, setSelectedImage] = useState(null);
@@ -283,25 +284,40 @@ const WorkDetail = () => {
             )}
           </div>
 
-          {/* Tarjeta: Presupuesto */}
-          {work.budget && (
+               {/* Tarjeta: Presupuesto */}
+               {work.budget && (
             <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-blue-500">
               <h2
-                className="text-xl font-semibold mb-4 cursor-pointer"
+                className="text-xl font-semibold mb-4 cursor-pointer flex justify-between items-center"
                 onClick={() => toggleSection("budget")}
               >
-                Presupuesto
+                <span>Presupuesto</span>
+                <span>{openSections.budget ? "▲" : "▼"}</span>
               </h2>
               {openSections.budget && (
                 <>
-                 
-                  <p>
-                    <strong>Pago Inicial:</strong> ${work.budget.initialPayment}
+                  {/* Total */}
+                  <p className="mb-1">
+                    <strong>Total Presupuesto:</strong> ${parseFloat(work.budget.totalPrice || 0).toFixed(2)}
                   </p>
-                  <p>
-                    <strong>Fecha:</strong> {work.budget.date}
+
+                  {/* Pago Inicial */}
+                  <p className="mb-1 text-green-700">
+                    <strong>Pago Inicial ({work.budget.initialPaymentPercentage || 0}%):</strong> ${parseFloat(work.budget.initialPayment || 0).toFixed(2)}
                   </p>
-                  <p>
+
+                  {/* Restante */}
+                  <p className="mb-1 text-orange-700">
+                    <strong>Restante ({100 - (work.budget.initialPaymentPercentage || 0)}%):</strong> ${
+                      (parseFloat(work.budget.totalPrice || 0) - parseFloat(work.budget.initialPayment || 0)).toFixed(2)
+                    }
+                  </p>
+
+                  {/* Otros Datos */}
+                  <p className="mt-3 text-sm text-gray-600">
+                    <strong>Fecha:</strong> {new Date(work.budget.date).toLocaleDateString()}
+                  </p>
+                  <p className="text-sm text-gray-600">
                     <strong>Estado:</strong> {work.budget.status}
                   </p>
                 </>
