@@ -2,7 +2,7 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 const { format, parseISO } = require('date-fns'); // Para formatear fechas
-
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 // Helper para formatear fechas o devolver N/A
 const formatDateDDMMYYYY = (dateString) => {
   if (!dateString) return 'N/A';
@@ -18,7 +18,7 @@ const formatDateDDMMYYYY = (dateString) => {
 
 // Función para generar y guardar el PDF del presupuesto
 async function generateAndSaveBudgetPDF(budgetData) {
-  return new Promise((resolve, reject) => {
+  return new Promise(async(resolve, reject) => {
     try {
       // --- 1. Preparar Datos ---
       const {
@@ -26,6 +26,8 @@ async function generateAndSaveBudgetPDF(budgetData) {
         Permit, lineItems = [], subtotalPrice, discountDescription, discountAmount,
         totalPrice, initialPaymentPercentage, initialPayment, generalNotes
       } = budgetData;
+
+      const clientEmailFromPermit = Permit?.applicantEmail;
 
       const formattedDate = formatDateDDMMYYYY(date);
       const formattedExpirationDate = formatDateDDMMYYYY(expirationDate);
@@ -217,16 +219,110 @@ async function generateAndSaveBudgetPDF(budgetData) {
       doc.moveDown(1.5);
 
       // === SECCIÓN TÉRMINOS Y CONDICIONES ===
-      const termsAndConditionsText = `Terms and Conditions Acceptance Agreement for the Installation of a Septic System\nConsidering that: The Provider is engaged in the installation of septic systems and offers its services in accordance with applicable legal and technical regulations. The Client is interested in contracting the service for the installation of a septic system on the property located at ${propertyAddress || '[Property Address Not Specified]'}. Both parties wish to establish the terms and conditions under which the service will be provided.\nThey agree as follows:\nAcceptance of the Terms and Conditions The Client declares to have read, understood, and accepted the terms and conditions set forth in this agreement. Acceptance of these terms is mandatory for the provision of the septic system installation service.`;
       doc.fontSize(10).font('Helvetica-Bold').text('Terms and Conditions:', pageMargin, doc.y, { underline: true });
-      doc.font('Helvetica').fontSize(8); // Letra más pequeña para términos
+      doc.font('Helvetica').fontSize(9);
       doc.moveDown(0.5);
-      doc.text(termsAndConditionsText, pageMargin, doc.y, {
-        width: contentWidth,
-        align: 'justify' // Justificar texto
-      });
+      const termsUrl = 'https://docs.google.com/document/d/1Q5gzNSUz5UAWaVbA_v523W-QrMu66fZl8PSdB3RkXmM/edit?usp=sharing'; // <-- REEMPLAZA CON TU URL REAL
+      doc.fillColor('blue') // Color azul para que parezca un enlace
+         .text('Click here to view the full Terms and Conditions', pageMargin, doc.y, {
+           link: termsUrl,
+           underline: true // Subrayado para indicar enlace
+         });
+      doc.fillColor('black'); // Volver al color negro por defecto
       doc.moveDown(1.5);
 
+       // *** NUEVO: SECCIÓN ENLACE DE PAGO STRIPE PARA PAGO INICIAL ***
+       let initialPaymentLinkUrl = null;
+       const initialPaymentNumForStripe = parseFloat(initialPayment); // Usar el valor ya calculado
+ // *** DEBUG: Verificar valor del pago inicial ***
+ console.log(`DEBUG PDF Budget - initialPayment value: ${initialPayment}, parsed as: ${initialPaymentNumForStripe}`);
+ // *** FIN DEBUG ***
+
+       // Solo generar enlace si hay un pago inicial > 0
+       if (initialPaymentNumForStripe > 0) {
+         try {
+           // URLs de redirección (pueden ser las mismas o diferentes a las de la factura final)
+           const successUrl = 'https://www.google.com'; // O tu página de Facebook, etc.
+           const cancelUrl = 'https://www.google.com';  // Misma URL para ambos casos
+ 
+           // Crear sesión de Checkout en Stripe para el pago inicial
+           const session = await stripe.checkout.sessions.create({
+             payment_method_types: ['card'],
+             line_items: [
+               {
+                 price_data: {
+                   currency: 'usd',
+                   product_data: {
+                     name: `Initial Payment - Budget #${idBudget} - ${applicantName}`,
+                     description: `Initial payment for work at ${propertyAddress}`,
+                   },
+                   // Monto del pago inicial en centavos
+                   unit_amount: Math.round(initialPaymentNumForStripe * 100),
+                 },
+                 quantity: 1,
+               },
+             ],
+             mode: 'payment',
+             success_url: successUrl,
+             cancel_url: cancelUrl,
+             // Pre-rellenar email si está disponible
+             ...(clientEmailFromPermit && { customer_email: clientEmailFromPermit }),
+             metadata: {
+               internal_budget_id: idBudget,
+               payment_type: 'initial'
+             }
+           });
+           initialPaymentLinkUrl = session.url;// Guardar la URL de pago
+ 
+         } catch (stripeError) {
+           console.error("Error al crear la sesión de Stripe Checkout para el presupuesto:", stripeError);
+           // Loguear el error, el PDF se generará sin este enlace específico.
+         }
+       }
+ 
+       // Añadir la sección al PDF si se generó el enlace de pago inicial
+       if (initialPaymentLinkUrl) {
+         // Podrías colocar esta sección antes o después de la info de Banco/Zelle, según prefieras
+         doc.moveDown(2); // Espacio antes
+          // --- SIMULACIÓN DE BOTÓN (COPIADO DE FINAL INVOICE) ---
+          const buttonWidth = 180;
+          const buttonHeight = 30;
+          const buttonX = pageMargin + (contentWidth - buttonWidth) / 2; // Centrar horizontalmente
+          const buttonY = doc.y;
+          // *** AJUSTAR TEXTO PARA PAGO INICIAL ***
+          const buttonText = 'Click Here to Pay Initial Amount';
+ 
+          // 1. Dibujar y rellenar el rectángulo del botón
+          doc.save(); // Guardar estado actual (color, etc.)
+          doc.roundedRect(buttonX, buttonY, buttonWidth, buttonHeight, 5).fillColor('#007bff').fill(); // Azul tipo botón, esquinas redondeadas
+ 
+          // 2. Escribir el texto del botón
+          doc.fillColor('white').fontSize(10).font('Helvetica-Bold'); // Texto blanco y negrita
+          doc.text(buttonText, buttonX, buttonY + (buttonHeight / 2) - (doc.currentLineHeight() / 2.5), { // Centrar texto verticalmente (aproximado)
+              width: buttonWidth,
+              align: 'center'
+          });
+          doc.restore(); // Restaurar estado anterior (color negro, fuente normal, etc.)
+ 
+          // 3. Crear el enlace invisible sobre el área del botón
+          // *** USAR initialPaymentLinkUrl AQUÍ ***
+          doc.link(buttonX, buttonY, buttonWidth, buttonHeight, initialPaymentLinkUrl);
+          // --- FIN SIMULACIÓN DE BOTÓN ---
+ 
+          doc.moveDown(3);
+        //  doc.fontSize(10).font('Helvetica-Bold').text('Online Initial Payment:', pageMargin, doc.y, { underline: true });
+        //  doc.font('Helvetica').fontSize(9);
+        //  doc.moveDown(0.5);
+        //  doc.fillColor('blue')
+        //     .text('Click here to pay the initial amount online securely via Stripe', pageMargin, doc.y, {
+        //       link: initialPaymentLinkUrl,
+        //       underline: true
+        //     });
+        //  doc.fillColor('black');
+        //  doc.moveDown(1.5); // Espacio después
+       }
+       // *** FIN NUEVA SECCIÓN ***
+ 
 
       // === PIE DE PÁGINA (Simple) ===
       const pageBottom = doc.page.height - pageMargin + 10; // Un poco más arriba del margen
@@ -256,7 +352,7 @@ async function generateAndSaveBudgetPDF(budgetData) {
   });
 }
 async function generateAndSaveFinalInvoicePDF(invoiceData) {
-  return new Promise((resolve, reject) => {
+  return new Promise(async(resolve, reject) => {
     try {
       // --- 1. Preparar Datos ---
       const {
@@ -271,7 +367,7 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
       const permit = budget?.Permit || Work?.Permit; // Buscar permit en budget o work
       const applicantName = budget?.applicantName || permit?.applicantName || 'N/A';
       const propertyAddress = Work?.propertyAddress || budget?.propertyAddress || permit?.propertyAddress || 'N/A';
-
+      const clientEmailFromPermitOrBudget = permit?.applicantEmail || budget?.Permit?.applicantEmail; // Intenta obtenerlo de cualquiera de los dos
       const formattedInvoiceDate = formatDateDDMMYYYY(invoiceDate);
       const formattedPaymentDate = formatDateDDMMYYYY(paymentDate);
 
@@ -405,6 +501,91 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
       doc.fontSize(12).font('Helvetica-Bold').text(`Status: ${status?.replace('_', ' ').toUpperCase() || 'N/A'}`, pageMargin, doc.y);
       doc.moveDown(2);
 
+
+      let paymentLinkUrl = null;
+      if (status !== 'paid' && finalAmountDue > 0) {
+        try {
+          // Define las URLs a las que Stripe redirigirá al usuario
+          // DEBES crear estas rutas en tu aplicación web/frontend
+          const successUrl = 'https://www.google.com'; // URL temporal para éxito
+          const cancelUrl = 'https://www.google.com';  // URL temporal para cancelación
+
+          // Crear sesión de Checkout en Stripe
+          const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'], // Puedes añadir otros como 'ach_debit'
+            line_items: [
+              {
+                price_data: {
+                  currency: 'usd', // O la moneda que uses
+                  product_data: {
+                    name: `Final Invoice #${id} - ${applicantName}`,
+                    description: `Payment for final invoice related to work at ${propertyAddress}`,
+                  },
+                  // ¡Importante! Stripe espera el monto en centavos
+                  unit_amount: Math.round(parseFloat(finalAmountDue) * 100),
+                },
+                quantity: 1,
+              },
+            ],
+            mode: 'payment',
+            success_url: successUrl,
+            cancel_url: cancelUrl,
+            // Opcional: Pre-rellenar email del cliente si lo tienes
+            ...(clientEmailFromPermitOrBudget && { customer_email: clientEmailFromPermitOrBudget }),
+            // Opcional: Pasar metadata útil para reconciliación
+            metadata: {
+              internal_invoice_id: id,
+              work_id: Work?.id || 'N/A',
+              budget_id: budget?.idBudget || 'N/A'
+            }
+          });
+          paymentLinkUrl = session.url; // Guardar la URL de pago
+
+        } catch (stripeError) {
+          console.error("Error al crear la sesión de Stripe Checkout:", stripeError);
+          // Decide cómo manejar esto: ¿generar PDF sin enlace? ¿rechazar la promesa?
+          // Por ahora, solo logueamos y el PDF se generará sin el enlace.
+        }
+      }
+
+      // Añadir la sección al PDF si se generó el enlace
+      if (paymentLinkUrl) {
+        doc.moveDown(2); // Espacio antes de la nueva sección
+        const buttonWidth = 180;
+        const buttonHeight = 30;
+        const buttonX = pageMargin + (contentWidth - buttonWidth) / 2; // Centrar horizontalmente
+        const buttonY = doc.y;
+        const buttonText = 'Click Here to Pay Online';
+
+        // 1. Dibujar y rellenar el rectángulo del botón
+        doc.save(); // Guardar estado actual (color, etc.)
+        doc.roundedRect(buttonX, buttonY, buttonWidth, buttonHeight, 5).fillColor('#007bff').fill(); // Azul tipo botón, esquinas redondeadas
+
+        // 2. Escribir el texto del botón
+        doc.fillColor('white').fontSize(10).font('Helvetica-Bold'); // Texto blanco y negrita
+        doc.text(buttonText, buttonX, buttonY + (buttonHeight / 2) - (doc.currentLineHeight() / 2.5), { // Centrar texto verticalmente (aproximado)
+            width: buttonWidth,
+            align: 'center'
+        });
+        doc.restore(); // Restaurar estado anterior (color negro, fuente normal, etc.)
+
+        // 3. Crear el enlace invisible sobre el área del botón
+        doc.link(buttonX, buttonY, buttonWidth, buttonHeight, paymentLinkUrl);
+        // --- FIN SIMULACIÓN DE BOTÓN ---
+
+        doc.moveDown(3); 
+        // doc.fontSize(10).font('Helvetica-Bold').text('Online Payment:', pageMargin, doc.y, { underline: true });
+        // doc.font('Helvetica').fontSize(9);
+        // doc.moveDown(0.5);
+        // doc.fillColor('blue') // Color azul para que parezca un enlace
+        //    .text('Click here to pay the final amount online securely via Stripe', pageMargin, doc.y, {
+        //      link: paymentLinkUrl,
+        //      underline: true // Subrayado para indicar enlace
+        //    });
+        // doc.fillColor('black'); // Volver al color negro por defecto
+        // doc.moveDown(1.5);
+      }
+      // *** FIN NUEVA SECCIÓN ***
       // === SECCIÓN INFORMACIÓN DE PAGO === (Igual que en Budget)
       doc.fontSize(10).font('Helvetica-Bold').text('Payment Information:', pageMargin, doc.y, { underline: true });
       doc.font('Helvetica');
@@ -414,6 +595,8 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
       doc.text("Account #: 898138399808", pageMargin, doc.y);
       doc.text("Zelle Email: zurcherconstruction.fl@gmail.com", pageMargin, doc.y);
       doc.moveDown(1.5);
+
+
 
       // === PIE DE PÁGINA === (Igual que en Budget)
       const pageBottom = doc.page.height - pageMargin + 10;

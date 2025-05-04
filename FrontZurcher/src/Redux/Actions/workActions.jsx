@@ -37,7 +37,7 @@ export const fetchWorks = () => async (dispatch) => {
 export const fetchWorkById = (idWork) => async (dispatch) => {
   dispatch(fetchWorkByIdRequest());
   try {
-    const response = await api.get(`/work/${idWork}`); // Ruta del backend
+    const response = await api.get(`/work/${idWork}`, { timeout: 30000 }); // Ruta del backend
     dispatch(fetchWorkByIdSuccess(response.data));
   } catch (error) {
     const errorMessage =
