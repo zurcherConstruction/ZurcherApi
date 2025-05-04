@@ -33,7 +33,7 @@ const Works = () => {
               <thead>
                 <tr className="bg-gray-200">
                   <th className="border font-varela uppercase border-gray-300 px-4 py-2">Address</th>
-                  <th className="border font-varela uppercase border-gray-300 px-4 py-2">State</th>
+                  <th className="border font-varela uppercase border-gray-300 px-4 py-2">Status</th>
                   <th className="border font-varela uppercase border-gray-300 px-4 py-2">Detail</th>
                 </tr>
               </thead>
