@@ -555,12 +555,16 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
 
     // --- 7. Lógica Condicional por Estado ---
          // --- NUEVO: 7. Generar/Regenerar PDF SIEMPRE que haya cambios ---
-         if (hasGeneralUpdates || hasLineItemUpdates) {
-          console.log("Detectados cambios generales o en items. Regenerando PDF...");
+        
+         const updateKeys = Object.keys(req.body).filter(key => key !== 'lineItems');
+         // Verificamos si la única clave presente es 'generalNotes'.
+         const isOnlyGeneralNotesUpdate = updateKeys.length === 1 && updateKeys[0] === 'generalNotes';
+         if ((hasGeneralUpdates || hasLineItemUpdates) && !isOnlyGeneralNotesUpdate) {
+          console.log("Detectados cambios (no solo notas). Regenerando PDF...");
           try {
               const budgetDataForPdf = {
                   ...budget.toJSON(), // Usar datos actualizados en memoria
-                  initialPaymentPercentage: budget.initialPaymentPercentage,
+                  initialPaymentPercentage: budget.initialPaymentPercentage, // Asegurarse que esté
                   lineItems: finalLineItemsForPdf
               };
 
@@ -576,13 +580,18 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
               // Lanzar error para revertir la transacción si la generación del PDF falla
               throw new Error(`Error al regenerar PDF: ${pdfError.message}`);
           }
+        } else if (isOnlyGeneralNotesUpdate) {
+          // Si solo cambiaron las notas, no regeneramos PDF y mantenemos la ruta existente.
+          console.log("Solo se actualizaron las notas generales. Omitiendo regeneración de PDF.");
+          generatedPdfPath = budget.pdfPath; // Usar la ruta existente
       } else {
+          // Si no hubo ningún cambio detectado (ni general ni items)
           console.log("No hubo cambios relevantes, no se regenera el PDF.");
-          generatedPdfPath = budget.pdfPath; // Usar la ruta existente si no hubo cambios
+          generatedPdfPath = budget.pdfPath; // Usar la ruta existente
       }
 
     // --- 7a. Lógica si el estado es 'send' (Genera PDF y envía correo) ---
-    if (budget.status === 'send') {
+    if (req.body.status === 'send') {
       console.log("El estado es 'send'. Procesando envío de correo...");
 
       // --- Enviar Correo (Usa generatedPdfPath o budget.pdfPath actualizado) ---
