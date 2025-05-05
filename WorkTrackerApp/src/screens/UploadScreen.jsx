@@ -227,7 +227,7 @@ const handlePickImage = async () => {
            if (Platform.OS === 'ios') {
             Alert.prompt(
               'Añadir Comentario',
-            'Ingresa un comentario para la imagen (opcional):',
+              'Ingresa un comentario (opcional):',
               [
                 { text: 'Cancelar', style: 'cancel' },
                 {
@@ -402,7 +402,7 @@ const handleStagePress = (stageOption) => {
       {/* --- FIN BLOQUE PDF --- */}
 
       {/* Sección de selección de etapas */}
-      <View className="flex-row flex-wrap justify-around mb-5">
+      <View className="flex-row flex-wrap justify-around mb-1">
         {stages.map((stageOption, index) => (
           <Pressable
             key={stageOption}
