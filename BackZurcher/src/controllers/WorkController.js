@@ -430,12 +430,14 @@ const addImagesToWork = async (req, res) => {
 
     // Validar que la etapa sea válida
     const validStages = [
-      'foto previa del lugar',
-      'foto excavación',
-      'foto tanque instalado',
-      'fotos de cada camión de arena',
-      'foto inspección final',
-      'foto de extracción de piedras',
+    'foto previa del lugar',
+    'materiales',
+    'foto excavación',
+    'camiones de arena',
+    'sistema instalado',
+    'extracción de piedras',
+    'camiones de tierra',
+    'inspeccion final'
     ];
     if (!validStages.includes(stage)) {
       return res.status(400).json({ error: true, message: 'Etapa no válida' });

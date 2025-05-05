@@ -9,11 +9,13 @@ module.exports = (sequelize) => {
     stage: {
       type: DataTypes.ENUM(
         'foto previa del lugar',
+        'materiales',
         'foto excavación',
-        'foto tanque instalado',
-        'fotos de cada camión de arena',
-        'foto inspección final',
-        'foto de extracción de piedras'
+        'camiones de arena',
+        'sistema instalado',
+        'extracción de piedras',
+        'camiones de tierra',
+        'inspeccion final'
       ),
       allowNull: false,
     },

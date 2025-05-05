@@ -8,7 +8,7 @@ import * as FileSystem from 'expo-file-system';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Buffer } from "buffer";
-import * as IntentLauncher from "expo-intent-launcher"; // Añadir IntentLauncher
+//import * as IntentLauncher from "expo-intent-launcher"; // Añadir IntentLauncher
 import * as Sharing from "expo-sharing"; // Añadir Sharing
 
 const UploadScreen = () => {
@@ -23,15 +23,20 @@ const UploadScreen = () => {
   const [imagesByStage, setImagesByStage] = useState({});
   const [imagesWithDataURLs, setImagesWithDataURLs] = useState({});
   const [isInstallationSubmitted, setIsInstallationSubmitted] = useState(false);
+  const [isFinalInspectionRequested, setIsFinalInspectionRequested] = useState(false);
+  // --- ---
+
 
 
   const stages = [
     'foto previa del lugar',
+    'materiales',
     'foto excavación',
-    'foto tanque instalado',
-    'fotos de cada camión de arena',
-    'foto inspección final',
-    'foto de extracción de piedras',
+    'camiones de arena',
+    'sistema instalado',
+    'extracción de piedras',
+    'camiones de tierra',
+    'inspeccion final'
   ];
 
   const stageColors = [
@@ -40,72 +45,97 @@ const UploadScreen = () => {
     '#e9c46a',
     '#f4a261',
     '#e76f51',
-    '#d62828',
+    '#e9c46a',
+    '#f4a261',
+    
   ];
 
   const handleOpenPdf = async (pdfData) => {
-      try {
-        // Verificar si el pdfData es un objeto con una propiedad `data` o si ya es una cadena base64
-        const base64Pdf =
-          pdfData?.data
-            ? Buffer.from(pdfData.data).toString("base64") // Si es un objeto con `data`, convertirlo a base64
-            : pdfData.startsWith("data:application/pdf;base64,")
-            ? pdfData.split(",")[1] // Si ya es una cadena base64, extraer la parte después de "base64,"
-            : null;
-    
-        if (!base64Pdf) {
-          throw new Error("El PDF no está en un formato válido.");
-        }
-    
-        const fileUri = `${FileSystem.cacheDirectory}temp.pdf`;
-    
-        // Guardar el PDF en el sistema de archivos
-        await FileSystem.writeAsStringAsync(fileUri, base64Pdf, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-    
-        console.log("PDF guardado en:", fileUri);
-    
-        // Abrir el PDF según la plataforma
-        if (Platform.OS === "android") {
-          const contentUri = await FileSystem.getContentUriAsync(fileUri);
-    
-          const intent = {
-            action: "android.intent.action.VIEW",
-            data: contentUri,
-            flags: 1,
-            type: "application/pdf",
-          };
-    
-          await IntentLauncher.startActivityAsync(
-            "android.intent.action.VIEW",
-            intent
-          );
-        } else if (Platform.OS === "ios") {
-          // Verificar si se puede compartir
-           if (!(await Sharing.isAvailableAsync())) {
-              Alert.alert('Error', 'Compartir no está disponible en este dispositivo.');
-              return;
-           }
-          await Sharing.shareAsync(fileUri, {
-            mimeType: "application/pdf",
-            dialogTitle: "Abrir PDF", // Título más apropiado
-            UTI: "com.adobe.pdf",
-          });
-        }
-      } catch (error) {
-        console.error("Error al abrir el PDF:", error);
-        Alert.alert('Error', `No se pudo abrir el PDF: ${error.message}`);
+    try {
+      const base64Pdf =
+        pdfData?.data // Si viene como { type: 'Buffer', data: [...] }
+          ? Buffer.from(pdfData.data).toString("base64")
+          : typeof pdfData === 'string' && pdfData.startsWith("data:application/pdf;base64,") // Si viene como data URI
+          ? pdfData.split(",")[1]
+          : typeof pdfData === 'string' // Si ya es solo base64
+          ? pdfData
+          : null;
+
+      if (!base64Pdf) {
+        throw new Error("El PDF no está en un formato válido o no se encontró.");
       }
-    };
-    useEffect(() => {
-      // Si el trabajo ya está 'installed' o en un estado posterior, marcar como enviado
-      if (currentWork?.status === 'installed' || currentWork?.status === 'inspectionPending' /* u otros estados posteriores */) {
-        setIsInstallationSubmitted(true);
-      } else {
-        setIsInstallationSubmitted(false); // Resetear si el estado cambia a uno anterior (poco probable pero seguro)
+
+      const fileUri = `${FileSystem.cacheDirectory}temp_${Date.now()}.pdf`;
+
+      // Guardar el PDF en el sistema de archivos
+      await FileSystem.writeAsStringAsync(fileUri, base64Pdf, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      console.log("PDF guardado en:", fileUri);
+
+      // --- USAR Sharing PARA ABRIR EL PDF ---
+      if (!(await Sharing.isAvailableAsync())) {
+         Alert.alert('Error', 'La función de compartir no está disponible en este dispositivo.');
+         return;
       }
-    }, [currentWork]);
+
+      await Sharing.shareAsync(fileUri, {
+         mimeType: 'application/pdf',
+         dialogTitle: 'Abrir PDF con...', // Título opcional para el diálogo
+         UTI: 'com.adobe.pdf' // UTI específico para PDF en iOS
+      });
+      // --- FIN ---
+
+      // Ya no navegamos al visor interno
+      // navigation.navigate('PdfViewer', { fileUri: fileUri });
+
+    } catch (error) {
+      console.error("Error al preparar PDF para compartir:", error);
+      Alert.alert('Error', `No se pudo abrir el PDF: ${error.message}`);
+    }
+  };
+
+
+  /* 'approvedInspection',  
+        'rejectedInspection',
+        'coverPending', //se agrega installed
+        'invoiceFinal',
+        'paymentReceived',
+        'finalInspectionPending', 
+        'finalApproved',
+        'finalRejected',
+        'maintenance'*/ 
+  
+        useEffect(() => {
+          // Considerar estados posteriores a 'installed' también
+          const installedOrLater = [
+        'installed',
+        'rejectedInspection',
+       ]; 
+          if (currentWork && installedOrLater.includes(currentWork.status)) {
+            setIsInstallationSubmitted(true);
+          } else {
+            setIsInstallationSubmitted(false);
+          }
+        }, [currentWork]);
+      
+        // --- NUEVO useEffect para 'isFinalInspectionRequested' ---
+        useEffect(() => {
+          // Si el trabajo ya está en 'coverPending' o un estado posterior, marcar como solicitado
+          const requestedOrLater = [
+        'coverPending', 
+        'finalInspectionPending', 
+        'finalApproved',
+        'finalRejected',
+        'maintenance']; // Añadir estados relevantes
+          if (currentWork && requestedOrLater.includes(currentWork.status)) {
+            setIsFinalInspectionRequested(true);
+          } else {
+            setIsFinalInspectionRequested(false);
+          }
+        }, [currentWork]);
+        // --- ---
 
     // Load images from the state when the component mounts or when `currentWork` changes
     useEffect(() => {
@@ -144,7 +174,8 @@ const UploadScreen = () => {
     }, [currentWork]); // Depender de currentWork para re-ejecutar cuando cambie
  
  
-    const handlePickImage = async () => {
+  // filepath: c:\Users\yaniz\Documents\ZurcherApi\WorkTrackerApp\src\screens\UploadScreen.jsx
+const handlePickImage = async () => {
       if (imagesByStage[selectedStage]?.length >= 12) {  return; }
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permissionResult.granted) {  return; }
@@ -153,7 +184,7 @@ const UploadScreen = () => {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.5,
       });
-  
+
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const imageUri = result.assets[0].uri;
         // --- Solicitar Comentario (iOS) ---
@@ -175,41 +206,41 @@ const UploadScreen = () => {
           // Podrías implementar un modal simple aquí o simplemente subir sin comentario
           console.log("Alert.prompt no soportado en Android. Subiendo sin comentario.");
           await processAndUploadImage(imageUri, ''); // Subir sin comentario en Android por ahora
-        }
-        // --- Fin solicitud comentario ---
       }
-    };
+        // --- Fin solicitud comentario ---
+  }
+};
 
     const handleTakePhoto = async () => {
       if (imagesByStage[selectedStage]?.length >= 12) {  return; }
       const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
       if (!permissionResult.granted) {  return; }
-  
-      const result = await ImagePicker.launchCameraAsync({
+
+        const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.5,
-      });
-  
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-         const imageUri = result.assets[0].uri;
+          quality: 0.5,
+        });
+
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+           const imageUri = result.assets[0].uri;
         // --- Solicitar Comentario (iOS) ---
-         if (Platform.OS === 'ios') {
-          Alert.prompt(
-            'Añadir Comentario',
+           if (Platform.OS === 'ios') {
+            Alert.prompt(
+              'Añadir Comentario',
             'Ingresa un comentario para la imagen (opcional):',
-            [
-              { text: 'Cancelar', style: 'cancel' },
-              {
-                text: 'Cargar Imagen',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                  text: 'Cargar Imagen',
                 onPress: (commentText) => processAndUploadImage(imageUri, commentText || ''),
-              },
-            ],
-            'plain-text'
-          );
-        } else {
+                },
+              ],
+              'plain-text'
+            );
+          } else {
           // --- Alternativa para Android ---
           console.log("Alert.prompt no soportado en Android. Subiendo sin comentario.");
-          await processAndUploadImage(imageUri, '');
+            await processAndUploadImage(imageUri, '');
         }}}
 
  
@@ -223,14 +254,14 @@ const UploadScreen = () => {
 
     const base64Image = await FileSystem.readAsStringAsync(resizedImage.uri, { encoding: 'base64' });
 
-    const now = new Date();
+      const now = new Date();
     const dateTimeString = now.toLocaleString();
-    const imageData = {
-      stage: selectedStage,
-      image: base64Image,
-      comment: comment,
-      dateTime: dateTimeString,
-    };
+      const imageData = {
+        stage: selectedStage,
+        image: base64Image,
+        comment: comment,
+        dateTime: dateTimeString,
+      };
 
     // Dispatch the image to the backend
     await dispatch(addImagesToWork(idWork, imageData));
@@ -239,15 +270,15 @@ const UploadScreen = () => {
     await dispatch(fetchAssignedWorks());
 
     Alert.alert('Éxito', 'Imagen cargada correctamente.');
-  } catch (error) {
+    } catch (error) {
     console.error('Error al cargar la imagen:', error);
     Alert.alert('Error al cargar la imagen');
   }
 };
-  const handleStagePress = (stageOption) => {
+const handleStagePress = (stageOption) => {
     setSelectedStage(stageOption);
-    setModalVisible(true);
-  };
+  setModalVisible(true);
+};
 
   const handleWorkInstalled = async () => {
     if (isInstallationSubmitted) return;
@@ -260,7 +291,7 @@ const UploadScreen = () => {
 
         navigation.goBack();
       } else {
-        navigation.navigate('AssignedWorksScreen'); // Navegar a una pantalla específica si no hay una previa
+        navigation.navigate('MyAssignedWorks'); // Navegar a una pantalla específica si no hay una previa
       } // Opcional: Regresar a la pantalla anterior
     } catch (error) {
       console.error('Error al actualizar el estado del trabajo:', error);
@@ -268,67 +299,101 @@ const UploadScreen = () => {
     }
   };
 
-  const hasFinalInspectionImages = imagesByStage['foto tanque instalado']?.length > 0;
+ // --- NUEVA FUNCIÓN HANDLER ---
+ const handleRequestFinalInspection = async () => {
+  // No hacer nada si ya se solicitó
+  if (isFinalInspectionRequested) return;
 
-  const handleDeleteImage = (imageIdToDelete) => {
-    Alert.alert(
-      "Confirmar Eliminación",
-      "¿Estás seguro de que quieres eliminar esta imagen?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Eliminar",
-          onPress: async () => {
-            try {
-              console.log(`Intentando eliminar imagen ID: ${imageIdToDelete} del trabajo ID: ${idWork}`);
+  try {
+    // Actualizar el estado del trabajo a 'coverPending'
+    await dispatch(updateWork(idWork, { status: 'coverPending' }));
+    // Refrescar los datos
+    await dispatch(fetchAssignedWorks());
+    // Marcar como solicitado
+    setIsFinalInspectionRequested(true);
+    Alert.alert('Éxito', 'Se solicitó la inspección final. El estado del trabajo se actualizó a "coverPending".');
+
+    // Navegar atrás o a la lista
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate('MyAssignedWorks');
+    }
+  } catch (error) {
+    console.error('Error al solicitar la inspección final:', error);
+    Alert.alert('Error', 'No se pudo solicitar la inspección final.');
+  }
+};
+
+  const hasFinalInspectionImages = imagesByStage['sistema instalado']?.length > 0;
+  const hasCoverImages = imagesByStage['inspeccion final']?.length > 0;
+
+   const handleDeleteImage = (imageIdToDelete) => {
+      Alert.alert(
+        "Confirmar Eliminación",
+        "¿Estás seguro?",
+        [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Eliminar",
+            onPress: async () => {
+              try {
+                console.log(`Intentando eliminar imagen ID: ${imageIdToDelete} del trabajo ID: ${idWork}`);
               // Despachar la acción de eliminación
               await dispatch(deleteImagesFromWork(idWork, imageIdToDelete));
               // fetchAssignedWorks() ya se llama dentro de deleteImageFromWork si se implementa así
               Alert.alert("Éxito", "Imagen eliminada correctamente.");
-              await dispatch(fetchAssignedWorks());
+                await dispatch(fetchAssignedWorks());
               // El modal se actualizará solo al refrescar el estado
-            } catch (error) {
-              console.error("Error al eliminar la imagen:", error);
+              } catch (error) {
+                console.error("Error al eliminar la imagen:", error);
               Alert.alert("Error", "No se pudo eliminar la imagen.");
-            }
+              }
+            },
+            style: "destructive",
           },
-          style: "destructive",
-        },
-      ]
-    );
-  };
+        ]
+      );
+    };
+
 
   return (
     <ScrollView className="flex-1 bg-gray-100 p-5">
-      <Text className="text-xl font-medium uppercase text-gray-800 mb-5 text-center">
+      <Text className="text-xl font-medium uppercase text-gray-800  text-center">
         {propertyAddress || 'Sin dirección'}
       </Text>
      
   {/* --- BLOQUE DE BOTONES PDF MODIFICADO --- */}
   {currentWork?.Permit && (currentWork.Permit.pdfData || currentWork.Permit.optionalDocs) && (
         <View className="my-4 border-y border-gray-300 py-3">
-          <Text className="text-sm font-semibold text-gray-700 mb-2 text-center">Documentos del Permiso:</Text>
-          <View className="flex-row justify-between items-center">
+        
+          {/* Usar justify-around o justify-center para espaciar las miniaturas */}
+          <View className="flex-row justify-around items-start">
+            {/* Miniatura para PDF Permit */}
             {currentWork.Permit.pdfData && (
               <TouchableOpacity
                 onPress={() => handleOpenPdf(currentWork.Permit.pdfData)}
-                className={`py-2 px-4 bg-blue-600 rounded shadow ${
-                  currentWork.Permit.optionalDocs ? 'w-[48%]' : 'w-full' 
-                }`}
+                className="items-center w-20" // Centrar contenido, ancho fijo opcional
               >
-                <Text className="text-white text-center font-medium">Ver PDF Permit</Text>
+                <View className="w-20 h-20 bg-gray-200 border border-gray-300 rounded-md justify-center items-center mb-1 shadow">
+                  {/* Ícono representativo */}
+                  <Ionicons name="document-text-outline" size={40} color="#4B5563" />
+                </View>
+                <Text className="text-xs text-center font-medium text-gray-600">PDF Permit</Text>
               </TouchableOpacity>
             )}
 
+            {/* Miniatura para PDF Flat (Opcional) */}
             {currentWork.Permit.optionalDocs && (
               <TouchableOpacity
                 onPress={() => handleOpenPdf(currentWork.Permit.optionalDocs)}
-                
-                 className={`py-2 px-4 bg-yellow-500 rounded shadow ${
-                  currentWork.Permit.pdfData ? 'w-[48%]' : 'w-full' 
-                }`}
+                className="items-center w-20" // Centrar contenido, ancho fijo opcional
               >
-                <Text className="text-white text-center font-medium">Ver PDF Flat</Text>
+                <View className="w-20 h-20 bg-gray-200 border border-gray-300 rounded-md justify-center items-center mb-1 shadow">
+                  {/* Ícono representativo */}
+                  <Ionicons name="document-attach-outline" size={40} color="#4B5563" />
+                </View>
+                <Text className="text-xs text-center font-medium text-gray-600">PDF Site Plan</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -362,7 +427,7 @@ const UploadScreen = () => {
           // Deshabilitar si ya se envió
           disabled={isInstallationSubmitted}
           // Cambiar estilo si está deshabilitado
-          className={`mt-4 py-3 rounded-lg shadow-md ${
+          className={` py-3 rounded-lg shadow-md ${
             isInstallationSubmitted
               ? 'bg-gray-400' // Color deshabilitado
               : 'bg-blue-600' // Color normal
@@ -376,6 +441,29 @@ const UploadScreen = () => {
         </Pressable>
       )}
       {/* --- FIN MODIFICACIÓN BOTÓN --- */}
+       {/* --- NUEVO BOTÓN REQUEST FINAL INSPECTION --- */}
+      {/* Mostrar solo si hay imágenes en 'inspeccion final' */}
+      {hasCoverImages && (
+        <Pressable
+          onPress={handleRequestFinalInspection}
+          // Deshabilitar si ya se solicitó
+          disabled={isFinalInspectionRequested}
+          // Cambiar estilo si está deshabilitado
+          className={`mt-2 py-3 rounded-lg shadow-md ${
+            isFinalInspectionRequested
+              ? 'bg-gray-400' // Color deshabilitado
+              : 'bg-green-600' // Color normal (ej. verde)
+          }`}
+        >
+          <Text className="text-white text-center text-lg font-semibold">
+            {isFinalInspectionRequested
+              ? 'Esperando Inspección Final' // Texto cuando está deshabilitado
+              : 'REQUEST FINAL INSPECTION'} {/* Texto normal */}
+          </Text>
+        </Pressable>
+      )}
+      {/* --- FIN NUEVO BOTÓN --- */}
+
 
       <Modal visible={modalVisible} transparent={true} animationType="slide">
         <View className="flex-1 bg-black/50 justify-center items-center">
@@ -436,9 +524,9 @@ const UploadScreen = () => {
             <Pressable
               onPress={() => setModalVisible(false)}
               className="mt-4 bg-red-500 px-4 py-2 rounded-md"
-            >
-              <Text className="text-white text-center text-sm">Cerrar</Text>
-            </Pressable>
+>
+    <Text className="text-white text-center text-sm">Cerrar</Text>
+</Pressable>
           </View>
         </View>
       </Modal>
