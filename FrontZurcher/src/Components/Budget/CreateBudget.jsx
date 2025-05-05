@@ -16,6 +16,26 @@ import "@react-pdf-viewer/default-layout/lib/styles/index.css";
 // --- Helper para generar IDs temporales ---
 const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
+// --- Helper para formatear fecha a MM-DD-YYYY ---
+const formatDateMMDDYYYY = (isoDateString) => {
+  if (!isoDateString || typeof isoDateString !== 'string') {
+    return ''; // Devuelve vacío si no hay fecha o no es string
+  }
+  try {
+    // Asegurarse de que la fecha se interprete correctamente (UTC para evitar problemas de zona horaria)
+    const date = new Date(isoDateString + 'T00:00:00Z');
+    if (isNaN(date.getTime())) {
+      return ''; // Devuelve vacío si la fecha no es válida
+    }
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    const year = date.getUTCFullYear();
+    return `${month}-${day}-${year}`;
+  } catch (error) {
+    console.error("Error formatting date:", error);
+    return ''; // Devuelve vacío en caso de error
+  }
+};
 // --- Hook para leer Query Params ---
 function useQuery() {
   return new URLSearchParams(useLocation().search);
@@ -938,7 +958,7 @@ const CreateBudget = () => {
                 <label className="block text-xs font-medium text-gray-500">Applicant</label>
                 <p className="text-sm font-semibold text-gray-800">{formData.applicantName || 'N/A'}</p>
               </div>
-              <div className="col-span-2">
+              <div className="col-span-1">
                 <label className="block text-xs font-medium text-gray-500">Property Address</label>
                 <p className="text-sm font-semibold text-gray-800">{formData.propertyAddress || 'N/A'}</p>
               </div>
@@ -950,13 +970,17 @@ const CreateBudget = () => {
                 <label className="block text-xs font-medium text-gray-500">Block</label>
                 <p className="text-sm font-semibold text-gray-800">{formData.block || 'N/A'}</p>
               </div>
+              <div className="col-span-1">
+                <label className="block text-xs font-medium text-gray-500">Excavation</label>
+                <p className="text-sm font-semibold text-gray-800">{formData.excavationRequired || 'N/A'}</p>
+              </div>
               <div className="col-span-2">
                 <label htmlFor="budget_date" className="block text-sm font-medium text-gray-700">Date</label>
                 <input id="budget_date" type="date" name="date" value={formData.date} onChange={handleGeneralInputChange} required className="input-style" />
               </div>
               <div className="col-span-2">
                 <label htmlFor="budget_expiration" className="block text-sm font-medium text-gray-700">Expiration Date</label>
-                <input id="budget_expiration" type="date" name="expirationDate" value={formData.expirationDate} className="input-style bg-gray-100" readOnly />
+                <input id="budget_expiration" type="text" name="expirationDate" value={formatDateMMDDYYYY(formData.expirationDate)} className="input-style bg-gray-100" readOnly />
               </div>
             </div>
             {/* --- Sección Items Presupuestables (Collapsible) --- */}
@@ -1185,10 +1209,10 @@ const CreateBudget = () => {
                         </select>
                       </div>
                       {/* Quantity */}
-                      <div>
+                      {/* <div>
                         <label htmlFor="sand_quantity" className="block text-xs font-medium text-gray-600">Quantity</label>
                         <input id="sand_quantity" type="number" name="quantity" value={sandSelection.capacity === 'OTROS' ? customSand.quantity : sandSelection.quantity} onChange={sandSelection.capacity === 'OTROS' ? handleCustomSandChange : handleSandChange} min="1" className="input-style" />
-                      </div>
+                      </div> */}
                       {/* Custom Fields */}
                       {sandSelection.capacity === 'OTROS' && (
                         <>

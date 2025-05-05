@@ -40,7 +40,7 @@ const PdfReceipt = () => {
   });
 
   
-
+const [excavationUnit, setExcavationUnit] = useState("INCH"); 
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
 
   
@@ -52,14 +52,34 @@ const PdfReceipt = () => {
       setPdfPreview(fileUrl);
       setFile(uploadedFile);
       dispatch(uploadPdf(uploadedFile)).then((action) => {
-        if (action.payload && action.payload.data) { 
+        if (action.payload && action.payload.data) {
+          const extractedData = action.payload.data;
+          let detectedUnit = "INCH"; // Default
+
+          // --- Lógica para detectar unidad en excavationRequired ---
+          if (extractedData.excavationRequired) {
+            const textValue = String(extractedData.excavationRequired).trim();
+            const parts = textValue.split(/\s+/);
+            if (parts.length > 1) {
+              const lastPartUpper = parts[parts.length - 1].toUpperCase();
+              if (["INCH", "FEET"].includes(lastPartUpper)) {
+                detectedUnit = lastPartUpper;
+                // Opcional: podrías quitar la unidad del valor si siempre es número + unidad
+                // extractedData.excavationRequired = parts.slice(0, -1).join(' ');
+              }
+            }
+          }
+          // --- Fin Lógica ---
+
           setFormData((prevFormData) => ({
             ...prevFormData,
-            ...action.payload.data,
-           
+            ...extractedData, // Aplica todos los datos extraídos
           }));
+          setExcavationUnit(detectedUnit); // Actualiza el estado de la unidad detectada
+
         } else if (action.error) {
             console.error("Error al procesar PDF:", action.error);
+            const errorMsg = action.error.message || "Error desconocido durante la extracción.";
             toast.error(`Error de Extracción: ${errorMsg}`);
         }
       });
@@ -125,7 +145,27 @@ const PdfReceipt = () => {
         formDataToSend.append("optionalDocs", optionalDocs);
       }
       Object.keys(formData).forEach((key) => {
-        formDataToSend.append(key, formData[key] ?? '');
+        let valueToSend = formData[key] ?? ''; // Valor por defecto
+
+        // --- Lógica especial para excavationRequired ---
+        if (key === 'excavationRequired') {
+          // 1. Obtener el valor original y asegurarse de que sea string, luego trim
+          const originalStringValue = String(valueToSend).trim();
+          // 2. Intentar parsear el valor trimeado
+          const numericValue = parseFloat(originalStringValue);
+
+          // 3. Verificar si el valor trimeado NO está vacío Y es un número válido Y coincide exactamente con su representación numérica
+          if (originalStringValue !== '' && !isNaN(numericValue) && String(numericValue) === originalStringValue) {
+             // 4. Si es puramente numérico, usar el valor trimeado y añadir la unidad
+             valueToSend = `${originalStringValue} ${excavationUnit}`;
+          } else {
+             // 5. Si no es puramente numérico (o está vacío), usar el valor original trimeado tal cual
+             valueToSend = originalStringValue;
+          }
+        }
+        // --- Fin Lógica especial ---
+
+        formDataToSend.append(key, valueToSend);
       });
 
       console.log("Enviando datos para crear el permiso...");
@@ -245,6 +285,29 @@ const PdfReceipt = () => {
                  <label className="block text-xs font-medium capitalize text-gray-700">
                    {key === "applicantName" ? "Name" : key === "applicantEmail" ? "Email" : key === "applicantPhone" ? "Phone" : key.replace(/([A-Z])/g, " $1").trim()}
                  </label>
+                  {/* --- RENDERIZADO CONDICIONAL --- */}
+                  {key === 'excavationRequired' ? (
+                   // --- Renderizar Input + Select para Excavation ---
+                   <div className="flex items-center space-x-2 mt-1">
+                     <input
+                       type="text"
+                       name="excavationRequired"
+                       value={formData.excavationRequired ?? ''}
+                       onChange={handleInputChange}
+                       className="block w-2/3 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                       placeholder="Valor o descripción"
+                     />
+                     <select
+                       name="excavationUnit" // Usa un nombre diferente si es necesario, o maneja en el submit
+                       value={excavationUnit}
+                       onChange={(e) => setExcavationUnit(e.target.value)}
+                       className="block w-1/3 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                     >
+                       <option value="INCH">INCH</option>
+                       <option value="FEET">FEET</option>
+                     </select>
+                   </div>
+                 ) : (
                 
                  <input
                    type={key === 'applicantEmail' ? 'email' : key === 'applicantPhone' ? 'tel' : 'text'} // Ajustar tipos de input
@@ -253,9 +316,12 @@ const PdfReceipt = () => {
                    onChange={handleInputChange}
                    className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                    required={key === 'applicantName' || key === 'propertyAddress'} // Marcar campos requeridos
-                 />
-              </div>
+                   />
+                  )}
+                  {/* --- FIN RENDERIZADO CONDICIONAL --- */}
+               </div>
             ))}
+            
             <button
               type="submit"
               className="bg-blue-950 text-white py-2 px-4 rounded-md hover:bg-indigo-700"

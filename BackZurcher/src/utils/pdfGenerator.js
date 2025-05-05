@@ -9,7 +9,7 @@ const formatDateDDMMYYYY = (dateString) => {
   try {
     // parseISO maneja strings como '2025-04-29T19:01:03.311Z' o '2025-04-29'
     const dateObj = parseISO(dateString);
-    return format(dateObj, 'dd-MM-yyyy');
+    return format(dateObj, 'MM-dd-yyyy');
   } catch (e) {
     console.error("Error formateando fecha:", dateString, e);
     return 'Invalid Date';
