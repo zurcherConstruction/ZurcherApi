@@ -9,37 +9,31 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 // --- 1. Mover la creación del Stack fuera del componente ---
 const Stack = createStackNavigator();
 
-const AssignedWorksScreen = ({staffId}) => {
+const WorksListScreen = ({ navigation }) => { // Recibe navigation como prop
   const dispatch = useDispatch();
- 
+  const { staff } = useSelector((state) => state.auth);
+  const staffId = staff?.idStaff;
+
   const [searchQuery, setSearchQuery] = useState('');
   const { works, loading: reduxLoading, error } = useSelector((state) => state.work);
 
   useEffect(() => {
-    // Solo buscar si staffId está disponible
     if (staffId) {
-      dispatch(fetchAssignedWorks(staffId)); // Usar el staffId obtenido
+      dispatch(fetchAssignedWorks(staffId));
     }
-  }, [dispatch, staffId]); // Depender de staffId
+  }, [dispatch, staffId]);
 
- // --- Filtrar trabajos basados en la búsqueda ---
- const filteredWorks = useMemo(() => {
-  if (!works) return [];
-  if (!searchQuery) return works; // Si no hay búsqueda, mostrar todos
+  const filteredWorks = useMemo(() => {
+    if (!works) return [];
+    if (!searchQuery) return works;
+    const lowerCaseQuery = searchQuery.toLowerCase();
+    return works.filter(work =>
+      work.propertyAddress?.toLowerCase().includes(lowerCaseQuery)
+    );
+  }, [works, searchQuery]);
 
-  const lowerCaseQuery = searchQuery.toLowerCase();
-  return works.filter(work =>
-    work.propertyAddress?.toLowerCase().includes(lowerCaseQuery)
-  );
-}, [works, searchQuery]);
-// --- ---
-
-  useEffect(() => {
-    console.log("Datos de trabajos asignados:", works);
-  }, [works]);
-
-
-  const isLoading = reduxLoading || !works;
+  // --- Estados de carga, error, etc. (sin cambios significativos) ---
+  const isLoading = reduxLoading;
 
   if (isLoading && !error) {
     return (
@@ -61,7 +55,6 @@ const AssignedWorksScreen = ({staffId}) => {
   if (!isLoading && filteredWorks.length === 0) {
     return (
       <View className="flex-1 justify-center items-center bg-gray-100 p-5">
-         {/* --- Barra de Búsqueda (Mostrar también si no hay resultados) --- */}
          <View className="p-4 bg-white border-b border-gray-200 flex-row items-center w-full mb-5">
            <Ionicons name="search" size={20} color="gray" style={{ marginRight: 8 }} />
            <TextInput
@@ -80,61 +73,68 @@ const AssignedWorksScreen = ({staffId}) => {
       </View>
     );
   }
-  // --- Fin estados ---
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: true }}>
-    <Stack.Screen
-      name=" Works Assigned"
-     
-    >
-      {({ navigation }) => (
-       <View className="flex-1 bg-gray-100">
-       {/* --- Barra de Búsqueda --- */}
-       <View className="p-4 bg-white border-b border-gray-200 flex-row items-center">
-         <Ionicons name="search" size={20} color="gray" style={{ marginRight: 8 }} />
-         <TextInput
-           placeholder="Buscar por dirección..."
-           value={searchQuery}
-           onChangeText={setSearchQuery}
-           className="flex-1 h-10 text-base" // Ajusta estilos según necesites
-           clearButtonMode="while-editing" // Botón para limpiar (iOS)
-         />
-       </View>
-              <FlatList
-            data={filteredWorks} 
-            keyExtractor={(item) => item.idWork.toString()}
-            renderItem={({ item }) => (
-              // --- Envolver toda la tarjeta en TouchableOpacity ---
-              <TouchableOpacity
-                onPress={() =>
-                  navigation.navigate("UploadScreen", {
-                    idWork: item.idWork,
-                    propertyAddress: item.propertyAddress,
-                    images: item.images, // Asegúrate de que 'images' esté incluido en los datos de 'works'
-                  })
-                }
-                className="mb-4 p-4 bg-white rounded-lg shadow" // Mover estilos al TouchableOpacity
-              >
-                {/* --- Contenido de la tarjeta (sin cambios) --- */}
-                <Text className="text-lg font-semibold uppercase text-gray-800 mb-2">
-                  {item.propertyAddress || "Dirección no disponible"}
-                </Text>
-                <Text className="text-sm text-gray-600 mb-2">
-                  <Text className="font-bold text-gray-700">Estado:</Text>{" "}
-                  {item.status || "Sin estado"}
-                </Text>
-
-               
-              </TouchableOpacity> // --- Fin TouchableOpacity ---
-            )}
-          />
-        </View>
-      )}
-    </Stack.Screen>
-    <Stack.Screen name="UploadScreen" component={UploadScreen} />
-  </Stack.Navigator>
+    <View className="flex-1 bg-gray-100">
+      <View className="p-4 bg-white border-b border-gray-200 flex-row items-center">
+        <Ionicons name="search" size={20} color="gray" style={{ marginRight: 8 }} />
+        <TextInput
+          placeholder="Buscar por dirección..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          className="flex-1 h-10 text-base"
+          clearButtonMode="while-editing"
+        />
+      </View>
+      <FlatList
+        data={filteredWorks}
+        keyExtractor={(item) => item.idWork.toString()}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+          onPress={() =>
+            navigation.navigate("UploadScreen", {
+              idWork: item.idWork,
+              propertyAddress: item.propertyAddress,
+              // NO pasar item.images ni item.Permit si no están completos aquí
+            })
+          }
+            className="mb-4 p-4 bg-white rounded-lg shadow mx-2 mt-2"
+          >
+            <Text className="text-lg font-semibold uppercase text-gray-800 mb-2">
+              {item.propertyAddress || "Dirección no disponible"}
+            </Text>
+            <Text className="text-sm text-gray-600 mb-2">
+              <Text className="font-bold text-gray-700">Estado:</Text>{" "}
+              {item.status || "Sin estado"}
+            </Text>
+          </TouchableOpacity>
+        )}
+        contentContainerStyle={{ paddingBottom: 10 }}
+      />
+    </View>
   );
 };
 
-export default AssignedWorksScreen;
+const AssignedWorksStackNavigator = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: true }}>
+      <Stack.Screen
+        name="WorksList" // Nombre de la pantalla de lista
+        component={WorksListScreen} // Componente que muestra la lista
+        options={{ title: 'Works Assigned' }}
+      />
+      <Stack.Screen
+        name="UploadScreen"
+        component={UploadScreen} // UploadScreen sigue igual
+        options={({ route }) => ({
+          title: route.params?.propertyAddress || 'Upload Images',
+          // Puedes añadir un headerLeft personalizado si necesitas volver
+          // a "WorksList" específicamente, aunque el botón "back" estándar debería funcionar.
+        })}
+      />
+    </Stack.Navigator>
+  );
+};
+
+// --- 3. Exportar el NAVIGATOR ---
+export default AssignedWorksStackNavigator; // Exportar el navegador

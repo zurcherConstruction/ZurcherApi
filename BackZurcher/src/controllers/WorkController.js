@@ -420,7 +420,7 @@ const getAssignedWorks = async (req, res) => {
 const addImagesToWork = async (req, res) => {
   try {
     const { idWork } = req.params; // ID del trabajo
-    const { stage, image, dateTime, comment, truckCount } = req.body; // Etapa, imagen en Base64 y fecha/hora
+    const { stage, imageData, dateTime, comment, truckCount } = req.body; // Etapa, imagen en Base64 y fecha/hora
 
     // Verificar que el trabajo exista
     const work = await Work.findByPk(idWork);
@@ -444,18 +444,23 @@ const addImagesToWork = async (req, res) => {
     }
 
     // Crear el registro de la imagen
-    const imageRecord = await Image.create({
+   await Image.create({
       idWork,
       stage,
-      imageData: image, // Guardar la imagen en Base64
+      imageData, // Guardar la imagen en Base64
       dateTime: dateTime, // Guardar la fecha y hora
       comment: comment, // Guardar el comentario
       truckCount: truckCount, // Solo si se necesita en esta etapa
     });
 
-    res.status(201).json({
+   // Recuperar el trabajo actualizado con todas sus imágenes
+    const updatedWork = await Work.findByPk(idWork, {
+      include: [{ model: Image, as: 'images' }] // Asegúrate de que 'images' sea el alias correcto
+    });
+
+    res.status(201).json({ // Enviar el trabajo actualizado
       message: 'Imagen agregada correctamente',
-      imageRecord,
+      work: updatedWork // El frontend espera el trabajo en una propiedad 'work' o directamente como payload
     });
   } catch (error) {
     console.error('Error al agregar imagen al trabajo:', error);

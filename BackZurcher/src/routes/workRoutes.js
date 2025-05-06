@@ -13,7 +13,7 @@ router.get('/assigned', verifyToken, allowRoles(['owner', 'worker']), WorkContro
 router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker']), WorkController.getWorks);
 
 // Obtener una obra por ID (personal del hotel)
-router.get('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner']), WorkController.getWorkById);
+router.get('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner','worker']), WorkController.getWorkById);
 
 // Actualizar una obra (solo administradores)
 router.put('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker']), WorkController.updateWork);
