@@ -4,7 +4,9 @@ const { getNotificationDetails } = require('../utils/notifications/notificationS
 const { getNotificationDetailsApp } = require('../utils/notifications/notificationServiceApp');
 const convertPdfDataToUrl = require('../utils/convertPdfDataToUrl');
 const { sendNotifications } = require('../utils/notifications/notificationManager');
-
+const { uploadToCloudinary, deleteFromCloudinary, uploadBufferToCloudinary } = require('../utils/cloudinaryUploader'); // Asegúrate de importar la función de subida a Cloudinary
+const multer = require('multer');
+const path = require('path');
 
 const createWork = async (req, res) => {
   try {
@@ -132,7 +134,7 @@ const getWorkById = async (req, res) => {
         {
           model: Image,
           as: 'images',
-          attributes: ['id', 'stage', 'dateTime', 'imageData', 'comment', 'truckCount'],
+          attributes: ['id', 'stage', 'dateTime', 'imageUrl', 'publicId', 'comment', 'truckCount'],
         },
         {
           model: Receipt,
@@ -401,7 +403,7 @@ const getAssignedWorks = async (req, res) => {
         {
           model: Image,
           as: 'images',
-          attributes: ['id', 'stage', 'dateTime', 'imageData', 'comment', 'truckCount'],
+          attributes: ['id', 'stage', 'dateTime', 'imageUrl', 'publicId', 'comment', 'truckCount'],
         },
       ],
     });
@@ -420,13 +422,25 @@ const getAssignedWorks = async (req, res) => {
 const addImagesToWork = async (req, res) => {
   try {
     const { idWork } = req.params; // ID del trabajo
-    const { stage, imageData, dateTime, comment, truckCount } = req.body; // Etapa, imagen en Base64 y fecha/hora
+    const { stage, dateTime, comment, truckCount } = req.body; // Etapa, imagen en Base64 y fecha/hora
+    if (!req.file) {
+      return res.status(400).json({ error: true, message: 'No se proporcionó ningún archivo de imagen.' });
+    }
 
+    // Verificación adicional del tipo de archivo para esta ruta específica (imágenes)
+    const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedImageTypes.includes(req.file.mimetype)) {
+      console.error("Controlador: Archivo rechazado, tipo no es imagen:", req.file.mimetype);
+      return res.status(400).json({ error: true, message: 'Tipo de archivo no permitido para esta operación. Solo se aceptan imágenes (JPG, PNG, GIF, WEBP).' });
+    }
     // Verificar que el trabajo exista
     const work = await Work.findByPk(idWork);
     if (!work) {
+      // Si el archivo ya se guardó temporalmente por multer, elimínalo
+      if (req.file && req.file.path) fs.unlinkSync(req.file.path);
       return res.status(404).json({ error: true, message: 'Trabajo no encontrado' });
     }
+
 
     // Validar que la etapa sea válida
     const validStages = [
@@ -443,28 +457,76 @@ const addImagesToWork = async (req, res) => {
       return res.status(400).json({ error: true, message: 'Etapa no válida' });
     }
 
-    // Crear el registro de la imagen
-   await Image.create({
+    const cloudinaryResult = await uploadBufferToCloudinary(req.file.buffer, {
+      folder: `works/${idWork}/${stage}`,
+      resource_type: "image"
+    });
+
+    await Image.create({
       idWork,
       stage,
-      imageData, // Guardar la imagen en Base64
-      dateTime: dateTime, // Guardar la fecha y hora
-      comment: comment, // Guardar el comentario
-      truckCount: truckCount, // Solo si se necesita en esta etapa
+      imageUrl: cloudinaryResult.secure_url,
+      publicId: cloudinaryResult.public_id,
+      dateTime: dateTime,
+      comment: comment,
+      truckCount: truckCount,
     });
 
-   // Recuperar el trabajo actualizado con todas sus imágenes
     const updatedWork = await Work.findByPk(idWork, {
-      include: [{ model: Image, as: 'images' }] // Asegúrate de que 'images' sea el alias correcto
+      include: [
+        {
+          model: Image,
+          as: 'images',
+          attributes: ['id', 'stage', 'dateTime', 'imageUrl', 'publicId', 'comment', 'truckCount'],
+        },
+        {
+          model: Permit,
+          as: 'Permit', // Asegúrate que el alias 'as' coincida con tu definición de modelo si existe
+          attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'pdfData', 'optionalDocs'],
+        },
+        {
+          model: Inspection,
+          attributes: [
+            'idInspection',
+
+            'type',
+            'status',
+            'dateRequested',
+            'dateCompleted',
+            'notes',
+          ],
+        },
+        {
+          model: InstallationDetail,
+          as: 'installationDetails',
+          attributes: ['idInstallationDetail', 'date', 'extraDetails', 'extraMaterials', 'images'],
+        },
+        {
+          model: MaterialSet,
+          as: 'MaterialSets',
+          attributes: ['idMaterialSet', 'invoiceFile', 'totalCost'],
+        },
+       
+        // ... incluye cualquier otra asociación que UploadScreen pueda necesitar indirectamente
+        // a través de currentWork o sus componentes hijos.
+      ]
     });
 
-    res.status(201).json({ // Enviar el trabajo actualizado
-      message: 'Imagen agregada correctamente',
-      work: updatedWork // El frontend espera el trabajo en una propiedad 'work' o directamente como payload
+    res.status(201).json({
+      message: 'Imagen agregada correctamente a Cloudinary y DB',
+      work: updatedWork
     });
+
   } catch (error) {
-    console.error('Error al agregar imagen al trabajo:', error);
-    res.status(500).json({ error: true, message: 'Error interno del servidor' });
+    if (error instanceof multer.MulterError) {
+        console.error('Error de Multer al agregar imagen:', error);
+        return res.status(400).json({ error: true, message: `Error de Multer: ${error.message}` });
+    } else if (error.http_code && error.http_code === 400) {
+        console.error('Error de Cloudinary (posiblemente formato):', error);
+        return res.status(400).json({ error: true, message: `Error de Cloudinary: ${error.message}` });
+    }
+    console.error('Error general al agregar imagen (Cloudinary):', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor al subir imagen.' });
   }
 };
 
@@ -474,35 +536,30 @@ const deleteImagesFromWork = async (req, res) => {
 
     console.log(`Recibida petición para eliminar imagen ID: ${imageId} del trabajo ID: ${idWork}`);
 
-    // Verificar que el trabajo exista (opcional pero bueno para seguridad)
-    const work = await Work.findByPk(idWork);
-    if (!work) {
-      console.log(`Trabajo no encontrado: ${idWork}`);
-      return res.status(404).json({ error: true, message: 'Trabajo no encontrado' });
-    }
 
-    // Intentar eliminar la imagen por su ID, asegurándose que pertenece al work correcto
-    const result = await Image.destroy({
-      where: {
-        id: imageId,
-        idWork: idWork // Asegura que la imagen pertenezca al trabajo especificado
-      }
+
+   const imageToDelete = await Image.findOne({
+      where: { id: imageId, idWork: idWork }
     });
 
-    // Verificar si se eliminó alguna fila
-    if (result === 0) {
-      console.log(`Imagen no encontrada o no pertenece al trabajo: Imagen ID ${imageId}, Trabajo ID ${idWork}`);
-      // Podría ser 404 Not Found o 403 Forbidden si no pertenece al trabajo
+    if (!imageToDelete) {
       return res.status(404).json({ error: true, message: 'Imagen no encontrada o no pertenece a este trabajo' });
     }
 
-    console.log(`Imagen ID: ${imageId} eliminada exitosamente.`);
-    // Enviar respuesta de éxito sin contenido (estándar para DELETE)
+    // Eliminar de Cloudinary si tiene publicId
+    if (imageToDelete.publicId) {
+      await deleteFromCloudinary(imageToDelete.publicId);
+    }
+
+    // Eliminar de la base de datos
+    await imageToDelete.destroy();
+
+    console.log(`Imagen ID: ${imageId} (Cloudinary public_id: ${imageToDelete.publicId}) eliminada exitosamente.`);
     res.status(204).send();
 
   } catch (error) {
-    console.error('Error al eliminar imagen del trabajo:', error);
-    res.status(500).json({ error: true, message: 'Error interno del servidor al eliminar imagen' });
+    console.error('Error al eliminar imagen (Cloudinary):', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor al eliminar imagen.' });
   }
 };
 

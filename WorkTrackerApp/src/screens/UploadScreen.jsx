@@ -49,32 +49,32 @@ const UploadScreen = () => {
 
 
 
-  useEffect(() => {
-    if (currentWork && currentWork.idWork === idWork) {
-      const grouped = currentWork.images.reduce((acc, img) => {
-        const stage = img.stage;
-        if (!acc[stage]) acc[stage] = [];
-        if (img.id) acc[stage].push(img);
-        else console.warn("Imagen sin ID:", img);
-        return acc;
-      }, {});
-      setImagesByStage(grouped);
+  // useEffect(() => {
+  //   if (currentWork && currentWork.idWork === idWork) {
+  //     const grouped = currentWork.images.reduce((acc, img) => {
+  //       const stage = img.stage;
+  //       if (!acc[stage]) acc[stage] = [];
+  //       if (img.id) acc[stage].push(img);
+  //       else console.warn("Imagen sin ID:", img);
+  //       return acc;
+  //     }, {});
+  //     setImagesByStage(grouped);
 
-      const urls = {};
-      currentWork.images.forEach(img => {
-        if (img.id && img.imageData) urls[img.id] = `data:image/jpeg;base64,${img.imageData}`;
-      });
-      setImagesWithDataURLs(urls);
-    } else {
-      setImagesByStage({});
-      setImagesWithDataURLs({});
-    }
-    // Actualizar estados de botones basados en currentWork.status (si lo pasas o lo buscas)
-    setIsInstallationSubmitted(currentWork?.status === 'installed');
-    // setIsFinalInspectionRequested(currentWork?.status === 'coverPending' || ...); // <--- INCOMPLETA
+  //     const urls = {};
+  //     currentWork.images.forEach(img => {
+  //       if (img.id && img.imageData) urls[img.id] = `data:image/jpeg;base64,${img.imageData}`;
+  //     });
+  //     setImagesWithDataURLs(urls);
+  //   } else {
+  //     setImagesByStage({});
+  //     setImagesWithDataURLs({});
+  //   }
+  //   // Actualizar estados de botones basados en currentWork.status (si lo pasas o lo buscas)
+  //   setIsInstallationSubmitted(currentWork?.status === 'installed');
+  //   // setIsFinalInspectionRequested(currentWork?.status === 'coverPending' || ...); // <--- INCOMPLETA
 
 
-  }, [currentWork, idWork]);
+  // }, [currentWork, idWork]);
 
 
 
@@ -165,39 +165,31 @@ const UploadScreen = () => {
 
 
   useEffect(() => {
-    if (currentWork && currentWork.images && Array.isArray(currentWork.images)) { // Añadida verificación de Array
-
-      const groupedImages = currentWork.images.reduce((acc, image) => {
-        if (!acc[image.stage]) {
-          acc[image.stage] = [];
-        }
-        // Asegurarse de que la imagen tenga un ID antes de añadirla
-        if (image.id) {
-          acc[image.stage].push(image);
-        } else {
-          console.warn("Imagen encontrada sin ID:", image);
-        }
+    if (currentWork && currentWork.idWork === idWork && currentWork.images) { // Asegúrate que currentWork.images exista
+      const grouped = (currentWork.images || []).reduce((acc, img) => {
+        const stage = img.stage;
+        if (!acc[stage]) acc[stage] = [];
+        if (img.id) acc[stage].push(img);
+        else console.warn("Imagen sin ID:", img);
         return acc;
       }, {});
-      setImagesByStage(groupedImages);
+      setImagesByStage(grouped);
 
-      // Crear Data URLs para mostrar las imágenes
-      const dataURLs = {};
-      currentWork.images.forEach((image) => {
-        // Solo procesar si la imagen tiene ID y datos
-        if (image.id && image.imageData) {
-          // Asumir que imageData ya es base64
-          dataURLs[image.id] = `data:image/jpeg;base64,${image.imageData}`;
+      const urls = {};
+      (currentWork.images || []).forEach(img => {
+        if (img.id && img.imageUrl) { // Usar imageUrl en lugar de imageData
+          urls[img.id] = img.imageUrl; // Directamente la URL de Cloudinary
         }
       });
-      setImagesWithDataURLs(dataURLs);
-
+      setImagesWithDataURLs(urls); // imagesWithDataURLs ahora contendrá URLs de Cloudinary
     } else {
-
       setImagesByStage({});
       setImagesWithDataURLs({});
     }
-  }, [currentWork]);
+    setIsInstallationSubmitted(currentWork?.status === 'installed');
+  }, [currentWork, idWork]);
+
+
   const handlePickImage = async () => {
     console.log("handlePickImage - selectedStage:", selectedStage); // <-- LOG
     if (!selectedStage) {
@@ -341,22 +333,32 @@ const UploadScreen = () => {
   };
 
 
-  // ...existing code...
+  // MODIFICAR processAndUploadImage
   const processAndUploadImage = async (imageUri, comment = '', truckCount = null) => {
-    let tempImageId = `temp-${Date.now()}-${Math.random()}`; // Definir aquí para el catch
+    let tempImageId = `temp-${Date.now()}-${Math.random()}`;
     try {
       const resizedImage = await manipulateAsync(
         imageUri,
-        [{ resize: { width: 800 } }],
+        [{ resize: { width: 800 } }], // O el tamaño que prefieras
         { compress: 0.7, format: SaveFormat.JPEG }
       );
-      const base64Image = await FileSystem.readAsStringAsync(resizedImage.uri, { encoding: 'base64' });
+
       const now = new Date();
       const dateTimeString = now.toLocaleString();
-      const newImagePayload = {
-        id: tempImageId, // Usar la variable definida arriba
+
+      // Actualización optimista: usa la URI local para la vista previa
+      const optimisticImagePayload = {
+        id: tempImageId,
         stage: selectedStage,
-        imageData: base64Image,
+        // Para la UI optimista, podrías usar resizedImage.uri directamente si tu componente Image lo soporta
+        // o si necesitas base64 para la UI optimista, puedes generarlo aquí solo para eso.
+        // Por simplicidad, asumiremos que la UI optimista puede usar la URI local.
+        // Si necesitas base64 para la UI optimista, puedes leerlo aquí pero NO enviarlo al backend.
+        // Ejemplo: const base64ForOptimisticUI = await FileSystem.readAsStringAsync(resizedImage.uri, { encoding: 'base64' });
+        // Y luego en setCurrentWorkData, usarías una propiedad temporal como `optimisticLocalUrl: resizedImage.uri` o `optimisticBase64: base64ForOptimisticUI`
+        // Para este ejemplo, vamos a asumir que la UI optimista puede usar la URI local.
+        // O, si quieres que la UI optimista muestre un placeholder o nada hasta que la URL de Cloudinary llegue:
+        imageUrl: resizedImage.uri, // Usar URI local para la vista previa optimista
         comment: comment,
         dateTime: dateTimeString,
         truckCount: truckCount,
@@ -364,40 +366,54 @@ const UploadScreen = () => {
 
       setCurrentWorkData(prev => ({
         ...prev,
-        images: [...(prev.images || []), { ...newImagePayload, imageData: base64Image }]
+        images: [...(prev.images || []), optimisticImagePayload]
       }));
 
+      // Crear FormData para enviar al backend
+      const formData = new FormData();
+      formData.append('stage', selectedStage);
+      formData.append('comment', comment);
+      formData.append('dateTime', dateTimeString);
+      if (truckCount !== null) {
+        formData.append('truckCount', truckCount.toString());
+      }
+      // Adjuntar el archivo
+      // El nombre del archivo es importante para multer en el backend
+      const filename = resizedImage.uri.split('/').pop();
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : `image`; // ej. image/jpeg, image/png
 
-      const imagePayloadForAction = {
-        stage: selectedStage,
-        imageData: base64Image,
-        comment: comment,
-        dateTime: dateTimeString,
-        truckCount: truckCount,
-      };
+      formData.append('imageFile', { // 'imageFile' debe coincidir con upload.single('imageFile') en el backend
+        uri: resizedImage.uri,
+        name: filename,
+        type: type,
+      });
 
+      // La acción addImagesToWork ahora debe estar preparada para enviar FormData
+      // y el backend para recibirlo.
+      const resultAction = await dispatch(addImagesToWork(idWork, formData));
 
-      const resultAction = await dispatch(addImagesToWork(idWork, imagePayloadForAction));
-
-      if (resultAction && resultAction.work && resultAction.work.images) { // Condición ajustada
-        const updatedWorkFromServer = resultAction.work;
-
-        Alert.alert('Éxito', 'Imagen cargada correctamente.');
+      if (resultAction && resultAction.work && resultAction.work.images) {
+        Alert.alert('Éxito', 'Imagen cargada correctamente a Cloudinary.');
+        // Redux ya debería haber actualizado currentWork con las URLs de Cloudinary.
+        // La UI optimista se reemplazará con los datos reales de Redux.
+        // Si la UI optimista usó tempImageId, el reducer addImagesSuccess
+        // debería reemplazar la imagen temporal con la real del servidor.
       } else {
-        console.error("Error en resultAction de addImagesToWork o respuesta inesperada:", resultAction); // Si entra aquí, se percibe error
-        Alert.alert('Error', 'No se pudo cargar la imagen o respuesta inesperada.');
+        console.error("Error en resultAction de addImagesToWork (Cloudinary) o respuesta inesperada:", resultAction);
+        Alert.alert('Error', 'No se pudo cargar la imagen a Cloudinary o respuesta inesperada.');
         setCurrentWorkData(prev => ({
           ...prev,
-          images: prev.images.filter(img => img.id !== newImagePayload.id)
+          images: prev.images.filter(img => img.id !== tempImageId) // Revertir optimista
         }));
       }
 
     } catch (error) {
-      console.error('Error al procesar/cargar la imagen:', error);
+      console.error('Error al procesar/cargar la imagen (Cloudinary):', error);
       Alert.alert('Error', `No se pudo cargar la imagen: ${error.message || 'Error desconocido'}`);
       setCurrentWorkData(prev => ({
         ...prev,
-        images: prev.images.filter(img => img.id !== tempImageId)
+        images: prev.images.filter(img => img.id !== tempImageId) // Revertir optimista
       }));
     }
   };

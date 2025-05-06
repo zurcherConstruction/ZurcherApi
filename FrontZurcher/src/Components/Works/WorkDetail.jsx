@@ -406,45 +406,63 @@ const WorkDetail = () => {
               Imágenes de la Obra
             </h2>
             {openSections.images &&
-              Object.entries(groupedImages).map(([stage, images]) => (
-                <div key={stage} className="mb-6">
-                  <h3 className="text-sm text-white bg-indigo-900 p-1 text-center uppercase font-semibold mb-2">
-                    {stage}
-                  </h3>
-                  <div className="flex overflow-x-auto space-x-4">
-                    {images.map((image) => (
-                      <div
-                        key={image.id}
-                        className="flex-shrink-0 cursor-pointer"
-                        onClick={() => setSelectedImage(image)}
-                      >
-                        <img
-                          src={`data:image/jpeg;base64,${image.imageData}`}
-                          alt={stage}
-                          className="w-24 h-24 object-cover rounded-md shadow"
-                        />
-                         <p className="text-xs text-gray-500 mt-1 truncate" title={image.dateTime}> {/* Smaller date, truncate, add title */}
-                          {image.dateTime ? new Date(image.dateTime).toLocaleString() : 'Sin fecha'} {/* Format date */}
-                        </p>
+              Object.entries(groupedImages).map(([stage, images]) => {
+                const truckSumStages = ['camiones de arena', 'camiones de tierra'];
+                let totalTrucksInStage = 0;
 
-                        {(stage === 'camiones de arena' || stage === 'camiones de tierra') && image.truckCount != null && image.truckCount > 0 && (
-                          <p className="text-sm font-semibold text-blue-700 mt-1">
-                            {image.truckCount} {image.truckCount === 1 ? 'Camión' : 'Camiones'}
+                if (truckSumStages.includes(stage)) {
+                  totalTrucksInStage = images.reduce((sum, image) => {
+                    return sum + (Number(image.truckCount) || 0);
+                  }, 0);
+                }
+
+                return (
+                  <div key={stage} className="mb-6">
+                    <h3 className="text-sm text-white bg-indigo-900 p-1 text-center uppercase font-semibold mb-2">
+                      {stage}
+                    </h3>
+                    <div className="flex overflow-x-auto space-x-4 p-2">
+                      {images.map((image) => (
+                        <div
+                          key={image.id}
+                          className="flex-shrink-0 cursor-pointer bg-gray-50 p-2 rounded-lg shadow hover:shadow-md transition-shadow"
+                          onClick={() => setSelectedImage(image)}
+                        >
+                          <img
+                            src={image.imageUrl}
+                            alt={stage}
+                            className="w-24 h-24 object-cover rounded-md shadow"
+                          />
+                          <p className="text-xs text-gray-500 mt-1 truncate" title={image.dateTime}>
+                            {image.dateTime ? new Date(image.dateTime).toLocaleString() : 'Sin fecha'}
                           </p>
-                        )}
-                        {/* --- Mostrar comentario si existe --- */}
-                        {image.comment && (
-                           <p className="text-xs text-gray-600 mt-1 italic truncate" title={image.comment}> {/* Truncate comment, add title */}
-                             "{image.comment}"
-                           </p>
-                        )}
+                          {(stage === 'camiones de arena' || stage === 'camiones de tierra') && image.truckCount != null && image.truckCount > 0 && (
+                            <p className="text-xs font-semibold text-blue-600 mt-1">
+                              {image.truckCount} {image.truckCount === 1 ? 'Camión' : 'Camiones'}
+                            </p>
+                          )}
+                          {image.comment && (
+                            <p className="text-xs text-gray-600 mt-1 italic truncate max-w-[96px]" title={image.comment}>
+                              "{image.comment}"
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {truckSumStages.includes(stage) && totalTrucksInStage > 0 && (
+                      <div className="mt-3 text-right pr-2">
+                        <p className="text-xl font-bold text-indigo-700 bg-indigo-100 px-4 py-2 rounded-full inline-block shadow-lg">
+                          Total Camiones: {totalTrucksInStage}
+                        </p>
                       </div>
-                    ))}
+                    )}
                   </div>
-                </div>
-              ))}
-          </div>
+                ) 
+              })}
+       </div>
         </div>
+
+
 
         {/* Columna derecha: Tarjetas de gastos e ingresos */}
         <div className="space-y-6">
@@ -644,27 +662,42 @@ const WorkDetail = () => {
       {/* Modal para mostrar la imagen ampliada */}
       {selectedImage && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
-          onClick={() => setSelectedImage(null)} // Cerrar el modal al hacer clic fuera de la imagen
+          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" // Añadido p-4 para dar espacio alrededor
+          onClick={(e) => {
+            // Cerrar solo si se hace clic en el fondo, no en el contenido del modal
+            if (e.target === e.currentTarget) {
+              setSelectedImage(null);
+            }
+          }}
         >
-          <div className="relative bg-white p-4 rounded shadow-lg">
-            <img
-              src={`data:image/jpeg;base64,${selectedImage.imageData}`}
-              alt="Imagen ampliada"
-              className="max-w-full max-h-screen rounded"
-            />
-            <p className="text-center mt-2">{selectedImage.dateTime}</p>
-            <div className="flex justify-between mt-4">
+          {/* Contenedor del contenido del modal */}
+          <div 
+            className="relative bg-white p-4 rounded shadow-lg flex flex-col max-h-[90vh] w-auto max-w-3xl" // max-h-[90vh] para limitar altura, w-auto y max-w-3xl para ancho responsivo
+            onClick={(e) => e.stopPropagation()} // Evitar que el clic se propague al fondo
+          >
+            {/* Contenedor de la imagen con scroll si es necesario */}
+            <div className="overflow-y-auto flex-grow mb-4"> 
+              <img
+                src={selectedImage.imageUrl}
+                alt="Imagen ampliada"
+                className="w-full h-auto object-contain rounded" // h-auto para mantener proporción, object-contain para asegurar que se vea completa
+              />
+            </div>
+            <p className="text-center text-sm text-gray-600">{selectedImage.dateTime}</p>
+            {selectedImage.comment && (
+              <p className="text-center text-xs text-gray-500 mt-1 italic">"{selectedImage.comment}"</p>
+            )}
+            <div className="flex justify-around mt-4 pt-4 border-t"> {/* justify-around para espaciar botones */}
               <button
-                className="bg-red-500 text-white px-4 py-2 rounded"
-                onClick={() => setSelectedImage(null)} // Cerrar el modal
+                className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-6 py-2 rounded text-sm"
+                onClick={() => setSelectedImage(null)}
               >
                 Cerrar
               </button>
               <a
-                href={`data:image/jpeg;base64,${selectedImage.imageData}`}
-                download={`imagen_${selectedImage.id}.jpg`}
-                className="bg-blue-500 text-white px-4 py-2 rounded"
+                href={selectedImage.imageUrl}
+                download={`imagen_${selectedImage.id}_${selectedImage.stage}.jpg`} // Nombre de descarga más descriptivo
+                className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded text-sm"
               >
                 Descargar
               </a>
@@ -673,7 +706,7 @@ const WorkDetail = () => {
         </div>
       )}
     </div>
-  );
+  )
 };
 
 export default WorkDetail;

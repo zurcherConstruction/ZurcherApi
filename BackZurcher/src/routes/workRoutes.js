@@ -3,6 +3,7 @@ const WorkController = require('../controllers/WorkController');
 const { verifyToken } = require('../middleware/isAuth');
 const { allowRoles, isOwner, isAdmin, isRecept, isStaff } = require('../middleware/byRol')
 const { uploadToDisk } = require('../middleware/multerDisk');
+const { upload } = require('../middleware/multer'); // Asegúrate de que esta ruta sea correcta
 
 const router = express.Router();
 
@@ -26,7 +27,13 @@ router.post('/:idWork/installation-details', verifyToken, allowRoles(['admin', '
 
 router.put('/:idWork/invoice', verifyToken, allowRoles(['admin', 'recept', 'owner','worker']), uploadToDisk.single('invoiceFile'), WorkController.attachInvoiceToWork);
 
-router.post('/:idWork/images', verifyToken, allowRoles([ 'owner','worker']), WorkController.addImagesToWork);
+// Ruta para agregar imágenes a un trabajo
+router.post('/:idWork/images',
+    verifyToken,
+    allowRoles(['owner','worker']),
+    upload.single('imageFile'), // <--- USA TU INSTANCIA 'upload' EXISTENTE
+    WorkController.addImagesToWork
+  );
 
 router.delete('/:idWork/images/:imageId', verifyToken, allowRoles(['owner', 'worker']), WorkController.deleteImagesFromWork);
 

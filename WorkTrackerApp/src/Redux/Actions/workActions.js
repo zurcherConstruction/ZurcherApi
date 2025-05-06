@@ -124,13 +124,21 @@ export const addInstallationDetail = (idWork, installationData) => async (dispat
     throw error; // Lanza el error para manejarlo en el componente
   }
 };
-export const addImagesToWork = (idWork, imageData) => async (dispatch) => {
-  dispatch(addImagesRequest()); 
+export const addImagesToWork = (idWork, formData) => async (dispatch) => {
+  dispatch(addImagesRequest());
   try {
-    const response = await api.post(`/work/${idWork}/images`, imageData); 
-  
-    dispatch(addImagesSuccess(response.data)); 
-    return response.data; 
+    // Cuando envías FormData, axios establece automáticamente el Content-Type correcto.
+    const response = await api.post(`/work/${idWork}/images`, formData, {
+      headers: {
+        // No necesitas 'Content-Type': 'multipart/form-data' explícitamente aquí con axios,
+        // pero si tu 'api' wrapper lo requiere o si usas fetch, sí lo necesitarías.
+        // Si tu 'api' wrapper añade 'Content-Type: application/json' por defecto,
+        // podrías necesitar anularlo o asegurarte de que no lo haga para FormData.
+        // Para axios, generalmente es mejor dejar que lo maneje.
+      }
+    });
+    dispatch(addImagesSuccess(response.data)); // response.data debería ser { message: '...', work: updatedWork }
+    return response.data;
   } catch (error) {
     const errorMessage =
       error.response?.data?.message || 'Error al agregar las imágenes';
