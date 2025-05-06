@@ -16,6 +16,14 @@ module.exports = (sequelize) => {
       type: DataTypes.DECIMAL,
       allowNull: false,
     },
+    staffId: {
+  type: DataTypes.UUID,
+  allowNull: true,
+  references: {
+    model: 'Staffs',
+    key: 'id'
+  }
+},
     typeExpense: {
         type: DataTypes.ENUM(
             'Materiales',

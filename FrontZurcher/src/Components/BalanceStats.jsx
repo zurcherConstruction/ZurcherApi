@@ -209,6 +209,7 @@ const BalanceStats = () => {
             </ResponsiveContainer>
           </div>
         </div>
+        
       ) : (
         <p className="text-gray-500">No hay datos disponibles.</p>
       )}
