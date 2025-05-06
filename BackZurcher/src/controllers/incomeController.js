@@ -2,9 +2,9 @@ const { Income } = require('../data'); // Importa el modelo Income
 
 // Crear un nuevo ingreso
 const createIncome = async (req, res) => {
-  const { date, amount, typeIncome, notes, workId } = req.body;
+  const { date, amount, typeIncome, notes, workId, staffId } = req.body;
   try {
-    const newIncome = await Income.create({ date, amount, typeIncome, notes, workId });
+  const newIncome = await Income.create({ date, amount, typeIncome, notes, workId, staffId });
     res.status(201).json(newIncome);
   } catch (error) {
     res.status(500).json({ message: 'Error al crear el ingreso', error: error.message });

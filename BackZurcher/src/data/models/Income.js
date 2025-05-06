@@ -8,6 +8,14 @@ module.exports = (sequelize) => {
       defaultValue: DataTypes.UUIDV4,
       allowNull: false,
     },
+    staffId: {
+  type: DataTypes.UUID,
+  allowNull: true, // o true si puede ser opcional
+  references: {
+    model: 'Staffs', // nombre de la tabla Staff
+    key: 'id'
+  }
+},
     date: {
       type: DataTypes.DATEONLY,
       allowNull: false,
