@@ -132,7 +132,7 @@ const getWorkById = async (req, res) => {
         {
           model: Image,
           as: 'images',
-          attributes: ['id', 'stage', 'dateTime', 'imageData', 'comment'],
+          attributes: ['id', 'stage', 'dateTime', 'imageData', 'comment', 'truckCount'],
         },
         {
           model: Receipt,
@@ -401,7 +401,7 @@ const getAssignedWorks = async (req, res) => {
         {
           model: Image,
           as: 'images',
-          attributes: ['id', 'stage', 'dateTime', 'imageData', 'comment'],
+          attributes: ['id', 'stage', 'dateTime', 'imageData', 'comment', 'truckCount'],
         },
       ],
     });
@@ -420,7 +420,7 @@ const getAssignedWorks = async (req, res) => {
 const addImagesToWork = async (req, res) => {
   try {
     const { idWork } = req.params; // ID del trabajo
-    const { stage, image, dateTime, comment } = req.body; // Etapa, imagen en Base64 y fecha/hora
+    const { stage, image, dateTime, comment, truckCount } = req.body; // Etapa, imagen en Base64 y fecha/hora
 
     // Verificar que el trabajo exista
     const work = await Work.findByPk(idWork);
@@ -450,6 +450,7 @@ const addImagesToWork = async (req, res) => {
       imageData: image, // Guardar la imagen en Base64
       dateTime: dateTime, // Guardar la fecha y hora
       comment: comment, // Guardar el comentario
+      truckCount: truckCount, // Solo si se necesita en esta etapa
     });
 
     res.status(201).json({

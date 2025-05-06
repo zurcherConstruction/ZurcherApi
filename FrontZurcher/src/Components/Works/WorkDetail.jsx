@@ -423,12 +423,21 @@ const WorkDetail = () => {
                           alt={stage}
                           className="w-24 h-24 object-cover rounded-md shadow"
                         />
-                        <p className="text-sm text-center mt-2">
-                          {image.dateTime}
+                         <p className="text-xs text-gray-500 mt-1 truncate" title={image.dateTime}> {/* Smaller date, truncate, add title */}
+                          {image.dateTime ? new Date(image.dateTime).toLocaleString() : 'Sin fecha'} {/* Format date */}
                         </p>
-                        <p className="text-sm text-center mt-2">
-                          {image.comment}
-                        </p>
+
+                        {(stage === 'camiones de arena' || stage === 'camiones de tierra') && image.truckCount != null && image.truckCount > 0 && (
+                          <p className="text-sm font-semibold text-blue-700 mt-1">
+                            {image.truckCount} {image.truckCount === 1 ? 'Camión' : 'Camiones'}
+                          </p>
+                        )}
+                        {/* --- Mostrar comentario si existe --- */}
+                        {image.comment && (
+                           <p className="text-xs text-gray-600 mt-1 italic truncate" title={image.comment}> {/* Truncate comment, add title */}
+                             "{image.comment}"
+                           </p>
+                        )}
                       </div>
                     ))}
                   </div>

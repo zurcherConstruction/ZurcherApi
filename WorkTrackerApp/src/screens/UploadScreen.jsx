@@ -167,27 +167,61 @@ const handlePickImage = async () => {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const imageUri = result.assets[0].uri;
+        const isTruckStage = selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra';
         // --- Solicitar Comentario (iOS) ---
-        if (Platform.OS === 'ios') {
-          Alert.prompt(
-            'Añadir Comentario', // Título
-            'Ingresa un comentario para la imagen (opcional):', // Mensaje
-            [
-              { text: 'Cancelar', style: 'cancel' },
-              {
-                text: 'Cargar Imagen',
-                onPress: (commentText) => processAndUploadImage(imageUri, commentText || ''), // Pasar comentario
-              },
-            ],
-            'plain-text' // Tipo de input
-          );
-        } else {
-          // --- Alternativa para Android (o subir sin comentario) ---
-          // Podrías implementar un modal simple aquí o simplemente subir sin comentario
-          console.log("Alert.prompt no soportado en Android. Subiendo sin comentario.");
-          await processAndUploadImage(imageUri, ''); // Subir sin comentario en Android por ahora
+       // --- Solicitar Comentario y Cantidad (iOS - Encadenado) ---
+    if (Platform.OS === 'ios') {
+      Alert.prompt(
+        'Añadir Comentario',
+        'Ingresa un comentario (opcional):',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Siguiente',
+            onPress: (commentText) => {
+              const comment = commentText || ''; // Usar string vacío si no hay comentario
+              if (isTruckStage) {
+                // Si es etapa de camiones, pedir cantidad
+                Alert.prompt(
+                  'Cantidad de Camiones',
+                  'Ingresa la cantidad de camiones:',
+                  [
+                    { text: 'Cancelar', style: 'cancel' },
+                    {
+                      text: 'Cargar Imagen',
+                      onPress: (truckCountInput) => {
+                        const count = parseInt(truckCountInput, 10);
+                        if (isNaN(count) || count < 0) {
+                          Alert.alert('Error', 'Por favor, ingresa un número válido de camiones.');
+                          return;
+                        }
+                        processAndUploadImage(imageUri, comment, count);
+                      },
+                    },
+                  ],
+                  'plain-text', // Usar 'plain-text' pero validar como número
+                  '', // Default value
+                  'numeric' // Keyboard type
+                );
+              } else {
+                // Si no es etapa de camiones, subir solo con comentario
+                processAndUploadImage(imageUri, comment, null);
+              }
+            },
+          },
+        ],
+        'plain-text' // Tipo para el comentario
+      );
+    } else { // Android u otros (sin cambios por ahora)
+      let comment = '';
+      let truckCount = null;
+      console.log("Subiendo sin comentario en Android por ahora.");
+      if (isTruckStage) {
+         console.warn("Prompt de cantidad no implementado para Android. Usando null.");
       }
-        // --- Fin solicitud comentario ---
+      await processAndUploadImage(imageUri, comment, truckCount);
+    }
+    // --- Fin solicitud ---
   }
 };
 
@@ -203,28 +237,59 @@ const handlePickImage = async () => {
 
         if (!result.canceled && result.assets && result.assets.length > 0) {
            const imageUri = result.assets[0].uri;
+           const isTruckStage = selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra';
         // --- Solicitar Comentario (iOS) ---
-           if (Platform.OS === 'ios') {
-            Alert.prompt(
-              'Añadir Comentario',
-              'Ingresa un comentario (opcional):',
-              [
-                { text: 'Cancelar', style: 'cancel' },
-                {
-                  text: 'Cargar Imagen',
-                onPress: (commentText) => processAndUploadImage(imageUri, commentText || ''),
-                },
-              ],
-              'plain-text'
-            );
-          } else {
-          // --- Alternativa para Android ---
-          console.log("Alert.prompt no soportado en Android. Subiendo sin comentario.");
-            await processAndUploadImage(imageUri, '');
-        }}}
+        if (Platform.OS === 'ios') {
+          Alert.prompt(
+           'Añadir Comentario',
+           'Ingresa un comentario (opcional):',
+           [
+             { text: 'Cancelar', style: 'cancel' },
+             {
+               text: 'Siguiente',
+               onPress: (commentText) => {
+                 const comment = commentText || '';
+                 if (isTruckStage) {
+                   Alert.prompt(
+                     'Cantidad de Camiones',
+                     'Ingresa la cantidad de camiones:',
+                     [
+                       { text: 'Cancelar', style: 'cancel' },
+                       {
+                         text: 'Cargar Imagen',
+                         onPress: (truckCountInput) => {
+                           const count = parseInt(truckCountInput, 10);
+                           if (isNaN(count) || count < 0) {
+                             Alert.alert('Error', 'Por favor, ingresa un número válido de camiones.');
+                             return;
+                           }
+                           processAndUploadImage(imageUri, comment, count);
+                         },
+                       },
+                     ],
+                     'plain-text',
+                     '',
+                     'numeric'
+                   );
+                 } else {
+                   processAndUploadImage(imageUri, comment, null);
+                 }
+               },
+             },
+           ],
+           'plain-text'
+         );
+       } else { // Android (sin cambios por ahora)
+         console.log("Subiendo sin comentario/conteo específico en Android por ahora.");
+         let truckCount = null;
+         await processAndUploadImage(imageUri, '', truckCount);
+       }
+       // --- Fin solicitud ---
+     }
+   };
 
  
-  const processAndUploadImage = async (imageUri, comment = '') => { // Añadir parámetro comment
+  const processAndUploadImage = async (imageUri, comment = '', truckCount = null) => { // Añadir parámetro comment
     try {
       const resizedImage = await manipulateAsync(
         imageUri,
@@ -241,6 +306,7 @@ const handlePickImage = async () => {
         image: base64Image,
         comment: comment,
         dateTime: dateTimeString,
+        truckCount: truckCount,
       };
 
     // Dispatch the image to the backend
@@ -255,6 +321,8 @@ const handlePickImage = async () => {
     Alert.alert('Error al cargar la imagen');
   }
 };
+
+
 const handleStagePress = (stageOption) => {
     setSelectedStage(stageOption);
   setModalVisible(true);
@@ -470,6 +538,7 @@ const handleStagePress = (stageOption) => {
               numColumns={4}
               renderItem={({ index }) => {
                 const image = imagesByStage[selectedStage]?.[index];
+                const isTruckStage = selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra';
                 return (
                   <View className="w-20 h-20 m-2 rounded-lg bg-gray-300 justify-center items-center">
                     {image && imagesWithDataURLs[image.id] ? (
@@ -486,6 +555,11 @@ const handleStagePress = (stageOption) => {
                         >
                           <Ionicons name="close-circle" size={20} color="white" />
                         </Pressable>
+                        {isTruckStage && image.truckCount !== null && image.truckCount !== undefined && (
+                <View className="absolute bottom-0 left-0 bg-blue-600/80 rounded-full px-1.5 py-0.5 m-1">
+                   <Text className="text-white text-xs font-bold">{image.truckCount}</Text>
+                </View>
+             )}
                         {/* --- FIN BOTÓN ELIMINAR --- */}
                       </>
                     ) : (

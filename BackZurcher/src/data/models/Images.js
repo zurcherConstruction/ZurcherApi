@@ -31,6 +31,11 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING,
       allowNull: true, // Permite valores nulos si no siempre se proporciona
     },
+    truckCount: {
+      type: DataTypes.INTEGER,
+      allowNull: true, // Solo se usará en etapas específicas
+      defaultValue: null, // O 1 si prefieres un valor por defecto
+    }
     
   });
 };
