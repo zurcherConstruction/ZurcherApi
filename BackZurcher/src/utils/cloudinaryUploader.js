@@ -41,4 +41,4 @@ const deleteFromCloudinary = (publicId) => {
   });
 };
 
-module.exports = { uploadToCloudinary, deleteFromCloudinary, uploadBufferToCloudinary, };
+module.exports = { uploadToCloudinary, deleteFromCloudinary, uploadBufferToCloudinary };
