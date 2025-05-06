@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchAssignedWorks } from "../Redux/Actions/workActions";
-import { View, Text, FlatList, TouchableOpacity,TextInput, ActivityIndicator} from "react-native";
+import { View, Text, FlatList, TouchableOpacity, TextInput, ActivityIndicator } from "react-native";
 import UploadScreen from "./UploadScreen";
 import { createStackNavigator } from "@react-navigation/stack";
-import Ionicons from 'react-native-vector-icons/Ionicons'; 
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
+// --- 1. Mover la creación del Stack fuera del componente ---
 const Stack = createStackNavigator();
 
 const AssignedWorksScreen = ({staffId}) => {
@@ -15,10 +16,11 @@ const AssignedWorksScreen = ({staffId}) => {
   const { works, loading: reduxLoading, error } = useSelector((state) => state.work);
 
   useEffect(() => {
+    // Solo buscar si staffId está disponible
     if (staffId) {
-      dispatch(fetchAssignedWorks(staffId)); // Filtrar trabajos por staffId
+      dispatch(fetchAssignedWorks(staffId)); // Usar el staffId obtenido
     }
-  }, [dispatch, staffId]);
+  }, [dispatch, staffId]); // Depender de staffId
 
  // --- Filtrar trabajos basados en la búsqueda ---
  const filteredWorks = useMemo(() => {
@@ -55,9 +57,21 @@ const AssignedWorksScreen = ({staffId}) => {
       </View>
     );
   }
+
   if (!isLoading && filteredWorks.length === 0) {
     return (
       <View className="flex-1 justify-center items-center bg-gray-100 p-5">
+         {/* --- Barra de Búsqueda (Mostrar también si no hay resultados) --- */}
+         <View className="p-4 bg-white border-b border-gray-200 flex-row items-center w-full mb-5">
+           <Ionicons name="search" size={20} color="gray" style={{ marginRight: 8 }} />
+           <TextInput
+             placeholder="Buscar por dirección..."
+             value={searchQuery}
+             onChangeText={setSearchQuery}
+             className="flex-1 h-10 text-base"
+             clearButtonMode="while-editing"
+           />
+         </View>
         <Text className="text-lg text-gray-600 text-center">
           {searchQuery
             ? `No se encontraron trabajos asignados para "${searchQuery}".`
@@ -66,7 +80,7 @@ const AssignedWorksScreen = ({staffId}) => {
       </View>
     );
   }
-  
+  // --- Fin estados ---
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: true }}>

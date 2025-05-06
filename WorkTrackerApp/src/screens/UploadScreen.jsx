@@ -8,9 +8,9 @@ import * as FileSystem from 'expo-file-system';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Buffer } from "buffer";
-//import * as IntentLauncher from "expo-intent-launcher"; // Añadir IntentLauncher
-import * as Sharing from "expo-sharing"; // Añadir Sharing
 import PdfViewer from '../utils/PdfViewer'; // Asegúrate de que la ruta sea correcta
+
+
 const UploadScreen = () => {
   const { idWork, propertyAddress, images } = useRoute().params;
   const navigation = useNavigation();
@@ -391,7 +391,7 @@ const handleStagePress = (stageOption) => {
               await dispatch(deleteImagesFromWork(idWork, imageIdToDelete));
               // fetchAssignedWorks() ya se llama dentro de deleteImageFromWork si se implementa así
               Alert.alert("Éxito", "Imagen eliminada correctamente.");
-                await dispatch(fetchAssignedWorks());
+                //await dispatch(fetchAssignedWorks());
               // El modal se actualizará solo al refrescar el estado
               } catch (error) {
                 console.error("Error al eliminar la imagen:", error);
