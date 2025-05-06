@@ -10,7 +10,7 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Buffer } from "buffer";
 //import * as IntentLauncher from "expo-intent-launcher"; // Añadir IntentLauncher
 import * as Sharing from "expo-sharing"; // Añadir Sharing
-
+import PdfViewer from '../utils/PdfViewer'; // Asegúrate de que la ruta sea correcta
 const UploadScreen = () => {
   const { idWork, propertyAddress, images } = useRoute().params;
   const navigation = useNavigation();
@@ -25,7 +25,12 @@ const UploadScreen = () => {
   const [isInstallationSubmitted, setIsInstallationSubmitted] = useState(false);
   const [isFinalInspectionRequested, setIsFinalInspectionRequested] = useState(false);
   // --- ---
-
+  const [pdfViewerVisible, setPdfViewerVisible] = useState(false);
+  const [selectedPdfBase64, setSelectedPdfBase64] = useState('');
+  // filepath: c:\Users\yaniz\Documents\ZurcherApi\WorkTrackerApp\src\screens\UploadScreen.jsx
+// ...
+const [selectedPdfUri, setSelectedPdfUri] = useState(null);
+// ...
 
 
   const stages = [
@@ -53,11 +58,11 @@ const UploadScreen = () => {
   const handleOpenPdf = async (pdfData) => {
     try {
       const base64Pdf =
-        pdfData?.data // Si viene como { type: 'Buffer', data: [...] }
+        pdfData?.data
           ? Buffer.from(pdfData.data).toString("base64")
-          : typeof pdfData === 'string' && pdfData.startsWith("data:application/pdf;base64,") // Si viene como data URI
+          : typeof pdfData === 'string' && pdfData.startsWith("data:application/pdf;base64,")
           ? pdfData.split(",")[1]
-          : typeof pdfData === 'string' // Si ya es solo base64
+          : typeof pdfData === 'string'
           ? pdfData
           : null;
 
@@ -65,47 +70,22 @@ const UploadScreen = () => {
         throw new Error("El PDF no está en un formato válido o no se encontró.");
       }
 
+      // --- GUARDAR PDF EN ARCHIVO TEMPORAL ---
       const fileUri = `${FileSystem.cacheDirectory}temp_${Date.now()}.pdf`;
-
-      // Guardar el PDF en el sistema de archivos
       await FileSystem.writeAsStringAsync(fileUri, base64Pdf, {
         encoding: FileSystem.EncodingType.Base64,
       });
+      console.log("PDF temporal guardado en:", fileUri); // Log para verificar
 
-      console.log("PDF guardado en:", fileUri);
-
-      // --- USAR Sharing PARA ABRIR EL PDF ---
-      if (!(await Sharing.isAvailableAsync())) {
-         Alert.alert('Error', 'La función de compartir no está disponible en este dispositivo.');
-         return;
-      }
-
-      await Sharing.shareAsync(fileUri, {
-         mimeType: 'application/pdf',
-         dialogTitle: 'Abrir PDF con...', // Título opcional para el diálogo
-         UTI: 'com.adobe.pdf' // UTI específico para PDF en iOS
-      });
-      // --- FIN ---
-
-      // Ya no navegamos al visor interno
-      // navigation.navigate('PdfViewer', { fileUri: fileUri });
+      // --- Guardar la URI del archivo y mostrar el modal ---
+      setSelectedPdfUri(fileUri); // Guardar la URI del archivo
+      setPdfViewerVisible(true);
 
     } catch (error) {
-      console.error("Error al preparar PDF para compartir:", error);
-      Alert.alert('Error', `No se pudo abrir el PDF: ${error.message}`);
+      console.error("Error al abrir/guardar PDF:", error);
+      Alert.alert("Error", `No se pudo abrir el PDF: ${error.message}`);
     }
   };
-
-
-  /* 'approvedInspection',  
-        'rejectedInspection',
-        'coverPending', //se agrega installed
-        'invoiceFinal',
-        'paymentReceived',
-        'finalInspectionPending', 
-        'finalApproved',
-        'finalRejected',
-        'maintenance'*/ 
   
         useEffect(() => {
           // Considerar estados posteriores a 'installed' también
@@ -291,7 +271,7 @@ const handleStagePress = (stageOption) => {
 
         navigation.goBack();
       } else {
-        navigation.navigate('MyAssignedWorks'); // Navegar a una pantalla específica si no hay una previa
+        navigation.navigate('UploadScreen'); // Navegar a una pantalla específica si no hay una previa
       } // Opcional: Regresar a la pantalla anterior
     } catch (error) {
       console.error('Error al actualizar el estado del trabajo:', error);
@@ -358,51 +338,59 @@ const handleStagePress = (stageOption) => {
 
 
   return (
-    <ScrollView className="flex-1 bg-gray-100 p-5">
-      <Text className="text-xl font-medium uppercase text-gray-800  text-center">
+    <ScrollView className="flex-1  bg-gray-100 p-5">
+      <Text className="text-xl font-medium uppercase text-gray-800 mb-2 text-center">
         {propertyAddress || 'Sin dirección'}
       </Text>
      
   {/* --- BLOQUE DE BOTONES PDF MODIFICADO --- */}
-  {currentWork?.Permit && (currentWork.Permit.pdfData || currentWork.Permit.optionalDocs) && (
-        <View className="my-4 border-y border-gray-300 py-3">
-        
-          {/* Usar justify-around o justify-center para espaciar las miniaturas */}
-          <View className="flex-row justify-around items-start">
-            {/* Miniatura para PDF Permit */}
-            {currentWork.Permit.pdfData && (
-              <TouchableOpacity
-                onPress={() => handleOpenPdf(currentWork.Permit.pdfData)}
-                className="items-center w-20" // Centrar contenido, ancho fijo opcional
-              >
-                <View className="w-20 h-20 bg-gray-200 border border-gray-300 rounded-md justify-center items-center mb-1 shadow">
-                  {/* Ícono representativo */}
-                  <Ionicons name="document-text-outline" size={40} color="#4B5563" />
-                </View>
-                <Text className="text-xs text-center font-medium text-gray-600">PDF Permit</Text>
-              </TouchableOpacity>
-            )}
+  <View className="flex-row justify-around items-start mt-2 mb-2">
+  {currentWork.Permit.pdfData && (
+    <TouchableOpacity
+      onPress={() => handleOpenPdf(currentWork.Permit.pdfData)}
+      className="items-center w-20"
+    >
+      <View className="w-20 h-20 bg-gray-200 border border-gray-300 rounded-md justify-center items-center mb-1 shadow">
+        <Ionicons name="document-text-outline" size={40} color="#4B5563" />
+      </View>
+      <Text className="text-xs text-center font-medium text-gray-600">PDF Permit</Text>
+    </TouchableOpacity>
+  )}
 
-            {/* Miniatura para PDF Flat (Opcional) */}
-            {currentWork.Permit.optionalDocs && (
-              <TouchableOpacity
-                onPress={() => handleOpenPdf(currentWork.Permit.optionalDocs)}
-                className="items-center w-20" // Centrar contenido, ancho fijo opcional
-              >
-                <View className="w-20 h-20 bg-gray-200 border border-gray-300 rounded-md justify-center items-center mb-1 shadow">
-                  {/* Ícono representativo */}
-                  <Ionicons name="document-attach-outline" size={40} color="#4B5563" />
-                </View>
-                <Text className="text-xs text-center font-medium text-gray-600">PDF Site Plan</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-      )}
+  {currentWork.Permit.optionalDocs && (
+    <TouchableOpacity
+      onPress={() => handleOpenPdf(currentWork.Permit.optionalDocs)}
+      className="items-center w-20"
+    >
+      <View className="w-20 h-20 bg-gray-200 border border-gray-300 rounded-md justify-center items-center mb-1 shadow">
+        <Ionicons name="document-attach-outline" size={40} color="#4B5563" />
+      </View>
+      <Text className="text-xs text-center font-medium text-gray-600">PDF Site Plan</Text>
+    </TouchableOpacity>
+  )}
+
+<PdfViewer
+        visible={pdfViewerVisible}
+        // Pasar la URI del archivo
+        fileUri={selectedPdfUri}
+        onClose={() => {
+          setPdfViewerVisible(false);
+          // Opcional: Limpiar el estado de la URI al cerrar
+          setSelectedPdfUri(null);
+          // Opcional pero recomendado: Eliminar el archivo temporal
+          if (selectedPdfUri) {
+            FileSystem.deleteAsync(selectedPdfUri, { idempotent: true })
+              .catch(err => console.error("Error al eliminar PDF temporal:", err));
+          }
+        }}
+      />
+</View>
+
+
       {/* --- FIN BLOQUE PDF --- */}
 
       {/* Sección de selección de etapas */}
-      <View className="flex-row flex-wrap justify-around mb-1">
+      <View className="flex-row flex-wrap justify-around mb-4">
         {stages.map((stageOption, index) => (
           <Pressable
             key={stageOption}
@@ -418,6 +406,8 @@ const handleStagePress = (stageOption) => {
           </Pressable>
         ))}
       </View>
+     
+
 
       {/* --- MODIFICAR RENDERIZADO DEL BOTÓN --- */}
       {/* Mostrar el botón o el texto de espera solo si hay imágenes de inspección final */}
