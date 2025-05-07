@@ -4,21 +4,27 @@ import {
   expenseActions,
   balanceActions,
 } from "../Redux/Actions/balanceActions";
+import { Worker } from '@react-pdf-viewer/core';
+import { Viewer } from '@react-pdf-viewer/core';
+import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
+
+
 
 const incomeTypes = [
-  'Factura Pago Inicial Budget',
-  'Factura Pago Final Budget',
-  'DiseñoDif',
-  'Comprobante Ingreso',
+  "Factura Pago Inicial Budget",
+  "Factura Pago Final Budget",
+  "DiseñoDif",
+  "Comprobante Ingreso",
 ];
 
 const expenseTypes = [
-  'Materiales',
-  'Diseño',
-  'Workers',
-  'Imprevistos',
-  'Comprobante Gasto',
-  'Gastos Generales',
+  "Materiales",
+  "Diseño",
+  "Workers",
+  "Imprevistos",
+  "Comprobante Gasto",
+  "Gastos Generales",
 ];
 
 const Summary = () => {
@@ -35,7 +41,8 @@ const Summary = () => {
   const [loading, setLoading] = useState(false);
   const [editModal, setEditModal] = useState({ open: false, movement: null });
   const [editData, setEditData] = useState({});
-
+  const [receiptUrl, setReceiptUrl] = useState(null);
+  const defaultLayoutPluginInstance = defaultLayoutPlugin();
   // Obtener movimientos con filtros
   const fetchMovements = async () => {
     setLoading(true);
@@ -130,13 +137,16 @@ const Summary = () => {
       filters.typeIncome &&
       mov.movimiento === "Ingreso" &&
       mov.typeIncome !== filters.typeIncome
-    ) return false;
+    )
+      return false;
     if (
       filters.typeExpense &&
       mov.movimiento === "Gasto" &&
       mov.typeExpense !== filters.typeExpense
-    ) return false;
-    if (filters.staffId && mov.Staff && mov.Staff.id !== filters.staffId) return false;
+    )
+      return false;
+    if (filters.staffId && mov.Staff && mov.Staff.id !== filters.staffId)
+      return false;
     if (filters.staffId && !mov.Staff) return false;
     return true;
   });
@@ -172,27 +182,31 @@ const Summary = () => {
           <option value="expense">Gastos</option>
         </select>
         <select
-    name="typeIncome"
-    value={filters.typeIncome}
-    onChange={handleChange}
-    className="border rounded px-2 py-1"
-  >
-    <option value="">Todos los tipos de ingreso</option>
-    {incomeTypes.map((type) => (
-      <option key={type} value={type}>{type}</option>
-    ))}
-  </select>
-  <select
-    name="typeExpense"
-    value={filters.typeExpense}
-    onChange={handleChange}
-    className="border rounded px-2 py-1"
-  >
-    <option value="">Todos los tipos de gasto</option>
-    {expenseTypes.map((type) => (
-      <option key={type} value={type}>{type}</option>
-    ))}
-  </select>
+          name="typeIncome"
+          value={filters.typeIncome}
+          onChange={handleChange}
+          className="border rounded px-2 py-1"
+        >
+          <option value="">Todos los tipos de ingreso</option>
+          {incomeTypes.map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
+        </select>
+        <select
+          name="typeExpense"
+          value={filters.typeExpense}
+          onChange={handleChange}
+          className="border rounded px-2 py-1"
+        >
+          <option value="">Todos los tipos de gasto</option>
+          {expenseTypes.map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
+        </select>
         <select
           name="staffId"
           value={filters.staffId}
@@ -253,19 +267,17 @@ const Summary = () => {
                   <td className="border px-2 py-1">{mov.notes}</td>
                   <td className="border px-2 py-1">{mov.Staff?.name || "-"}</td>
                   <td className="border px-2 py-1">
-                    {mov.Receipts && mov.Receipts.length > 0 ? (
-                      <button
-                        className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-700"
-                        onClick={() =>
-                          window.open(mov.Receipts[0].fileUrl, "_blank")
-                        }
-                      >
-                        Ver
-                      </button>
-                    ) : (
-                      "Sin comprobante"
-                    )}
-                  </td>
+  {mov.Receipts && mov.Receipts.length > 0 ? (
+    <button
+      className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-700"
+      onClick={() => setReceiptUrl(mov.Receipts[0].fileUrl)}
+    >
+      Ver
+    </button>
+  ) : (
+    "Sin comprobante"
+  )}
+</td>
                   <td className="border px-2 py-1 flex gap-2">
                     <button
                       className="bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600"
@@ -367,6 +379,34 @@ const Summary = () => {
           </div>
         </div>
       )}
+      {receiptUrl && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="bg-white rounded shadow-lg p-4 max-w-3xl w-full relative">
+      <button
+        className="absolute top-2 right-2 text-gray-700"
+        onClick={() => setReceiptUrl(null)}
+      >
+        Cerrar
+      </button>
+      {receiptUrl.toLowerCase().endsWith('.pdf') ? (
+        <Worker workerUrl={pdfWorker}>
+          <div style={{ height: '600px' }}>
+            <Viewer
+              fileUrl={receiptUrl}
+              plugins={[defaultLayoutPluginInstance]}
+            />
+          </div>
+        </Worker>
+      ) : (
+        <img
+          src={receiptUrl}
+          alt="Comprobante"
+          className="max-h-[600px] mx-auto"
+        />
+      )}
+    </div>
+  </div>
+)}
     </div>
   );
 };
