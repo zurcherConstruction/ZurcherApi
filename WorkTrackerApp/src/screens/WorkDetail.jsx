@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -31,63 +31,138 @@ const WorkDetail = () => {
     dispatch(fetchWorkById(idWork));
   }, [dispatch, idWork]);
 
-  useEffect(() => {
-    if (work && work.images) {
-      const processImages = async () => {
-        const dataURLs = {};
-        for (const image of work.images) {
-          try {
-            const dataURL = await addDateTimeToImage(
-              image.imageData,
-              image.dateTime,
-              work.propertyAddress
-            );
-            dataURLs[image.id] = dataURL;
-          } catch (error) {
-            console.error("Error processing image:", image.id, error);
-            dataURLs[image.id] = `data:image/jpeg;base64,${image.imageData}`;
-          }
-        }
-        setImagesWithDataURLs(dataURLs);
-      };
-      processImages();
-    }
-  }, [work]);
 
-  const addDateTimeToImage = async (imageData, dateTime, propertyAddress) => {
+
+  const addDateTimeToImage = useCallback(async (imageUrl, dateTime, propertyAddress) => {
     try {
-      const base64Image = `data:image/jpeg;base64,${imageData}`;
+      if (!imageUrl || typeof imageUrl !== 'string' || !imageUrl.startsWith('http')) {
+        console.warn("Invalid imageUrl for manipulation:", imageUrl);
+        return imageUrl; // Return original if not a valid URL
+      }
+
+      const randomFileName = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.jpg`;
+      const localUri = `${FileSystem.cacheDirectory}${randomFileName}`;
+
+      // 1. Download the image from Cloudinary URL
+      await FileSystem.downloadAsync(imageUrl, localUri);
+
+      // 2. Manipulate the downloaded image
+      // Assuming your ImageManipulator setup supports the 'text' option in saveOptions
       const manipulatedImage = await ImageManipulator.manipulateAsync(
-        base64Image,
-        [],
+        localUri, // Use the local URI of the downloaded image
+        [], // No transform actions like rotate/flip/crop
         {
+          // SaveOptions, where your text overlay is defined
           text: [
             {
-              text: dateTime,
-              position: { x: "50%", y: "80%" },
+              text: dateTime || "Date N/A", // Fallback for dateTime
+              position: { x: "50%", y: "80%" }, // Your original position
               style: {
                 fontSize: 20,
                 color: "white",
                 textAlign: "center",
+                // Consider adding a slight background for better text visibility
+                // backgroundColor: "rgba(0,0,0,0.3)", 
               },
             },
             {
-              text: propertyAddress,
-              position: { x: "50%", y: "85%" },
+              text: propertyAddress || "Address N/A", // Fallback for propertyAddress
+              position: { x: "50%", y: "85%" }, // Your original position
               style: {
                 fontSize: 20,
                 color: "white",
                 textAlign: "center",
+                // backgroundColor: "rgba(0,0,0,0.3)",
               },
             },
           ],
+          format: ImageManipulator.SaveFormat.JPEG,
+          base64: false, // We need the URI for the Image component
         }
       );
-      return manipulatedImage.uri;
-    } catch (error) {
-      console.error("Error processing image:", error);
-      throw error;
+      return manipulatedImage.uri; // This is a local URI to the manipulated image
+    } catch (err) {
+      console.error("Error in addDateTimeToImage:", err);
+      return imageUrl; // Fallback to the original Cloudinary URL if manipulation fails
     }
+  }, []); // Empty dependency array for useCallback as it doesn't depend on component state/props
+
+  useEffect(() => {
+    if (work && work.images && work.images.length > 0) {
+      const processImages = async () => {
+        const processedURIs = {};
+        for (const image of work.images) {
+          if (image.imageUrl) {
+            try {
+              const dataURL = await addDateTimeToImage(
+                image.imageUrl,
+                image.dateTime, // This is the stored dateTime string
+                work.propertyAddress
+              );
+              processedURIs[image.id] = dataURL;
+            } catch (processingError) {
+              console.error("Error processing image in useEffect loop:", image.id, processingError);
+              processedURIs[image.id] = image.imageUrl; // Fallback to original URL
+            }
+          } else {
+            console.warn(`Image with id ${image.id} has no imageUrl.`);
+            processedURIs[image.id] = null; // Or a placeholder
+          }
+        }
+        setImagesWithDataURLs(processedURIs);
+      };
+      processImages();
+    } else if (work && (!work.images || work.images.length === 0)) {
+      setImagesWithDataURLs({}); // Clear if there are no images
+    }
+  }, [work, addDateTimeToImage]); // addDateTimeToImage is now stable due to useCallback
+
+  // ... (handleOpenPdf, loading, error, no work states remain the same) ...
+
+  if (loading) {
+    return (
+      <View className="flex-1 justify-center items-center bg-gray-100">
+        <Text className="text-lg text-gray-700">Cargando detalles de la obra...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View className="flex-1 justify-center items-center bg-gray-100">
+        <Text className="text-lg text-red-600">Error: {error.toString()}</Text>
+      </View>
+    );
+  }
+
+  if (!work) {
+    return (
+      <View className="flex-1 justify-center items-center bg-gray-100">
+        <Text className="text-lg text-gray-700">No se encontró la obra.</Text>
+      </View>
+    );
+  }
+
+  const groupedImages = work.images ? work.images.reduce((acc, image) => {
+    if (!acc[image.stage]) {
+      acc[image.stage] = [];
+    }
+    acc[image.stage].push(image);
+    return acc;
+  }, {}) : {};
+
+  const openImageModal = (imageUri) => {
+    if (imageUri) {
+      setSelectedImage(imageUri);
+      setIsModalVisible(true);
+    } else {
+      Alert.alert("Error", "La imagen no está disponible.");
+    }
+  };
+
+  const closeImageModal = () => {
+    setSelectedImage(null);
+    setIsModalVisible(false);
   };
 
   const handleOpenPdf = async (pdfData) => {
@@ -164,25 +239,7 @@ const WorkDetail = () => {
     );
   }
 
-  const groupedImages = work.images.reduce((acc, image) => {
-    if (!acc[image.stage]) {
-      acc[image.stage] = [];
-    }
-    acc[image.stage].push(image);
-    return acc;
-  }, {});
-
-  const openImageModal = (imageUri) => {
-    setSelectedImage(imageUri);
-    setIsModalVisible(true);
-  };
-
-  const closeImageModal = () => {
-    setSelectedImage(null);
-    setIsModalVisible(false);
-  };
-
-
+ 
   return (
     <ScrollView className="flex-1 bg-gray-100 p-4">
 
