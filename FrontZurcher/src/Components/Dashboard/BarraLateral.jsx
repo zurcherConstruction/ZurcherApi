@@ -97,7 +97,7 @@ const BarraLateral = () => {
       <div key={section.name} className="w-full">
         <button
           onClick={() => toggleSection(section.name)}
-          className="flex items-center justify-between w-full py-3 px-4 text-sm font-bold transition-all duration-300 text-left hover:bg-gray-700 hover:text-blue-300 focus:outline-none"
+          className="flex items-center justify-between w-full py-3 px-4 text-base font-normal transition-all duration-300 text-left hover:bg-gray-700 hover:text-blue-300 focus:outline-none"
         >
           {section.name}
           {/* Example Icon - replace with actual icons or text like +/- */}
