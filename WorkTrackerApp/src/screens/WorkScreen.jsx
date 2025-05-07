@@ -8,7 +8,7 @@ const WorksScreen = () => {
   const dispatch = useDispatch();
   const { works, loading, error } = useSelector((state) => state.work);
   const { staff } = useSelector((state) => state.auth);
-  const [selectedWorkId, setSelectedWorkId] = useState(null);
+  const [selectedWorkId, setSelectedWorkId] = useState("");
   
   useEffect(() => {
     if (staff) {
@@ -42,13 +42,13 @@ const WorksScreen = () => {
       <View className="border border-gray-300 rounded-lg mb-5">
         <Picker
           selectedValue={selectedWorkId}
-          onValueChange={(itemValue) => setSelectedWorkId(itemValue)}>
-          <Picker.Item label="Selecciona una obra" value={null} />
+          onValueChange={(itemValue) => setSelectedWorkId(itemValue || "")}>
+          <Picker.Item label="Selecciona una obra" value="" />
           {works.map((work) => (
             <Picker.Item
               key={work.idWork}
               label={work.propertyAddress || 'Sin dirección'}
-              value={work.idWork}
+              value={String(work.idWork)}
             />
           ))}
         </Picker>

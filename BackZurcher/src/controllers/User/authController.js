@@ -13,10 +13,15 @@ const register = async (req, res, next) => {
   try {
     const { email, password, role, phone = 'Admin', ...staffData } = req.body;
 
+    if (!email || !password || !role) { // Validar campos requeridos
+      throw new CustomError('Email, contraseña y rol son requeridos', 400);
+  }
+
+  const lowercasedEmail = email.toLowerCase();
     // Verificar si el correo ya existe
     const existingStaff = await Staff.findOne({
       where: {
-        email,
+        email: lowercasedEmail,
         deletedAt: null,
       },
     });
@@ -58,10 +63,16 @@ const register = async (req, res, next) => {
 const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
+    if (!email || !password) {
+      // Es una buena práctica validar que ambos campos estén presentes
+      throw new CustomError('Email y contraseña son requeridos', 400);
+    }
+
+    const lowercasedEmail = email.toLowerCase();
 
     const staff = await Staff.findOne({
       where: {
-        email,
+        email: lowercasedEmail,
         isActive: true,
         deletedAt: null,
       },

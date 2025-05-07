@@ -35,6 +35,9 @@ export const fetchStaff = () => async (dispatch) => {
           lastLogout: staff.lastLogout || 'No registrado',
           createdAt: staff.createdAt,
           updatedAt: staff.updatedAt,
+          address: staff.address || 'No especificada', // O null si prefieres
+          idFrontUrl: staff.idFrontUrl || null,
+          idBackUrl: staff.idBackUrl || null,
         }))
       : [];
 

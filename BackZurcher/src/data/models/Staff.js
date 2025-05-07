@@ -29,6 +29,26 @@ module.exports = (sequelize) => {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      address: { 
+        type: DataTypes.STRING,
+        allowNull: true, 
+      },
+      idFrontUrl: { 
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      idFrontPublicId: { 
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      idBackUrl: { // Nuevo campo para la URL de la imagen del dorso del ID
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      idBackPublicId: { // Nuevo campo para el public_id de Cloudinary del dorso del ID
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
 
       role: {
         type: DataTypes.ENUM("recept", "admin", "owner", "worker"),
