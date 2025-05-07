@@ -150,6 +150,7 @@ const WorkDetail = () => {
     acc[image.stage].push(image);
     return acc;
   }, {}) : {};
+  const truckSumStages = ['camiones de arena', 'camiones de tierra']; // Define stages for truck summation
 
   const openImageModal = (imageUri) => {
     if (imageUri) {
@@ -321,32 +322,63 @@ const WorkDetail = () => {
           </Text>
         </View>
       )}
-      <View>
-        {Object.entries(groupedImages).map(([stage, images]) => (
-          <View key={stage} className="mb-6">
-            <Text className="text-lg font-bold text-gray-700 mb-2">
-              {stage} ({images.length} image)
-            </Text>
-            <ScrollView horizontal className="flex-row">
-              {images.map((image) => (
-                <TouchableOpacity
-                  key={image.id}
-                  onPress={() => openImageModal(imagesWithDataURLs[image.id])}
-                  className="mr-4"
-                >
-                  {imagesWithDataURLs[image.id] ? (
-                    <Image
-                      source={{ uri: imagesWithDataURLs[image.id] }}
-                      className="w-32 h-32 rounded-lg"
-                    />
-                  ) : (
-                    <Text className="text-gray-500">Cargando imagen...</Text>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        ))}
+
+       <View>
+        {Object.entries(groupedImages).map(([stage, imagesInStage]) => { // Renamed 'images' to 'imagesInStage' for clarity
+          let totalTrucksInStage = 0;
+          if (truckSumStages.includes(stage)) {
+            totalTrucksInStage = imagesInStage.reduce((sum, image) => {
+              return sum + (Number(image.truckCount) || 0);
+            }, 0);
+          }
+
+          return (
+            <View key={stage} className="mb-6 bg-white p-3 rounded-lg shadow">
+              <Text className="text-lg font-bold text-gray-700 mb-2 capitalize">
+                {stage} ({imagesInStage.length} imagen{imagesInStage.length === 1 ? '' : 'es'})
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row py-2">
+                {imagesInStage.map((image) => (
+                  <TouchableOpacity
+                    key={image.id}
+                    onPress={() => imagesWithDataURLs[image.id] ? openImageModal(imagesWithDataURLs[image.id]) : Alert.alert("Info", "Procesando imagen...")}
+                    className="mr-3 bg-gray-50 p-1.5 rounded-lg shadow-sm border border-gray-200 w-36" // Added fixed width for consistency
+                  >
+                    {imagesWithDataURLs[image.id] ? (
+                      <Image
+                        source={{ uri: imagesWithDataURLs[image.id] }}
+                        className="w-full h-32 rounded-md bg-gray-200" // Use w-full to fill parent
+                      />
+                    ) : (
+                      <View className="w-full h-32 rounded-md bg-gray-200 justify-center items-center">
+                        <Text className="text-gray-500 text-xs">Cargando...</Text>
+                      </View>
+                    )}
+                    {/* Display individual truck count */}
+                    {truckSumStages.includes(stage) && image.truckCount != null && image.truckCount > 0 && (
+                      <Text className="text-xs font-semibold text-blue-600 mt-1 text-center">
+                        {image.truckCount} {image.truckCount === 1 ? 'Camión' : 'Camiones'}
+                      </Text>
+                    )}
+                     {image.comment && (
+                        <Text className="text-xs text-gray-500 mt-1 italic truncate" numberOfLines={1}>
+                           "{image.comment}"
+                        </Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              {/* Display total truck count for the stage */}
+              {truckSumStages.includes(stage) && totalTrucksInStage > 0 && (
+                <View className="mt-2 pt-2 border-t border-gray-200">
+                  <Text className="text-sm font-bold text-indigo-700 text-right">
+                    Total Camiones : {totalTrucksInStage}
+                  </Text>
+                </View>
+              )}
+            </View>
+          );
+        })}
       </View>
 
       <Modal
@@ -355,17 +387,19 @@ const WorkDetail = () => {
         animationType="fade"
         onRequestClose={closeImageModal}
       >
-        <View className="flex-1 justify-center items-center bg-black bg-opacity-75">
-          <Image
-            source={{ uri: selectedImage }}
-            className="w-4/5 h-4/5 rounded-lg"
-            resizeMode="contain"
-          />
+        <View className="flex-1 justify-center items-center bg-black bg-opacity-75 p-4">
+          {selectedImage && (
+            <Image
+              source={{ uri: selectedImage }}
+              className="w-full h-4/5 rounded-lg"
+              resizeMode="contain"
+            />
+          )}
           <TouchableOpacity
             onPress={closeImageModal}
-            className="absolute top-10 right-10 bg-white p-3 rounded-full"
+            className="absolute top-12 right-5 bg-white p-2 rounded-full shadow-lg z-10"
           >
-            <Text className="text-black font-bold">X</Text>
+            <Text className="text-black font-bold text-lg">X</Text>
           </TouchableOpacity>
         </View>
       </Modal>
