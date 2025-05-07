@@ -19,5 +19,6 @@ export const createReceipt = (receiptData) => async (dispatch) => {
     const errorMessage =
       error.response?.data?.message || 'Error al crear el comprobante';
     dispatch(createReceiptFailure(errorMessage));
+    throw new Error(errorMessage);
   }
 };

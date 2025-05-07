@@ -17,6 +17,7 @@ const expenseTypes = [
   "Workers",
   "Imprevistos",
   "Comprobante Gasto",
+  "Materiales Iniciales"
   
 ];
 

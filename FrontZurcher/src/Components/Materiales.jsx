@@ -2,11 +2,14 @@ import React, { useState, useEffect, useMemo } from "react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchWorks, fetchWorkById } from "../Redux/Actions/workActions";
+import { fetchWorks, fetchWorkById, updateWork } from "../Redux/Actions/workActions";
 import logo from '../../public/logo.png'; // Asegúrate de que la ruta sea correcta
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faEdit, faTrash } from "@fortawesome/free-solid-svg-icons";
+import { faEdit, faTrash, faUpload } from "@fortawesome/free-solid-svg-icons";
 import { createMaterial } from "../Redux/Actions/materialActions";
+import { createReceipt } from "../Redux/Actions/receiptActions";
+import { expenseActions } from "../Redux/Actions/balanceActions";
+import { toast } from 'react-toastify';
 
 const Materiales = () => {
   const dispatch = useDispatch();
@@ -33,6 +36,16 @@ const Materiales = () => {
   });
   const [editingIndex, setEditingIndex] = useState(null); // Índice del material que se está editando
   const [pdfUrl, setPdfUrl] = useState(null);
+
+   // Nuevo estado para el archivo del comprobante de materiales iniciales
+   const [initialReceiptFile, setInitialReceiptFile] = useState(null);
+   // Nuevo estado para controlar si se está subiendo el comprobante
+   const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+   // Nuevo estado para el monto del gasto de materiales iniciales
+   const [initialMaterialsAmount, setInitialMaterialsAmount] = useState(""); 
+   
+   // Obtener staffId del estado de autenticación (asumiendo que está disponible así)
+   const staff = useSelector((state) => state.auth.currentStaff);
 
   const predefinedMaterials = [
     {
@@ -134,6 +147,7 @@ useEffect(() => {
     }
   }
 }, [selectedAddress, works, dispatch]);
+console.log("selectedAddress:", selectedAddress, "work:", work);
   // Memorizar la URL del PDF del permiso
   const permitPdfUrl = useMemo(() => {
     if (selectedAddress && work?.Permit?.pdfData) {
@@ -289,6 +303,104 @@ useEffect(() => {
 
     await saveMaterials();
   };
+  // Handler for initial materials receipt file selection
+  const handleInitialReceiptFileChange = (e) => {
+    setInitialReceiptFile(e.target.files[0]); // Guarda el primer archivo seleccionado en el estado
+  };
+  // ...existing code...
+  // ...existing code...
+  const handleUploadInitialReceipt = async () => {
+    // --- Validaciones ---
+    if (!selectedAddress || !work?.idWork) {
+      toast.error("Por favor, seleccione una dirección primero.");
+      return;
+    }
+    if (!initialReceiptFile) {
+      toast.error("Por favor, seleccione un archivo de comprobante.");
+      return;
+    }
+    if (!initialMaterialsAmount || parseFloat(initialMaterialsAmount) <= 0) {
+      toast.error("Por favor, ingrese un monto válido para el gasto.");
+      return;
+    }
+    if (work.status !== 'pending' && work.status !== 'assigned') {
+      toast.warn(`La obra con dirección ${work.propertyAddress} ya tiene estado '${work.status}'.`);
+      setInitialReceiptFile(null);
+      setInitialMaterialsAmount("");
+      if(document.getElementById('initialReceiptFile')) {
+        document.getElementById('initialReceiptFile').value = null;
+      }
+      return;
+    }
+
+    setIsUploadingReceipt(true);
+    let createdExpenseId = null;
+
+    try {
+      // --- Paso 1: Crear el registro de Gasto (Expense) ---
+      const expenseData = {
+        date: new Date().toISOString().split("T")[0],
+        amount: parseFloat(initialMaterialsAmount),
+        notes: `Gasto de materiales iniciales para ${work.propertyAddress}`, // Nota automática
+        workId: work.idWork,
+        staffId: staff?.id, // Asegúrate de que 'staff' y 'staff.id' estén disponibles
+        typeExpense: "Materiales Iniciales", // Tipo de gasto específico
+      };
+
+      console.log('Datos a enviar para crear Gasto (Expense):', expenseData);
+      // ASUME que expenseActions.create devuelve el objeto creado con su ID
+      // Ajusta esto según cómo funcione tu acción `expenseActions.create`
+      const createdExpense = await expenseActions.create(expenseData); 
+      
+      if (!createdExpense || !createdExpense.idExpense) { // Ajusta 'idExpense' si el nombre del ID es diferente
+          throw new Error("No se pudo obtener el ID del gasto de materiales iniciales creado.");
+      }
+      createdExpenseId = createdExpense.idExpense;
+      toast.success("Gasto de materiales iniciales registrado.");
+      console.log('Gasto de materiales iniciales creado con ID:', createdExpenseId);
+
+      // --- Paso 2: Crear el Comprobante (Receipt) asociado al Gasto ---
+      const receiptFormData = new FormData();
+      receiptFormData.append('file', initialReceiptFile);
+      receiptFormData.append('relatedModel', 'Expense'); // Asociar al modelo Expense
+      receiptFormData.append('relatedId', createdExpenseId); // ID del gasto recién creado
+      receiptFormData.append('type', 'Materiales Iniciales'); // Tipo de comprobante
+      receiptFormData.append('date', new Date().toISOString().split("T")[0]);
+      // receiptFormData.append('notes', `Comprobante de materiales iniciales para ${work.propertyAddress}`); // Opcional
+
+      console.log('Datos a enviar para crear Comprobante (Receipt):', Object.fromEntries(receiptFormData));
+      await dispatch(createReceipt(receiptFormData));
+      toast.success('Comprobante de materiales iniciales subido y asociado al gasto.');
+      console.log('Comprobante de materiales iniciales subido.');
+
+      // --- Paso 3: Actualizar el estado del Work ---
+      const workUpdateData = {
+        status: 'inProgress',
+        startDate: work.startDate || new Date().toISOString(), 
+      };
+      await dispatch(updateWork(work.idWork, workUpdateData));
+      toast.success(`Estado de la obra para "${work.propertyAddress}" actualizado a "En Progreso".`);
+      console.log('Estado de la obra actualizado a inProgress.');
+
+      // --- Limpieza del formulario ---
+      setInitialReceiptFile(null);
+      setInitialMaterialsAmount("");
+      if(document.getElementById('initialReceiptFile')) {
+        document.getElementById('initialReceiptFile').value = null;
+      }
+      
+      dispatch(fetchWorkById(work.idWork)); // Re-fetch para actualizar UI
+
+    } catch (error) {
+      console.error("Error en el proceso:", error);
+      const errorMsg = error?.response?.data?.message || error?.message || "Ocurrió un error en el proceso.";
+      toast.error(errorMsg);
+    } finally {
+      setIsUploadingReceipt(false);
+    }
+  };
+// ...existing code...
+
 
   if (loading) {
     return <p>Cargando datos...</p>;
@@ -532,7 +644,63 @@ useEffect(() => {
           >
             Generar PDF de Materiales
           </button>
+
+            {/* Nueva sección para subir comprobante de materiales iniciales */}
+            {work && (work.status === 'pending' || work.status === 'assigned') && selectedAddress && (
+            <div className="mt-6 p-4 border-2 border-dashed border-blue-500 rounded-lg shadow-md">
+              <h3 className="text-lg font-semibold mb-3 text-blue-700">Confirmar Compra de Materiales Iniciales</h3>
+              <p className="text-sm text-gray-600 mb-3">
+                Sube el comprobante y registra el gasto de los materiales iniciales para la obra en <span className="font-semibold">{work.propertyAddress}</span>.
+                Esto cambiará el estado de la obra a "En Progreso".
+              </p>
+              {/* Campo para el Monto */}
+              <div className="mb-3">
+                <label htmlFor="initialMaterialsAmount" className="block text-gray-700 text-sm font-bold mb-1">
+                  Monto del Gasto de Materiales Iniciales:
+                </label>
+                <input
+                  type="number"
+                  id="initialMaterialsAmount"
+                  value={initialMaterialsAmount}
+                  onChange={(e) => setInitialMaterialsAmount(e.target.value)}
+                  placeholder="Ingrese el monto total"
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                />
+              </div>
+              <div className="mb-3">
+                <label htmlFor="initialReceiptFile" className="block text-gray-700 text-sm font-bold mb-1">
+                  Archivo del Comprobante:
+                </label>
+                <input
+                  type="file"
+                  id="initialReceiptFile" // ID para poder resetearlo
+                  onChange={handleInitialReceiptFileChange} // Nuevo manejador
+                  accept=".pdf,.jpg,.jpeg,.png" // Tipos de archivo aceptados
+                  className="block w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 cursor-pointer focus:outline-none"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleUploadInitialReceipt} // Nuevo manejador
+                disabled={!initialReceiptFile || !initialMaterialsAmount || isUploadingReceipt} // Se deshabilita si no hay archivo, monto o si está cargando
+                className="bg-blue-600 hover:bg-blue-800 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full disabled:opacity-50 flex items-center justify-center"
+              >
+                <FontAwesomeIcon icon={faUpload} className="mr-2"/>
+                {isUploadingReceipt ? "Procesando..." : "Registrar Gasto, Subir Comprobante y Marcar 'En Progreso'"}
+              </button>
+              {isUploadingReceipt && <p className="text-sm text-blue-600 text-center mt-2">Procesando, por favor espere...</p>}
+            </div>
+          )}
+           {/* Mensaje si la obra ya no está pendiente o asignada */}
+           {work && work.status !== 'pending' && work.status !== 'assigned' && selectedAddress && (
+             <div className="mt-6 p-4 border-2 border-green-500 bg-green-50 rounded-lg shadow-md">
+                <p className="text-sm text-green-700">
+                    La obra en <span className="font-semibold">{work.propertyAddress}</span> ya tiene el estado: <span className="font-bold">{work.status}</span>.
+                </p>
+             </div>
+           )}
         </div>
+      
   
         {/* Columna derecha: Vista previa del PDF del permiso y PDF generado */}
         <div className="flex-1">
