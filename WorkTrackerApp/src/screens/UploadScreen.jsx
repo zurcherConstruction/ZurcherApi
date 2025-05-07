@@ -26,6 +26,10 @@ const UploadScreen = () => {
   const [pdfViewerVisible, setPdfViewerVisible] = useState(false);
   const [selectedPdfUri, setSelectedPdfUri] = useState(null);
   const [currentWorkData, setCurrentWorkData] = useState({ /* ... initial state ... */ });
+  const [largeImageModalVisible, setLargeImageModalVisible] = useState(false);
+  const [selectedImageUri, setSelectedImageUri] = useState(null);
+  const [imageSelectionModalWasOpen, setImageSelectionModalWasOpen] = useState(false); // New state
+ 
   // --- EFECTO PARA BUSCAR DETALLES DEL TRABAJO ---
   useEffect(() => {
     if (idWork) {
@@ -41,42 +45,6 @@ const UploadScreen = () => {
     // Mientras carga o si hay error, puedes devolver un objeto base o null
     return { idWork, propertyAddress: routePropertyAddress, images: [], Permit: {} };
   }, [workDetailsFromState, idWork, routePropertyAddress]);
-
-
-
-
-
-
-
-
-  // useEffect(() => {
-  //   if (currentWork && currentWork.idWork === idWork) {
-  //     const grouped = currentWork.images.reduce((acc, img) => {
-  //       const stage = img.stage;
-  //       if (!acc[stage]) acc[stage] = [];
-  //       if (img.id) acc[stage].push(img);
-  //       else console.warn("Imagen sin ID:", img);
-  //       return acc;
-  //     }, {});
-  //     setImagesByStage(grouped);
-
-  //     const urls = {};
-  //     currentWork.images.forEach(img => {
-  //       if (img.id && img.imageData) urls[img.id] = `data:image/jpeg;base64,${img.imageData}`;
-  //     });
-  //     setImagesWithDataURLs(urls);
-  //   } else {
-  //     setImagesByStage({});
-  //     setImagesWithDataURLs({});
-  //   }
-  //   // Actualizar estados de botones basados en currentWork.status (si lo pasas o lo buscas)
-  //   setIsInstallationSubmitted(currentWork?.status === 'installed');
-  //   // setIsFinalInspectionRequested(currentWork?.status === 'coverPending' || ...); // <--- INCOMPLETA
-
-
-  // }, [currentWork, idWork]);
-
-
 
 
   const stages = [
@@ -98,6 +66,7 @@ const UploadScreen = () => {
     '#e76f51',
     '#e9c46a',
     '#f4a261',
+    '#264653',
 
   ];
 
@@ -488,6 +457,28 @@ const UploadScreen = () => {
       Alert.alert('Error', 'No se pudo solicitar la inspección final.');
     }
   };
+  const handleOpenLargeImage = (uri) => {
+    console.log('handleOpenLargeImage called with URI:', uri);
+    setSelectedImageUri(uri);
+    if (modalVisible) { // If the image selection modal is currently open
+      setImageSelectionModalWasOpen(true); // Remember it was open
+      setModalVisible(false); // Hide it
+    } else {
+      setImageSelectionModalWasOpen(false);
+    }
+    setLargeImageModalVisible(true); // Show the large image modal
+  };
+
+  const handleCloseLargeImage = () => {
+    setLargeImageModalVisible(false);
+    setSelectedImageUri(null);
+    if (imageSelectionModalWasOpen) { // If the image selection modal was open before
+      // Re-open the image selection modal. It will use the existing selectedStage.
+      setModalVisible(true); 
+      setImageSelectionModalWasOpen(false); // Reset the flag
+    }
+  };
+
 
   const hasFinalInspectionImages = imagesByStage['sistema instalado']?.length > 0;
   const hasCoverImages = imagesByStage['inspeccion final']?.length > 0;
@@ -517,120 +508,121 @@ const UploadScreen = () => {
      return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text>Esperando datos del trabajo...</Text></View>;
   }
   return (
-    <ScrollView className="flex-1  bg-gray-100 p-5">
-      <Text className="text-xl font-medium uppercase text-gray-800 mb-2 text-center">
-        {currentWork.propertyAddress || routePropertyAddress || 'Sin dirección'}
-      </Text>
+    <>
+      <ScrollView className="flex-1  bg-gray-100 p-5">
+        <Text className="text-xl font-medium uppercase text-gray-800 mb-2 text-center">
+          {currentWork.propertyAddress || routePropertyAddress || 'Sin dirección'}
+        </Text>
 
-      {/* --- BLOQUE DE BOTONES PDF MODIFICADO --- */}
-      <View className="flex-row justify-around items-start mt-2 mb-2">
-        {currentWork.Permit?.pdfData && (
-          <TouchableOpacity
-            onPress={() => handleOpenPdf(currentWork.Permit.pdfData)}
-            className="items-center w-20"
-          >
-            <View className="w-20 h-20 bg-gray-200 border border-gray-300 rounded-md justify-center items-center mb-1 shadow">
-              <Ionicons name="document-text-outline" size={40} color="#4B5563" />
-            </View>
-            <Text className="text-xs text-center font-medium text-gray-600">PDF Permit</Text>
-          </TouchableOpacity>
-        )}
+        {/* --- BLOQUE DE BOTONES PDF MODIFICADO --- */}
+        <View className="flex-row justify-around items-start mt-2 mb-2">
+          {currentWork.Permit?.pdfData && (
+            <TouchableOpacity
+              onPress={() => handleOpenPdf(currentWork.Permit.pdfData)}
+              className="items-center w-20"
+            >
+              <View className="w-20 h-20 bg-gray-200 border border-gray-300 rounded-md justify-center items-center mb-1 shadow">
+                <Ionicons name="document-text-outline" size={40} color="#4B5563" />
+              </View>
+              <Text className="text-xs text-center font-medium text-gray-600">PDF Permit</Text>
+            </TouchableOpacity>
+          )}
 
-        {currentWork.Permit?.optionalDocs && (
-          <TouchableOpacity
-            onPress={() => handleOpenPdf(currentWork.Permit.optionalDocs)}
-            className="items-center w-20"
-          >
-            <View className="w-20 h-20 bg-gray-200 border border-gray-300 rounded-md justify-center items-center mb-1 shadow">
-              <Ionicons name="document-attach-outline" size={40} color="#4B5563" />
-            </View>
-            <Text className="text-xs text-center font-medium text-gray-600">PDF Site Plan</Text>
-          </TouchableOpacity>
-        )}
+          {currentWork.Permit?.optionalDocs && (
+            <TouchableOpacity
+              onPress={() => handleOpenPdf(currentWork.Permit.optionalDocs)}
+              className="items-center w-20"
+            >
+              <View className="w-20 h-20 bg-gray-200 border border-gray-300 rounded-md justify-center items-center mb-1 shadow">
+                <Ionicons name="document-attach-outline" size={40} color="#4B5563" />
+              </View>
+              <Text className="text-xs text-center font-medium text-gray-600">PDF Site Plan</Text>
+            </TouchableOpacity>
+          )}
 
-        <PdfViewer
-          visible={pdfViewerVisible}
-          // Pasar la URI del archivo
-          fileUri={selectedPdfUri}
-          onClose={() => {
-            setPdfViewerVisible(false);
-            // Opcional: Limpiar el estado de la URI al cerrar
-            setSelectedPdfUri(null);
-            // Opcional pero recomendado: Eliminar el archivo temporal
-            if (selectedPdfUri) {
-              FileSystem.deleteAsync(selectedPdfUri, { idempotent: true })
-                .catch(err => console.error("Error al eliminar PDF temporal:", err));
-            }
-          }}
-        />
-      </View>
+          <PdfViewer
+            visible={pdfViewerVisible}
+            // Pasar la URI del archivo
+            fileUri={selectedPdfUri}
+            onClose={() => {
+              setPdfViewerVisible(false);
+              // Opcional: Limpiar el estado de la URI al cerrar
+              setSelectedPdfUri(null);
+              // Opcional pero recomendado: Eliminar el archivo temporal
+              if (selectedPdfUri) {
+                FileSystem.deleteAsync(selectedPdfUri, { idempotent: true })
+                  .catch(err => console.error("Error al eliminar PDF temporal:", err));
+              }
+            }}
+          />
+        </View>
 
 
-      {/* --- FIN BLOQUE PDF --- */}
+        {/* --- FIN BLOQUE PDF --- */}
 
-      {/* Sección de selección de etapas */}
-      <View className="flex-row flex-wrap justify-around mb-4">
-        {stages.map((stageOption, index) => (
+        {/* Sección de selección de etapas */}
+        <View className="flex-row flex-wrap justify-around mb-4">
+          {stages.map((stageOption, index) => (
+            <Pressable
+              key={stageOption}
+              onPress={() => handleStagePress(stageOption)}
+              className={`w-[47%] h-24 p-3 mb-3 rounded-lg flex justify-center ${selectedStage === stageOption ? 'border-4 border-white opacity-80' : ''
+                }`}
+              style={{ backgroundColor: stageColors[index % stageColors.length] }}
+            >
+              <Text className="text-white text-center font-bold text-sm">
+                {stageOption.toUpperCase()}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+
+
+        {/* --- MODIFICAR RENDERIZADO DEL BOTÓN --- */}
+        {/* Mostrar el botón o el texto de espera solo si hay imágenes de inspección final */}
+        {hasFinalInspectionImages && (
           <Pressable
-            key={stageOption}
-            onPress={() => handleStagePress(stageOption)}
-            className={`w-[47%] h-24 p-3 mb-3 rounded-lg flex justify-center ${selectedStage === stageOption ? 'border-4 border-white opacity-80' : ''
+            onPress={handleWorkInstalled}
+            // Deshabilitar si ya se envió
+            disabled={isInstallationSubmitted}
+            // Cambiar estilo si está deshabilitado
+            className={` py-3 rounded-lg shadow-md ${isInstallationSubmitted
+                ? 'bg-gray-400' // Color deshabilitado
+                : 'bg-blue-600' // Color normal
               }`}
-            style={{ backgroundColor: stageColors[index % stageColors.length] }}
           >
-            <Text className="text-white text-center font-bold text-sm">
-              {stageOption.toUpperCase()}
+            <Text className="text-white text-center text-lg font-semibold">
+              {isInstallationSubmitted
+                ? 'Esperando Aprobación de Inspección'
+                : 'WORK INSTALLED'}
             </Text>
           </Pressable>
-        ))}
-      </View>
+        )}
+        {/* --- FIN MODIFICACIÓN BOTÓN --- */}
+      
+        {hasCoverImages && (
+          <Pressable
+            onPress={handleRequestFinalInspection}
+            // Deshabilitar si ya se solicitó
+            disabled={isFinalInspectionRequested}
+            // Cambiar estilo si está deshabilitado
+            className={`mt-2 py-3 rounded-lg shadow-md ${isFinalInspectionRequested
+                ? 'bg-gray-400' // Color deshabilitado
+                : 'bg-green-600' // Color normal (ej. verde)
+              }`}
+          >
+            <Text className="text-white text-center text-lg font-semibold">
+              {isFinalInspectionRequested
+                ? 'Esperando Inspección Final' // Texto cuando está deshabilitado
+                : 'REQUEST FINAL INSPECTION'} {/* Texto normal */}
+            </Text>
+          </Pressable>
+        )}
+        {/* --- FIN NUEVO BOTÓN --- */}
+      </ScrollView>
 
-
-
-      {/* --- MODIFICAR RENDERIZADO DEL BOTÓN --- */}
-      {/* Mostrar el botón o el texto de espera solo si hay imágenes de inspección final */}
-      {hasFinalInspectionImages && (
-        <Pressable
-          onPress={handleWorkInstalled}
-          // Deshabilitar si ya se envió
-          disabled={isInstallationSubmitted}
-          // Cambiar estilo si está deshabilitado
-          className={` py-3 rounded-lg shadow-md ${isInstallationSubmitted
-              ? 'bg-gray-400' // Color deshabilitado
-              : 'bg-blue-600' // Color normal
-            }`}
-        >
-          <Text className="text-white text-center text-lg font-semibold">
-            {isInstallationSubmitted
-              ? 'Esperando Aprobación de Inspección'
-              : 'WORK INSTALLED'}
-          </Text>
-        </Pressable>
-      )}
-      {/* --- FIN MODIFICACIÓN BOTÓN --- */}
-      {/* --- NUEVO BOTÓN REQUEST FINAL INSPECTION --- */}
-      {/* Mostrar solo si hay imágenes en 'inspeccion final' */}
-      {hasCoverImages && (
-        <Pressable
-          onPress={handleRequestFinalInspection}
-          // Deshabilitar si ya se solicitó
-          disabled={isFinalInspectionRequested}
-          // Cambiar estilo si está deshabilitado
-          className={`mt-2 py-3 rounded-lg shadow-md ${isFinalInspectionRequested
-              ? 'bg-gray-400' // Color deshabilitado
-              : 'bg-green-600' // Color normal (ej. verde)
-            }`}
-        >
-          <Text className="text-white text-center text-lg font-semibold">
-            {isFinalInspectionRequested
-              ? 'Esperando Inspección Final' // Texto cuando está deshabilitado
-              : 'REQUEST FINAL INSPECTION'} {/* Texto normal */}
-          </Text>
-        </Pressable>
-      )}
-      {/* --- FIN NUEVO BOTÓN --- */}
-
-
+      {/* Modals are now outside the ScrollView */}
       <Modal visible={modalVisible} transparent={true} animationType="slide">
         <View className="flex-1 bg-black/50 justify-center items-center">
           <View className="w-11/12 bg-white rounded-lg p-4">
@@ -647,19 +639,29 @@ const UploadScreen = () => {
               renderItem={({ index }) => {
                 const image = imagesByStage[selectedStage]?.[index];
                 const isTruckStage = selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra';
+                const imageUri = image && imagesWithDataURLs[image.id] ? imagesWithDataURLs[image.id] : null;
                 return (
                   <View className="w-20 h-20 m-2 rounded-lg bg-gray-300 justify-center items-center">
-                    {image && imagesWithDataURLs[image.id] ? (
-                      <>
+                    {imageUri ? (
+                      <TouchableOpacity
+                        onPress={() => {
+                          console.log('Thumbnail tapped. Image URI:', imageUri);
+                          if (imageUri) {
+                            handleOpenLargeImage(imageUri);
+                          } else {
+                            console.log('Cannot open large image, URI is null or undefined when tapped.');
+                          }
+                        }}
+                        className="w-full h-full"
+                      >
                         <Image
-                          source={{ uri: imagesWithDataURLs[image.id] }}
+                          source={{ uri: imageUri }}
                           className="w-full h-full rounded-lg"
                         />
-                        {/* --- BOTÓN ELIMINAR --- */}
                         <Pressable
                           onPress={() => handleDeleteImage(image.id)}
-                          className="absolute top-0 right-0 bg-red-600/80 rounded-full p-1" // Estilo del botón
-                          style={{ transform: [{ translateX: 5 }, { translateY: -5 }] }} // Ajustar posición
+                          className="absolute top-0 right-0 bg-red-600/80 rounded-full p-1"
+                          style={{ transform: [{ translateX: 5 }, { translateY: -5 }] }}
                         >
                           <Ionicons name="close-circle" size={20} color="white" />
                         </Pressable>
@@ -668,8 +670,7 @@ const UploadScreen = () => {
                             <Text className="text-white text-xs font-bold">{image.truckCount}</Text>
                           </View>
                         )}
-                        {/* --- FIN BOTÓN ELIMINAR --- */}
-                      </>
+                      </TouchableOpacity>
                     ) : (
                       <Text className="text-gray-500 text-xs"></Text>
                     )}
@@ -702,7 +703,40 @@ const UploadScreen = () => {
           </View>
         </View>
       </Modal>
-    </ScrollView>
+
+      <Modal
+        visible={largeImageModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseLargeImage}
+      >
+        <View className="flex-1 bg-blue-900/80 justify-center items-center p-4">
+          {largeImageModalVisible && console.log('Large image modal rendering. Selected URI:', selectedImageUri)}
+          
+          <TouchableOpacity className="absolute top-10 right-5 z-10" onPress={handleCloseLargeImage}>
+            <Ionicons name="close-circle" size={40} color="white" />
+          </TouchableOpacity>
+
+          
+          
+
+          {selectedImageUri ? (
+            <View style={{ width: '90%', height: '70%', borderColor: 'lime' }}>
+              <Image
+                key={selectedImageUri}
+                source={{ uri: selectedImageUri }}
+                style={{ width: '100%', height: '100%' }} // Changed from flex: 1
+                resizeMode="contain"
+                onError={(e) => console.log('Image load error in large modal:', e.nativeEvent.error)}
+                onLoad={() => console.log('Large image successfully loaded (onLoad event).')}
+              />
+            </View>
+          ) : (
+            largeImageModalVisible && <Text style={{ color: 'white', fontSize: 16 }}>Modal visible, but no image URI.</Text>
+          )}
+        </View>
+      </Modal>
+    </>
   );
 };
 
