@@ -13,12 +13,15 @@ import {
   BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, 
   Tooltip, Legend, ResponsiveContainer
 } from "recharts";
+import { useNavigate } from "react-router-dom";
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
 
 const BalanceStats = () => {
   const dispatch = useDispatch();
   const { balance, loading, error } = useSelector((state) => state.balance);
+  const navigate = useNavigate();
+  
   const [filters, setFilters] = useState({
     workId: "",
     type: "",
@@ -29,13 +32,18 @@ const BalanceStats = () => {
   useEffect(() => {
     const fetchBalance = async () => {
       try {
-        if (filters.workId) {
+        // Limpia los filtros antes de enviarlos
+        const cleanFilters = Object.fromEntries(
+          Object.entries(filters).filter(([_, v]) => v !== "" && v !== null && v !== undefined)
+        );
+        console.log('Filtros enviados:', cleanFilters);
+        if (cleanFilters.workId) {
           dispatch(fetchBalanceByWorkIdRequest());
           const data = await balanceActions.getBalanceByWorkId(
-            filters.workId, 
-            { type: filters.type }
+            cleanFilters.workId, 
+            { type: cleanFilters.type }
           );
-          
+          console.log('Respuesta getBalanceByWorkId:', data);
           if (data.error) {
             dispatch(fetchBalanceByWorkIdFailure(data.message));
           } else {
@@ -43,8 +51,8 @@ const BalanceStats = () => {
           }
         } else {
           dispatch(fetchGeneralBalanceRequest());
-          const data = await balanceActions.getGeneralBalance(filters);
-          
+          const data = await balanceActions.getGeneralBalance(cleanFilters);
+          console.log('Respuesta getGeneralBalance:', data);
           if (data.error) {
             dispatch(fetchGeneralBalanceFailure(data.message));
           } else {
@@ -59,7 +67,7 @@ const BalanceStats = () => {
         );
       }
     };
-
+  
     fetchBalance();
   }, [dispatch, filters]);
 
@@ -70,7 +78,7 @@ const BalanceStats = () => {
 
   const prepareChartData = () => {
     if (!balance) return [];
-    console.log('Balance data:', balance); // Debug log
+    console.log('Balance en prepareChartData:', balance);// Debug log
   
     // Para balance general
     if (!filters.workId) {
@@ -114,8 +122,18 @@ const BalanceStats = () => {
 
   const data = prepareChartData();
 
+  console.log('Balance en render:', balance);
+
   return (
     <div className="p-6 bg-gray-100 rounded-lg shadow-md">
+    <div className="flex justify-end mb-4">
+        <button
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          onClick={() => navigate('/summary')}
+        >
+          Ver Detalles
+        </button>
+      </div>
       <h2 className="text-2xl font-bold text-blue-600 mb-4">
         {filters.workId ? `Balance de Obra ${filters.workId}` : 'Balance General'}
       </h2>
