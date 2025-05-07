@@ -205,10 +205,10 @@ WorkExtraItem.belongsTo(FinalInvoice, {
   foreignKey: 'finalInvoiceId'
 });
 
-Income.belongsTo(Staff, { foreignKey: 'staffId', as: 'Staff' });
-Expense.belongsTo(Staff, { foreignKey: 'staffId', as: 'Staff' });
-Staff.hasMany(Income, { foreignKey: 'staffId', as: 'Incomes' });
-Staff.hasMany(Expense, { foreignKey: 'staffId', as: 'Expenses' });
+Income.belongsTo(Staff, { as: 'Staff', foreignKey: 'staffId' });
+Expense.belongsTo(Staff, { as: 'Staff', foreignKey: 'staffId' });
+
+
 //---------------------------------------------------------------------------------//
 module.exports = {
   ...sequelize.models, // para poder importar los modelos así: const { Product, User } = require('./db.js');

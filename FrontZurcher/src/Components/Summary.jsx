@@ -1,21 +1,48 @@
-import React, { useEffect, useState } from 'react';
-import { incomeActions, expenseActions, balanceActions } from '../Redux/Actions/balanceActions';
+import React, { useEffect, useState } from "react";
+import {
+  incomeActions,
+  expenseActions,
+  balanceActions,
+} from "../Redux/Actions/balanceActions";
+import { Worker } from '@react-pdf-viewer/core';
+import { Viewer } from '@react-pdf-viewer/core';
+import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
+
+
+
+const incomeTypes = [
+  "Factura Pago Inicial Budget",
+  "Factura Pago Final Budget",
+  "DiseñoDif",
+  "Comprobante Ingreso",
+];
+
+const expenseTypes = [
+  "Materiales",
+  "Diseño",
+  "Workers",
+  "Imprevistos",
+  "Comprobante Gasto",
+  "Gastos Generales",
+];
 
 const Summary = () => {
   const [filters, setFilters] = useState({
-    startDate: '',
-    endDate: '',
-    type: '',
-    typeIncome: '',
-    typeExpense: '',
-    staffId: '',
+    startDate: "",
+    endDate: "",
+    type: "",
+    typeIncome: "",
+    typeExpense: "",
+    staffId: "",
   });
   const [movements, setMovements] = useState([]);
   const [staffList, setStaffList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editModal, setEditModal] = useState({ open: false, movement: null });
   const [editData, setEditData] = useState({});
-
+  const [receiptUrl, setReceiptUrl] = useState(null);
+  const defaultLayoutPluginInstance = defaultLayoutPlugin();
   // Obtener movimientos con filtros
   const fetchMovements = async () => {
     setLoading(true);
@@ -24,15 +51,15 @@ const Summary = () => {
       const incomes = data.list?.incomes || [];
       const expenses = data.list?.expenses || [];
       const allMovements = [
-        ...incomes.map(m => ({ ...m, movimiento: 'Ingreso' })),
-        ...expenses.map(m => ({ ...m, movimiento: 'Gasto' })),
+        ...incomes.map((m) => ({ ...m, movimiento: "Ingreso" })),
+        ...expenses.map((m) => ({ ...m, movimiento: "Gasto" })),
       ];
       setMovements(allMovements);
 
       // Extraer staff únicos de los movimientos
       const uniqueStaff = [];
       const seen = new Set();
-      allMovements.forEach(mov => {
+      allMovements.forEach((mov) => {
         if (mov.Staff && mov.Staff.id && !seen.has(mov.Staff.id)) {
           uniqueStaff.push(mov.Staff);
           seen.add(mov.Staff.id);
@@ -51,19 +78,19 @@ const Summary = () => {
     // eslint-disable-next-line
   }, []);
 
-  const handleChange = e => {
+  const handleChange = (e) => {
     setFilters({ ...filters, [e.target.name]: e.target.value });
   };
 
-  const handleFilter = e => {
+  const handleFilter = (e) => {
     e.preventDefault();
     fetchMovements();
   };
 
   // Eliminar movimiento
   const handleDelete = async (mov) => {
-    if (window.confirm('¿Seguro que deseas eliminar este movimiento?')) {
-      if (mov.movimiento === 'Ingreso') {
+    if (window.confirm("¿Seguro que deseas eliminar este movimiento?")) {
+      if (mov.movimiento === "Ingreso") {
         await incomeActions.delete(mov.idIncome);
       } else {
         await expenseActions.delete(mov.idExpense);
@@ -79,15 +106,15 @@ const Summary = () => {
       amount: mov.amount,
       notes: mov.notes,
       date: mov.date,
-      typeIncome: mov.typeIncome || '',
-      typeExpense: mov.typeExpense || '',
+      typeIncome: mov.typeIncome || "",
+      typeExpense: mov.typeExpense || "",
     });
   };
 
   // Guardar edición
   const handleEditSave = async () => {
     const mov = editModal.movement;
-    if (mov.movimiento === 'Ingreso') {
+    if (mov.movimiento === "Ingreso") {
       await incomeActions.update(mov.idIncome, {
         ...editData,
         typeIncome: editData.typeIncome,
@@ -103,12 +130,23 @@ const Summary = () => {
   };
 
   // Filtrado en frontend
-  const filteredMovements = movements.filter(mov => {
-    if (filters.type === 'income' && mov.movimiento !== 'Ingreso') return false;
-    if (filters.type === 'expense' && mov.movimiento !== 'Gasto') return false;
-    if (filters.typeIncome && mov.movimiento === 'Ingreso' && mov.typeIncome !== filters.typeIncome) return false;
-    if (filters.typeExpense && mov.movimiento === 'Gasto' && mov.typeExpense !== filters.typeExpense) return false;
-    if (filters.staffId && mov.Staff && mov.Staff.id !== filters.staffId) return false;
+  const filteredMovements = movements.filter((mov) => {
+    if (filters.type === "income" && mov.movimiento !== "Ingreso") return false;
+    if (filters.type === "expense" && mov.movimiento !== "Gasto") return false;
+    if (
+      filters.typeIncome &&
+      mov.movimiento === "Ingreso" &&
+      mov.typeIncome !== filters.typeIncome
+    )
+      return false;
+    if (
+      filters.typeExpense &&
+      mov.movimiento === "Gasto" &&
+      mov.typeExpense !== filters.typeExpense
+    )
+      return false;
+    if (filters.staffId && mov.Staff && mov.Staff.id !== filters.staffId)
+      return false;
     if (filters.staffId && !mov.Staff) return false;
     return true;
   });
@@ -143,22 +181,32 @@ const Summary = () => {
           <option value="income">Ingresos</option>
           <option value="expense">Gastos</option>
         </select>
-        <input
-          type="text"
+        <select
           name="typeIncome"
           value={filters.typeIncome}
           onChange={handleChange}
           className="border rounded px-2 py-1"
-          placeholder="Tipo de ingreso"
-        />
-        <input
-          type="text"
+        >
+          <option value="">Todos los tipos de ingreso</option>
+          {incomeTypes.map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
+        </select>
+        <select
           name="typeExpense"
           value={filters.typeExpense}
           onChange={handleChange}
           className="border rounded px-2 py-1"
-          placeholder="Tipo de gasto"
-        />
+        >
+          <option value="">Todos los tipos de gasto</option>
+          {expenseTypes.map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
+        </select>
         <select
           name="staffId"
           value={filters.staffId}
@@ -166,8 +214,10 @@ const Summary = () => {
           className="border rounded px-2 py-1"
         >
           <option value="">Todos los usuarios</option>
-          {staffList.map(staff => (
-            <option key={staff.id} value={staff.id}>{staff.name}</option>
+          {staffList.map((staff) => (
+            <option key={staff.id} value={staff.id}>
+              {staff.name}
+            </option>
           ))}
         </select>
         <button
@@ -185,6 +235,7 @@ const Summary = () => {
               <th className="px-2 py-1 border">Fecha</th>
               <th className="px-2 py-1 border">Tipo</th>
               <th className="px-2 py-1 border">Monto</th>
+              <th className="px-2 py-1 border">Movimiento</th>
               <th className="px-2 py-1 border">Notas</th>
               <th className="px-2 py-1 border">Usuario</th>
               <th className="px-2 py-1 border">Comprobante</th>
@@ -194,30 +245,39 @@ const Summary = () => {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="text-center py-4">Cargando...</td>
+                <td colSpan={7} className="text-center py-4">
+                  Cargando...
+                </td>
               </tr>
             ) : filteredMovements.length === 0 ? (
               <tr>
-                <td colSpan={7} className="text-center py-4">Sin movimientos</td>
+                <td colSpan={7} className="text-center py-4">
+                  Sin movimientos
+                </td>
               </tr>
             ) : (
-              filteredMovements.map(mov => (
+              filteredMovements.map((mov) => (
                 <tr key={mov.idIncome || mov.idExpense}>
                   <td className="border px-2 py-1">{mov.date}</td>
                   <td className="border px-2 py-1">{mov.movimiento}</td>
                   <td className="border px-2 py-1">{mov.amount}</td>
-                  <td className="border px-2 py-1">{mov.notes}</td>
-                  <td className="border px-2 py-1">{mov.Staff?.name || '-'}</td>
                   <td className="border px-2 py-1">
-                    {mov.Receipts && mov.Receipts.length > 0 ? (
-                      <button
-                        className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-700"
-                        onClick={() => window.open(mov.Receipts[0].fileUrl, '_blank')}
-                      >
-                        Ver
-                      </button>
-                    ) : 'Sin comprobante'}
+                    {mov.typeIncome || mov.typeExpense || "-"}
                   </td>
+                  <td className="border px-2 py-1">{mov.notes}</td>
+                  <td className="border px-2 py-1">{mov.Staff?.name || "-"}</td>
+                  <td className="border px-2 py-1">
+  {mov.Receipts && mov.Receipts.length > 0 ? (
+    <button
+      className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-700"
+      onClick={() => setReceiptUrl(mov.Receipts[0].fileUrl)}
+    >
+      Ver
+    </button>
+  ) : (
+    "Sin comprobante"
+  )}
+</td>
                   <td className="border px-2 py-1 flex gap-2">
                     <button
                       className="bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600"
@@ -243,9 +303,11 @@ const Summary = () => {
       {editModal.open && (
         <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded shadow-lg w-full max-w-md">
-            <h3 className="text-lg font-bold mb-4">Editar {editModal.movement.movimiento}</h3>
+            <h3 className="text-lg font-bold mb-4">
+              Editar {editModal.movement.movimiento}
+            </h3>
             <form
-              onSubmit={e => {
+              onSubmit={(e) => {
                 e.preventDefault();
                 handleEditSave();
               }}
@@ -254,28 +316,36 @@ const Summary = () => {
               <input
                 type="date"
                 value={editData.date}
-                onChange={e => setEditData({ ...editData, date: e.target.value })}
+                onChange={(e) =>
+                  setEditData({ ...editData, date: e.target.value })
+                }
                 className="border rounded px-2 py-1"
               />
               <input
                 type="number"
                 value={editData.amount}
-                onChange={e => setEditData({ ...editData, amount: e.target.value })}
+                onChange={(e) =>
+                  setEditData({ ...editData, amount: e.target.value })
+                }
                 className="border rounded px-2 py-1"
                 placeholder="Monto"
               />
               <input
                 type="text"
                 value={editData.notes}
-                onChange={e => setEditData({ ...editData, notes: e.target.value })}
+                onChange={(e) =>
+                  setEditData({ ...editData, notes: e.target.value })
+                }
                 className="border rounded px-2 py-1"
                 placeholder="Notas"
               />
-              {editModal.movement.movimiento === 'Ingreso' ? (
+              {editModal.movement.movimiento === "Ingreso" ? (
                 <input
                   type="text"
                   value={editData.typeIncome}
-                  onChange={e => setEditData({ ...editData, typeIncome: e.target.value })}
+                  onChange={(e) =>
+                    setEditData({ ...editData, typeIncome: e.target.value })
+                  }
                   className="border rounded px-2 py-1"
                   placeholder="Tipo de ingreso"
                 />
@@ -283,7 +353,9 @@ const Summary = () => {
                 <input
                   type="text"
                   value={editData.typeExpense}
-                  onChange={e => setEditData({ ...editData, typeExpense: e.target.value })}
+                  onChange={(e) =>
+                    setEditData({ ...editData, typeExpense: e.target.value })
+                  }
                   className="border rounded px-2 py-1"
                   placeholder="Tipo de gasto"
                 />
@@ -307,6 +379,34 @@ const Summary = () => {
           </div>
         </div>
       )}
+      {receiptUrl && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="bg-white rounded shadow-lg p-4 max-w-3xl w-full relative">
+      <button
+        className="absolute top-2 right-2 text-gray-700"
+        onClick={() => setReceiptUrl(null)}
+      >
+        Cerrar
+      </button>
+      {receiptUrl.toLowerCase().endsWith('.pdf') ? (
+        <Worker workerUrl={pdfWorker}>
+          <div style={{ height: '600px' }}>
+            <Viewer
+              fileUrl={receiptUrl}
+              plugins={[defaultLayoutPluginInstance]}
+            />
+          </div>
+        </Worker>
+      ) : (
+        <img
+          src={receiptUrl}
+          alt="Comprobante"
+          className="max-h-[600px] mx-auto"
+        />
+      )}
+    </div>
+  </div>
+)}
     </div>
   );
 };
