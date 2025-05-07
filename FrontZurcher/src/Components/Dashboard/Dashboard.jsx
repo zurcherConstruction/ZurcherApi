@@ -110,7 +110,7 @@ const Dashboard = () => {
       path: '/itemBudget',
       title: 'Price Item Budget',
       icon: <img src={Precio} alt="Price" className="w-16 h-16 sm:w-20 sm:h-20" />,
-      color: 'bg-gray-300',
+      color: 'bg-yellow-200',
       allowedRoles: ['owner'],
     },
 
@@ -119,7 +119,7 @@ const Dashboard = () => {
       path: '/register',
       title: 'Register Staff',
       icon: <img src={StaffIcon} alt="Register Staff" className="w-16 h-16 sm:w-20 sm:h-20" />,
-      color: 'bg-yellow-200',
+      color: 'bg-gray-300',
       allowedRoles: ['owner'],
     },
   ];
