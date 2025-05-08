@@ -36,7 +36,7 @@ const register = async (req, res, next) => {
     // Crear usuario
     const newStaff = await Staff.create({
       ...staffData,
-      email,
+      email: lowercasedEmail,
       password: hashedPassword,
       role,
       phone,
@@ -63,12 +63,16 @@ const register = async (req, res, next) => {
 const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
+    console.log('Login attempt with email:', email); // Log email recibido
+
     if (!email || !password) {
+      console.log('Validation failed: Email or password missing.');
       // Es una buena práctica validar que ambos campos estén presentes
       throw new CustomError('Email y contraseña son requeridos', 400);
     }
 
     const lowercasedEmail = email.toLowerCase();
+    console.log('Searching for staff with email (lowercased):', lowercasedEmail);
 
     const staff = await Staff.findOne({
       where: {
@@ -79,20 +83,28 @@ const login = async (req, res, next) => {
     });
 
     if (!staff) {
-      throw new CustomError('Credenciales inválidas', 400);
+      console.log('Staff not found or not active for email:', lowercasedEmail);
+      throw new CustomError('Credenciales inválidas (usuario no encontrado o inactivo)', 400); // Mensaje más específico
     }
+    console.log('Staff found:', staff.toJSON ? staff.toJSON() : staff); // Log del staff encontrado
 
     // Verificar la contraseña
+    console.log('Comparing provided password with stored hash for staff ID:', staff.id);
     const validPassword = await bcrypt.compare(password, staff.password);
+    console.log('Password validation result (validPassword):', validPassword);
+
     if (!validPassword) {
-      throw new CustomError('Credenciales inválidas', 400);
+      console.log('Password comparison failed for staff ID:', staff.id);
+      throw new CustomError('Credenciales inválidas (contraseña incorrecta)', 400); // Mensaje más específico
     }
 
     // Actualizar último login
     await staff.update({ lastLogin: new Date() });
+    console.log('Last login updated for staff ID:', staff.id);
 
     // Generar token JWT
     const token = generateToken(staff);
+    console.log('JWT generated for staff ID:', staff.id);
 
     // Usar el método toJSON definido en el modelo
     const staffResponse = staff.toJSON();
@@ -113,6 +125,10 @@ const login = async (req, res, next) => {
       },
     });
   } catch (error) {
+    console.error('Error during login process:', error); // Log del error completo
+    if (error instanceof CustomError) {
+      console.error('CustomError details:', { message: error.message, statusCode: error.statusCode });
+    }
     next(error);
   }
 };
