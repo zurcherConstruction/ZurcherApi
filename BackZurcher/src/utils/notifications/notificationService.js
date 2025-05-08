@@ -52,7 +52,7 @@ const stateNotificationMap = {
   },
   firstInspectionPending: {
     roles: [ 'admin', 'owner'], 
-    message: (work) => `El trabajo con dirección ${work.propertyAddress} está pendiente de la primera inspección. Por favor, coordina con el inspector.`,
+    message: (work) => `El trabajo con dirección ${work.propertyAddress} está pendiente de la primera inspección. Esperando respuesta del inspector.`,
   },
   approvedInspection: {
     roles: ['worker', 'admin','owner'], 

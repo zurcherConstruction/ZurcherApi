@@ -4,10 +4,7 @@ import {
   expenseActions,
   balanceActions,
 } from "../Redux/Actions/balanceActions";
-import { Worker } from '@react-pdf-viewer/core';
-import { Viewer } from '@react-pdf-viewer/core';
-import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
+
 
 
 
@@ -42,7 +39,7 @@ const Summary = () => {
   const [editModal, setEditModal] = useState({ open: false, movement: null });
   const [editData, setEditData] = useState({});
   const [receiptUrl, setReceiptUrl] = useState(null);
-  const defaultLayoutPluginInstance = defaultLayoutPlugin();
+  
   // Obtener movimientos con filtros
   const fetchMovements = async () => {
     setLoading(true);
@@ -266,11 +263,15 @@ const Summary = () => {
                   </td>
                   <td className="border px-2 py-1">{mov.notes}</td>
                   <td className="border px-2 py-1">{mov.Staff?.name || "-"}</td>
+                  
                   <td className="border px-2 py-1">
   {mov.Receipts && mov.Receipts.length > 0 ? (
     <button
       className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-700"
-      onClick={() => setReceiptUrl(mov.Receipts[0].fileUrl)}
+      onClick={() => {
+        console.log('Abriendo comprobante:', mov.Receipts[0]);
+        setReceiptUrl(mov.Receipts[0]);
+      }}
     >
       Ver
     </button>
@@ -292,6 +293,7 @@ const Summary = () => {
                       Eliminar
                     </button>
                   </td>
+                  
                 </tr>
               ))
             )}
@@ -380,33 +382,51 @@ const Summary = () => {
         </div>
       )}
       {receiptUrl && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div className="bg-white rounded shadow-lg p-4 max-w-3xl w-full relative">
-      <button
-        className="absolute top-2 right-2 text-gray-700"
-        onClick={() => setReceiptUrl(null)}
-      >
-        Cerrar
-      </button>
-      {receiptUrl.toLowerCase().endsWith('.pdf') ? (
-        <Worker workerUrl={pdfWorker}>
-          <div style={{ height: '600px' }}>
-            <Viewer
-              fileUrl={receiptUrl}
-              plugins={[defaultLayoutPluginInstance]}
-            />
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded shadow-lg p-6 max-w-3xl w-full relative">
+            <button
+              className="absolute top-2 right-2 text-gray-700 hover:text-gray-900 text-2xl leading-none"
+              onClick={() => setReceiptUrl(null)}
+              aria-label="Cerrar modal"
+            >
+              &times;
+            </button>
+            {console.log('Modal comprobante data:', receiptUrl)}
+            {receiptUrl && typeof receiptUrl === 'object' && receiptUrl.fileUrl && receiptUrl.mimeType ? (
+              receiptUrl.mimeType.startsWith('image/') ? (
+                <img
+                  src={receiptUrl.fileUrl}
+                  alt={receiptUrl.originalName || "Comprobante"}
+                  className="max-h-[80vh] w-auto mx-auto rounded"
+                />
+              ) : receiptUrl.mimeType === 'application/pdf' ? (
+                <iframe
+                  key={receiptUrl.fileUrl}
+                  src={`https://docs.google.com/gview?url=${encodeURIComponent(receiptUrl.fileUrl)}&embedded=true`}
+                  title={receiptUrl.originalName || "Vista previa PDF"}
+                  width="100%"
+                  height="600px"
+                  className="rounded border"
+                  allow="autoplay" // Aunque no es para PDF, a veces ayuda con iframes
+                >
+                  <p className="p-4 text-center text-gray-600">
+                    No se pudo cargar la vista previa del PDF. Intenta abrirlo en una nueva pestaña.
+                  </p>
+                </iframe>
+              ) : (
+                <p className="p-4 text-center text-gray-600">
+                  Archivo no previsualizable (tipo: {receiptUrl.mimeType}).
+                </p>
+              )
+            ) : (
+              <p className="p-4 text-center text-gray-600">
+                No se puede mostrar el comprobante. Datos del archivo incompletos o incorrectos.
+              </p>
+            )}
+            {/* Enlace de descarga eliminado */}
           </div>
-        </Worker>
-      ) : (
-        <img
-          src={receiptUrl}
-          alt="Comprobante"
-          className="max-h-[600px] mx-auto"
-        />
+        </div>
       )}
-    </div>
-  </div>
-)}
     </div>
   );
 };

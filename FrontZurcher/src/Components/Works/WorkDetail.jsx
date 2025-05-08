@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchWorkById } from "../../Redux/Actions/workActions";
+import { fetchWorkById, updateWork } from "../../Redux/Actions/workActions";
 import { balanceActions } from "../../Redux/Actions/balanceActions";
 import {
   fetchIncomesAndExpensesRequest,
@@ -20,6 +20,16 @@ const WorkDetail = () => {
     loading,
     error,
   } = useSelector((state) => state.work);
+
+  const handleRequestInspection = async () =>{
+    try {
+    
+      await dispatch(updateWork(idWork, { status: "firstInspectionPending" })); // Cambiar el estado a "inspected"
+      // dispatch(fetchWorkById(idWork)); // Refrescar los datos de la obra
+    } catch (error) {
+      console.error("Error al solicitar la inspección:", error);
+    }
+  }
  
 
   console.log("Datos de la obra:", work); // Para depuración
@@ -188,11 +198,13 @@ const WorkDetail = () => {
     );
   }
 
-  const groupedImages = work.images.reduce((acc, image) => {
-    if (!acc[image.stage]) acc[image.stage] = [];
-    acc[image.stage].push(image);
-    return acc;
-  }, {});
+  const groupedImages = Array.isArray(work.images) 
+  ? work.images.reduce((acc, image) => {
+      if (!acc[image.stage]) acc[image.stage] = [];
+      acc[image.stage].push(image);
+      return acc;
+    }, {})
+  : {}; 
 
   const pdfUrl = work.Permit?.pdfData //optionalDocs
     ? URL.createObjectURL(
@@ -226,13 +238,28 @@ const WorkDetail = () => {
   return (
     <div className="p-4 bg-gray-100 min-h-screen">
       {/* Título principal con dirección y estado */}
-      <div className="bg-blue-500 text-white p-6 rounded-lg shadow-md mb-6">
-        <h1 className="text-2xl font-semibold uppercase">
-          {work.propertyAddress}
-        </h1>
-        <p className="text-xl text-slate-800 p-1 uppercase mt-2">
-          <strong>Status:</strong> {work.status}
-        </p>
+      <div className="bg-blue-500 text-white p-6 rounded-lg shadow-md mb-6 flex justify-between items-center">
+        <div> {/* Contenedor para título y estado */}
+          <h1 className="text-2xl font-semibold uppercase">
+            {work.propertyAddress}
+          </h1>
+          <p className="text-xl text-slate-800 p-1 uppercase mt-2 flex items-center"> {/* flex e items-center para alinear el texto de inspección */}
+            <strong>Status:</strong> {work.status}
+            {work.status === 'installed' && (
+              <span className="ml-4 px-3 py-1 bg-yellow-400 text-black text-sm font-bold rounded-full animate-pulse">
+                PEDIR INSPECCIÓN
+              </span>
+            )}
+          </p>
+        </div>
+        {work.status === 'installed' && (
+          <button
+            onClick={handleRequestInspection}
+            className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded shadow-lg transition duration-150 ease-in-out"
+          >
+            Inspección Pedida
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
