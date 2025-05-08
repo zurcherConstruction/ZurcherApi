@@ -51,7 +51,7 @@ const createWork = async (req, res) => {
 // Obtener todas las obras
 const getWorks = async (req, res) => {
   try {
-    const works = await Work.findAll({
+    const worksInstances = await Work.findAll({
       include: [
         {
           model: Budget,
@@ -60,21 +60,74 @@ const getWorks = async (req, res) => {
         },
         {
           model: Permit,
-          attributes: ['idPermit', 'propertyAddress', 'applicantName'],
+          // Asegúrate de que 'expirationDate' esté aquí
+          attributes: ['idPermit', 'propertyAddress', 'applicantName', 'expirationDate'],
         },
       ],
+      // Podrías querer ordenar los trabajos, por ejemplo, por fecha de creación o actualización
+      order: [['createdAt', 'DESC']], 
     });
 
-    // Filtrar el campo startDate si no está asignado
-    const filteredWorks = works.map((work) => {
-      const plainWork = work.get({ plain: true }); // Convertir a objeto plano
-      if (!plainWork.startDate) {
-        delete plainWork.startDate; // Eliminar el campo si no está asignado
+    const worksWithDetails = worksInstances.map((workInstance) => {
+      const workJson = workInstance.get({ plain: true }); // Convertir a objeto plano
+
+      // Eliminar el campo startDate si no está asignado (lógica existente)
+      if (!workJson.startDate) {
+        delete workJson.startDate;
       }
-      return plainWork;
+
+      // --- Calcular y añadir estado de expiración del Permit si existe ---
+      if (workJson.Permit && workJson.Permit.expirationDate) {
+        let permitExpirationStatus = "valid";
+        let permitExpirationMessage = "";
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const expirationDateString = typeof workJson.Permit.expirationDate === 'string' 
+                                    ? workJson.Permit.expirationDate.split('T')[0] 
+                                    : new Date(workJson.Permit.expirationDate).toISOString().split('T')[0];
+        
+        const expDateParts = expirationDateString.split('-');
+        const year = parseInt(expDateParts[0], 10);
+        const month = parseInt(expDateParts[1], 10) - 1; // Mes es 0-indexado
+        const day = parseInt(expDateParts[2], 10);
+
+        if (!isNaN(year) && !isNaN(month) && !isNaN(day) && month >= 0 && month <= 11 && day >= 1 && day <= 31) {
+          const expDate = new Date(year, month, day);
+          expDate.setHours(0,0,0,0);
+
+          if (!isNaN(expDate.getTime())) {
+            if (expDate < today) {
+              permitExpirationStatus = "expired";
+              permitExpirationMessage = `Permiso asociado expiró el ${expDate.toLocaleDateString()}.`;
+            } else {
+              const thirtyDaysFromNow = new Date(today);
+              thirtyDaysFromNow.setDate(today.getDate() + 30);
+              if (expDate <= thirtyDaysFromNow) {
+                permitExpirationStatus = "soon_to_expire";
+                permitExpirationMessage = `Permiso asociado expira el ${expDate.toLocaleDateString()} (pronto a vencer).`;
+              }
+            }
+          } else {
+            console.warn(`Fecha de expiración de permiso inválida (post-parse) para work ${workJson.idWork}, permit ${workJson.Permit.idPermit}: ${expirationDateString}`);
+          }
+        } else {
+           console.warn(`Formato de fecha de expiración de permiso inválido para work ${workJson.idWork}, permit ${workJson.Permit.idPermit}: ${expirationDateString}`);
+        }
+        // Añadir al objeto Permit DENTRO del workJson
+        workJson.Permit.expirationStatus = permitExpirationStatus;
+        workJson.Permit.expirationMessage = permitExpirationMessage;
+      } else if (workJson.Permit) {
+        // Si hay Permit pero no expirationDate
+        workJson.Permit.expirationStatus = "valid"; 
+        workJson.Permit.expirationMessage = "Permiso sin fecha de expiración especificada.";
+      }
+      // --- Fin del cálculo de expiración ---
+
+      return workJson;
     });
 
-    res.status(200).json(filteredWorks);
+    res.status(200).json(worksWithDetails);
   } catch (error) {
     console.error('Error al obtener las obras:', error);
     res.status(500).json({ error: true, message: 'Error interno del servidor' });
@@ -103,6 +156,7 @@ const getWorkById = async (req, res) => {
             'applicantName',
             'pdfData',
             'optionalDocs',
+            'expirationDate',
           ],
         },
         {
@@ -241,11 +295,7 @@ const updateWork = async (req, res) => {
        console.log(`Work ${idWork}: Status not provided or not changed. No status notifications sent.`);
     }
 
-    // --- Eliminar la lógica redundante de notificación manual ---
-    // await sendNotifications('assigned', notificationDetails, null, req.io); // INCORRECTO Y REDUNDANTE
-    // const notificationDetails = await getNotificationDetails(status, work); // REDUNDANTE
-    // console.log('Detalles de notificación:', notificationDetails); // REDUNDANTE
-    // if (notificationDetails) { ... } // BUCLE DE EMAIL REDUNDANTE
+    
 
     // Devolver la obra actualizada
     res.status(200).json(work);

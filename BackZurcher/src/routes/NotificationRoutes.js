@@ -3,7 +3,7 @@ const { createNotification, getNotifications, markAsRead, createNotificationApp,
 const { verifyToken } = require('../middleware/isAuth');
 //const { allowRoles, isOwner, isAdmin, isRecept, isStaff } = require('../middleware/byRol'); // Ajusta el nombre del archivo si es necesario
 const router = express.Router();
-//const { sendEmail } = require('../utils/nodeMailer/emailService'); // Asegúrate de que la ruta sea correcta
+//const { sendEmail } = require('../utils/notifications/emailService'); // Asegúrate de que la ruta sea correcta
 
 // Crear una notificación (correo y/o push)
 router.post('/', verifyToken, createNotification);

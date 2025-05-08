@@ -5,7 +5,7 @@ import {
   updateBudget,
   // uploadInvoice, // Ya no se usa aquí si se eliminó handleUploadPayment
 } from "../../Redux/Actions/budgetActions";
-import { DocumentArrowDownIcon, EyeIcon, PencilIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline'; // Icono para descarga
+import { DocumentArrowDownIcon, EyeIcon, PencilIcon, CheckIcon, XMarkIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'; // Icono para descarga
 //import BudgetPDF from "./BudgetPDF";
 import { parseISO,  format } from "date-fns";
 import api from "../../utils/axios";
@@ -272,23 +272,48 @@ useEffect(() => {
                 </tr>
               </thead>
               <tbody>
-                {currentBudgetsForDisplay.map((budget) => (
-                  <tr
-                    key={budget.idBudget}
-                    className={`hover:bg-gray-100 ${getStatusColor(budget.status)}`}
-                  >
-                   
-                    <td className="border border-gray-300 px-4 py-2 text-xs">{budget.applicantName}</td>
+                {currentBudgetsForDisplay.map((budget) => {
+                  let permitExpirationAlertIcon = null;
+                  const permitExpStatus = budget.Permit?.expirationStatus || budget.permitExpirationStatus;
+                  const permitExpMessage = budget.Permit?.expirationMessage || budget.permitExpirationMessage;
+
+                  if (permitExpStatus === "expired" || permitExpStatus === "soon_to_expire") {
+                    const isError = permitExpStatus === "expired";
+                    const alertColorClass = isError ? "text-red-500" : "text-yellow-500";
+                    const pingColorClass = isError ? "bg-red-400" : "bg-yellow-400";
+                    const alertMessage = permitExpMessage || (isError ? "Permiso Vencido" : "Permiso Próximo a Vencer");
+                    
+                    permitExpirationAlertIcon = (
+                      <span 
+                        title={alertMessage} 
+                        className="relative ml-2 cursor-help inline-flex items-center justify-center h-5 w-5" // Explicit size for table icon container
+                      >
+                        <span className={`absolute inline-flex h-full w-full rounded-full ${pingColorClass} opacity-75 animate-ping`}></span>
+                        <ExclamationTriangleIcon className={`relative z-10 inline-flex h-5 w-5 ${alertColorClass}`} /> {/* z-10 and explicit size */}
+                      </span>
+                    );
+                  }
+
+                  return (
+                    <tr
+                      key={budget.idBudget}
+                      className={`hover:bg-gray-100 ${getStatusColor(budget.status)}`}
+                    >
+                      <td className="border border-gray-300 px-4 py-2 text-xs">
+                        <div className="flex items-center">
+                          <span>{budget.applicantName}</span>
+                          {permitExpirationAlertIcon}
+                        </div>
+                      </td>
                     <td className="border border-gray-300 px-4 py-2 text-xs">{formatDate(budget.date)}</td>
                     <td className="border border-gray-300 px-4 py-2 text-xs">{budget.expirationDate ? formatDate(budget.expirationDate) : "N/A"}</td>
                     <td className="border border-gray-300 px-4 py-2 text-xs text-right">${budget.totalPrice}</td>
                     <td className="border border-gray-300 px-4 py-2 text-xs text-right">${budget.initialPayment}</td>
                     <td className="border border-gray-300 px-4 py-2 text-xs text-center">{budget.status}</td>
                     <td className="border border-gray-300 px-4 py-2 text-xs">{budget.propertyAddress || "N/A"}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-xs"> {budget.Permit?.systemType || "N/A"}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-xs align-top"> {/* align-top para textarea */}
+                    <td className="border border-gray-300 px-4 py-2 text-xs"> {budget.Permit?.systemType || budget.systemType || "N/A"}</td>
+                    <td className="border border-gray-300 px-4 py-2 text-xs align-top">
                       {editingBudgetId === budget.idBudget ? (
-                        // Modo Edición
                         <div className="flex flex-col">
                           <textarea
                             value={currentNote}
@@ -430,28 +455,49 @@ useEffect(() => {
                       </div> 
                     </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>
 
-          {/* Tarjetas para pantallas pequeñas */}
           <div className="block lg:hidden space-y-4">
             {currentBudgetsForDisplay.map((budget) => {
-              // --- INICIO CAMBIO: Determinar etiqueta de pago ---
-              let paymentLabel = `Pay ${budget.initialPaymentPercentage || 60}%`; // Default o valor guardado
-              if (budget.initialPaymentPercentage === 100) {
-                paymentLabel = `Pay 100%`; // Etiqueta específica para 100%
+              let paymentLabel = `Pay ${budget.initialPaymentPercentage || 60}%`;
+              if (budget.initialPaymentPercentage === 100 || String(budget.initialPaymentPercentage).toLowerCase() === 'total') {
+                paymentLabel = `Pay 100%`;
               }
-              // --- FIN CAMBIO ---
 
+              let permitExpirationAlertIconCard = null;
+              const permitExpStatus = budget.Permit?.expirationStatus || budget.permitExpirationStatus;
+              const permitExpMessage = budget.Permit?.expirationMessage || budget.permitExpirationMessage;
+
+              if (permitExpStatus === "expired" || permitExpStatus === "soon_to_expire") {
+                const isError = permitExpStatus === "expired";
+                const alertColorClass = isError ? "text-red-500" : "text-yellow-500";
+                const pingColorClass = isError ? "bg-red-400" : "bg-yellow-400";
+                const alertMessage = permitExpMessage || (isError ? "Permiso Vencido" : "Permiso Próximo a Vencer");
+                
+                permitExpirationAlertIconCard = (
+                  <span 
+                    title={alertMessage} 
+                    className="relative ml-2 cursor-help inline-flex items-center justify-center h-6 w-6" // Explicit size for card icon container
+                  >
+                    <span className={`absolute inline-flex h-full w-full rounded-full ${pingColorClass} opacity-75 animate-ping`}></span>
+                    <ExclamationTriangleIcon className={`relative z-10 inline-flex h-6 w-6 ${alertColorClass}`} /> {/* z-10 and explicit size */}
+                  </span>
+                );
+              }
+              
               return (
-              <div
-                key={budget.idBudget}
-                className={`border border-gray-300 rounded-lg p-4 shadow-md ${getStatusColor(budget.status)}`}
-              >
-                {/* ... (detalles del presupuesto sin cambios) ... */}
-                <p className="text-sm font-semibold text-gray-700">Applicant: {budget.applicantName}</p>
+                <div
+                  key={budget.idBudget} // Ensure key is on the outermost element of the map
+                  className={`border border-gray-300 rounded-lg p-4 shadow-md ${getStatusColor(budget.status)}`}
+                >
+                  <p className="text-sm font-semibold text-gray-700 flex items-center">
+                    Applicant: {budget.applicantName}
+                    {permitExpirationAlertIconCard}
+                  </p>
+               
                 <p className="text-xs text-gray-600">Date: {formatDate(budget.date)}</p>
                 <p className="text-xs text-gray-600">End Date: {budget.expirationDate ? formatDate(budget.expirationDate) : "N/A"}</p>
                 <p className="text-xs text-gray-600">Price: ${budget.totalPrice}</p>

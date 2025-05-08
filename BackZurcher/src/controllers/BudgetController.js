@@ -269,7 +269,7 @@ console.log('DEBUG CONTROLLER - Datos FINALES pasados a PDF Gen:', budgetDataFor
         include: [
           {
             model: Permit,
-            attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'systemType', 'drainfieldDepth', 'excavationRequired', 'lot', 'block', 'pdfData', 'optionalDocs'],
+            attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'systemType', 'drainfieldDepth', 'excavationRequired', 'lot', 'block', 'pdfData', 'optionalDocs', 'expirationDate'],
           },
           {
             model: BudgetLineItem,
@@ -321,37 +321,83 @@ console.log('DEBUG CONTROLLER - Datos FINALES pasados a PDF Gen:', budgetDataFor
  
 async getBudgets(req, res) { // O como se llame tu función para obtener la lista
   try {
-    const budgets = await Budget.findAll({
+    const budgetsInstances = await Budget.findAll({
       include: [
         {
           model: Permit,
-          attributes: ['propertyAddress', 'systemType'] // Incluye los campos necesarios del Permit
+          // Asegúrate de incluir expirationDate y otros campos necesarios del Permit
+          attributes: ['idPermit', 'propertyAddress', 'systemType', 'expirationDate'] 
         }
       ],
-      order: [['date', 'DESC']] // O el orden que prefieras
+      order: [['date', 'DESC']]
     });
 
-    // *** AÑADIR LÓGICA PARA TRANSFORMAR pdfPath a budgetPdfUrl ***
-    const budgetsWithUrl = budgets.map(budget => {
-      const budgetJson = budget.toJSON(); // Convertir a objeto plano
+    const budgetsWithDetails = budgetsInstances.map(budgetInstance => {
+      const budgetJson = budgetInstance.toJSON(); // Convertir a objeto plano
+
+      // Calcular y añadir estado de expiración del Permit si existe
+      if (budgetJson.Permit && budgetJson.Permit.expirationDate) {
+        let permitExpirationStatus = "valid";
+        let permitExpirationMessage = "";
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const expirationDateString = typeof budgetJson.Permit.expirationDate === 'string' 
+                                    ? budgetJson.Permit.expirationDate.split('T')[0] 
+                                    : new Date(budgetJson.Permit.expirationDate).toISOString().split('T')[0];
+        
+        const expDateParts = expirationDateString.split('-');
+        const year = parseInt(expDateParts[0], 10);
+        const month = parseInt(expDateParts[1], 10) - 1; // Mes es 0-indexado
+        const day = parseInt(expDateParts[2], 10);
+
+        if (!isNaN(year) && !isNaN(month) && !isNaN(day) && month >= 0 && month <= 11 && day >= 1 && day <= 31) {
+          const expDate = new Date(year, month, day);
+          expDate.setHours(0,0,0,0);
+
+          if (!isNaN(expDate.getTime())) {
+            if (expDate < today) {
+              permitExpirationStatus = "expired";
+              permitExpirationMessage = `Permiso asociado expiró el ${expDate.toLocaleDateString()}.`;
+            } else {
+              const thirtyDaysFromNow = new Date(today);
+              thirtyDaysFromNow.setDate(today.getDate() + 30);
+              if (expDate <= thirtyDaysFromNow) {
+                permitExpirationStatus = "soon_to_expire";
+                permitExpirationMessage = `Permiso asociado expira el ${expDate.toLocaleDateString()} (pronto a vencer).`;
+              }
+            }
+          } else {
+            console.warn(`Fecha de expiración de permiso inválida (post-parse) para budget ${budgetJson.idBudget}, permit ${budgetJson.Permit.idPermit}: ${expirationDateString}`);
+          }
+        } else {
+           console.warn(`Formato de fecha de expiración de permiso inválido para budget ${budgetJson.idBudget}, permit ${budgetJson.Permit.idPermit}: ${expirationDateString}`);
+        }
+        // Añadir al objeto Permit DENTRO del budgetJson
+        budgetJson.Permit.expirationStatus = permitExpirationStatus;
+        budgetJson.Permit.expirationMessage = permitExpirationMessage;
+      } else if (budgetJson.Permit) {
+        // Si hay Permit pero no expirationDate, marcar como válido o desconocido
+        budgetJson.Permit.expirationStatus = "valid"; 
+        budgetJson.Permit.expirationMessage = "";
+      }
+
+      // Transformar pdfPath a budgetPdfUrl
       if (budgetJson.pdfPath && fs.existsSync(budgetJson.pdfPath)) {
-        // Construir la URL completa para acceder al PDF a través de la ruta del backend
         budgetJson.budgetPdfUrl = `${req.protocol}://${req.get('host')}/budgets/${budgetJson.idBudget}/pdf`;
       } else {
-        budgetJson.budgetPdfUrl = null; // Asegurarse de que sea null si no hay PDF
+        budgetJson.budgetPdfUrl = null;
       }
-      return budgetJson;
+      return budgetJson; // Devolver el objeto budgetJson modificado
     });
-    // *** FIN DE LA LÓGICA AÑADIDA ***
 
-    res.status(200).json(budgetsWithUrl); // Enviar la lista con las URLs añadidas
+    res.status(200).json(budgetsWithDetails);
 
   } catch (error) {
     console.error("Error fetching budgets:", error);
     res.status(500).json({ error: 'Error al obtener los presupuestos.' });
   }
 },
-
  
   
   async updateBudget(req, res) {
@@ -368,7 +414,7 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
         include: [
           {
             model: Permit,
-            attributes: ['idPermit', 'propertyAddress', 'applicantEmail', 'applicantName', 'permitNumber', 'lot', 'block'] // Incluir campos necesarios para PDF
+            attributes: ['idPermit', 'propertyAddress', 'applicantEmail', 'applicantName', 'permitNumber', 'lot', 'block', 'expirationDate'] // Incluir campos necesarios para PDF
           },
           {
             model: BudgetLineItem, // Incluir para recalcular y generar PDF

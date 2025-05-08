@@ -12,6 +12,7 @@ import { createBudget } from "../../Redux/Actions/budgetActions"; // Removed fet
 // import { generatePDF } from "../../utils/pdfGenerator";
 import "@react-pdf-viewer/core/lib/styles/index.css";
 import "@react-pdf-viewer/default-layout/lib/styles/index.css";
+import Swal from 'sweetalert2';
 
 // --- Helper para generar IDs temporales ---
 const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -57,7 +58,7 @@ const CreateBudget = () => {
   // --- Estado del Permit seleccionado ---
   const { selectedPermit, loading: loadingPermit, error: errorPermit } = useSelector(state => state.permit) || {};
   console.log("Permit seleccionado:", selectedPermit);
-
+  const [permitExpirationAlert, setPermitExpirationAlert] = useState({ type: "", message: "" });
   // --- Estado para la UI (PDFs) ---
   const [pdfPreview, setPdfPreview] = useState(null);
   const [optionalDocPreview, setOptionalDocPreview] = useState(null);
@@ -165,6 +166,28 @@ const CreateBudget = () => {
         status: "created",
         initialPaymentPercentage: '60',
       }));
+
+       // --- Establecer alerta de expiración del Permit ---
+       if (selectedPermit.expirationStatus === "expired" || selectedPermit.expirationStatus === "soon_to_expire") {
+        setPermitExpirationAlert({
+          type: selectedPermit.expirationStatus === "expired" ? "error" : "warning",
+          message: selectedPermit.expirationMessage || 
+                   (selectedPermit.expirationStatus === "expired" 
+                     ? "El permiso asociado está VENCIDO." 
+                     : "El permiso asociado está PRÓXIMO A VENCER.")
+        });
+      } else if (selectedPermit.expirationStatus === "valid") {
+        setPermitExpirationAlert({ type: "", message: "" }); // Limpiar alerta si es válido
+      } else if (!selectedPermit.expirationStatus && selectedPermit.expirationDate) {
+        // Fallback si expirationStatus no vino pero sí la fecha, recalcular simple
+        const today = new Date(); today.setHours(0,0,0,0);
+        const expDatePermit = new Date(selectedPermit.expirationDate + 'T00:00:00Z');
+        if (!isNaN(expDatePermit.getTime())) {
+            if (expDatePermit < today) {
+                 setPermitExpirationAlert({type: "error", message: `El permiso asociado expiró el ${expDatePermit.toLocaleDateString()}.`});
+            }
+        }
+      }
       // Poblar campos específicos desde el Permit
       if (selectedPermit.drainfieldDepth) {
         setDrainfieldSelection(prev => ({
@@ -198,8 +221,10 @@ const CreateBudget = () => {
       } else {
         setOptionalDocPreview(null); // Limpiar si no hay doc opcional
       }
-    }
-  }, [selectedPermit, permitIdFromQuery]); // Dependencias ajustadas
+    } else if (!permitIdFromQuery && !loadingPermit) { 
+      setPermitExpirationAlert({ type: "error", message: "No se ha cargado la información del permiso." });
+  }
+  }, [selectedPermit, permitIdFromQuery, loadingPermit]); // Dependencias ajustadas
 
   // --- Calcular Totales (Subtotal, Total, Initial Payment) ---
   useEffect(() => {
@@ -773,6 +798,23 @@ const CreateBudget = () => {
   // --- Submit Handler (Solo Crear) ---
   const handleSubmit = async (e) => {
     e.preventDefault();
+     // Aunque permitamos crear, podríamos mostrar una confirmación extra si el permiso está vencido
+     if (permitExpirationAlert.type === 'error') {
+      const confirmExpired = await Swal.fire({
+          title: 'Permiso Vencido',
+          text: `${permitExpirationAlert.message} ¿Estás seguro de que deseas crear un presupuesto para este permiso vencido?`,
+          icon: 'warning', // Usar warning para confirmación, no error para no bloquear
+          showCancelButton: true,
+          confirmButtonColor: '#3085d6',
+          cancelButtonColor: '#d33',
+          confirmButtonText: 'Sí, crear presupuesto',
+          cancelButtonText: 'Cancelar'
+      });
+      if (!confirmExpired.isConfirmed) {
+          setIsSubmitting(false);
+          return; // Detener si el usuario cancela
+      }
+  }
     setIsSubmitting(true); // Deshabilitar botón
     setCreatedBudgetInfo(null); // Limpiar info previa
 
@@ -958,7 +1000,7 @@ const CreateBudget = () => {
                 <label className="block text-xs font-medium text-gray-500">Applicant</label>
                 <p className="text-sm font-semibold text-gray-800">{formData.applicantName || 'N/A'}</p>
               </div>
-              <div className="col-span-1">
+              <div className="col-span-full"> {/* Ajustado para ocupar todo el ancho */}
                 <label className="block text-xs font-medium text-gray-500">Property Address</label>
                 <p className="text-sm font-semibold text-gray-800">{formData.propertyAddress || 'N/A'}</p>
               </div>
@@ -970,10 +1012,23 @@ const CreateBudget = () => {
                 <label className="block text-xs font-medium text-gray-500">Block</label>
                 <p className="text-sm font-semibold text-gray-800">{formData.block || 'N/A'}</p>
               </div>
-              <div className="col-span-1">
+              <div className="col-span-2"> {/* Ajustado para que no se monte con la alerta */}
                 <label className="block text-xs font-medium text-gray-500">Excavation</label>
                 <p className="text-sm font-semibold text-gray-800">{formData.excavationRequired || 'N/A'}</p>
               </div>
+
+              {/* --- ALERTA DE EXPIRACIÓN DEL PERMIT --- */}
+              {permitExpirationAlert.message && (
+                <div className={`col-span-4 mt-2 p-3 rounded-md border ${
+                  permitExpirationAlert.type === 'error' ? 'bg-red-50 border-red-400 text-red-700' : 'bg-yellow-50 border-yellow-400 text-yellow-700'
+                }`}>
+                  <p className="font-bold text-sm">
+                    {permitExpirationAlert.type === 'error' ? '¡Permiso Vencido!' : '¡Atención! Permiso Próximo a Vencer'}
+                  </p>
+                  <p className="text-xs">{permitExpirationAlert.message}</p>
+                </div>
+              )}
+              {/* --- FIN ALERTA --- */}
               <div className="col-span-2">
                 <label htmlFor="budget_date" className="block text-sm font-medium text-gray-700">Date</label>
                 <input id="budget_date" type="date" name="date" value={formData.date} onChange={handleGeneralInputChange} required className="input-style" />

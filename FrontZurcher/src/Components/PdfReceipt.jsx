@@ -39,10 +39,51 @@ const PdfReceipt = () => {
     applicantPhone: "",
   });
 
-  
+  const [expirationWarning, setExpirationWarning] = useState({ type: "", message: "" });
 const [excavationUnit, setExcavationUnit] = useState("INCH"); 
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
 
+  useEffect(() => {
+    if (formData.expirationDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Comparar solo fechas
+
+      // El input type="date" devuelve 'YYYY-MM-DD'
+      // new Date('YYYY-MM-DD') puede tener problemas de zona horaria (interpretarse como UTC).
+      // Es más seguro construir la fecha así para asegurar que es la fecha local:
+      const dateParts = formData.expirationDate.split('-');
+      if (dateParts.length === 3) {
+        const year = parseInt(dateParts[0], 10);
+        const month = parseInt(dateParts[1], 10) - 1; // Mes es 0-indexado
+        const day = parseInt(dateParts[2], 10);
+        
+        const expDate = new Date(year, month, day);
+        expDate.setHours(0,0,0,0);
+
+        if (isNaN(expDate.getTime())) {
+          setExpirationWarning({ type: "error", message: "Fecha de expiración inválida." });
+          return;
+        }
+
+        const thirtyDaysFromNow = new Date(today);
+        thirtyDaysFromNow.setDate(today.getDate() + 30);
+
+        if (expDate < today) {
+          const msg = `¡Vencido! La fecha (${expDate.toLocaleDateString()}) ya pasó.`;
+          setExpirationWarning({ type: "error", message: msg });
+        } else if (expDate <= thirtyDaysFromNow) {
+          const msg = `Próximo a vencer: La fecha (${expDate.toLocaleDateString()}) es en menos de 30 días.`;
+          setExpirationWarning({ type: "warning", message: msg });
+        } else {
+          setExpirationWarning({ type: "", message: "" }); // Válido y no próximo a vencer
+        }
+      } else {
+         setExpirationWarning({ type: "error", message: "Formato de fecha inválido." });
+      }
+    } else {
+      setExpirationWarning({ type: "", message: "" }); // Sin fecha, sin advertencia
+    }
+  }, [formData.expirationDate]);
   
   const handleFileUpload = (e) => {
     const uploadedFile = e.target.files[0];
@@ -71,11 +112,36 @@ const [excavationUnit, setExcavationUnit] = useState("INCH");
           }
           // --- Fin Lógica ---
 
-          setFormData((prevFormData) => ({
-            ...prevFormData,
-            ...extractedData, // Aplica todos los datos extraídos
-          }));
-          setExcavationUnit(detectedUnit); // Actualiza el estado de la unidad detectada
+         // Asegurar que expirationDate sea un string YYYY-MM-DD si viene de la extracción
+         let finalExpirationDate = extractedData.expirationDate;
+         if (finalExpirationDate) {
+           try {
+               // Intentar normalizar a YYYY-MM-DD si es una fecha válida
+               const d = new Date(finalExpirationDate);
+               // Verificar si la fecha es válida (getTime() no es NaN)
+               // y también que el año sea razonable (ej. no año 0001 si el parseo falla parcialmente)
+               if (!isNaN(d.getTime()) && d.getFullYear() > 1000) { 
+                   const year = d.getFullYear();
+                   const month = String(d.getMonth() + 1).padStart(2, '0');
+                   const day = String(d.getDate()).padStart(2, '0');
+                   finalExpirationDate = `${year}-${month}-${day}`;
+               } else {
+                   console.warn("Extracted expiration date was invalid or couldn't be parsed reliably:", extractedData.expirationDate);
+                   finalExpirationDate = ""; // o null, o mantener el valor original si se prefiere
+               }
+           } catch (parseError) {
+               console.warn("Error parsing extracted expiration date:", parseError, extractedData.expirationDate);
+               finalExpirationDate = ""; // o null
+           }
+         }
+
+
+         setFormData((prevFormData) => ({
+           ...prevFormData,
+           ...extractedData,
+           expirationDate: finalExpirationDate || prevFormData.expirationDate, 
+         }));
+         setExcavationUnit(detectedUnit);
 
         } else if (action.error) {
             console.error("Error al procesar PDF:", action.error);
@@ -122,6 +188,36 @@ const [excavationUnit, setExcavationUnit] = useState("INCH");
       toast.info("Envío cancelado. Verifica si necesitas cargar el plano opcional."); // Toast informativo
       return;
     }
+
+    if (expirationWarning.type === "error" && formData.expirationDate) {
+      const confirmExpired = await Swal.fire({
+          title: 'Permiso Vencido',
+          text: `${expirationWarning.message} ¿Aún así deseas crearlo? El presupuesto podría ser rechazado.`,
+          icon: 'error',
+          showCancelButton: true,
+          confirmButtonColor: '#d33',
+          cancelButtonColor: '#3085d6',
+          confirmButtonText: 'Sí, crear igualmente',
+          cancelButtonText: 'Cancelar'
+      });
+      if (!confirmExpired.isConfirmed) {
+          return; // Detener si el usuario cancela
+      }
+  } else if (expirationWarning.type === "warning" && formData.expirationDate) {
+       const confirmSoonToExpire = await Swal.fire({
+          title: 'Permiso Próximo a Vencer',
+          text: `${expirationWarning.message} ¿Deseas continuar?`,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonColor: '#3085d6',
+          cancelButtonColor: '#d33',
+          confirmButtonText: 'Sí, continuar',
+          cancelButtonText: 'Cancelar'
+      });
+      if (!confirmSoonToExpire.isConfirmed) {
+          return; 
+      }
+  }
 
     if (!formData.applicantName) {
       toast.warn("El campo 'Name' (Applicant Name) es obligatorio.");
@@ -309,15 +405,29 @@ const [excavationUnit, setExcavationUnit] = useState("INCH");
                    </div>
                  ) : (
                 
-                 <input
-                   type={key === 'applicantEmail' ? 'email' : key === 'applicantPhone' ? 'tel' : 'text'} // Ajustar tipos de input
-                   name={key}
-                   value={formData[key] ?? ''} // Usar ?? '' para evitar uncontrolled input warning
-                   onChange={handleInputChange}
-                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                   required={key === 'applicantName' || key === 'propertyAddress'} // Marcar campos requeridos
-                   />
-                  )}
+                  <input
+                  type={
+                    key === 'applicantEmail' ? 'email' : 
+                    key === 'applicantPhone' ? 'tel' : 
+                    key === 'expirationDate' ? 'date' : // Usar input tipo date
+                    'text'
+                  }
+                  name={key}
+                  value={formData[key] ?? ''} 
+                  onChange={handleInputChange}
+                  className={`mt-1 block w-full border ${
+                    key === 'expirationDate' && expirationWarning.type === 'error' ? 'border-red-500 bg-red-100 text-red-700 placeholder-red-700' : 
+                    key === 'expirationDate' && expirationWarning.type === 'warning' ? 'border-yellow-500 bg-yellow-100 text-yellow-700 placeholder-yellow-700' : 
+                    'border-gray-300'
+                  } rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
+                  required={key === 'applicantName' || key === 'propertyAddress'} 
+                  />
+                 )}
+                 {key === 'expirationDate' && expirationWarning.message && (
+                   <p className={`text-xs mt-1 ${expirationWarning.type === 'error' ? 'text-red-600 font-semibold' : 'text-yellow-600 font-semibold'}`}>
+                     {expirationWarning.message}
+                   </p>
+                 )}
                   {/* --- FIN RENDERIZADO CONDICIONAL --- */}
                </div>
             ))}
