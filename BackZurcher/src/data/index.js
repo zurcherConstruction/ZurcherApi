@@ -205,6 +205,11 @@ FinalInvoice.hasMany(WorkExtraItem, {
 WorkExtraItem.belongsTo(FinalInvoice, {
   foreignKey: 'finalInvoiceId'
 });
+
+Income.belongsTo(Staff, { as: 'Staff', foreignKey: 'staffId' });
+Expense.belongsTo(Staff, { as: 'Staff', foreignKey: 'staffId' });
+
+
 //---------------------------------------------------------------------------------//
 module.exports = {
   ...sequelize.models, // para poder importar los modelos así: const { Product, User } = require('./db.js');

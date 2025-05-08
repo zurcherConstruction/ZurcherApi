@@ -103,7 +103,7 @@ module.exports = (sequelize) => {
       allowNull: true
     },
     excavationRequired:{
-      type: DataTypes.INTEGER,
+      type: DataTypes.STRING,
       allowNull: true
     },
     squareFeetSystem: {

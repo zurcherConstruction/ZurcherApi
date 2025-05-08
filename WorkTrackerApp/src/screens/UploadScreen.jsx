@@ -1,37 +1,61 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, Image, Alert, ScrollView, Modal, FlatList, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, Pressable, Image, Alert, ScrollView, Modal, FlatList, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useDispatch, useSelector } from 'react-redux';
-import { addImagesToWork, fetchAssignedWorks, updateWork, deleteImagesFromWork} from '../Redux/Actions/workActions';
+import { addImagesToWork, fetchAssignedWorks, updateWork, deleteImagesFromWork, fetchWorkById } from '../Redux/Actions/workActions';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as FileSystem from 'expo-file-system';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Buffer } from "buffer";
-import * as IntentLauncher from "expo-intent-launcher"; // Añadir IntentLauncher
-import * as Sharing from "expo-sharing"; // Añadir Sharing
+import PdfViewer from '../utils/PdfViewer'; // Asegúrate de que la ruta sea correcta
+
 
 const UploadScreen = () => {
-  const { idWork, propertyAddress, images } = useRoute().params;
+  const { idWork, propertyAddress: routePropertyAddress } = useRoute().params; // Solo idWork y la dirección inicial de la ruta
   const navigation = useNavigation();
   const dispatch = useDispatch();
-// Verifica el ID del trabajo
-   const { works, loading, error } = useSelector((state) => state.work);
-   const currentWork = useMemo(() => works.find(work => work.idWork === idWork), [works, idWork]);
+  // Verifica el ID del trabajo
+  const { work: workDetailsFromState, loading: workDetailsLoading, error: workDetailsError } = useSelector((state) => state.work);
   const [selectedStage, setSelectedStage] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [imagesByStage, setImagesByStage] = useState({});
   const [imagesWithDataURLs, setImagesWithDataURLs] = useState({});
   const [isInstallationSubmitted, setIsInstallationSubmitted] = useState(false);
+  const [isFinalInspectionRequested, setIsFinalInspectionRequested] = useState(false);
+  const [pdfViewerVisible, setPdfViewerVisible] = useState(false);
+  const [selectedPdfUri, setSelectedPdfUri] = useState(null);
+  const [currentWorkData, setCurrentWorkData] = useState({ /* ... initial state ... */ });
+  const [largeImageModalVisible, setLargeImageModalVisible] = useState(false);
+  const [selectedImageUri, setSelectedImageUri] = useState(null);
+  const [imageSelectionModalWasOpen, setImageSelectionModalWasOpen] = useState(false); // New state
+ 
+  // --- EFECTO PARA BUSCAR DETALLES DEL TRABAJO ---
+  useEffect(() => {
+    if (idWork) {
+      console.log(`UploadScreen: Despachando fetchWorkById para ${idWork}`);
+      dispatch(fetchWorkById(idWork));
+    }
+  }, [dispatch, idWork]);
+
+  const currentWork = useMemo(() => {
+    if (workDetailsFromState && workDetailsFromState.idWork === idWork) {
+      return workDetailsFromState;
+    }
+    // Mientras carga o si hay error, puedes devolver un objeto base o null
+    return { idWork, propertyAddress: routePropertyAddress, images: [], Permit: {} };
+  }, [workDetailsFromState, idWork, routePropertyAddress]);
 
 
   const stages = [
     'foto previa del lugar',
+    'materiales',
     'foto excavación',
-    'foto tanque instalado',
-    'fotos de cada camión de arena',
-    'foto inspección final',
-    'foto de extracción de piedras',
+    'camiones de arena',
+    'sistema instalado',
+    'extracción de piedras',
+    'camiones de tierra',
+    'inspeccion final'
   ];
 
   const stageColors = [
@@ -40,210 +64,363 @@ const UploadScreen = () => {
     '#e9c46a',
     '#f4a261',
     '#e76f51',
-    '#d62828',
+    '#e9c46a',
+    '#f4a261',
+    '#264653',
+
   ];
 
   const handleOpenPdf = async (pdfData) => {
-      try {
-        // Verificar si el pdfData es un objeto con una propiedad `data` o si ya es una cadena base64
-        const base64Pdf =
-          pdfData?.data
-            ? Buffer.from(pdfData.data).toString("base64") // Si es un objeto con `data`, convertirlo a base64
-            : pdfData.startsWith("data:application/pdf;base64,")
-            ? pdfData.split(",")[1] // Si ya es una cadena base64, extraer la parte después de "base64,"
-            : null;
-    
-        if (!base64Pdf) {
-          throw new Error("El PDF no está en un formato válido.");
-        }
-    
-        const fileUri = `${FileSystem.cacheDirectory}temp.pdf`;
-    
-        // Guardar el PDF en el sistema de archivos
-        await FileSystem.writeAsStringAsync(fileUri, base64Pdf, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-    
-        console.log("PDF guardado en:", fileUri);
-    
-        // Abrir el PDF según la plataforma
-        if (Platform.OS === "android") {
-          const contentUri = await FileSystem.getContentUriAsync(fileUri);
-    
-          const intent = {
-            action: "android.intent.action.VIEW",
-            data: contentUri,
-            flags: 1,
-            type: "application/pdf",
-          };
-    
-          await IntentLauncher.startActivityAsync(
-            "android.intent.action.VIEW",
-            intent
-          );
-        } else if (Platform.OS === "ios") {
-          // Verificar si se puede compartir
-           if (!(await Sharing.isAvailableAsync())) {
-              Alert.alert('Error', 'Compartir no está disponible en este dispositivo.');
-              return;
-           }
-          await Sharing.shareAsync(fileUri, {
-            mimeType: "application/pdf",
-            dialogTitle: "Abrir PDF", // Título más apropiado
-            UTI: "com.adobe.pdf",
-          });
-        }
-      } catch (error) {
-        console.error("Error al abrir el PDF:", error);
-        Alert.alert('Error', `No se pudo abrir el PDF: ${error.message}`);
-      }
-    };
-    useEffect(() => {
-      // Si el trabajo ya está 'installed' o en un estado posterior, marcar como enviado
-      if (currentWork?.status === 'installed' || currentWork?.status === 'inspectionPending' /* u otros estados posteriores */) {
-        setIsInstallationSubmitted(true);
-      } else {
-        setIsInstallationSubmitted(false); // Resetear si el estado cambia a uno anterior (poco probable pero seguro)
-      }
-    }, [currentWork]);
+    try {
+      const base64Pdf =
+        pdfData?.data
+          ? Buffer.from(pdfData.data).toString("base64")
+          : typeof pdfData === 'string' && pdfData.startsWith("data:application/pdf;base64,")
+            ? pdfData.split(",")[1]
+            : typeof pdfData === 'string'
+              ? pdfData
+              : null;
 
-    // Load images from the state when the component mounts or when `currentWork` changes
-    useEffect(() => {
-      if (currentWork && currentWork.images) {
-        // Agrupar imágenes por etapa
-        const groupedImages = currentWork.images.reduce((acc, image) => {
-          if (!acc[image.stage]) {
-            acc[image.stage] = [];
-          }
-          // Asegurarse de que la imagen tenga un ID antes de añadirla
-          if (image.id) {
-              acc[image.stage].push(image);
-          } else {
-              console.warn("Imagen encontrada sin ID:", image);
-          }
-          return acc;
-        }, {});
-        setImagesByStage(groupedImages);
-  
-        // Crear Data URLs para mostrar las imágenes
-        const dataURLs = {};
-        currentWork.images.forEach((image) => {
-          // Solo procesar si la imagen tiene ID y datos
-          if (image.id && image.imageData) {
-            // Asumir que imageData ya es base64
-            dataURLs[image.id] = `data:image/jpeg;base64,${image.imageData}`;
-          }
-        });
-        setImagesWithDataURLs(dataURLs); // Actualizar el estado con las Data URLs
-  
-      } else {
-        // Limpiar si no hay currentWork o no tiene imágenes
-        setImagesByStage({});
-        setImagesWithDataURLs({});
+      if (!base64Pdf) {
+        throw new Error("El PDF no está en un formato válido o no se encontró.");
       }
-    }, [currentWork]); // Depender de currentWork para re-ejecutar cuando cambie
- 
- 
-    const handlePickImage = async () => {
-      if (imagesByStage[selectedStage]?.length >= 12) {  return; }
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permissionResult.granted) {  return; }
-  
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.5,
+
+      // --- GUARDAR PDF EN ARCHIVO TEMPORAL ---
+      const fileUri = `${FileSystem.cacheDirectory}temp_${Date.now()}.pdf`;
+      await FileSystem.writeAsStringAsync(fileUri, base64Pdf, {
+        encoding: FileSystem.EncodingType.Base64,
       });
-  
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const imageUri = result.assets[0].uri;
-        // --- Solicitar Comentario (iOS) ---
-        if (Platform.OS === 'ios') {
-          Alert.prompt(
-            'Añadir Comentario', // Título
-            'Ingresa un comentario para la imagen (opcional):', // Mensaje
-            [
-              { text: 'Cancelar', style: 'cancel' },
-              {
-                text: 'Cargar Imagen',
-                onPress: (commentText) => processAndUploadImage(imageUri, commentText || ''), // Pasar comentario
-              },
-            ],
-            'plain-text' // Tipo de input
-          );
-        } else {
-          // --- Alternativa para Android (o subir sin comentario) ---
-          // Podrías implementar un modal simple aquí o simplemente subir sin comentario
-          console.log("Alert.prompt no soportado en Android. Subiendo sin comentario.");
-          await processAndUploadImage(imageUri, ''); // Subir sin comentario en Android por ahora
+      console.log("PDF temporal guardado en:", fileUri); // Log para verificar
+
+      // --- Guardar la URI del archivo y mostrar el modal ---
+      setSelectedPdfUri(fileUri); // Guardar la URI del archivo
+      setPdfViewerVisible(true);
+
+    } catch (error) {
+      console.error("Error al abrir/guardar PDF:", error);
+      Alert.alert("Error", `No se pudo abrir el PDF: ${error.message}`);
+    }
+  };
+
+  useEffect(() => {
+    // Considerar estados posteriores a 'installed' también
+    const installedOrLater = [
+      'installed',
+      'rejectedInspection',
+    ];
+    if (currentWork && installedOrLater.includes(currentWork.status)) {
+      setIsInstallationSubmitted(true);
+    } else {
+      setIsInstallationSubmitted(false);
+    }
+  }, [currentWork]);
+
+
+  useEffect(() => {
+
+    const requestedOrLater = [
+      'coverPending',
+      'finalInspectionPending',
+      'finalApproved',
+      'finalRejected',
+      'maintenance']; // Añadir estados relevantes
+    if (currentWork && requestedOrLater.includes(currentWork.status)) {
+      setIsFinalInspectionRequested(true);
+    } else {
+      setIsFinalInspectionRequested(false);
+    }
+  }, [currentWork]);
+  // --- ---
+
+
+  useEffect(() => {
+    if (currentWork && currentWork.idWork === idWork && currentWork.images) { // Asegúrate que currentWork.images exista
+      const grouped = (currentWork.images || []).reduce((acc, img) => {
+        const stage = img.stage;
+        if (!acc[stage]) acc[stage] = [];
+        if (img.id) acc[stage].push(img);
+        else console.warn("Imagen sin ID:", img);
+        return acc;
+      }, {});
+      setImagesByStage(grouped);
+
+      const urls = {};
+      (currentWork.images || []).forEach(img => {
+        if (img.id && img.imageUrl) { // Usar imageUrl en lugar de imageData
+          urls[img.id] = img.imageUrl; // Directamente la URL de Cloudinary
         }
-        // --- Fin solicitud comentario ---
-      }
-    };
-
-    const handleTakePhoto = async () => {
-      if (imagesByStage[selectedStage]?.length >= 12) {  return; }
-      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permissionResult.granted) {  return; }
-  
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.5,
       });
-  
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-         const imageUri = result.assets[0].uri;
-        // --- Solicitar Comentario (iOS) ---
-         if (Platform.OS === 'ios') {
-          Alert.prompt(
-            'Añadir Comentario',
-            'Ingresa un comentario para la imagen (opcional):',
-            [
-              { text: 'Cancelar', style: 'cancel' },
-              {
-                text: 'Cargar Imagen',
-                onPress: (commentText) => processAndUploadImage(imageUri, commentText || ''),
-              },
-            ],
-            'plain-text'
-          );
-        } else {
-          // --- Alternativa para Android ---
-          console.log("Alert.prompt no soportado en Android. Subiendo sin comentario.");
-          await processAndUploadImage(imageUri, '');
-        }}}
+      setImagesWithDataURLs(urls); // imagesWithDataURLs ahora contendrá URLs de Cloudinary
+    } else {
+      setImagesByStage({});
+      setImagesWithDataURLs({});
+    }
+    setIsInstallationSubmitted(currentWork?.status === 'installed');
+  }, [currentWork, idWork]);
 
- 
-  const processAndUploadImage = async (imageUri, comment = '') => { // Añadir parámetro comment
+
+  const handlePickImage = async () => {
+    console.log("handlePickImage - selectedStage:", selectedStage); // <-- LOG
+    if (!selectedStage) {
+      Alert.alert("Error", "Por favor, selecciona una etapa primero.");
+      return;
+    }
+    if (imagesByStage[selectedStage]?.length >= 12) { return; }
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissionResult.granted) { return; }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.5,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const imageUri = result.assets[0].uri;
+      const isTruckStage = selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra';
+
+      if (Platform.OS === 'ios') {
+        Alert.prompt(
+          'Añadir Comentario',
+          'Ingresa un comentario (opcional):',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            {
+              text: 'Siguiente',
+              onPress: (commentText) => {
+                const comment = commentText || ''; // Usar string vacío si no hay comentario
+                if (isTruckStage) {
+                  // Si es etapa de camiones, pedir cantidad
+                  Alert.prompt(
+                    'Cantidad de Camiones',
+                    'Ingresa la cantidad de camiones:',
+                    [
+                      { text: 'Cancelar', style: 'cancel' },
+                      {
+                        text: 'Cargar Imagen',
+                        onPress: (truckCountInput) => {
+                          const count = parseInt(truckCountInput, 10);
+                          if (isNaN(count) || count < 0) {
+                            Alert.alert('Error', 'Por favor, ingresa un número válido de camiones.');
+                            return;
+                          }
+                          processAndUploadImage(imageUri, comment, count);
+                        },
+                      },
+                    ],
+                    'plain-text',
+                    '',
+                    'numeric'
+                  );
+                } else {
+                  // Si no es etapa de camiones, subir solo con comentario
+                  processAndUploadImage(imageUri, comment, null);
+                }
+              },
+            },
+          ],
+          'plain-text' // Tipo para el comentario
+        );
+      } else { // Android u otros (sin cambios por ahora)
+        let comment = '';
+        let truckCount = null;
+        console.log("Subiendo sin comentario en Android por ahora.");
+        if (isTruckStage) {
+          console.warn("Prompt de cantidad no implementado para Android. Usando null.");
+        }
+        await processAndUploadImage(imageUri, comment, truckCount);
+      }
+      // --- Fin solicitud ---
+    }
+  };
+
+  const handleTakePhoto = async () => {
+    console.log("handleTakePhoto - selectedStage:", selectedStage); // <-- LOG
+    if (!selectedStage) {
+      Alert.alert("Error", "Por favor, selecciona una etapa primero.");
+      return;
+    }
+    if (imagesByStage[selectedStage]?.length >= 12) { return; }
+    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permissionResult.granted) { return; }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.5,
+    });
+
+    if (!result.canceled && result.assets && result.assets.length > 0) {
+      const imageUri = result.assets[0].uri;
+      const isTruckStage = selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra';
+      // --- Solicitar Comentario (iOS) ---
+      if (Platform.OS === 'ios') {
+        Alert.prompt(
+          'Añadir Comentario',
+          'Ingresa un comentario (opcional):',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            {
+              text: 'Siguiente',
+              onPress: (commentText) => {
+                const comment = commentText || '';
+                if (isTruckStage) {
+                  Alert.prompt(
+                    'Cantidad de Camiones',
+                    'Ingresa la cantidad de camiones:',
+                    [
+                      { text: 'Cancelar', style: 'cancel' },
+                      {
+                        text: 'Cargar Imagen',
+                        onPress: (truckCountInput) => {
+                          const count = parseInt(truckCountInput, 10);
+                          if (isNaN(count) || count < 0) {
+                            Alert.alert('Error', 'Por favor, ingresa un número válido de camiones.');
+                            return;
+                          }
+                          processAndUploadImage(imageUri, comment, count);
+                        },
+                      },
+                    ],
+                    'plain-text',
+                    '',
+                    'numeric'
+                  );
+                } else {
+                  processAndUploadImage(imageUri, comment, null);
+                }
+              },
+            },
+          ],
+          'plain-text'
+        );
+      } else { // Android (sin cambios por ahora)
+        console.log("Subiendo sin comentario/conteo específico en Android por ahora.");
+        let truckCount = null;
+        await processAndUploadImage(imageUri, '', truckCount);
+      }
+      // --- Fin solicitud ---
+    }
+  };
+
+
+  // MODIFICAR processAndUploadImage
+  const processAndUploadImage = async (imageUri, comment = '', truckCount = null) => {
+    let tempImageId = `temp-${Date.now()}-${Math.random()}`;
     try {
       const resizedImage = await manipulateAsync(
         imageUri,
-        [{ resize: { width: 800 } }],
+        [{ resize: { width: 800 } }], // O el tamaño que prefieras
         { compress: 0.7, format: SaveFormat.JPEG }
       );
 
-    const base64Image = await FileSystem.readAsStringAsync(resizedImage.uri, { encoding: 'base64' });
+      const now = new Date();
+      const dateTimeString = now.toLocaleString();
 
-    const now = new Date();
-    const dateTimeString = now.toLocaleString();
-    const imageData = {
-      stage: selectedStage,
-      image: base64Image,
-      comment: comment,
-      dateTime: dateTimeString,
-    };
+      // Actualización optimista: usa la URI local para la vista previa
+      const optimisticImagePayload = {
+        id: tempImageId,
+        stage: selectedStage,
+        // Para la UI optimista, podrías usar resizedImage.uri directamente si tu componente Image lo soporta
+        // o si necesitas base64 para la UI optimista, puedes generarlo aquí solo para eso.
+        // Por simplicidad, asumiremos que la UI optimista puede usar la URI local.
+        // Si necesitas base64 para la UI optimista, puedes leerlo aquí pero NO enviarlo al backend.
+        // Ejemplo: const base64ForOptimisticUI = await FileSystem.readAsStringAsync(resizedImage.uri, { encoding: 'base64' });
+        // Y luego en setCurrentWorkData, usarías una propiedad temporal como `optimisticLocalUrl: resizedImage.uri` o `optimisticBase64: base64ForOptimisticUI`
+        // Para este ejemplo, vamos a asumir que la UI optimista puede usar la URI local.
+        // O, si quieres que la UI optimista muestre un placeholder o nada hasta que la URL de Cloudinary llegue:
+        imageUrl: resizedImage.uri, // Usar URI local para la vista previa optimista
+        comment: comment,
+        dateTime: dateTimeString,
+        truckCount: truckCount,
+      };
 
-    // Dispatch the image to the backend
-    await dispatch(addImagesToWork(idWork, imageData));
+      setCurrentWorkData(prev => ({
+        ...prev,
+        images: [...(prev.images || []), optimisticImagePayload]
+      }));
 
-    // Fetch the updated assigned works to refresh the images
-    await dispatch(fetchAssignedWorks());
+      // Crear FormData para enviar al backend
+      const formData = new FormData();
+      formData.append('stage', selectedStage);
+      formData.append('comment', comment);
+      formData.append('dateTime', dateTimeString);
+      if (truckCount !== null) {
+        formData.append('truckCount', truckCount.toString());
+      }
+      // Adjuntar el archivo
+      // El nombre del archivo es importante para multer en el backend
+      const filename = resizedImage.uri.split('/').pop();
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : `image`; // ej. image/jpeg, image/png
 
-    Alert.alert('Éxito', 'Imagen cargada correctamente.');
-  } catch (error) {
-    console.error('Error al cargar la imagen:', error);
-    Alert.alert('Error al cargar la imagen');
-  }
-};
+      formData.append('imageFile', { // 'imageFile' debe coincidir con upload.single('imageFile') en el backend
+        uri: resizedImage.uri,
+        name: filename,
+        type: type,
+      });
+
+      // La acción addImagesToWork ahora debe estar preparada para enviar FormData
+      // y el backend para recibirlo.
+      const resultAction = await dispatch(addImagesToWork(idWork, formData));
+
+      if (resultAction && resultAction.work && resultAction.work.images) {
+        Alert.alert('Éxito', 'Imagen cargada correctamente a Cloudinary.');
+        // Redux ya debería haber actualizado currentWork con las URLs de Cloudinary.
+        // La UI optimista se reemplazará con los datos reales de Redux.
+        // Si la UI optimista usó tempImageId, el reducer addImagesSuccess
+        // debería reemplazar la imagen temporal con la real del servidor.
+      } else {
+        console.error("Error en resultAction de addImagesToWork (Cloudinary) o respuesta inesperada:", resultAction);
+        Alert.alert('Error', 'No se pudo cargar la imagen a Cloudinary o respuesta inesperada.');
+        setCurrentWorkData(prev => ({
+          ...prev,
+          images: prev.images.filter(img => img.id !== tempImageId) // Revertir optimista
+        }));
+      }
+
+    } catch (error) {
+      console.error('Error al procesar/cargar la imagen (Cloudinary):', error);
+      Alert.alert('Error', `No se pudo cargar la imagen: ${error.message || 'Error desconocido'}`);
+      setCurrentWorkData(prev => ({
+        ...prev,
+        images: prev.images.filter(img => img.id !== tempImageId) // Revertir optimista
+      }));
+    }
+  };
+
+  const handleDeleteImage = async (imageIdToDelete) => {
+    Alert.alert(
+      "Confirmar Eliminación",
+      "¿Estás seguro?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Eliminar",
+          onPress: async () => {
+            const originalImages = currentWork?.images ? [...currentWork.images] : [];
+            setCurrentWorkData(prev => ({
+              ...prev,
+              images: prev.images ? prev.images.filter(img => img.id !== imageIdToDelete) : []
+            }));
+
+            try {
+              const resultAction = await dispatch(deleteImagesFromWork(idWork, imageIdToDelete));
+
+
+              Alert.alert("Éxito", "Imagen eliminada correctamente.");
+
+            } catch (error) {
+              console.error("Error al eliminar la imagen:", error);
+              Alert.alert("Error", `No se pudo eliminar la imagen: ${error.message || 'Error desconocido'}`);
+              setCurrentWorkData(prev => ({ ...prev, images: originalImages }));
+            }
+          },
+          style: "destructive",
+        },
+      ]
+    );
+  };
+
+
   const handleStagePress = (stageOption) => {
     setSelectedStage(stageOption);
     setModalVisible(true);
@@ -257,126 +434,195 @@ const UploadScreen = () => {
       setIsInstallationSubmitted(true);
       Alert.alert('Éxito', 'El estado del trabajo se actualizó a "installed".');
       if (navigation.canGoBack()) {
-
         navigation.goBack();
-      } else {
-        navigation.navigate('AssignedWorksScreen'); // Navegar a una pantalla específica si no hay una previa
-      } // Opcional: Regresar a la pantalla anterior
+      }
     } catch (error) {
       console.error('Error al actualizar el estado del trabajo:', error);
       Alert.alert('Error', 'No se pudo actualizar el estado del trabajo.');
     }
   };
 
-  const hasFinalInspectionImages = imagesByStage['foto tanque instalado']?.length > 0;
-
-  const handleDeleteImage = (imageIdToDelete) => {
-    Alert.alert(
-      "Confirmar Eliminación",
-      "¿Estás seguro de que quieres eliminar esta imagen?",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Eliminar",
-          onPress: async () => {
-            try {
-              console.log(`Intentando eliminar imagen ID: ${imageIdToDelete} del trabajo ID: ${idWork}`);
-              // Despachar la acción de eliminación
-              await dispatch(deleteImagesFromWork(idWork, imageIdToDelete));
-              // fetchAssignedWorks() ya se llama dentro de deleteImageFromWork si se implementa así
-              Alert.alert("Éxito", "Imagen eliminada correctamente.");
-              await dispatch(fetchAssignedWorks());
-              // El modal se actualizará solo al refrescar el estado
-            } catch (error) {
-              console.error("Error al eliminar la imagen:", error);
-              Alert.alert("Error", "No se pudo eliminar la imagen.");
-            }
-          },
-          style: "destructive",
-        },
-      ]
-    );
+  const handleRequestFinalInspection = async () => {
+    if (isFinalInspectionRequested) return;
+    try {
+      await dispatch(updateWork(idWork, { status: 'coverPending' }));
+      await dispatch(fetchAssignedWorks()); // <--- NECESARIO AQUÍ para actualizar la lista
+      setIsFinalInspectionRequested(true);
+      Alert.alert('Éxito', 'Se solicitó la inspección final.');
+      if (navigation.canGoBack()) {
+        navigation.goBack(); // Esto te llevará de vuelta a WorksListScreen
+      }
+    } catch (error) {
+      console.error('Error al solicitar la inspección final:', error);
+      Alert.alert('Error', 'No se pudo solicitar la inspección final.');
+    }
+  };
+  const handleOpenLargeImage = (uri) => {
+    console.log('handleOpenLargeImage called with URI:', uri);
+    setSelectedImageUri(uri);
+    if (modalVisible) { // If the image selection modal is currently open
+      setImageSelectionModalWasOpen(true); // Remember it was open
+      setModalVisible(false); // Hide it
+    } else {
+      setImageSelectionModalWasOpen(false);
+    }
+    setLargeImageModalVisible(true); // Show the large image modal
   };
 
+  const handleCloseLargeImage = () => {
+    setLargeImageModalVisible(false);
+    setSelectedImageUri(null);
+    if (imageSelectionModalWasOpen) { // If the image selection modal was open before
+      // Re-open the image selection modal. It will use the existing selectedStage.
+      setModalVisible(true); 
+      setImageSelectionModalWasOpen(false); // Reset the flag
+    }
+  };
+
+
+  const hasFinalInspectionImages = imagesByStage['sistema instalado']?.length > 0;
+  const hasCoverImages = imagesByStage['inspeccion final']?.length > 0;
+
+  // --- Lógica de renderizado ---
+  if (workDetailsLoading && (!workDetailsFromState || workDetailsFromState.idWork !== idWork)) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" />
+        <Text>Cargando detalles del trabajo...</Text>
+      </View>
+    );
+  }
+
+  if (workDetailsError) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>Error al cargar detalles: {workDetailsError.message || JSON.stringify(workDetailsError)}</Text>
+      </View>
+    );
+  }
+
+  // Si currentWork aún no tiene los datos esperados (ej. después de un error o antes de la carga inicial)
+  if (!currentWork || currentWork.idWork !== idWork || !currentWork.Permit) {
+   
+    console.log("UploadScreen: currentWork no está listo o no coincide con idWork", currentWork);
+     return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text>Esperando datos del trabajo...</Text></View>;
+  }
   return (
-    <ScrollView className="flex-1 bg-gray-100 p-5">
-      <Text className="text-xl font-medium uppercase text-gray-800 mb-5 text-center">
-        {propertyAddress || 'Sin dirección'}
-      </Text>
-     
-  {/* --- BLOQUE DE BOTONES PDF MODIFICADO --- */}
-  {currentWork?.Permit && (currentWork.Permit.pdfData || currentWork.Permit.optionalDocs) && (
-        <View className="my-4 border-y border-gray-300 py-3">
-          <Text className="text-sm font-semibold text-gray-700 mb-2 text-center">Documentos del Permiso:</Text>
-          <View className="flex-row justify-between items-center">
-            {currentWork.Permit.pdfData && (
-              <TouchableOpacity
-                onPress={() => handleOpenPdf(currentWork.Permit.pdfData)}
-                className={`py-2 px-4 bg-blue-600 rounded shadow ${
-                  currentWork.Permit.optionalDocs ? 'w-[48%]' : 'w-full' 
-                }`}
-              >
-                <Text className="text-white text-center font-medium">Ver PDF Permit</Text>
-              </TouchableOpacity>
-            )}
+    <>
+      <ScrollView className="flex-1  bg-gray-100 p-5">
+        <Text className="text-xl font-medium uppercase text-gray-800 mb-2 text-center">
+          {currentWork.propertyAddress || routePropertyAddress || 'Sin dirección'}
+        </Text>
 
-            {currentWork.Permit.optionalDocs && (
-              <TouchableOpacity
-                onPress={() => handleOpenPdf(currentWork.Permit.optionalDocs)}
-                
-                 className={`py-2 px-4 bg-yellow-500 rounded shadow ${
-                  currentWork.Permit.pdfData ? 'w-[48%]' : 'w-full' 
-                }`}
-              >
-                <Text className="text-white text-center font-medium">Ver PDF Flat</Text>
-              </TouchableOpacity>
-            )}
-          </View>
+        {/* --- BLOQUE DE BOTONES PDF MODIFICADO --- */}
+        <View className="flex-row justify-around items-start mt-2 mb-2">
+          {currentWork.Permit?.pdfData && (
+            <TouchableOpacity
+              onPress={() => handleOpenPdf(currentWork.Permit.pdfData)}
+              className="items-center w-20"
+            >
+              <View className="w-20 h-20 bg-gray-200 border border-gray-300 rounded-md justify-center items-center mb-1 shadow">
+                <Ionicons name="document-text-outline" size={40} color="#4B5563" />
+              </View>
+              <Text className="text-xs text-center font-medium text-gray-600">PDF Permit</Text>
+            </TouchableOpacity>
+          )}
+
+          {currentWork.Permit?.optionalDocs && (
+            <TouchableOpacity
+              onPress={() => handleOpenPdf(currentWork.Permit.optionalDocs)}
+              className="items-center w-20"
+            >
+              <View className="w-20 h-20 bg-gray-200 border border-gray-300 rounded-md justify-center items-center mb-1 shadow">
+                <Ionicons name="document-attach-outline" size={40} color="#4B5563" />
+              </View>
+              <Text className="text-xs text-center font-medium text-gray-600">PDF Site Plan</Text>
+            </TouchableOpacity>
+          )}
+
+          <PdfViewer
+            visible={pdfViewerVisible}
+            // Pasar la URI del archivo
+            fileUri={selectedPdfUri}
+            onClose={() => {
+              setPdfViewerVisible(false);
+              // Opcional: Limpiar el estado de la URI al cerrar
+              setSelectedPdfUri(null);
+              // Opcional pero recomendado: Eliminar el archivo temporal
+              if (selectedPdfUri) {
+                FileSystem.deleteAsync(selectedPdfUri, { idempotent: true })
+                  .catch(err => console.error("Error al eliminar PDF temporal:", err));
+              }
+            }}
+          />
         </View>
-      )}
-      {/* --- FIN BLOQUE PDF --- */}
 
-      {/* Sección de selección de etapas */}
-      <View className="flex-row flex-wrap justify-around mb-5">
-        {stages.map((stageOption, index) => (
+
+        {/* --- FIN BLOQUE PDF --- */}
+
+        {/* Sección de selección de etapas */}
+        <View className="flex-row flex-wrap justify-around mb-4">
+          {stages.map((stageOption, index) => (
+            <Pressable
+              key={stageOption}
+              onPress={() => handleStagePress(stageOption)}
+              className={`w-[47%] h-24 p-3 mb-3 rounded-lg flex justify-center ${selectedStage === stageOption ? 'border-4 border-white opacity-80' : ''
+                }`}
+              style={{ backgroundColor: stageColors[index % stageColors.length] }}
+            >
+              <Text className="text-white text-center font-bold text-sm">
+                {stageOption.toUpperCase()}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+
+
+        {/* --- MODIFICAR RENDERIZADO DEL BOTÓN --- */}
+        {/* Mostrar el botón o el texto de espera solo si hay imágenes de inspección final */}
+        {hasFinalInspectionImages && (
           <Pressable
-            key={stageOption}
-            onPress={() => handleStagePress(stageOption)}
-            className={`w-[47%] h-24 p-3 mb-3 rounded-lg flex justify-center ${
-              selectedStage === stageOption ? 'border-4 border-white opacity-80' : ''
-            }`}
-            style={{ backgroundColor: stageColors[index % stageColors.length] }}
+            onPress={handleWorkInstalled}
+            // Deshabilitar si ya se envió
+            disabled={isInstallationSubmitted}
+            // Cambiar estilo si está deshabilitado
+            className={` py-3 rounded-lg shadow-md ${isInstallationSubmitted
+                ? 'bg-gray-400' // Color deshabilitado
+                : 'bg-blue-600' // Color normal
+              }`}
           >
-            <Text className="text-white text-center font-bold text-sm">
-              {stageOption.toUpperCase()}
+            <Text className="text-white text-center text-lg font-semibold">
+              {isInstallationSubmitted
+                ? 'Esperando Aprobación de Inspección'
+                : 'WORK INSTALLED'}
             </Text>
           </Pressable>
-        ))}
-      </View>
+        )}
+        {/* --- FIN MODIFICACIÓN BOTÓN --- */}
+      
+        {hasCoverImages && (
+          <Pressable
+            onPress={handleRequestFinalInspection}
+            // Deshabilitar si ya se solicitó
+            disabled={isFinalInspectionRequested}
+            // Cambiar estilo si está deshabilitado
+            className={`mt-2 py-3 rounded-lg shadow-md ${isFinalInspectionRequested
+                ? 'bg-gray-400' // Color deshabilitado
+                : 'bg-green-600' // Color normal (ej. verde)
+              }`}
+          >
+            <Text className="text-white text-center text-lg font-semibold">
+              {isFinalInspectionRequested
+                ? 'Esperando Inspección Final' // Texto cuando está deshabilitado
+                : 'REQUEST FINAL INSPECTION'} {/* Texto normal */}
+            </Text>
+          </Pressable>
+        )}
+        {/* --- FIN NUEVO BOTÓN --- */}
+      </ScrollView>
 
-      {/* --- MODIFICAR RENDERIZADO DEL BOTÓN --- */}
-      {/* Mostrar el botón o el texto de espera solo si hay imágenes de inspección final */}
-      {hasFinalInspectionImages && (
-        <Pressable
-          onPress={handleWorkInstalled}
-          // Deshabilitar si ya se envió
-          disabled={isInstallationSubmitted}
-          // Cambiar estilo si está deshabilitado
-          className={`mt-4 py-3 rounded-lg shadow-md ${
-            isInstallationSubmitted
-              ? 'bg-gray-400' // Color deshabilitado
-              : 'bg-blue-600' // Color normal
-          }`}
-        >
-          <Text className="text-white text-center text-lg font-semibold">
-            {isInstallationSubmitted
-              ? 'Esperando Aprobación de Inspección'
-              : 'WORK INSTALLED'}
-          </Text>
-        </Pressable>
-      )}
-      {/* --- FIN MODIFICACIÓN BOTÓN --- */}
-
+      {/* Modals are now outside the ScrollView */}
       <Modal visible={modalVisible} transparent={true} animationType="slide">
         <View className="flex-1 bg-black/50 justify-center items-center">
           <View className="w-11/12 bg-white rounded-lg p-4">
@@ -392,24 +638,39 @@ const UploadScreen = () => {
               numColumns={4}
               renderItem={({ index }) => {
                 const image = imagesByStage[selectedStage]?.[index];
+                const isTruckStage = selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra';
+                const imageUri = image && imagesWithDataURLs[image.id] ? imagesWithDataURLs[image.id] : null;
                 return (
                   <View className="w-20 h-20 m-2 rounded-lg bg-gray-300 justify-center items-center">
-                    {image && imagesWithDataURLs[image.id] ? (
-                      <>
+                    {imageUri ? (
+                      <TouchableOpacity
+                        onPress={() => {
+                          console.log('Thumbnail tapped. Image URI:', imageUri);
+                          if (imageUri) {
+                            handleOpenLargeImage(imageUri);
+                          } else {
+                            console.log('Cannot open large image, URI is null or undefined when tapped.');
+                          }
+                        }}
+                        className="w-full h-full"
+                      >
                         <Image
-                          source={{ uri: imagesWithDataURLs[image.id] }}
+                          source={{ uri: imageUri }}
                           className="w-full h-full rounded-lg"
                         />
-                        {/* --- BOTÓN ELIMINAR --- */}
                         <Pressable
                           onPress={() => handleDeleteImage(image.id)}
-                          className="absolute top-0 right-0 bg-red-600/80 rounded-full p-1" // Estilo del botón
-                          style={{ transform: [{ translateX: 5 }, { translateY: -5 }] }} // Ajustar posición
+                          className="absolute top-0 right-0 bg-red-600/80 rounded-full p-1"
+                          style={{ transform: [{ translateX: 5 }, { translateY: -5 }] }}
                         >
                           <Ionicons name="close-circle" size={20} color="white" />
                         </Pressable>
-                        {/* --- FIN BOTÓN ELIMINAR --- */}
-                      </>
+                        {isTruckStage && image.truckCount !== null && image.truckCount !== undefined && (
+                          <View className="absolute bottom-0 left-0 bg-blue-600/80 rounded-full px-1.5 py-0.5 m-1">
+                            <Text className="text-white text-xs font-bold">{image.truckCount}</Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
                     ) : (
                       <Text className="text-gray-500 text-xs"></Text>
                     )}
@@ -442,7 +703,40 @@ const UploadScreen = () => {
           </View>
         </View>
       </Modal>
-    </ScrollView>
+
+      <Modal
+        visible={largeImageModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseLargeImage}
+      >
+        <View className="flex-1 bg-blue-900/80 justify-center items-center p-4">
+          {largeImageModalVisible && console.log('Large image modal rendering. Selected URI:', selectedImageUri)}
+          
+          <TouchableOpacity className="absolute top-10 right-5 z-10" onPress={handleCloseLargeImage}>
+            <Ionicons name="close-circle" size={40} color="white" />
+          </TouchableOpacity>
+
+          
+          
+
+          {selectedImageUri ? (
+            <View style={{ width: '90%', height: '70%', borderColor: 'lime' }}>
+              <Image
+                key={selectedImageUri}
+                source={{ uri: selectedImageUri }}
+                style={{ width: '100%', height: '100%' }} // Changed from flex: 1
+                resizeMode="contain"
+                onError={(e) => console.log('Image load error in large modal:', e.nativeEvent.error)}
+                onLoad={() => console.log('Large image successfully loaded (onLoad event).')}
+              />
+            </View>
+          ) : (
+            largeImageModalVisible && <Text style={{ color: 'white', fontSize: 16 }}>Modal visible, but no image URI.</Text>
+          )}
+        </View>
+      </Modal>
+    </>
   );
 };
 

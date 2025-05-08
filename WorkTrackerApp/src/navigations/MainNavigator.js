@@ -105,7 +105,7 @@ const AppDrawerNavigator = () => {
             options={{ title: 'Resumen de Trabajos' }} // <--- Cambiar título si quieres
           />
           <Drawer.Screen
-            name="PendingWorksOwner" // Nombre único
+            name="PendingWorks" // Nombre único
             component={PendingWorks}
             options={{ title: 'Trabajos Pendientes' }}
           />

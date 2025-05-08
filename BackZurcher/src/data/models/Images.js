@@ -9,11 +9,13 @@ module.exports = (sequelize) => {
     stage: {
       type: DataTypes.ENUM(
         'foto previa del lugar',
+        'materiales',
         'foto excavación',
-        'foto tanque instalado',
-        'fotos de cada camión de arena',
-        'foto inspección final',
-        'foto de extracción de piedras'
+        'camiones de arena',
+        'sistema instalado',
+        'extracción de piedras',
+        'camiones de tierra',
+        'inspeccion final'
       ),
       allowNull: false,
     },
@@ -21,14 +23,27 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING, // Tipo de dato para la fecha y hora
       allowNull: true, // Permite valores nulos si no siempre se proporciona
     },
-    imageData: {
-      type: DataTypes.TEXT('long'), // o DataTypes.BLOB si prefieres
-      allowNull: false, // o true, dependiendo de si siempre quieres una imagen
+    // imageData: {
+    //   type: DataTypes.TEXT('long'), // o DataTypes.BLOB si prefieres
+    //   allowNull: false, // o true, dependiendo de si siempre quieres una imagen
+    // },
+    imageUrl: { // NUEVO CAMPO para la URL de Cloudinary
+      type: DataTypes.STRING, // O DataTypes.TEXT si las URLs pueden ser muy largas
+      allowNull: false,
+    },
+    publicId: { // NUEVO CAMPO para el public_id de Cloudinary (opcional pero recomendado)
+      type: DataTypes.STRING,
+      allowNull: true, // Podría ser false si siempre lo guardas
     },
     comment: {
       type: DataTypes.STRING,
       allowNull: true, // Permite valores nulos si no siempre se proporciona
     },
+    truckCount: {
+      type: DataTypes.INTEGER,
+      allowNull: true, // Solo se usará en etapas específicas
+      defaultValue: null, // O 1 si prefieres un valor por defecto
+    }
     
   });
 };

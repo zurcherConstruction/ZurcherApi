@@ -1,89 +1,39 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchAssignedWorks } from "../Redux/Actions/workActions";
-import { View, Text, FlatList, TouchableOpacity, Platform, ActivityIndicator} from "react-native";
-import { useNavigation } from "@react-navigation/native";
-import { Buffer } from "buffer";
-import * as FileSystem from "expo-file-system";
-import * as IntentLauncher from "expo-intent-launcher";
-import * as Sharing from "expo-sharing";
+import { View, Text, FlatList, TouchableOpacity, TextInput, ActivityIndicator } from "react-native";
 import UploadScreen from "./UploadScreen";
 import { createStackNavigator } from "@react-navigation/stack";
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
+// --- 1. Mover la creación del Stack fuera del componente ---
 const Stack = createStackNavigator();
 
-const AssignedWorksScreen = ({staffId}) => {
+const WorksListScreen = ({ navigation }) => { // Recibe navigation como prop
   const dispatch = useDispatch();
-  const navigation = useNavigation();
+  const { staff } = useSelector((state) => state.auth);
+  const staffId = staff?.idStaff;
 
+  const [searchQuery, setSearchQuery] = useState('');
   const { works, loading: reduxLoading, error } = useSelector((state) => state.work);
 
   useEffect(() => {
     if (staffId) {
-      dispatch(fetchAssignedWorks(staffId)); // Filtrar trabajos por staffId
+      dispatch(fetchAssignedWorks(staffId));
     }
   }, [dispatch, staffId]);
 
+  const filteredWorks = useMemo(() => {
+    if (!works) return [];
+    if (!searchQuery) return works;
+    const lowerCaseQuery = searchQuery.toLowerCase();
+    return works.filter(work =>
+      work.propertyAddress?.toLowerCase().includes(lowerCaseQuery)
+    );
+  }, [works, searchQuery]);
 
-
-  useEffect(() => {
-    console.log("Datos de trabajos asignados:", works);
-  }, [works]);
-
-  const handleOpenPdf = async (pdfData) => {
-      try {
-        // Verificar si el pdfData es un objeto con una propiedad `data` o si ya es una cadena base64
-        const base64Pdf =
-          pdfData?.data
-            ? Buffer.from(pdfData.data).toString("base64") // Si es un objeto con `data`, convertirlo a base64
-            : pdfData.startsWith("data:application/pdf;base64,")
-            ? pdfData.split(",")[1] // Si ya es una cadena base64, extraer la parte después de "base64,"
-            : null;
-    
-        if (!base64Pdf) {
-          throw new Error("El PDF no está en un formato válido.");
-        }
-    
-        const fileUri = `${FileSystem.cacheDirectory}temp.pdf`;
-    
-        // Guardar el PDF en el sistema de archivos
-        await FileSystem.writeAsStringAsync(fileUri, base64Pdf, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-    
-        console.log("PDF guardado en:", fileUri);
-    
-        // Abrir el PDF según la plataforma
-        if (Platform.OS === "android") {
-          const contentUri = await FileSystem.getContentUriAsync(fileUri);
-    
-          const intent = {
-            action: "android.intent.action.VIEW",
-            data: contentUri,
-            flags: 1,
-            type: "application/pdf",
-          };
-    
-          await IntentLauncher.startActivityAsync(
-            "android.intent.action.VIEW",
-            intent
-          );
-        } else if (Platform.OS === "ios") {
-          await Sharing.shareAsync(fileUri, {
-            mimeType: "application/pdf",
-            dialogTitle: "Compartir PDF",
-            UTI: "com.adobe.pdf",
-          });
-        }
-      } catch (error) {
-        console.error("Error al abrir el PDF:", error);
-      }
-    };
-
-  const handleUploadImages = (idWork) => {
-    navigation.navigate("UploadScreen", { idWork });
-  };
-  const isLoading = reduxLoading || !works;
+  // --- Estados de carga, error, etc. (sin cambios significativos) ---
+  const isLoading = reduxLoading;
 
   if (isLoading && !error) {
     return (
@@ -101,78 +51,90 @@ const AssignedWorksScreen = ({staffId}) => {
       </View>
     );
   }
-  if (!isLoading && (!works || works.length === 0)) {
+
+  if (!isLoading && filteredWorks.length === 0) {
     return (
-      <View className="flex-1 justify-center items-center bg-gray-100">
-        <Text className="text-lg text-gray-600">
-          No tienes trabajos pendientes de instalación.
+      <View className="flex-1 justify-center items-center bg-gray-100 p-5">
+         <View className="p-4 bg-white border-b border-gray-200 flex-row items-center w-full mb-5">
+           <Ionicons name="search" size={20} color="gray" style={{ marginRight: 8 }} />
+           <TextInput
+             placeholder="Buscar por dirección..."
+             value={searchQuery}
+             onChangeText={setSearchQuery}
+             className="flex-1 h-10 text-base"
+             clearButtonMode="while-editing"
+           />
+         </View>
+        <Text className="text-lg text-gray-600 text-center">
+          {searchQuery
+            ? `No se encontraron trabajos asignados para "${searchQuery}".`
+            : "No tienes trabajos pendientes de instalación."}
         </Text>
       </View>
     );
   }
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: true }}>
-    <Stack.Screen
-      name=" Works Assigned"
-     
-    >
-      {({ navigation }) => (
-        <View className="flex-1 bg-gray-100 p-5">
-          <FlatList
-            data={works}
-            keyExtractor={(item) => item.idWork.toString()}
-            renderItem={({ item }) => (
-              <View className="mb-4 p-4 bg-white rounded-lg shadow">
-                <Text className="text-lg font-semibold uppercase text-gray-800 mb-2">
-                  {item.propertyAddress || "Dirección no disponible"}
-                </Text>
-                <Text className="text-sm text-gray-600 mb-2">
-                  <Text className="font-bold text-gray-700">Estado:</Text>{" "}
-                  {item.status || "Sin estado"}
-                </Text>
-  
-                {(item.Permit?.pdfData || item.Permit?.optionalDocs) && (
-                  <View className="mt-2">
-                    {item.Permit?.pdfData && (
-                      <TouchableOpacity
-                        onPress={() => handleOpenPdf(item.Permit.pdfData)}
-                        className="mb-2 py-2 px-4 bg-blue-600 rounded"
-                      >
-                        <Text className="text-white text-center"> PDF Permit</Text>
-                      </TouchableOpacity>
-                    )}
-                    {item.Permit?.optionalDocs && (
-                      <TouchableOpacity
-                        onPress={() => handleOpenPdf(item.Permit.optionalDocs)}
-                        className="py-2 px-4 bg-yellow-500 rounded"
-                      >
-                        <Text className="text-white text-center">Pdf Flat</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                )}
-                <TouchableOpacity
-                  onPress={() =>
-                    navigation.navigate("UploadScreen", {
-                      idWork: item.idWork,
-                      propertyAddress: item.propertyAddress,
-                      images: item.images,
-                    })
-                  }
-                  className="mt-2 py-2 px-4 bg-green-500 rounded"
-                >
-                  <Text className="text-white text-center">Upload Images</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          />
-        </View>
-      )}
-    </Stack.Screen>
-    <Stack.Screen name="UploadScreen" component={UploadScreen} />
-  </Stack.Navigator>
+    <View className="flex-1 bg-gray-100">
+      <View className="p-4 bg-white border-b border-gray-200 flex-row items-center">
+        <Ionicons name="search" size={20} color="gray" style={{ marginRight: 8 }} />
+        <TextInput
+          placeholder="Buscar por dirección..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          className="flex-1 h-10 text-base"
+          clearButtonMode="while-editing"
+        />
+      </View>
+      <FlatList
+        data={filteredWorks}
+        keyExtractor={(item) => item.idWork.toString()}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+          onPress={() =>
+            navigation.navigate("UploadScreen", {
+              idWork: item.idWork,
+              propertyAddress: item.propertyAddress,
+              // NO pasar item.images ni item.Permit si no están completos aquí
+            })
+          }
+            className="mb-4 p-4 bg-white rounded-lg shadow mx-2 mt-2"
+          >
+            <Text className="text-lg font-semibold uppercase text-gray-800 mb-2">
+              {item.propertyAddress || "Dirección no disponible"}
+            </Text>
+            <Text className="text-sm text-gray-600 mb-2">
+              <Text className="font-bold text-gray-700">Estado:</Text>{" "}
+              {item.status || "Sin estado"}
+            </Text>
+          </TouchableOpacity>
+        )}
+        contentContainerStyle={{ paddingBottom: 10 }}
+      />
+    </View>
   );
 };
 
-export default AssignedWorksScreen;
+const AssignedWorksStackNavigator = () => {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: true }}>
+      <Stack.Screen
+        name="WorksList" // Nombre de la pantalla de lista
+        component={WorksListScreen} // Componente que muestra la lista
+        options={{ title: 'Works Assigned' }}
+      />
+      <Stack.Screen
+        name="UploadScreen"
+        component={UploadScreen} // UploadScreen sigue igual
+        options={({ route }) => ({
+          title: route.params?.propertyAddress || 'Upload Images',
+          // Puedes añadir un headerLeft personalizado si necesitas volver
+          // a "WorksList" específicamente, aunque el botón "back" estándar debería funcionar.
+        })}
+      />
+    </Stack.Navigator>
+  );
+};
+
+// --- 3. Exportar el NAVIGATOR ---
+export default AssignedWorksStackNavigator; // Exportar el navegador

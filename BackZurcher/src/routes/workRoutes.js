@@ -3,6 +3,7 @@ const WorkController = require('../controllers/WorkController');
 const { verifyToken } = require('../middleware/isAuth');
 const { allowRoles, isOwner, isAdmin, isRecept, isStaff } = require('../middleware/byRol')
 const { uploadToDisk } = require('../middleware/multerDisk');
+const { upload } = require('../middleware/multer'); // Asegúrate de que esta ruta sea correcta
 
 const router = express.Router();
 
@@ -13,7 +14,7 @@ router.get('/assigned', verifyToken, allowRoles(['owner', 'worker']), WorkContro
 router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker']), WorkController.getWorks);
 
 // Obtener una obra por ID (personal del hotel)
-router.get('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner']), WorkController.getWorkById);
+router.get('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner','worker']), WorkController.getWorkById);
 
 // Actualizar una obra (solo administradores)
 router.put('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker']), WorkController.updateWork);
@@ -26,7 +27,13 @@ router.post('/:idWork/installation-details', verifyToken, allowRoles(['admin', '
 
 router.put('/:idWork/invoice', verifyToken, allowRoles(['admin', 'recept', 'owner','worker']), uploadToDisk.single('invoiceFile'), WorkController.attachInvoiceToWork);
 
-router.post('/:idWork/images', verifyToken, allowRoles([ 'owner','worker']), WorkController.addImagesToWork);
+// Ruta para agregar imágenes a un trabajo
+router.post('/:idWork/images',
+    verifyToken,
+    allowRoles(['owner','worker']),
+    upload.single('imageFile'), // <--- USA TU INSTANCIA 'upload' EXISTENTE
+    WorkController.addImagesToWork
+  );
 
 router.delete('/:idWork/images/:imageId', verifyToken, allowRoles(['owner', 'worker']), WorkController.deleteImagesFromWork);
 

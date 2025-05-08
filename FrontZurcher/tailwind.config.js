@@ -19,6 +19,15 @@ export const theme = {
       footer: "#49465a",
       dash:"#f6d02c"
     },
+    animation: {
+      'blink-soft': 'blink-soft 1.5s linear infinite',
+    },
+    keyframes: {
+      'blink-soft': {
+        '0%, 100%': { opacity: 1 },
+        '50%': { opacity: 0.3 },
+      }
+    },
     fontFamily: {
       varela: ['"Varela Round"', 'sans-serif'],  
       Montserrat: ['Montserrat', 'sans-serif'],

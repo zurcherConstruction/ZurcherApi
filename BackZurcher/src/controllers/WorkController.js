@@ -4,7 +4,9 @@ const { getNotificationDetails } = require('../utils/notifications/notificationS
 const { getNotificationDetailsApp } = require('../utils/notifications/notificationServiceApp');
 const convertPdfDataToUrl = require('../utils/convertPdfDataToUrl');
 const { sendNotifications } = require('../utils/notifications/notificationManager');
-
+const { uploadToCloudinary, deleteFromCloudinary, uploadBufferToCloudinary } = require('../utils/cloudinaryUploader'); // Asegúrate de importar la función de subida a Cloudinary
+const multer = require('multer');
+const path = require('path');
 
 const createWork = async (req, res) => {
   try {
@@ -49,7 +51,7 @@ const createWork = async (req, res) => {
 // Obtener todas las obras
 const getWorks = async (req, res) => {
   try {
-    const works = await Work.findAll({
+    const worksInstances = await Work.findAll({
       include: [
         {
           model: Budget,
@@ -58,21 +60,74 @@ const getWorks = async (req, res) => {
         },
         {
           model: Permit,
-          attributes: ['idPermit', 'propertyAddress', 'applicantName'],
+          // Asegúrate de que 'expirationDate' esté aquí
+          attributes: ['idPermit', 'propertyAddress', 'applicantName', 'expirationDate'],
         },
       ],
+      // Podrías querer ordenar los trabajos, por ejemplo, por fecha de creación o actualización
+      order: [['createdAt', 'DESC']], 
     });
 
-    // Filtrar el campo startDate si no está asignado
-    const filteredWorks = works.map((work) => {
-      const plainWork = work.get({ plain: true }); // Convertir a objeto plano
-      if (!plainWork.startDate) {
-        delete plainWork.startDate; // Eliminar el campo si no está asignado
+    const worksWithDetails = worksInstances.map((workInstance) => {
+      const workJson = workInstance.get({ plain: true }); // Convertir a objeto plano
+
+      // Eliminar el campo startDate si no está asignado (lógica existente)
+      if (!workJson.startDate) {
+        delete workJson.startDate;
       }
-      return plainWork;
+
+      // --- Calcular y añadir estado de expiración del Permit si existe ---
+      if (workJson.Permit && workJson.Permit.expirationDate) {
+        let permitExpirationStatus = "valid";
+        let permitExpirationMessage = "";
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const expirationDateString = typeof workJson.Permit.expirationDate === 'string' 
+                                    ? workJson.Permit.expirationDate.split('T')[0] 
+                                    : new Date(workJson.Permit.expirationDate).toISOString().split('T')[0];
+        
+        const expDateParts = expirationDateString.split('-');
+        const year = parseInt(expDateParts[0], 10);
+        const month = parseInt(expDateParts[1], 10) - 1; // Mes es 0-indexado
+        const day = parseInt(expDateParts[2], 10);
+
+        if (!isNaN(year) && !isNaN(month) && !isNaN(day) && month >= 0 && month <= 11 && day >= 1 && day <= 31) {
+          const expDate = new Date(year, month, day);
+          expDate.setHours(0,0,0,0);
+
+          if (!isNaN(expDate.getTime())) {
+            if (expDate < today) {
+              permitExpirationStatus = "expired";
+              permitExpirationMessage = `Permiso asociado expiró el ${expDate.toLocaleDateString()}.`;
+            } else {
+              const thirtyDaysFromNow = new Date(today);
+              thirtyDaysFromNow.setDate(today.getDate() + 30);
+              if (expDate <= thirtyDaysFromNow) {
+                permitExpirationStatus = "soon_to_expire";
+                permitExpirationMessage = `Permiso asociado expira el ${expDate.toLocaleDateString()} (pronto a vencer).`;
+              }
+            }
+          } else {
+            console.warn(`Fecha de expiración de permiso inválida (post-parse) para work ${workJson.idWork}, permit ${workJson.Permit.idPermit}: ${expirationDateString}`);
+          }
+        } else {
+           console.warn(`Formato de fecha de expiración de permiso inválido para work ${workJson.idWork}, permit ${workJson.Permit.idPermit}: ${expirationDateString}`);
+        }
+        // Añadir al objeto Permit DENTRO del workJson
+        workJson.Permit.expirationStatus = permitExpirationStatus;
+        workJson.Permit.expirationMessage = permitExpirationMessage;
+      } else if (workJson.Permit) {
+        // Si hay Permit pero no expirationDate
+        workJson.Permit.expirationStatus = "valid"; 
+        workJson.Permit.expirationMessage = "Permiso sin fecha de expiración especificada.";
+      }
+      // --- Fin del cálculo de expiración ---
+
+      return workJson;
     });
 
-    res.status(200).json(filteredWorks);
+    res.status(200).json(worksWithDetails);
   } catch (error) {
     console.error('Error al obtener las obras:', error);
     res.status(500).json({ error: true, message: 'Error interno del servidor' });
@@ -89,7 +144,7 @@ const getWorkById = async (req, res) => {
 
           model: Budget,
           as: 'budget',
-          attributes: ['idBudget', 'propertyAddress', 'status', 'paymentInvoice', 'paymentProofType', 'initialPayment', 'date', 'applicantName'],
+          attributes: ['idBudget', 'propertyAddress', 'status', 'paymentInvoice', 'paymentProofType', 'initialPayment', 'date', 'applicantName','totalPrice', 'initialPaymentPercentage'],
         },
         {
 
@@ -101,6 +156,7 @@ const getWorkById = async (req, res) => {
             'applicantName',
             'pdfData',
             'optionalDocs',
+            'expirationDate',
           ],
         },
         {
@@ -132,7 +188,7 @@ const getWorkById = async (req, res) => {
         {
           model: Image,
           as: 'images',
-          attributes: ['id', 'stage', 'dateTime', 'imageData', 'comment'],
+          attributes: ['id', 'stage', 'dateTime', 'imageUrl', 'publicId', 'comment', 'truckCount'],
         },
         {
           model: Receipt,
@@ -183,54 +239,40 @@ const updateWork = async (req, res) => {
     const { idWork } = req.params;
     const { propertyAddress, status, startDate, notes, staffId } = req.body;
 
-    const work = await Work.findByPk(idWork);
-    if (!work) {
+    let workInstance = await Work.findByPk(idWork); // Renombrado a workInstance para claridad
+    if (!workInstance) {
       return res.status(404).json({ error: true, message: 'Obra no encontrada' });
     }
     // --- Guardar el estado anterior ---
-    const oldStatus = work.status;
+    const oldStatus = workInstance.status;
     let statusChanged = false;
 
     // --- Actualizar los campos ---
-    work.propertyAddress = propertyAddress || work.propertyAddress;
+    workInstance.propertyAddress = propertyAddress || workInstance.propertyAddress;
 
-    // Manejar la actualización del estado y la fecha de inicio
     if (status && status !== oldStatus) {
-      work.status = status;
+      workInstance.status = status;
       statusChanged = true;
-      // Lógica especial para 'inProgress': solo establece startDate si no existe
-      if (status === 'inProgress' && !work.startDate) {
-        work.startDate = new Date();
+      if (status === 'inProgress' && !workInstance.startDate) {
+        workInstance.startDate = new Date();
       }
     }
-    // Actualizar los campos
-    work.propertyAddress = propertyAddress || work.propertyAddress;
-    work.status = status || work.status;
-    work.startDate = startDate || work.startDate; // Asignar la fecha de inicio;
-    work.staffId = staffId || work.staffId; // Asignar el ID del empleado;
-    work.notes = notes || work.notes;
+    workInstance.startDate = startDate || workInstance.startDate;
+    workInstance.staffId = staffId || workInstance.staffId;
+    workInstance.notes = notes || workInstance.notes;
 
-
-    await work.save();
+    await workInstance.save();
 
     // --- Enviar notificaciones SOLO SI el estado cambió ---
     if (statusChanged) {
-      console.log(`Work ${idWork}: Status changed from '${oldStatus}' to '${work.status}'. Sending notifications...`);
+      console.log(`Work ${idWork}: Status changed from '${oldStatus}' to '${workInstance.status}'. Sending notifications...`);
       try {
-        // Llamar a sendNotifications con el NUEVO estado y el objeto work actualizado
-        // Asumimos que sendNotifications usa notificationService internamente
-        await sendNotifications(work.status, work, req.app.get('io')); // Pasar io si es necesario para push
-        console.log(`Notifications sent for status '${work.status}'.`);
+        await sendNotifications(workInstance.status, workInstance, req.app.get('io'));
+        console.log(`Notifications sent for status '${workInstance.status}'.`);
       } catch (notificationError) {
-        // Capturar errores específicos de la configuración de notificaciones
-        console.error(`Error sending notifications for work ${idWork} status ${work.status}:`, notificationError);
-        // Podrías decidir si continuar o devolver un error específico
+        console.error(`Error sending notifications for work ${idWork} status ${workInstance.status}:`, notificationError);
         if (notificationError.message.includes('Estado de notificación no configurado')) {
-          // No detener la operación principal, pero informar el problema
           console.warn(notificationError.message);
-        } else {
-          // Otro error inesperado al enviar notificaciones
-          // Considera si esto debe fallar la solicitud completa o solo registrarse
         }
       }
     } else if (status && status === oldStatus) {
@@ -239,14 +281,34 @@ const updateWork = async (req, res) => {
        console.log(`Work ${idWork}: Status not provided or not changed. No status notifications sent.`);
     }
 
-    // --- Eliminar la lógica redundante de notificación manual ---
-    // await sendNotifications('assigned', notificationDetails, null, req.io); // INCORRECTO Y REDUNDANTE
-    // const notificationDetails = await getNotificationDetails(status, work); // REDUNDANTE
-    // console.log('Detalles de notificación:', notificationDetails); // REDUNDANTE
-    // if (notificationDetails) { ... } // BUCLE DE EMAIL REDUNDANTE
+    // --- RECARGAR LA OBRA CON SUS ASOCIACIONES ANTES DE DEVOLVERLA ---
+    const updatedWorkWithAssociations = await Work.findByPk(idWork, {
+      include: [
+        { model: Budget, as: 'budget', attributes: ['idBudget', 'propertyAddress', 'status', 'paymentInvoice', 'paymentProofType', 'initialPayment', 'date', 'applicantName','totalPrice', 'initialPaymentPercentage']},
+        { model: Permit, attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantName', 'pdfData', 'optionalDocs', 'expirationDate']},
+        { model: Material, attributes: ['idMaterial', 'name', 'quantity', 'cost']},
+        { model: Inspection, attributes: ['idInspection', 'type', 'status', 'dateRequested', 'dateCompleted', 'notes']},
+        { model: InstallationDetail, as: 'installationDetails', attributes: ['idInstallationDetail', 'date', 'extraDetails', 'extraMaterials', 'images']},
+        { model: MaterialSet, as: 'MaterialSets', attributes: ['idMaterialSet', 'invoiceFile', 'totalCost']},
+        { model: Image, as: 'images', attributes: ['id', 'stage', 'dateTime', 'imageUrl', 'publicId', 'comment', 'truckCount']},
+        { model: Receipt, as: 'Receipts', attributes: ['idReceipt', 'type', 'notes', 'fileUrl', 'publicId', 'mimeType', 'originalName','createdAt']},
+      ],
+    });
 
-    // Devolver la obra actualizada
-    res.status(200).json(work);
+    if (!updatedWorkWithAssociations) {
+        // Esto sería muy raro si la actualización fue exitosa, pero es un chequeo de seguridad
+        return res.status(404).json({ error: true, message: 'Obra no encontrada después de la actualización (inesperado)' });
+    }
+    
+    // Procesar Receipts si es necesario (copiado de getWorkById)
+    const finalWorkResponse = {
+      ...updatedWorkWithAssociations.get({ plain: true }),
+      Receipts: updatedWorkWithAssociations.Receipts ? convertPdfDataToUrl(updatedWorkWithAssociations.Receipts) : [],
+    };
+
+
+    // Devolver la obra actualizada CON asociaciones
+    res.status(200).json(finalWorkResponse);
 
   } catch (error) {
     console.error(`Error al actualizar la obra ${req.params.idWork}:`, error);
@@ -401,7 +463,7 @@ const getAssignedWorks = async (req, res) => {
         {
           model: Image,
           as: 'images',
-          attributes: ['id', 'stage', 'dateTime', 'imageData', 'comment'],
+          attributes: ['id', 'stage', 'dateTime', 'imageUrl', 'publicId', 'comment', 'truckCount'],
         },
       ],
     });
@@ -420,43 +482,111 @@ const getAssignedWorks = async (req, res) => {
 const addImagesToWork = async (req, res) => {
   try {
     const { idWork } = req.params; // ID del trabajo
-    const { stage, image, dateTime, comment } = req.body; // Etapa, imagen en Base64 y fecha/hora
+    const { stage, dateTime, comment, truckCount } = req.body; // Etapa, imagen en Base64 y fecha/hora
+    if (!req.file) {
+      return res.status(400).json({ error: true, message: 'No se proporcionó ningún archivo de imagen.' });
+    }
 
+    // Verificación adicional del tipo de archivo para esta ruta específica (imágenes)
+    const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedImageTypes.includes(req.file.mimetype)) {
+      console.error("Controlador: Archivo rechazado, tipo no es imagen:", req.file.mimetype);
+      return res.status(400).json({ error: true, message: 'Tipo de archivo no permitido para esta operación. Solo se aceptan imágenes (JPG, PNG, GIF, WEBP).' });
+    }
     // Verificar que el trabajo exista
     const work = await Work.findByPk(idWork);
     if (!work) {
+      // Si el archivo ya se guardó temporalmente por multer, elimínalo
+      if (req.file && req.file.path) fs.unlinkSync(req.file.path);
       return res.status(404).json({ error: true, message: 'Trabajo no encontrado' });
     }
 
+
     // Validar que la etapa sea válida
     const validStages = [
-      'foto previa del lugar',
-      'foto excavación',
-      'foto tanque instalado',
-      'fotos de cada camión de arena',
-      'foto inspección final',
-      'foto de extracción de piedras',
+    'foto previa del lugar',
+    'materiales',
+    'foto excavación',
+    'camiones de arena',
+    'sistema instalado',
+    'extracción de piedras',
+    'camiones de tierra',
+    'inspeccion final'
     ];
     if (!validStages.includes(stage)) {
       return res.status(400).json({ error: true, message: 'Etapa no válida' });
     }
 
-    // Crear el registro de la imagen
-    const imageRecord = await Image.create({
+    const cloudinaryResult = await uploadBufferToCloudinary(req.file.buffer, {
+      folder: `works/${idWork}/${stage}`,
+      resource_type: "image"
+    });
+
+    await Image.create({
       idWork,
       stage,
-      imageData: image, // Guardar la imagen en Base64
-      dateTime: dateTime, // Guardar la fecha y hora
-      comment: comment, // Guardar el comentario
+      imageUrl: cloudinaryResult.secure_url,
+      publicId: cloudinaryResult.public_id,
+      dateTime: dateTime,
+      comment: comment,
+      truckCount: truckCount,
+    });
+
+    const updatedWork = await Work.findByPk(idWork, {
+      include: [
+        {
+          model: Image,
+          as: 'images',
+          attributes: ['id', 'stage', 'dateTime', 'imageUrl', 'publicId', 'comment', 'truckCount'],
+        },
+        {
+          model: Permit,
+          as: 'Permit', // Asegúrate que el alias 'as' coincida con tu definición de modelo si existe
+          attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'pdfData', 'optionalDocs'],
+        },
+        {
+          model: Inspection,
+          attributes: [
+            'idInspection',
+
+            'type',
+            'status',
+            'dateRequested',
+            'dateCompleted',
+            'notes',
+          ],
+        },
+        {
+          model: InstallationDetail,
+          as: 'installationDetails',
+          attributes: ['idInstallationDetail', 'date', 'extraDetails', 'extraMaterials', 'images'],
+        },
+        {
+          model: MaterialSet,
+          as: 'MaterialSets',
+          attributes: ['idMaterialSet', 'invoiceFile', 'totalCost'],
+        },
+       
+        // ... incluye cualquier otra asociación que UploadScreen pueda necesitar indirectamente
+        // a través de currentWork o sus componentes hijos.
+      ]
     });
 
     res.status(201).json({
-      message: 'Imagen agregada correctamente',
-      imageRecord,
+      message: 'Imagen agregada correctamente a Cloudinary y DB',
+      work: updatedWork
     });
+
   } catch (error) {
-    console.error('Error al agregar imagen al trabajo:', error);
-    res.status(500).json({ error: true, message: 'Error interno del servidor' });
+    if (error instanceof multer.MulterError) {
+        console.error('Error de Multer al agregar imagen:', error);
+        return res.status(400).json({ error: true, message: `Error de Multer: ${error.message}` });
+    } else if (error.http_code && error.http_code === 400) {
+        console.error('Error de Cloudinary (posiblemente formato):', error);
+        return res.status(400).json({ error: true, message: `Error de Cloudinary: ${error.message}` });
+    }
+    console.error('Error general al agregar imagen (Cloudinary):', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor al subir imagen.' });
   }
 };
 
@@ -466,35 +596,30 @@ const deleteImagesFromWork = async (req, res) => {
 
     console.log(`Recibida petición para eliminar imagen ID: ${imageId} del trabajo ID: ${idWork}`);
 
-    // Verificar que el trabajo exista (opcional pero bueno para seguridad)
-    const work = await Work.findByPk(idWork);
-    if (!work) {
-      console.log(`Trabajo no encontrado: ${idWork}`);
-      return res.status(404).json({ error: true, message: 'Trabajo no encontrado' });
-    }
 
-    // Intentar eliminar la imagen por su ID, asegurándose que pertenece al work correcto
-    const result = await Image.destroy({
-      where: {
-        id: imageId,
-        idWork: idWork // Asegura que la imagen pertenezca al trabajo especificado
-      }
+
+   const imageToDelete = await Image.findOne({
+      where: { id: imageId, idWork: idWork }
     });
 
-    // Verificar si se eliminó alguna fila
-    if (result === 0) {
-      console.log(`Imagen no encontrada o no pertenece al trabajo: Imagen ID ${imageId}, Trabajo ID ${idWork}`);
-      // Podría ser 404 Not Found o 403 Forbidden si no pertenece al trabajo
+    if (!imageToDelete) {
       return res.status(404).json({ error: true, message: 'Imagen no encontrada o no pertenece a este trabajo' });
     }
 
-    console.log(`Imagen ID: ${imageId} eliminada exitosamente.`);
-    // Enviar respuesta de éxito sin contenido (estándar para DELETE)
+    // Eliminar de Cloudinary si tiene publicId
+    if (imageToDelete.publicId) {
+      await deleteFromCloudinary(imageToDelete.publicId);
+    }
+
+    // Eliminar de la base de datos
+    await imageToDelete.destroy();
+
+    console.log(`Imagen ID: ${imageId} (Cloudinary public_id: ${imageToDelete.publicId}) eliminada exitosamente.`);
     res.status(204).send();
 
   } catch (error) {
-    console.error('Error al eliminar imagen del trabajo:', error);
-    res.status(500).json({ error: true, message: 'Error interno del servidor al eliminar imagen' });
+    console.error('Error al eliminar imagen (Cloudinary):', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor al eliminar imagen.' });
   }
 };
 

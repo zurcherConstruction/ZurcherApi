@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchWorkById } from "../../Redux/Actions/workActions";
+import { fetchWorkById, updateWork } from "../../Redux/Actions/workActions";
 import { balanceActions } from "../../Redux/Actions/balanceActions";
 import {
   fetchIncomesAndExpensesRequest,
@@ -20,6 +20,17 @@ const WorkDetail = () => {
     loading,
     error,
   } = useSelector((state) => state.work);
+
+  const handleRequestInspection = async () =>{
+    try {
+    
+      await dispatch(updateWork(idWork, { status: "firstInspectionPending" })); // Cambiar el estado a "inspected"
+      // dispatch(fetchWorkById(idWork)); // Refrescar los datos de la obra
+    } catch (error) {
+      console.error("Error al solicitar la inspección:", error);
+    }
+  }
+ 
 
   console.log("Datos de la obra:", work); // Para depuración
   const [selectedImage, setSelectedImage] = useState(null);
@@ -189,11 +200,13 @@ const WorkDetail = () => {
     );
   }
 
-  const groupedImages = work.images.reduce((acc, image) => {
-    if (!acc[image.stage]) acc[image.stage] = [];
-    acc[image.stage].push(image);
-    return acc;
-  }, {});
+  const groupedImages = Array.isArray(work.images) 
+  ? work.images.reduce((acc, image) => {
+      if (!acc[image.stage]) acc[image.stage] = [];
+      acc[image.stage].push(image);
+      return acc;
+    }, {})
+  : {}; 
 
   const pdfUrl = work.Permit?.pdfData //optionalDocs
     ? URL.createObjectURL(
@@ -227,13 +240,28 @@ const WorkDetail = () => {
   return (
     <div className="p-4 bg-gray-100 min-h-screen">
       {/* Título principal con dirección y estado */}
-      <div className="bg-blue-500 text-white p-6 rounded-lg shadow-md mb-6">
-        <h1 className="text-2xl font-semibold uppercase">
-          {work.propertyAddress}
-        </h1>
-        <p className="text-xl text-slate-800 p-1 uppercase mt-2">
-          <strong>Status:</strong> {work.status}
-        </p>
+      <div className="bg-blue-500 text-white p-6 rounded-lg shadow-md mb-6 flex justify-between items-center">
+        <div> {/* Contenedor para título y estado */}
+          <h1 className="text-2xl font-semibold uppercase">
+            {work.propertyAddress}
+          </h1>
+          <p className="text-xl text-slate-800 p-1 uppercase mt-2 flex items-center"> {/* flex e items-center para alinear el texto de inspección */}
+            <strong>Status:</strong> {work.status}
+            {work.status === 'installed' && (
+              <span className="ml-4 px-3 py-1 bg-yellow-400 text-black text-sm font-bold rounded-full animate-pulse">
+                PEDIR INSPECCIÓN
+              </span>
+            )}
+          </p>
+        </div>
+        {work.status === 'installed' && (
+          <button
+            onClick={handleRequestInspection}
+            className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded shadow-lg transition duration-150 ease-in-out"
+          >
+            Inspección Pedida
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -285,25 +313,40 @@ const WorkDetail = () => {
             )}
           </div>
 
-          {/* Tarjeta: Presupuesto */}
-          {work.budget && (
+               {/* Tarjeta: Presupuesto */}
+               {work.budget && (
             <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-blue-500">
               <h2
-                className="text-xl font-semibold mb-4 cursor-pointer"
+                className="text-xl font-semibold mb-4 cursor-pointer flex justify-between items-center"
                 onClick={() => toggleSection("budget")}
               >
-                Presupuesto
+                <span>Presupuesto</span>
+                <span>{openSections.budget ? "▲" : "▼"}</span>
               </h2>
               {openSections.budget && (
                 <>
-                 
-                  <p>
-                    <strong>Pago Inicial:</strong> ${work.budget.initialPayment}
+                  {/* Total */}
+                  <p className="mb-1">
+                    <strong>Total Presupuesto:</strong> ${parseFloat(work.budget.totalPrice || 0).toFixed(2)}
                   </p>
-                  <p>
-                    <strong>Fecha:</strong> {work.budget.date}
+
+                  {/* Pago Inicial */}
+                  <p className="mb-1 text-green-700">
+                    <strong>Pago Inicial ({work.budget.initialPaymentPercentage || 0}%):</strong> ${parseFloat(work.budget.initialPayment || 0).toFixed(2)}
                   </p>
-                  <p>
+
+                  {/* Restante */}
+                  <p className="mb-1 text-orange-700">
+                    <strong>Restante ({100 - (work.budget.initialPaymentPercentage || 0)}%):</strong> ${
+                      (parseFloat(work.budget.totalPrice || 0) - parseFloat(work.budget.initialPayment || 0)).toFixed(2)
+                    }
+                  </p>
+
+                  {/* Otros Datos */}
+                  <p className="mt-3 text-sm text-gray-600">
+                    <strong>Fecha:</strong> {new Date(work.budget.date).toLocaleDateString()}
+                  </p>
+                  <p className="text-sm text-gray-600">
                     <strong>Estado:</strong> {work.budget.status}
                   </p>
                 </>
@@ -392,36 +435,63 @@ const WorkDetail = () => {
               Imágenes de la Obra
             </h2>
             {openSections.images &&
-              Object.entries(groupedImages).map(([stage, images]) => (
-                <div key={stage} className="mb-6">
-                  <h3 className="text-sm text-white bg-indigo-900 p-1 text-center uppercase font-semibold mb-2">
-                    {stage}
-                  </h3>
-                  <div className="flex overflow-x-auto space-x-4">
-                    {images.map((image) => (
-                      <div
-                        key={image.id}
-                        className="flex-shrink-0 cursor-pointer"
-                        onClick={() => setSelectedImage(image)}
-                      >
-                        <img
-                          src={`data:image/jpeg;base64,${image.imageData}`}
-                          alt={stage}
-                          className="w-24 h-24 object-cover rounded-md shadow"
-                        />
-                        <p className="text-sm text-center mt-2">
-                          {image.dateTime}
-                        </p>
-                        <p className="text-sm text-center mt-2">
-                          {image.comment}
+              Object.entries(groupedImages).map(([stage, images]) => {
+                const truckSumStages = ['camiones de arena', 'camiones de tierra'];
+                let totalTrucksInStage = 0;
+
+                if (truckSumStages.includes(stage)) {
+                  totalTrucksInStage = images.reduce((sum, image) => {
+                    return sum + (Number(image.truckCount) || 0);
+                  }, 0);
+                }
+
+                return (
+                  <div key={stage} className="mb-6">
+                    <h3 className="text-sm text-white bg-indigo-900 p-1 text-center uppercase font-semibold mb-2">
+                      {stage}
+                    </h3>
+                    <div className="flex overflow-x-auto space-x-4 p-2">
+                      {images.map((image) => (
+                        <div
+                          key={image.id}
+                          className="flex-shrink-0 cursor-pointer bg-gray-50 p-2 rounded-lg shadow hover:shadow-md transition-shadow"
+                          onClick={() => setSelectedImage(image)}
+                        >
+                          <img
+                            src={image.imageUrl}
+                            alt={stage}
+                            className="w-24 h-24 object-cover rounded-md shadow"
+                          />
+                          <p className="text-xs text-gray-500 mt-1 truncate" title={image.dateTime}>
+                            {image.dateTime ? new Date(image.dateTime).toLocaleString() : 'Sin fecha'}
+                          </p>
+                          {(stage === 'camiones de arena' || stage === 'camiones de tierra') && image.truckCount != null && image.truckCount > 0 && (
+                            <p className="text-xs font-semibold text-blue-600 mt-1">
+                              {image.truckCount} {image.truckCount === 1 ? 'Camión' : 'Camiones'}
+                            </p>
+                          )}
+                          {image.comment && (
+                            <p className="text-xs text-gray-600 mt-1 italic truncate max-w-[96px]" title={image.comment}>
+                              "{image.comment}"
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    {truckSumStages.includes(stage) && totalTrucksInStage > 0 && (
+                      <div className="mt-3 text-right pr-2">
+                        <p className="text-xl font-bold text-indigo-700 bg-indigo-100 px-4 py-2 rounded-full inline-block shadow-lg">
+                          Total Camiones: {totalTrucksInStage}
                         </p>
                       </div>
-                    ))}
+                    )}
                   </div>
-                </div>
-              ))}
-          </div>
+                ) 
+              })}
+       </div>
         </div>
+
+
 
         {/* Columna derecha: Tarjetas de gastos e ingresos */}
         <div className="space-y-6">
@@ -621,27 +691,42 @@ const WorkDetail = () => {
       {/* Modal para mostrar la imagen ampliada */}
       {selectedImage && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
-          onClick={() => setSelectedImage(null)} // Cerrar el modal al hacer clic fuera de la imagen
+          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" // Añadido p-4 para dar espacio alrededor
+          onClick={(e) => {
+            // Cerrar solo si se hace clic en el fondo, no en el contenido del modal
+            if (e.target === e.currentTarget) {
+              setSelectedImage(null);
+            }
+          }}
         >
-          <div className="relative bg-white p-4 rounded shadow-lg">
-            <img
-              src={`data:image/jpeg;base64,${selectedImage.imageData}`}
-              alt="Imagen ampliada"
-              className="max-w-full max-h-screen rounded"
-            />
-            <p className="text-center mt-2">{selectedImage.dateTime}</p>
-            <div className="flex justify-between mt-4">
+          {/* Contenedor del contenido del modal */}
+          <div 
+            className="relative bg-white p-4 rounded shadow-lg flex flex-col max-h-[90vh] w-auto max-w-3xl" // max-h-[90vh] para limitar altura, w-auto y max-w-3xl para ancho responsivo
+            onClick={(e) => e.stopPropagation()} // Evitar que el clic se propague al fondo
+          >
+            {/* Contenedor de la imagen con scroll si es necesario */}
+            <div className="overflow-y-auto flex-grow mb-4"> 
+              <img
+                src={selectedImage.imageUrl}
+                alt="Imagen ampliada"
+                className="w-full h-auto object-contain rounded" // h-auto para mantener proporción, object-contain para asegurar que se vea completa
+              />
+            </div>
+            <p className="text-center text-sm text-gray-600">{selectedImage.dateTime}</p>
+            {selectedImage.comment && (
+              <p className="text-center text-xs text-gray-500 mt-1 italic">"{selectedImage.comment}"</p>
+            )}
+            <div className="flex justify-around mt-4 pt-4 border-t"> {/* justify-around para espaciar botones */}
               <button
-                className="bg-red-500 text-white px-4 py-2 rounded"
-                onClick={() => setSelectedImage(null)} // Cerrar el modal
+                className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-6 py-2 rounded text-sm"
+                onClick={() => setSelectedImage(null)}
               >
                 Cerrar
               </button>
               <a
-                href={`data:image/jpeg;base64,${selectedImage.imageData}`}
-                download={`imagen_${selectedImage.id}.jpg`}
-                className="bg-blue-500 text-white px-4 py-2 rounded"
+                href={selectedImage.imageUrl}
+                download={`imagen_${selectedImage.id}_${selectedImage.stage}.jpg`} // Nombre de descarga más descriptivo
+                className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded text-sm"
               >
                 Descargar
               </a>
@@ -650,7 +735,7 @@ const WorkDetail = () => {
         </div>
       )}
     </div>
-  );
+  )
 };
 
 export default WorkDetail;

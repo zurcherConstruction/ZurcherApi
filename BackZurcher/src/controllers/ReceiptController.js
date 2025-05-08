@@ -30,7 +30,8 @@ const createReceipt = async (req, res) => {
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder: 'zurcher_receipts',
-        resource_type: 'auto'
+        resource_type: req.file.mimetype === 'application/pdf' ? 'raw' : 'auto',
+        access_mode: 'public'
       },
       // --- INICIO CALLBACK CLOUDINARY ---
       async (error, result) => {

@@ -5,7 +5,7 @@ import {
   updateBudget,
   // uploadInvoice, // Ya no se usa aquí si se eliminó handleUploadPayment
 } from "../../Redux/Actions/budgetActions";
-import { DocumentArrowDownIcon, EyeIcon } from '@heroicons/react/24/outline'; // Icono para descarga
+import { DocumentArrowDownIcon, EyeIcon, PencilIcon, CheckIcon, XMarkIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'; // Icono para descarga
 //import BudgetPDF from "./BudgetPDF";
 import { parseISO,  format } from "date-fns";
 import api from "../../utils/axios";
@@ -18,7 +18,12 @@ const BudgetList = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 console.log("Presupuestos:", budgets); // Verifica si los presupuestos se están obteniendo correctamente
- 
+  // --- NUEVO ESTADO PARA EDICIÓN DE NOTAS ---
+  const [editingBudgetId, setEditingBudgetId] = useState(null); // ID del budget en edición
+  const [currentNote, setCurrentNote] = useState(''); // Valor actual de la nota en el editor
+  const [isSavingNote, setIsSavingNote] = useState(false); // Para feedback visual al guardar
+  // --- FIN NUEVO ESTADO ---
+
 const [downloadingPdfId, setDownloadingPdfId] = useState(null); // Estado para indicar descarga
 const [viewingPdfId, setViewingPdfId] = useState(null);
 
@@ -140,6 +145,45 @@ useEffect(() => {
       setViewingPdfId(null); // Dejar de indicar carga
     }
   };
+
+    // --- NUEVAS FUNCIONES PARA MANEJAR LA EDICIÓN DE NOTAS ---
+
+    const handleEditNoteClick = (budget) => {
+      setEditingBudgetId(budget.idBudget);
+      setCurrentNote(budget.generalNotes || ''); // Cargar nota actual o string vacío
+    };
+  
+    const handleNoteChange = (event) => {
+      setCurrentNote(event.target.value);
+    };
+  
+    const handleCancelEditNote = () => {
+      setEditingBudgetId(null);
+      setCurrentNote('');
+      setIsSavingNote(false);
+    };
+  
+    const handleSaveNote = async () => {
+      if (editingBudgetId === null) return;
+      setIsSavingNote(true); // Indicar que se está guardando
+  
+      try {
+        // Despachar la acción para actualizar solo las notas
+        await dispatch(updateBudget(editingBudgetId, { generalNotes: currentNote }));
+        console.log(`Notas actualizadas para Budget ID: ${editingBudgetId}`);
+        // Opcional: Refrescar la lista completa o confiar en que el estado se actualice
+        // dispatch(fetchBudgets()); // Descomentar si es necesario forzar refresco
+        handleCancelEditNote(); // Salir del modo edición
+      } catch (error) {
+        console.error("Error al guardar las notas:", error);
+        alert("Error al guardar las notas: " + (error.message || "Error desconocido"));
+        // Mantener en modo edición para que el usuario pueda reintentar o cancelar
+      } finally {
+        setIsSavingNote(false); // Terminar indicación de guardado
+      }
+    };
+  
+    // --- FIN NUEVAS FUNCIONES ---
   
 
 
@@ -223,24 +267,101 @@ useEffect(() => {
                   <th className="border border-gray-300 px-4 py-2 text-center">Status</th>
                   <th className="border border-gray-300 px-4 py-2 text-left">Address</th>
                   <th className="border border-gray-300 px-4 py-2 text-left">System</th>
+                  <th className="border border-gray-300 px-4 py-2 text-left">Notes</th>
                   <th className="border border-gray-300 px-4 py-2 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {currentBudgetsForDisplay.map((budget) => (
-                  <tr
-                    key={budget.idBudget}
-                    className={`hover:bg-gray-100 ${getStatusColor(budget.status)}`}
-                  >
-                   
-                    <td className="border border-gray-300 px-4 py-2 text-xs">{budget.applicantName}</td>
+                {currentBudgetsForDisplay.map((budget) => {
+                  let permitExpirationAlertIcon = null;
+                  const permitExpStatus = budget.Permit?.expirationStatus || budget.permitExpirationStatus;
+                  const permitExpMessage = budget.Permit?.expirationMessage || budget.permitExpirationMessage;
+
+                  if (permitExpStatus === "expired" || permitExpStatus === "soon_to_expire") {
+                    const isError = permitExpStatus === "expired";
+                    const alertColorClass = isError ? "text-red-500" : "text-yellow-500";
+                    const pingColorClass = isError ? "bg-red-400" : "bg-yellow-400";
+                    const alertMessage = permitExpMessage || (isError ? "Permiso Vencido" : "Permiso Próximo a Vencer");
+                    
+                    permitExpirationAlertIcon = (
+                      <span 
+                        title={alertMessage} 
+                        className="relative ml-2 cursor-help inline-flex items-center justify-center h-5 w-5" // Explicit size for table icon container
+                      >
+                        <span className={`absolute inline-flex h-full w-full rounded-full ${pingColorClass} opacity-75 animate-ping`}></span>
+                        <ExclamationTriangleIcon className={`relative z-10 inline-flex h-5 w-5 ${alertColorClass}`} /> {/* z-10 and explicit size */}
+                      </span>
+                    );
+                  }
+
+                  return (
+                    <tr
+                      key={budget.idBudget}
+                      className={`hover:bg-gray-100 ${getStatusColor(budget.status)}`}
+                    >
+                      <td className="border border-gray-300 px-4 py-2 text-xs">
+                        <div className="flex items-center">
+                          <span>{budget.applicantName}</span>
+                          {permitExpirationAlertIcon}
+                        </div>
+                      </td>
                     <td className="border border-gray-300 px-4 py-2 text-xs">{formatDate(budget.date)}</td>
                     <td className="border border-gray-300 px-4 py-2 text-xs">{budget.expirationDate ? formatDate(budget.expirationDate) : "N/A"}</td>
                     <td className="border border-gray-300 px-4 py-2 text-xs text-right">${budget.totalPrice}</td>
                     <td className="border border-gray-300 px-4 py-2 text-xs text-right">${budget.initialPayment}</td>
                     <td className="border border-gray-300 px-4 py-2 text-xs text-center">{budget.status}</td>
                     <td className="border border-gray-300 px-4 py-2 text-xs">{budget.propertyAddress || "N/A"}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-xs"> {budget.Permit?.systemType || "N/A"}</td>
+                    <td className="border border-gray-300 px-4 py-2 text-xs"> {budget.Permit?.systemType || budget.systemType || "N/A"}</td>
+                    <td className="border border-gray-300 px-4 py-2 text-xs align-top">
+                      {editingBudgetId === budget.idBudget ? (
+                        <div className="flex flex-col">
+                          <textarea
+                            value={currentNote}
+                            onChange={handleNoteChange}
+                            className="w-full p-1 border rounded text-xs resize-y min-h-[50px]" // textarea en lugar de input
+                            rows={3} // Altura inicial
+                            disabled={isSavingNote} // Deshabilitar mientras guarda
+                          />
+                          <div className="flex justify-end space-x-1 mt-1">
+                            <button
+                              onClick={handleSaveNote}
+                              disabled={isSavingNote}
+                              className="p-1 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                              title="Save Notes"
+                            >
+                              {isSavingNote ? (
+                                <svg className="animate-spin h-4 w-4 text-white" /* ... spinner ... */ ></svg>
+                              ) : (
+                                <CheckIcon className="h-4 w-4" />
+                              )}
+                            </button>
+                            <button
+                              onClick={handleCancelEditNote}
+                              disabled={isSavingNote}
+                              className="p-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
+                              title="Cancel Edit"
+                            >
+                              <XMarkIcon className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        // Modo Visualización
+                        <div className="flex justify-between items-start">
+                          <span className="whitespace-pre-wrap break-words max-w-[200px]"> {/* Permitir saltos de línea y limitar ancho */}
+                            {budget.generalNotes || <span className="text-gray-400 italic">No notes</span>}
+                          </span>
+                          <button
+                            onClick={() => handleEditNoteClick(budget)}
+                            className="ml-2 p-1 text-blue-600 hover:text-blue-800"
+                            title="Edit Notes"
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                    {/* --- FIN CELDA DE NOTAS --- */}
                     <td className="border border-gray-300 px-4 py-2">
                       <div className="flex items-center justify-center space-x-2"> 
 
@@ -334,28 +455,49 @@ useEffect(() => {
                       </div> 
                     </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>
 
-          {/* Tarjetas para pantallas pequeñas */}
           <div className="block lg:hidden space-y-4">
             {currentBudgetsForDisplay.map((budget) => {
-              // --- INICIO CAMBIO: Determinar etiqueta de pago ---
-              let paymentLabel = `Pay ${budget.initialPaymentPercentage || 60}%`; // Default o valor guardado
-              if (budget.initialPaymentPercentage === 100) {
-                paymentLabel = `Pay 100%`; // Etiqueta específica para 100%
+              let paymentLabel = `Pay ${budget.initialPaymentPercentage || 60}%`;
+              if (budget.initialPaymentPercentage === 100 || String(budget.initialPaymentPercentage).toLowerCase() === 'total') {
+                paymentLabel = `Pay 100%`;
               }
-              // --- FIN CAMBIO ---
 
+              let permitExpirationAlertIconCard = null;
+              const permitExpStatus = budget.Permit?.expirationStatus || budget.permitExpirationStatus;
+              const permitExpMessage = budget.Permit?.expirationMessage || budget.permitExpirationMessage;
+
+              if (permitExpStatus === "expired" || permitExpStatus === "soon_to_expire") {
+                const isError = permitExpStatus === "expired";
+                const alertColorClass = isError ? "text-red-500" : "text-yellow-500";
+                const pingColorClass = isError ? "bg-red-400" : "bg-yellow-400";
+                const alertMessage = permitExpMessage || (isError ? "Permiso Vencido" : "Permiso Próximo a Vencer");
+                
+                permitExpirationAlertIconCard = (
+                  <span 
+                    title={alertMessage} 
+                    className="relative ml-2 cursor-help inline-flex items-center justify-center h-6 w-6" // Explicit size for card icon container
+                  >
+                    <span className={`absolute inline-flex h-full w-full rounded-full ${pingColorClass} opacity-75 animate-ping`}></span>
+                    <ExclamationTriangleIcon className={`relative z-10 inline-flex h-6 w-6 ${alertColorClass}`} /> {/* z-10 and explicit size */}
+                  </span>
+                );
+              }
+              
               return (
-              <div
-                key={budget.idBudget}
-                className={`border border-gray-300 rounded-lg p-4 shadow-md ${getStatusColor(budget.status)}`}
-              >
-                {/* ... (detalles del presupuesto sin cambios) ... */}
-                <p className="text-sm font-semibold text-gray-700">Applicant: {budget.applicantName}</p>
+                <div
+                  key={budget.idBudget} // Ensure key is on the outermost element of the map
+                  className={`border border-gray-300 rounded-lg p-4 shadow-md ${getStatusColor(budget.status)}`}
+                >
+                  <p className="text-sm font-semibold text-gray-700 flex items-center">
+                    Applicant: {budget.applicantName}
+                    {permitExpirationAlertIconCard}
+                  </p>
+               
                 <p className="text-xs text-gray-600">Date: {formatDate(budget.date)}</p>
                 <p className="text-xs text-gray-600">End Date: {budget.expirationDate ? formatDate(budget.expirationDate) : "N/A"}</p>
                 <p className="text-xs text-gray-600">Price: ${budget.totalPrice}</p>

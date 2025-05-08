@@ -37,12 +37,61 @@ const createPermit = async (req, res, next) => {
       pump,
     } = req.body;
 
+    let expirationStatus = "valid"; // Estado por defecto
+    let expirationMessage = "";
+
+    if (expirationDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); 
+      
+      const expDateParts = expirationDate.split('-');
+      // Asegurarse de que los componentes de la fecha son números válidos
+      const year = parseInt(expDateParts[0], 10);
+      const month = parseInt(expDateParts[1], 10) -1; // Mes es 0-indexado en JS Date
+      const day = parseInt(expDateParts[2], 10);
+
+      if (isNaN(year) || isNaN(month) || isNaN(day) || month < 0 || month > 11 || day < 1 || day > 31) {
+         // Si la fecha no es válida, podrías decidir qué hacer.
+         // Por ahora, la dejaremos como 'valid' y el frontend/DB podría manejar el error de formato.
+         // O podrías devolver un error aquí si el formato es estrictamente necesario.
+         console.warn(`Fecha de expiración con formato inválido recibida: ${expirationDate}`);
+         // Alternativamente, podrías forzar un error:
+         // return res.status(400).json({
+         //   error: true,
+         //   message: `La fecha de expiración proporcionada ('${expirationDate}') no es válida.`
+         // });
+      } else {
+        const expDate = new Date(year, month, day);
+        expDate.setHours(0,0,0,0);
+
+        if (isNaN(expDate.getTime())) {
+          // Esto podría ocurrir si, por ejemplo, se pasa '2023-02-30'
+          console.warn(`Fecha de expiración inválida (post-parse): ${expirationDate}`);
+          // Considera devolver un error si la fecha es completamente inválida
+        } else {
+          if (expDate < today) {
+            expirationStatus = "expired";
+            expirationMessage = `El permiso expiró el ${expDate.toLocaleDateString()}.`;
+            console.warn(`Advertencia Backend: ${expirationMessage}`);
+          } else {
+            const thirtyDaysFromNow = new Date(today);
+            thirtyDaysFromNow.setDate(today.getDate() + 30);
+            if (expDate <= thirtyDaysFromNow) {
+              expirationStatus = "soon_to_expire";
+              expirationMessage = `El permiso expira el ${expDate.toLocaleDateString()} (pronto a vencer).`;
+              console.warn(`Advertencia Backend: ${expirationMessage}`);
+            }
+          }
+        }
+      }
+    }
+
     // Manejar los archivos enviados
     const pdfData = req.files?.pdfData ? req.files.pdfData[0].buffer : null; // Archivo principal
     const optionalDocs = req.files?.optionalDocs ? req.files.optionalDocs[0].buffer : null; // Documentación opcional
 
     // Crear el permiso en la base de datos
-    const permit = await Permit.create({
+    const permitDataToCreate = {
       permitNumber,
       applicationNumber,
       applicantName,
@@ -59,7 +108,7 @@ const createPermit = async (req, res, next) => {
       configuration,
       locationBenchmark,
       drainfieldDepth,
-      expirationDate,
+      expirationDate: expirationDate || null,
       dosingTankCapacity,
       gpdCapacity,
       excavationRequired,
@@ -67,13 +116,26 @@ const createPermit = async (req, res, next) => {
       other,
       pump,
       pdfData,
-      optionalDocs, // Guardar la documentación opcional
-    });
+      optionalDocs,
+    };
+
+    const permit = await Permit.create(permitDataToCreate);
 
     console.log("Permiso creado correctamente:", permit.idPermit);
-    res.status(201).json(permit);
+    
+    // Añadir el estado de expiración a la respuesta
+    const permitResponse = permit.get({ plain: true });
+    permitResponse.expirationStatus = expirationStatus;
+    if (expirationMessage) {
+      permitResponse.expirationMessage = expirationMessage;
+    }
+
+    res.status(201).json(permitResponse);
   } catch (error) {
-    console.error("Error al crear el permiso (en controller):", error.name);
+    console.error("Error al crear el permiso (en controller):", error.message, error.stack);
+    if (error.name === 'SequelizeDatabaseError' && error.original?.code === '22007') { 
+        return res.status(400).json({ error: true, message: "El formato de la fecha de expiración es incorrecto para la base de datos."});
+    }
     next(error);
   }
 };
@@ -92,19 +154,73 @@ const getPermits = async (req, res) => {
 };
 
 // Obtener un permiso por ID
-const getPermitById = async (req, res) => {
+const getPermitById = async (req, res, next) => { // Asegúrate de tener next si usas un manejador de errores global
   try {
     const { idPermit } = req.params;
-    const permit = await Permit.findByPk(idPermit);
+    const permitInstance = await Permit.findByPk(idPermit);
 
-    if (!permit) {
+    if (!permitInstance) {
       return res.status(404).json({ error: true, message: 'Permiso no encontrado' });
     }
+
+    const permit = permitInstance.get({ plain: true }); // Obtener objeto plano para modificarlo
+
+    let expirationStatus = "valid";
+    let expirationMessage = "";
+
+    if (permit.expirationDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); 
+
+      // permit.expirationDate de Sequelize es un string 'YYYY-MM-DD' o un objeto Date
+      // Normalizar a string 'YYYY-MM-DD' para parseo consistente
+      const expirationDateString = typeof permit.expirationDate === 'string' 
+                                  ? permit.expirationDate.split('T')[0] 
+                                  : new Date(permit.expirationDate).toISOString().split('T')[0];
+      
+      const expDateParts = expirationDateString.split('-');
+      const year = parseInt(expDateParts[0], 10);
+      const month = parseInt(expDateParts[1], 10) - 1; // Mes es 0-indexado en JS Date
+      const day = parseInt(expDateParts[2], 10);
+
+      if (!isNaN(year) && !isNaN(month) && !isNaN(day) && month >= 0 && month <= 11 && day >= 1 && day <= 31) {
+        const expDate = new Date(year, month, day);
+        expDate.setHours(0,0,0,0);
+
+        if (!isNaN(expDate.getTime())) {
+          if (expDate < today) {
+            expirationStatus = "expired";
+            expirationMessage = `El permiso asociado expiró el ${expDate.toLocaleDateString()}. No se debería crear un presupuesto.`;
+          } else {
+            const thirtyDaysFromNow = new Date(today);
+            thirtyDaysFromNow.setDate(today.getDate() + 30);
+            if (expDate <= thirtyDaysFromNow) {
+              expirationStatus = "soon_to_expire";
+              expirationMessage = `El permiso asociado expira el ${expDate.toLocaleDateString()} (pronto a vencer).`;
+            }
+          }
+        } else {
+          console.warn(`Fecha de expiración inválida (post-parse) para permit ${idPermit}: ${expirationDateString}`);
+        }
+      } else {
+        console.warn(`Formato de fecha de expiración inválido para permit ${idPermit}: ${expirationDateString}`);
+      }
+    }
+
+    // Añadir el estado de expiración al objeto permit que se devuelve
+    permit.expirationStatus = expirationStatus;
+    permit.expirationMessage = expirationMessage;
 
     res.status(200).json(permit);
   } catch (error) {
     console.error('Error al obtener el permiso:', error);
-    res.status(500).json({ error: true, message: 'Error interno del servidor' });
+    // Si tienes un manejador de errores global, usa next(error)
+    // De lo contrario, envía una respuesta de error
+    if (next) {
+      next(error);
+    } else {
+      res.status(500).json({ error: true, message: 'Error interno del servidor' });
+    }
   }
 };
 

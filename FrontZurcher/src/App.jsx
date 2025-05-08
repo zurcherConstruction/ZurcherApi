@@ -44,6 +44,7 @@ import UploadInitialPay from "./Components/Budget/UploadInitialPay";
 import PriceBudgetManagement from "./Components/Budget/PriceBudgetManagement";
 import ItemsBudgets from "./Components/Budget/ItemsBudgets";
 import EditBudget from "./Components/Budget/EditBudget";
+import Summary from "./Components/Summary";
 
 function App() {
   const dispatch = useDispatch();
@@ -269,6 +270,14 @@ function App() {
               }
             />
 
+<Route
+              path="/summary"
+              element={
+                <PrivateRoute allowedRoles={["owner"]}>
+                  <Summary />
+                </PrivateRoute>
+              }
+            />
             {/* Rutas de autenticación */}
             <Route path="/login" element={<Login />} />
             <Route path="/unauthorized" element={<Unauthorized />} />

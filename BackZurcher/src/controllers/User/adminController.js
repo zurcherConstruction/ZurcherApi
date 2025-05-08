@@ -2,6 +2,9 @@ const { Staff } = require('../../data');
 const { CustomError } = require('../../middleware/error');
 const { catchedAsync } = require('../../utils/catchedAsync');
 const bcrypt = require('bcrypt');
+const {uploadBufferToCloudinary, deleteFromCloudinary} = require('../../utils/cloudinaryUploader');
+
+
 
 const getAllStaff = async (req, res) => {
     const staffers = await Staff.findAll({
@@ -16,95 +19,182 @@ const getAllStaff = async (req, res) => {
     });
 };
 
-const createStaff = async (req, res) => {
-    const {name, email, password, role, phone, ...staffData } = req.body;
+const createStaff = async (req, res, next) => { // Añadido next para manejo de errores con Cloudinary
+    let idFrontCloudinaryResult = null;
+    let idBackCloudinaryResult = null;
+    try {
+        const { name, email, password, role, phone, address, ...staffData } = req.body; // Añadido address
 
-    // Validar rol permitido
-    const allowedRoles = [ 'recept', 'admin', 'owner', 'worker'];
-    if (!allowedRoles.includes(role)) {
-        throw new CustomError('Rol no válido para staff', 400);
-    }
+        // Los archivos estarán en req.files gracias a multer
+        const idFrontImageFile = req.files && req.files.idFrontImage ? req.files.idFrontImage[0] : null;
+        const idBackImageFile = req.files && req.files.idBackImage ? req.files.idBackImage[0] : null;
 
-    // Verificar email único
-    const existingStaff = await Staff.findOne({ where: { email } });
-    if (existingStaff) {
-        throw new CustomError('El correo ya está registrado', 400);
-    }
+ // Validar campos requeridos
+ if (!name || !email || !password || !role) {
+    throw new CustomError('Nombre, email, contraseña y rol son requeridos', 400);
+}
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    
-    const newStaff = await Staff.create({
-        ...staffData,
-        name,
-        email,
-        password: hashedPassword,
-        role,
-        phone,
-        isActive: true,
-        createdBy: req.staff.id
-    });
+const lowercasedEmail = email.toLowerCase();
 
-    // Remove password from response
-    const staffResponse = { ...newStaff.toJSON() };
-    delete staffResponse.password;
-
-    res.status(201).json({
-        error: false,
-        message: 'Usuario staff creado exitosamente',
-        data: staffResponse
-    });
-};
-
-const updateStaff = async (req, res) => {
-    const { id } = req.params;
-    const { name, email, role, phone, password, ...updateData } = req.body;
-
-    // Buscar al usuario en la base de datos
-    const staff = await Staff.findByPk(id);
-    if (!staff) {
-        throw new CustomError('Staff no encontrado', 404);
-    }
-
-    // Verificar email único si se está actualizando
-    if (email && email !== staff.email) {
-        const existingEmail = await Staff.findOne({ where: { email } });
-        if (existingEmail) {
-            throw new CustomError('El correo ya está en uso', 400);
+        // Validar rol permitido
+        const allowedRoles = ['recept', 'admin', 'owner', 'worker'];
+        if (!role || !allowedRoles.includes(role)) { // Asegúrate que 'role' venga en req.body
+            throw new CustomError('Rol no válido o no proporcionado para staff', 400);
         }
+
+        // Verificar email único
+        const existingStaff = await Staff.findOne({ where: { email, deletedAt: null } });
+        if (existingStaff) {
+            throw new CustomError('El correo ya está registrado', 400);
+        }
+
+        let idFrontUrl, idFrontPublicId, idBackUrl, idBackPublicId;
+
+        if (idFrontImageFile) {
+            idFrontCloudinaryResult = await uploadBufferToCloudinary(idFrontImageFile.buffer, { folder: 'staff_ids' });
+            idFrontUrl = idFrontCloudinaryResult.secure_url;
+            idFrontPublicId = idFrontCloudinaryResult.public_id;
+        }
+
+        if (idBackImageFile) {
+            idBackCloudinaryResult = await uploadBufferToCloudinary(idBackImageFile.buffer, { folder: 'staff_ids' });
+            idBackUrl = idBackCloudinaryResult.secure_url;
+            idBackPublicId = idBackCloudinaryResult.public_id;
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const newStaff = await Staff.create({
+            ...staffData,
+            name,
+            email: lowercasedEmail,
+            password: hashedPassword,
+            role,
+            phone,
+            address, // Guardar dirección
+            idFrontUrl,
+            idFrontPublicId,
+            idBackUrl,
+            idBackPublicId,
+            isActive: true, // O según la lógica de 'isActive' que viene en staffData
+            createdBy: req.staff.id // Asumiendo que req.staff.id está disponible por verifyToken
+        });
+
+        const staffResponse = { ...newStaff.toJSON() };
+        delete staffResponse.password;
+
+        res.status(201).json({
+            error: false,
+            message: 'Usuario staff creado exitosamente',
+            data: staffResponse
+        });
+    } catch (error) {
+        // Limpieza de Cloudinary si falla la creación del staff
+        if (idFrontCloudinaryResult && idFrontCloudinaryResult.public_id) {
+            try { await deleteFromCloudinary(idFrontCloudinaryResult.public_id); } catch (e) { console.error("Error cleaning front ID", e); }
+        }
+        if (idBackCloudinaryResult && idBackCloudinaryResult.public_id) {
+            try { await deleteFromCloudinary(idBackCloudinaryResult.public_id); } catch (e) { console.error("Error cleaning back ID", e); }
+        }
+        next(error); // Pasa el error al manejador de errores global
     }
-
-    // Validar rol si se está actualizando
-    const allowedRoles = ['admin', 'recept', 'worker', 'owner'];
-    if (role && !allowedRoles.includes(role)) {
-        throw new CustomError('Rol no válido para staff', 400);
-    }
-
-    // Si se proporciona una nueva contraseña, encriptarla
-    if (password) {
-        const salt = await bcrypt.genSalt(10);
-        updateData.password = await bcrypt.hash(password, salt);
-    }
-
-    // Actualizar los datos del usuario
-    await staff.update({
-        ...updateData,
-        name,
-        email,
-        role,
-        phone,
-        updatedBy: req.staff.id,
-    });
-
-    // Eliminar la contraseña del objeto de respuesta
-    const staffResponse = { ...staff.toJSON() };
-    delete staffResponse.password;
-
-    res.json({
-        error: false,
-        message: 'Usuario actualizado exitosamente',
-        data: staffResponse,
-    });
 };
+
+const updateStaff = async (req, res, next) => { // Añadido next
+    const { id } = req.params;
+    let idFrontCloudinaryResult = null;
+    let idBackCloudinaryResult = null;
+    let oldFrontPublicId = null;
+    let oldBackPublicId = null;
+
+    try {
+        const { name, email, role, phone, password, address, isActive, ...updateData } = req.body;
+
+        const staffToUpdate = await Staff.findByPk(id);
+        if (!staffToUpdate) {
+            throw new CustomError('Staff no encontrado', 404);
+        }
+
+        oldFrontPublicId = staffToUpdate.idFrontPublicId; // Guardar IDs antiguos para posible borrado
+        oldBackPublicId = staffToUpdate.idBackPublicId;
+
+        // Los archivos estarán en req.files gracias a multer
+        const idFrontImageFile = req.files && req.files.idFrontImage ? req.files.idFrontImage[0] : null;
+        const idBackImageFile = req.files && req.files.idBackImage ? req.files.idBackImage[0] : null;
+
+        if (email && email !== staffToUpdate.email) {
+            const existingEmail = await Staff.findOne({ where: { email, id: { [Op.ne]: id }, deletedAt: null } });
+            if (existingEmail) {
+                throw new CustomError('El correo ya está en uso por otro staff', 400);
+            }
+            staffToUpdate.email = email;
+        }
+
+        const allowedRoles = ['admin', 'recept', 'worker', 'owner'];
+        if (role && !allowedRoles.includes(role)) {
+            throw new CustomError('Rol no válido para staff', 400);
+        }
+        if(role) staffToUpdate.role = role;
+
+
+        if (password) {
+            staffToUpdate.password = await bcrypt.hash(password, 10);
+        }
+
+        if (idFrontImageFile) {
+            idFrontCloudinaryResult = await uploadBufferToCloudinary(idFrontImageFile.buffer, { folder: 'staff_ids' });
+            staffToUpdate.idFrontUrl = idFrontCloudinaryResult.secure_url;
+            staffToUpdate.idFrontPublicId = idFrontCloudinaryResult.public_id;
+        }
+
+        if (idBackImageFile) {
+            idBackCloudinaryResult = await uploadBufferToCloudinary(idBackImageFile.buffer, { folder: 'staff_ids' });
+            staffToUpdate.idBackUrl = idBackCloudinaryResult.secure_url;
+            staffToUpdate.idBackPublicId = idBackCloudinaryResult.public_id;
+        }
+
+        // Actualizar otros campos
+        if (name) staffToUpdate.name = name;
+        if (phone) staffToUpdate.phone = phone;
+        if (address) staffToUpdate.address = address;
+        if (isActive !== undefined && typeof isActive === 'boolean') { // Manejar isActive explícitamente
+            staffToUpdate.isActive = isActive;
+        }
+        
+        // Sobrescribir cualquier otro dato de updateData si es necesario
+        // Object.assign(staffToUpdate, updateData); // Cuidado con esto, podría sobrescribir campos no deseados
+
+        staffToUpdate.updatedBy = req.staff.id;
+        await staffToUpdate.save();
+
+        // Borrar imágenes antiguas de Cloudinary si se subieron nuevas
+        if (idFrontImageFile && oldFrontPublicId && oldFrontPublicId !== staffToUpdate.idFrontPublicId) {
+            try { await deleteFromCloudinary(oldFrontPublicId); } catch (e) { console.error("Error deleting old front ID", e); }
+        }
+        if (idBackImageFile && oldBackPublicId && oldBackPublicId !== staffToUpdate.idBackPublicId) {
+            try { await deleteFromCloudinary(oldBackPublicId); } catch (e) { console.error("Error deleting old back ID", e); }
+        }
+
+        const staffResponse = { ...staffToUpdate.toJSON() };
+        delete staffResponse.password;
+
+        res.json({
+            error: false,
+            message: 'Usuario actualizado exitosamente',
+            data: staffResponse,
+        });
+    } catch (error) {
+        // Si se subieron nuevas imágenes pero falló el guardado, borrarlas
+        if (idFrontCloudinaryResult && idFrontCloudinaryResult.public_id) {
+            try { await deleteFromCloudinary(idFrontCloudinaryResult.public_id); } catch (e) { console.error("Error cleaning new front ID on update failure", e); }
+        }
+        if (idBackCloudinaryResult && idBackCloudinaryResult.public_id) {
+            try { await deleteFromCloudinary(idBackCloudinaryResult.public_id); } catch (e) { console.error("Error cleaning new back ID on update failure", e); }
+        }
+        next(error);
+    }
+};
+
 
 const deactivateOrDeleteStaff = async (req, res) => {
     const { id } = req.params;

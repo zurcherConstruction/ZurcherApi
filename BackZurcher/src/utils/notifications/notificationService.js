@@ -52,7 +52,7 @@ const stateNotificationMap = {
   },
   firstInspectionPending: {
     roles: [ 'admin', 'owner'], 
-    message: (work) => `El trabajo con dirección ${work.propertyAddress} está pendiente de la primera inspección. Por favor, coordina con el inspector.`,
+    message: (work) => `El trabajo con dirección ${work.propertyAddress} está pendiente de la primera inspección. Esperando respuesta del inspector.`,
   },
   approvedInspection: {
     roles: ['worker', 'admin','owner'], 
@@ -92,8 +92,24 @@ const stateNotificationMap = {
   },
   incomeCreated: {
     roles: ['admin', 'owner'],
-    message: (income) => `Se ha registrado un ingreso de $${income.amount} para el Work asociado a la dirección ${income.propertyAddress}.`,
-  },
+    // 'income' ahora tiene las propiedades extra añadidas
+    message: (income) => {
+      const paymentReceived = parseFloat(income.amount || 0);
+      const budgetTotal = parseFloat(income.budgetTotal || 0); // Usar el total real
+      const initialPercentage = parseFloat(income.budgetInitialPercentage || 0); // Usar el % real
+      const remainingPercentage = 100 - initialPercentage;
+      const remainingAmount = budgetTotal - paymentReceived;
+
+      // Validar que los cálculos tengan sentido
+      if (budgetTotal <= 0 || initialPercentage <= 0) {
+         return `Se registró el pago inicial de $${paymentReceived.toFixed(2)} para la obra en ${income.propertyAddress || 'N/A'}. (No se pudo calcular desglose).`;
+      }
+
+      return `Se registro Pago inicial de (${initialPercentage}%) de $${paymentReceived.toFixed(2)} registrado para ${income.propertyAddress || 'N/A'}. ` +
+             `Total Presupuesto: $${budgetTotal.toFixed(2)}. ` +
+             `Restante (${remainingPercentage}%): $${remainingAmount.toFixed(2)}.`;
+    }
+},
   workApproved: {
     roles: ['owner', 'admin'], // Solo notificar al owner
     message: (work) => `El trabajo para la dirección ${work.propertyAddress} (Work ID: ${work.idWork}) ha sido aprobado y está listo para ser agendado.`,

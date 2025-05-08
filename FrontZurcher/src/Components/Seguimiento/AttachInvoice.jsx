@@ -17,6 +17,7 @@ const expenseTypes = [
   "Workers",
   "Imprevistos",
   "Comprobante Gasto",
+  "Materiales Iniciales"
   
 ];
 
@@ -32,7 +33,10 @@ const AttachReceipt = () => {
   const [file, setFile] = useState(null); // Archivo del comprobante
   const [notes, setNotes] = useState(""); // Notas opcionales
   const [amount, setAmount] = useState(""); // Monto del ingreso o gasto
+  const staff = useSelector((state) => state.auth.currentStaff);
 
+  
+  
   // Cargar las obras al montar el componente
   useEffect(() => {
     dispatch(fetchWorks());
@@ -63,6 +67,7 @@ const AttachReceipt = () => {
       amount: parseFloat(amount),
       notes,
       workId: selectedWork,
+      staffId: staff?.id, // 
       ...(isIncome ? { typeIncome: type } : { typeExpense: type }),
     };
 

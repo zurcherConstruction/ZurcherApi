@@ -12,10 +12,31 @@ import { createBudget } from "../../Redux/Actions/budgetActions"; // Removed fet
 // import { generatePDF } from "../../utils/pdfGenerator";
 import "@react-pdf-viewer/core/lib/styles/index.css";
 import "@react-pdf-viewer/default-layout/lib/styles/index.css";
+import Swal from 'sweetalert2';
 
 // --- Helper para generar IDs temporales ---
 const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
+// --- Helper para formatear fecha a MM-DD-YYYY ---
+const formatDateMMDDYYYY = (isoDateString) => {
+  if (!isoDateString || typeof isoDateString !== 'string') {
+    return ''; // Devuelve vacío si no hay fecha o no es string
+  }
+  try {
+    // Asegurarse de que la fecha se interprete correctamente (UTC para evitar problemas de zona horaria)
+    const date = new Date(isoDateString + 'T00:00:00Z');
+    if (isNaN(date.getTime())) {
+      return ''; // Devuelve vacío si la fecha no es válida
+    }
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    const year = date.getUTCFullYear();
+    return `${month}-${day}-${year}`;
+  } catch (error) {
+    console.error("Error formatting date:", error);
+    return ''; // Devuelve vacío en caso de error
+  }
+};
 // --- Hook para leer Query Params ---
 function useQuery() {
   return new URLSearchParams(useLocation().search);
@@ -37,7 +58,7 @@ const CreateBudget = () => {
   // --- Estado del Permit seleccionado ---
   const { selectedPermit, loading: loadingPermit, error: errorPermit } = useSelector(state => state.permit) || {};
   console.log("Permit seleccionado:", selectedPermit);
-
+  const [permitExpirationAlert, setPermitExpirationAlert] = useState({ type: "", message: "" });
   // --- Estado para la UI (PDFs) ---
   const [pdfPreview, setPdfPreview] = useState(null);
   const [optionalDocPreview, setOptionalDocPreview] = useState(null);
@@ -145,6 +166,28 @@ const CreateBudget = () => {
         status: "created",
         initialPaymentPercentage: '60',
       }));
+
+       // --- Establecer alerta de expiración del Permit ---
+       if (selectedPermit.expirationStatus === "expired" || selectedPermit.expirationStatus === "soon_to_expire") {
+        setPermitExpirationAlert({
+          type: selectedPermit.expirationStatus === "expired" ? "error" : "warning",
+          message: selectedPermit.expirationMessage || 
+                   (selectedPermit.expirationStatus === "expired" 
+                     ? "El permiso asociado está VENCIDO." 
+                     : "El permiso asociado está PRÓXIMO A VENCER.")
+        });
+      } else if (selectedPermit.expirationStatus === "valid") {
+        setPermitExpirationAlert({ type: "", message: "" }); // Limpiar alerta si es válido
+      } else if (!selectedPermit.expirationStatus && selectedPermit.expirationDate) {
+        // Fallback si expirationStatus no vino pero sí la fecha, recalcular simple
+        const today = new Date(); today.setHours(0,0,0,0);
+        const expDatePermit = new Date(selectedPermit.expirationDate + 'T00:00:00Z');
+        if (!isNaN(expDatePermit.getTime())) {
+            if (expDatePermit < today) {
+                 setPermitExpirationAlert({type: "error", message: `El permiso asociado expiró el ${expDatePermit.toLocaleDateString()}.`});
+            }
+        }
+      }
       // Poblar campos específicos desde el Permit
       if (selectedPermit.drainfieldDepth) {
         setDrainfieldSelection(prev => ({
@@ -178,8 +221,10 @@ const CreateBudget = () => {
       } else {
         setOptionalDocPreview(null); // Limpiar si no hay doc opcional
       }
-    }
-  }, [selectedPermit, permitIdFromQuery]); // Dependencias ajustadas
+    } else if (!permitIdFromQuery && !loadingPermit) { 
+      setPermitExpirationAlert({ type: "error", message: "No se ha cargado la información del permiso." });
+  }
+  }, [selectedPermit, permitIdFromQuery, loadingPermit]); // Dependencias ajustadas
 
   // --- Calcular Totales (Subtotal, Total, Initial Payment) ---
   useEffect(() => {
@@ -753,6 +798,23 @@ const CreateBudget = () => {
   // --- Submit Handler (Solo Crear) ---
   const handleSubmit = async (e) => {
     e.preventDefault();
+     // Aunque permitamos crear, podríamos mostrar una confirmación extra si el permiso está vencido
+     if (permitExpirationAlert.type === 'error') {
+      const confirmExpired = await Swal.fire({
+          title: 'Permiso Vencido',
+          text: `${permitExpirationAlert.message} ¿Estás seguro de que deseas crear un presupuesto para este permiso vencido?`,
+          icon: 'warning', // Usar warning para confirmación, no error para no bloquear
+          showCancelButton: true,
+          confirmButtonColor: '#3085d6',
+          cancelButtonColor: '#d33',
+          confirmButtonText: 'Sí, crear presupuesto',
+          cancelButtonText: 'Cancelar'
+      });
+      if (!confirmExpired.isConfirmed) {
+          setIsSubmitting(false);
+          return; // Detener si el usuario cancela
+      }
+  }
     setIsSubmitting(true); // Deshabilitar botón
     setCreatedBudgetInfo(null); // Limpiar info previa
 
@@ -938,7 +1000,7 @@ const CreateBudget = () => {
                 <label className="block text-xs font-medium text-gray-500">Applicant</label>
                 <p className="text-sm font-semibold text-gray-800">{formData.applicantName || 'N/A'}</p>
               </div>
-              <div className="col-span-2">
+              <div className="col-span-full"> {/* Ajustado para ocupar todo el ancho */}
                 <label className="block text-xs font-medium text-gray-500">Property Address</label>
                 <p className="text-sm font-semibold text-gray-800">{formData.propertyAddress || 'N/A'}</p>
               </div>
@@ -950,13 +1012,30 @@ const CreateBudget = () => {
                 <label className="block text-xs font-medium text-gray-500">Block</label>
                 <p className="text-sm font-semibold text-gray-800">{formData.block || 'N/A'}</p>
               </div>
+              <div className="col-span-2"> {/* Ajustado para que no se monte con la alerta */}
+                <label className="block text-xs font-medium text-gray-500">Excavation</label>
+                <p className="text-sm font-semibold text-gray-800">{formData.excavationRequired || 'N/A'}</p>
+              </div>
+
+              {/* --- ALERTA DE EXPIRACIÓN DEL PERMIT --- */}
+              {permitExpirationAlert.message && (
+                <div className={`col-span-4 mt-2 p-3 rounded-md border ${
+                  permitExpirationAlert.type === 'error' ? 'bg-red-50 border-red-400 text-red-700' : 'bg-yellow-50 border-yellow-400 text-yellow-700'
+                }`}>
+                  <p className="font-bold text-sm">
+                    {permitExpirationAlert.type === 'error' ? '¡Permiso Vencido!' : '¡Atención! Permiso Próximo a Vencer'}
+                  </p>
+                  <p className="text-xs">{permitExpirationAlert.message}</p>
+                </div>
+              )}
+              {/* --- FIN ALERTA --- */}
               <div className="col-span-2">
                 <label htmlFor="budget_date" className="block text-sm font-medium text-gray-700">Date</label>
                 <input id="budget_date" type="date" name="date" value={formData.date} onChange={handleGeneralInputChange} required className="input-style" />
               </div>
               <div className="col-span-2">
                 <label htmlFor="budget_expiration" className="block text-sm font-medium text-gray-700">Expiration Date</label>
-                <input id="budget_expiration" type="date" name="expirationDate" value={formData.expirationDate} className="input-style bg-gray-100" readOnly />
+                <input id="budget_expiration" type="text" name="expirationDate" value={formatDateMMDDYYYY(formData.expirationDate)} className="input-style bg-gray-100" readOnly />
               </div>
             </div>
             {/* --- Sección Items Presupuestables (Collapsible) --- */}
@@ -1185,10 +1264,10 @@ const CreateBudget = () => {
                         </select>
                       </div>
                       {/* Quantity */}
-                      <div>
+                      {/* <div>
                         <label htmlFor="sand_quantity" className="block text-xs font-medium text-gray-600">Quantity</label>
                         <input id="sand_quantity" type="number" name="quantity" value={sandSelection.capacity === 'OTROS' ? customSand.quantity : sandSelection.quantity} onChange={sandSelection.capacity === 'OTROS' ? handleCustomSandChange : handleSandChange} min="1" className="input-style" />
-                      </div>
+                      </div> */}
                       {/* Custom Fields */}
                       {sandSelection.capacity === 'OTROS' && (
                         <>
@@ -1412,39 +1491,12 @@ const CreateBudget = () => {
                   {isSubmitting ? 'Creando...' : "Crear Presupuesto"}
                 </button>
               ) : (
-                <div className="text-center p-4 bg-green-100 border border-green-300 rounded-md">
-                  <p className="font-semibold text-green-800">¡Presupuesto #{createdBudgetInfo.idBudget} creado!</p>
-                  {/* --- REEMPLAZO DE <a> POR <button> --- */}
-                  {createdBudgetInfo.pdfPath ? ( // Verificar si hay ruta (o budgetPdfUrl si lo prefieres)
-                    <button
-                      type="button"
-                      onClick={() => handleDownloadPdf(createdBudgetInfo.idBudget, `budget_${createdBudgetInfo.idBudget}.pdf`)}
-                      disabled={isDownloadingPdf}
-                      className="mt-2 inline-flex items-center justify-center bg-blue-600 text-white py-1 px-3 rounded-md hover:bg-blue-700 text-sm disabled:opacity-50 disabled:cursor-wait"
-                    >
-                      {isDownloadingPdf ? (
-                         <svg className="animate-spin h-4 w-4 mr-1 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                         </svg>
-                      ) : (
-                        <DocumentArrowDownIcon className="h-4 w-4 mr-1" />
-                      )}
-                      Descargar PDF
-                    </button>
-                  ) : (
-                    <p className="text-sm text-yellow-700 mt-1">(PDF aún no disponible para descarga)</p>
-                  )}
-                  {/* --- FIN REEMPLAZO --- */}
-                  <button
-                    type="button"
-                    onClick={() => navigate('/budgets')} // Navega a la lista
-                    className="mt-3 inline-flex items-center text-sm text-indigo-600 hover:underline" // Usar inline-flex para alinear icono y texto
-                  >
-                    <ArrowUturnLeftIcon className="h-4 w-4 mr-1" /> {/* Icono de atrás */}
-                    Back {/* Nuevo texto */}
-                  </button>
+                <div className="text-center">
+                  <p className="text-green-600 font-semibold">Presupuesto creado exitosamente!</p>
+                  <p className="text-gray-500">ID: {createdBudgetInfo.id}</p>
+                  <p className="text-gray-500">Fecha: {new Date(createdBudgetInfo.createdAt).toLocaleDateString()}</p>
                 </div>
+               
               )}
             </div>
           </form>

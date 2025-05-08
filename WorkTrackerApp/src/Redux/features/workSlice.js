@@ -114,17 +114,31 @@ const workSlice = createSlice({
     },
     addImagesSuccess: (state, action) => {
       state.loading = false;
-      // Verifica que el payload y imageRecord existan antes de intentar agregarlo
-      if (action.payload && action.payload.imageRecord) {
-        // Agrega el objeto imageRecord completo al array state.images
-        state.images.push(action.payload.imageRecord); 
+      // El payload ahora es { message: '...', work: updatedWork }
+      // donde updatedWork es el trabajo completo con todas sus imágenes.
+      if (action.payload && action.payload.work) {
+        const updatedWork = action.payload.work;
+
+        // 1. Actualizar el trabajo en la lista general 'state.works'
+        const workIndexInList = state.works.findIndex(w => w.idWork === updatedWork.idWork);
+        if (workIndexInList !== -1) {
+          state.works[workIndexInList] = updatedWork;
+        } else {
+          // Opcional: si el trabajo no estaba en la lista, podrías agregarlo
+          // state.works.push(updatedWork); 
+          console.warn(`addImagesSuccess: El trabajo con ID ${updatedWork.idWork} no se encontró en state.works para actualizar.`);
+        }
+
+        // 2. Actualizar el trabajo detallado 'state.work' si es el mismo que se modificó
+        if (state.work && state.work.idWork === updatedWork.idWork) {
+          state.work = updatedWork; // Esto actualizará UploadScreen
+        }
+        
+        state.error = null;
       } else {
-        // Opcional: Loguea un error si la respuesta no es la esperada
-        console.error("addImagesSuccess: La respuesta no contiene imageRecord:", action.payload);
+        console.error("addImagesSuccess: La respuesta no contiene la propiedad 'work':", action.payload);
         state.error = "Respuesta inesperada del servidor al agregar la imagen.";
       }
-      // Limpia el error si la operación fue exitosa (incluso si la respuesta no fue perfecta)
-      // state.error = null; // Puedes decidir si limpiar el error aquí o no, dependiendo de si el 'else' debe considerarse un fallo
     },
     addImagesFailure: (state, action) => {
       state.loading = false;
@@ -136,36 +150,28 @@ const workSlice = createSlice({
     },
     deleteImagesSuccess: (state, action) => {
       state.loading = false;
-      // 1. Obtener idWork y imageId del payload correcto
       const { idWork, imageId } = action.payload;
 
-      // 2. Encontrar el índice del trabajo afectado en state.works
-      const workIndex = state.works.findIndex(work => work.idWork === idWork);
-
-      if (workIndex !== -1) {
-        // 3. Obtener una copia del trabajo para modificar
-        const workToUpdate = { ...state.works[workIndex] };
-
-        // 4. Asegurarse de que el array 'images' exista dentro del trabajo
-        if (workToUpdate.images && Array.isArray(workToUpdate.images)) {
-          // 5. Filtrar el array 'images' DENTRO del trabajo, manteniendo las que NO coinciden
-          workToUpdate.images = workToUpdate.images.filter(
-            (image) => image.id !== imageId // Comparación directa de IDs
-          );
-
-          // 6. Actualizar el trabajo en el array 'works' del estado
-          state.works[workIndex] = workToUpdate;
-          console.log(`Imagen ID ${imageId} eliminada del trabajo ID ${idWork} en el estado.`);
-        } else {
-           console.warn(`El trabajo con ID ${idWork} no tiene un array 'images' válido para filtrar.`);
+      // 1. Actualizar la lista de trabajos (state.works)
+      const workIndexInList = state.works.findIndex(w => w.idWork === idWork);
+      if (workIndexInList !== -1) {
+        const workToUpdateInList = { ...state.works[workIndexInList] };
+        if (workToUpdateInList.images && Array.isArray(workToUpdateInList.images)) {
+          workToUpdateInList.images = workToUpdateInList.images.filter(img => img.id !== imageId);
+          state.works[workIndexInList] = workToUpdateInList;
         }
       } else {
-         console.warn(`No se encontró el trabajo con ID ${idWork} en el estado para eliminar la imagen.`);
+        console.warn(`deleteImagesSuccess: Trabajo con ID ${idWork} no encontrado en state.works.`);
       }
 
-      // 7. Eliminar la lógica incorrecta que modificaba state.images globalmente
-      // state.images = state.images.filter((url) => !imageUrls.includes(url));
-
+      // 2. Actualizar el trabajo detallado (state.work) si es el mismo
+      if (state.work && state.work.idWork === idWork) {
+        const updatedDetailedWork = { ...state.work };
+        if (updatedDetailedWork.images && Array.isArray(updatedDetailedWork.images)) {
+          updatedDetailedWork.images = updatedDetailedWork.images.filter(img => img.id !== imageId);
+          state.work = updatedDetailedWork; // <-- ACTUALIZAR EL TRABAJO DETALLADO
+        }
+      }
       state.error = null;
     },
     // --- FIN REDUCER CORREGIDO ---

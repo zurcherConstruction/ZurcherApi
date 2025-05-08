@@ -1,30 +1,33 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { Calendar } from "react-native-calendars";
 import Toast from "react-native-toast-message";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorks, updateWork } from "../Redux/Actions/workActions";
 import { fetchStaff } from "../Redux/Actions/staffActions";
-import { sendEmailNotification } from "../utils/sendNotification"; // Asegúrate de tener esta función para enviar correos electrónicos
+//import { sendEmailNotification } from "../utils/sendNotification"; // Asegúrate de tener esta función para enviar correos electrónicos
 import { showNotification } from "../utils/notificationService";
+import { useFocusEffect } from '@react-navigation/native';
 
 const PendingWorks = () => {
     const dispatch = useDispatch();
     const { works, loading: worksLoading } = useSelector((state) => state.work);
     const { staff, loading: staffLoading } = useSelector((state) => state.staff);
-
+    const [currentCalendarMonth, setCurrentCalendarMonth] = useState(new Date().toISOString().split("T")[0]);
     const [selectedWork, setSelectedWork] = useState(null);
     const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
     const [selectedStaff, setSelectedStaff] = useState(null);
     const flatListRef = useRef(null);
 
-    useEffect(() => {
-        dispatch(fetchWorks());
-        dispatch(fetchStaff());
-    }, [dispatch]);
+    useFocusEffect(
+        useCallback(() => {
+            dispatch(fetchWorks());
+            dispatch(fetchStaff());
+        }, [dispatch])
+    );
 
-    const handleAssign = async () => {
-        if (!selectedWork || !selectedStaff) {
+    const handleAssign = async (staffMemberToAssign) => {
+        if (!selectedWork || !staffMemberToAssign) {
             Toast.show({
                 type: "error",
                 text1: "Error",
@@ -33,14 +36,13 @@ const PendingWorks = () => {
             return;
         }
     
-        const formattedDate = new Date(startDate).toISOString().split('T')[0]; // Formatear la fecha
+        const formattedDate = new Date(startDate).toISOString().split('T')[0];
     
         try {
-            // Actualizar el trabajo en el backend
             await dispatch(
                 updateWork(selectedWork.idWork, {
                     startDate: formattedDate,
-                    staffId: selectedStaff.id,
+                    staffId: staffMemberToAssign.id,
                     status: "assigned",
                 })
             );
@@ -51,29 +53,30 @@ const PendingWorks = () => {
                 text2: "Trabajo asignado correctamente.",
             });
 
+            // La notificación push local sigue siendo útil
             showNotification(
                 "Trabajo Asignado",
-                `El trabajo en ${selectedWork.propertyAddress} ha sido asignado a ${selectedStaff.name}.`
+                 `El trabajo en ${selectedWork.propertyAddress} ha sido asignado a ${staffMemberToAssign.name}.`
             );
     
-            // Enviar correo al miembro del staff asignado
-            const subject = "Trabajo Asignado";
-            const message = `Se te ha asignado el trabajo en ${selectedWork.propertyAddress} para la fecha ${formattedDate}.`;
-            await sendEmailNotification(selectedStaff.email, subject, message);
+            // // Enviar correo al miembro del staff asignado - ELIMINADO
+            // const subject = "Trabajo Asignado";
+            // const message = `Se te ha asignado el trabajo en ${selectedWork.propertyAddress} para la fecha ${formattedDate}.`;
+            // await sendEmailNotification(staffMemberToAssign.email, subject, message); // ELIMINADO
     
-            // Obtener correos del staff con rol "recept"
-            const receptStaff = staff.filter((member) => member.role === "recept");
-            const receptEmails = receptStaff.map((member) => member.email);
+            // // Obtener correos del staff con rol "recept" - ELIMINADO (si el backend ya lo maneja)
+            // const receptStaff = staff.filter((member) => member.role === "recept");
+            // const receptEmails = receptStaff.map((member) => member.email);
     
-            if (receptEmails.length > 0) {
-                // Enviar correo a los receptores
-                const receptMessage = `Hay una compra de materiales pendiente para el trabajo en ${selectedWork.propertyAddress}. Los materiales se necesitan para la fecha ${formattedDate}.`;
-                await sendEmailNotification(receptEmails.join(','), "Compra de Materiales Pendiente", receptMessage);
-            }
+            // if (receptEmails.length > 0) { // ELIMINADO
+            //     // Enviar correo a los receptores - ELIMINADO
+            //     const receptMessage = `Hay una compra de materiales pendiente para el trabajo en ${selectedWork.propertyAddress}. Los materiales se necesitan para la fecha ${formattedDate}.`;
+            //     await sendEmailNotification(receptEmails.join(','), "Compra de Materiales Pendiente", receptMessage); // ELIMINADO
+            // }
     
             setSelectedWork(null);
             setSelectedStaff(null);
-            dispatch(fetchWorks());
+            dispatch(fetchWorks()); // Para actualizar la lista de trabajos pendientes inmediatamente
         } catch (error) {
             console.error("Error al asignar el trabajo:", error);
             Toast.show({
@@ -84,17 +87,23 @@ const PendingWorks = () => {
         }
     };
 
+
     const confirmSelection = (member) => {
+        setSelectedStaff(member); 
         Alert.alert(
             "Confirm Selection",
             `Are you sure you want to assign this work to ${member.name}?`,
             [
-                { text: "Cancel", style: "cancel" },
+                { 
+                    text: "Cancel", 
+                    style: "cancel",
+                    onPress: () => setSelectedStaff(null) // Opcional: deseleccionar si cancela
+                },
                 {
                     text: "Yes",
                     onPress: () => {
-                        setSelectedStaff(member);
-                        handleAssign();
+                        // Pasar el 'member' directamente a handleAssign
+                        handleAssign(member); 
                     },
                 },
             ]
@@ -106,7 +115,7 @@ const PendingWorks = () => {
         const itemWidth = 100; // Ancho estimado de cada elemento
         const index = Math.round(offsetX / itemWidth);
         if (staff[index]) {
-            setSelectedStaff(staff[index]);
+           // setSelectedStaff(staff[index]);
         }
     };
 
@@ -118,7 +127,7 @@ const PendingWorks = () => {
         );
     }
 
-    const pendingWorks = works.filter((work) => work.status === "pending");
+   const pendingWorks = Array.isArray(works) ? works.filter((work) => work.status === "pending") : [];
 
     const renderListFooter = () => {
         if (!selectedWork) return null; // No mostrar si no hay trabajo seleccionado
@@ -127,7 +136,16 @@ const PendingWorks = () => {
             <>
                 <Text style={styles.subtitle}>Select a date:</Text>
                 <Calendar
-                    onDayPress={(day) => setStartDate(day.dateString)}
+                  
+                    current={currentCalendarMonth}
+
+                    onMonthChange={(month) => {
+                        setCurrentCalendarMonth(month.dateString);
+                    }}
+                    onDayPress={(day) => {
+                        setStartDate(day.dateString);
+                
+                    }}
                     minDate={new Date().toISOString().split("T")[0]}
                     markedDates={{
                         [startDate]: { selected: true, marked: true, selectedColor: "#80d4ff" },

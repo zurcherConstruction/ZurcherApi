@@ -269,7 +269,7 @@ console.log('DEBUG CONTROLLER - Datos FINALES pasados a PDF Gen:', budgetDataFor
         include: [
           {
             model: Permit,
-            attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'systemType', 'drainfieldDepth', 'excavationRequired', 'lot', 'block', 'pdfData', 'optionalDocs'],
+            attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'systemType', 'drainfieldDepth', 'excavationRequired', 'lot', 'block', 'pdfData', 'optionalDocs', 'expirationDate'],
           },
           {
             model: BudgetLineItem,
@@ -321,37 +321,83 @@ console.log('DEBUG CONTROLLER - Datos FINALES pasados a PDF Gen:', budgetDataFor
  
 async getBudgets(req, res) { // O como se llame tu función para obtener la lista
   try {
-    const budgets = await Budget.findAll({
+    const budgetsInstances = await Budget.findAll({
       include: [
         {
           model: Permit,
-          attributes: ['propertyAddress', 'systemType'] // Incluye los campos necesarios del Permit
+          // Asegúrate de incluir expirationDate y otros campos necesarios del Permit
+          attributes: ['idPermit', 'propertyAddress', 'systemType', 'expirationDate'] 
         }
       ],
-      order: [['date', 'DESC']] // O el orden que prefieras
+      order: [['date', 'DESC']]
     });
 
-    // *** AÑADIR LÓGICA PARA TRANSFORMAR pdfPath a budgetPdfUrl ***
-    const budgetsWithUrl = budgets.map(budget => {
-      const budgetJson = budget.toJSON(); // Convertir a objeto plano
+    const budgetsWithDetails = budgetsInstances.map(budgetInstance => {
+      const budgetJson = budgetInstance.toJSON(); // Convertir a objeto plano
+
+      // Calcular y añadir estado de expiración del Permit si existe
+      if (budgetJson.Permit && budgetJson.Permit.expirationDate) {
+        let permitExpirationStatus = "valid";
+        let permitExpirationMessage = "";
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const expirationDateString = typeof budgetJson.Permit.expirationDate === 'string' 
+                                    ? budgetJson.Permit.expirationDate.split('T')[0] 
+                                    : new Date(budgetJson.Permit.expirationDate).toISOString().split('T')[0];
+        
+        const expDateParts = expirationDateString.split('-');
+        const year = parseInt(expDateParts[0], 10);
+        const month = parseInt(expDateParts[1], 10) - 1; // Mes es 0-indexado
+        const day = parseInt(expDateParts[2], 10);
+
+        if (!isNaN(year) && !isNaN(month) && !isNaN(day) && month >= 0 && month <= 11 && day >= 1 && day <= 31) {
+          const expDate = new Date(year, month, day);
+          expDate.setHours(0,0,0,0);
+
+          if (!isNaN(expDate.getTime())) {
+            if (expDate < today) {
+              permitExpirationStatus = "expired";
+              permitExpirationMessage = `Permiso asociado expiró el ${expDate.toLocaleDateString()}.`;
+            } else {
+              const thirtyDaysFromNow = new Date(today);
+              thirtyDaysFromNow.setDate(today.getDate() + 30);
+              if (expDate <= thirtyDaysFromNow) {
+                permitExpirationStatus = "soon_to_expire";
+                permitExpirationMessage = `Permiso asociado expira el ${expDate.toLocaleDateString()} (pronto a vencer).`;
+              }
+            }
+          } else {
+            console.warn(`Fecha de expiración de permiso inválida (post-parse) para budget ${budgetJson.idBudget}, permit ${budgetJson.Permit.idPermit}: ${expirationDateString}`);
+          }
+        } else {
+           console.warn(`Formato de fecha de expiración de permiso inválido para budget ${budgetJson.idBudget}, permit ${budgetJson.Permit.idPermit}: ${expirationDateString}`);
+        }
+        // Añadir al objeto Permit DENTRO del budgetJson
+        budgetJson.Permit.expirationStatus = permitExpirationStatus;
+        budgetJson.Permit.expirationMessage = permitExpirationMessage;
+      } else if (budgetJson.Permit) {
+        // Si hay Permit pero no expirationDate, marcar como válido o desconocido
+        budgetJson.Permit.expirationStatus = "valid"; 
+        budgetJson.Permit.expirationMessage = "";
+      }
+
+      // Transformar pdfPath a budgetPdfUrl
       if (budgetJson.pdfPath && fs.existsSync(budgetJson.pdfPath)) {
-        // Construir la URL completa para acceder al PDF a través de la ruta del backend
         budgetJson.budgetPdfUrl = `${req.protocol}://${req.get('host')}/budgets/${budgetJson.idBudget}/pdf`;
       } else {
-        budgetJson.budgetPdfUrl = null; // Asegurarse de que sea null si no hay PDF
+        budgetJson.budgetPdfUrl = null;
       }
-      return budgetJson;
+      return budgetJson; // Devolver el objeto budgetJson modificado
     });
-    // *** FIN DE LA LÓGICA AÑADIDA ***
 
-    res.status(200).json(budgetsWithUrl); // Enviar la lista con las URLs añadidas
+    res.status(200).json(budgetsWithDetails);
 
   } catch (error) {
     console.error("Error fetching budgets:", error);
     res.status(500).json({ error: 'Error al obtener los presupuestos.' });
   }
 },
-
  
   
   async updateBudget(req, res) {
@@ -368,7 +414,7 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
         include: [
           {
             model: Permit,
-            attributes: ['idPermit', 'propertyAddress', 'applicantEmail', 'applicantName', 'permitNumber', 'lot', 'block'] // Incluir campos necesarios para PDF
+            attributes: ['idPermit', 'propertyAddress', 'applicantEmail', 'applicantName', 'permitNumber', 'lot', 'block', 'expirationDate'] // Incluir campos necesarios para PDF
           },
           {
             model: BudgetLineItem, // Incluir para recalcular y generar PDF
@@ -555,12 +601,16 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
 
     // --- 7. Lógica Condicional por Estado ---
          // --- NUEVO: 7. Generar/Regenerar PDF SIEMPRE que haya cambios ---
-         if (hasGeneralUpdates || hasLineItemUpdates) {
-          console.log("Detectados cambios generales o en items. Regenerando PDF...");
+        
+         const updateKeys = Object.keys(req.body).filter(key => key !== 'lineItems');
+         // Verificamos si la única clave presente es 'generalNotes'.
+         const isOnlyGeneralNotesUpdate = updateKeys.length === 1 && updateKeys[0] === 'generalNotes';
+         if ((hasGeneralUpdates || hasLineItemUpdates) && !isOnlyGeneralNotesUpdate) {
+          console.log("Detectados cambios (no solo notas). Regenerando PDF...");
           try {
               const budgetDataForPdf = {
                   ...budget.toJSON(), // Usar datos actualizados en memoria
-                  initialPaymentPercentage: budget.initialPaymentPercentage,
+                  initialPaymentPercentage: budget.initialPaymentPercentage, // Asegurarse que esté
                   lineItems: finalLineItemsForPdf
               };
 
@@ -576,13 +626,18 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
               // Lanzar error para revertir la transacción si la generación del PDF falla
               throw new Error(`Error al regenerar PDF: ${pdfError.message}`);
           }
+        } else if (isOnlyGeneralNotesUpdate) {
+          // Si solo cambiaron las notas, no regeneramos PDF y mantenemos la ruta existente.
+          console.log("Solo se actualizaron las notas generales. Omitiendo regeneración de PDF.");
+          generatedPdfPath = budget.pdfPath; // Usar la ruta existente
       } else {
+          // Si no hubo ningún cambio detectado (ni general ni items)
           console.log("No hubo cambios relevantes, no se regenera el PDF.");
-          generatedPdfPath = budget.pdfPath; // Usar la ruta existente si no hubo cambios
+          generatedPdfPath = budget.pdfPath; // Usar la ruta existente
       }
 
     // --- 7a. Lógica si el estado es 'send' (Genera PDF y envía correo) ---
-    if (budget.status === 'send') {
+    if (req.body.status === 'send') {
       console.log("El estado es 'send'. Procesando envío de correo...");
 
       // --- Enviar Correo (Usa generatedPdfPath o budget.pdfPath actualizado) ---
@@ -626,86 +681,96 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
     } // --- Fin Lógica if (status === 'send') ---
 
     // --- 7b. Lógica si el estado es 'approved' ---
-    if (budget.status === "approved") {
-      console.log("El estado es 'approved'. Procesando creación de Work/Income...");
-      // ... (La lógica existente para crear Work/Income se mantiene igual) ...
-      // Asegúrate que usa budget.initialPayment (que ya fue recalculado y actualizado)
-      let workRecord;
-      const existingWork = await Work.findOne({ where: { idBudget: budget.idBudget }, transaction });
-
-      if (!existingWork) {
-        console.log(`Creando nuevo Work para Budget ID: ${budget.idBudget}`);
-        workRecord = await Work.create({
-          propertyAddress: budget.propertyAddress,
-          status: 'pending',
-          idBudget: budget.idBudget,
-          notes: `Work creado automáticamente al aprobar presupuesto N° ${budget.idBudget}`,
-          initialPayment: budget.initialPayment, // Usa el valor recalculado
-        }, { transaction });
-        console.log(`Nuevo Work creado con ID: ${workRecord.idWork}`);
-        const notificationDataForIncome = {
-          amount: budget.initialPayment, // Usar el valor del budget
-          propertyAddress: budget.propertyAddress // Usar el valor del budget
-        };
-        await sendNotifications('incomeCreated', notificationDataForIncome, null, req.io);
-
-        try {
-          console.log(`Creando nuevo Income para Work ID: ${workRecord.idWork}`);
-          await Income.create({
-            date: new Date(),
-            amount: budget.initialPayment, // Usa el valor recalculado
-            typeIncome: 'Factura Pago Inicial Budget',
-            notes: `Pago inicial registrado al aprobar Budget #${budget.idBudget}`,
-            workId: workRecord.idWork
+      // --- 7b. Lógica si el estado es 'approved' ---
+      if (budget.status === "approved") {
+        console.log("El estado es 'approved'. Procesando creación/actualización de Work/Income...");
+        let workRecord;
+        const existingWork = await Work.findOne({ where: { idBudget: budget.idBudget }, transaction });
+  
+        if (!existingWork) {
+          // --- Crear Nuevo Work y Nuevo Income ---
+          console.log(`Creando nuevo Work para Budget ID: ${budget.idBudget}`);
+          workRecord = await Work.create({
+            propertyAddress: budget.propertyAddress,
+            status: 'pending',
+            idBudget: budget.idBudget,
+            notes: `Work creado automáticamente al aprobar presupuesto N° ${budget.idBudget}`,
+            initialPayment: budget.initialPayment, // Usa el valor recalculado
           }, { transaction });
-          console.log(`Nuevo Income creado exitosamente.`);
-          const notificationDataForIncome = {
-            amount: budget.initialPayment, // Usar el valor del budget
-            propertyAddress: budget.propertyAddress // Usar el valor del budget
-          };
-          await sendNotifications('incomeCreated', notificationDataForIncome, null, req.io);
-        } catch (incomeError) {
-          console.error(`Error CRÍTICO al crear Income para nuevo Work ID ${workRecord.idWork}:`, incomeError);
-          throw new Error("Fallo al crear el registro de ingreso asociado al nuevo Work."); // Esto revertirá la transacción
-        }
-      } else {
-         console.log(`Work ya existente (ID: ${existingWork.idWork}) para Budget ID: ${budget.idBudget}. Verificando/Actualizando Income...`);
-         workRecord = existingWork;
-         // Opcional: Actualizar el initialPayment del Work si cambió el del budget
-         if (parseFloat(workRecord.initialPayment) !== parseFloat(budget.initialPayment)) {
-             console.log(`Actualizando initialPayment en Work existente ${workRecord.idWork} de ${workRecord.initialPayment} a ${budget.initialPayment}`);
-             await workRecord.update({ initialPayment: budget.initialPayment }, { transaction });
-         }
-
-         const existingIncome = await Income.findOne({
-           where: { workId: workRecord.idWork, typeIncome: 'Factura Pago Inicial Budget' },
-           transaction
-         });
-         if (!existingIncome) {
-           console.warn(`Advertencia: Work ${workRecord.idWork} existía pero no se encontró Income inicial. Creando ahora.`);
-           try {
-             await Income.create({ /* ... como en el bloque if(!existingWork) ... */ }, { transaction });
-             console.log(`Income (tardío) creado exitosamente.`);
-             const notificationDataForIncome = {
-              amount: budget.initialPayment, // Usar el valor del budget
-              propertyAddress: budget.propertyAddress // Usar el valor del budget
-            };
-            await sendNotifications('incomeCreated', notificationDataForIncome, null, req.io);
-           } catch (lateIncomeError) {
-             console.error(`Error CRÍTICO al crear Income (tardío) para Work ID ${workRecord.idWork}:`, lateIncomeError);
-             throw new Error("Fallo al crear el registro de ingreso (tardío) asociado."); // Revertirá
-           }
-         } else {
+          console.log(`Nuevo Work creado con ID: ${workRecord.idWork}`);
+  
+          try {
+            console.log(`Creando nuevo Income para Work ID: ${workRecord.idWork}`);
+            await Income.create({
+              date: new Date(),
+              amount: budget.initialPayment, // Usa el valor recalculado
+              typeIncome: 'Factura Pago Inicial Budget',
+              notes: `Pago inicial registrado al aprobar Budget #${budget.idBudget}`,
+              workId: workRecord.idWork
+            }, { transaction });
+            console.log(`Nuevo Income creado exitosamente.`);
+          } catch (incomeError) {
+            console.error(`Error CRÍTICO al crear Income para nuevo Work ID ${workRecord.idWork}:`, incomeError);
+            // Lanzar error para revertir la transacción
+            throw new Error("Fallo al crear el registro de ingreso asociado al nuevo Work.");
+          }
+        } else {
+          // --- Work Existente: Verificar/Actualizar Work y Verificar/Crear/Actualizar Income ---
+          console.log(`Work ya existente (ID: ${existingWork.idWork}) para Budget ID: ${budget.idBudget}. Verificando/Actualizando...`);
+          workRecord = existingWork;
+          // Opcional: Actualizar el initialPayment del Work si cambió el del budget
+          if (parseFloat(workRecord.initialPayment) !== parseFloat(budget.initialPayment)) {
+              console.log(`Actualizando initialPayment en Work existente ${workRecord.idWork} de ${workRecord.initialPayment} a ${budget.initialPayment}`);
+              await workRecord.update({ initialPayment: budget.initialPayment }, { transaction });
+          }
+  
+          const existingIncome = await Income.findOne({
+            where: { workId: workRecord.idWork, typeIncome: 'Factura Pago Inicial Budget' },
+            transaction
+          });
+  
+          if (!existingIncome) {
+            // Crear Income (tardío) si no existía
+            console.warn(`Advertencia: Work ${workRecord.idWork} existía pero no se encontró Income inicial. Creando ahora.`);
+            try {
+              await Income.create({
+                date: new Date(),
+                amount: budget.initialPayment, // Usa el valor recalculado
+                typeIncome: 'Factura Pago Inicial Budget',
+                notes: `Pago inicial (tardío) registrado al aprobar Budget #${budget.idBudget}`,
+                workId: workRecord.idWork
+              }, { transaction });
+              console.log(`Income (tardío) creado exitosamente.`);
+            } catch (lateIncomeError) {
+              console.error(`Error CRÍTICO al crear Income (tardío) para Work ID ${workRecord.idWork}:`, lateIncomeError);
+              // Lanzar error para revertir la transacción
+              throw new Error("Fallo al crear el registro de ingreso (tardío) asociado.");
+            }
+          } else {
+            // Income Existente: Actualizar monto si cambió el initialPayment del budget
             console.log(`Income inicial ya existente para Work ID: ${workRecord.idWork}. Verificando monto...`);
-            // Opcional: Actualizar monto del Income si cambió el initialPayment
             if (parseFloat(existingIncome.amount) !== parseFloat(budget.initialPayment)) {
                 console.log(`Actualizando monto en Income existente ${existingIncome.id} de ${existingIncome.amount} a ${budget.initialPayment}`);
                 await existingIncome.update({ amount: budget.initialPayment }, { transaction });
             }
-         }
-      }
-    } // --- Fin Lógica if (status === 'approved') ---
-
+          }
+        } // --- Fin Lógica Work Existente ---
+  
+        // *** Enviar Notificación DESPUÉS de todas las operaciones de Work/Income ***
+        console.log("Preparando datos para notificación 'incomeCreated'...");
+        // Crear el objeto de datos para la notificación usando los valores finales del budget
+        const notificationDataForIncome = {
+          amount: budget.initialPayment, // Monto del ingreso actual (recalculado)
+          propertyAddress: budget.propertyAddress,
+          budgetTotal: budget.totalPrice, // Total del presupuesto (recalculado)
+          budgetInitialPercentage: budget.initialPaymentPercentage // % del presupuesto (actualizado)
+        };
+        console.log("Datos para notificación:", notificationDataForIncome);
+        // Llamar a sendNotifications con el objeto de datos completo
+        await sendNotifications('incomeCreated', notificationDataForIncome, null, req.io);
+        console.log("Notificación 'incomeCreated' enviada.");
+  
+      }  
     // --- 8. Confirmar Transacción ---
     await transaction.commit();
     console.log(`--- Transacción para Budget ID: ${idBudget} confirmada exitosamente. ---`);

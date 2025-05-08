@@ -6,7 +6,9 @@ import {
   Pressable,
   Animated,
   ScrollView,
+  Alert,
 } from "react-native";
+import { MaterialIcons } from '@expo/vector-icons';
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorks } from "../Redux/Actions/workActions";
 import { useNavigation } from "@react-navigation/native";
@@ -123,66 +125,101 @@ const HomeScreen = () => {
         </Text>
       )}
 
-      {!loading &&
+{!loading &&
         !error &&
-        filteredData.map(({ idWork, propertyAddress, status }) => (
-          <Pressable
-            key={idWork}
-            className="bg-white p-4 rounded-lg border border-gray-200 mb-3 shadow-md active:bg-gray-100"
-            onPress={() => {
-              console.log("Navigating with idWork:", idWork);
-              navigation.navigate("WorkDetail", { idWork });
-            }}
-          >
-            <Text className="text-lg font-normal uppercase text-gray-800 text-center mb-2">
-              {propertyAddress}
-            </Text>
-            <Text className="text-sm font-medium text-green-600 text-center mb-4">
-              Status: {getDisplayName(status)}
-            </Text>
+        filteredData.map(({ idWork, propertyAddress, status, Permit }) => { // Desestructurar Permit
+          let permitAlertIcon = null;
+          if (Permit) {
+            const permitExpStatus = Permit.expirationStatus;
+             const permitExpMessage = Permit.expirationMessage; // Puedes usarlo si implementas un Alert onPress
 
-            <View className="relative flex-row items-center justify-between mt-5 mb-2 h-6">
-              <View className="absolute left-0 right-0 top-1/2 h-1 bg-gray-200 rounded-full -translate-y-1/2" />
-              <View
-                className="absolute left-0 top-1/2 h-1 bg-green-500 rounded-full -translate-y-1/2 transition-all duration-500"
-                style={{
-                  width: `${
-                    (getProgressIndex(status) / (filteredEtapas.length - 1)) *
-                    100
-                  }%`,
-                }}
-              />
+            if (permitExpStatus === "expired" || permitExpStatus === "soon_to_expire") {
+              const isError = permitExpStatus === "expired";
+              const alertColor = isError ? "#ef4444" : "#f59e0b"; // Rojo para error, Naranja/Amarillo para warning
+              
+              permitAlertIcon = (
+                <Pressable 
+                   onPress={() => Alert.alert(isError ? "Permiso Vencido" : "Permiso Próximo a Vencer", permitExpMessage)} // Opcional: mostrar mensaje al presionar
+                  style={{ marginLeft: 8 }} // Añade un pequeño margen
+                >
+                  <MaterialIcons name="warning-amber" size={24} color={alertColor} />
+                </Pressable>
+              );
+            }
+          }
+          
+          const workItemKey = String(idWork || `unknown-work-${Math.random()}`);
 
-              {/* Progress Steps */}
-              {filteredEtapas.map((etapa, index) => {
-                const isActive = getProgressIndex(status) === index;
-                const isCompleted = getProgressIndex(status) > index;
-                const circleBg =
-                  isActive || isCompleted ? "bg-green-500" : "bg-gray-400";
+          return (
+            <Pressable
+              key={workItemKey} // Key for the main list item
+              className="bg-white p-4 rounded-lg border border-gray-200 mb-3 shadow-md active:bg-gray-100"
+              onPress={() => {
+                // console.log("Navigating with idWork:", idWork);
+                if (idWork) { // Ensure idWork is valid before navigating
+                    navigation.navigate("WorkDetail", { idWork });
+                } else {
+                    console.warn("Attempted to navigate with undefined idWork");
+                    Alert.alert("Error", "Cannot open details for this work item.");
+                }
+              }}
+            >
+              <View className="flex-row items-center justify-center mb-2">
+                <Text className="text-lg font-normal uppercase text-gray-800 text-center">
+                  {propertyAddress || "N/A"}
+                </Text>
+                {permitAlertIcon} 
+              </View>
+              <Text className="text-sm font-medium text-green-600 text-center mb-4">
+                Status: {getDisplayName(status)}
+              </Text>
 
-                return (
-                  <View
-                    key={etapa.backend}
-                    className="relative flex-1 flex-col items-center"
-                  >
-                    <Animated.View
-                      className={`w-4 h-4 rounded-full justify-center items-center shadow-md ${circleBg}`}
-                      style={{
-                        top: -8, // Adjust to center the circle on the bar
-                        position: "absolute",
-                        ...(isActive ? pulseStyle : {}),
-                      }}
+              {/* Progress Bar */}
+              <View className="relative flex-row items-center justify-between mt-5 mb-2 h-6">
+                <View className="absolute left-0 right-0 top-1/2 h-1 bg-gray-200 rounded-full -translate-y-1/2" />
+                <View
+                  className="absolute left-0 top-1/2 h-1 bg-green-500 rounded-full -translate-y-1/2 transition-all duration-500"
+                  style={{
+                    width: `${
+                      filteredEtapas.length > 1 ? // Avoid division by zero if only one etapa
+                      (getProgressIndex(status) / (filteredEtapas.length - 1)) * 100
+                      : (getProgressIndex(status) >= 0 ? 100 : 0) // Handle single etapa case
+                    }%`,
+                  }}
+                />
+                {filteredEtapas.map((etapa, index) => {
+                  const isActive = getProgressIndex(status) === index;
+                  const isCompleted = getProgressIndex(status) > index;
+                  const circleBg =
+                    isActive || isCompleted ? "bg-green-500" : "bg-gray-400";
+                  
+                  // Ensure etapa.backend is a string and unique for the key
+                  const etapaKey = String(etapa.backend || `unknown-etapa-${index}`);
+
+                  return (
+                    <View
+                      key={etapaKey} // Key for progress bar steps
+                      className="relative flex-1 flex-col items-center"
                     >
-                      <Text className="text-white font-bold text-xs">
-                        {index + 1}
-                      </Text>
-                    </Animated.View>
-                  </View>
-                );
-              })}
-            </View>
-          </Pressable>
-        ))}
+                      <Animated.View
+                        className={`w-4 h-4 rounded-full justify-center items-center shadow-md ${circleBg}`}
+                        style={{
+                          top: -8, 
+                          position: "absolute",
+                          ...(isActive ? pulseStyle : {}),
+                        }}
+                      >
+                        <Text className="text-white font-bold text-xs">
+                          {index + 1}
+                        </Text>
+                      </Animated.View>
+                    </View>
+                  );
+                })}
+              </View>
+            </Pressable>
+          );
+        })}
     </ScrollView>
   );
 };

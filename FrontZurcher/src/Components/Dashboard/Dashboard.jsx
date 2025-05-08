@@ -25,7 +25,7 @@ const Dashboard = () => {
     {
       path: '/progress-tracker',
       title: 'Progress Tracker',
-      icon: <img src={ProgressIcon} alt="Progress Tracker" className="w-20 h-20" />,
+      icon: <img src={ProgressIcon} alt="Progress Tracker" className="w-16 h-16 sm:w-20 sm:h-20" />,
       color: 'bg-yellow-200',
       allowedRoles: ['owner'],
     },
@@ -39,7 +39,7 @@ const Dashboard = () => {
     {
       path: '/workCalendar',
       title: 'Calendar',
-      icon: <img src={CalendarIcon} alt="Calendar" className="w-20 h-20" />,
+      icon: <img src={CalendarIcon} alt="Calendar" className="w-16 h-16 sm:w-20 sm:h-20" />,
       color: 'bg-yellow-200',
       allowedRoles: ['owner'],
     },
@@ -53,64 +53,64 @@ const Dashboard = () => {
     {
       path: '/check',
       title: 'Check Work',
-      icon: <img src={CheckIcon} alt="Check Work" className="w-20 h-20" />,
+      icon: <img src={CheckIcon} alt="Check Work" className="w-16 h-16 sm:w-20 sm:h-20" />,
       color: 'bg-yellow-200',
       allowedRoles: ['owner', 'admin', 'recept'],
     },
     {
       path: '/budgets',
       title: 'Budgets List',
-      icon: <img src={BudgetIcon} alt="Budgets List" className="w-20 h-20" />,
+      icon: <img src={BudgetIcon} alt="Budgets List" className="w-16 h-16 sm:w-20 sm:h-20" />,
       color: 'bg-gray-300',
       allowedRoles: ['owner', 'admin'],
     },
     {
       path: '/pdf',
       title: 'Upload Permits',
-      icon: <img src={PermitIcon} alt="Upload Permits" className="w-20 h-20" />,
+      icon: <img src={PermitIcon} alt="Upload Permits" className="w-16 h-16 sm:w-20 sm:h-20" />,
       color: 'bg-yellow-200',
       allowedRoles: ['owner', 'admin'],
     },
     {
       path: '/editBudget',
       title: 'Budget Edit',
-      icon: <img src={ChecksIcon} alt="Budget Edit" className="w-20 h-20" />,
+      icon: <img src={ChecksIcon} alt="Budget Edit" className="w-16 h-16 sm:w-20 sm:h-20" />,
       color: 'bg-gray-300',
       allowedRoles: ['owner', 'admin'],
     },
     {
       path: '/archive',
       title: 'Budgets End',
-      icon: <img src={ArchivoIcon} alt="Budgets End" className="w-20 h-20" />,
+      icon: <img src={ArchivoIcon} alt="Budgets End" className="w-16 h-16 sm:w-20 sm:h-20" />,
       color: 'bg-yellow-200',
       allowedRoles: ['owner', 'admin'],
     },
     {
       path: '/send-notifications',
       title: 'Send Message',
-      icon: <img src={MsmIcon} alt="Send Message" className="w-20 h-20" />,
+      icon: <img src={MsmIcon} alt="Send Message" className="w-16 h-16 sm:w-20 sm:h-20" />,
       color: 'bg-gray-300',
       allowedRoles: ['owner', 'admin', 'recept', 'worker'],
     },
     {
       path: '/attachInvoice',
       title: 'Upload Vouchers',
-      icon: <img src={InvoiceIcon} alt="Upload Vouchers" className="w-20 h-20" />,
+      icon: <img src={InvoiceIcon} alt="Upload Vouchers" className="w-16 h-16 sm:w-20 sm:h-20" />,
       color: 'bg-yellow-200',
       allowedRoles: ['owner', 'admin', 'recept'],
     },
     {
       path: '/balance',
       title: 'Balance',
-      icon: <img src={EstadIcon} alt="Balance" className="w-20 h-20" />,
+      icon: <img src={EstadIcon} alt="Balance" className="w-16 h-16 sm:w-20 sm:h-20" />,
       color: 'bg-gray-300',
       allowedRoles: ['owner'],
     },
     {
       path: '/itemBudget',
       title: 'Price Item Budget',
-      icon: <img src={Precio} alt="Price" className="w-20 h-20" />,
-      color: 'bg-gray-300',
+      icon: <img src={Precio} alt="Price" className="w-16 h-16 sm:w-20 sm:h-20" />,
+      color: 'bg-yellow-200',
       allowedRoles: ['owner'],
     },
 
@@ -118,8 +118,8 @@ const Dashboard = () => {
     {
       path: '/register',
       title: 'Register Staff',
-      icon: <img src={StaffIcon} alt="Register Staff" className="w-20 h-20" />,
-      color: 'bg-yellow-200',
+      icon: <img src={StaffIcon} alt="Register Staff" className="w-16 h-16 sm:w-20 sm:h-20" />,
+      color: 'bg-gray-300',
       allowedRoles: ['owner'],
     },
   ];
@@ -134,25 +134,27 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="container mx-auto py-4 px-2 h-screen overflow-hidden ">
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-6">
-        {filteredOptions.map((option) => (
-          <div
-            key={option.path}
-            className={`${option.color} w-48 h-48 flex flex-col justify-center items-center border border-gray-300 rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300 cursor-pointer`}
-            onClick={() => navigateTo(option.path)}
-          >
-            {option.icon && (
-              <div className="mb-4">{option.icon}</div> // Mostrar el ícono
-            )}
-            <h2 className="text-xl text-blue-950 text-center font-varela  p-2">
-              {option.title}
-            </h2>
-          </div>
-        ))}
-      </div>
+    <div className="container mx-auto py-4 px-2 sm:px-4 md:px-6 h-screen overflow-y-auto"> {/* Added overflow-y-auto */}
+    {/* Adjusted grid columns for responsiveness */}
+    <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-2 sm:p-4">
+      {filteredOptions.map((option) => (
+        <div
+          key={option.path}
+          // Adjusted card width and height for responsiveness
+          className={`${option.color} w-full h-44 sm:h-48 flex flex-col justify-center items-center border border-gray-300 rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300 cursor-pointer p-2`}
+          onClick={() => navigateTo(option.path)}
+        >
+          {option.icon && (
+            <div className="mb-2 sm:mb-4">{option.icon}</div> // Adjusted margin
+          )}
+          {/* Adjusted text size for responsiveness */}
+          <h2 className="text-base sm:text-lg md:text-xl text-blue-950 text-center font-varela">
+            {option.title}
+          </h2>
+        </div>
+      ))}
     </div>
-  );
+  </div>
+);
 };
-
 export default Dashboard;

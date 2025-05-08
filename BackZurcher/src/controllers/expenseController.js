@@ -2,9 +2,9 @@ const { Expense } = require('../data'); // Importa el modelo Expense
 
 // Crear un nuevo gasto
 const createExpense = async (req, res) => {
-  const { date, amount, typeExpense, notes, workId } = req.body;
+  const { date, amount, typeExpense, notes, workId, staffId } = req.body;
   try {
-    const newExpense = await Expense.create({ date, amount, typeExpense, notes, workId });
+    const newExpense = await Expense.create({ date, amount, typeExpense, notes, workId, staffId });
     res.status(201).json(newExpense);
   } catch (error) {
     res.status(500).json({ message: 'Error al crear el gasto', error: error.message });
