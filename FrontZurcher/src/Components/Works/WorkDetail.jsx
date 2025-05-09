@@ -255,7 +255,7 @@ const WorkDetail = () => {
           </h1>
           <p className="text-xl text-slate-800 p-1 uppercase mt-2 flex items-center">
             <strong>Status: </strong>
-            <span className="ml-2 px-3 py-1 text-sm font-medium tracking-wider text-white bg-sky-500 rounded-full shadow-md"> {/* Estilo de badge */}
+            <span className="ml-2 px-3 py-2 text-sm font-medium tracking-wider text-white bg-sky-500 rounded-full shadow-md"> {/* Estilo de badge */}
               {work.status}
             </span>
             {work.status === 'installed' && (
