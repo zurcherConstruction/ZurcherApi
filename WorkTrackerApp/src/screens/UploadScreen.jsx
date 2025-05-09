@@ -29,7 +29,7 @@ const UploadScreen = () => {
   const [largeImageModalVisible, setLargeImageModalVisible] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState(null);
   const [imageSelectionModalWasOpen, setImageSelectionModalWasOpen] = useState(false); // New state
- 
+  const [isUploading, setIsUploading] = useState(false);
   // --- EFECTO PARA BUSCAR DETALLES DEL TRABAJO ---
   useEffect(() => {
     if (idWork) {
@@ -304,6 +304,7 @@ const UploadScreen = () => {
 
   // MODIFICAR processAndUploadImage
   const processAndUploadImage = async (imageUri, comment = '', truckCount = null) => {
+    setIsUploading(true);
     let tempImageId = `temp-${Date.now()}-${Math.random()}`;
     try {
       const resizedImage = await manipulateAsync(
@@ -319,14 +320,6 @@ const UploadScreen = () => {
       const optimisticImagePayload = {
         id: tempImageId,
         stage: selectedStage,
-        // Para la UI optimista, podrías usar resizedImage.uri directamente si tu componente Image lo soporta
-        // o si necesitas base64 para la UI optimista, puedes generarlo aquí solo para eso.
-        // Por simplicidad, asumiremos que la UI optimista puede usar la URI local.
-        // Si necesitas base64 para la UI optimista, puedes leerlo aquí pero NO enviarlo al backend.
-        // Ejemplo: const base64ForOptimisticUI = await FileSystem.readAsStringAsync(resizedImage.uri, { encoding: 'base64' });
-        // Y luego en setCurrentWorkData, usarías una propiedad temporal como `optimisticLocalUrl: resizedImage.uri` o `optimisticBase64: base64ForOptimisticUI`
-        // Para este ejemplo, vamos a asumir que la UI optimista puede usar la URI local.
-        // O, si quieres que la UI optimista muestre un placeholder o nada hasta que la URL de Cloudinary llegue:
         imageUrl: resizedImage.uri, // Usar URI local para la vista previa optimista
         comment: comment,
         dateTime: dateTimeString,
@@ -364,10 +357,7 @@ const UploadScreen = () => {
 
       if (resultAction && resultAction.work && resultAction.work.images) {
         Alert.alert('Éxito', 'Imagen cargada correctamente a Cloudinary.');
-        // Redux ya debería haber actualizado currentWork con las URLs de Cloudinary.
-        // La UI optimista se reemplazará con los datos reales de Redux.
-        // Si la UI optimista usó tempImageId, el reducer addImagesSuccess
-        // debería reemplazar la imagen temporal con la real del servidor.
+       
       } else {
         console.error("Error en resultAction de addImagesToWork (Cloudinary) o respuesta inesperada:", resultAction);
         Alert.alert('Error', 'No se pudo cargar la imagen a Cloudinary o respuesta inesperada.');
@@ -382,8 +372,10 @@ const UploadScreen = () => {
       Alert.alert('Error', `No se pudo cargar la imagen: ${error.message || 'Error desconocido'}`);
       setCurrentWorkData(prev => ({
         ...prev,
-        images: prev.images.filter(img => img.id !== tempImageId) // Revertir optimista
+        images: prev.images.filter(img => img.id !== tempImageId) 
       }));
+    } finally {
+      setIsUploading(false); // <--- Ocultar indicador de carga, independientemente del resultado
     }
   };
 
@@ -681,6 +673,7 @@ const UploadScreen = () => {
             <View className="flex-row justify-between mt-4">
               <Pressable
                 onPress={handlePickImage}
+                disabled={isUploading}
                 className="flex-1 bg-blue-600 py-3 rounded-lg shadow-md flex-row justify-center items-center mr-2"
               >
                 <Ionicons name="cloud-upload-outline" size={20} color="white" />
@@ -688,6 +681,7 @@ const UploadScreen = () => {
               </Pressable>
               <Pressable
                 onPress={handleTakePhoto}
+                disabled={isUploading}
                 className="flex-1 bg-green-600 py-3 rounded-lg shadow-md flex-row justify-center items-center ml-2"
               >
                 <Ionicons name="camera-outline" size={20} color="white" />
@@ -696,10 +690,31 @@ const UploadScreen = () => {
             </View>
             <Pressable
               onPress={() => setModalVisible(false)}
+              disabled={isUploading}
               className="mt-4 bg-red-500 px-4 py-2 rounded-md"
             >
               <Text className="text-white text-center text-sm">Cerrar</Text>
             </Pressable>
+            {isUploading && (
+              <View 
+                style={{ 
+                  position: 'absolute', // Posicionamiento absoluto para superponer
+                  top: 0, 
+                  left: 0, 
+                  right: 0, 
+                  bottom: 0, 
+                  justifyContent: 'center', 
+                  alignItems: 'center', 
+                  backgroundColor: 'rgba(255, 255, 255, 0.8)', // Fondo semitransparente para oscurecer ligeramente el contenido detrás
+                  borderRadius: 8, // Mismo borderRadius que el modal interno
+                }}
+              >
+                <View style={{ padding: 30, backgroundColor: '#4A5568', borderRadius: 10, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 }}>
+                  <ActivityIndicator size="large" color="#E2E8F0" /> 
+                  <Text style={{ marginTop: 15, fontSize: 16, color: '#E2E8F0' }}>Cargando imagen...</Text>
+                </View>
+              </View>
+            )}
           </View>
         </View>
       </Modal>
@@ -736,6 +751,7 @@ const UploadScreen = () => {
           )}
         </View>
       </Modal>
+      
     </>
   );
 };
