@@ -11,7 +11,7 @@ import {
 } from '../../Redux/Actions/inspectionActions';
 import { fetchWorkById } from '../../Redux/Actions/workActions';
 
-const InspectionFlowManager = ({ work, selectedWorkImageId }) => {
+const InspectionFlowManager = ({ work, selectedWorkImageId, isVisible }) => {
   const dispatch = useDispatch();
   const { inspectionsByWork, selectedInspection, loading, error, successMessage } = useSelector((state) => state.inspection);
   const [activeForm, setActiveForm] = useState(null);
@@ -90,51 +90,113 @@ console.log("currentInitialInspection en FlowManager:", currentInitialInspection
       console.error(errorMsgContext, err);
     }
   };
-  
-  const renderInspectionDetails = (inspectionToDetail) => {
-    if (!inspectionToDetail) return <p className="text-gray-600">No hay información de inspección inicial para esta obra.</p>;
+ 
+// ...
+const renderInspectionDetails = (inspectionToDetail) => {
+    if (!inspectionToDetail) return <p className="text-gray-500 italic p-4">No hay información de inspección inicial para esta obra.</p>;
+    
+    const detailItemClass = "py-2 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0";
+    const detailLabelClass = "text-sm font-medium text-gray-600";
+    const detailValueClass = "mt-1 text-sm text-gray-800 sm:mt-0 sm:col-span-2";
+
     return (
-      <div className="bg-white shadow-md rounded-lg p-6 mb-6 border-l-4 border-blue-500">
-        <h3 className="text-lg font-semibold mb-3">Detalle Inspección Inicial (ID: {inspectionToDetail.idInspection})</h3>
-        <p><strong>Estado del Proceso:</strong> <span className="font-medium text-blue-700">{inspectionToDetail.processStatus}</span></p>
-        <p><strong>Resultado Final:</strong> {inspectionToDetail.finalStatus || 'Pendiente'}</p>
-        {inspectionToDetail.inspectorScheduledDate && <p><strong>Fecha Programada por Inspector:</strong> {new Date(inspectionToDetail.inspectorScheduledDate).toLocaleDateString()}</p>}
-        {inspectionToDetail.dateInspectionPerformed && <p><strong>Fecha Inspección Realizada:</strong> {new Date(inspectionToDetail.dateInspectionPerformed).toLocaleDateString()}</p>}
-        
-        {inspectionToDetail.documentForApplicantUrl && (
-          <div className="mt-2">
-            <a href={inspectionToDetail.documentForApplicantUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800">Ver Documento para Aplicante</a>
+      <div className="bg-white overflow-hidden rounded-lg mb-6">
+        {/* <h3 className="text-lg font-semibold mb-3 text-gray-800 px-4 pt-4">
+            Detalle Inspección Inicial (ID: {inspectionToDetail.idInspection})
+        </h3> */}
+        <dl className="divide-y divide-gray-200 px-4">
+          <div className={detailItemClass}>
+            <dt className={detailLabelClass}>Estado del Proceso:</dt>
+            <dd className={detailValueClass}>
+              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                inspectionToDetail.processStatus === 'result_approved' ? 'bg-green-100 text-green-800' :
+                inspectionToDetail.processStatus === 'result_rejected' ? 'bg-red-100 text-red-800' :
+                'bg-yellow-100 text-yellow-800'
+              }`}>
+                {inspectionToDetail.processStatus.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+              </span>
+            </dd>
           </div>
-        )}
-        {inspectionToDetail.signedDocumentFromApplicantUrl && (
-          <div className="mt-2">
-            <a href={inspectionToDetail.signedDocumentFromApplicantUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800">Ver Documento Firmado por Aplicante</a>
+          <div className={detailItemClass}>
+            <dt className={detailLabelClass}>Resultado Final:</dt>
+            <dd className={`${detailValueClass} ${inspectionToDetail.finalStatus ? (inspectionToDetail.finalStatus === 'approved' ? 'text-green-600 font-bold' : 'text-red-600 font-bold') : 'text-gray-500'}`}>
+              {inspectionToDetail.finalStatus ? inspectionToDetail.finalStatus.toUpperCase() : 'Pendiente'}
+            </dd>
           </div>
-        )}
-        {inspectionToDetail.resultDocumentUrl && (
-          <div className="mt-2">
-            <a href={inspectionToDetail.resultDocumentUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800">Ver Documento de Resultado Principal</a>
-          </div>
-        )}
-        {inspectionToDetail.notes?.includes("Archivos de resultado adjuntos:") && (
-            <div className="mt-2">
-                <p className="text-sm font-semibold">Otros documentos de resultado:</p>
-                <ul className="list-disc list-inside text-sm">
+          {inspectionToDetail.inspectorScheduledDate && (
+            <div className={detailItemClass}>
+              <dt className={detailLabelClass}>Fecha Programada por Inspector:</dt>
+              <dd className={detailValueClass}>{new Date(inspectionToDetail.inspectorScheduledDate).toLocaleDateString()}</dd>
+            </div>
+          )}
+          {inspectionToDetail.dateInspectionPerformed && (
+            <div className={detailItemClass}>
+              <dt className={detailLabelClass}>Fecha Inspección Realizada:</dt>
+              <dd className={detailValueClass}>{new Date(inspectionToDetail.dateInspectionPerformed).toLocaleDateString()}</dd>
+            </div>
+          )}
+          
+          {inspectionToDetail.documentForApplicantUrl && (
+            <div className={detailItemClass}>
+              <dt className={detailLabelClass}>Documento para Aplicante:</dt>
+              <dd className={detailValueClass}>
+                <a href={inspectionToDetail.documentForApplicantUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 hover:underline">
+                  Ver Documento
+                </a>
+              </dd>
+            </div>
+          )}
+          {inspectionToDetail.signedDocumentFromApplicantUrl && (
+            <div className={detailItemClass}>
+              <dt className={detailLabelClass}>Documento Firmado por Aplicante:</dt>
+              <dd className={detailValueClass}>
+                <a href={inspectionToDetail.signedDocumentFromApplicantUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 hover:underline">
+                  Ver Documento Firmado
+                </a>
+              </dd>
+            </div>
+          )}
+          {inspectionToDetail.resultDocumentUrl && (
+            <div className={detailItemClass}>
+              <dt className={detailLabelClass}>Documento de Resultado Principal:</dt>
+              <dd className={detailValueClass}>
+                <a href={inspectionToDetail.resultDocumentUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 hover:underline">
+                  Ver Documento de Resultado
+                </a>
+              </dd>
+            </div>
+          )}
+          {inspectionToDetail.notes?.includes("Archivos de resultado adjuntos:") && (
+            <div className={detailItemClass}>
+                <dt className={detailLabelClass}>Otros Documentos de Resultado:</dt>
+                <dd className={`${detailValueClass} space-y-1`}>
                     {inspectionToDetail.notes.split('\n').filter(line => line.startsWith("- ")).map((line, idx) => {
                         const match = line.match(/- (.*) \((.*)\)/);
                         if (match) {
-                            return <li key={idx}><a href={match[2]} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800">{match[1]}</a></li>;
+                            return (
+                              <a key={idx} href={match[2]} target="_blank" rel="noopener noreferrer" className="block text-indigo-600 hover:text-indigo-800 hover:underline">
+                                {match[1]}
+                              </a>
+                            );
                         }
                         return null;
                     })}
-                </ul>
+                </dd>
             </div>
-        )}
-        <p className="text-sm text-gray-500 mt-2"><strong>Notas:</strong> {inspectionToDetail.notes || 'N/A'}</p>
-        <p className="text-xs text-gray-400 mt-1">Última actualización: {new Date(inspectionToDetail.updatedAt).toLocaleString()}</p>
+          )}
+          <div className={detailItemClass}>
+            <dt className={detailLabelClass}>Notas Adicionales:</dt>
+            <dd className={`${detailValueClass} whitespace-pre-wrap`}>{inspectionToDetail.notes || 'N/A'}</dd>
+          </div>
+          <div className={`${detailItemClass} border-b-0 pb-0`}>
+            <dt className={detailLabelClass}>Última Actualización:</dt>
+            <dd className={detailValueClass}>{new Date(inspectionToDetail.updatedAt).toLocaleString()}</dd>
+          </div>
+        </dl>
       </div>
     );
   };
+// ...
 
   const renderActions = () => {
     // Ahora se usan las variables memoizadas definidas en el nivel superior
@@ -275,12 +337,16 @@ console.log("currentInitialInspection en FlowManager:", currentInitialInspection
     return null;
   };
 
+  if (!isVisible) { // <--- ¡ESTA ES LA LÍNEA CLAVE!
+    return null; 
+  }
+
   if (loading && inspectionsByWork.length === 0 && !selectedInspection) return <p>Cargando información de inspecciones...</p>;
   if (error) return <p className="text-red-500">Error: {error}</p>;
 
   return (
     <div className="my-6 p-4 border rounded-lg shadow-sm bg-gray-50">
-      <h2 className="text-xl font-semibold mb-4 text-gray-800">Gestión de Inspección</h2>
+
       {successMessage && <p className="text-green-600 bg-green-100 p-2 rounded mb-3">{successMessage}</p>}
       
       {renderInspectionDetails(currentInitialInspection)}
