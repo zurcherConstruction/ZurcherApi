@@ -10,6 +10,8 @@ import {
 import { useParams } from "react-router-dom";
 //import api from "../../utils/axios";
 import FinalInvoice from "../Budget/FinalInvoice"
+import InspectionFlowManager from "./InspectionFlowManager";
+
 
 const WorkDetail = () => {
   const { idWork } = useParams();
@@ -37,6 +39,7 @@ const WorkDetail = () => {
   const [fileBlob, setFileBlob] = useState(null);
   const [openSections, setOpenSections] = useState({}); // Cambiado a un objeto para manejar múltiples secciones
   const [showFinalInvoice, setShowFinalInvoice] = useState(false);
+  const [selectedInstalledImage, setSelectedInstalledImage] = useState(null);
   const {
     incomes,
     expenses,
@@ -119,9 +122,11 @@ const WorkDetail = () => {
     }, [work?.budget, work?.Receipts, incomes, expenses, work?.propertyAddress]); // Dependencias
   
 
-  useEffect(() => {
-    dispatch(fetchWorkById(idWork));
-  }, [dispatch, idWork]);
+    useEffect(() => {
+      if (idWork) { // Asegúrate de que idWork no sea undefined
+          dispatch(fetchWorkById(idWork));
+      }
+    }, [dispatch, idWork]);
 
   useEffect(() => {
     const setInvoiceUrl = () => {
@@ -166,6 +171,14 @@ const WorkDetail = () => {
     fetchBalanceData();
     // Dependencia: dispatch y idWork
   }, [dispatch, idWork]);
+
+   // Filtrar imágenes de "sistema instalado"
+   const installedImages = useMemo(() => {
+    return Array.isArray(work?.images) 
+      ? work.images.filter(img => img.stage === 'sistema instalado') 
+      : [];
+  }, [work?.images]);
+
 
   if (loading) {
     return (
@@ -261,7 +274,7 @@ const WorkDetail = () => {
           </button>
         )}
       </div>
-
+      
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Columna izquierda: Tarjetas desplegables */}
         <div className="space-y-6">
@@ -283,6 +296,11 @@ const WorkDetail = () => {
                   <strong>Permit N°:</strong>{" "}
                   {work.Permit?.permitNumber || "No disponible"}
                 </p>
+                <p>
+                  <strong>Aplicante Email:</strong>{" "}
+                  {work.Permit?.applicantEmail || "No disponible"}
+                </p>
+                
                 {pdfUrl && (
                   <div className="mt-4">
                     <h3 className="text-lg font-semibold">Permit</h3>
@@ -487,6 +505,40 @@ const WorkDetail = () => {
                 ) 
               })}
        </div>
+       {work?.status === 'installed' && installedImages.length > 0 && (
+        <div className="my-6 p-4 border rounded-lg shadow-sm bg-white">
+          <h3 className="text-lg font-semibold mb-3 text-gray-700">Seleccionar Imagen de Referencia (Sistema Instalado)</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-72 overflow-y-auto p-2 border rounded-md">
+            {installedImages.map(image => (
+              <div
+                key={image.id}
+                className={`cursor-pointer border-2 p-1 rounded-md hover:border-green-500 transition-all ${selectedInstalledImage?.id === image.id ? 'border-green-600 ring-2 ring-green-500' : 'border-gray-200'}`}
+                onClick={() => setSelectedInstalledImage(image)}
+              >
+                <img
+                  src={image.imageUrl}
+                  alt={`Sistema Instalado - ${image.id}`}
+                  className="w-full h-28 object-cover rounded"
+                />
+                <p className="text-xs text-center mt-1 truncate" title={`ID: ${image.id}`}>ID: {image.id}</p>
+              </div>
+            ))}
+          </div>
+          {selectedInstalledImage && (
+            <p className="text-sm text-green-700 mt-2">
+              Imagen seleccionada para inspección: ID {selectedInstalledImage.id}
+            </p>
+          )}
+           {!selectedInstalledImage && (
+            <p className="text-sm text-yellow-600 mt-2">
+              Por favor, selecciona una imagen de "sistema instalado" como referencia para la inspección.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Pasar la imagen seleccionada (o su ID) a InspectionFlowManager */}
+      {work && <InspectionFlowManager work={work} selectedWorkImageId={selectedInstalledImage?.id || null} />}
         </div>
 
 

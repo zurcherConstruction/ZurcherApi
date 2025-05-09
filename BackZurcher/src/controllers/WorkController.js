@@ -61,7 +61,7 @@ const getWorks = async (req, res) => {
         {
           model: Permit,
           // Asegúrate de que 'expirationDate' esté aquí
-          attributes: ['idPermit', 'propertyAddress', 'applicantName', 'expirationDate'],
+          attributes: ['idPermit', 'propertyAddress', 'applicantName', 'expirationDate', 'applicantEmail'],
         },
       ],
       // Podrías querer ordenar los trabajos, por ejemplo, por fecha de creación o actualización
@@ -154,6 +154,7 @@ const getWorkById = async (req, res) => {
             'propertyAddress',
             'permitNumber',
             'applicantName',
+            'applicantEmail',
             'pdfData',
             'optionalDocs',
             'expirationDate',
@@ -165,15 +166,30 @@ const getWorkById = async (req, res) => {
         },
         {
           model: Inspection,
-          attributes: [
+          as: 'inspections', // <--- ASEGÚRATE DE QUE ESTE ALIAS ES EL CORRECTO (definido en data/index.js)
+          attributes: [ // <--- ATRIBUTOS ACTUALIZADOS DEL MODELO INSPECTION
             'idInspection',
-
             'type',
-            'status',
-            'dateRequested',
-            'dateCompleted',
+            'processStatus', // Nuevo estado detallado del proceso
+            'finalStatus',   // Estado final (approved, rejected, pending)
+            'dateRequestedToInspectors',
+            'inspectorScheduledDate',
+            'documentForApplicantUrl',
+            // 'documentForApplicantPublicId', // Opcional, usualmente no se envía al frontend
+            'dateDocumentSentToApplicant',
+            'signedDocumentFromApplicantUrl',
+            // 'signedDocumentFromApplicantPublicId', // Opcional
+            'dateSignedDocumentReceived',
+            'dateInspectionPerformed',
+            'resultDocumentUrl',
+            // 'resultDocumentPublicId', // Opcional
+            'dateResultReceived',
             'notes',
+            'createdAt', // Para saber cuándo se creó el registro de inspección
+            'updatedAt', // Para saber cuándo se actualizó por última vez
           ],
+          // Opcional: puedes ordenar las inspecciones si una obra puede tener múltiples
+          order: [['createdAt', 'DESC']], 
         },
         {
           model: InstallationDetail,
@@ -287,7 +303,33 @@ const updateWork = async (req, res) => {
         { model: Budget, as: 'budget', attributes: ['idBudget', 'propertyAddress', 'status', 'paymentInvoice', 'paymentProofType', 'initialPayment', 'date', 'applicantName','totalPrice', 'initialPaymentPercentage']},
         { model: Permit, attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantName', 'pdfData', 'optionalDocs', 'expirationDate']},
         { model: Material, attributes: ['idMaterial', 'name', 'quantity', 'cost']},
-        { model: Inspection, attributes: ['idInspection', 'type', 'status', 'dateRequested', 'dateCompleted', 'notes']},
+        {
+          model: Inspection,
+          as: 'inspections', // <--- ASEGÚRATE DE QUE ESTE ALIAS ES EL CORRECTO (definido en data/index.js)
+          attributes: [ // <--- ATRIBUTOS ACTUALIZADOS DEL MODELO INSPECTION
+            'idInspection',
+            'type',
+            'processStatus', // Nuevo estado detallado del proceso
+            'finalStatus',   // Estado final (approved, rejected, pending)
+            'dateRequestedToInspectors',
+            'inspectorScheduledDate',
+            'documentForApplicantUrl',
+            // 'documentForApplicantPublicId', // Opcional, usualmente no se envía al frontend
+            'dateDocumentSentToApplicant',
+            'signedDocumentFromApplicantUrl',
+            // 'signedDocumentFromApplicantPublicId', // Opcional
+            'dateSignedDocumentReceived',
+            'dateInspectionPerformed',
+            'resultDocumentUrl',
+            // 'resultDocumentPublicId', // Opcional
+            'dateResultReceived',
+            'notes',
+            'createdAt', // Para saber cuándo se creó el registro de inspección
+            'updatedAt', // Para saber cuándo se actualizó por última vez
+          ],
+          // Opcional: puedes ordenar las inspecciones si una obra puede tener múltiples
+          order: [['createdAt', 'DESC']], 
+        },
         { model: InstallationDetail, as: 'installationDetails', attributes: ['idInstallationDetail', 'date', 'extraDetails', 'extraMaterials', 'images']},
         { model: MaterialSet, as: 'MaterialSets', attributes: ['idMaterialSet', 'invoiceFile', 'totalCost']},
         { model: Image, as: 'images', attributes: ['id', 'stage', 'dateTime', 'imageUrl', 'publicId', 'comment', 'truckCount']},
@@ -458,7 +500,26 @@ const getAssignedWorks = async (req, res) => {
         },
         {
           model: Inspection,
-          attributes: ['idInspection', 'type', 'status', 'dateRequested', 'dateCompleted', 'notes'],
+          as: 'inspections', // <--- ALIAS AÑADIDO
+          attributes: [     // <--- ATRIBUTOS ACTUALIZADOS
+            'idInspection',
+            'type',
+            'processStatus',
+            'finalStatus',
+            'dateRequestedToInspectors',
+            'inspectorScheduledDate',
+            'documentForApplicantUrl',
+            'dateDocumentSentToApplicant',
+            'signedDocumentFromApplicantUrl',
+            'dateSignedDocumentReceived',
+            'dateInspectionPerformed',
+            'resultDocumentUrl',
+            'dateResultReceived',
+            'notes',
+            'createdAt',
+            'updatedAt',
+          ],
+          order: [['createdAt', 'DESC']], // Opcional, pero consistente con otros includes
         },
         {
           model: Image,
@@ -546,15 +607,26 @@ const addImagesToWork = async (req, res) => {
         },
         {
           model: Inspection,
-          attributes: [
+          as: 'inspections', // <--- ALIAS AÑADIDO
+          attributes: [     // <--- ATRIBUTOS ACTUALIZADOS
             'idInspection',
-
             'type',
-            'status',
-            'dateRequested',
-            'dateCompleted',
+            'processStatus',
+            'finalStatus',
+            'dateRequestedToInspectors',
+            'inspectorScheduledDate',
+            'documentForApplicantUrl',
+            'dateDocumentSentToApplicant',
+            'signedDocumentFromApplicantUrl',
+            'dateSignedDocumentReceived',
+            'dateInspectionPerformed',
+            'resultDocumentUrl',
+            'dateResultReceived',
             'notes',
+            'createdAt',
+            'updatedAt',
           ],
+          order: [['createdAt', 'DESC']], // Opcional, pero consistente con otros includes
         },
         {
           model: InstallationDetail,
