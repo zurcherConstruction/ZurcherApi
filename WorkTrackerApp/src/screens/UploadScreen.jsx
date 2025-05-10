@@ -30,6 +30,8 @@ const UploadScreen = () => {
   const [selectedImageUri, setSelectedImageUri] = useState(null);
   const [imageSelectionModalWasOpen, setImageSelectionModalWasOpen] = useState(false); // New state
   const [isUploading, setIsUploading] = useState(false);
+  const [isSubmittingWorkInstalled, setIsSubmittingWorkInstalled] = useState(false); // Nuevo estado
+  const [isRequestingFinalInspection, setIsRequestingFinalInspection] = useState(false); // Nuevo estado
   // --- EFECTO PARA BUSCAR DETALLES DEL TRABAJO ---
   useEffect(() => {
     if (idWork) {
@@ -419,26 +421,31 @@ const UploadScreen = () => {
   };
 
   const handleWorkInstalled = async () => {
-    if (isInstallationSubmitted) return;
+    if (isInstallationSubmitted || isSubmittingWorkInstalled) return;
+    setIsSubmittingWorkInstalled(true);  
     try {
       await dispatch(updateWork(idWork, { status: 'installed' }));
-      await dispatch(fetchAssignedWorks());
+      // await dispatch(fetchAssignedWorks());
+      
       setIsInstallationSubmitted(true);
       Alert.alert('Éxito', 'El estado del trabajo se actualizó a "installed".');
       if (navigation.canGoBack()) {
         navigation.goBack();
       }
     } catch (error) {
-      console.error('Error al actualizar el estado del trabajo:', error);
+      console.error('Error al actualizar el estado del trabajo a installed:', error);
       Alert.alert('Error', 'No se pudo actualizar el estado del trabajo.');
+    } finally {
+      setIsSubmittingWorkInstalled(false); // Finalizar carga
     }
   };
 
   const handleRequestFinalInspection = async () => {
-    if (isFinalInspectionRequested) return;
+    if (isFinalInspectionRequested || isRequestingFinalInspection) return; // Evitar múltiples envíos
+    setIsRequestingFinalInspection(true);
     try {
       await dispatch(updateWork(idWork, { status: 'coverPending' }));
-      await dispatch(fetchAssignedWorks()); // <--- NECESARIO AQUÍ para actualizar la lista
+      // await dispatch(fetchAssignedWorks()); // <--- NECESARIO AQUÍ para actualizar la lista
       setIsFinalInspectionRequested(true);
       Alert.alert('Éxito', 'Se solicitó la inspección final.');
       if (navigation.canGoBack()) {
@@ -447,8 +454,11 @@ const UploadScreen = () => {
     } catch (error) {
       console.error('Error al solicitar la inspección final:', error);
       Alert.alert('Error', 'No se pudo solicitar la inspección final.');
+    } finally {
+      setIsRequestingFinalInspection(false); // Finalizar carga
     }
   };
+
   const handleOpenLargeImage = (uri) => {
     console.log('handleOpenLargeImage called with URI:', uri);
     setSelectedImageUri(uri);
@@ -571,48 +581,53 @@ const UploadScreen = () => {
 
 
 
-        {/* --- MODIFICAR RENDERIZADO DEL BOTÓN --- */}
-        {/* Mostrar el botón o el texto de espera solo si hay imágenes de inspección final */}
         {hasFinalInspectionImages && (
           <Pressable
             onPress={handleWorkInstalled}
-            // Deshabilitar si ya se envió
-            disabled={isInstallationSubmitted}
-            // Cambiar estilo si está deshabilitado
-            className={` py-3 rounded-lg shadow-md ${isInstallationSubmitted
-                ? 'bg-gray-400' // Color deshabilitado
-                : 'bg-blue-600' // Color normal
-              }`}
+            disabled={isInstallationSubmitted || isSubmittingWorkInstalled} // Deshabilitar si ya se envió o está cargando
+            className={`py-3 rounded-lg shadow-md flex-row justify-center items-center ${
+              isInstallationSubmitted || isSubmittingWorkInstalled
+                ? 'bg-gray-400'
+                : 'bg-blue-600'
+            }`}
           >
+            {isSubmittingWorkInstalled ? (
+              <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
+            ) : null}
             <Text className="text-white text-center text-lg font-semibold">
-              {isInstallationSubmitted
+              {isSubmittingWorkInstalled
+                ? 'Enviando...'
+                : isInstallationSubmitted
                 ? 'Esperando Aprobación de Inspección'
                 : 'WORK INSTALLED'}
             </Text>
           </Pressable>
         )}
-        {/* --- FIN MODIFICACIÓN BOTÓN --- */}
       
         {hasCoverImages && (
           <Pressable
             onPress={handleRequestFinalInspection}
-            // Deshabilitar si ya se solicitó
-            disabled={isFinalInspectionRequested}
-            // Cambiar estilo si está deshabilitado
-            className={`mt-2 py-3 rounded-lg shadow-md ${isFinalInspectionRequested
-                ? 'bg-gray-400' // Color deshabilitado
-                : 'bg-green-600' // Color normal (ej. verde)
-              }`}
+            disabled={isFinalInspectionRequested || isRequestingFinalInspection} // Deshabilitar si ya se solicitó o está cargando
+            className={`mt-2 py-3 rounded-lg shadow-md flex-row justify-center items-center ${
+              isFinalInspectionRequested || isRequestingFinalInspection
+                ? 'bg-gray-400'
+                : 'bg-green-600'
+            }`}
           >
+            {isRequestingFinalInspection ? (
+              <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
+            ) : null}
             <Text className="text-white text-center text-lg font-semibold">
-              {isFinalInspectionRequested
-                ? 'Esperando Inspección Final' // Texto cuando está deshabilitado
-                : 'REQUEST FINAL INSPECTION'} {/* Texto normal */}
+              {isRequestingFinalInspection
+                ? 'Solicitando...'
+                : isFinalInspectionRequested
+                ? 'Esperando Inspección Final'
+                : 'REQUEST FINAL INSPECTION'}
             </Text>
           </Pressable>
         )}
-        {/* --- FIN NUEVO BOTÓN --- */}
       </ScrollView>
+
 
       {/* Modals are now outside the ScrollView */}
       <Modal visible={modalVisible} transparent={true} animationType="slide">

@@ -8,6 +8,8 @@ const { uploadToCloudinary, deleteFromCloudinary, uploadBufferToCloudinary } = r
 const multer = require('multer');
 const path = require('path');
 
+
+
 const createWork = async (req, res) => {
   try {
     console.log("Request Body:", req.body); // <---- Agregar este console.log

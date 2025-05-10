@@ -20,7 +20,7 @@ const requestInitialInspection = async (req, res) => {
 
     const work = await Work.findByPk(workId, {
       include: [
-        { model: Permit, attributes: ['idPermit', 'pdfData', 'permitNumber','aplicantEmail', 'aplicantName'] }, // Necesitamos el Permit
+        { model: Permit, attributes: ['idPermit', 'pdfData', 'permitNumber','applicantEmail', 'applicantName'] }, // Necesitamos el Permit
         { model: Image, as: 'images', where: { id: workImageId }, limit: 1 } // Obtener la imagen específica
       ]
     });

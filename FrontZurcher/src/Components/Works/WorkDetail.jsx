@@ -215,16 +215,16 @@ const WorkDetail = () => {
    // Caso 3: Si work.status es 'installed' (y no es ninguno de los anteriores),
    // mostrar botón para solicitar la primera inspección.
    // Este es el comportamiento "normal" antes de que haya un resultado de inspección.
-   else if (work?.status === 'installed') {
-     displayHeaderButton = true;
-     headerButtonText = "Solicitar Inspección"; 
-     headerButtonClasses += " bg-blue-500 hover:bg-blue-600"; 
-     headerButtonAction = async () => {
-       console.log(`Cambiando estado de obra ${idWork} de 'installed' a 'firstInspectionPending'`);
-       await dispatch(updateWork(idWork, { status: "firstInspectionPending" }));
-       dispatch(fetchWorkById(idWork)); 
-     };
-   }
+  //  else if (work?.status === 'installed') {
+  //    displayHeaderButton = true;
+  //    headerButtonText = "Solicitar Inspección"; 
+  //    headerButtonClasses += " bg-blue-500 hover:bg-blue-600"; 
+  //    headerButtonAction = async () => {
+  //      console.log(`Cambiando estado de obra ${idWork} de 'installed' a 'firstInspectionPending'`);
+  //      await dispatch(updateWork(idWork, { status: "firstInspectionPending" }));
+  //      dispatch(fetchWorkById(idWork)); 
+  //    };
+  //  }
 
 
   if (loading) {
