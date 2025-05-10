@@ -485,6 +485,17 @@ const UploadScreen = () => {
   const hasFinalInspectionImages = imagesByStage['sistema instalado']?.length > 0;
   const hasCoverImages = imagesByStage['inspeccion final']?.length > 0;
 
+  const showWorkInstalledButton = 
+    hasFinalInspectionImages &&
+    currentWork && 
+    
+    currentWork.status !== 'coverPending' &&
+    currentWork.status !== 'finalInspectionPending' && // Añadir otros estados posteriores si es necesario
+    currentWork.status !== 'finalApproved' &&
+    currentWork.status !== 'finalRejected' &&
+    currentWork.status !== 'maintenance';
+
+
   // --- Lógica de renderizado ---
   if (workDetailsLoading && (!workDetailsFromState || workDetailsFromState.idWork !== idWork)) {
     return (
@@ -581,12 +592,13 @@ const UploadScreen = () => {
 
 
 
-        {hasFinalInspectionImages && (
+        {showWorkInstalledButton && (
           <Pressable
             onPress={handleWorkInstalled}
-            disabled={isInstallationSubmitted || isSubmittingWorkInstalled} // Deshabilitar si ya se envió o está cargando
+            // Deshabilitar si ya se envió (estado 'installed') O si está enviando activamente
+            disabled={isInstallationSubmitted || isSubmittingWorkInstalled} 
             className={`py-3 rounded-lg shadow-md flex-row justify-center items-center ${
-              isInstallationSubmitted || isSubmittingWorkInstalled
+              (isInstallationSubmitted && currentWork?.status === 'installed') || isSubmittingWorkInstalled // Condición para el estilo gris
                 ? 'bg-gray-400'
                 : 'bg-blue-600'
             }`}
@@ -597,8 +609,8 @@ const UploadScreen = () => {
             <Text className="text-white text-center text-lg font-semibold">
               {isSubmittingWorkInstalled
                 ? 'Enviando...'
-                : isInstallationSubmitted
-                ? 'Esperando Aprobación de Inspección'
+                : isInstallationSubmitted // Si el estado es 'installed'
+                ? 'Esperando Aprobación de Inspección' 
                 : 'WORK INSTALLED'}
             </Text>
           </Pressable>
