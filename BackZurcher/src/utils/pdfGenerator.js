@@ -113,26 +113,52 @@ async function generateAndSaveBudgetPDF(budgetData) {
 
       // Filas (con parseo y formato corregido)
       lineItems.forEach(item => {
-        const y = doc.y;
+        const y = doc.y; // Línea base para este ítem
         const quantityNum = parseFloat(item.quantity);
         const unitPriceNum = parseFloat(item.unitPrice);
         const lineTotalNum = parseFloat(item.lineTotal);
 
-        // *** CONVERTIR NOMBRE A MAYÚSCULAS AQUÍ ***
-        const itemNameUpperCase = (item.name || 'N/A').toUpperCase();
-        doc.fontSize(9).text(itemNameUpperCase, itemX, y, { width: qtyX - itemX - 10 });
-        // *** FIN CAMBIO ***
+        // Construir la descripción del ítem
+        let descriptionParts = [];
 
-
-        doc.fontSize(9).text(item.name || 'N/A', itemX, y, { width: qtyX - itemX - 10 });
-        if (item.notes) {
-          doc.fontSize(8).fillColor('grey').text(item.notes, itemX + 5, doc.y, { width: qtyX - itemX - 15 });
-          doc.fillColor('black');
+        if (item.category) {
+            descriptionParts.push(item.category.toUpperCase());
         }
+
+        // El nombre siempre se añade
+        descriptionParts.push((item.name || 'N/A').toUpperCase());
+
+        if (item.brand) {
+            descriptionParts.push(item.brand.toUpperCase());
+        }
+        
+        const itemFullDescription = descriptionParts.join(' - ');
+       
+
+        // Imprimir descripción principal del ítem
+        doc.fontSize(9).text(itemFullDescription, itemX, y, { width: qtyX - itemX - 10 });
+
+        // La siguiente línea que imprimía item.name otra vez se elimina para evitar superposición.
+        // doc.fontSize(9).text(item.name || 'N/A', itemX, y, { width: qtyX - itemX - 10 }); // ESTA LÍNEA SE ELIMINA
+
+        // Imprimir notas si existen y no son "Item Personalizado"
+        const lowerCaseNotes = item.notes ? item.notes.toLowerCase() : "";
+        const shouldShowNotes = item.notes && lowerCaseNotes !== 'item personalizado';
+
+        if (shouldShowNotes) {
+          // doc.y aquí ya está después de que itemFullDescription se haya impreso (pdfkit maneja el salto de línea)
+          doc.fontSize(8).fillColor('grey').text(item.notes, itemX + 5, doc.y, { width: qtyX - itemX - 15 });
+          doc.fillColor('black'); // Volver al color de texto por defecto
+        }
+
+        // Imprimir columnas numéricas alineadas con la 'y' inicial del ítem
         doc.fontSize(9).text(!isNaN(quantityNum) ? quantityNum.toFixed(2) : '0.00', qtyX, y, { width: unitPriceX - qtyX - 10, align: 'right' });
         doc.text(`$${!isNaN(unitPriceNum) ? unitPriceNum.toFixed(2) : '0.00'}`, unitPriceX, y, { width: totalX - unitPriceX - 10, align: 'right' });
         doc.text(`$${!isNaN(lineTotalNum) ? lineTotalNum.toFixed(2) : '0.00'}`, totalX, y, { width: tableHeaderRightEdge - totalX, align: 'right' });
-        doc.moveDown(item.notes ? 1.5 : 1);
+        
+        // Ajustar el espaciado vertical para el siguiente ítem.
+        // doc.y se habrá actualizado a la posición después del texto más alto de la fila actual.
+        doc.moveDown(shouldShowNotes ? 1.5 : 1); // Espaciado un poco mayor si hubo notas
       });
 
       // Línea antes de totales

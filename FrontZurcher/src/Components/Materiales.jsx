@@ -10,10 +10,14 @@ import { createMaterial } from "../Redux/Actions/materialActions";
 import { createReceipt } from "../Redux/Actions/receiptActions";
 import { expenseActions } from "../Redux/Actions/balanceActions";
 import { toast } from 'react-toastify';
+import { Worker, Viewer } from '@react-pdf-viewer/core';
+import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
+import '@react-pdf-viewer/core/lib/styles/index.css';
+import '@react-pdf-viewer/default-layout/lib/styles/index.css';
 
 const Materiales = () => {
   const dispatch = useDispatch();
-
+  const defaultLayoutPluginInstance = defaultLayoutPlugin();
   // Obtener todas las obras desde Redux
   const { works, selectedWork: work, loading, error } = useSelector((state) => state.work);
 
@@ -36,6 +40,7 @@ const Materiales = () => {
   });
   const [editingIndex, setEditingIndex] = useState(null); // Índice del material que se está editando
   const [pdfUrl, setPdfUrl] = useState(null);
+  const [currentPdfView, setCurrentPdfView] = useState('permit');
 
    // Nuevo estado para el archivo del comprobante de materiales iniciales
    const [initialReceiptFile, setInitialReceiptFile] = useState(null);
@@ -149,19 +154,31 @@ useEffect(() => {
 }, [selectedAddress, works, dispatch]);
 console.log("selectedAddress:", selectedAddress, "work:", work);
   // Memorizar la URL del PDF del permiso
-  const permitPdfUrl = useMemo(() => {
-    if (selectedAddress && work?.Permit?.pdfData) {
-      return URL.createObjectURL(new Blob([new Uint8Array(work.Permit.pdfData.data)], { type: "application/pdf" }));
-    }
-    return null;
-  }, [selectedAddress, work]);
 
-  const optionalDocs = useMemo(() => {
-    if (selectedAddress && work?.Permit?.optionalDocs) {
-      return URL.createObjectURL(new Blob([new Uint8Array(work.Permit.optionalDocs.data)], { type: "application/pdf" }));
+
+  const permitPdfUrl = useMemo(() => {
+    if (selectedAddress && work?.Permit?.pdfData?.data) { // Verificación más robusta
+      try {
+        return URL.createObjectURL(new Blob([new Uint8Array(work.Permit.pdfData.data)], { type: "application/pdf" }));
+      } catch (e) {
+        console.error("Error creando URL para permitPdfUrl:", e);
+        return null;
+      }
     }
     return null;
-  }, [selectedAddress, work]);
+  }, [selectedAddress, work?.Permit?.pdfData]);
+
+  const optionalDocsUrl = useMemo(() => { // Renombrado para claridad
+    if (selectedAddress && work?.Permit?.optionalDocs?.data) { // Verificación más robusta
+      try {
+        return URL.createObjectURL(new Blob([new Uint8Array(work.Permit.optionalDocs.data)], { type: "application/pdf" }));
+      } catch (e) {
+        console.error("Error creando URL para optionalDocsUrl:", e);
+        return null;
+      }
+    }
+    return null;
+  }, [selectedAddress, work?.Permit?.optionalDocs]);
 
   const handleNewMaterialChange = (e) => {
     const { name, value } = e.target;
@@ -298,8 +315,9 @@ console.log("selectedAddress:", selectedAddress, "work:", work);
     }
 
     const pdfBlob = doc.output("blob");
-    const pdfUrl = URL.createObjectURL(pdfBlob);
-    setPdfUrl(pdfUrl);
+    const generatedPdfUrl = URL.createObjectURL(pdfBlob);
+    setPdfUrl(generatedPdfUrl); // Guardar la URL del PDF de materiales
+    setCurrentPdfView('materials'); // Cambiar automáticamente a la vista del PDF de materiales
 
     await saveMaterials();
   };
@@ -411,10 +429,10 @@ console.log("selectedAddress:", selectedAddress, "work:", work);
   }
 
   return (
-    <div className="p-4 bg-white shadow-md rounded-lg max-w-screen-lg mx-auto">
+    <div className="p-4 bg-white shadow-md rounded-lg max-w-screen-2xl mx-auto"> {/* o el max-w que prefieras */}
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Columna izquierda: Formulario y tabla de materiales */}
-        <div className="flex-1">
+        <div className="lg:w-2/5 xl:w-1/3">
           <h2 className="text-xl font-bold mb-4">Formulario de Materiales</h2>
           <form className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -704,51 +722,107 @@ console.log("selectedAddress:", selectedAddress, "work:", work);
   
         {/* Columna derecha: Vista previa del PDF del permiso y PDF generado */}
         <div className="flex-1">
-          {permitPdfUrl && (
+          {(permitPdfUrl || optionalDocsUrl || pdfUrl) && ( // Condición para mostrar la sección de PDFs
             <div className="mb-4">
-              <h3 className="text-lg font-semibold">Permit</h3>
-              <div className="relative overflow-hidden">
-                <iframe
-                  src={permitPdfUrl}
-                  className="w-full h-64 sm:h-72 md:h-80 lg:h-96"
-                  title="Vista previa del PDF del Permit"
-                ></iframe>
+             
+              <div className="flex justify-center space-x-2 sm:space-x-4 mb-4">
+                {permitPdfUrl && (
+                  <button
+                    onClick={() => setCurrentPdfView('permit')}
+                    className={`py-1 px-2 sm:px-3 rounded-md text-xs sm:text-sm ${currentPdfView === 'permit' ? "bg-blue-950 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"} disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    Permiso Principal
+                  </button>
+                )}
+                {optionalDocsUrl && (
+                  <button
+                    onClick={() => setCurrentPdfView('optional')}
+                    className={`py-1 px-2 sm:px-3 rounded-md text-xs sm:text-sm ${currentPdfView === 'optional' ? "bg-blue-950 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"} disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    Doc. Opcional
+                  </button>
+                )}
+                {pdfUrl && ( // Botón para el PDF de materiales
+                  <button
+                    onClick={() => setCurrentPdfView('materials')}
+                    className={`py-1 px-2 sm:px-3 rounded-md text-xs sm:text-sm ${currentPdfView === 'materials' ? "bg-green-700 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"} disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    PDF Materiales
+                  </button>
+                )}
               </div>
+
+
+            
+              <div className="relative overflow-hidden border border-gray-300 rounded-md">
+                {currentPdfView === 'permit' && permitPdfUrl ? (
+                  <div className="h-auto w-full md:h-[600px] lg:h-[700px]"> 
+                    <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+                      <Viewer
+                        fileUrl={permitPdfUrl}
+                        plugins={[defaultLayoutPluginInstance]}
+                      />
+                    </Worker>
+                  </div>
+                ) : currentPdfView === 'optional' && optionalDocsUrl ? (
+                  <div className="h-auto w-full md:h-[600px] lg:h-[700px]">
+                    <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+                      <Viewer
+                        fileUrl={optionalDocsUrl}
+                        plugins={[defaultLayoutPluginInstance]}
+                      />
+                    </Worker>
+                  </div>
+                ) : currentPdfView === 'materials' && pdfUrl ? ( // Vista para el PDF de materiales
+                  <div className="h-auto w-full md:h-[600px] lg:h-[700px]">
+                     {/* Puedes usar Viewer también si prefieres, o mantener el iframe */}
+                    <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+                      <Viewer
+                        fileUrl={pdfUrl} // URL del PDF de materiales
+                        plugins={[defaultLayoutPluginInstance]}
+                      />
+                    </Worker>
+                    {/* O si prefieres iframe para este en particular:
+                    <iframe
+                      src={pdfUrl}
+                      className="w-full h-full" // Asegúrate que el iframe llene el div
+                      title="Vista previa del PDF de Materiales"
+                    ></iframe>
+                    */}
+                  </div>
+                ) : (
+                  <div className="h-auto w-full md:h-[600px] lg:h-[700px] flex items-center justify-center">
+                    <p className="text-gray-500 p-4 text-center">
+                      {currentPdfView === 'permit' ? "PDF Principal no disponible o no seleccionado." :
+                       currentPdfView === 'optional' ? "Documento Opcional no disponible o no seleccionado." :
+                       "PDF de Materiales no disponible o no generado."}
+                    </p>
+                  </div>
+                )}
+              </div>
+              {/* Botón de descarga solo para el PDF de materiales si está visible */}
+              {currentPdfView === 'materials' && pdfUrl && (
+                <div className="mt-4 text-center">
+                    <a
+                    href={pdfUrl}
+                    download={`materiales_${work?.propertyAddress?.replace(/\s+/g, '_') || 'obra'}.pdf`}
+                    className="btn btn-primary inline-block bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                    >
+                    Descargar PDF de Materiales
+                    </a>
+                </div>
+              )}
             </div>
           )}
-             {optionalDocs && (
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold">Permit Optional</h3>
-              <div className="relative overflow-hidden">
-                <iframe
-                  src={optionalDocs}
-                  className="w-full h-64 sm:h-72 md:h-80 lg:h-96"
-                  title="Vista previa del PDF del Permit"
-                ></iframe>
-              </div>
-            </div>
-          )}
+          {/* La sección original para el PDF de materiales se elimina de aquí si la integras arriba */}
+          {/* 
           {pdfUrl && (
-            <div>
-              <h3 className="text-lg font-bold">Vista previa del PDF de Materiales</h3>
-              <div className="relative overflow-hidden">
-                <iframe
-                  src={pdfUrl}
-                  className="w-full h-64 sm:h-72 md:h-80 lg:h-96"
-                  title="Vista previa del PDF de Materiales"
-                ></iframe>
-              </div>
-              <a
-                href={pdfUrl}
-                download="materiales.pdf"
-                className="btn btn-primary mt-2 inline-block bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-              >
-                Descargar PDF
-              </a>
-            </div>
-          )}
+            <div className="mt-6"> ... </div> // ESTA SECCIÓN SE ELIMINARÍA
+          )} 
+          */}
         </div>
       </div>
     </div>
-  );}
+  );
+}
 export default Materiales;
