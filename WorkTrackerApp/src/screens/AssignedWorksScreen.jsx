@@ -26,7 +26,7 @@ console.log("WorksListScreen works", works);
   const filteredWorks = useMemo(() => {
     if (!works) return [];
 
-    const allowedStatuses = ['assigned', 'inProgress', 'coverPending','firstInspectionPending','rejectedInspection','finalRejected'];
+    const allowedStatuses = ['inProgress', 'coverPending','rejectedInspection'];
 
     // Primero, filtrar por los estados permitidos
     const worksWithAllowedStatus = works.filter(work => 
