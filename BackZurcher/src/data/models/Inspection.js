@@ -30,7 +30,8 @@ module.exports = (sequelize) => {
         'applicant_document_received',// Documento firmado recibido del aplicante
         'inspection_completed_pending_result', // Inspección física realizada, esperando resultado oficial
         'result_approved',      // Resultado final: Aprobada
-        'result_rejected'       // Resultado final: Rechazada
+        'result_rejected',       // Resultado final: Rechazada
+        'reinspection'
       ),
       allowNull: false,
       defaultValue: 'pending_request',
@@ -92,6 +93,15 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    workerHasCorrected: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false, // Por defecto, no ha sido corregido
+    },
+    dateWorkerCorrected: { // Opcional: fecha en que el trabajador marcó como corregido
+        type: DataTypes.DATE,
+        allowNull: true,
+    }
   }, {
     timestamps: true,
   });

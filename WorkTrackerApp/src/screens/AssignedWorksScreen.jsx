@@ -16,7 +16,7 @@ const WorksListScreen = ({ navigation }) => { // Recibe navigation como prop
 
   const [searchQuery, setSearchQuery] = useState('');
   const { works, loading: reduxLoading, error } = useSelector((state) => state.work);
-
+console.log("WorksListScreen works", works);
   useEffect(() => {
     if (staffId) {
       dispatch(fetchAssignedWorks(staffId));
@@ -26,7 +26,7 @@ const WorksListScreen = ({ navigation }) => { // Recibe navigation como prop
   const filteredWorks = useMemo(() => {
     if (!works) return [];
 
-    const allowedStatuses = ['assigned', 'inProgress', 'coverPending'];
+    const allowedStatuses = ['assigned', 'inProgress', 'coverPending','firstInspectionPending','rejectedInspection','finalRejected'];
 
     // Primero, filtrar por los estados permitidos
     const worksWithAllowedStatus = works.filter(work => 

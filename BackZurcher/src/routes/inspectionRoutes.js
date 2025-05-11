@@ -39,9 +39,21 @@ router.post(
   router.put(
     '/:inspectionId/register-result',
     verifyToken, allowRoles(['admin', 'recept', 'owner']),
-    upload.array('resultDocumentFiles', 2), // 'resultDocumentFile' es el name del input file
+    upload.array('resultDocumentFiles', 3), // 'resultDocumentFile' es el name del input file
     InspectionController.registerInspectionResult
   );
+  router.post(
+    '/reinspection/:workId',
+    verifyToken, allowRoles(['owner', 'admin', 'staff']),
+    // 'reinspectionFiles' es el nombre del campo en FormData, 5 es el max de archivos
+    InspectionController.requestReinspection
+);
+router.post(
+  '/:inspectionId/mark-corrected',
+  verifyToken, allowRoles(['owner', 'admin', 'staff', 'worker']),
+ 
+  InspectionController.markCorrectionByWorker
+);
   
   // Rutas para obtener inspecciones
   router.get(

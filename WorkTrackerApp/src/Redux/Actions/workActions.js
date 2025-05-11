@@ -27,6 +27,9 @@ import {
   fetchAssignedWorksRequest,
   fetchAssignedWorksSuccess,
   fetchAssignedWorksFailure,
+  markInspectionCorrectedRequest,
+  markInspectionCorrectedSuccess,
+  markInspectionCorrectedFailure,
 } from '../features/workSlice'; // Importar las acciones del slice de trabajo
 import { Alert } from 'react-native'; // Importar Alert para mostrar errores
 
@@ -124,30 +127,39 @@ export const addInstallationDetail = (idWork, installationData) => async (dispat
     throw error; // Lanza el error para manejarlo en el componente
   }
 };
+// ...
 export const addImagesToWork = (idWork, formData) => async (dispatch) => {
   dispatch(addImagesRequest());
   try {
-    // Cuando envías FormData, axios establece automáticamente el Content-Type correcto.
     const response = await api.post(`/work/${idWork}/images`, formData, {
-      headers: {
-        // No necesitas 'Content-Type': 'multipart/form-data' explícitamente aquí con axios,
-        // pero si tu 'api' wrapper lo requiere o si usas fetch, sí lo necesitarías.
-        // Si tu 'api' wrapper añade 'Content-Type: application/json' por defecto,
-        // podrías necesitar anularlo o asegurarte de que no lo haga para FormData.
-        // Para axios, generalmente es mejor dejar que lo maneje.
-      }
+      // ... headers si son necesarios ...
     });
-    dispatch(addImagesSuccess(response.data)); // response.data debería ser { message: '...', work: updatedWork }
-    return response.data;
+    // Loguea para confirmar la estructura de response.data
+    console.log('[workActions] addImagesToWork SUCCESS, response.data:', response.data); 
+    
+    // Asegúrate de que response.data y response.data.createdImage existan
+    if (response.data && response.data.createdImage) {
+      dispatch(addImagesSuccess(response.data)); 
+      return response.data; // Devuelve { message, work, createdImage }
+    } else {
+      // Si la respuesta es 2xx pero no tiene la estructura esperada
+      console.error('[workActions] addImagesToWork SUCCESS pero respuesta inesperada:', response.data);
+      const failureMsg = 'Respuesta inesperada del servidor tras subir imagen.';
+      dispatch(addImagesFailure(failureMsg));
+      Alert.alert('Error', failureMsg);
+      return { error: true, message: failureMsg, details: response.data };
+    }
   } catch (error) {
-    const errorMessage =
-      error.response?.data?.message || 'Error al agregar las imágenes';
-    dispatch(addImagesFailure(errorMessage)); 
-    Alert.alert('Error', errorMessage); 
-    return { error: errorMessage }; 
+    const backendErrorMessage = error.response?.data?.message;
+    const displayErrorMessage = backendErrorMessage || 'Error al agregar las imágenes';
+    
+    console.error('[workActions] addImagesToWork FAILURE:', displayErrorMessage, 'Full error response:', error.response?.data); // <--- AQUÍ error.response?.data es undefined
+    dispatch(addImagesFailure(displayErrorMessage)); 
+    Alert.alert('Error', displayErrorMessage); 
+    return { error: true, message: displayErrorMessage, details: error.response?.data }; 
   }
 };
-
+// ...
 export const deleteImagesFromWork = (idWork, imageId) => async (dispatch) => { // Cambiado imageData por imageId
   dispatch(deleteImagesRequest()); // Acción para iniciar la solicitud
   try {
@@ -185,5 +197,30 @@ export const fetchAssignedWorks = () => async (dispatch) => {
       error.response?.data?.message || 'Error al obtener los trabajos asignados';
     dispatch(fetchAssignedWorksFailure(errorMessage)); // Maneja el error
     Alert.alert('Error', errorMessage); // Muestra el error en una alerta
+  }
+};
+
+// --- ACCIÓN PARA MARCAR UNA INSPECCIÓN COMO CORREGIDA POR EL EMPLEADO ---
+export const markInspectionCorrectedByWorker = (inspectionId) => async (dispatch) => {
+  dispatch(markInspectionCorrectedRequest({ inspectionId }));
+  try {
+    const response = await api.post(`/inspection/${inspectionId}/mark-corrected`); // El backend no espera body
+
+    if (response.data && response.data.inspection) {
+      dispatch(markInspectionCorrectedSuccess(response.data.inspection));
+      Alert.alert('Éxito', response.data.message || 'Correcciones marcadas exitosamente.');
+      
+      if (response.data.inspection.workId) {
+        dispatch(fetchWorkById(response.data.inspection.workId)); // Clave para actualizar la UI
+      }
+      return response.data.inspection;
+    } else {
+      throw new Error('Respuesta inesperada del servidor al marcar corrección.');
+    }
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || error.message || 'Error al marcar la corrección.';
+    dispatch(markInspectionCorrectedFailure({ inspectionId, error: errorMessage }));
+    Alert.alert('Error', errorMessage);
+    throw error;
   }
 };

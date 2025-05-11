@@ -188,43 +188,36 @@ const WorkDetail = () => {
    let headerButtonAction = null;
    let headerButtonClasses = "text-white font-bold py-2 px-4 rounded shadow-lg transition duration-150 ease-in-out";
  
-   // --- LÓGICA DEL BOTÓN AJUSTADA A TU REQUERIMIENTO ---
+   // --- LÓGICA DEL BOTÓN AJUSTADA ---
 
    // Caso 1: Si work.status es 'approvedInspection', mostrar botón para cambiar a 'coverPending'
    if (work?.status === 'approvedInspection') {
      displayHeaderButton = true;
-     headerButtonText = "Inspeccion Aprobada"; // O "Pasar a Cover Pending"
+     headerButtonText = "Inspección Aprobada, Pasar a Cubierta"; 
      headerButtonClasses += " bg-green-500 hover:bg-green-600";
      headerButtonAction = async () => {
        console.log(`Cambiando estado de obra ${idWork} de 'approvedInspection' a 'coverPending'`);
        await dispatch(updateWork(idWork, { status: "coverPending" }));
-       dispatch(fetchWorkById(idWork)); // Refrescar datos de la obra
-     };
-   }
-   // Caso 2: Si work.status es 'rejectedInspection', mostrar botón para cambiar a 'installed'
-   else if (work?.status === 'rejectedInspection') {
-     displayHeaderButton = true;
-     headerButtonText = "Revisar Instalación"; // O "Volver a Installed"
-     headerButtonClasses += " bg-orange-500 hover:bg-orange-600";
-     headerButtonAction = async () => {
-       console.log(`Cambiando estado de obra ${idWork} de 'rejectedInspection' a 'installed'`);
-       await dispatch(updateWork(idWork, { status: "installed" }));
        dispatch(fetchWorkById(idWork)); 
      };
    }
+   // Caso 2: Si work.status es 'rejectedInspection' -> NO MOSTRAR BOTÓN DE CAMBIO DE ESTADO AQUÍ
+   // La acción se maneja en InspectionFlowManager después de que el empleado corrige.
+   // else if (work?.status === 'rejectedInspection') {
+   //   displayHeaderButton = false; // No hay acción directa de cambio de estado desde el header aquí
+   // }
    // Caso 3: Si work.status es 'installed' (y no es ninguno de los anteriores),
    // mostrar botón para solicitar la primera inspección.
-   // Este es el comportamiento "normal" antes de que haya un resultado de inspección.
-  //  else if (work?.status === 'installed') {
-  //    displayHeaderButton = true;
-  //    headerButtonText = "Solicitar Inspección"; 
-  //    headerButtonClasses += " bg-blue-500 hover:bg-blue-600"; 
-  //    headerButtonAction = async () => {
-  //      console.log(`Cambiando estado de obra ${idWork} de 'installed' a 'firstInspectionPending'`);
-  //      await dispatch(updateWork(idWork, { status: "firstInspectionPending" }));
-  //      dispatch(fetchWorkById(idWork)); 
-  //    };
-  //  }
+   else if (work?.status === 'installed') {
+     displayHeaderButton = true;
+     headerButtonText = "Solicitar Inspección Inicial"; 
+     headerButtonClasses += " bg-blue-500 hover:bg-blue-600"; 
+     headerButtonAction = async () => {
+       console.log(`Cambiando estado de obra ${idWork} de 'installed' a 'firstInspectionPending'`);
+       await dispatch(updateWork(idWork, { status: "firstInspectionPending" }));
+       dispatch(fetchWorkById(idWork)); 
+     };
+   }
 
 
   if (loading) {

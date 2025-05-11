@@ -8,6 +8,7 @@ import {
   upsertInspectionSuccess,
 } from '../Reducer/inspectionReducer'; // Ajusta la ruta si es necesario
 import { fetchWorkById } from './workActions';
+import { toast } from 'react-toastify';
 // 1. Solicitar Inspección Inicial
 export const requestInitialInspection = (workId, inspectionData) => async (dispatch) => {
   dispatch(inspectionRequest());
@@ -128,5 +129,57 @@ export const fetchInspectionById = (inspectionId) => async (dispatch) => {
   } catch (error) {
     const errorMessage = error.response?.data?.message || 'Error al obtener la inspección.';
     dispatch(inspectionFailure(errorMessage));
+  }
+};
+// NUEVA ACCIÓN: Solicitar Reinspección
+// ...existing code...
+// NUEVA ACCIÓN: Solicitar Reinspección
+export const requestReinspection = (workId, formData) => async (dispatch) => {
+  dispatch(inspectionRequest());
+  try {
+    const apiResponse = await api.post(`/inspection/reinspection/${workId}`, formData, {
+      // headers: { 'Content-Type': 'multipart/form-data' }, // Axios lo maneja
+    });
+
+    console.log("REDUX ACTION - requestReinspection - API Response Data:", apiResponse.data);
+    // apiResponse.data debería ser { message, inspection, workStatus }
+    // y apiResponse.data.inspection.processStatus debería ser 'inspection_completed_pending_result'
+
+    if (apiResponse.data && apiResponse.data.inspection) {
+      // Primero, actualiza el store con la inspección específica devuelta por el POST
+      // Asegúrate que tu reducer para upsertInspectionSuccess maneje bien esto.
+      // El payload para upsertInspectionSuccess debería ser solo la inspección o un objeto que el reducer entienda.
+      // Si upsertInspectionSuccess espera { message, inspection, workStatus }, entonces:
+      dispatch(upsertInspectionSuccess(apiResponse.data)); 
+      
+      toast.success(apiResponse.data.message || "Solicitud de reinspección enviada exitosamente.");
+
+      // Actualizar el estado de la obra si se devolvió
+      if (apiResponse.data.workStatus && workId) {
+        dispatch(fetchWorkById(workId)); // Para obtener el work actualizado con el nuevo status
+      }
+      
+      // Considera si este fetch es realmente necesario o si puede causar problemas de timing.
+      // Por ahora, lo mantenemos para asegurar que la lista completa esté sincronizada,
+      // pero si el problema persiste, esta es un área a investigar.
+      // Podrías incluso comentarlo temporalmente para ver si upsertInspectionSuccess es suficiente.
+      // await new Promise(resolve => setTimeout(resolve, 300)); // Pequeño delay antes de refetch (para probar)
+      dispatch(fetchInspectionsByWork(workId));
+
+
+      return apiResponse.data;
+    } else {
+      // Manejar caso donde la respuesta no es la esperada
+      const errorMessage = "Respuesta inesperada del servidor al solicitar reinspección.";
+      dispatch(inspectionFailure(errorMessage));
+      toast.error(errorMessage);
+      throw new Error(errorMessage);
+    }
+
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || error.message || 'Error al solicitar la reinspección.';
+    dispatch(inspectionFailure(errorMessage));
+    toast.error(errorMessage);
+    throw error;
   }
 };

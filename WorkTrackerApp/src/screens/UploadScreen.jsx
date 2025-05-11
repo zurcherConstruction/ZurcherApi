@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, Pressable, Image, Alert, ScrollView, Modal, FlatList, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useDispatch, useSelector } from 'react-redux';
-import { addImagesToWork, fetchAssignedWorks, updateWork, deleteImagesFromWork, fetchWorkById } from '../Redux/Actions/workActions';
+import { addImagesToWork, markInspectionCorrectedByWorker, updateWork, deleteImagesFromWork, fetchWorkById } from '../Redux/Actions/workActions';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as FileSystem from 'expo-file-system';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
@@ -33,7 +33,7 @@ const UploadScreen = () => {
   const [isSubmittingWorkInstalled, setIsSubmittingWorkInstalled] = useState(false); // Nuevo estado
   const [isRequestingFinalInspection, setIsRequestingFinalInspection] = useState(false); // Nuevo estado
   const [isBatchUploading, setIsBatchUploading] = useState(false);
-
+  const [isMarkingCorrected, setIsMarkingCorrected] = useState(false); // Nuevo estado para el botón
   // --- EFECTO PARA BUSCAR DETALLES DEL TRABAJO ---
   useEffect(() => {
     if (idWork) {
@@ -47,9 +47,39 @@ const UploadScreen = () => {
       return workDetailsFromState;
     }
     // Mientras carga o si hay error, puedes devolver un objeto base o null
-    return { idWork, propertyAddress: routePropertyAddress, images: [], Permit: {} };
+    return { idWork, propertyAddress: routePropertyAddress, images: [], Permit: {}, inspections: [] }; // <--- CAMBIO AQUÍ
   }, [workDetailsFromState, idWork, routePropertyAddress]);
 
+  // --- AÑADIR ESTE LOG ---
+  useEffect(() => {
+    if (currentWork && currentWork.idWork === idWork) { // Solo loguear cuando currentWork esté poblado con datos del estado
+        console.log("UploadScreen - currentWork details:", JSON.stringify(currentWork, null, 2));
+        if (currentWork.inspections) { // <--- CAMBIO AQUÍ
+            console.log("UploadScreen - currentWork.inspections:", JSON.stringify(currentWork.inspections, null, 2)); // <--- CAMBIO AQUÍ
+        } else {
+            console.log("UploadScreen - currentWork.inspections is UNDEFINED or NULL"); // <--- CAMBIO AQUÍ
+        }
+    }
+  }, [currentWork, idWork]);
+
+  const relevantInitialInspection = useMemo(() => {
+    if (currentWork && currentWork.inspections && currentWork.inspections.length > 0) { // <--- CAMBIO AQUÍ
+      // Ordenar por fecha de creación descendente para obtener la más reciente primero
+      const sortedInspections = [...currentWork.inspections] // <--- CAMBIO AQUÍ
+        .filter(insp => insp.type === 'initial')
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      
+      // Si el trabajo está en 'rejectedInspection', buscamos la última rechazada.
+      // Si está en 'firstInspectionPending', buscamos la que no tiene finalStatus (en curso).
+      if (currentWork.status === 'rejectedInspection') {
+        return sortedInspections.find(insp => insp.finalStatus === 'rejected');
+      } else if (currentWork.status === 'firstInspectionPending') {
+        return sortedInspections.find(insp => !insp.finalStatus); // La que está activa
+      }
+      return sortedInspections[0]; // Fallback a la más reciente inicial
+    }
+    return null;
+  }, [currentWork]);
 
   const stages = [
     'foto previa del lugar',
@@ -585,20 +615,44 @@ const UploadScreen = () => {
     }
   };
 
+  const handleMarkCorrected = async () => {
+    if (!relevantInitialInspection || relevantInitialInspection.finalStatus !== 'rejected') {
+      Alert.alert("Error", "No hay una inspección rechazada activa para marcar.");
+      return;
+    }
+    if (relevantInitialInspection.workerHasCorrected) {
+      Alert.alert("Info", "Las correcciones ya fueron marcadas.");
+      return;
+    }
 
-  const hasFinalInspectionImages = imagesByStage['sistema instalado']?.length > 0;
-  const hasCoverImages = imagesByStage['inspeccion final']?.length > 0;
+    setIsMarkingCorrected(true);
+    try {
+      // El backend espera el ID de la inspección, no de la obra.
+      await dispatch(markInspectionCorrectedByWorker(relevantInitialInspection.idInspection));
+      // La acción markInspectionCorrectedByWorker ya debería despachar fetchWorkById,
+      // por lo que currentWork y relevantInitialInspection se actualizarán.
+       Alert.alert("Éxito", "Correcciones marcadas. La oficina será notificada para solicitar la reinspección.");
+    } catch (error) {
+      // El Alert de error ya se maneja en la acción
+      console.error("Error al marcar correcciones:", error);
+    } finally {
+      setIsMarkingCorrected(false);
+    }
+  };
 
-  const showWorkInstalledButton = 
-    hasFinalInspectionImages &&
-    currentWork && 
-    
-    currentWork.status !== 'coverPending' &&
-    currentWork.status !== 'finalInspectionPending' && // Añadir otros estados posteriores si es necesario
-    currentWork.status !== 'finalApproved' &&
-    currentWork.status !== 'finalRejected' &&
-    currentWork.status !== 'maintenance';
+  const hasSystemInstalledImages = imagesByStage['sistema instalado']?.length > 0; // Renombrado para claridad, antes era hasFinalInspectionImages
+  const hasFinalCoverImages = imagesByStage['inspeccion final']?.length > 0; // Renombrado para claridad, antes era hasCoverImages
 
+  const showWorkInstalledButton =
+    hasSystemInstalledImages &&
+    currentWork &&
+    currentWork.status === 'inProgress';
+
+  // Condición para mostrar el botón de solicitar inspección final
+  const showRequestFinalInspectionButton =
+    hasFinalCoverImages &&
+    currentWork &&
+    currentWork.status === 'coverPending'; 
 
   // --- Lógica de renderizado ---
   if (workDetailsLoading && (!workDetailsFromState || workDetailsFromState.idWork !== idWork)) {
@@ -630,7 +684,45 @@ const UploadScreen = () => {
         <Text className="text-xl font-medium uppercase text-gray-800 mb-2 text-center">
           {currentWork.propertyAddress || routePropertyAddress || 'Sin dirección'}
         </Text>
+        <Text className="text-center text-sm text-gray-500 mb-3">
+            Estado Actual: <Text className="font-semibold">{currentWork.status}</Text>
+        </Text>
 
+       {/* --- BLOQUE DE INSPECCIÓN RECHAZADA --- */}
+       {currentWork.status === 'rejectedInspection' && relevantInitialInspection && relevantInitialInspection.finalStatus === 'rejected' && (
+          <View className="my-4 p-4 border border-red-400 bg-red-50 rounded-lg">
+            <Text className="text-lg font-bold text-red-700 mb-2 text-center">¡INSPECCIÓN INICIAL RECHAZADA!</Text>
+            <Text className="text-sm text-red-600 mb-1">
+              <Text className="font-semibold">Notas del Inspector:</Text>
+            </Text>
+            <Text className="text-sm text-red-600 mb-3 whitespace-pre-wrap bg-red-100 p-2 rounded">
+              {relevantInitialInspection.notes || "No hay notas detalladas."}
+            </Text>
+
+            {relevantInitialInspection.workerHasCorrected ? (
+              <Text className="text-md font-semibold text-green-700 text-center p-3 bg-green-100 rounded">
+                Correcciones marcadas. La oficina solicitará la reinspección.
+              </Text>
+            ) : (
+              <Pressable
+                onPress={handleMarkCorrected}
+                disabled={isMarkingCorrected}
+                className={`py-3 rounded-lg shadow-md flex-row justify-center items-center ${
+                  isMarkingCorrected ? 'bg-gray-400' : 'bg-orange-500'
+                }`}
+              >
+                {isMarkingCorrected ? (
+                  <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
+                ) : (
+                  <Ionicons name="checkmark-circle-outline" size={22} color="white" style={{ marginRight: 8 }} />
+                )}
+                <Text className="text-white text-center text-lg font-semibold">
+                  {isMarkingCorrected ? 'Marcando...' : 'Marcar Correcciones Realizadas'}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        )}
         {/* --- BLOQUE DE BOTONES PDF MODIFICADO --- */}
         <View className="flex-row justify-around items-start mt-2 mb-2">
           {currentWork.Permit?.pdfData && (
@@ -677,73 +769,71 @@ const UploadScreen = () => {
 
         {/* --- FIN BLOQUE PDF --- */}
 
-        {/* Sección de selección de etapas */}
-        <View className="flex-row flex-wrap justify-around mb-4">
-          {stages.map((stageOption, index) => (
-            <Pressable
-              key={stageOption}
-              onPress={() => handleStagePress(stageOption)}
-              className={`w-[47%] h-24 p-3 mb-3 rounded-lg flex justify-center ${selectedStage === stageOption ? 'border-4 border-white opacity-80' : ''
-                }`}
-              style={{ backgroundColor: stageColors[index % stageColors.length] }}
-            >
-              <Text className="text-white text-center font-bold text-sm">
-                {stageOption.toUpperCase()}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+    
 
+{!(currentWork.status === 'rejectedInspection' && relevantInitialInspection?.finalStatus === 'rejected' && !relevantInitialInspection?.workerHasCorrected) && (
+            <>
+                {/* Sección de selección de etapas */}
+                <View className="flex-row flex-wrap justify-around mb-4">
+                {stages.map((stageOption, index) => (
+                    <Pressable
+                    key={stageOption}
+                    onPress={() => handleStagePress(stageOption)}
+                    className={`w-[47%] h-24 p-3 mb-3 rounded-lg flex justify-center ${selectedStage === stageOption ? 'border-4 border-white opacity-80' : ''
+                        }`}
+                    style={{ backgroundColor: stageColors[index % stageColors.length] }}
+                    >
+                    <Text className="text-white text-center font-bold text-sm">
+                        {stageOption.toUpperCase()}
+                    </Text>
+                    </Pressable>
+                ))}
+                </View>
 
-
-        {showWorkInstalledButton && (
-          <Pressable
-            onPress={handleWorkInstalled}
-            // Deshabilitar si ya se envió (estado 'installed') O si está enviando activamente
-            disabled={isInstallationSubmitted || isSubmittingWorkInstalled} 
-            className={`py-3 rounded-lg shadow-md flex-row justify-center items-center ${
-              (isInstallationSubmitted && currentWork?.status === 'installed') || isSubmittingWorkInstalled // Condición para el estilo gris
-                ? 'bg-gray-400'
-                : 'bg-blue-600'
-            }`}
-          >
-            {isSubmittingWorkInstalled ? (
-              <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
-            ) : null}
-            <Text className="text-white text-center text-lg font-semibold">
-              {isSubmittingWorkInstalled
-                ? 'Enviando...'
-                : isInstallationSubmitted // Si el estado es 'installed'
-                ? 'Esperando Aprobación de Inspección' 
-                : 'WORK INSTALLED'}
-            </Text>
-          </Pressable>
-        )}
-      
-        {hasCoverImages && (
-          <Pressable
-            onPress={handleRequestFinalInspection}
-            disabled={isFinalInspectionRequested || isRequestingFinalInspection} // Deshabilitar si ya se solicitó o está cargando
-            className={`mt-2 py-3 rounded-lg shadow-md flex-row justify-center items-center ${
-              isFinalInspectionRequested || isRequestingFinalInspection
-                ? 'bg-gray-400'
-                : 'bg-green-600'
-            }`}
-          >
-            {isRequestingFinalInspection ? (
-              <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
-            ) : null}
-            <Text className="text-white text-center text-lg font-semibold">
-              {isRequestingFinalInspection
-                ? 'Solicitando...'
-                : isFinalInspectionRequested
-                ? 'Esperando Inspección Final'
-                : 'REQUEST FINAL INSPECTION'}
-            </Text>
-          </Pressable>
+              {/* Botón WORK INSTALLED */}
+              {showWorkInstalledButton && (
+                <Pressable
+                    onPress={handleWorkInstalled}
+                    disabled={isSubmittingWorkInstalled} 
+                    className={`py-3 rounded-lg shadow-md flex-row justify-center items-center mb-3 ${ // Añadido mb-3 para separación
+                        isSubmittingWorkInstalled ? 'bg-gray-400' : 'bg-blue-600'
+                    }`}
+                >
+                    {isSubmittingWorkInstalled ? (
+                    <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
+                    ) : null}
+                    <Text className="text-white text-center text-lg font-semibold">
+                    {isSubmittingWorkInstalled ? 'Enviando...' : 'WORK INSTALLED'}
+                    </Text>
+                </Pressable>
+                )}
+            
+                {/* Botón REQUEST FINAL INSPECTION */}
+                {showRequestFinalInspectionButton && ( // <--- USAR LA NUEVA VARIABLE DE CONDICIÓN
+                <Pressable
+                    onPress={handleRequestFinalInspection}
+                    disabled={isFinalInspectionRequested || isRequestingFinalInspection}
+                    className={`mt-2 py-3 rounded-lg shadow-md flex-row justify-center items-center ${
+                    isFinalInspectionRequested || isRequestingFinalInspection
+                        ? 'bg-gray-400'
+                        : 'bg-green-600'
+                    }`}
+                >
+                    {isRequestingFinalInspection ? (
+                    <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
+                    ) : null}
+                    <Text className="text-white text-center text-lg font-semibold">
+                    {isRequestingFinalInspection
+                        ? 'Solicitando...'
+                        : isFinalInspectionRequested 
+                        ? 'Inspección Final Solicitada'
+                        : 'REQUEST FINAL INSPECTION'}
+                    </Text>
+                </Pressable>
+                )}
+            </>
         )}
       </ScrollView>
-
 
       {/* Modals are now outside the ScrollView */}
       <Modal visible={modalVisible} transparent={true} animationType="slide">

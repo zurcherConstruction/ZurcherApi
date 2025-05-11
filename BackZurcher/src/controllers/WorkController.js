@@ -170,24 +170,23 @@ const getWorkById = async (req, res) => {
           model: Inspection,
           as: 'inspections', // <--- ASEGÚRATE DE QUE ESTE ALIAS ES EL CORRECTO (definido en data/index.js)
           attributes: [ // <--- ATRIBUTOS ACTUALIZADOS DEL MODELO INSPECTION
-            'idInspection',
+           'idInspection',
             'type',
-            'processStatus', // Nuevo estado detallado del proceso
-            'finalStatus',   // Estado final (approved, rejected, pending)
+            'processStatus', 
+            'finalStatus',   
             'dateRequestedToInspectors',
             'inspectorScheduledDate',
             'documentForApplicantUrl',
-            // 'documentForApplicantPublicId', // Opcional, usualmente no se envía al frontend
             'dateDocumentSentToApplicant',
             'signedDocumentFromApplicantUrl',
-            // 'signedDocumentFromApplicantPublicId', // Opcional
             'dateSignedDocumentReceived',
             'dateInspectionPerformed',
             'resultDocumentUrl',
-            // 'resultDocumentPublicId', // Opcional
             'dateResultReceived',
             'notes',
-            'createdAt', // Para saber cuándo se creó el registro de inspección
+            'workerHasCorrected', // <--- AÑADIR ESTE CAMPO
+            'dateWorkerCorrected', // <--- AÑADIR ESTE CAMPO
+            'createdAt', 
             'updatedAt', // Para saber cuándo se actualizó por última vez
           ],
           // Opcional: puedes ordenar las inspecciones si una obra puede tener múltiples
@@ -309,24 +308,23 @@ const updateWork = async (req, res) => {
           model: Inspection,
           as: 'inspections', // <--- ASEGÚRATE DE QUE ESTE ALIAS ES EL CORRECTO (definido en data/index.js)
           attributes: [ // <--- ATRIBUTOS ACTUALIZADOS DEL MODELO INSPECTION
-            'idInspection',
+           'idInspection',
             'type',
-            'processStatus', // Nuevo estado detallado del proceso
-            'finalStatus',   // Estado final (approved, rejected, pending)
+            'processStatus', 
+            'finalStatus',   
             'dateRequestedToInspectors',
             'inspectorScheduledDate',
             'documentForApplicantUrl',
-            // 'documentForApplicantPublicId', // Opcional, usualmente no se envía al frontend
             'dateDocumentSentToApplicant',
             'signedDocumentFromApplicantUrl',
-            // 'signedDocumentFromApplicantPublicId', // Opcional
             'dateSignedDocumentReceived',
             'dateInspectionPerformed',
             'resultDocumentUrl',
-            // 'resultDocumentPublicId', // Opcional
             'dateResultReceived',
             'notes',
-            'createdAt', // Para saber cuándo se creó el registro de inspección
+            'workerHasCorrected', // <--- AÑADIR ESTE CAMPO
+            'dateWorkerCorrected', // <--- AÑADIR ESTE CAMPO
+            'createdAt', 
             'updatedAt', // Para saber cuándo se actualizó por última vez
           ],
           // Opcional: puedes ordenar las inspecciones si una obra puede tener múltiples
@@ -518,6 +516,8 @@ const getAssignedWorks = async (req, res) => {
             'resultDocumentUrl',
             'dateResultReceived',
             'notes',
+            'workerHasCorrected', // <--- AÑADIR ESTE CAMPO
+            'dateWorkerCorrected', // <--- AÑADIR ESTE CAMPO
             'createdAt',
             'updatedAt',
           ],
@@ -543,22 +543,27 @@ const getAssignedWorks = async (req, res) => {
 };
 
 const addImagesToWork = async (req, res) => {
+  console.log("Controlador addImagesToWork: INICIO");
   try {
     const { idWork } = req.params; // ID del trabajo
     const { stage, dateTime, comment, truckCount } = req.body; // Etapa, imagen en Base64 y fecha/hora
+    console.log("Controlador addImagesToWork: Body:", req.body);
+    console.log("Controlador addImagesToWork: File:", req.file);
     if (!req.file) {
+      console.error("Controlador addImagesToWork: No se proporcionó ningún archivo.");
       return res.status(400).json({ error: true, message: 'No se proporcionó ningún archivo de imagen.' });
     }
 
     // Verificación adicional del tipo de archivo para esta ruta específica (imágenes)
     const allowedImageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
     if (!allowedImageTypes.includes(req.file.mimetype)) {
-      console.error("Controlador: Archivo rechazado, tipo no es imagen:", req.file.mimetype);
+      console.error("Controlador addImagesToWork: Tipo de archivo no permitido:", req.file.mimetype);
       return res.status(400).json({ error: true, message: 'Tipo de archivo no permitido para esta operación. Solo se aceptan imágenes (JPG, PNG, GIF, WEBP).' });
     }
     // Verificar que el trabajo exista
     const work = await Work.findByPk(idWork);
     if (!work) {
+      console.error("Controlador addImagesToWork: Trabajo no encontrado:", idWork);
       // Si el archivo ya se guardó temporalmente por multer, elimínalo
       if (req.file && req.file.path) fs.unlinkSync(req.file.path);
       return res.status(404).json({ error: true, message: 'Trabajo no encontrado' });
@@ -577,15 +582,18 @@ const addImagesToWork = async (req, res) => {
     'inspeccion final'
     ];
     if (!validStages.includes(stage)) {
+      console.error("Controlador addImagesToWork: Etapa no válida:", stage);
       return res.status(400).json({ error: true, message: 'Etapa no válida' });
     }
-
+    console.log("Controlador addImagesToWork: Intentando subir a Cloudinary...");
     const cloudinaryResult = await uploadBufferToCloudinary(req.file.buffer, {
       folder: `works/${idWork}/${stage}`,
       resource_type: "image"
     });
-
-    await Image.create({
+    console.log("Controlador addImagesToWork: Resultado de Cloudinary:", cloudinaryResult.secure_url);
+    
+    // --- ASIGNAR EL RESULTADO DE Image.create A newImage ---
+    const newImage = await Image.create({ // <--- CAMBIO AQUÍ
       idWork,
       stage,
       imageUrl: cloudinaryResult.secure_url,
@@ -594,8 +602,9 @@ const addImagesToWork = async (req, res) => {
       comment: comment,
       truckCount: truckCount,
     });
-
+    console.log("Controlador addImagesToWork: Imagen guardada en DB.");
     const updatedWork = await Work.findByPk(idWork, {
+     
       include: [
         {
           model: Image,
@@ -645,21 +654,23 @@ const addImagesToWork = async (req, res) => {
         // a través de currentWork o sus componentes hijos.
       ]
     });
-
+    console.log("Controlador addImagesToWork: Trabajo actualizado obtenido.");
     res.status(201).json({
       message: 'Imagen agregada correctamente a Cloudinary y DB',
-      work: updatedWork
+      work: updatedWork,
+      createdImage: newImage 
     });
 
   } catch (error) {
+    console.error('Controlador addImagesToWork: ERROR CAPTURADO:', error); // LOG DETALLADO DEL ERROR
     if (error instanceof multer.MulterError) {
         console.error('Error de Multer al agregar imagen:', error);
         return res.status(400).json({ error: true, message: `Error de Multer: ${error.message}` });
-    } else if (error.http_code && error.http_code === 400) {
+    } else if (error.http_code && error.http_code === 400) { // Error específico de Cloudinary por formato, etc.
         console.error('Error de Cloudinary (posiblemente formato):', error);
         return res.status(400).json({ error: true, message: `Error de Cloudinary: ${error.message}` });
     }
-    console.error('Error general al agregar imagen (Cloudinary):', error);
+    // Error genérico
     res.status(500).json({ error: true, message: 'Error interno del servidor al subir imagen.' });
   }
 };

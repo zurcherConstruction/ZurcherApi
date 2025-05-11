@@ -4,6 +4,8 @@ const initialState = {
   works: [], // Lista de obras
   work: null, // Obra específica
   images: [], // Lista de imágenes asociadas a un trabajo
+  loadingMarkCorrection: false, // Nuevo estado para la carga de marcar corrección
+  errorMarkCorrection: null,
   loading: false, // Estado de carga
   error: null,
 };
@@ -193,6 +195,35 @@ const workSlice = createSlice({
       state.loading = false;
       state.error = action.payload; // Guardar el mensaje de error
     },
+    markInspectionCorrectedRequest: (state, action) => {
+      state.loadingMarkCorrection = true;
+      state.errorMarkCorrection = null;
+    },
+    markInspectionCorrectedSuccess: (state, action) => {
+      state.loadingMarkCorrection = false;
+      const updatedInspection = action.payload; // La inspección actualizada desde el backend
+
+      // Si currentWork está cargado y tiene inspecciones, actualiza la específica.
+      // Esto es opcional si confías en el refetch de fetchWorkById desde la acción.
+      // Pero puede dar una actualización más rápida de la UI si la estructura lo permite.
+      if (state.currentWork && state.currentWork.inspections) {
+        const index = state.currentWork.inspections.findIndex(
+          (insp) => insp.idInspection === updatedInspection.idInspection
+        );
+        if (index !== -1) {
+          state.currentWork.inspections[index] = updatedInspection;
+        } else {
+          // Si no la encuentra, podría ser una nueva (aunque no en este flujo) o un problema.
+          // El refetch de fetchWorkById se encargará de la consistencia.
+        }
+      }
+      // También podrías querer actualizar la inspección en la lista `assignedWorks` si está allí
+      // y si `assignedWorks` contiene los detalles completos de las inspecciones.
+    },
+    markInspectionCorrectedFailure: (state, action) => {
+      state.loadingMarkCorrection = false;
+      state.errorMarkCorrection = action.payload.error;
+    },
 
   },
 
@@ -227,6 +258,9 @@ export const {
   fetchWorksRequest,
   fetchWorksSuccess,
   fetchWorksFailure,
+  markInspectionCorrectedRequest,
+  markInspectionCorrectedSuccess,
+  markInspectionCorrectedFailure,
 } = workSlice.actions;
 
 // Exportar el reducer para integrarlo en el store
