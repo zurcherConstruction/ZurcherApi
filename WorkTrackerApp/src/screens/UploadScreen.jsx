@@ -37,7 +37,7 @@ const UploadScreen = () => {
   // --- EFECTO PARA BUSCAR DETALLES DEL TRABAJO ---
   useEffect(() => {
     if (idWork) {
-      console.log(`UploadScreen: Despachando fetchWorkById para ${idWork}`);
+     
       dispatch(fetchWorkById(idWork));
     }
   }, [dispatch, idWork]);
@@ -53,11 +53,11 @@ const UploadScreen = () => {
   // --- AÑADIR ESTE LOG ---
   useEffect(() => {
     if (currentWork && currentWork.idWork === idWork) { // Solo loguear cuando currentWork esté poblado con datos del estado
-        console.log("UploadScreen - currentWork details:", JSON.stringify(currentWork, null, 2));
+        
         if (currentWork.inspections) { // <--- CAMBIO AQUÍ
-            console.log("UploadScreen - currentWork.inspections:", JSON.stringify(currentWork.inspections, null, 2)); // <--- CAMBIO AQUÍ
+           
         } else {
-            console.log("UploadScreen - currentWork.inspections is UNDEFINED or NULL"); // <--- CAMBIO AQUÍ
+          console.warn("currentWork no tiene inspecciones:", currentWork);
         }
     }
   }, [currentWork, idWork]);
@@ -124,7 +124,7 @@ const UploadScreen = () => {
       await FileSystem.writeAsStringAsync(fileUri, base64Pdf, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      console.log("PDF temporal guardado en:", fileUri); // Log para verificar
+    
 
       // --- Guardar la URI del archivo y mostrar el modal ---
       setSelectedPdfUri(fileUri); // Guardar la URI del archivo
@@ -213,7 +213,7 @@ const UploadScreen = () => {
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
       const selectedAssets = result.assets;
-      console.log(`Imágenes seleccionadas: ${selectedAssets.length}`);
+     
       //setIsBatchUploading(true); // Iniciar indicador de carga para el lote
 
       if (isTruckStage) {
@@ -246,7 +246,7 @@ const UploadScreen = () => {
             }},
           ], 'plain-text');
         } else { // Android para camiones
-          console.log("Subiendo para etapa de camión en Android (una imagen a la vez).");
+         
           // Aquí podrías implementar prompts nativos o una UI modal para comentario/cantidad si es necesario
           await processAndUploadImage(assetToProcess.uri, '', null, selectedStage); // Usar null para truckCount si no se pide
           //setIsBatchUploading(false);
@@ -284,10 +284,10 @@ const UploadScreen = () => {
           const isLastImage = i === selectedAssets.length - 1;
           const commentToApply = isLastImage ? commentForLast : '';
           
-          console.log(`Procesando secuencialmente imagen ${i + 1}/${selectedAssets.length}: ${asset.uri}`);
+        
           try {
             await processAndUploadImage(asset.uri, commentToApply, null, selectedStage);
-            console.log(`Imagen ${i + 1} procesada exitosamente.`);
+           
           } catch (uploadError) {
             console.error(`Error al procesar imagen ${i + 1} (${asset.uri}):`, uploadError);
             // Decidir si continuar con las siguientes o detenerse.
@@ -296,7 +296,7 @@ const UploadScreen = () => {
             // break; // Descomenta para detener en el primer error
           }
         }
-        console.log("Todas las imágenes del lote procesadas secuencialmente.");
+        
     // --- INICIO: Mensaje de éxito opcional para el lote ---
     if (selectedAssets.length > 0) { // Solo si se intentó subir alguna imagen
         const successfulUploads = selectedAssets.filter(asset => {
@@ -321,7 +321,7 @@ const UploadScreen = () => {
   };
 
   const handleTakePhoto = async () => {
-    console.log("handleTakePhoto - selectedStage:", selectedStage); // <-- LOG
+
     if (!selectedStage) {
       Alert.alert("Error", "Por favor, selecciona una etapa primero.");
       return;
@@ -380,7 +380,7 @@ const UploadScreen = () => {
           'plain-text'
         );
       } else { // Android (sin cambios por ahora)
-        console.log("Subiendo sin comentario/conteo específico en Android por ahora.");
+       
         let truckCount = null;
         await processAndUploadImage(imageUri, '', truckCount);
       }
@@ -475,7 +475,7 @@ const UploadScreen = () => {
             }
             return newUrls;
         });
-        console.log(`UI actualizada para imagen con ID temporal ${tempImageId} a ID real ${uploadedImageFromServer.id}`);
+       
         // Alert.alert('Éxito', `Imagen ${filename} cargada.`); // Quizás no alertar por cada una en un lote
       } else {
         // Si llegamos aquí, la respuesta no tuvo 'error' explícito ni 'createdImage'.
