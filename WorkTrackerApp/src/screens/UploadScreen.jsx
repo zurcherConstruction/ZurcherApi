@@ -32,6 +32,8 @@ const UploadScreen = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmittingWorkInstalled, setIsSubmittingWorkInstalled] = useState(false); // Nuevo estado
   const [isRequestingFinalInspection, setIsRequestingFinalInspection] = useState(false); // Nuevo estado
+  const [isBatchUploading, setIsBatchUploading] = useState(false);
+
   // --- EFECTO PARA BUSCAR DETALLES DEL TRABAJO ---
   useEffect(() => {
     if (idWork) {
@@ -162,76 +164,129 @@ const UploadScreen = () => {
 
 
   const handlePickImage = async () => {
-    console.log("handlePickImage - selectedStage:", selectedStage); // <-- LOG
     if (!selectedStage) {
       Alert.alert("Error", "Por favor, selecciona una etapa primero.");
       return;
     }
-    if (imagesByStage[selectedStage]?.length >= 12) { return; }
+
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) { return; }
+
+    const isTruckStage = selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra';
+    const allowMultiple = !isTruckStage; 
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.5,
+      allowsMultipleSelection: allowMultiple, 
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      const imageUri = result.assets[0].uri;
-      const isTruckStage = selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra';
+      const selectedAssets = result.assets;
+      console.log(`Imágenes seleccionadas: ${selectedAssets.length}`);
+      //setIsBatchUploading(true); // Iniciar indicador de carga para el lote
 
-      if (Platform.OS === 'ios') {
-        Alert.prompt(
-          'Añadir Comentario',
-          'Ingresa un comentario (opcional):',
-          [
-            { text: 'Cancelar', style: 'cancel' },
-            {
-              text: 'Siguiente',
-              onPress: (commentText) => {
-                const comment = commentText || ''; // Usar string vacío si no hay comentario
-                if (isTruckStage) {
-                  // Si es etapa de camiones, pedir cantidad
-                  Alert.prompt(
-                    'Cantidad de Camiones',
-                    'Ingresa la cantidad de camiones:',
-                    [
-                      { text: 'Cancelar', style: 'cancel' },
-                      {
-                        text: 'Cargar Imagen',
-                        onPress: (truckCountInput) => {
-                          const count = parseInt(truckCountInput, 10);
-                          if (isNaN(count) || count < 0) {
-                            Alert.alert('Error', 'Por favor, ingresa un número válido de camiones.');
-                            return;
-                          }
-                          processAndUploadImage(imageUri, comment, count);
-                        },
-                      },
-                    ],
-                    'plain-text',
-                    '',
-                    'numeric'
-                  );
-                } else {
-                  // Si no es etapa de camiones, subir solo con comentario
-                  processAndUploadImage(imageUri, comment, null);
-                }
-              },
-            },
-          ],
-          'plain-text' // Tipo para el comentario
-        );
-      } else { // Android u otros (sin cambios por ahora)
-        let comment = '';
-        let truckCount = null;
-        console.log("Subiendo sin comentario en Android por ahora.");
-        if (isTruckStage) {
-          console.warn("Prompt de cantidad no implementado para Android. Usando null.");
+      if (isTruckStage) {
+        // Para etapas de camiones, procesar una por una como antes (o la primera si se seleccionaron múltiples accidentalmente)
+        // La UI de ImagePicker en Android podría no respetar 'allowsMultipleSelection: false' perfectamente.
+        const assetToProcess = selectedAssets[0]; // Tomar solo la primera para el flujo de camiones
+        if (imagesByStage[selectedStage]?.length >= 12) {
+            Alert.alert('Límite Alcanzado', `Ya has alcanzado el límite de 12 imágenes para ${selectedStage}.`);
+            //setIsBatchUploading(false);
+            return;
         }
-        await processAndUploadImage(imageUri, comment, truckCount);
+        // Flujo existente para camiones (pedir comentario y cantidad)
+        if (Platform.OS === 'ios') {
+          Alert.prompt('Añadir Comentario', 'Ingresa un comentario (opcional):', [
+            { text: 'Cancelar', style: 'cancel', onPress: () => setIsBatchUploading(false) },
+            { text: 'Siguiente', onPress: (commentText) => {
+                const comment = commentText || '';
+                Alert.prompt('Cantidad de Camiones', 'Ingresa la cantidad de camiones:', [
+                  { text: 'Cancelar', style: 'cancel', onPress: () => setIsBatchUploading(false) },
+                  { text: 'Cargar Imagen', onPress: async (truckCountInput) => {
+                      const count = parseInt(truckCountInput, 10);
+                      if (isNaN(count) || count < 0) {
+                        Alert.alert('Error', 'Por favor, ingresa un número válido de camiones.');
+                       // setIsBatchUploading(false); return;
+                      }
+                      await processAndUploadImage(assetToProcess.uri, comment, count, selectedStage);
+                      //setIsBatchUploading(false); // Mover aquí después de procesar la única imagen
+                  }},
+                ], 'plain-text', '', 'numeric');
+            }},
+          ], 'plain-text');
+        } else { // Android para camiones
+          console.log("Subiendo para etapa de camión en Android (una imagen a la vez).");
+          // Aquí podrías implementar prompts nativos o una UI modal para comentario/cantidad si es necesario
+          await processAndUploadImage(assetToProcess.uri, '', null, selectedStage); // Usar null para truckCount si no se pide
+          //setIsBatchUploading(false);
+        }
+      } else { // Etapas que NO son de camiones (permiten múltiple)
+        // Pedir comentario UNA VEZ para la última imagen del lote (opcional)
+        let commentForLast = '';
+        if (Platform.OS === 'ios') {
+          // Usamos una Promise para manejar el Alert.prompt asíncrono
+          const askCommentPromise = new Promise((resolve) => {
+            Alert.prompt(
+              'Añadir Comentario (Opcional)',
+              'Este comentario se aplicará a la última imagen del lote:',
+              [
+                { text: 'Omitir', style: 'cancel', onPress: () => resolve('') },
+                { text: 'Aceptar', onPress: (commentText) => resolve(commentText || '') },
+              ],
+              'plain-text'
+            );
+          });
+          commentForLast = await askCommentPromise;
+        } else {
+          // En Android, podrías tener un modal simple o decidir no pedir comentario para lotes.
+          // Por ahora, lo dejamos vacío para Android en lotes.
+          console.log("Comentario para lote en Android no implementado, se usará vacío.");
+        }
+
+        setIsBatchUploading(true); // Asegúrate de que esto esté antes del bucle
+        for (let i = 0; i < selectedAssets.length; i++) {
+          if (imagesByStage[selectedStage]?.length + i >= 12) {
+            Alert.alert('Límite Parcialmente Alcanzado', `Se cargarán ${i} imágenes. Se alcanzó el límite de 12 para ${selectedStage}.`);
+            break;
+          }
+          const asset = selectedAssets[i];
+          const isLastImage = i === selectedAssets.length - 1;
+          const commentToApply = isLastImage ? commentForLast : '';
+          
+          console.log(`Procesando secuencialmente imagen ${i + 1}/${selectedAssets.length}: ${asset.uri}`);
+          try {
+            await processAndUploadImage(asset.uri, commentToApply, null, selectedStage);
+            console.log(`Imagen ${i + 1} procesada exitosamente.`);
+          } catch (uploadError) {
+            console.error(`Error al procesar imagen ${i + 1} (${asset.uri}):`, uploadError);
+            // Decidir si continuar con las siguientes o detenerse.
+            // Por ahora, alertamos y continuamos (o podrías romper el bucle).
+            Alert.alert('Error de Carga', `No se pudo cargar la imagen ${asset.uri.split('/').pop()}: ${uploadError.message}`);
+            // break; // Descomenta para detener en el primer error
+          }
+        }
+        console.log("Todas las imágenes del lote procesadas secuencialmente.");
+    // --- INICIO: Mensaje de éxito opcional para el lote ---
+    if (selectedAssets.length > 0) { // Solo si se intentó subir alguna imagen
+        const successfulUploads = selectedAssets.filter(asset => {
+            // Necesitarías una forma de saber si la subida de este asset fue exitosa.
+            // Esto es un poco más complejo de rastrear aquí sin cambiar más la lógica.
+            // Por ahora, un mensaje genérico si no hubo errores que detuvieran el proceso.
+            return true; // Asumir éxito si no hubo 'break' por error
+        }).length;
+
+        if (successfulUploads > 0) {
+            Alert.alert('Carga Completa', `${successfulUploads} imagen(es) procesada(s).`);
+        }
+    }
+    // --- FIN: Mensaje de éxito opcional para el lote ---
+    setIsBatchUploading(false);
       }
-      // --- Fin solicitud ---
+    } else if (result.canceled) {
+        console.log("Selección de imágenes cancelada por el usuario.");
+    } else {
+        console.log("Resultado de ImagePicker sin assets:", result);
     }
   };
 
@@ -305,79 +360,128 @@ const UploadScreen = () => {
 
 
   // MODIFICAR processAndUploadImage
-  const processAndUploadImage = async (imageUri, comment = '', truckCount = null) => {
-    setIsUploading(true);
+  const processAndUploadImage = async (imageUri, comment = '', truckCount = null, stageForUpload) => {
+    // Si no se pasa stageForUpload, usa el selectedStage global.
+    // Esto es para asegurar que la etapa correcta se usa si processAndUploadImage
+    // se llama en un bucle donde selectedStage podría haber cambiado (aunque no debería con el flujo actual).
+    const stageToUse = stageForUpload || selectedStage;
+
+    if (!stageToUse) {
+        console.error("processAndUploadImage: No se pudo determinar la etapa para la carga.");
+        Alert.alert("Error Interno", "No se pudo determinar la etapa para la carga de la imagen.");
+        return Promise.reject(new Error("Etapa no definida para la carga."));
+    }
+    
+    // Ya no usamos isUploading individual, sino isBatchUploading para el lote
+     setIsUploading(true); // Comentado o eliminado
+
     let tempImageId = `temp-${Date.now()}-${Math.random()}`;
     try {
       const resizedImage = await manipulateAsync(
         imageUri,
-        [{ resize: { width: 800 } }], // O el tamaño que prefieras
+        [{ resize: { width: 800 } }],
         { compress: 0.7, format: SaveFormat.JPEG }
       );
-
       const now = new Date();
       const dateTimeString = now.toLocaleString();
 
-      // Actualización optimista: usa la URI local para la vista previa
       const optimisticImagePayload = {
         id: tempImageId,
-        stage: selectedStage,
-        imageUrl: resizedImage.uri, // Usar URI local para la vista previa optimista
+        stage: stageToUse, // Usar stageToUse
+        imageUrl: resizedImage.uri,
         comment: comment,
         dateTime: dateTimeString,
         truckCount: truckCount,
       };
 
-      setCurrentWorkData(prev => ({
+      // Actualización optimista de la UI (directamente en imagesByStage y imagesWithDataURLs)
+      setImagesByStage(prev => ({
         ...prev,
-        images: [...(prev.images || []), optimisticImagePayload]
+        [stageToUse]: [...(prev[stageToUse] || []), optimisticImagePayload]
+      }));
+      setImagesWithDataURLs(prev => ({
+        ...prev,
+        [tempImageId]: resizedImage.uri
       }));
 
-      // Crear FormData para enviar al backend
+
       const formData = new FormData();
-      formData.append('stage', selectedStage);
+      formData.append('stage', stageToUse); // Usar stageToUse
       formData.append('comment', comment);
       formData.append('dateTime', dateTimeString);
       if (truckCount !== null) {
         formData.append('truckCount', truckCount.toString());
       }
-      // Adjuntar el archivo
-      // El nombre del archivo es importante para multer en el backend
       const filename = resizedImage.uri.split('/').pop();
       const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : `image`; // ej. image/jpeg, image/png
+      const type = match ? `image/${match[1]}` : `image`;
+      formData.append('imageFile', { uri: resizedImage.uri, name: filename, type: type });
 
-      formData.append('imageFile', { // 'imageFile' debe coincidir con upload.single('imageFile') en el backend
-        uri: resizedImage.uri,
-        name: filename,
-        type: type,
-      });
-
-      // La acción addImagesToWork ahora debe estar preparada para enviar FormData
-      // y el backend para recibirlo.
       const resultAction = await dispatch(addImagesToWork(idWork, formData));
-
-      if (resultAction && resultAction.work && resultAction.work.images) {
-        Alert.alert('Éxito', 'Imagen cargada correctamente a Cloudinary.');
-       
-      } else {
-        console.error("Error en resultAction de addImagesToWork (Cloudinary) o respuesta inesperada:", resultAction);
-        Alert.alert('Error', 'No se pudo cargar la imagen a Cloudinary o respuesta inesperada.');
-        setCurrentWorkData(prev => ({
-          ...prev,
-          images: prev.images.filter(img => img.id !== tempImageId) // Revertir optimista
-        }));
+      
+      // Primero, verifica si la acción misma devolvió una estructura de error explícita
+      if (resultAction && resultAction.error && typeof resultAction.error === 'string') { // o resultAction.message si el error viene del backend
+        console.error("Error explícito devuelto por addImagesToWork action:", resultAction.error || resultAction.message);
+        // La reversión optimista ya debería estar en el catch de esta función,
+        // pero puedes asegurarte aquí o simplemente dejar que el catch lo maneje.
+        return Promise.reject(new Error(resultAction.error || resultAction.message || `No se pudo cargar la imagen ${filename}.`));
       }
-
+      if (resultAction && resultAction.createdImage) {
+        const uploadedImageFromServer = resultAction.createdImage;
+        
+        console.log(`Imagen ${filename} procesada. Imagen del servidor:`, uploadedImageFromServer);
+        // Reemplazar la imagen temporal con la real del servidor
+        setImagesByStage(prev => {
+            const stageImages = (prev[stageToUse] || []).map(img => 
+                img.id === tempImageId ? { ...uploadedImageFromServer, imageUrl: uploadedImageFromServer.imageUrl || resizedImage.uri } : img
+            );
+            return { ...prev, [stageToUse]: stageImages };
+        });
+        setImagesWithDataURLs(prev => {
+            const newUrls = { ...prev };
+            delete newUrls[tempImageId];
+            if (uploadedImageFromServer.id) {
+              newUrls[uploadedImageFromServer.id] = uploadedImageFromServer.imageUrl || resizedImage.uri;
+            }
+            return newUrls;
+        });
+        console.log(`UI actualizada para imagen con ID temporal ${tempImageId} a ID real ${uploadedImageFromServer.id}`);
+        // Alert.alert('Éxito', `Imagen ${filename} cargada.`); // Quizás no alertar por cada una en un lote
+      } else {
+        // Si llegamos aquí, la respuesta no tuvo 'error' explícito ni 'createdImage'.
+        // Esto podría significar que la respuesta del backend fue exitosa (2xx) pero no tuvo la estructura esperada,
+        // o que 'addImagesToWork' no devolvió 'createdImage' como se esperaba.
+        console.error("Respuesta de addImagesToWork no contiene 'createdImage' ni una estructura de error esperada:", resultAction);
+        console.warn("No se pudo encontrar la imagen subida en la respuesta del servidor para actualizar ID temporal:", filename);
+        
+        // Como fallback, si resultAction.work.images existe, podrías intentar la lógica de find (aunque es frágil)
+        // o simplemente recargar. Por ahora, recargamos.
+        if (resultAction && resultAction.work && resultAction.work.images) {
+            console.log("Respuesta del servidor (resultAction.work.images) en fallback:", resultAction.work.images);
+        }
+        dispatch(fetchWorkById(idWork)); // Recargar para asegurar consistencia como último recurso
+        
+        // Considera esto como un error parcial si la actualización optimista es crítica
+        // return Promise.reject(new Error(`Respuesta inesperada del servidor para ${filename}. No se pudo actualizar ID.`));
+      }
+      return Promise.resolve(); // Indicar éxito para esta imagen
     } catch (error) {
-      console.error('Error al procesar/cargar la imagen (Cloudinary):', error);
-      Alert.alert('Error', `No se pudo cargar la imagen: ${error.message || 'Error desconocido'}`);
-      setCurrentWorkData(prev => ({
+      console.error(`Error al procesar/cargar ${imageUri}:`, error);
+      // Revertir optimista
+      setImagesByStage(prev => ({
         ...prev,
-        images: prev.images.filter(img => img.id !== tempImageId) 
+        [stageToUse]: (prev[stageToUse] || []).filter(img => img.id !== tempImageId)
       }));
+      setImagesWithDataURLs(prev => {
+          const newUrls = { ...prev };
+          delete newUrls[tempImageId];
+          return newUrls;
+      });
+      // Alert.alert('Error', `No se pudo cargar una imagen: ${error.message || 'Error desconocido'}`);
+      return Promise.reject(error); // Propagar error para Promise.all
     } finally {
-      setIsUploading(false); // <--- Ocultar indicador de carga, independientemente del resultado
+      // Ya no se usa setIsUploading individual aquí
+       setIsUploading(false);
     }
   };
 

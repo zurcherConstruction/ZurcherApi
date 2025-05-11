@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Viewer, Worker } from "@react-pdf-viewer/core";
 import { defaultLayoutPlugin } from "@react-pdf-viewer/default-layout";
 import { uploadPdf } from "../Redux/Actions/pdfActions";
-import { createPermit } from "../Redux/Actions/permitActions";
+import { createPermit, checkPermitByAddress } from "../Redux/Actions/permitActions";
 import "@react-pdf-viewer/core/lib/styles/index.css";
 import "@react-pdf-viewer/default-layout/lib/styles/index.css";
 import { ToastContainer, toast } from 'react-toastify';
@@ -40,7 +40,7 @@ const PdfReceipt = () => {
   });
 
   const [expirationWarning, setExpirationWarning] = useState({ type: "", message: "" });
-const [excavationUnit, setExcavationUnit] = useState("INCH"); 
+  const [excavationUnit, setExcavationUnit] = useState("INCH"); 
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
 
   useEffect(() => {
@@ -169,6 +169,19 @@ const [excavationUnit, setExcavationUnit] = useState("INCH");
     }
   };
 
+  const checkExistingPermit = async (address) => {
+    try {
+      // La acción de Redux devuelve la data directamente o lanza un error
+      const result = await dispatch(checkPermitByAddress(address));
+      return result; // Esto será { exists: boolean, permit: object|null, hasBudget: boolean, message: string }
+    } catch (error) {
+      console.error("Error en checkExistingPermit (capturado en componente):", error);
+      toast.error(error.message || `Error al verificar permiso existente.`);
+      throw error; // Re-lanzar para que handleSubmit lo maneje si es necesario
+    }
+  };
+
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const confirmationResult = await Swal.fire({
@@ -234,6 +247,48 @@ const [excavationUnit, setExcavationUnit] = useState("INCH");
 
     let loadingToastId; // Definir fuera para que sea accesible en catch
     try {
+
+      loadingToastId = toast.loading("Procesando permiso...");
+
+      // --- PASO 1: VERIFICAR SI EL PERMIT YA EXISTE ---
+      // Aquí usamos la función checkExistingPermit que llama a la acción de Redux
+      const existingPermitCheck = await checkExistingPermit(formData.propertyAddress);
+
+      if (existingPermitCheck.exists) {
+        if (existingPermitCheck.hasBudget) {
+          toast.dismiss(loadingToastId);
+          Swal.fire({
+            title: 'Permiso Existente',
+            text: `Ya existe un permiso para "${formData.propertyAddress}" y tiene presupuestos asociados. No se puede crear uno nuevo ni proceder.`,
+            icon: 'info'
+          });
+          return; // Detener el proceso
+        } else {
+          // Permit existe pero NO tiene budget
+          toast.dismiss(loadingToastId);
+          const continueWithExisting = await Swal.fire({
+            title: 'Permiso Existente Sin Presupuesto',
+            text: `Ya existe un permiso para "${formData.propertyAddress}" pero no tiene presupuestos. ¿Deseas continuar para crear un presupuesto con este permiso?`,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, continuar',
+            cancelButtonText: 'No, cancelar'
+          });
+
+          if (continueWithExisting.isConfirmed) {
+            // Navegar a la creación del budget usando el ID del permit existente
+            navigate(`/createBudget?permitId=${existingPermitCheck.permit.idPermit}`);
+            return; // Detener el proceso actual
+          } else {
+            return; // El usuario decidió no continuar
+          }
+        }
+      }
+      if (toast.isActive(loadingToastId)) {
+        // No es necesario reabrirlo si ya está activo
+      } else {
+        loadingToastId = toast.loading("Guardando nuevo permiso...");
+      }
       // --- Preparar FormData (sin cambios) ---
       const formDataToSend = new FormData();
       formDataToSend.append("pdfData", file);
@@ -299,28 +354,26 @@ const [excavationUnit, setExcavationUnit] = useState("INCH");
 
       let displayMessage = "Error al crear el permiso.";
 
-      // Prioridad 1: Usar error.details si existe y tiene el código específico
-      if (errorDetails && errorDetails.code === '23505' && errorDetails.constraint === 'Permits_propertyAddress_key1') {
-        displayMessage = `Dirección ya existe: "${formData.propertyAddress}".`;
-        toast.error(displayMessage, { autoClose: 7000 });
-      }
-      // Prioridad 2: Usar error.details.message si existe
-      else if (errorDetails && errorDetails.message) {
-        displayMessage = errorDetails.message;
-        toast.error(`Error: ${displayMessage}`);
-      }
-      // Prioridad 3: Usar error.message (del objeto Error base)
-      else if (error.message) {
-        displayMessage = error.message;
-        toast.error(`Error: ${displayMessage}`);
-      }
-      // Prioridad 4: Mensaje genérico
-      else {
-        toast.error(displayMessage);
-      }
+      if (error.message.includes("verificar permiso existente")) { // O alguna otra forma de identificar el origen
+        // El error ya fue (o debería haber sido) mostrado por checkExistingPermit
+        // No hacer nada más aquí o mostrar un mensaje genérico si es necesario.
+        console.log("Error durante la verificación del permiso, ya manejado o será manejado por checkExistingPermit.");
+    } else if (errorDetails && errorDetails.code === '23505' && errorDetails.constraint === 'Permits_propertyAddress_key1') {
+      displayMessage = `Dirección ya existe: "${formData.propertyAddress}".`;
+      toast.error(displayMessage, { autoClose: 7000 });
+    } else if (errorDetails && errorDetails.message) {
+      displayMessage = errorDetails.message;
+      toast.error(`Error: ${displayMessage}`);
+    } else if (error.message) {
+      displayMessage = error.message;
+      toast.error(`Error: ${displayMessage}`);
+    } else {
+      toast.error(displayMessage);
     }
+  }
+};
     // --- FIN SIMPLIFICADO try/catch ---
-  };
+  
 
   return (
     <div className="container mx-auto p-4">

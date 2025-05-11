@@ -15,7 +15,30 @@ import {
   fetchContactsRequest,
   fetchContactsSuccess,
   fetchContactsFailure,
+  checkPermitByAddressRequest,
+  checkPermitByAddressSuccess,
+  checkPermitByAddressFailure,
 } from '../Reducer/permitReducer';
+
+// --- NUEVA ACCIÓN: Verificar Permit por Property Address ---
+export const checkPermitByAddress = (propertyAddress) => async (dispatch) => {
+  dispatch(checkPermitByAddressRequest());
+  try {
+    // Asegúrate que la ruta '/permit/check-by-address' coincida con la que definiste en tu backend
+    const response = await api.get(`/permit/check-by-address?propertyAddress=${encodeURIComponent(propertyAddress)}`);
+    dispatch(checkPermitByAddressSuccess(response.data));
+    return response.data; // Devolver los datos para que el componente los use directamente
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || error.message || "Error al verificar el permiso por dirección";
+    dispatch(checkPermitByAddressFailure(errorMessage));
+    // Re-lanzar un error formateado para que el componente lo capture en su try/catch si es necesario
+    // Esto es crucial si tu componente PdfReceipt.jsx usa try/catch alrededor de la llamada a esta acción.
+    const errorToThrow = new Error(errorMessage);
+    errorToThrow.response = error.response; // Adjuntar la respuesta original si existe
+    errorToThrow.details = error.response?.data; // Adjuntar detalles si existen
+    throw errorToThrow;
+  }
+};
 
 // Obtener todos los permisos
 export const fetchPermits = () => async (dispatch) => {
