@@ -46,6 +46,7 @@ import ItemsBudgets from "./Components/Budget/ItemsBudgets";
 import EditBudget from "./Components/Budget/EditBudget";
 import Summary from "./Components/Summary";
 
+
 function App() {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -79,7 +80,7 @@ function App() {
           <Routes>
             {/* Ruta pública */}
             <Route path="/" element={<Landing />} />
-
+           
             {/* Rutas privadas */}
             <Route
               path="/dashboard"
