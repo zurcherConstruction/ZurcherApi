@@ -17,24 +17,14 @@ import InspectionFlowManager from "./InspectionFlowManager";
 const WorkDetail = () => {
   const { idWork } = useParams();
   const dispatch = useDispatch();
+
+ 
  
   const {
     selectedWork: work,
-    loading,
-    error,
+    loading: workLoading, // Renombrado para evitar conflicto si FinalInvoice usa 'loading'
+    error: workError,     // Renombrado
   } = useSelector((state) => state.work);
-
-  
-
-  const handleRequestInspection = async () => {
-    try {
-
-      await dispatch(updateWork(idWork, { status: "firstInspectionPending" })); // Cambiar el estado a "inspected"
-      // dispatch(fetchWorkById(idWork)); // Refrescar los datos de la obra
-    } catch (error) {
-      console.error("Error al solicitar la inspección:", error);
-    }
-  }
 
 
   console.log("Datos de la obra:", work); // Para depuración
@@ -213,22 +203,17 @@ const WorkDetail = () => {
    }
 
 
-  if (loading) {
+   if (workLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center">
-          {/* Spinner circular */}
-          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent border-solid rounded-full animate-spin"></div>
-          {/* Texto opcional */}
-          <p className="text-xl font-semibold mt-4">
-            Cargando detalles de la obra...
-          </p>
-        </div>
+        <div className="flex justify-center items-center h-screen">
+        <p className="text-xl text-gray-700">Cargando detalles de la obra...</p>
+      </div>
       </div>
     );
   }
 
-  if (error) {
+  if (workError) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p className="text-xl font-semibold text-red-500">Error: {error}</p>
@@ -276,6 +261,21 @@ const WorkDetail = () => {
       [section]: !prev[section],
     }));
   };
+
+  const finalInvoiceVisibleStates = [
+    'approvedInspection',  
+        'rejectedInspection',
+        'coverPending', 
+        'covered',
+        'invoiceFinal',
+        'paymentReceived',
+        'finalInspectionPending', 
+        'finalApproved',
+        'finalRejected',
+        'maintenance',
+  ];
+
+  const canShowFinalInvoiceSection = finalInvoiceVisibleStates.includes(work.status);
 
 
   return (
@@ -782,7 +782,7 @@ const WorkDetail = () => {
       </div>
       {/* --- SECCIÓN PARA FACTURA FINAL --- */}
       {/* Mostrar solo si la obra está en un estado apropiado (ej: 'completed', 'finalApproved') */}
-      {(work.status === 'coverPending' || work.status === 'finalApproved' || work.status === 'covered' || work.status === 'maintenance' || work.status === 'installed' || work.status === 'inProgress') && ( // Ajusta estados según tu lógica
+      {canShowFinalInvoiceSection && (
         <div className="mt-6 bg-white shadow-md rounded-lg p-6 border-l-4 border-purple-500">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold">Factura Final</h2>
@@ -794,7 +794,7 @@ const WorkDetail = () => {
             </button>
           </div>
 
-          {/* Renderizar el componente de la factura final condicionalmente */}
+          {/* Renderizar el componente de la factura final condicionalmente basado en showFinalInvoice */}
           {showFinalInvoice && (
             <div className="mt-4 border-t pt-4">
               <FinalInvoice workId={idWork} />
@@ -802,6 +802,7 @@ const WorkDetail = () => {
           )}
         </div>
       )}
+
       {/* Modal para mostrar la imagen ampliada */}
       {selectedImage && (
         <div
