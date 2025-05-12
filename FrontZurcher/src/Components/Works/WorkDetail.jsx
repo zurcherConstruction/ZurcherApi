@@ -192,33 +192,25 @@ const WorkDetail = () => {
 
    // Caso 1: Si work.status es 'approvedInspection', mostrar botón para cambiar a 'coverPending'
    if (work?.status === 'approvedInspection') {
+    displayHeaderButton = true;
+    headerButtonText = "Inspección Aprobada, Pasar a Cubierta"; 
+    headerButtonClasses += " bg-green-500 hover:bg-green-600";
+    headerButtonAction = async () => {
+      console.log(`Cambiando estado de obra ${idWork} de 'approvedInspection' a 'coverPending'`);
+      await dispatch(updateWork(idWork, { status: "coverPending" }));
+      // dispatch(fetchWorkById(idWork)); // Opcional: Redux debe manejar la actualización del store
+    };
+   } else if (work?.status === 'covered') { // <-- ESTE ES EL BLOQUE PARA 'COVERED'
      displayHeaderButton = true;
-     headerButtonText = "Inspección Aprobada, Pasar a Cubierta"; 
-     headerButtonClasses += " bg-green-500 hover:bg-green-600";
+    
+     headerButtonText = "Marcar Factura Final Enviada"; 
+     headerButtonClasses += " bg-purple-600 hover:bg-purple-700"; // Color distintivo
      headerButtonAction = async () => {
-       console.log(`Cambiando estado de obra ${idWork} de 'approvedInspection' a 'coverPending'`);
-       await dispatch(updateWork(idWork, { status: "coverPending" }));
-       dispatch(fetchWorkById(idWork)); 
+       console.log(`Cambiando estado de obra ${idWork} de 'covered' a 'invoiceFinal'`);
+       await dispatch(updateWork(idWork, { status: "invoiceFinal" }));
+       // dispatch(fetchWorkById(idWork)); // Opcional: Redux debe manejar la actualización del store
      };
    }
-   // Caso 2: Si work.status es 'rejectedInspection' -> NO MOSTRAR BOTÓN DE CAMBIO DE ESTADO AQUÍ
-   // La acción se maneja en InspectionFlowManager después de que el empleado corrige.
-   // else if (work?.status === 'rejectedInspection') {
-   //   displayHeaderButton = false; // No hay acción directa de cambio de estado desde el header aquí
-   // }
-   // Caso 3: Si work.status es 'installed' (y no es ninguno de los anteriores),
-   // mostrar botón para solicitar la primera inspección.
-  //  else if (work?.status === 'installed') {
-  //    displayHeaderButton = true;
-  //    headerButtonText = "Solicitar Inspección Inicial"; 
-  //    headerButtonClasses += " bg-blue-500 hover:bg-blue-600"; 
-    
-  //    headerButtonAction = async () => {
-  //      console.log(`Cambiando estado de obra ${idWork} de 'installed' a 'firstInspectionPending'`);
-  //      await dispatch(updateWork(idWork, { status: "firstInspectionPending" }));
-  //      dispatch(fetchWorkById(idWork)); 
-  //    };
-  //  }
 
 
   if (loading) {
@@ -790,7 +782,7 @@ const WorkDetail = () => {
       </div>
       {/* --- SECCIÓN PARA FACTURA FINAL --- */}
       {/* Mostrar solo si la obra está en un estado apropiado (ej: 'completed', 'finalApproved') */}
-      {(work.status === 'coverPending' || work.status === 'finalApproved' || work.status === 'maintenance' || work.status === 'installed' || work.status === 'inProgress') && ( // Ajusta estados según tu lógica
+      {(work.status === 'coverPending' || work.status === 'finalApproved' || work.status === 'covered' || work.status === 'maintenance' || work.status === 'installed' || work.status === 'inProgress') && ( // Ajusta estados según tu lógica
         <div className="mt-6 bg-white shadow-md rounded-lg p-6 border-l-4 border-purple-500">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold">Factura Final</h2>
