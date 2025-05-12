@@ -54,9 +54,13 @@ const ProgressTracker = () => {
     } else if (currentWorkStatus === "approvedInspection") {
       statusToFindInFilteredEtapas = "firstInspectionPending";
     } else if (currentWorkStatus === "finalInspectionPending" || currentWorkStatus === "finalRejected") {
-      statusToFindInFilteredEtapas = "coverPending";
+      // If coverPending is a distinct step before finalInspectionPending, this might need adjustment
+      // For now, assuming final inspection follows covering or invoicing.
+      statusToFindInFilteredEtapas = "invoiceFinal"; // Or "coverPending" if that's the immediate precedent
     } else if (currentWorkStatus === "finalApproved") {
       statusToFindInFilteredEtapas = "finalInspectionPending";
+    } else if (currentWorkStatus === "covered") { // <-- ADDED CONDITION
+      statusToFindInFilteredEtapas = "coverPending"; // 'covered' status makes 'coverPending' the current visual step
     }
     const index = filteredEtapas.findIndex((etapa) => etapa.backend === statusToFindInFilteredEtapas);
     return index;
@@ -68,6 +72,8 @@ const ProgressTracker = () => {
         if (status === "rejectedInspection") return "Inspection Rejected";
         if (status === "finalRejected") return "Final Insp. Rejected";
         if (status === "approvedInspection") return "Inspection Approved";
+        if (status === "finalApproved") return "Final Insp. Approved";
+        if (status === "covered") return "Covered - Awaiting Invoice";
         return "Estado Desconocido";
     }
     return etapaDef.display;
@@ -151,7 +157,12 @@ const ProgressTracker = () => {
                           textColor = "text-green-600";
                           isBold = true;
                           shouldPulse = true;
-                      }
+                        } else if (etapa.backend === "coverPending" && status === "covered") {
+                          // Specific case: actual status is 'covered', visual step is 'coverPending'
+                          textColor = "text-green-600"; // Text for "Cover Pending" label
+                          isBold = true;
+                          shouldPulse = true;
+                        }
                     }
                   }
 
@@ -207,13 +218,14 @@ const ProgressTracker = () => {
                 
               <div className="block sm:hidden mt-2">
                 <p className="text-sm text-gray-600 text-center">
-                  Estado actual:{" "}
+                Estado actual:{" "}
                   <span className={`font-semibold ${
                     status === "rejectedInspection" || status === "finalRejected" ? "text-red-600" :
                     status === "firstInspectionPending" || status === "finalInspectionPending" ? "text-yellow-500" :
-                    status === "approvedInspection" ? "text-green-600" : 
-                    (progressBarIndex === -1 && !["firstInspectionPending", "rejectedInspection", "approvedInspection", "finalInspectionPending", "finalRejected"].includes(status)) ? "text-gray-700" :
-                    "text-green-600"
+                    status === "approvedInspection" || status === "finalApproved" ? "text-green-600" : 
+                    status === "covered" ? "text-cyan-600" : // <-- ADDED FOR COVERED
+                    (progressBarIndex === -1 && !["firstInspectionPending", "rejectedInspection", "approvedInspection", "finalInspectionPending", "finalRejected", "covered", "approvedInspection", "finalApproved"].includes(status)) ? "text-gray-700" : // Fallback for unknown/default
+                    "text-green-600" // Default for other "positive" or completed steps
                   }`}>
                     {getDisplayName(status)}
                   </span>

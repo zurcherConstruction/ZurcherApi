@@ -20,6 +20,7 @@ const etapas = [
   { backend: "firstInspectionPending", display: "Inspection Pending" },
   { backend: "approvedInspection", display: "Inspection Approved" }, // Añadido para referencia en getDisplayName
   { backend: "coverPending", display: "Cover Pending" },
+  { backend: "covered", display: "Covered - Awaiting Final Invoice" }, // <-- ADDED
   { backend: "invoiceFinal", display: "Send Final Invoice" },
   { backend: "paymentReceived", display: "Payment Received" },
   { backend: "finalInspectionPending", display: "Final Inspection Pending" },
@@ -32,6 +33,7 @@ const etapas = [
 // Etapas que se mostrarán visualmente en la barra de progreso
 const visualEtapas = etapas.filter(e => ![
     "approvedInspection", // No es una etapa visual separada de firstInspectionPending
+    "covered",
     "finalApproved",      // No es una etapa visual separada de finalInspectionPending
     "rejectedInspection",
     "finalRejected"
@@ -73,6 +75,8 @@ const HomeScreen = () => {
       statusToFindInVisualEtapas = "coverPending";
     } else if (currentWorkStatus === "finalApproved") {
       statusToFindInVisualEtapas = "finalInspectionPending";
+    } else if (currentWorkStatus === "covered") { // <-- ADDED CONDITION
+      statusToFindInVisualEtapas = "coverPending";
     }
     
     const index = visualEtapas.findIndex((etapa) => etapa.backend === statusToFindInVisualEtapas);
@@ -118,6 +122,9 @@ const HomeScreen = () => {
     }
     if (currentStatus === "approvedInspection" || currentStatus === "finalApproved") {
       return styles.statusTextApproved;
+    }
+    if (currentStatus === "covered") { // <-- ADDED CONDITION
+      return styles.statusTextCovered;
     }
     // Podrías añadir un caso para "Estado Desconocido" si quieres un color específico
     // if (progressBarIndex === -1 && !["firstInspectionPending", ...].includes(currentStatus)) {
@@ -187,51 +194,37 @@ const HomeScreen = () => {
                     { width: `${visualEtapas.length > 1 ? (progressBarIndex / (visualEtapas.length - 1)) * 100 : (progressBarIndex >= 0 ? 100 : 0)}%` }
                   ]}
                 />
-                {visualEtapas.map((etapa, etapaMapIndex) => {
-                  let circleBgClassName = styles.circleBgGray; // Default
+                 {visualEtapas.map((etapa, etapaMapIndex) => {
+                  let circleBgClassName = styles.circleBgGray;
                   let isPulsing = false;
 
-                  // 1. Etapas completadas (barra verde pasó por ellas)
                   if (progressBarIndex >= 0 && etapaMapIndex < progressBarIndex) {
                     circleBgClassName = styles.circleBgGreen;
-                  }
-                  // 2. Etapa donde la barra de progreso se detiene (y es la etapa activa lineal)
-                  else if (progressBarIndex >= 0 && etapaMapIndex === progressBarIndex) {
+                  } else if (progressBarIndex >= 0 && etapaMapIndex === progressBarIndex) {
                     circleBgClassName = styles.circleBgGreen;
-                    if (status === etapa.backend && 
-                        status !== "firstInspectionPending" && status !== "rejectedInspection" && status !== "approvedInspection" &&
-                        status !== "finalInspectionPending" && status !== "finalRejected" && status !== "finalApproved") {
-                        isPulsing = true;
-                    }
                   }
 
-                  // 3. Lógica específica para etapas de inspección (colorea el círculo de la etapa de inspección)
                   if (etapa.backend === "firstInspectionPending") {
-                    if (status === "firstInspectionPending") {
-                      circleBgClassName = styles.circleBgYellow; isPulsing = true;
-                    } else if (status === "rejectedInspection") {
-                      circleBgClassName = styles.circleBgRed; isPulsing = true;
-                    } else if (status === "approvedInspection") {
-                      circleBgClassName = styles.circleBgGreen; isPulsing = true; // Opcional: pulsar si está aprobada
-                    }
+                    if (status === "firstInspectionPending") { circleBgClassName = styles.circleBgYellow; isPulsing = true; }
+                    else if (status === "rejectedInspection") { circleBgClassName = styles.circleBgRed; isPulsing = true; }
+                    else if (status === "approvedInspection") { circleBgClassName = styles.circleBgGreen; isPulsing = true; }
                   } else if (etapa.backend === "finalInspectionPending") {
-                    if (status === "finalInspectionPending") {
-                      circleBgClassName = styles.circleBgYellow; isPulsing = true;
-                    } else if (status === "finalRejected") {
-                      circleBgClassName = styles.circleBgRed; isPulsing = true;
-                    } else if (status === "finalApproved") {
-                      circleBgClassName = styles.circleBgGreen; isPulsing = true;
-                    }
-                  }
-                  // 4. Etapa activa lineal (si no fue coloreada por inspección y la barra llegó)
-                  else if (status === etapa.backend && progressBarIndex >= etapaMapIndex && !isPulsing && 
-                           visualEtapas.some(e => e.backend === status) &&
-                           !["approvedInspection", "finalApproved", "rejectedInspection", "finalRejected"].includes(status) // No es un estado especial ya manejado
-                           ) {
-                      circleBgClassName = styles.circleBgGreen;
-                      isPulsing = true;
+                    if (status === "finalInspectionPending") { circleBgClassName = styles.circleBgYellow; isPulsing = true; }
+                    else if (status === "finalRejected") { circleBgClassName = styles.circleBgRed; isPulsing = true; }
+                    else if (status === "finalApproved") { circleBgClassName = styles.circleBgGreen; isPulsing = true; }
                   }
                   
+                  // Pulsing logic for the current visual step if not handled by inspection logic
+                  if (progressBarIndex === etapaMapIndex && !isPulsing) {
+                    const isInspectionVisualStep = etapa.backend === "firstInspectionPending" || etapa.backend === "finalInspectionPending";
+                    if (!isInspectionVisualStep) {
+                      if (status === etapa.backend) { // Actual status matches this linear visual step
+                        isPulsing = true;
+                      } else if (etapa.backend === "coverPending" && status === "covered") { // Specific case for 'covered'
+                        isPulsing = true;
+                      }
+                    }
+                  }
                   const etapaKey = String(etapa.backend || `unknown-etapa-${etapaMapIndex}`);
                   return (
                     <View key={etapaKey} style={styles.progressStepContainer}>
@@ -333,6 +326,9 @@ const styles = StyleSheet.create({
   },
   statusTextRejected: {
     color: '#dc2626', // text-red-600
+  },
+  statusTextCovered: { // <-- ADDED STYLE
+    color: '#0e7490', // Tailwind cyan-700 (consistent with AllMyWorksScreen)
   },
   // statusTextUnknown: { color: '#4b5563' /* text-gray-600 */ },
   progressBarContainer: {
