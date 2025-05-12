@@ -4,8 +4,16 @@ const initialState = {
   permits: [], // Lista de permisos
   selectedPermit: null, // Permiso seleccionado (por ID)
   contacts: [], // Lista de contactos asociados a un permiso
-  loading: false, // Estado de carga
-  error: null, // Mensaje de error
+  checkedPermitStatus: { // Para almacenar el resultado de la verificación si decides hacerlo
+    exists: null,
+    permitData: null,
+    hasBudget: null,
+    message: null,
+  },
+  loading: false, // Estado de carga general
+  loadingCheckPermit: false, // Estado de carga específico para la verificación
+  error: null, // Mensaje de error general
+  errorCheckPermit: null, 
 };
 
 const permitSlice = createSlice({
@@ -84,6 +92,23 @@ const permitSlice = createSlice({
       state.loading = false;
       state.error = action.payload;
     },
+     // --- NUEVOS REDUCERS PARA CHECK PERMIT BY PROPERTY ADDRESS ---
+     checkPermitByAddressRequest: (state) => {
+      state.loadingCheckPermit = true;
+      state.errorCheckPermit = null;
+      // Opcional: resetear el estado de checkedPermitStatus
+      state.checkedPermitStatus = { exists: null, permitData: null, hasBudget: null, message: null };
+    },
+    checkPermitByAddressSuccess: (state, action) => {
+      state.loadingCheckPermit = false;
+      // Opcional: almacenar el resultado si quieres acceder a él desde el estado global
+      state.checkedPermitStatus = action.payload; 
+    },
+    checkPermitByAddressFailure: (state, action) => {
+      state.loadingCheckPermit = false;
+      state.errorCheckPermit = action.payload;
+      state.checkedPermitStatus = { exists: null, permitData: null, hasBudget: null, message: action.payload };
+    },
 
     // Limpiar errores
     clearPermitError: (state) => {
@@ -108,6 +133,9 @@ export const {
   fetchContactsRequest,
   fetchContactsSuccess,
   fetchContactsFailure,
+  checkPermitByAddressRequest,
+  checkPermitByAddressSuccess,
+  checkPermitByAddressFailure,
   clearPermitError,
 } = permitSlice.actions;
 

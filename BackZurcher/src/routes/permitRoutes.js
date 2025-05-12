@@ -17,6 +17,8 @@ const upload = multer({
 
 const router = express.Router();
 
+
+
 // Crear un permiso (permitido para admin, recept y owner)
 router.post(
   '/',
@@ -29,6 +31,7 @@ router.post(
   PermitController.createPermit
 );
 
+router.get('/check-by-address', verifyToken, allowRoles(['admin', 'recept', 'owner']), PermitController.checkPermitByPropertyAddress);
 // Obtener todos los permisos (permitido para staff)
 router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker']), PermitController.getPermits);
 

@@ -3,7 +3,7 @@ const { CustomError } = require('../../middleware/error');
 const { catchedAsync } = require('../../utils/catchedAsync');
 const bcrypt = require('bcrypt');
 const {uploadBufferToCloudinary, deleteFromCloudinary} = require('../../utils/cloudinaryUploader');
-
+const { Op } = require('sequelize');
 
 
 const getAllStaff = async (req, res) => {

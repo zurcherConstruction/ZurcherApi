@@ -68,7 +68,7 @@ Material.belongsTo(Work, { foreignKey: 'workId' });
 Staff.hasMany(Material, { foreignKey: 'staffId' });
 Material.belongsTo(Staff, { foreignKey: 'staffId' });
 
-Work.hasMany(Inspection, { foreignKey: 'workId' });
+Work.hasMany(Inspection, { foreignKey: 'workId', as: 'inspections' }); // 'inspections' como alias
 Inspection.belongsTo(Work, { foreignKey: 'workId' });
 
 Staff.hasMany(Work, { foreignKey: 'staffId' });

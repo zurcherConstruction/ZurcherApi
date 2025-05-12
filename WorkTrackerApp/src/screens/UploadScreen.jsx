@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, Pressable, Image, Alert, ScrollView, Modal, FlatList, TouchableOpacity, Platform, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useDispatch, useSelector } from 'react-redux';
-import { addImagesToWork, fetchAssignedWorks, updateWork, deleteImagesFromWork, fetchWorkById } from '../Redux/Actions/workActions';
+import { addImagesToWork, markInspectionCorrectedByWorker, updateWork, deleteImagesFromWork, fetchWorkById } from '../Redux/Actions/workActions';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as FileSystem from 'expo-file-system';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
@@ -29,11 +29,17 @@ const UploadScreen = () => {
   const [largeImageModalVisible, setLargeImageModalVisible] = useState(false);
   const [selectedImageUri, setSelectedImageUri] = useState(null);
   const [imageSelectionModalWasOpen, setImageSelectionModalWasOpen] = useState(false); // New state
- 
+  const [isUploading, setIsUploading] = useState(false);
+  const [isSubmittingWorkInstalled, setIsSubmittingWorkInstalled] = useState(false); // Nuevo estado
+  const [isRequestingFinalInspection, setIsRequestingFinalInspection] = useState(false); // Nuevo estado
+  const [isBatchUploading, setIsBatchUploading] = useState(false);
+  const [isMarkingCorrected, setIsMarkingCorrected] = useState(false); // Nuevo estado para el botón
+  const [isMarkingCovered, setIsMarkingCovered] = useState(false);
+
   // --- EFECTO PARA BUSCAR DETALLES DEL TRABAJO ---
   useEffect(() => {
     if (idWork) {
-      console.log(`UploadScreen: Despachando fetchWorkById para ${idWork}`);
+     
       dispatch(fetchWorkById(idWork));
     }
   }, [dispatch, idWork]);
@@ -43,9 +49,39 @@ const UploadScreen = () => {
       return workDetailsFromState;
     }
     // Mientras carga o si hay error, puedes devolver un objeto base o null
-    return { idWork, propertyAddress: routePropertyAddress, images: [], Permit: {} };
+    return { idWork, propertyAddress: routePropertyAddress, images: [], Permit: {}, inspections: [] }; // <--- CAMBIO AQUÍ
   }, [workDetailsFromState, idWork, routePropertyAddress]);
 
+  // --- AÑADIR ESTE LOG ---
+  useEffect(() => {
+    if (currentWork && currentWork.idWork === idWork) { // Solo loguear cuando currentWork esté poblado con datos del estado
+        
+        if (currentWork.inspections) { // <--- CAMBIO AQUÍ
+           
+        } else {
+          console.warn("currentWork no tiene inspecciones:", currentWork);
+        }
+    }
+  }, [currentWork, idWork]);
+
+  const relevantInitialInspection = useMemo(() => {
+    if (currentWork && currentWork.inspections && currentWork.inspections.length > 0) { // <--- CAMBIO AQUÍ
+      // Ordenar por fecha de creación descendente para obtener la más reciente primero
+      const sortedInspections = [...currentWork.inspections] // <--- CAMBIO AQUÍ
+        .filter(insp => insp.type === 'initial')
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      
+      // Si el trabajo está en 'rejectedInspection', buscamos la última rechazada.
+      // Si está en 'firstInspectionPending', buscamos la que no tiene finalStatus (en curso).
+      if (currentWork.status === 'rejectedInspection') {
+        return sortedInspections.find(insp => insp.finalStatus === 'rejected');
+      } else if (currentWork.status === 'firstInspectionPending') {
+        return sortedInspections.find(insp => !insp.finalStatus); // La que está activa
+      }
+      return sortedInspections[0]; // Fallback a la más reciente inicial
+    }
+    return null;
+  }, [currentWork]);
 
   const stages = [
     'foto previa del lugar',
@@ -90,7 +126,7 @@ const UploadScreen = () => {
       await FileSystem.writeAsStringAsync(fileUri, base64Pdf, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      console.log("PDF temporal guardado en:", fileUri); // Log para verificar
+    
 
       // --- Guardar la URI del archivo y mostrar el modal ---
       setSelectedPdfUri(fileUri); // Guardar la URI del archivo
@@ -160,81 +196,134 @@ const UploadScreen = () => {
 
 
   const handlePickImage = async () => {
-    console.log("handlePickImage - selectedStage:", selectedStage); // <-- LOG
     if (!selectedStage) {
       Alert.alert("Error", "Por favor, selecciona una etapa primero.");
       return;
     }
-    if (imagesByStage[selectedStage]?.length >= 12) { return; }
+
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) { return; }
+
+    const isTruckStage = selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra';
+    const allowMultiple = !isTruckStage; 
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 0.5,
+      allowsMultipleSelection: allowMultiple, 
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      const imageUri = result.assets[0].uri;
-      const isTruckStage = selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra';
+      const selectedAssets = result.assets;
+     
+      //setIsBatchUploading(true); // Iniciar indicador de carga para el lote
 
-      if (Platform.OS === 'ios') {
-        Alert.prompt(
-          'Añadir Comentario',
-          'Ingresa un comentario (opcional):',
-          [
-            { text: 'Cancelar', style: 'cancel' },
-            {
-              text: 'Siguiente',
-              onPress: (commentText) => {
-                const comment = commentText || ''; // Usar string vacío si no hay comentario
-                if (isTruckStage) {
-                  // Si es etapa de camiones, pedir cantidad
-                  Alert.prompt(
-                    'Cantidad de Camiones',
-                    'Ingresa la cantidad de camiones:',
-                    [
-                      { text: 'Cancelar', style: 'cancel' },
-                      {
-                        text: 'Cargar Imagen',
-                        onPress: (truckCountInput) => {
-                          const count = parseInt(truckCountInput, 10);
-                          if (isNaN(count) || count < 0) {
-                            Alert.alert('Error', 'Por favor, ingresa un número válido de camiones.');
-                            return;
-                          }
-                          processAndUploadImage(imageUri, comment, count);
-                        },
-                      },
-                    ],
-                    'plain-text',
-                    '',
-                    'numeric'
-                  );
-                } else {
-                  // Si no es etapa de camiones, subir solo con comentario
-                  processAndUploadImage(imageUri, comment, null);
-                }
-              },
-            },
-          ],
-          'plain-text' // Tipo para el comentario
-        );
-      } else { // Android u otros (sin cambios por ahora)
-        let comment = '';
-        let truckCount = null;
-        console.log("Subiendo sin comentario en Android por ahora.");
-        if (isTruckStage) {
-          console.warn("Prompt de cantidad no implementado para Android. Usando null.");
+      if (isTruckStage) {
+        // Para etapas de camiones, procesar una por una como antes (o la primera si se seleccionaron múltiples accidentalmente)
+        // La UI de ImagePicker en Android podría no respetar 'allowsMultipleSelection: false' perfectamente.
+        const assetToProcess = selectedAssets[0]; // Tomar solo la primera para el flujo de camiones
+        if (imagesByStage[selectedStage]?.length >= 12) {
+            Alert.alert('Límite Alcanzado', `Ya has alcanzado el límite de 12 imágenes para ${selectedStage}.`);
+            //setIsBatchUploading(false);
+            return;
         }
-        await processAndUploadImage(imageUri, comment, truckCount);
+        // Flujo existente para camiones (pedir comentario y cantidad)
+        if (Platform.OS === 'ios') {
+          Alert.prompt('Añadir Comentario', 'Ingresa un comentario (opcional):', [
+            { text: 'Cancelar', style: 'cancel', onPress: () => setIsBatchUploading(false) },
+            { text: 'Siguiente', onPress: (commentText) => {
+                const comment = commentText || '';
+                Alert.prompt('Cantidad de Camiones', 'Ingresa la cantidad de camiones:', [
+                  { text: 'Cancelar', style: 'cancel', onPress: () => setIsBatchUploading(false) },
+                  { text: 'Cargar Imagen', onPress: async (truckCountInput) => {
+                      const count = parseInt(truckCountInput, 10);
+                      if (isNaN(count) || count < 0) {
+                        Alert.alert('Error', 'Por favor, ingresa un número válido de camiones.');
+                       // setIsBatchUploading(false); return;
+                      }
+                      await processAndUploadImage(assetToProcess.uri, comment, count, selectedStage);
+                      //setIsBatchUploading(false); // Mover aquí después de procesar la única imagen
+                  }},
+                ], 'plain-text', '', 'numeric');
+            }},
+          ], 'plain-text');
+        } else { // Android para camiones
+         
+          // Aquí podrías implementar prompts nativos o una UI modal para comentario/cantidad si es necesario
+          await processAndUploadImage(assetToProcess.uri, '', null, selectedStage); // Usar null para truckCount si no se pide
+          //setIsBatchUploading(false);
+        }
+      } else { // Etapas que NO son de camiones (permiten múltiple)
+        // Pedir comentario UNA VEZ para la última imagen del lote (opcional)
+        let commentForLast = '';
+        if (Platform.OS === 'ios') {
+          // Usamos una Promise para manejar el Alert.prompt asíncrono
+          const askCommentPromise = new Promise((resolve) => {
+            Alert.prompt(
+              'Añadir Comentario (Opcional)',
+              'Este comentario se aplicará a la última imagen del lote:',
+              [
+                { text: 'Omitir', style: 'cancel', onPress: () => resolve('') },
+                { text: 'Aceptar', onPress: (commentText) => resolve(commentText || '') },
+              ],
+              'plain-text'
+            );
+          });
+          commentForLast = await askCommentPromise;
+        } else {
+          // En Android, podrías tener un modal simple o decidir no pedir comentario para lotes.
+          // Por ahora, lo dejamos vacío para Android en lotes.
+          console.log("Comentario para lote en Android no implementado, se usará vacío.");
+        }
+
+        setIsBatchUploading(true); // Asegúrate de que esto esté antes del bucle
+        for (let i = 0; i < selectedAssets.length; i++) {
+          if (imagesByStage[selectedStage]?.length + i >= 12) {
+            Alert.alert('Límite Parcialmente Alcanzado', `Se cargarán ${i} imágenes. Se alcanzó el límite de 12 para ${selectedStage}.`);
+            break;
+          }
+          const asset = selectedAssets[i];
+          const isLastImage = i === selectedAssets.length - 1;
+          const commentToApply = isLastImage ? commentForLast : '';
+          
+        
+          try {
+            await processAndUploadImage(asset.uri, commentToApply, null, selectedStage);
+           
+          } catch (uploadError) {
+            console.error(`Error al procesar imagen ${i + 1} (${asset.uri}):`, uploadError);
+            // Decidir si continuar con las siguientes o detenerse.
+            // Por ahora, alertamos y continuamos (o podrías romper el bucle).
+            Alert.alert('Error de Carga', `No se pudo cargar la imagen ${asset.uri.split('/').pop()}: ${uploadError.message}`);
+            // break; // Descomenta para detener en el primer error
+          }
+        }
+        
+    // --- INICIO: Mensaje de éxito opcional para el lote ---
+    if (selectedAssets.length > 0) { // Solo si se intentó subir alguna imagen
+        const successfulUploads = selectedAssets.filter(asset => {
+            // Necesitarías una forma de saber si la subida de este asset fue exitosa.
+            // Esto es un poco más complejo de rastrear aquí sin cambiar más la lógica.
+            // Por ahora, un mensaje genérico si no hubo errores que detuvieran el proceso.
+            return true; // Asumir éxito si no hubo 'break' por error
+        }).length;
+
+        if (successfulUploads > 0) {
+            Alert.alert('Carga Completa', `${successfulUploads} imagen(es) procesada(s).`);
+        }
+    }
+    // --- FIN: Mensaje de éxito opcional para el lote ---
+    setIsBatchUploading(false);
       }
-      // --- Fin solicitud ---
+    } else if (result.canceled) {
+        console.log("Selección de imágenes cancelada por el usuario.");
+    } else {
+        console.log("Resultado de ImagePicker sin assets:", result);
     }
   };
 
   const handleTakePhoto = async () => {
-    console.log("handleTakePhoto - selectedStage:", selectedStage); // <-- LOG
+
     if (!selectedStage) {
       Alert.alert("Error", "Por favor, selecciona una etapa primero.");
       return;
@@ -293,7 +382,7 @@ const UploadScreen = () => {
           'plain-text'
         );
       } else { // Android (sin cambios por ahora)
-        console.log("Subiendo sin comentario/conteo específico en Android por ahora.");
+       
         let truckCount = null;
         await processAndUploadImage(imageUri, '', truckCount);
       }
@@ -303,87 +392,128 @@ const UploadScreen = () => {
 
 
   // MODIFICAR processAndUploadImage
-  const processAndUploadImage = async (imageUri, comment = '', truckCount = null) => {
+  const processAndUploadImage = async (imageUri, comment = '', truckCount = null, stageForUpload) => {
+    // Si no se pasa stageForUpload, usa el selectedStage global.
+    // Esto es para asegurar que la etapa correcta se usa si processAndUploadImage
+    // se llama en un bucle donde selectedStage podría haber cambiado (aunque no debería con el flujo actual).
+    const stageToUse = stageForUpload || selectedStage;
+
+    if (!stageToUse) {
+        console.error("processAndUploadImage: No se pudo determinar la etapa para la carga.");
+        Alert.alert("Error Interno", "No se pudo determinar la etapa para la carga de la imagen.");
+        return Promise.reject(new Error("Etapa no definida para la carga."));
+    }
+    
+    // Ya no usamos isUploading individual, sino isBatchUploading para el lote
+     setIsUploading(true); // Comentado o eliminado
+
     let tempImageId = `temp-${Date.now()}-${Math.random()}`;
     try {
       const resizedImage = await manipulateAsync(
         imageUri,
-        [{ resize: { width: 800 } }], // O el tamaño que prefieras
+        [{ resize: { width: 800 } }],
         { compress: 0.7, format: SaveFormat.JPEG }
       );
-
       const now = new Date();
       const dateTimeString = now.toLocaleString();
 
-      // Actualización optimista: usa la URI local para la vista previa
       const optimisticImagePayload = {
         id: tempImageId,
-        stage: selectedStage,
-        // Para la UI optimista, podrías usar resizedImage.uri directamente si tu componente Image lo soporta
-        // o si necesitas base64 para la UI optimista, puedes generarlo aquí solo para eso.
-        // Por simplicidad, asumiremos que la UI optimista puede usar la URI local.
-        // Si necesitas base64 para la UI optimista, puedes leerlo aquí pero NO enviarlo al backend.
-        // Ejemplo: const base64ForOptimisticUI = await FileSystem.readAsStringAsync(resizedImage.uri, { encoding: 'base64' });
-        // Y luego en setCurrentWorkData, usarías una propiedad temporal como `optimisticLocalUrl: resizedImage.uri` o `optimisticBase64: base64ForOptimisticUI`
-        // Para este ejemplo, vamos a asumir que la UI optimista puede usar la URI local.
-        // O, si quieres que la UI optimista muestre un placeholder o nada hasta que la URL de Cloudinary llegue:
-        imageUrl: resizedImage.uri, // Usar URI local para la vista previa optimista
+        stage: stageToUse, // Usar stageToUse
+        imageUrl: resizedImage.uri,
         comment: comment,
         dateTime: dateTimeString,
         truckCount: truckCount,
       };
 
-      setCurrentWorkData(prev => ({
+      // Actualización optimista de la UI (directamente en imagesByStage y imagesWithDataURLs)
+      setImagesByStage(prev => ({
         ...prev,
-        images: [...(prev.images || []), optimisticImagePayload]
+        [stageToUse]: [...(prev[stageToUse] || []), optimisticImagePayload]
+      }));
+      setImagesWithDataURLs(prev => ({
+        ...prev,
+        [tempImageId]: resizedImage.uri
       }));
 
-      // Crear FormData para enviar al backend
+
       const formData = new FormData();
-      formData.append('stage', selectedStage);
+      formData.append('stage', stageToUse); // Usar stageToUse
       formData.append('comment', comment);
       formData.append('dateTime', dateTimeString);
       if (truckCount !== null) {
         formData.append('truckCount', truckCount.toString());
       }
-      // Adjuntar el archivo
-      // El nombre del archivo es importante para multer en el backend
       const filename = resizedImage.uri.split('/').pop();
       const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : `image`; // ej. image/jpeg, image/png
+      const type = match ? `image/${match[1]}` : `image`;
+      formData.append('imageFile', { uri: resizedImage.uri, name: filename, type: type });
 
-      formData.append('imageFile', { // 'imageFile' debe coincidir con upload.single('imageFile') en el backend
-        uri: resizedImage.uri,
-        name: filename,
-        type: type,
-      });
-
-      // La acción addImagesToWork ahora debe estar preparada para enviar FormData
-      // y el backend para recibirlo.
       const resultAction = await dispatch(addImagesToWork(idWork, formData));
-
-      if (resultAction && resultAction.work && resultAction.work.images) {
-        Alert.alert('Éxito', 'Imagen cargada correctamente a Cloudinary.');
-        // Redux ya debería haber actualizado currentWork con las URLs de Cloudinary.
-        // La UI optimista se reemplazará con los datos reales de Redux.
-        // Si la UI optimista usó tempImageId, el reducer addImagesSuccess
-        // debería reemplazar la imagen temporal con la real del servidor.
-      } else {
-        console.error("Error en resultAction de addImagesToWork (Cloudinary) o respuesta inesperada:", resultAction);
-        Alert.alert('Error', 'No se pudo cargar la imagen a Cloudinary o respuesta inesperada.');
-        setCurrentWorkData(prev => ({
-          ...prev,
-          images: prev.images.filter(img => img.id !== tempImageId) // Revertir optimista
-        }));
+      
+      // Primero, verifica si la acción misma devolvió una estructura de error explícita
+      if (resultAction && resultAction.error && typeof resultAction.error === 'string') { // o resultAction.message si el error viene del backend
+        console.error("Error explícito devuelto por addImagesToWork action:", resultAction.error || resultAction.message);
+        // La reversión optimista ya debería estar en el catch de esta función,
+        // pero puedes asegurarte aquí o simplemente dejar que el catch lo maneje.
+        return Promise.reject(new Error(resultAction.error || resultAction.message || `No se pudo cargar la imagen ${filename}.`));
       }
-
+      if (resultAction && resultAction.createdImage) {
+        const uploadedImageFromServer = resultAction.createdImage;
+        
+        console.log(`Imagen ${filename} procesada. Imagen del servidor:`, uploadedImageFromServer);
+        // Reemplazar la imagen temporal con la real del servidor
+        setImagesByStage(prev => {
+            const stageImages = (prev[stageToUse] || []).map(img => 
+                img.id === tempImageId ? { ...uploadedImageFromServer, imageUrl: uploadedImageFromServer.imageUrl || resizedImage.uri } : img
+            );
+            return { ...prev, [stageToUse]: stageImages };
+        });
+        setImagesWithDataURLs(prev => {
+            const newUrls = { ...prev };
+            delete newUrls[tempImageId];
+            if (uploadedImageFromServer.id) {
+              newUrls[uploadedImageFromServer.id] = uploadedImageFromServer.imageUrl || resizedImage.uri;
+            }
+            return newUrls;
+        });
+       
+        // Alert.alert('Éxito', `Imagen ${filename} cargada.`); // Quizás no alertar por cada una en un lote
+      } else {
+        // Si llegamos aquí, la respuesta no tuvo 'error' explícito ni 'createdImage'.
+        // Esto podría significar que la respuesta del backend fue exitosa (2xx) pero no tuvo la estructura esperada,
+        // o que 'addImagesToWork' no devolvió 'createdImage' como se esperaba.
+        console.error("Respuesta de addImagesToWork no contiene 'createdImage' ni una estructura de error esperada:", resultAction);
+        console.warn("No se pudo encontrar la imagen subida en la respuesta del servidor para actualizar ID temporal:", filename);
+        
+        // Como fallback, si resultAction.work.images existe, podrías intentar la lógica de find (aunque es frágil)
+        // o simplemente recargar. Por ahora, recargamos.
+        if (resultAction && resultAction.work && resultAction.work.images) {
+            console.log("Respuesta del servidor (resultAction.work.images) en fallback:", resultAction.work.images);
+        }
+        dispatch(fetchWorkById(idWork)); // Recargar para asegurar consistencia como último recurso
+        
+        // Considera esto como un error parcial si la actualización optimista es crítica
+        // return Promise.reject(new Error(`Respuesta inesperada del servidor para ${filename}. No se pudo actualizar ID.`));
+      }
+      return Promise.resolve(); // Indicar éxito para esta imagen
     } catch (error) {
-      console.error('Error al procesar/cargar la imagen (Cloudinary):', error);
-      Alert.alert('Error', `No se pudo cargar la imagen: ${error.message || 'Error desconocido'}`);
-      setCurrentWorkData(prev => ({
+      console.error(`Error al procesar/cargar ${imageUri}:`, error);
+      // Revertir optimista
+      setImagesByStage(prev => ({
         ...prev,
-        images: prev.images.filter(img => img.id !== tempImageId) // Revertir optimista
+        [stageToUse]: (prev[stageToUse] || []).filter(img => img.id !== tempImageId)
       }));
+      setImagesWithDataURLs(prev => {
+          const newUrls = { ...prev };
+          delete newUrls[tempImageId];
+          return newUrls;
+      });
+      // Alert.alert('Error', `No se pudo cargar una imagen: ${error.message || 'Error desconocido'}`);
+      return Promise.reject(error); // Propagar error para Promise.all
+    } finally {
+      // Ya no se usa setIsUploading individual aquí
+       setIsUploading(false);
     }
   };
 
@@ -427,26 +557,55 @@ const UploadScreen = () => {
   };
 
   const handleWorkInstalled = async () => {
-    if (isInstallationSubmitted) return;
+    if (isInstallationSubmitted || isSubmittingWorkInstalled) return;
+    setIsSubmittingWorkInstalled(true);  
     try {
       await dispatch(updateWork(idWork, { status: 'installed' }));
-      await dispatch(fetchAssignedWorks());
+      // await dispatch(fetchAssignedWorks());
+      
       setIsInstallationSubmitted(true);
       Alert.alert('Éxito', 'El estado del trabajo se actualizó a "installed".');
       if (navigation.canGoBack()) {
         navigation.goBack();
       }
     } catch (error) {
-      console.error('Error al actualizar el estado del trabajo:', error);
+      console.error('Error al actualizar el estado del trabajo a installed:', error);
       Alert.alert('Error', 'No se pudo actualizar el estado del trabajo.');
+    } finally {
+      setIsSubmittingWorkInstalled(false); // Finalizar carga
+    }
+  };
+
+  const handleMarkCovered = async () => {
+    if (isMarkingCovered || !hasFinalCoverImages) {
+      if (!hasFinalCoverImages) {
+        Alert.alert("Atención", "Debe subir imágenes a 'inspeccion final' antes de marcar como cubierto.");
+      }
+      return;
+    }
+    setIsMarkingCovered(true);
+    try {
+      await dispatch(updateWork(idWork, { status: 'covered' }));
+      // fetchWorkById should be dispatched by the updateWork thunk or a listener,
+      // which will update currentWork.status and hide this block.
+      Alert.alert('Éxito', 'Trabajo marcado como "Cubierto". La oficina será notificada.');
+      // if (navigation.canGoBack()) { // Opcional: navegar atrás si se desea
+      //   navigation.goBack();
+      // }
+    } catch (error) {
+      console.error('Error al marcar el trabajo como cubierto:', error);
+      Alert.alert('Error', `No se pudo marcar el trabajo como cubierto: ${error.message || 'Error desconocido'}`);
+    } finally {
+      setIsMarkingCovered(false);
     }
   };
 
   const handleRequestFinalInspection = async () => {
-    if (isFinalInspectionRequested) return;
+    if (isFinalInspectionRequested || isRequestingFinalInspection) return; // Evitar múltiples envíos
+    setIsRequestingFinalInspection(true);
     try {
       await dispatch(updateWork(idWork, { status: 'coverPending' }));
-      await dispatch(fetchAssignedWorks()); // <--- NECESARIO AQUÍ para actualizar la lista
+      // await dispatch(fetchAssignedWorks()); // <--- NECESARIO AQUÍ para actualizar la lista
       setIsFinalInspectionRequested(true);
       Alert.alert('Éxito', 'Se solicitó la inspección final.');
       if (navigation.canGoBack()) {
@@ -455,8 +614,11 @@ const UploadScreen = () => {
     } catch (error) {
       console.error('Error al solicitar la inspección final:', error);
       Alert.alert('Error', 'No se pudo solicitar la inspección final.');
+    } finally {
+      setIsRequestingFinalInspection(false); // Finalizar carga
     }
   };
+
   const handleOpenLargeImage = (uri) => {
     console.log('handleOpenLargeImage called with URI:', uri);
     setSelectedImageUri(uri);
@@ -479,9 +641,44 @@ const UploadScreen = () => {
     }
   };
 
+  const handleMarkCorrected = async () => {
+    if (!relevantInitialInspection || relevantInitialInspection.finalStatus !== 'rejected') {
+      Alert.alert("Error", "No hay una inspección rechazada activa para marcar.");
+      return;
+    }
+    if (relevantInitialInspection.workerHasCorrected) {
+      Alert.alert("Info", "Las correcciones ya fueron marcadas.");
+      return;
+    }
 
-  const hasFinalInspectionImages = imagesByStage['sistema instalado']?.length > 0;
-  const hasCoverImages = imagesByStage['inspeccion final']?.length > 0;
+    setIsMarkingCorrected(true);
+    try {
+      // El backend espera el ID de la inspección, no de la obra.
+      await dispatch(markInspectionCorrectedByWorker(relevantInitialInspection.idInspection));
+      // La acción markInspectionCorrectedByWorker ya debería despachar fetchWorkById,
+      // por lo que currentWork y relevantInitialInspection se actualizarán.
+       Alert.alert("Éxito", "Correcciones marcadas. La oficina será notificada para solicitar la reinspección.");
+    } catch (error) {
+      // El Alert de error ya se maneja en la acción
+      console.error("Error al marcar correcciones:", error);
+    } finally {
+      setIsMarkingCorrected(false);
+    }
+  };
+
+  const hasSystemInstalledImages = imagesByStage['sistema instalado']?.length > 0; // Renombrado para claridad, antes era hasFinalInspectionImages
+  const hasFinalCoverImages = imagesByStage['inspeccion final']?.length > 0; // Renombrado para claridad, antes era hasCoverImages
+
+  const showWorkInstalledButton =
+    hasSystemInstalledImages &&
+    currentWork &&
+    currentWork.status === 'inProgress';
+
+  // Condición para mostrar el botón de solicitar inspección final
+  const showRequestFinalInspectionButton =
+    hasFinalCoverImages &&
+    currentWork &&
+    currentWork.status === 'covered'; 
 
   // --- Lógica de renderizado ---
   if (workDetailsLoading && (!workDetailsFromState || workDetailsFromState.idWork !== idWork)) {
@@ -513,7 +710,98 @@ const UploadScreen = () => {
         <Text className="text-xl font-medium uppercase text-gray-800 mb-2 text-center">
           {currentWork.propertyAddress || routePropertyAddress || 'Sin dirección'}
         </Text>
+        <Text className="text-center text-sm text-gray-500 mb-3">
+            Estado Actual: <Text className="font-semibold">{currentWork.status}</Text>
+        </Text>
 
+       {/* --- BLOQUE DE INSPECCIÓN RECHAZADA --- */}
+       {currentWork.status === 'rejectedInspection' && relevantInitialInspection && relevantInitialInspection.finalStatus === 'rejected' && (
+          <View className="my-4 p-4 border border-red-400 bg-red-50 rounded-lg">
+            <Text className="text-lg font-bold text-red-700 mb-2 text-center">¡INSPECCIÓN INICIAL RECHAZADA!</Text>
+            <Text className="text-sm text-red-600 mb-1">
+              <Text className="font-semibold">Notas del Inspector:</Text>
+            </Text>
+            <Text className="text-sm text-red-600 mb-3 whitespace-pre-wrap bg-red-100 p-2 rounded">
+              {relevantInitialInspection.notes || "No hay notas detalladas."}
+            </Text>
+
+            {relevantInitialInspection.workerHasCorrected ? (
+              <Text className="text-md font-semibold text-green-700 text-center p-3 bg-green-100 rounded">
+                Correcciones marcadas. La oficina solicitará la reinspección.
+              </Text>
+            ) : (
+              <Pressable
+                onPress={handleMarkCorrected}
+                disabled={isMarkingCorrected}
+                className={`py-3 rounded-lg shadow-md flex-row justify-center items-center ${
+                  isMarkingCorrected ? 'bg-gray-400' : 'bg-orange-500'
+                }`}
+              >
+                {isMarkingCorrected ? (
+                  <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
+                ) : (
+                  <Ionicons name="checkmark-circle-outline" size={22} color="white" style={{ marginRight: 8 }} />
+                )}
+                <Text className="text-white text-center text-lg font-semibold">
+                  {isMarkingCorrected ? 'Marcando...' : 'Marcar Correcciones Realizadas'}
+                </Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+
+         {/* --- NUEVO BLOQUE PARA COVER PENDING --- */}
+         {currentWork.status === 'coverPending' && (
+          <View className="my-4 p-4 border border-teal-400 bg-teal-50 rounded-lg shadow-md">
+            <Text className="text-lg font-bold text-teal-700 mb-2 text-center">Acción Requerida: Cubrir Instalación</Text>
+            <Text className="text-sm text-teal-600 mb-2 text-center">
+              Por favor, asegúrate de que la instalación esté completamente cubierta.
+            </Text>
+            <Text className="text-sm text-teal-600 mb-1">
+              Sube las imágenes correspondientes a la etapa <Text className="font-semibold">'inspeccion final'</Text> si aún no lo has hecho (actualmente {imagesByStage['inspeccion final']?.length || 0} imágenes).
+            </Text>
+            <Text className="text-sm text-teal-600 mb-3">
+              Luego, presiona el botón <Text className="font-semibold">"TRABAJO CUBIERTO"</Text> para notificar a la oficina.
+            </Text>
+            <Pressable
+              onPress={handleMarkCovered}
+              disabled={isMarkingCovered || !hasFinalCoverImages}
+              className={`py-3 rounded-lg shadow-md flex-row justify-center items-center ${
+                (isMarkingCovered || !hasFinalCoverImages) ? 'bg-gray-400' : 'bg-teal-500'
+              }`}
+            >
+              {isMarkingCovered ? (
+                <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
+              ) : (
+                <Ionicons name="checkmark-done-circle-outline" size={22} color="white" style={{ marginRight: 8 }} />
+              )}
+              <Text className="text-white text-center text-lg font-semibold">
+                {isMarkingCovered ? 'Enviando...' : 'TRABAJO CUBIERTO'}
+              </Text>
+            </Pressable>
+            {!hasFinalCoverImages && (
+                <Text className="text-xs text-red-500 text-center mt-2">
+                    Debes subir imágenes a 'inspeccion final' para poder marcar como cubierto.
+                </Text>
+            )}
+          </View>
+        )}
+
+         {/* --- NUEVO BLOQUE PARA CUANDO EL TRABAJO ESTÁ 'COVERED' --- */}
+         {currentWork.status === 'covered' && (
+          <View className="my-4 p-4 border border-green-400 bg-green-50 rounded-lg shadow-md">
+            <View className="flex-row items-center justify-center mb-2">
+                <Ionicons name="shield-checkmark-outline" size={26} color="rgb(22 163 74)" style={{ marginRight: 8 }} />
+                <Text className="text-lg font-bold text-green-700 text-center">¡Trabajo Cubierto!</Text>
+            </View>
+            <Text className="text-sm text-green-600 text-center">
+              Ya se envió el aviso a administración.
+            </Text>
+            <Text className="text-sm text-green-600 text-center mt-1">
+              Si todo está listo, puedes proceder a <Text className="font-semibold">solicitar la inspección final</Text> usando el botón de abajo (si está habilitado).
+            </Text>
+          </View>
+        )}
         {/* --- BLOQUE DE BOTONES PDF MODIFICADO --- */}
         <View className="flex-row justify-around items-start mt-2 mb-2">
           {currentWork.Permit?.pdfData && (
@@ -560,66 +848,70 @@ const UploadScreen = () => {
 
         {/* --- FIN BLOQUE PDF --- */}
 
-        {/* Sección de selección de etapas */}
-        <View className="flex-row flex-wrap justify-around mb-4">
-          {stages.map((stageOption, index) => (
-            <Pressable
-              key={stageOption}
-              onPress={() => handleStagePress(stageOption)}
-              className={`w-[47%] h-24 p-3 mb-3 rounded-lg flex justify-center ${selectedStage === stageOption ? 'border-4 border-white opacity-80' : ''
-                }`}
-              style={{ backgroundColor: stageColors[index % stageColors.length] }}
-            >
-              <Text className="text-white text-center font-bold text-sm">
-                {stageOption.toUpperCase()}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+    
 
+{!(currentWork.status === 'rejectedInspection' && relevantInitialInspection?.finalStatus === 'rejected' && !relevantInitialInspection?.workerHasCorrected) && (
+            <>
+                {/* Sección de selección de etapas */}
+                <View className="flex-row flex-wrap justify-around mb-4">
+                {stages.map((stageOption, index) => (
+                    <Pressable
+                    key={stageOption}
+                    onPress={() => handleStagePress(stageOption)}
+                    className={`w-[47%] h-24 p-3 mb-3 rounded-lg flex justify-center ${selectedStage === stageOption ? 'border-4 border-white opacity-80' : ''
+                        }`}
+                    style={{ backgroundColor: stageColors[index % stageColors.length] }}
+                    >
+                    <Text className="text-white text-center font-bold text-sm">
+                        {stageOption.toUpperCase()}
+                    </Text>
+                    </Pressable>
+                ))}
+                </View>
 
-
-        {/* --- MODIFICAR RENDERIZADO DEL BOTÓN --- */}
-        {/* Mostrar el botón o el texto de espera solo si hay imágenes de inspección final */}
-        {hasFinalInspectionImages && (
-          <Pressable
-            onPress={handleWorkInstalled}
-            // Deshabilitar si ya se envió
-            disabled={isInstallationSubmitted}
-            // Cambiar estilo si está deshabilitado
-            className={` py-3 rounded-lg shadow-md ${isInstallationSubmitted
-                ? 'bg-gray-400' // Color deshabilitado
-                : 'bg-blue-600' // Color normal
-              }`}
-          >
-            <Text className="text-white text-center text-lg font-semibold">
-              {isInstallationSubmitted
-                ? 'Esperando Aprobación de Inspección'
-                : 'WORK INSTALLED'}
-            </Text>
-          </Pressable>
+              {/* Botón WORK INSTALLED */}
+              {showWorkInstalledButton && (
+                <Pressable
+                    onPress={handleWorkInstalled}
+                    disabled={isSubmittingWorkInstalled} 
+                    className={`py-3 rounded-lg shadow-md flex-row justify-center items-center mb-3 ${ // Añadido mb-3 para separación
+                        isSubmittingWorkInstalled ? 'bg-gray-400' : 'bg-blue-600'
+                    }`}
+                >
+                    {isSubmittingWorkInstalled ? (
+                    <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
+                    ) : null}
+                    <Text className="text-white text-center text-lg font-semibold">
+                    {isSubmittingWorkInstalled ? 'Enviando...' : 'WORK INSTALLED'}
+                    </Text>
+                </Pressable>
+                )}
+            
+                {/* Botón REQUEST FINAL INSPECTION */}
+                {showRequestFinalInspectionButton && ( // <--- USAR LA NUEVA VARIABLE DE CONDICIÓN
+                <Pressable
+                    onPress={handleRequestFinalInspection}
+                    disabled={isFinalInspectionRequested || isRequestingFinalInspection}
+                    className={`mt-2 py-3 rounded-lg shadow-md flex-row justify-center items-center ${
+                    isFinalInspectionRequested || isRequestingFinalInspection
+                        ? 'bg-gray-400'
+                        : 'bg-green-600'
+                    }`}
+                >
+                    {isRequestingFinalInspection ? (
+                    <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
+                    ) : null}
+                    <Text className="text-white text-center text-lg font-semibold">
+                    {isRequestingFinalInspection
+                        ? 'Solicitando...'
+                        : isFinalInspectionRequested 
+                        ? 'Inspección Final Solicitada'
+                        : 'REQUEST FINAL INSPECTION'}
+                    </Text>
+                </Pressable>
+                )}
+            </>
         )}
-        {/* --- FIN MODIFICACIÓN BOTÓN --- */}
-      
-        {hasCoverImages && (
-          <Pressable
-            onPress={handleRequestFinalInspection}
-            // Deshabilitar si ya se solicitó
-            disabled={isFinalInspectionRequested}
-            // Cambiar estilo si está deshabilitado
-            className={`mt-2 py-3 rounded-lg shadow-md ${isFinalInspectionRequested
-                ? 'bg-gray-400' // Color deshabilitado
-                : 'bg-green-600' // Color normal (ej. verde)
-              }`}
-          >
-            <Text className="text-white text-center text-lg font-semibold">
-              {isFinalInspectionRequested
-                ? 'Esperando Inspección Final' // Texto cuando está deshabilitado
-                : 'REQUEST FINAL INSPECTION'} {/* Texto normal */}
-            </Text>
-          </Pressable>
-        )}
-        {/* --- FIN NUEVO BOTÓN --- */}
       </ScrollView>
 
       {/* Modals are now outside the ScrollView */}
@@ -681,6 +973,7 @@ const UploadScreen = () => {
             <View className="flex-row justify-between mt-4">
               <Pressable
                 onPress={handlePickImage}
+                disabled={isUploading}
                 className="flex-1 bg-blue-600 py-3 rounded-lg shadow-md flex-row justify-center items-center mr-2"
               >
                 <Ionicons name="cloud-upload-outline" size={20} color="white" />
@@ -688,6 +981,7 @@ const UploadScreen = () => {
               </Pressable>
               <Pressable
                 onPress={handleTakePhoto}
+                disabled={isUploading}
                 className="flex-1 bg-green-600 py-3 rounded-lg shadow-md flex-row justify-center items-center ml-2"
               >
                 <Ionicons name="camera-outline" size={20} color="white" />
@@ -696,10 +990,31 @@ const UploadScreen = () => {
             </View>
             <Pressable
               onPress={() => setModalVisible(false)}
+              disabled={isUploading}
               className="mt-4 bg-red-500 px-4 py-2 rounded-md"
             >
               <Text className="text-white text-center text-sm">Cerrar</Text>
             </Pressable>
+            {isUploading && (
+              <View 
+                style={{ 
+                  position: 'absolute', // Posicionamiento absoluto para superponer
+                  top: 0, 
+                  left: 0, 
+                  right: 0, 
+                  bottom: 0, 
+                  justifyContent: 'center', 
+                  alignItems: 'center', 
+                  backgroundColor: 'rgba(255, 255, 255, 0.8)', // Fondo semitransparente para oscurecer ligeramente el contenido detrás
+                  borderRadius: 8, // Mismo borderRadius que el modal interno
+                }}
+              >
+                <View style={{ padding: 30, backgroundColor: '#4A5568', borderRadius: 10, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 }}>
+                  <ActivityIndicator size="large" color="#E2E8F0" /> 
+                  <Text style={{ marginTop: 15, fontSize: 16, color: '#E2E8F0' }}>Cargando imagen...</Text>
+                </View>
+              </View>
+            )}
           </View>
         </View>
       </Modal>
@@ -736,6 +1051,7 @@ const UploadScreen = () => {
           )}
         </View>
       </Modal>
+      
     </>
   );
 };

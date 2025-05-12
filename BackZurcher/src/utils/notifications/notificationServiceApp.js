@@ -75,6 +75,16 @@ const getNotificationDetailsApp = async (newStatus, work, budget) => {
              staffToNotify = await Staff.findAll({ where: { role: ['recept', 'admin', 'owner'] } });
              message = `Trabajo Instalado: ${address}. Solicitar 1ra inspección.`;
              break;
+        case 'coverPending':
+                // Notificar a roles relevantes para solicitar inspección
+                staffToNotify = await Staff.findAll({ where: { role: ['worker', 'admin', 'owner'] } });
+                message = `Inspeccion Aprobada, listo para cubrir en la direccion: ${address}. Avisar cuando este Tapado.`;
+                break;
+        case 'covered':
+                    // Notificar a roles relevantes para solicitar inspección
+                    staffToNotify = await Staff.findAll({ where: { role: ['recept', 'admin', 'owner'] } });
+                    message = `Trabajo Tapado: ${address}. Solicitar inspección Final.`;
+                    break;
 
         // --- Añade CASES para TODOS los demás estados de Work ---
         // firstInspectionPending, approvedInspection, rejectedInspection,

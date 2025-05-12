@@ -1,4 +1,44 @@
-const { Permit } = require('../data');
+const { Permit, Budget } = require('../data');
+
+// NUEVO MÉTODO: Verificar Permit por Property Address
+const checkPermitByPropertyAddress = async (req, res, next) => {
+  try {
+    const { propertyAddress } = req.query; // Espera propertyAddress como query param
+
+    if (!propertyAddress) {
+      return res.status(400).json({ error: true, message: "Property address es requerida para la verificación." });
+    }
+
+    const permit = await Permit.findOne({
+      where: { propertyAddress },
+      include: [{
+        model: Budget,
+        as: 'Budgets', // Asegúrate que el alias 'Budgets' esté definido en tu asociación Permit-Budget
+        attributes: ['idBudget'], // Solo necesitamos saber si existe alguno
+      }]
+    });
+
+    if (!permit) {
+      return res.status(200).json({ exists: false, permit: null, hasBudget: false });
+    }
+
+    const hasBudget = permit.Budgets && permit.Budgets.length > 0;
+    // Devolver el permit sin los datos de los Budgets para no inflar la respuesta, solo el ID del permit
+    const permitData = permit.get({ plain: true });
+    delete permitData.Budgets; // No necesitamos enviar la lista de Budgets
+
+    res.status(200).json({
+      exists: true,
+      permit: permitData, // Devolver los datos del permit encontrado
+      hasBudget: hasBudget,
+      message: hasBudget ? "El permiso ya existe y tiene presupuestos asociados." : "El permiso ya existe pero no tiene presupuestos."
+    });
+
+  } catch (error) {
+    console.error("Error al verificar el permiso por dirección:", error);
+    next(error);
+  }
+};
 
 // Crear un nuevo permiso
 const createPermit = async (req, res, next) => {
@@ -369,5 +409,6 @@ module.exports = {
   downloadPermitPdf,
   getPermitPdfInline, 
   getPermitOptionalDocInline,
-  getContactList
+  getContactList,
+  checkPermitByPropertyAddress, // NUEVO MÉTODO
 };

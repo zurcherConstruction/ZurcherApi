@@ -66,6 +66,14 @@ const stateNotificationMap = {
     roles: ['owner', 'admin', 'recept'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido completado. Por favor, revisa el estado final.`,
   },
+  coverPending: {
+    roles: ['owner', 'worker', 'recept'], 
+    message: (work) => `El trabajo con dirección ${work.propertyAddress} esta listo para ser tapado.`,
+  },
+  covered: {
+    roles: ['owner', 'admin', 'recept'], 
+    message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido Tapado. Por favor, revisa el estado final.`,
+  },
   finalInspectionPending: {
     roles: ['recept'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} está pendiente de la inspección final. Por favor, coordina con el inspector.`,

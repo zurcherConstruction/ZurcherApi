@@ -1,51 +1,185 @@
 import api from '../../utils/axios';
 import {
-  fetchInspectionsRequest,
-  fetchInspectionsSuccess,
-  fetchInspectionsFailure,
-  createInspectionRequest,
-  createInspectionSuccess,
-  createInspectionFailure,
-  updateInspectionRequest,
-  updateInspectionSuccess,
-  updateInspectionFailure,
-} from '../Reducer/inspectionReducer';
+  inspectionRequest,
+  // inspectionSuccess, // Usaremos upsertInspectionSuccess o específicas
+  inspectionFailure,
+  fetchInspectionsByWorkSuccess,
+  fetchInspectionByIdSuccess,
+  upsertInspectionSuccess,
+} from '../Reducer/inspectionReducer'; // Ajusta la ruta si es necesario
+import { fetchWorkById } from './workActions';
+import { toast } from 'react-toastify';
+// 1. Solicitar Inspección Inicial
+export const requestInitialInspection = (workId, inspectionData) => async (dispatch) => {
+  dispatch(inspectionRequest());
+  try {
+    // inspectionData: { inspectorEmail, workImageId }
+    const response = await api.post(`/inspection/${workId}/request-initial`, inspectionData);
+    dispatch(upsertInspectionSuccess(response.data)); // response.data = { message, inspection, workStatus }
+    if (response.data.workStatus && workId) {
+      dispatch(fetchWorkById(workId)); // Para obtener el work actualizado con el nuevo status
+  }
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || 'Error al solicitar la inspección inicial.';
+    dispatch(inspectionFailure(errorMessage));
+    throw error;
+  }
+};
 
-// Obtener inspecciones por obra
+// 2. Registrar Respuesta de Inspectores (sube doc para aplicante)
+export const registerInspectorResponse = (inspectionId, formData) => async (dispatch) => {
+  // formData debe ser un objeto FormData que incluya:
+  // inspectorScheduledDate (text)
+  // documentForApplicantFile (file)
+  // notes (text, opcional)
+  dispatch(inspectionRequest());
+  try {
+    const response = await api.put(`/inspection/${inspectionId}/schedule-received`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    dispatch(upsertInspectionSuccess(response.data)); // response.data = { message, inspection }
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || 'Error al registrar la respuesta de los inspectores.';
+    dispatch(inspectionFailure(errorMessage));
+    throw error;
+  }
+};
+
+// 3. Enviar Documento al Aplicante
+export const sendDocumentToApplicant = (inspectionId, applicantData) => async (dispatch) => {
+  // applicantData: { applicantEmail, applicantName }
+  dispatch(inspectionRequest());
+  try {
+    const response = await api.post(`/inspection/${inspectionId}/send-to-applicant`, applicantData);
+    dispatch(upsertInspectionSuccess(response.data)); // response.data = { message, inspection }
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || 'Error al enviar el documento al aplicante.';
+    dispatch(inspectionFailure(errorMessage));
+    throw error;
+  }
+};
+
+// 4. Registrar Documento Firmado por el Aplicante
+export const registerSignedApplicantDocument = (inspectionId, formData) => async (dispatch) => {
+  // formData debe ser un objeto FormData que incluya:
+  // signedDocumentFile (file)
+  // notes (text, opcional)
+  dispatch(inspectionRequest());
+  try {
+    const response = await api.put(`/inspection/${inspectionId}/applicant-document-received`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    dispatch(upsertInspectionSuccess(response.data)); // response.data = { message, inspection }
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || 'Error al registrar el documento firmado.';
+    dispatch(inspectionFailure(errorMessage));
+    throw error;
+  }
+};
+
+// 5. Registrar Resultado Final de la Inspección
+export const registerInspectionResult = (inspectionId, formData) => async (dispatch) => {
+  // formData debe ser un objeto FormData que incluya:
+  // finalStatus (text: 'approved' o 'rejected')
+  // dateInspectionPerformed (text: YYYY-MM-DD, opcional)
+  // resultDocumentFiles (array de files, hasta 2)
+  // notes (text, opcional)
+  dispatch(inspectionRequest());
+  try {
+    const response = await api.put(`/inspection/${inspectionId}/register-result`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    dispatch(upsertInspectionSuccess(response.data)); // response.data = { message, inspection, workStatus }
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || 'Error al registrar el resultado de la inspección.';
+    dispatch(inspectionFailure(errorMessage));
+    throw error;
+  }
+};
+
+// Obtener Inspecciones por Work ID
 export const fetchInspectionsByWork = (workId) => async (dispatch) => {
-  dispatch(fetchInspectionsRequest());
+  dispatch(inspectionRequest());
   try {
-    const response = await api.get(`/inspections/work/${workId}`); // Ruta del backend
-    dispatch(fetchInspectionsSuccess(response.data));
+    const response = await api.get(`/inspection/work/${workId}`);
+    dispatch(fetchInspectionsByWorkSuccess(response.data));
   } catch (error) {
-    const errorMessage =
-      error.response?.data?.message || 'Error al obtener las inspecciones';
-    dispatch(fetchInspectionsFailure(errorMessage));
+    const errorMessage = error.response?.data?.message || 'Error al obtener las inspecciones de la obra.';
+    dispatch(inspectionFailure(errorMessage));
   }
 };
 
-// Crear una inspección
-export const createInspection = (inspectionData) => async (dispatch) => {
-  dispatch(createInspectionRequest());
+// Obtener una Inspección por ID
+export const fetchInspectionById = (inspectionId) => async (dispatch) => {
+  dispatch(inspectionRequest());
   try {
-    const response = await api.post('/inspections', inspectionData); // Ruta del backend
-    dispatch(createInspectionSuccess(response.data));
+    const response = await api.get(`/inspection/${inspectionId}`);
+    dispatch(fetchInspectionByIdSuccess(response.data));
   } catch (error) {
-    const errorMessage =
-      error.response?.data?.message || 'Error al crear la inspección';
-    dispatch(createInspectionFailure(errorMessage));
+    const errorMessage = error.response?.data?.message || 'Error al obtener la inspección.';
+    dispatch(inspectionFailure(errorMessage));
   }
 };
-
-// Actualizar una inspección
-export const updateInspection = (id, inspectionData) => async (dispatch) => {
-  dispatch(updateInspectionRequest());
+// NUEVA ACCIÓN: Solicitar Reinspección
+// ...existing code...
+// NUEVA ACCIÓN: Solicitar Reinspección
+export const requestReinspection = (workId, formData) => async (dispatch) => {
+  dispatch(inspectionRequest());
   try {
-    const response = await api.put(`/inspections/${id}`, inspectionData); // Ruta del backend
-    dispatch(updateInspectionSuccess(response.data));
+    const apiResponse = await api.post(`/inspection/reinspection/${workId}`, formData, {
+      // headers: { 'Content-Type': 'multipart/form-data' }, // Axios lo maneja
+    });
+
+    console.log("REDUX ACTION - requestReinspection - API Response Data:", apiResponse.data);
+    // apiResponse.data debería ser { message, inspection, workStatus }
+    // y apiResponse.data.inspection.processStatus debería ser 'inspection_completed_pending_result'
+
+    if (apiResponse.data && apiResponse.data.inspection) {
+      // Primero, actualiza el store con la inspección específica devuelta por el POST
+      // Asegúrate que tu reducer para upsertInspectionSuccess maneje bien esto.
+      // El payload para upsertInspectionSuccess debería ser solo la inspección o un objeto que el reducer entienda.
+      // Si upsertInspectionSuccess espera { message, inspection, workStatus }, entonces:
+      dispatch(upsertInspectionSuccess(apiResponse.data)); 
+      
+      toast.success(apiResponse.data.message || "Solicitud de reinspección enviada exitosamente.");
+
+      // Actualizar el estado de la obra si se devolvió
+      if (apiResponse.data.workStatus && workId) {
+        dispatch(fetchWorkById(workId)); // Para obtener el work actualizado con el nuevo status
+      }
+      
+      // Considera si este fetch es realmente necesario o si puede causar problemas de timing.
+      // Por ahora, lo mantenemos para asegurar que la lista completa esté sincronizada,
+      // pero si el problema persiste, esta es un área a investigar.
+      // Podrías incluso comentarlo temporalmente para ver si upsertInspectionSuccess es suficiente.
+      // await new Promise(resolve => setTimeout(resolve, 300)); // Pequeño delay antes de refetch (para probar)
+      dispatch(fetchInspectionsByWork(workId));
+
+
+      return apiResponse.data;
+    } else {
+      // Manejar caso donde la respuesta no es la esperada
+      const errorMessage = "Respuesta inesperada del servidor al solicitar reinspección.";
+      dispatch(inspectionFailure(errorMessage));
+      toast.error(errorMessage);
+      throw new Error(errorMessage);
+    }
+
   } catch (error) {
-    const errorMessage =
-      error.response?.data?.message || 'Error al actualizar la inspección';
-    dispatch(updateInspectionFailure(errorMessage));
+    const errorMessage = error.response?.data?.message || error.message || 'Error al solicitar la reinspección.';
+    dispatch(inspectionFailure(errorMessage));
+    toast.error(errorMessage);
+    throw error;
   }
 };

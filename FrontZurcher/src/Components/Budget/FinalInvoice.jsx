@@ -46,8 +46,8 @@ const ExtraItemRow = ({ item, onUpdate, onRemove, isEditing, onSave, onCancelEdi
 
 
 const FinalInvoiceComponent = ({ workId }) => {
-    const [pdfActionLoading, setPdfActionLoading] = useState(false);
-  const [pdfActionError, setPdfActionError] = useState(null);
+  //   const [pdfActionLoading, setPdfActionLoading] = useState(false);
+  // const [pdfActionError, setPdfActionError] = useState(null);
   const dispatch = useDispatch();
   const {
     currentInvoice,
@@ -66,7 +66,10 @@ const FinalInvoiceComponent = ({ workId }) => {
   const [editFormData, setEditFormData] = useState({ description: '', quantity: 0, unitPrice: 0 });
   const [recipientEmail, setRecipientEmail] = useState(''); 
 
- 
+  // Estado para la carga y error de la descarga del PDF
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [downloadPdfError, setDownloadPdfError] = useState(null);
+
   useEffect(() => {
     if (workId) {
       console.log("FinalInvoiceComponent: Fetching invoice for workId", workId);
@@ -144,78 +147,71 @@ const handleGeneratePdf = () => {
   };
 
   
-  const handlePdfAction = async (actionType) => {
-    if (!currentInvoice?.id) return;
+ const handleDownloadPdf = async () => {
+    if (!currentInvoice?.id) {
+      setDownloadPdfError("No hay ID de factura para descargar.");
+      return;
+    }
 
-    setPdfActionLoading(true);
-    setPdfActionError(null);
-    const endpoint = `/final-invoice/${currentInvoice.id}/pdf/${actionType}`; 
+    setIsDownloadingPdf(true);
+    setDownloadPdfError(null);
+    const downloadUrl = `/final-invoice/${currentInvoice.id}/pdf/download`; // Ruta del backend
 
     try {
-      const response = await api.get(endpoint, {
-        responseType: 'blob', 
+      // Usar la instancia de 'api' (axios) para que envíe el token
+      const response = await api.get(downloadUrl, {
+        responseType: 'blob', // Importante para manejar archivos
       });
 
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
-
-      if (actionType === 'view') {
-        window.open(url); 
-        
-      } else if (actionType === 'download') {
-        const link = document.createElement('a');
-        link.href = url;
-        // Crear nombre de archivo sugerido
-        link.setAttribute('download', `final_invoice_${currentInvoice.id}.pdf`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link); // Limpiar
-      }
-
-     
-      setTimeout(() => window.URL.revokeObjectURL(url), 100);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `final_invoice_${currentInvoice.id}.pdf`); // Nombre del archivo
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link); // Limpiar el enlace
+      window.URL.revokeObjectURL(url); // Limpiar el objeto URL
 
     } catch (err) {
-      console.error(`Error during PDF ${actionType}:`, err);
-    
-      let errorMessage = `Error al ${actionType === 'view' ? 'ver' : 'descargar'} el PDF.`;
-      if (err.response && err.response.data instanceof Blob && err.response.data.type === "application/json") {
-          try {
-              const errorJson = JSON.parse(await err.response.data.text());
-              errorMessage = errorJson.message || errorMessage;
-          } catch (parseError) {
-              
-          }
-      } else if (err.response && err.response.data?.message) {
-          errorMessage = err.response.data.message;
+      console.error("Error durante la descarga del PDF:", err);
+      let errorMessage = "Error al descargar el PDF.";
+      if (err.response) {
+        if (err.response.data instanceof Blob && err.response.data.type === "application/json") {
+            try {
+                const errorJson = JSON.parse(await err.response.data.text());
+                errorMessage = errorJson.message || errorJson.error || errorMessage;
+            } catch (parseError) { /* Mantener mensaje genérico */ }
+        } else if (err.response.data?.message) {
+            errorMessage = err.response.data.message;
+        } else if (err.response.status === 401) {
+            errorMessage = "No autorizado. Por favor, inicia sesión de nuevo.";
+        }
       } else if (err.message) {
-          errorMessage = err.message;
+        errorMessage = err.message;
       }
-      setPdfActionError(errorMessage);
+      setDownloadPdfError(errorMessage);
     } finally {
-      setPdfActionLoading(false);
+      setIsDownloadingPdf(false);
     }
   };
+  
 
   const handleSendEmail = () => {
-    // Añadir log para depurar
     console.log("handleSendEmail - currentInvoice:", currentInvoice);
-
-    if (currentInvoice && currentInvoice.id) { // <-- Verifica también currentInvoice.id
-      // Validar email si se ingresó uno
+    if (currentInvoice && currentInvoice.id && currentInvoice.pdfPath) { // Asegurarse que pdfPath existe
       if (recipientEmail && !/\S+@\S+\.\S+/.test(recipientEmail)) {
         alert('Por favor, ingresa un correo electrónico válido o déjalo vacío para usar el del cliente.');
         return;
       }
       if (window.confirm(`¿Enviar factura a ${recipientEmail || 'cliente principal'}?`)) {
-        console.log("Dispatching emailFinalInvoice with ID:", currentInvoice.id); // Log antes de despachar
+        console.log("Dispatching emailFinalInvoice with ID:", currentInvoice.id);
         dispatch(emailFinalInvoice({ finalInvoiceId: currentInvoice.id, recipientEmail: recipientEmail || undefined }));
-        // Limpiar el campo después de intentar enviar
         setRecipientEmail('');
       }
     } else {
-        console.error("Error: No se puede enviar email porque currentInvoice o currentInvoice.id no está definido.", currentInvoice);
-        alert("Error: No se puede enviar el correo porque la información de la factura no está cargada correctamente.");
+        console.error("Error: No se puede enviar email porque la información de la factura (ID o PDF) no está cargada.", currentInvoice);
+        alert("Error: No se puede enviar el correo. Asegúrate de que la factura y su PDF estén generados.");
     }
   };
 
@@ -362,8 +358,8 @@ const handleGeneratePdf = () => {
         )}
       </div>
 
-     {/* --- ACTUALIZADO: Opciones Adicionales (PDF, Email) --- */}
-     <div className="bg-gray-50 p-4 rounded border border-gray-200 mt-6">
+    {/* --- Opciones de Factura --- */}
+    <div className="bg-gray-50 p-4 rounded border border-gray-200 mt-6">
          <h3 className="text-lg font-semibold mb-3 border-b pb-2">Opciones de Factura</h3>
          <div className="space-y-3">
 
@@ -372,42 +368,42 @@ const handleGeneratePdf = () => {
               <button
                 onClick={handleGeneratePdf}
                 className="button-standard bg-blue-600 hover:bg-blue-700 text-white text-sm py-1 px-3 rounded disabled:opacity-50"
-                disabled={loadingPdf || !currentInvoice || pdfActionLoading} // Deshabilitar si otra acción PDF está en curso
+                disabled={loadingPdf || !currentInvoice || isDownloadingPdf}
               >
-                {loadingPdf ? 'Generando PDF...' : (currentInvoice?.pdfPath ? 'Actualizar PDF' : 'Generar PDF')}
+                {loadingPdf ? 'Procesando PDF...' : (currentInvoice?.pdfPath ? 'Actualizar PDF' : 'Generar PDF')}
               </button>
               {errorPdf && <p className="text-red-500 text-xs mt-1 ml-2">{errorPdf}</p>}
             </div>
 
-            {/* Ver y Descargar PDF (si existe) - AHORA SON BOTONES */}
-            {currentInvoice?.pdfPath && ( // Solo mostrar si el PDF existe en la BD
+            {/* Ver y Descargar PDF (si existe) */}
+            {currentInvoice?.pdfPath && currentInvoice.id && (
               <div className="flex items-center space-x-4">
+                {currentInvoice.pdfUrl && (
+                  <button
+                    onClick={() => window.open(currentInvoice.pdfUrl, '_blank')}
+                    className="text-sm text-green-600 hover:text-green-800 underline disabled:opacity-50"
+                    disabled={loadingPdf || isDownloadingPdf}
+                  >
+                    Ver PDF
+                  </button>
+                )}
+                {/* BOTÓN DE DESCARGA ACTUALIZADO */}
                 <button
-                  onClick={() => handlePdfAction('view')}
-                  className="text-sm text-green-600 hover:text-green-800 underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
-                  disabled={pdfActionLoading || loadingPdf} // Deshabilitar si se está generando/viendo/descargando
+                  onClick={handleDownloadPdf}
+                  className="text-sm text-purple-600 hover:text-purple-800 underline disabled:opacity-50"
+                  disabled={isDownloadingPdf || loadingPdf} // Deshabilitar si se está descargando o generando PDF
                 >
-                  {pdfActionLoading && 'Cargando...'}
-                  {!pdfActionLoading && 'Ver PDF'}
-                </button>
-                <button
-                  onClick={() => handlePdfAction('download')}
-                  className="text-sm text-purple-600 hover:text-purple-800 underline disabled:opacity-50 disabled:cursor-not-allowed disabled:no-underline"
-                  disabled={pdfActionLoading || loadingPdf} // Deshabilitar si se está generando/viendo/descargando
-                >
-                   {pdfActionLoading && 'Cargando...'}
-                   {!pdfActionLoading && 'Descargar PDF'}
+                  {isDownloadingPdf ? 'Descargando...' : 'Descargar PDF'}
                 </button>
               </div>
             )}
-            {/* Mostrar error específico de Ver/Descargar */}
-            {pdfActionError && <p className="text-red-500 text-xs mt-1">{pdfActionError}</p>}
+            {downloadPdfError && <p className="text-red-500 text-xs mt-1">{downloadPdfError}</p>}
 
 
             {/* Enviar por Email */}
             {currentInvoice?.pdfPath && (
                <div className="pt-3 border-t">
-                  {/* ... (Input y botón de enviar email sin cambios) ... */}
+                  {/* ... (código existente para enviar email) ... */}
                   <label htmlFor="recipientEmail" className="block text-sm font-medium text-gray-700 mb-1">
                     Enviar PDF por Email (Opcional: dejar vacío para usar email del cliente)
                   </label>
@@ -419,12 +415,12 @@ const handleGeneratePdf = () => {
                         onChange={(e) => setRecipientEmail(e.target.value)}
                         placeholder="ejemplo@dominio.com"
                         className="input-style flex-grow text-sm"
-                        disabled={loadingEmail || pdfActionLoading || loadingPdf} // Deshabilitar si hay acciones PDF/Email en curso
+                        disabled={loadingEmail || loadingPdf || isDownloadingPdf}
                      />
                      <button
                         onClick={handleSendEmail}
                         className="button-standard bg-teal-500 hover:bg-teal-600 text-white text-sm py-1 px-3 rounded disabled:opacity-50"
-                        disabled={loadingEmail || !currentInvoice?.pdfPath || pdfActionLoading || loadingPdf} // Deshabilitar si hay acciones PDF/Email en curso
+                        disabled={loadingEmail || loadingPdf || isDownloadingPdf || !currentInvoice?.pdfPath} 
                      >
                         {loadingEmail ? 'Enviando...' : 'Enviar'}
                      </button>
@@ -435,9 +431,9 @@ const handleGeneratePdf = () => {
             )}
          </div>
       </div>
-      {/* --- FIN SECCIÓN ACTUALIZADA --- */}
     </div>
   );
 };
+
 
 export default FinalInvoiceComponent;

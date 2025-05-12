@@ -18,6 +18,7 @@ import UploadScreen from '../screens/UploadScreen';
 import WorkBalanceDetail from '../screens/WorkBalanceDetail';
 import BalanceUploadScreen from '../screens/BalanceUploadScreen'; // Asegúrate que esté descomentado si lo usas
 import GeneralExpenseScreen from '../screens/GeneralExpenseScreen';
+import AllMyWorksScreen from '../screens/AllMyWorksScreen';
 // --- Context & Actions ---
 import { NotificationContext } from '../utils/notificationContext';
 import { logout } from '../Redux/features/authSlice';
@@ -116,11 +117,15 @@ const AppDrawerNavigator = () => {
       {/* --- Worker --- */}
       {staff?.role === 'worker' && (
         <>
-          {/* Renderizar AssignedWorksScreen pasando staffId */}
-          <Drawer.Screen name="MyAssignedWorks" options={{ title: 'Mis Trabajos Asignados' }}>
-            {(props) => <AssignedWorksScreen {...props} staffId={staff?.id} />}
+          <Drawer.Screen name="MyAssignedWorks" options={{ title: 'Mis Trabajos (Progreso)' }}>
+            {(props) => <AssignedWorksScreen {...props} staffId={staff?.idStaff} />}
           </Drawer.Screen>
-          {/* GeneralExpense se añade abajo como común */}
+          {/* Nueva pantalla para TODAS las obras asignadas al worker */}
+          <Drawer.Screen 
+            name="MyAllWorksView" // Nombre único para la ruta del Drawer
+            component={AllMyWorksScreen} // El StackNavigator que creamos
+            options={{ title: 'Historial de Mis Obras' }} 
+          />
         </>
       )}
 

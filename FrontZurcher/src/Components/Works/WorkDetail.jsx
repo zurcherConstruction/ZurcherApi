@@ -7,36 +7,32 @@ import {
   fetchIncomesAndExpensesSuccess,
   fetchIncomesAndExpensesFailure,
 } from "../../Redux/Reducer/balanceReducer"; // Ajusta esta ruta si es necesario
+import {fetchInspectionsByWork} from '../../Redux/Actions/inspectionActions'
 import { useParams } from "react-router-dom";
 //import api from "../../utils/axios";
 import FinalInvoice from "../Budget/FinalInvoice"
+import InspectionFlowManager from "./InspectionFlowManager";
+
 
 const WorkDetail = () => {
   const { idWork } = useParams();
   const dispatch = useDispatch();
-  console.log("ID de la obra:", idWork); // Para depuración
+
+ 
+ 
   const {
     selectedWork: work,
-    loading,
-    error,
+    loading: workLoading, // Renombrado para evitar conflicto si FinalInvoice usa 'loading'
+    error: workError,     // Renombrado
   } = useSelector((state) => state.work);
 
-  const handleRequestInspection = async () =>{
-    try {
-    
-      await dispatch(updateWork(idWork, { status: "firstInspectionPending" })); // Cambiar el estado a "inspected"
-      // dispatch(fetchWorkById(idWork)); // Refrescar los datos de la obra
-    } catch (error) {
-      console.error("Error al solicitar la inspección:", error);
-    }
-  }
- 
 
   console.log("Datos de la obra:", work); // Para depuración
   const [selectedImage, setSelectedImage] = useState(null);
   const [fileBlob, setFileBlob] = useState(null);
   const [openSections, setOpenSections] = useState({}); // Cambiado a un objeto para manejar múltiples secciones
   const [showFinalInvoice, setShowFinalInvoice] = useState(false);
+  const [selectedInstalledImage, setSelectedInstalledImage] = useState(null);
   const {
     incomes,
     expenses,
@@ -44,24 +40,24 @@ const WorkDetail = () => {
     error: balanceError, // Renombrado para evitar conflicto
   } = useSelector((state) => state.balance);
 
-    // --- 1. CALCULAR TOTALES Y BALANCE ---
-    const { totalIncome, totalExpense, balance } = useMemo(() => {
-      const incomeSum = incomes?.reduce((sum, income) => sum + parseFloat(income.amount || 0), 0) || 0;
-      const expenseSum = expenses?.reduce((sum, expense) => sum + parseFloat(expense.amount || 0), 0) || 0;
-      const calculatedBalance = incomeSum - expenseSum;
-      return {
-        totalIncome: incomeSum,
-        totalExpense: expenseSum,
-        balance: calculatedBalance,
-      };
-    }, [incomes, expenses]);
-  
+  // --- 1. CALCULAR TOTALES Y BALANCE ---
+  const { totalIncome, totalExpense, balance } = useMemo(() => {
+    const incomeSum = incomes?.reduce((sum, income) => sum + parseFloat(income.amount || 0), 0) || 0;
+    const expenseSum = expenses?.reduce((sum, expense) => sum + parseFloat(expense.amount || 0), 0) || 0;
+    const calculatedBalance = incomeSum - expenseSum;
+    return {
+      totalIncome: incomeSum,
+      totalExpense: expenseSum,
+      balance: calculatedBalance,
+    };
+  }, [incomes, expenses]);
 
-    // --- 1. Consolidar todos los recibos usando useMemo ---
-    const allReceipts = useMemo(() => {
-      const consolidated = [];
 
-       // --- AÑADIR COMPROBANTE PAGO INICIAL (BUDGET) ---
+  // --- 1. Consolidar todos los recibos usando useMemo ---
+  const allReceipts = useMemo(() => {
+    const consolidated = [];
+
+    // --- AÑADIR COMPROBANTE PAGO INICIAL (BUDGET) ---
     if (work?.budget?.paymentInvoice && work.budget.idBudget) { // Asegurarse que hay URL y ID de budget
       let mimeType = 'application/octet-stream'; // Tipo por defecto
       if (work.budget.paymentProofType === 'pdf') {
@@ -88,39 +84,41 @@ const WorkDetail = () => {
       });
     }
     // --- FIN AÑADIR COMPROBANTE PAGO INICIAL ---
-  
-      // Recibos de Work
-      if (work?.Receipts) {
-        consolidated.push(...work.Receipts.map(r => ({ ...r, relatedRecordType: 'Obra', relatedRecordDesc: work.propertyAddress })));
-      }
-  
-      // Recibos de Income
-      if (incomes) {
-        incomes.forEach(income => {
-          if (income.Receipts) {
-            consolidated.push(...income.Receipts.map(r => ({ ...r, relatedRecordType: 'Ingreso', relatedRecordDesc: `${income.typeIncome} - $${income.amount}` })));
-          }
-        });
-      }
-  
-      // Recibos de Expense
-      if (expenses) {
-        expenses.forEach(expense => {
-          if (expense.Receipts) {
-            consolidated.push(...expense.Receipts.map(r => ({ ...r, relatedRecordType: 'Gasto', relatedRecordDesc: `${expense.typeExpense} - $${expense.amount}` })));
-          }
-        });
-      }
-  
-      // Opcional: Ordenar por fecha si los recibos tienen createdAt/updatedAt
-      consolidated.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-  
-      return consolidated;
-    }, [work?.budget, work?.Receipts, incomes, expenses, work?.propertyAddress]); // Dependencias
-  
+
+    // Recibos de Work
+    if (work?.Receipts) {
+      consolidated.push(...work.Receipts.map(r => ({ ...r, relatedRecordType: 'Obra', relatedRecordDesc: work.propertyAddress })));
+    }
+
+    // Recibos de Income
+    if (incomes) {
+      incomes.forEach(income => {
+        if (income.Receipts) {
+          consolidated.push(...income.Receipts.map(r => ({ ...r, relatedRecordType: 'Ingreso', relatedRecordDesc: `${income.typeIncome} - $${income.amount}` })));
+        }
+      });
+    }
+
+    // Recibos de Expense
+    if (expenses) {
+      expenses.forEach(expense => {
+        if (expense.Receipts) {
+          consolidated.push(...expense.Receipts.map(r => ({ ...r, relatedRecordType: 'Gasto', relatedRecordDesc: `${expense.typeExpense} - $${expense.amount}` })));
+        }
+      });
+    }
+
+    // Opcional: Ordenar por fecha si los recibos tienen createdAt/updatedAt
+    consolidated.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+    return consolidated;
+  }, [work?.budget, work?.Receipts, incomes, expenses, work?.propertyAddress]); // Dependencias
+
 
   useEffect(() => {
-    dispatch(fetchWorkById(idWork));
+    if (idWork) { // Asegúrate de que idWork no sea undefined
+      dispatch(fetchWorkById(idWork));
+    }
   }, [dispatch, idWork]);
 
   useEffect(() => {
@@ -167,24 +165,57 @@ const WorkDetail = () => {
     // Dependencia: dispatch y idWork
   }, [dispatch, idWork]);
 
-  if (loading) {
+  // Filtrar imágenes de "sistema instalado"
+  const installedImages = useMemo(() => {
+    return Array.isArray(work?.images)
+      ? work.images.filter(img => img.stage === 'sistema instalado')
+      : [];
+  }, [work?.images]);
+
+   // Lógica para determinar el botón a mostrar en el encabezado
+   let displayHeaderButton = false;
+   let headerButtonText = "";
+   let headerButtonAction = null;
+   let headerButtonClasses = "text-white font-bold py-2 px-4 rounded shadow-lg transition duration-150 ease-in-out";
+ 
+   // --- LÓGICA DEL BOTÓN AJUSTADA ---
+
+   // Caso 1: Si work.status es 'approvedInspection', mostrar botón para cambiar a 'coverPending'
+   if (work?.status === 'approvedInspection') {
+    displayHeaderButton = true;
+    headerButtonText = "Inspección Aprobada, Pasar a Cubierta"; 
+    headerButtonClasses += " bg-green-500 hover:bg-green-600";
+    headerButtonAction = async () => {
+      console.log(`Cambiando estado de obra ${idWork} de 'approvedInspection' a 'coverPending'`);
+      await dispatch(updateWork(idWork, { status: "coverPending" }));
+      // dispatch(fetchWorkById(idWork)); // Opcional: Redux debe manejar la actualización del store
+    };
+   } else if (work?.status === 'covered') { // <-- ESTE ES EL BLOQUE PARA 'COVERED'
+     displayHeaderButton = true;
+    
+     headerButtonText = "Marcar Factura Final Enviada"; 
+     headerButtonClasses += " bg-purple-600 hover:bg-purple-700"; // Color distintivo
+     headerButtonAction = async () => {
+       console.log(`Cambiando estado de obra ${idWork} de 'covered' a 'invoiceFinal'`);
+       await dispatch(updateWork(idWork, { status: "invoiceFinal" }));
+       // dispatch(fetchWorkById(idWork)); // Opcional: Redux debe manejar la actualización del store
+     };
+   }
+
+
+   if (workLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center">
-          {/* Spinner circular */}
-          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent border-solid rounded-full animate-spin"></div>
-          {/* Texto opcional */}
-          <p className="text-xl font-semibold mt-4">
-            Cargando detalles de la obra...
-          </p>
-        </div>
+        <div className="flex justify-center items-center h-screen">
+        <p className="text-xl text-gray-700">Cargando detalles de la obra...</p>
+      </div>
       </div>
     );
 
   } // probando spiner
   
 
-  if (error) {
+  if (workError) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p className="text-xl font-semibold text-red-500">Error: {error}</p>
@@ -200,34 +231,31 @@ const WorkDetail = () => {
     );
   }
 
-  const groupedImages = Array.isArray(work.images) 
-  ? work.images.reduce((acc, image) => {
+  const groupedImages = Array.isArray(work.images)
+    ? work.images.reduce((acc, image) => {
       if (!acc[image.stage]) acc[image.stage] = [];
       acc[image.stage].push(image);
       return acc;
     }, {})
-  : {}; 
+    : {};
 
   const pdfUrl = work.Permit?.pdfData //optionalDocs
     ? URL.createObjectURL(
-        new Blob([new Uint8Array(work.Permit.pdfData.data)], {
-          type: "application/pdf",
-        })
-      )
+      new Blob([new Uint8Array(work.Permit.pdfData.data)], {
+        type: "application/pdf",
+      })
+    )
     : null;
 
   const optionalDocs = work.Permit?.optionalDocs //optionalDocs
     ? URL.createObjectURL(
-        new Blob([new Uint8Array(work.Permit.optionalDocs.data)], {
-          type: "application/pdf",
-        })
-      )
+      new Blob([new Uint8Array(work.Permit.optionalDocs.data)], {
+        type: "application/pdf",
+      })
+    )
     : null;
 
-  // const validMaterialSet = work.MaterialSets?.find((set) => set.invoiceFile !== null);
-  // const invoiceUrl = validMaterialSet
-  //   ? `${api.defaults.baseURL}uploads/${validMaterialSet.invoiceFile}`
-  //   : null;
+
 
   const toggleSection = (section) => {
     setOpenSections((prev) => ({
@@ -235,6 +263,21 @@ const WorkDetail = () => {
       [section]: !prev[section],
     }));
   };
+
+  const finalInvoiceVisibleStates = [
+    'approvedInspection',  
+        'rejectedInspection',
+        'coverPending', 
+        'covered',
+        'invoiceFinal',
+        'paymentReceived',
+        'finalInspectionPending', 
+        'finalApproved',
+        'finalRejected',
+        'maintenance',
+  ];
+
+  const canShowFinalInvoiceSection = finalInvoiceVisibleStates.includes(work.status);
 
 
   return (
@@ -245,8 +288,11 @@ const WorkDetail = () => {
           <h1 className="text-2xl font-semibold uppercase">
             {work.propertyAddress}
           </h1>
-          <p className="text-xl text-slate-800 p-1 uppercase mt-2 flex items-center"> {/* flex e items-center para alinear el texto de inspección */}
-            <strong>Status:</strong> {work.status}
+          <p className="text-xl text-slate-800 p-1 uppercase mt-2 flex items-center">
+            <strong>Status: </strong>
+            <span className="ml-2 px-3 py-2 text-sm font-medium tracking-wider text-white bg-sky-500 rounded-full shadow-md"> {/* Estilo de badge */}
+              {work.status}
+            </span>
             {work.status === 'installed' && (
               <span className="ml-4 px-3 py-1 bg-yellow-400 text-black text-sm font-bold rounded-full animate-pulse">
                 PEDIR INSPECCIÓN
@@ -254,12 +300,18 @@ const WorkDetail = () => {
             )}
           </p>
         </div>
-        {work.status === 'installed' && (
+        {/* Botón dinámico en el encabezado */}
+        {displayHeaderButton && headerButtonAction && (
           <button
-            onClick={handleRequestInspection}
-            className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded shadow-lg transition duration-150 ease-in-out"
+            onClick={() => {
+              headerButtonAction().catch(err => {
+                console.error("Error al ejecutar la acción del botón:", err);
+                // Aquí podrías despachar una notificación de error a la UI si lo deseas
+              });
+            }}
+            className={headerButtonClasses}
           >
-            Inspección Pedida
+            {headerButtonText}
           </button>
         )}
       </div>
@@ -285,6 +337,11 @@ const WorkDetail = () => {
                   <strong>Permit N°:</strong>{" "}
                   {work.Permit?.permitNumber || "No disponible"}
                 </p>
+                <p>
+                  <strong>Aplicante Email:</strong>{" "}
+                  {work.Permit?.applicantEmail || "No disponible"}
+                </p>
+
                 {pdfUrl && (
                   <div className="mt-4">
                     <h3 className="text-lg font-semibold">Permit</h3>
@@ -313,8 +370,8 @@ const WorkDetail = () => {
             )}
           </div>
 
-               {/* Tarjeta: Presupuesto */}
-               {work.budget && (
+          {/* Tarjeta: Presupuesto */}
+          {work.budget && (
             <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-blue-500">
               <h2
                 className="text-xl font-semibold mb-4 cursor-pointer flex justify-between items-center"
@@ -486,17 +543,76 @@ const WorkDetail = () => {
                       </div>
                     )}
                   </div>
-                ) 
+                )
               })}
-       </div>
+          </div>
+          {work?.status === 'installed' && installedImages.length > 0 && (
+            <div className="my-6 p-4 border rounded-lg shadow-sm bg-white">
+              <h3 className="text-lg font-semibold mb-3 text-gray-700">Seleccionar Imagen de Referencia (Sistema Instalado)</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-72 overflow-y-auto p-2 border rounded-md">
+                {installedImages.map(image => (
+                  <div
+                    key={image.id}
+                    className={`cursor-pointer border-2 p-1 rounded-md hover:border-green-500 transition-all ${selectedInstalledImage?.id === image.id ? 'border-green-600 ring-2 ring-green-500' : 'border-gray-200'}`}
+                    onClick={() => setSelectedInstalledImage(image)}
+                  >
+                    <img
+                      src={image.imageUrl}
+                      alt={`Sistema Instalado - ${image.id}`}
+                      className="w-full h-28 object-cover rounded"
+                    />
+                    <p className="text-xs text-center mt-1 truncate" title={`ID: ${image.id}`}>ID: {image.id}</p>
+                  </div>
+                ))}
+              </div>
+              {selectedInstalledImage && (
+                <p className="text-sm text-green-700 mt-2">
+                  Imagen seleccionada para inspección: ID {selectedInstalledImage.id}
+                </p>
+              )}
+              {!selectedInstalledImage && (
+                <p className="text-sm text-yellow-600 mt-2">
+                  Por favor, selecciona una imagen de "sistema instalado" como referencia para la inspección.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Pasar la imagen seleccionada (o su ID) a InspectionFlowManager */}
+          {work && ( 
+            <div className="bg-white shadow-md rounded-lg border-l-4 border-teal-500"> 
+              <h2
+                className="text-xl font-semibold p-6 cursor-pointer flex justify-between items-center"
+                onClick={() => toggleSection("inspectionFlow")} // <-- PARECE CORRECTO
+              >
+                <span>Gestión de Inspección</span>
+                <span className="text-gray-600 transform transition-transform duration-200">
+                  {openSections.inspectionFlow ? ( // <-- PARECE CORRECTO
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                    </svg>
+                  )}
+                </span>
+              </h2>
+              <InspectionFlowManager
+                work={work}
+                selectedWorkImageId={selectedInstalledImage?.id || null}
+                isVisible={openSections.inspectionFlow} // <-- PARECE CORRECTO
+              />
+            </div>
+          )}
         </div>
 
 
 
         {/* Columna derecha: Tarjetas de gastos e ingresos */}
         <div className="space-y-6">
-           {/* --- 2. TARJETA DE BALANCE TOTAL --- */}
-           <div className={`
+          {/* --- 2. TARJETA DE BALANCE TOTAL --- */}
+          <div className={`
             shadow-lg rounded-lg p-6 border-l-8
             ${balance > 0 ? 'bg-green-100 border-green-500' : ''}
             ${balance < 0 ? 'bg-red-100 border-red-500' : ''}
@@ -543,12 +659,12 @@ const WorkDetail = () => {
               <span className="text-red-700 font-semibold">
                 {expenses && expenses.length > 0
                   ? `$${expenses
-                      .reduce(
-                        (total, expense) =>
-                          total + parseFloat(expense.amount || 0),
-                        0
-                      )
-                      .toFixed(2)}`
+                    .reduce(
+                      (total, expense) =>
+                        total + parseFloat(expense.amount || 0),
+                      0
+                    )
+                    .toFixed(2)}`
                   : "$0.00"}
               </span>
               <span>{openSections.expenses ? "▲" : "▼"}</span>
@@ -609,12 +725,12 @@ const WorkDetail = () => {
               <span className="text-green-700 font-semibold">
                 {incomes && incomes.length > 0
                   ? `$${incomes
-                      .reduce(
-                        (total, income) =>
-                          total + parseFloat(income.amount || 0),
-                        0
-                      )
-                      .toFixed(2)}`
+                    .reduce(
+                      (total, income) =>
+                        total + parseFloat(income.amount || 0),
+                      0
+                    )
+                    .toFixed(2)}`
                   : "$0.00"}
               </span>
               <span>{openSections.incomes ? "▲" : "▼"}</span>
@@ -666,9 +782,9 @@ const WorkDetail = () => {
           </div>
         </div>
       </div>
- {/* --- SECCIÓN PARA FACTURA FINAL --- */}
+      {/* --- SECCIÓN PARA FACTURA FINAL --- */}
       {/* Mostrar solo si la obra está en un estado apropiado (ej: 'completed', 'finalApproved') */}
-      {(work.status === 'coverPending' || work.status === 'finalApproved' || work.status === 'maintenance' || work.status === 'installed' || work.status === 'inProgress') && ( // Ajusta estados según tu lógica
+      {canShowFinalInvoiceSection && (
         <div className="mt-6 bg-white shadow-md rounded-lg p-6 border-l-4 border-purple-500">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold">Factura Final</h2>
@@ -680,7 +796,7 @@ const WorkDetail = () => {
             </button>
           </div>
 
-          {/* Renderizar el componente de la factura final condicionalmente */}
+          {/* Renderizar el componente de la factura final condicionalmente basado en showFinalInvoice */}
           {showFinalInvoice && (
             <div className="mt-4 border-t pt-4">
               <FinalInvoice workId={idWork} />
@@ -688,6 +804,7 @@ const WorkDetail = () => {
           )}
         </div>
       )}
+
       {/* Modal para mostrar la imagen ampliada */}
       {selectedImage && (
         <div
@@ -700,12 +817,12 @@ const WorkDetail = () => {
           }}
         >
           {/* Contenedor del contenido del modal */}
-          <div 
+          <div
             className="relative bg-white p-4 rounded shadow-lg flex flex-col max-h-[90vh] w-auto max-w-3xl" // max-h-[90vh] para limitar altura, w-auto y max-w-3xl para ancho responsivo
             onClick={(e) => e.stopPropagation()} // Evitar que el clic se propague al fondo
           >
             {/* Contenedor de la imagen con scroll si es necesario */}
-            <div className="overflow-y-auto flex-grow mb-4"> 
+            <div className="overflow-y-auto flex-grow mb-4">
               <img
                 src={selectedImage.imageUrl}
                 alt="Imagen ampliada"

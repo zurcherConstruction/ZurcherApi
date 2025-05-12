@@ -545,50 +545,7 @@ const CreateBudget = () => {
     const isNumeric = ['unitPrice', 'quantity'].includes(name);
     setCustomPump(prev => ({ ...prev, [name]: isNumeric ? parseFloat(value) || 0 : value }));
   };
-  // Efecto para añadir/quitar bomba automáticamente (simplificado para usar addOrUpdate)
-  // useEffect(() => {
-  //   const existingPumpItemIndex = formData.lineItems.findIndex(item => item.category === PUMP_CATEGORY);
-
-  //   if (pumpSelection.addPump === 'Yes') {
-  //     if (pumpSelection.capacity === 'OTROS') {
-  //       if (!customPump.capacity || customPump.unitPrice <= 0) {
-  //         if (existingPumpItemIndex > -1) {
-  //           setFormData(prev => ({ ...prev, lineItems: prev.lineItems.filter((_, index) => index !== existingPumpItemIndex) }));
-  //         }
-  //         return;
-  //       }
-  //       const customPumpData = {
-  //         _tempId: formData.lineItems[existingPumpItemIndex]?._tempId || generateTempId(),
-  //         budgetItemId: null,
-  //         name: PUMP_NAME,
-  //         category: PUMP_CATEGORY,
-  //         marca: '',
-  //         capacity: customPump.capacity.toUpperCase(),
-  //         unitPrice: customPump.unitPrice,
-  //         quantity: customPump.quantity,
-  //         notes: 'Bomba Personalizada',
-  //       };
-  //       setFormData(prev => {
-  //         let newLineItems = [...prev.lineItems];
-  //         if (existingPumpItemIndex > -1) newLineItems[existingPumpItemIndex] = customPumpData;
-  //         else newLineItems.push(customPumpData);
-  //         return { ...prev, lineItems: newLineItems };
-  //       });
-  //     } else if (pumpSelection.capacity) {
-  //       addOrUpdateLineItem({
-  //         category: PUMP_CATEGORY,
-  //         name: PUMP_NAME,
-  //         capacity: pumpSelection.capacity,
-  //         quantity: pumpSelection.quantity,
-  //       }, true);
-  //     }
-  //   } else if (pumpSelection.addPump === 'No' && existingPumpItemIndex > -1) {
-  //     setFormData(prev => ({ ...prev, lineItems: prev.lineItems.filter((_, index) => index !== existingPumpItemIndex) }));
-  //   }
-  // }, [pumpSelection.addPump, pumpSelection.capacity, pumpSelection.quantity, customPump.capacity, customPump.unitPrice, customPump.quantity]);
-  
-  
-  //PUMP
+ 
   const addPumpItem = () => {
     // Solo añadir si se seleccionó 'Yes'
     if (pumpSelection.addPump !== 'Yes') {
@@ -866,12 +823,7 @@ const CreateBudget = () => {
 
       console.log("Presupuesto creado exitosamente por backend:", newBudget);
 
-      // --- YA NO SE GENERA NI SUBE PDF DESDE AQUÍ ---
-      // const doc = generatePDF(newBudget);
-      // const pdfBlob = doc.output("blob");
-      // const formDataPdf = new FormData();
-      // formDataPdf.append("file", pdfBlob, `budget_${newBudget.idBudget}.pdf`);
-      // await api.post(`/budget/${newBudget.idBudget}/upload-pdf`, formDataPdf);
+     
 
       // Guardar la información del budget creado (incluyendo la URL del PDF)
       setCreatedBudgetInfo(newBudget);

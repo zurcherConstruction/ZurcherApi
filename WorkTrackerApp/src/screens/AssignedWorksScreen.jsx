@@ -16,7 +16,7 @@ const WorksListScreen = ({ navigation }) => { // Recibe navigation como prop
 
   const [searchQuery, setSearchQuery] = useState('');
   const { works, loading: reduxLoading, error } = useSelector((state) => state.work);
-
+console.log("WorksListScreen works", works);
   useEffect(() => {
     if (staffId) {
       dispatch(fetchAssignedWorks(staffId));
@@ -25,13 +25,22 @@ const WorksListScreen = ({ navigation }) => { // Recibe navigation como prop
 
   const filteredWorks = useMemo(() => {
     if (!works) return [];
-    if (!searchQuery) return works;
+
+    const allowedStatuses = ['inProgress', 'coverPending','rejectedInspection'];
+
+    // Primero, filtrar por los estados permitidos
+    const worksWithAllowedStatus = works.filter(work => 
+      allowedStatuses.includes(work.status)
+    );
+
+    // Luego, si hay una búsqueda, filtrar por la dirección
+    if (!searchQuery) return worksWithAllowedStatus;
+    
     const lowerCaseQuery = searchQuery.toLowerCase();
-    return works.filter(work =>
+    return worksWithAllowedStatus.filter(work =>
       work.propertyAddress?.toLowerCase().includes(lowerCaseQuery)
     );
   }, [works, searchQuery]);
-
   // --- Estados de carga, error, etc. (sin cambios significativos) ---
   const isLoading = reduxLoading;
 
