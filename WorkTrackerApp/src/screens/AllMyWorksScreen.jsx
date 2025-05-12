@@ -30,6 +30,11 @@ const getItemStyleByStatus = (status) => {
       borderColor = '#8b5cf6';     // Tailwind violet-500
       textColor = '#5b21b6';       // Tailwind violet-700
       break;
+      case 'covered': // <-- NUEVO ESTADO Y COLOR
+      backgroundColor = '#cffafe'; // Tailwind cyan-100
+      borderColor = '#22d3ee';     // Tailwind cyan-400
+      textColor = '#0e7490';       // Tailwind cyan-700
+      break;
     case 'rejectedInspection':
     case 'finalRejected':
       backgroundColor = '#fee2e2'; // Tailwind red-100
@@ -168,9 +173,7 @@ const AllWorksListComponent = ({ navigation }) => {
                 <Text style={[styles.itemStatusLabel, { color: textColor }]}>Estado:</Text>{" "}
                 {item.status || "Sin estado"}
               </Text>
-              <Text style={[styles.itemDate, { color: textColor }]}>
-                Inicio: {item.startDate ? new Date(item.startDate).toLocaleDateString() : 'N/A'}
-              </Text>
+            
             </TouchableOpacity>
           );
         }}

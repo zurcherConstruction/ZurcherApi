@@ -66,11 +66,26 @@ const workSlice = createSlice({
     },
     updateWorkSuccess: (state, action) => {
       state.loading = false;
-      const updatedWork = action.payload;
-      state.works = state.works.map((work) =>
-        work.id === updatedWork.id ? updatedWork : work
-      ); // Actualizar la obra en la lista
-      state.error = null;
+      // action.payload ES DIRECTAMENTE la obra actualizada (finalWorkResponse del backend)
+      const updatedWork = action.payload; // <--- CORRECCIÓN AQUÍ
+
+      if (updatedWork && updatedWork.idWork) { // Verificar que updatedWork y su idWork existan
+        // 1. Actualizar la obra en la lista general 'state.works'
+        state.works = state.works.map((work) =>
+          work.idWork === updatedWork.idWork ? updatedWork : work
+        );
+
+        // 2. Actualizar la obra específica 'state.work' si es la que se está viendo/editando
+        if (state.work && state.work.idWork === updatedWork.idWork) {
+          state.work = updatedWork; // <-- ESTA LÍNEA ES CRUCIAL PARA UPLOADSCREEN
+        }
+        
+        state.error = null;
+      } else {
+        // Esto podría ocurrir si el backend devuelve algo inesperado (ej. un mensaje de error que no fue capturado por el catch en el thunk)
+        console.error("updateWorkSuccess: action.payload no es un objeto 'work' válido o falta 'idWork'. Payload:", action.payload);
+        state.error = "Datos inválidos recibidos del servidor tras actualizar la obra.";
+      }
     },
     updateWorkFailure: (state, action) => {
       state.loading = false;

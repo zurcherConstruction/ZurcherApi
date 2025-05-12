@@ -34,6 +34,8 @@ const UploadScreen = () => {
   const [isRequestingFinalInspection, setIsRequestingFinalInspection] = useState(false); // Nuevo estado
   const [isBatchUploading, setIsBatchUploading] = useState(false);
   const [isMarkingCorrected, setIsMarkingCorrected] = useState(false); // Nuevo estado para el botón
+  const [isMarkingCovered, setIsMarkingCovered] = useState(false);
+
   // --- EFECTO PARA BUSCAR DETALLES DEL TRABAJO ---
   useEffect(() => {
     if (idWork) {
@@ -574,6 +576,30 @@ const UploadScreen = () => {
     }
   };
 
+  const handleMarkCovered = async () => {
+    if (isMarkingCovered || !hasFinalCoverImages) {
+      if (!hasFinalCoverImages) {
+        Alert.alert("Atención", "Debe subir imágenes a 'inspeccion final' antes de marcar como cubierto.");
+      }
+      return;
+    }
+    setIsMarkingCovered(true);
+    try {
+      await dispatch(updateWork(idWork, { status: 'covered' }));
+      // fetchWorkById should be dispatched by the updateWork thunk or a listener,
+      // which will update currentWork.status and hide this block.
+      Alert.alert('Éxito', 'Trabajo marcado como "Cubierto". La oficina será notificada.');
+      // if (navigation.canGoBack()) { // Opcional: navegar atrás si se desea
+      //   navigation.goBack();
+      // }
+    } catch (error) {
+      console.error('Error al marcar el trabajo como cubierto:', error);
+      Alert.alert('Error', `No se pudo marcar el trabajo como cubierto: ${error.message || 'Error desconocido'}`);
+    } finally {
+      setIsMarkingCovered(false);
+    }
+  };
+
   const handleRequestFinalInspection = async () => {
     if (isFinalInspectionRequested || isRequestingFinalInspection) return; // Evitar múltiples envíos
     setIsRequestingFinalInspection(true);
@@ -652,7 +678,7 @@ const UploadScreen = () => {
   const showRequestFinalInspectionButton =
     hasFinalCoverImages &&
     currentWork &&
-    currentWork.status === 'coverPending'; 
+    currentWork.status === 'covered'; 
 
   // --- Lógica de renderizado ---
   if (workDetailsLoading && (!workDetailsFromState || workDetailsFromState.idWork !== idWork)) {
@@ -721,6 +747,59 @@ const UploadScreen = () => {
                 </Text>
               </Pressable>
             )}
+          </View>
+        )}
+
+         {/* --- NUEVO BLOQUE PARA COVER PENDING --- */}
+         {currentWork.status === 'coverPending' && (
+          <View className="my-4 p-4 border border-teal-400 bg-teal-50 rounded-lg shadow-md">
+            <Text className="text-lg font-bold text-teal-700 mb-2 text-center">Acción Requerida: Cubrir Instalación</Text>
+            <Text className="text-sm text-teal-600 mb-2 text-center">
+              Por favor, asegúrate de que la instalación esté completamente cubierta.
+            </Text>
+            <Text className="text-sm text-teal-600 mb-1">
+              Sube las imágenes correspondientes a la etapa <Text className="font-semibold">'inspeccion final'</Text> si aún no lo has hecho (actualmente {imagesByStage['inspeccion final']?.length || 0} imágenes).
+            </Text>
+            <Text className="text-sm text-teal-600 mb-3">
+              Luego, presiona el botón <Text className="font-semibold">"TRABAJO CUBIERTO"</Text> para notificar a la oficina.
+            </Text>
+            <Pressable
+              onPress={handleMarkCovered}
+              disabled={isMarkingCovered || !hasFinalCoverImages}
+              className={`py-3 rounded-lg shadow-md flex-row justify-center items-center ${
+                (isMarkingCovered || !hasFinalCoverImages) ? 'bg-gray-400' : 'bg-teal-500'
+              }`}
+            >
+              {isMarkingCovered ? (
+                <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
+              ) : (
+                <Ionicons name="checkmark-done-circle-outline" size={22} color="white" style={{ marginRight: 8 }} />
+              )}
+              <Text className="text-white text-center text-lg font-semibold">
+                {isMarkingCovered ? 'Enviando...' : 'TRABAJO CUBIERTO'}
+              </Text>
+            </Pressable>
+            {!hasFinalCoverImages && (
+                <Text className="text-xs text-red-500 text-center mt-2">
+                    Debes subir imágenes a 'inspeccion final' para poder marcar como cubierto.
+                </Text>
+            )}
+          </View>
+        )}
+
+         {/* --- NUEVO BLOQUE PARA CUANDO EL TRABAJO ESTÁ 'COVERED' --- */}
+         {currentWork.status === 'covered' && (
+          <View className="my-4 p-4 border border-green-400 bg-green-50 rounded-lg shadow-md">
+            <View className="flex-row items-center justify-center mb-2">
+                <Ionicons name="shield-checkmark-outline" size={26} color="rgb(22 163 74)" style={{ marginRight: 8 }} />
+                <Text className="text-lg font-bold text-green-700 text-center">¡Trabajo Cubierto!</Text>
+            </View>
+            <Text className="text-sm text-green-600 text-center">
+              Ya se envió el aviso a administración.
+            </Text>
+            <Text className="text-sm text-green-600 text-center mt-1">
+              Si todo está listo, puedes proceder a <Text className="font-semibold">solicitar la inspección final</Text> usando el botón de abajo (si está habilitado).
+            </Text>
           </View>
         )}
         {/* --- BLOQUE DE BOTONES PDF MODIFICADO --- */}
