@@ -71,16 +71,25 @@ const WorkDetail = () => {
         else mimeType = 'image/jpeg'; // O un tipo de imagen genérico
       }
 
-      consolidated.push({
-        idReceipt: `budget-${work.budget.idBudget}-payment`, // ID único generado
+      // Determinar el monto a mostrar para el comprobante inicial
+      const initialPaymentDisplayAmount = work.budget.paymentProofAmount !== null && !isNaN(parseFloat(work.budget.paymentProofAmount))
+        ? parseFloat(work.budget.paymentProofAmount).toFixed(2)
+        : parseFloat(work.budget.initialPayment || 0).toFixed(2);
+      
+      const paymentNotes = work.budget.paymentProofAmount !== null && !isNaN(parseFloat(work.budget.paymentProofAmount))
+        ? `Comprobante cargado por $${initialPaymentDisplayAmount}`
+        : `Pago inicial del presupuesto por $${initialPaymentDisplayAmount}`;
+
+        consolidated.push({
+        idReceipt: `budget-${work.budget.idBudget}-payment`,
         fileUrl: work.budget.paymentInvoice,
         mimeType: mimeType,
         originalName: 'Comprobante Pago Inicial',
-        notes: `Pago inicial del presupuesto por $${work.budget.initialPayment || 'N/A'}`,
-        type: 'Comprobante Pago Inicial', // Tipo específico
-        relatedRecordType: 'Presupuesto', // Indicar que pertenece al Budget
-        relatedRecordDesc: `Pago Inicial - $${work.budget.initialPayment || 'N/A'}`,
-        // createdAt: work.budget.updatedAt || work.budget.createdAt // Opcional: usar fecha del budget
+        notes: paymentNotes,
+        type: 'Comprobante Pago Inicial',
+        relatedRecordType: 'Presupuesto',
+        relatedRecordDesc: `Pago Inicial (Comprobante: $${initialPaymentDisplayAmount})`,
+        // createdAt: work.budget.updatedAt || work.budget.createdAt 
       });
     }
     // --- FIN AÑADIR COMPROBANTE PAGO INICIAL ---
@@ -385,18 +394,34 @@ const WorkDetail = () => {
                     <strong>Total Presupuesto:</strong> ${parseFloat(work.budget.totalPrice || 0).toFixed(2)}
                   </p>
 
-                  {/* Pago Inicial */}
-                  <p className="mb-1 text-green-700">
-                    <strong>Pago Inicial ({work.budget.initialPaymentPercentage || 0}%):</strong> ${parseFloat(work.budget.initialPayment || 0).toFixed(2)}
+                 {/* Pago Inicial Esperado */}
+                  <p className="mb-1 text-gray-700">
+                    <strong>Pago Inicial Esperado ({work.budget.initialPaymentPercentage || 0}%):</strong> ${parseFloat(work.budget.initialPayment || 0).toFixed(2)}
                   </p>
 
-                  {/* Restante */}
+                  {/* Monto del Comprobante Cargado (si existe) */}
+                  {work.budget.paymentProofAmount !== null && !isNaN(parseFloat(work.budget.paymentProofAmount)) && (
+                    <p className="mb-1 text-green-700 font-semibold">
+                      <strong>Monto Comprobante Cargado:</strong> ${parseFloat(work.budget.paymentProofAmount).toFixed(2)}
+                      {parseFloat(work.budget.paymentProofAmount).toFixed(2) !== parseFloat(work.budget.initialPayment || 0).toFixed(2) && (
+                        <span className="ml-2 text-xs text-orange-500">(Difiere del esperado)</span>
+                      )}
+                    </p>
+                  )}
+                  
+                  {/* Restante (basado en el monto del comprobante cargado si existe, sino en el initialPayment esperado) */}
                   <p className="mb-1 text-orange-700">
-                    <strong>Restante ({100 - (work.budget.initialPaymentPercentage || 0)}%):</strong> ${
-                      (parseFloat(work.budget.totalPrice || 0) - parseFloat(work.budget.initialPayment || 0)).toFixed(2)
+                    <strong>Restante (vs. Total):</strong> ${
+                      (
+                        parseFloat(work.budget.totalPrice || 0) - 
+                        (
+                          work.budget.paymentProofAmount !== null && !isNaN(parseFloat(work.budget.paymentProofAmount))
+                            ? parseFloat(work.budget.paymentProofAmount)
+                            : parseFloat(work.budget.initialPayment || 0)
+                        )
+                      ).toFixed(2)
                     }
                   </p>
-
                   {/* Otros Datos */}
                   <p className="mt-3 text-sm text-gray-600">
                     <strong>Fecha:</strong> {new Date(work.budget.date).toLocaleDateString()}

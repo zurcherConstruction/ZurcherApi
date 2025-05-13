@@ -33,8 +33,18 @@ const FinalInvoiceController = {
 
       // 3. Calcular monto final inicial (sin extras)
       const originalBudgetTotal = parseFloat(work.budget.totalPrice);
-      const initialPaymentMade = parseFloat(work.budget.initialPayment);
-      const finalAmountDueInitial = originalBudgetTotal - initialPaymentMade;
+      
+      // --- MODIFICACIÓN AQUÍ ---
+      let actualInitialPaymentMade = 0;
+      if (work.budget.paymentProofAmount !== null && !isNaN(parseFloat(work.budget.paymentProofAmount))) {
+        actualInitialPaymentMade = parseFloat(work.budget.paymentProofAmount);
+      } else if (work.budget.initialPayment !== null && !isNaN(parseFloat(work.budget.initialPayment))) {
+        // Fallback al initialPayment calculado si paymentProofAmount no está o no es válido
+        actualInitialPaymentMade = parseFloat(work.budget.initialPayment);
+      }
+      // --- FIN DE LA MODIFICACIÓN ---
+
+      const finalAmountDueInitial = originalBudgetTotal - actualInitialPaymentMade;
 
       // 4. Crear la FinalInvoice
       const newFinalInvoice = await FinalInvoice.create({
@@ -42,7 +52,7 @@ const FinalInvoiceController = {
         budgetId: work.budget.idBudget,
         invoiceDate: new Date(),
         originalBudgetTotal: originalBudgetTotal,
-        initialPaymentMade: initialPaymentMade,
+        initialPaymentMade: actualInitialPaymentMade, // <-- Usar la variable actualizada
         subtotalExtras: 0.00, // Inicialmente no hay extras
         finalAmountDue: finalAmountDueInitial,
         status: 'pending',

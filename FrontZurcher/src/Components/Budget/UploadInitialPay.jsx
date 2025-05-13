@@ -11,6 +11,7 @@ const UploadInitialPay = () => {
 
   const [selectedBudgetId, setSelectedBudgetId] = useState('');
   const [file, setFile] = useState(null);
+  const [uploadedAmount, setUploadedAmount] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
@@ -21,6 +22,7 @@ const UploadInitialPay = () => {
   const handleBudgetSelect = (event) => {
     setSelectedBudgetId(event.target.value);
     setFile(null);
+    setUploadedAmount(''); // <--- Resetear monto al cambiar presupuesto
   };
 
   const handleFileChange = (event) => {
@@ -50,9 +52,23 @@ const UploadInitialPay = () => {
     setFile(selectedFile);
   };
 
-  const handleUpload = async () => {
-    if (!selectedBudgetId || !file) {
-      toast.error("Por favor, selecciona un presupuesto y un archivo.");
+   const handleAmountChange = (event) => { // <--- Nueva función para manejar cambio de monto
+    const value = event.target.value;
+    // Permitir solo números y un punto decimal
+    if (/^\d*\.?\d*$/.test(value)) {
+      setUploadedAmount(value);
+    }
+  };
+
+ const handleUpload = async () => {
+    if (!selectedBudgetId || !file || !uploadedAmount) { // <--- Validar que el monto también esté presente
+      toast.error("Por favor, selecciona un presupuesto, un archivo y especifica el monto del comprobante.");
+      return;
+    }
+
+    const parsedAmount = parseFloat(uploadedAmount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      toast.error("El monto del comprobante debe ser un número positivo.");
       return;
     }
 
@@ -63,7 +79,7 @@ const UploadInitialPay = () => {
     try {
       uploadToast = toast.loading("Iniciando la carga del comprobante...");
 
-      const uploadResult = await dispatch(uploadInvoice(selectedBudgetId, file, (progress) => {
+       const uploadResult = await dispatch(uploadInvoice(selectedBudgetId, file, parsedAmount, (progress) => {
         setUploadProgress(progress);
         if (uploadToast) {
           toast.update(uploadToast, {
@@ -102,6 +118,7 @@ const UploadInitialPay = () => {
       // Limpiar formulario
       setSelectedBudgetId('');
       setFile(null);
+      setUploadedAmount('');
       setUploadProgress(0);
       const fileInput = document.getElementById('invoice-upload-input');
       if (fileInput) fileInput.value = null;
@@ -142,6 +159,8 @@ const UploadInitialPay = () => {
     return <p className="text-gray-500 text-sm p-4">No hay presupuestos pendientes de comprobante.</p>;
   }
 
+    const selectedBudgetDetails = selectedBudgetId ? budgets.find(b => b.idBudget === parseInt(selectedBudgetId)) : null;
+
   return (
     <div className="p-4 border border-gray-300 rounded-lg shadow-md my-4 bg-gray-50 max-w-md mx-auto">
       <h2 className="text-md font-semibold mb-3 text-gray-700">Subir Comprobante de Pago Inicial</h2>
@@ -165,20 +184,41 @@ const UploadInitialPay = () => {
         </select>
       </div>
 
-      {selectedBudgetId && (
-        <div className="mb-3">
-          <label htmlFor="invoice-upload-input" className="block text-sm font-medium text-gray-600 mb-1">
-            Seleccionar Comprobante (PDF o Imagen):
-          </label>
-          <input
-            id="invoice-upload-input"
-            name="file"
-            type="file"
-            accept="application/pdf,image/jpeg,image/png,image/gif,image/webp"
-            onChange={handleFileChange}
-            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-          />
-        </div>
+       {selectedBudgetId && (
+        <>
+          <div className="mb-3">
+            <label htmlFor="invoice-upload-input" className="block text-sm font-medium text-gray-600 mb-1">
+              Seleccionar Comprobante (PDF o Imagen):
+            </label>
+            <input
+              id="invoice-upload-input"
+              name="file"
+              type="file"
+              accept="application/pdf,image/jpeg,image/png,image/gif,image/webp"
+              onChange={handleFileChange}
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+            />
+          </div>
+
+          <div className="mb-3"> {/* <--- Nuevo campo para el monto --> */}
+            <label htmlFor="uploaded-amount-input" className="block text-sm font-medium text-gray-600 mb-1">
+              Monto del Comprobante:
+            </label>
+            <input
+              id="uploaded-amount-input"
+              type="text" // Usar text para permitir validación manual, o number con step="0.01"
+              value={uploadedAmount}
+              onChange={handleAmountChange}
+              placeholder="Ej: 1250.50"
+              className="block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
+            />
+            {selectedBudgetDetails && (
+              <p className="text-xs text-gray-500 mt-1">
+                Pago inicial esperado para este presupuesto: ${parseFloat(selectedBudgetDetails.initialPayment).toFixed(2)}
+              </p>
+            )}
+          </div>
+        </>
       )}
 
       {isLoading && uploadProgress > 0 && (
@@ -193,7 +233,7 @@ const UploadInitialPay = () => {
         </div>
       )}
 
-      {selectedBudgetId && file && (
+       {selectedBudgetId && file && uploadedAmount && (
         <button
           onClick={handleUpload}
           disabled={isLoading}

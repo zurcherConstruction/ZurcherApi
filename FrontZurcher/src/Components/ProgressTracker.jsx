@@ -5,13 +5,13 @@ import { Link } from "react-router-dom";
 import { ExclamationTriangleIcon } from '@heroicons/react/24/solid'; // Importar el ícono
 
 const etapas = [
-  { backend: "inProgress", display: "Purchase in Progress" },
-  { backend: "installed", display: "Installing" },
-  { backend: "firstInspectionPending", display: "Inspection Pending" },
+  { backend: "assigned", display: "Purchase in Progress" },
+  { backend: "inProgress", display: "Installing" },
+  { backend: "installed", display: "Inspection Pending" },
   { backend: "coverPending", display: "Cover Pending" },
-  { backend: "invoiceFinal", display: "Send Final Invoice" },
-  { backend: "paymentReceived", display: "Payment Received" },
-  { backend: "finalInspectionPending", display: "Final Inspection Pending" },
+  { backend: "covered", display: "Send Final Invoice" },
+  { backend: "invoiceFinal", display: "Payment Received" },
+  { backend: "paymentReceived", display: "Final Inspection Pending" },
   { backend: "maintenance", display: "Maintenance" },
 ];
 
@@ -47,23 +47,19 @@ const ProgressTracker = () => {
   );
 
   const getProgressIndexForBar = (currentWorkStatus) => {
-    let statusToFindInFilteredEtapas = currentWorkStatus;
+    let visualStageBackendKey;
 
-    if (currentWorkStatus === "firstInspectionPending" || currentWorkStatus === "rejectedInspection") {
-      statusToFindInFilteredEtapas = "installed";
-    } else if (currentWorkStatus === "approvedInspection") {
-      statusToFindInFilteredEtapas = "firstInspectionPending";
-    } else if (currentWorkStatus === "finalInspectionPending" || currentWorkStatus === "finalRejected") {
-      // If coverPending is a distinct step before finalInspectionPending, this might need adjustment
-      // For now, assuming final inspection follows covering or invoicing.
-      statusToFindInFilteredEtapas = "invoiceFinal"; // Or "coverPending" if that's the immediate precedent
-    } else if (currentWorkStatus === "finalApproved") {
-      statusToFindInFilteredEtapas = "finalInspectionPending";
-    } else if (currentWorkStatus === "covered") { // <-- ADDED CONDITION
-      statusToFindInFilteredEtapas = "coverPending"; // 'covered' status makes 'coverPending' the current visual step
+    // Mapear el estado actual del trabajo a la clave 'backend' de la etapa visual correspondiente
+    if (["installed", "firstInspectionPending", "approvedInspection", "rejectedInspection"].includes(currentWorkStatus)) {
+      visualStageBackendKey = "installed"; // Todos estos estados activan la etapa visual "Inspection Pending"
+    } else if (["paymentReceived", "finalInspectionPending", "finalApproved", "finalRejected"].includes(currentWorkStatus)) {
+      visualStageBackendKey = "paymentReceived"; // Todos estos estados activan la etapa visual "Final Inspection Pending"
+    } else {
+      visualStageBackendKey = currentWorkStatus; // Para otros estados, la clave es directa
     }
-    const index = filteredEtapas.findIndex((etapa) => etapa.backend === statusToFindInFilteredEtapas);
-    return index;
+
+    const index = filteredEtapas.findIndex((etapa) => etapa.backend === visualStageBackendKey);
+    return index; // Este es el índice de la etapa visual que debe estar "activa"
   };
 
   const getDisplayName = (status) => {
@@ -140,60 +136,33 @@ const ProgressTracker = () => {
                     width: progressBarIndex >= 0 ? `${(progressBarIndex / (filteredEtapas.length - 1)) * 100}%` : '0%',
                   }}
                 ></div>
-                {filteredEtapas.map((etapa, etapaMapIndex) => {
-                  let circleColor = "bg-gray-400";
-                  let textColor = "text-gray-600";
-                  let isBold = false;
-                  let shouldPulse = false;
+          {filteredEtapas.map((etapa, etapaMapIndex) => {
+                  // Determinar si esta etapa del map es la etapa visualmente actual
+                  const isCurrentVisualStage = etapaMapIndex === progressBarIndex;
+                  // Determinar si esta etapa del map es una etapa completada (anterior a la actual)
+                  const isCompletedStage = etapaMapIndex < progressBarIndex;
 
-                  if (progressBarIndex >= 0) {
-                    if (etapaMapIndex < progressBarIndex) {
-                      circleColor = "bg-green-500";
-                    } else if (etapaMapIndex === progressBarIndex) {
-                      circleColor = "bg-green-500";
-                      if (status === etapa.backend && 
-                          status !== "firstInspectionPending" && status !== "rejectedInspection" && status !== "approvedInspection" &&
-                          status !== "finalInspectionPending" && status !== "finalRejected") {
-                          textColor = "text-green-600";
-                          isBold = true;
-                          shouldPulse = true;
-                        } else if (etapa.backend === "coverPending" && status === "covered") {
-                          // Specific case: actual status is 'covered', visual step is 'coverPending'
-                          textColor = "text-green-600"; // Text for "Cover Pending" label
-                          isBold = true;
-                          shouldPulse = true;
-                        }
-                    }
-                  }
+                  // Color del círculo: verde si está completada o es la actual, sino gris
+                  const circleColor = isCurrentVisualStage || isCompletedStage ? "bg-green-500" : "bg-gray-400";
+                  // Titileo del círculo: solo si es la etapa visualmente actual
+                  const pulseCircle = isCurrentVisualStage;
 
-                  if (etapa.backend === "firstInspectionPending") {
-                    if (status === "firstInspectionPending") {
-                      circleColor = "bg-yellow-400"; textColor = "text-yellow-500"; isBold = true; shouldPulse = true;
-                    } else if (status === "rejectedInspection") {
-                      circleColor = "bg-red-500"; textColor = "text-red-600"; isBold = true; shouldPulse = true;
-                    } else if (status === "approvedInspection") {
-                      circleColor = "bg-green-500"; 
-                      textColor = "text-green-600";
-                      isBold = true;
-                      // shouldPulse = true; 
-                    }
-                  } else if (etapa.backend === "finalInspectionPending") {
-                    if (status === "finalInspectionPending") {
-                      circleColor = "bg-yellow-400"; textColor = "text-yellow-500"; isBold = true; shouldPulse = true;
-                    } else if (status === "finalRejected") {
-                      circleColor = "bg-red-500"; textColor = "text-red-600"; isBold = true; shouldPulse = true;
-                    }
-                  }
-                  else if (status === etapa.backend && progressBarIndex >= etapaMapIndex && !shouldPulse && 
-                           filteredEtapas.some(e => e.backend === status) &&
-                           status !== "approvedInspection"
-                           ) {
-                      circleColor = "bg-green-500";
-                      textColor = "text-green-600";
-                      isBold = true;
-                      shouldPulse = true;
-                  }
+                  // Estilo del texto: verde y negrita si es la etapa visualmente actual, sino gris normal
+                  const textColor = isCurrentVisualStage ? "text-green-600" : "text-gray-600";
+                  const isBold = isCurrentVisualStage;
+                  // Titileo del texto: solo si es la etapa visualmente actual
+                  const pulseText = isCurrentVisualStage;
                   
+                  let rejectionAlert = null;
+                  // Mostrar alerta de rechazo si la etapa visual es "Inspection Pending" y el estado es "rejectedInspection"
+                  if (etapa.backend === 'installed' && status === 'rejectedInspection') {
+                    rejectionAlert = "Rechazada";
+                  } 
+                  // Mostrar alerta de rechazo si la etapa visual es "Final Inspection Pending" y el estado es "finalRejected"
+                  else if (etapa.backend === 'paymentReceived' && status === 'finalRejected') {
+                    rejectionAlert = "Rechazada";
+                  }
+
                   return (
                     <div
                       key={etapa.backend}
@@ -201,16 +170,25 @@ const ProgressTracker = () => {
                       style={{ width: `${100 / filteredEtapas.length}%` }}
                     >
                       <div
-                        className={`w-8 h-8 flex items-center justify-center rounded-full text-white text-sm font-bold shadow-md ${circleColor} ${shouldPulse ? 'animate-pulse' : ''}`}
+                        className={`w-8 h-8 flex items-center justify-center rounded-full text-white text-sm font-bold shadow-md ${circleColor} ${pulseCircle ? 'animate-pulse' : ''}`}
                         style={{ position: "absolute", top: "50%", transform: "translate(-50%, -50%)", left: "50%" }}
                       >
                         {etapaMapIndex + 1}
                       </div>
-                      <p
-                        className={`text-xs text-center font-varela mt-16 p-1 ${textColor} ${isBold ? 'font-bold' : ''} ${shouldPulse && isBold ? 'animate-pulse' : ''}`}
-                      >
-                        {etapa.display}
-                      </p>
+
+                     {/* Textos debajo del círculo */}
+                      <div className="flex flex-col items-center text-center mt-16">
+                        <p
+                          className={`text-xs font-varela p-1 ${textColor} ${isBold ? 'font-bold' : ''} ${pulseText ? 'animate-pulse' : ''}`}
+                        >
+                          {etapa.display}
+                        </p>
+                        {rejectionAlert && (
+                          <p className="text-xs text-red-600 font-semibold px-1">
+                            {rejectionAlert}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

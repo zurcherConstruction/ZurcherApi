@@ -400,7 +400,7 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
 },
  
   
-  async updateBudget(req, res) {
+ async updateBudget(req, res) {
     const { idBudget } = req.params;
     const transaction = await conn.transaction();
     let generatedPdfPath = null;
@@ -446,7 +446,7 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
       } = req.body;
 
       // --- 3. Validaciones Preliminares ---
-      const hasGeneralUpdates = date || expirationDate !== undefined || status || applicantName || propertyAddress || discountDescription !== undefined || discountAmount !== undefined || generalNotes !== undefined || initialPaymentPercentage !== undefined;
+      const hasGeneralUpdates = date || expirationDate !== undefined || status || applicantName || propertyAddress || discountDescription !== undefined || discountAmount !== undefined || generalNotes !== undefined || initialPaymentPercentageInput !== undefined; // Corregido: initialPaymentPercentageInput
       const hasLineItemUpdates = lineItems && Array.isArray(lineItems);
 
       if (!hasGeneralUpdates && !hasLineItemUpdates) {
@@ -588,7 +588,7 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
     Object.assign(budget, {
       subtotalPrice: calculatedSubtotal,
       totalPrice: finalTotal,
-      initialPayment: calculatedInitialPayment
+      initialPayment: calculatedInitialPayment // Este es el initialPayment calculado
     });
 
     // Guardar los nuevos totales en la BD (sin pdfPath aún)
@@ -681,9 +681,18 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
     } // --- Fin Lógica if (status === 'send') ---
 
     // --- 7b. Lógica si el estado es 'approved' ---
-      // --- 7b. Lógica si el estado es 'approved' ---
       if (budget.status === "approved") {
         console.log("El estado es 'approved'. Procesando creación/actualización de Work/Income...");
+        
+        // Determinar el monto real del pago inicial a usar
+        let actualInitialPaymentAmount = parseFloat(budget.initialPayment); // Fallback al calculado
+        if (budget.paymentProofAmount !== null && budget.paymentProofAmount !== undefined && !isNaN(parseFloat(budget.paymentProofAmount))) {
+            actualInitialPaymentAmount = parseFloat(budget.paymentProofAmount);
+            console.log(`Usando paymentProofAmount (${actualInitialPaymentAmount}) para Work/Income.`);
+        } else {
+            console.log(`Usando initialPayment calculado (${actualInitialPaymentAmount}) para Work/Income (paymentProofAmount no disponible o inválido).`);
+        }
+
         let workRecord;
         const existingWork = await Work.findOne({ where: { idBudget: budget.idBudget }, transaction });
   
@@ -695,7 +704,7 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
             status: 'pending',
             idBudget: budget.idBudget,
             notes: `Work creado automáticamente al aprobar presupuesto N° ${budget.idBudget}`,
-            initialPayment: budget.initialPayment, // Usa el valor recalculado
+            initialPayment: actualInitialPaymentAmount, // Usar monto determinado
           }, { transaction });
           console.log(`Nuevo Work creado con ID: ${workRecord.idWork}`);
   
@@ -703,7 +712,7 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
             console.log(`Creando nuevo Income para Work ID: ${workRecord.idWork}`);
             await Income.create({
               date: new Date(),
-              amount: budget.initialPayment, // Usa el valor recalculado
+              amount: actualInitialPaymentAmount, // Usar monto determinado
               typeIncome: 'Factura Pago Inicial Budget',
               notes: `Pago inicial registrado al aprobar Budget #${budget.idBudget}`,
               workId: workRecord.idWork
@@ -711,17 +720,16 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
             console.log(`Nuevo Income creado exitosamente.`);
           } catch (incomeError) {
             console.error(`Error CRÍTICO al crear Income para nuevo Work ID ${workRecord.idWork}:`, incomeError);
-            // Lanzar error para revertir la transacción
             throw new Error("Fallo al crear el registro de ingreso asociado al nuevo Work.");
           }
         } else {
           // --- Work Existente: Verificar/Actualizar Work y Verificar/Crear/Actualizar Income ---
           console.log(`Work ya existente (ID: ${existingWork.idWork}) para Budget ID: ${budget.idBudget}. Verificando/Actualizando...`);
           workRecord = existingWork;
-          // Opcional: Actualizar el initialPayment del Work si cambió el del budget
-          if (parseFloat(workRecord.initialPayment) !== parseFloat(budget.initialPayment)) {
-              console.log(`Actualizando initialPayment en Work existente ${workRecord.idWork} de ${workRecord.initialPayment} a ${budget.initialPayment}`);
-              await workRecord.update({ initialPayment: budget.initialPayment }, { transaction });
+          
+          if (parseFloat(workRecord.initialPayment) !== actualInitialPaymentAmount) {
+              console.log(`Actualizando initialPayment en Work existente ${workRecord.idWork} de ${workRecord.initialPayment} a ${actualInitialPaymentAmount}`);
+              await workRecord.update({ initialPayment: actualInitialPaymentAmount }, { transaction });
           }
   
           const existingIncome = await Income.findOne({
@@ -730,12 +738,11 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
           });
   
           if (!existingIncome) {
-            // Crear Income (tardío) si no existía
             console.warn(`Advertencia: Work ${workRecord.idWork} existía pero no se encontró Income inicial. Creando ahora.`);
             try {
               await Income.create({
                 date: new Date(),
-                amount: budget.initialPayment, // Usa el valor recalculado
+                amount: actualInitialPaymentAmount, // Usar monto determinado
                 typeIncome: 'Factura Pago Inicial Budget',
                 notes: `Pago inicial (tardío) registrado al aprobar Budget #${budget.idBudget}`,
                 workId: workRecord.idWork
@@ -743,30 +750,25 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
               console.log(`Income (tardío) creado exitosamente.`);
             } catch (lateIncomeError) {
               console.error(`Error CRÍTICO al crear Income (tardío) para Work ID ${workRecord.idWork}:`, lateIncomeError);
-              // Lanzar error para revertir la transacción
               throw new Error("Fallo al crear el registro de ingreso (tardío) asociado.");
             }
           } else {
-            // Income Existente: Actualizar monto si cambió el initialPayment del budget
             console.log(`Income inicial ya existente para Work ID: ${workRecord.idWork}. Verificando monto...`);
-            if (parseFloat(existingIncome.amount) !== parseFloat(budget.initialPayment)) {
-                console.log(`Actualizando monto en Income existente ${existingIncome.id} de ${existingIncome.amount} a ${budget.initialPayment}`);
-                await existingIncome.update({ amount: budget.initialPayment }, { transaction });
+            if (parseFloat(existingIncome.amount) !== actualInitialPaymentAmount) {
+                console.log(`Actualizando monto en Income existente ${existingIncome.id} de ${existingIncome.amount} a ${actualInitialPaymentAmount}`);
+                await existingIncome.update({ amount: actualInitialPaymentAmount }, { transaction });
             }
           }
-        } // --- Fin Lógica Work Existente ---
+        } 
   
-        // *** Enviar Notificación DESPUÉS de todas las operaciones de Work/Income ***
         console.log("Preparando datos para notificación 'incomeCreated'...");
-        // Crear el objeto de datos para la notificación usando los valores finales del budget
         const notificationDataForIncome = {
-          amount: budget.initialPayment, // Monto del ingreso actual (recalculado)
+          amount: actualInitialPaymentAmount, // Usar monto determinado
           propertyAddress: budget.propertyAddress,
-          budgetTotal: budget.totalPrice, // Total del presupuesto (recalculado)
-          budgetInitialPercentage: budget.initialPaymentPercentage // % del presupuesto (actualizado)
+          budgetTotal: budget.totalPrice, 
+          budgetInitialPercentage: budget.initialPaymentPercentage 
         };
         console.log("Datos para notificación:", notificationDataForIncome);
-        // Llamar a sendNotifications con el objeto de datos completo
         await sendNotifications('incomeCreated', notificationDataForIncome, null, req.io);
         console.log("Notificación 'incomeCreated' enviada.");
   
@@ -825,14 +827,26 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
   async uploadInvoice(req, res) { // Considera renombrar esta función a uploadPaymentProof para claridad
     try {
       const { idBudget } = req.params;
+      const { uploadedAmount } = req.body; // <--- Nuevo: Obtener el monto del cuerpo de la solicitud
 
       // Verificar si el archivo fue recibido
       console.log("ID del presupuesto recibido:", idBudget);
       console.log("Archivo recibido:", req.file);
+      console.log("Monto del comprobante recibido (uploadedAmount):", uploadedAmount); // <--- Nuevo log
 
       if (!req.file) {
-        // Esta ruta debe usar el middleware 'upload' de multer.js
         return res.status(400).json({ error: 'No se recibió ningún archivo de comprobante' }); 
+      }
+
+      let parsedUploadedAmount = null;
+      if (uploadedAmount !== undefined && uploadedAmount !== null && String(uploadedAmount).trim() !== '') {
+        parsedUploadedAmount = parseFloat(uploadedAmount);
+        if (isNaN(parsedUploadedAmount) || parsedUploadedAmount < 0) {
+          // Considerar si eliminar el archivo de Cloudinary si ya se subió y el monto es inválido.
+          // Por ahora, se devuelve error antes de la subida a Cloudinary si es posible, o se maneja después.
+          console.error("Monto del comprobante inválido:", uploadedAmount);
+          return res.status(400).json({ error: 'El monto del comprobante proporcionado no es un número válido o es negativo.' });
+        }
       }
 
       // --- 1. Determinar el tipo de archivo ---
@@ -842,7 +856,6 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
       } else if (req.file.mimetype === 'application/pdf') {
         proofType = 'pdf';
       } else {
-        // Salvaguarda por si el filtro de Multer falla
         console.log("Tipo de archivo no soportado:", req.file.mimetype);
         return res.status(400).json({ error: 'Tipo de archivo de comprobante no soportado (PDF o Imagen requeridos)' });
       }
@@ -850,17 +863,15 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
       // --- Fin Determinar tipo ---
 
       const buffer = req.file.buffer;
-      // Nombres genéricos para comprobantes
       const fileName = `payment_proof_${idBudget}_${Date.now()}`; 
-      const folderName = 'payment_proofs'; // Carpeta genérica
+      const folderName = 'payment_proofs'; 
       console.log("Nombre del archivo:", fileName);
       console.log("Carpeta de destino en Cloudinary:", folderName);
 
-      // Subir a Cloudinary
       const uploadResult = await new Promise((resolve, reject) => {
         cloudinary.uploader.upload_stream(
           {
-            resource_type:proofType === 'pdf' ? 'raw' : 'image', // 'auto' para PDF o Imagen
+            resource_type:proofType === 'pdf' ? 'raw' : 'image', 
             folder: folderName,
             public_id: fileName,
           },
@@ -876,13 +887,12 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
         ).end(buffer);
       });
 
-      // Buscar presupuesto
       console.log("Buscando presupuesto con ID:", idBudget);
       const budget = await Budget.findByPk(idBudget);
       if (!budget) {
         console.log("Presupuesto no encontrado. Eliminando archivo de Cloudinary...");
         try { 
-          await cloudinary.uploader.destroy(uploadResult.public_id, { resource_type: uploadResult.resource_type || 'raw' }); 
+          await cloudinary.uploader.destroy(uploadResult.public_id, { resource_type: uploadResult.resource_type || (proofType === 'pdf' ? 'raw' : 'image') }); 
         } catch (e) {
           console.error("Error al eliminar archivo de Cloudinary:", e);
         }
@@ -890,23 +900,34 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
       }
       console.log("Presupuesto encontrado:", budget);
 
-      // --- 2. Guardar URL y TIPO ---
-      budget.paymentInvoice = uploadResult.secure_url; // Guarda URL en este campo
-      budget.paymentProofType = proofType;             // Guarda TIPO en el nuevo campo
+      // --- 2. Guardar URL, TIPO y MONTO DEL COMPROBANTE ---
+      budget.paymentInvoice = uploadResult.secure_url; 
+      budget.paymentProofType = proofType;  
+      if (parsedUploadedAmount !== null) { // Solo guardar si se proporcionó y fue válido
+        budget.paymentProofAmount = parsedUploadedAmount; 
+        console.log("Monto del comprobante guardado:", parsedUploadedAmount);
+      } else {
+        // Opcional: si no se envía, se podría establecer a null explícitamente si el modelo lo permite
+        // y si se quiere limpiar un valor previo.
+        // budget.paymentProofAmount = null; 
+        console.log("No se proporcionó monto de comprobante o fue inválido, paymentProofAmount no se actualizó o se dejó como null.");
+      }
       await budget.save();
-      console.log("Presupuesto actualizado con comprobante:", budget);
+      console.log("Presupuesto actualizado con comprobante y monto (si aplica):", budget.toJSON());
       // --- Fin Guardar ---
 
       res.status(200).json({
-        message: 'Comprobante de pago cargado exitosamente', // Mensaje actualizado
+        message: 'Comprobante de pago cargado exitosamente', 
         cloudinaryUrl: uploadResult.secure_url,
-        proofType: proofType // Devuelve el tipo (opcional)
+        proofType: proofType,
+        uploadedAmount: budget.paymentProofAmount // Devolver el monto guardado
       });
     } catch (error) {
-      console.error('Error al subir el comprobante de pago:', error); // Mensaje actualizado
+      console.error('Error al subir el comprobante de pago:', error); 
       res.status(500).json({ error: error.message });
     }
   },
+  
   
 
   
