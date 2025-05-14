@@ -21,5 +21,6 @@ module.exports = {
   FRONTEND_URL: process.env.FRONTEND_URL,
   NODE_ENV: process.env.NODE_ENV,
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+  API_URL: process.env.API_URL,
 
 };

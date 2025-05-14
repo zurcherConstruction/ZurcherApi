@@ -1,14 +1,14 @@
-const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, NotificationApp } = require('../data');
+const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, ChangeOrder } = require('../data');
 const { sendEmail } = require('../utils/notifications/emailService');
-const { getNotificationDetails } = require('../utils/notifications/notificationService');
-const { getNotificationDetailsApp } = require('../utils/notifications/notificationServiceApp');
 const convertPdfDataToUrl = require('../utils/convertPdfDataToUrl');
 const { sendNotifications } = require('../utils/notifications/notificationManager');
 const { uploadToCloudinary, deleteFromCloudinary, uploadBufferToCloudinary } = require('../utils/cloudinaryUploader'); // Asegúrate de importar la función de subida a Cloudinary
 const multer = require('multer');
 const path = require('path');
-
-
+const {generateAndSaveChangeOrderPDF} = require('../utils/pdfGenerator')
+const fs = require('fs'); 
+const { v4: uuidv4 } = require('uuid');
+const { Op } = require('sequelize');
 
 const createWork = async (req, res) => {
   try {
@@ -710,6 +710,9 @@ const deleteImagesFromWork = async (req, res) => {
 
 
 
+
+
+
 module.exports = {
   createWork,
   getWorks,
@@ -720,5 +723,6 @@ module.exports = {
   attachInvoiceToWork,
   getAssignedWorks,
   addImagesToWork,
-  deleteImagesFromWork
+  deleteImagesFromWork,
+ 
 };

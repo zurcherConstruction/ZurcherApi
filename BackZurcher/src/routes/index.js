@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-
 const authRoutes = require('./authRoutes');
 const adminRoutes = require('./adminRoutes');
 const budgetRoutes = require('./BudgetRoutes');
@@ -18,9 +17,11 @@ const balanceRoutes = require('./balanceRoutes'); // Asegúrate de que la ruta s
 const systemRoutes = require('./systemRoutes'); // Asegúrate de que la ruta sea correcta
 const budgetItemRoutes = require('./BudgetItemRoutes'); // Asegúrate de que la ruta sea correcta
 const finalInvoiceRoutes = require('./finalInvoiceRutes'); // Asegúrate de que la ruta sea correcta
+const changeOrdersRoutes = require('./changeOrderRoutes'); // Asegúrate de que la ruta sea correcta
+
 
 router.use('/auth', authRoutes); // Registro y login no requieren token
-
+router.use('/change-orders',changeOrdersRoutes); // Ruta para comprobantes
 // Rutas protegidas (requieren token)
 const { verifyToken } = require('../middleware/isAuth');
 router.use(verifyToken); // Middleware global para rutas protegidas
@@ -40,4 +41,5 @@ router.use('/income', incomeRoutes); // Ruta para ingresos
 router.use('/expense', expenseRoutes); // Ruta para gastos
 router.use('/system', systemRoutes); // Ruta para comprobantes
 router.use('/final-invoice', finalInvoiceRoutes); // Ruta para comprobantes
+
 module.exports = router;

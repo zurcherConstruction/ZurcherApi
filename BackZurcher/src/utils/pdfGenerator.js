@@ -4,14 +4,20 @@ const path = require('path');
 const { format, parseISO } = require('date-fns'); // Para formatear fechas
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 // Helper para formatear fechas o devolver N/A
-const formatDateDDMMYYYY = (dateString) => {
-  if (!dateString) return 'N/A';
+const formatDateDDMMYYYY = (dateInput) => {
+  if (!dateInput) return 'N/A';
   try {
-    // parseISO maneja strings como '2025-04-29T19:01:03.311Z' o '2025-04-29'
-    const dateObj = parseISO(dateString);
+    let dateObj;
+    if (typeof dateInput === 'string') {
+      dateObj = parseISO(dateInput); // Si es string, intenta parsearlo
+    } else if (dateInput instanceof Date) {
+      dateObj = dateInput; // Si ya es un objeto Date, úsalo directamente
+    } else {
+      return 'Invalid Date Input'; // Si no es ni string ni Date
+    }
     return format(dateObj, 'MM-dd-yyyy');
   } catch (e) {
-    console.error("Error formateando fecha:", dateString, e);
+    console.error("Error formateando fecha:", dateInput, e);
     return 'Invalid Date';
   }
 };
@@ -650,4 +656,219 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
     }
   });
 }
-module.exports = { generateAndSaveBudgetPDF, generateAndSaveFinalInvoicePDF };
+
+async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyData) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      // --- 1. Preparar Datos ---
+      const {
+        id: changeOrderId,
+        changeOrderNumber, // Asumimos que lo tienes o lo generas
+        description: coDescription,
+        itemDescription,
+        hours,
+        unitCost,
+        totalCost,
+        status: coStatus,
+        clientMessage,
+        createdAt: coCreatedAt, // Fecha de creación del CO
+      } = changeOrderData;
+
+      const {
+        propertyAddress,
+        // Podrías necesitar el nombre del cliente del Work o su Budget/Permit asociado
+      } = workData;
+      
+      // Datos de tu empresa (puedes pasarlos o tenerlos como constantes)
+      const defaultCompanyData = {
+        name: "ZURCHER CONSTRUCTION LLC.",
+        addressLine1: "9837 Clear Cloud Aly",
+        cityStateZip: "Winter Garden 34787",
+        phone: "+1 (407) 419-4495",
+        email: "zurcherseptic@gmail.com", // O el email que uses para contacto
+        logoPath: path.join(__dirname, '../assets/logo_zurcher_construction.png') // Asegúrate que el path y nombre del logo sean correctos
+      };
+      const currentCompany = { ...defaultCompanyData, ...companyData };
+
+
+      // Datos del cliente (ejemplo, necesitarás obtenerlos del workData o sus relaciones)
+      const clientName = workData.Budget?.applicantName || workData.Permit?.applicantName || "Valued Customer";
+      const clientCompanyName = workData.Budget?.companyName || ""; // Si tienes compañía del cliente
+
+      const formattedCODate = formatDateDDMMYYYY(coCreatedAt || new Date().toISOString()); // Fecha del CO
+      const coNumber = changeOrderNumber || `CO-${changeOrderId.substring(0, 8)}`;
+
+
+      // --- 2. Configurar PDF ---
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const uploadsDir = path.join(__dirname, '../uploads/change_orders'); // Carpeta específica para COs
+      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+      const pdfPath = path.join(uploadsDir, `change_order_${coNumber.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
+      const stream = fs.createWriteStream(pdfPath);
+      doc.pipe(stream);
+
+      // --- CONSTANTES DE DISEÑO ---
+      const pageMargin = 50;
+      const contentWidth = doc.page.width - pageMargin * 2;
+      
+      // Colores
+      const primaryColor = '#003366'; // Azul oscuro para encabezados y acentos
+      const secondaryColor = '#4A90E2'; // Azul más claro
+      const textColor = '#333333';
+      const lightGrayColor = '#DDDDDD';
+      const whiteColor = '#FFFFFF';
+
+      // --- 3. Contenido del PDF ---
+
+      // === ENCABEZADO ===
+      const headerHeight = 80;
+      doc.rect(0, 0, doc.page.width, headerHeight).fill(primaryColor);
+      if (fs.existsSync(currentCompany.logoPath)) {
+        doc.image(currentCompany.logoPath, pageMargin, 15, { height: 50 });
+      }
+      doc.fontSize(24).fillColor(whiteColor).font('Helvetica-Bold')
+         .text('CHANGE ORDER', pageMargin + 200, 30, { align: 'right', width: contentWidth - 200 - pageMargin });
+      
+      doc.fillColor(textColor); // Reset color
+
+      // === INFORMACIÓN DE LA EMPRESA Y DEL DOCUMENTO ===
+      let currentY = headerHeight + 20;
+      doc.fontSize(9).font('Helvetica-Bold').text(currentCompany.name, pageMargin, currentY);
+      currentY += doc.currentLineHeight();
+      doc.font('Helvetica').text(currentCompany.addressLine1, pageMargin, currentY);
+      currentY += doc.currentLineHeight();
+      doc.text(currentCompany.cityStateZip, pageMargin, currentY);
+      currentY += doc.currentLineHeight();
+      doc.text(currentCompany.phone, pageMargin, currentY);
+
+      const rightInfoX = doc.page.width - pageMargin - 200;
+      currentY = headerHeight + 20; // Reset Y para la columna derecha
+      doc.fontSize(10).font('Helvetica-Bold').text(`NO: ${coNumber}`, rightInfoX, currentY, { width: 200, align: 'right' });
+      currentY += doc.currentLineHeight();
+      doc.font('Helvetica').text(`Date: ${formattedCODate}`, rightInfoX, currentY, { width: 200, align: 'right' });
+      currentY += doc.currentLineHeight();
+      if (clientCompanyName) {
+        doc.font('Helvetica-Bold').text(clientCompanyName.toUpperCase(), rightInfoX, currentY, { width: 200, align: 'right' });
+      } else {
+        doc.font('Helvetica-Bold').text(clientName.toUpperCase(), rightInfoX, currentY, { width: 200, align: 'right' });
+      }
+      
+      currentY = Math.max(currentY, headerHeight + 20 + (4 * 12)) + 20; // Espacio después de la info
+
+      // === DIRECCIÓN DE LA OBRA ===
+      doc.fontSize(11).font('Helvetica-Bold').text(propertyAddress.toUpperCase(), pageMargin, currentY, {align: 'left'});
+      currentY += doc.currentLineHeight() + 20;
+
+      // === TABLA DE ÍTEMS DEL CHANGE ORDER ===
+      const tableTop = currentY;
+      const colQtyX = pageMargin;
+      const colDescX = pageMargin + 60;
+      const colUnitPriceX = pageMargin + contentWidth - 180;
+      const colTotalX = pageMargin + contentWidth - 90;
+
+      // Cabeceras
+      doc.fontSize(10).font('Helvetica-Bold');
+      doc.rect(pageMargin, tableTop - 5, contentWidth, 20).fill(primaryColor);
+      doc.fillColor(whiteColor);
+      doc.text('Qty', colQtyX + 5, tableTop, { width: colDescX - colQtyX - 10 });
+      doc.text('Item Description', colDescX + 5, tableTop);
+      doc.text('Unit Price', colUnitPriceX, tableTop, { width: colTotalX - colUnitPriceX - 10, align: 'right' });
+      doc.text('Total', colTotalX, tableTop, { width: contentWidth - (colTotalX - pageMargin), align: 'right' });
+      doc.fillColor(textColor); // Reset color
+      currentY = tableTop + 25;
+
+      // Fila del ítem
+      doc.fontSize(10).font('Helvetica');
+      const qtyText = hours ? `${parseFloat(hours).toFixed(1)} hours` : '1'; // Asume 1 si no hay horas
+      const itemDescText = itemDescription || coDescription || "Work as per Change Order";
+      const unitPriceText = `$${parseFloat(unitCost || totalCost || 0).toFixed(2)}`;
+      const totalText = `$${parseFloat(totalCost || 0).toFixed(2)}`;
+
+      doc.text(qtyText, colQtyX + 5, currentY, { width: colDescX - colQtyX - 10 });
+      doc.text(itemDescText, colDescX + 5, currentY, { width: colUnitPriceX - colDescX - 10 });
+      doc.text(unitPriceText, colUnitPriceX, currentY, { width: colTotalX - colUnitPriceX - 10, align: 'right' });
+      doc.text(totalText, colTotalX, currentY, { width: contentWidth - (colTotalX - pageMargin), align: 'right' });
+      
+      currentY += doc.currentLineHeight() + 10; // Espacio después de la fila
+      // Línea debajo de la fila
+      doc.moveTo(pageMargin, currentY).lineTo(doc.page.width - pageMargin, currentY).strokeColor(lightGrayColor).stroke();
+      currentY += 15;
+
+      // === TOTAL DEL CHANGE ORDER ===
+      doc.fontSize(12).font('Helvetica-Bold');
+      doc.text('TOTAL CHANGE ORDER:', colUnitPriceX - 100, currentY, { width: 100, align: 'right' });
+      doc.text(`$${parseFloat(totalCost || 0).toFixed(2)}`, colTotalX, currentY, { width: contentWidth - (colTotalX - pageMargin), align: 'right' });
+      currentY += doc.currentLineHeight() + 20;
+
+      // === MENSAJE AL CLIENTE (SI EXISTE) ===
+      if (clientMessage) {
+        doc.fontSize(10).font('Helvetica-Oblique').text("Note:", pageMargin, currentY);
+        currentY += doc.currentLineHeight();
+        doc.font('Helvetica').text(clientMessage, pageMargin, currentY, { width: contentWidth });
+        currentY += doc.currentLineHeight() * (Math.ceil(doc.heightOfString(clientMessage, {width: contentWidth}) / doc.currentLineHeight())) + 10;
+      }
+      
+      // === SECCIÓN DE APROBACIÓN (SI EL ESTADO ES APROBADO) ===
+      // Esto es solo para mostrarlo en el PDF si YA está aprobado.
+      // La aprobación real vendrá del enlace en el email.
+      if (coStatus === 'approved') {
+        const approvedStampPath = path.join(__dirname, '../assets/approved_stamp.png'); // Necesitarás una imagen de sello "APPROVED"
+        if (fs.existsSync(approvedStampPath)) {
+            doc.image(approvedStampPath, doc.page.width - pageMargin - 150, currentY, { width: 120 });
+            currentY += 70; // Ajustar según el tamaño del sello
+        } else {
+            doc.fontSize(18).fillColor('green').font('Helvetica-Bold')
+               .text('APPROVED', doc.page.width - pageMargin - 200, currentY, { width: 180, align: 'center' });
+            currentY += 30;
+        }
+        // Podrías añadir "Approved by: [Nombre]" y "Date: [Fecha]" si tienes esa info
+      }
+
+      // Mover al final de la página para el "Thank You" y la info de pago si es necesario
+      const spaceForFooter = 150;
+      if (doc.page.height - currentY < spaceForFooter) {
+        doc.addPage();
+        currentY = pageMargin;
+      } else {
+        currentY = doc.page.height - spaceForFooter - 20; // Posicionar más arriba
+      }
+
+
+      // === INFORMACIÓN DE PAGO (Opcional, si aplica para COs) ===
+      doc.fontSize(9).font('Helvetica-Bold').text('Payment Information:', pageMargin, currentY);
+      currentY += doc.currentLineHeight();
+      doc.font('Helvetica');
+      doc.text(`Bank: ${currentCompany.bankName || "Chase"}`, pageMargin, currentY); // Añade bankName a companyData si es diferente
+      currentY += doc.currentLineHeight();
+      doc.text(`Routing number: ${currentCompany.routingNumber || "267084131"}`, pageMargin, currentY);
+      currentY += doc.currentLineHeight();
+      doc.text(`Account number: ${currentCompany.accountNumber || "686125371"}`, pageMargin, currentY);
+      currentY += doc.currentLineHeight();
+      doc.text(`Email: ${currentCompany.paymentEmail || "zurcherseptic@gmail.com"}`, pageMargin, currentY);
+      
+      // === THANK YOU ===
+      doc.fontSize(22).font('Helvetica-BoldOblique').fillColor(primaryColor)
+         .text('Thank You!', doc.page.width - pageMargin - 200, doc.page.height - pageMargin - 60, { width: 180, align: 'right' });
+
+
+      // --- 4. Finalizar PDF ---
+      doc.end();
+
+      // --- 5. Resolver Promesa ---
+      stream.on('finish', () => {
+        console.log(`Change Order PDF generado: ${pdfPath}`);
+        resolve(pdfPath);
+      });
+      stream.on('error', (err) => {
+        console.error("Error al escribir el stream del PDF del Change Order:", err);
+        reject(err);
+      });
+
+    } catch (error) {
+      console.error("Error dentro de generateAndSaveChangeOrderPDF:", error);
+      reject(error);
+    }
+  });
+}
+
+module.exports = { generateAndSaveBudgetPDF, generateAndSaveFinalInvoicePDF,generateAndSaveChangeOrderPDF };
