@@ -256,27 +256,24 @@ const UploadScreen = () => {
             return;
         }
         if (Platform.OS === 'ios') {
-          Alert.prompt('Añadir Comentario', 'Ingresa un comentario (opcional):', [
+     Alert.prompt('Cantidad de Camiones', 'Ingresa la cantidad de camiones:', [
             { text: 'Cancelar', style: 'cancel' },
-            { text: 'Siguiente', onPress: (commentText) => {
-                const comment = commentText || '';
-                Alert.prompt('Cantidad de Camiones', 'Ingresa la cantidad de camiones:', [
-                  { text: 'Cancelar', style: 'cancel' },
-                  { text: 'Cargar Imagen', onPress: async (truckCountInput) => {
-                      const count = parseInt(truckCountInput, 10);
-                      if (isNaN(count) || count < 0) {
-                        Alert.alert('Error', 'Por favor, ingresa un número válido de camiones.');
-                        return;
-                      }
-                      await processAndUploadImage(assetToProcess.uri, comment, count, selectedStage); // Usar selectedStage
-                  }},
-                ], 'plain-text', '', 'numeric');
+            { text: 'Cargar Imagen', onPress: async (truckCountInput) => {
+                const count = parseInt(truckCountInput, 10);
+                if (isNaN(count) || count < 0) {
+                  Alert.alert('Error', 'Por favor, ingresa un número válido de camiones.');
+                  return;
+                }
+                await processAndUploadImage(assetToProcess.uri, '', count, selectedStage); // Pasar comentario vacío
             }},
-          ], 'plain-text');
+          ], 'plain-text', '', 'numeric');
         } else { 
-          await processAndUploadImage(assetToProcess.uri, '', null, selectedStage); // Usar selectedStage
+          // Para Android, si quieres pedir cantidad, necesitarías un modal personalizado o similar.
+          // Actualmente, solo sube la imagen. Si quieres añadir cantidad, se necesitaría un flujo de UI.
+          // Por ahora, mantenemos el comportamiento de subir sin comentario ni cantidad explícita aquí.
+          await processAndUploadImage(assetToProcess.uri, '', null, selectedStage); // Pasar comentario vacío y null para cantidad
         }
-      } else { 
+      } else {  
         let commentForLast = '';
         if (Platform.OS === 'ios') {
           const askCommentPromise = new Promise((resolve) => {
@@ -328,6 +325,7 @@ const UploadScreen = () => {
     }
   };
 
+
   const handleTakePhoto = async () => { // Sin stageOverride
     // const stageToUse = selectedStage; // Ya no es necesario
 
@@ -351,48 +349,51 @@ const UploadScreen = () => {
       const imageUri = result.assets[0].uri;
       const isTruckStage = selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra'; // Usar selectedStage
       if (Platform.OS === 'ios') {
-        Alert.prompt(
-          'Añadir Comentario',
-          'Ingresa un comentario (opcional):',
-          [
-            { text: 'Cancelar', style: 'cancel' },
-            {
-              text: 'Siguiente',
-              onPress: (commentText) => {
-                const comment = commentText || '';
-                if (isTruckStage) {
-                  Alert.prompt(
-                    'Cantidad de Camiones',
-                    'Ingresa la cantidad de camiones:',
-                    [
-                      { text: 'Cancelar', style: 'cancel' },
-                      {
-                        text: 'Cargar Imagen',
-                        onPress: (truckCountInput) => {
-                          const count = parseInt(truckCountInput, 10);
-                          if (isNaN(count) || count < 0) {
-                            Alert.alert('Error', 'Por favor, ingresa un número válido de camiones.');
-                            return;
-                          }
-                          processAndUploadImage(imageUri, comment, count, selectedStage); // Usar selectedStage
-                        },
-                      },
-                    ],
-                    'plain-text',
-                    '',
-                    'numeric'
-                  );
-                } else {
-                  processAndUploadImage(imageUri, comment, null, selectedStage); // Usar selectedStage
-                }
+        if (isTruckStage) {
+          // Directamente pedir cantidad de camiones, sin comentario
+          Alert.prompt(
+            'Cantidad de Camiones',
+            'Ingresa la cantidad de camiones:',
+            [
+              { text: 'Cancelar', style: 'cancel' },
+              {
+                text: 'Cargar Imagen',
+                onPress: (truckCountInput) => {
+                  const count = parseInt(truckCountInput, 10);
+                  if (isNaN(count) || count < 0) {
+                    Alert.alert('Error', 'Por favor, ingresa un número válido de camiones.');
+                    return;
+                  }
+                  processAndUploadImage(imageUri, '', count, selectedStage); // Pasar comentario vacío
+                },
               },
-            },
-          ],
-          'plain-text'
-        );
+            ],
+            'plain-text',
+            '',
+            'numeric'
+          );
+        } else {
+          // Pedir comentario para otras etapas
+          Alert.prompt(
+            'Añadir Comentario',
+            'Ingresa un comentario (opcional):',
+            [
+              { text: 'Cancelar', style: 'cancel' },
+              {
+                text: 'Cargar Imagen', // Cambiado de 'Siguiente'
+                onPress: (commentText) => {
+                  const comment = commentText || '';
+                  processAndUploadImage(imageUri, comment, null, selectedStage); 
+                },
+              },
+            ],
+            'plain-text'
+          );
+        }
       } else { 
-        let truckCount = null;
-        await processAndUploadImage(imageUri, '', truckCount, selectedStage); // Usar selectedStage
+        // Para Android, si quieres pedir cantidad para truckStage, necesitarías un modal personalizado.
+        // Actualmente, solo sube la imagen.
+        await processAndUploadImage(imageUri, '', null, selectedStage); // Pasar comentario vacío y null para cantidad
       }
     }
   };
