@@ -55,7 +55,7 @@ const InspectionFlowManager = ({ work, selectedWorkImageId, isVisible }) => {
                 registerInspectorResponse,
                 registerSignedApplicantDocument,
                 registerInspectionResult,
-                // requestReinspection, // Descomentar si requestReinspection maneja archivos directamente aquí
+                 requestReinspection, // Descomentar si requestReinspection maneja archivos directamente aquí
             ].includes(actionCreator);
 
             if (actionInvolvesFiles) {
@@ -628,10 +628,7 @@ const InspectionActionForm = ({ inspection, actionType, onSubmit, isLoading, ini
             case 'scheduleReceived':
                 return (
                     <>
-                        <div className="mb-4">
-                            <label htmlFor="inspectorScheduledDate" className="block text-sm font-medium text-gray-700">Fecha Programada (YYYY-MM-DD)</label>
-                            <input type="date" name="inspectorScheduledDate" id="inspectorScheduledDate" required onChange={handleInputChange} value={formData.inspectorScheduledDate || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
-                        </div>
+                       
                         <div className="mb-4">
                             <label htmlFor="documentForApplicantFile" className="block text-sm font-medium text-gray-700">Documento(s) para Aplicante (PDF/Imagen)</label>
                             <input
@@ -749,7 +746,7 @@ const InspectionActionForm = ({ inspection, actionType, onSubmit, isLoading, ini
                             )}
                         </div>
                         
-                        <div className="mb-4">
+                        {/* <div className="mb-4">
                             <label htmlFor="reinspectionFiles" className="block text-sm font-medium text-gray-700">
                                 Adjuntar Nuevos Documentos/Imágenes Adicionales para Reinspección (Opcional)
                             </label>
@@ -762,7 +759,7 @@ const InspectionActionForm = ({ inspection, actionType, onSubmit, isLoading, ini
                                 className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                             />
                             {renderSelectedFiles('reinspectionFiles')}
-                        </div>
+                        </div> */}
                     </>
                 );
             default:

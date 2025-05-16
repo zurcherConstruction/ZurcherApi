@@ -21,12 +21,20 @@ const uploadBufferToCloudinary = (buffer, options = {}) => {
   return new Promise((resolve, reject) => {
     const uploadStream = cloudinary.uploader.upload_stream(options, (error, result) => {
       if (error) {
+        console.error('Error en upload_stream callback:', error); // Loguear el error aquí
         return reject(error);
       }
-      if (!result) { // Añadir verificación por si result es undefined
+      if (!result) {
+        console.error('Callback de Cloudinary no devolvió resultado.');
         return reject(new Error("Cloudinary did not return a result."));
       }
-      resolve({ secure_url: result.secure_url, public_id: result.public_id });
+      // Devolver el objeto 'result' completo
+      resolve(result); 
+    });
+    // Manejar errores del stream directamente también puede ser útil
+    uploadStream.on('error', (streamError) => {
+        console.error('Error en el stream de subida de Cloudinary:', streamError);
+        reject(streamError);
     });
     uploadStream.end(buffer);
   });

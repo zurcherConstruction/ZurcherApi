@@ -62,6 +62,10 @@ const stateNotificationMap = {
     roles: ['admin','recept','owner'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido rechazado en la inspección inicial. Por favor, revisa los detalles y toma las medidas necesarias.`,
   },
+   reinspection_initial_requested: { // Added new status
+    roles: ['admin', 'recept', 'owner'], // Define appropriate roles
+    message: (work, context) => `Se ha solicitado una reinspección inicial para la obra en ${work.propertyAddress}. Inspección ID: ${context?.inspectionId || 'N/A'}.`,
+  },
   completed: {
     roles: ['owner', 'admin', 'recept'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido completado. Por favor, revisa el estado final.`,
@@ -85,6 +89,10 @@ const stateNotificationMap = {
   finalRejected: {
     roles: ['admin', 'recept'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido rechazado en la inspección final. Por favor, revisa los detalles.`,
+  },
+    reinspection_final_requested: { // Added new status
+    roles: ['admin', 'recept', 'owner'], // Define appropriate roles
+    message: (work, context) => `Se ha solicitado una reinspección final para la obra en ${work.propertyAddress}. Inspección ID: ${context?.inspectionId || 'N/A'}.`,
   },
   maintenance: {
     roles: ['owner'], 

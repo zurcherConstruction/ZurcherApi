@@ -101,7 +101,19 @@ module.exports = (sequelize) => {
     dateWorkerCorrected: { // Opcional: fecha en que el trabajador marcó como corregido
         type: DataTypes.DATE,
         allowNull: true,
-    }
+    },
+     reinspectionExtraDocumentUrl: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    reinspectionExtraDocumentPublicId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    reinspectionExtraDocumentOriginalName: { // Para guardar el nombre original del archivo
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   }, {
     timestamps: true,
   });

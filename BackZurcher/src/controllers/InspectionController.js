@@ -193,15 +193,29 @@ const sendDocumentToApplicant = async (req, res) => {
  * @description Registra la recepción del documento firmado por el aplicante.
  */
 const registerSignedApplicantDocument = async (req, res) => {
-  try {
+   try {
     const { inspectionId } = req.params;
-    const { notes } = req.body;
+    const { notes } = req.body; // Asumo que 'notes' viene del body si quieres añadir más notas aquí
 
     if (!req.file) {
       return res.status(400).json({ error: true, message: 'No se proporcionó el documento firmado.' });
     }
 
-    const inspection = await Inspection.findByPk(inspectionId);
+    // --- ASEGÚRATE DE QUE ESTA SECCIÓN ESTÉ ASÍ ---
+    const inspection = await Inspection.findByPk(inspectionId, {
+      include: [
+        {
+          model: Work,
+          as: 'Work', // Verifica que 'Work' sea el alias correcto en tu modelo Inspection
+          include: [
+            {
+              model: Permit,
+              as: 'Permit' // Verifica que 'Permit' sea el alias correcto en tu modelo Work
+            }
+          ]
+        }
+      ]
+    });
     if (!inspection) {
       return res.status(404).json({ error: true, message: 'Registro de inspección no encontrado.' });
     }
@@ -222,8 +236,61 @@ const registerSignedApplicantDocument = async (req, res) => {
     inspection.notes = notes ? `${inspection.notes || ''}\nDoc Firmado Aplicante: ${notes}`.trim() : inspection.notes;
     await inspection.save();
 
-    res.status(200).json({ message: 'Documento firmado por el aplicante registrado.', inspection });
+  if (inspection.signedDocumentFromApplicantUrl && inspection.processStatus === 'applicant_document_received') {
+    const workDetails = inspection.Work; 
+    let inspectorEmail = null;
 
+    if (inspection.notes) {
+      const emailMatch = inspection.notes.match(/(?:Email inspector:|Inspector:)\s*([\w@.-]+)/i);
+      if (emailMatch && emailMatch[1]) {
+        inspectorEmail = emailMatch[1];
+      }
+    }
+
+    if (inspectorEmail && workDetails) {
+      const mailSubject = `Documento Firmado por Aplicante Recibido - Obra: ${workDetails.propertyAddress}`;
+      const permitNumberText = workDetails.Permit ? workDetails.Permit.permitNumber : 'N/A';
+      
+      // ESTA ES LA PARTE CLAVE PARA EL ENLACE DEL DOCUMENTO
+      const mailText = `Estimado Inspector,\n\nSe ha recibido el documento firmado por el aplicante para la inspección relacionada con la obra ubicada en ${workDetails.propertyAddress} (Permit N°: ${permitNumberText}).\n\nPuede ver el documento firmado aquí: ${inspection.signedDocumentFromApplicantUrl}\n\nSaludos,\nEl Sistema de Zurcher Construction`;
+      const mailHtml = `<p>Estimado Inspector,</p><p>Se ha recibido el documento firmado por el aplicante para la inspección relacionada con la obra ubicada en <strong>${workDetails.propertyAddress}</strong> (Permit N°: <strong>${permitNumberText}</strong>).</p><p>Puede ver el documento firmado haciendo clic en el siguiente enlace: <a href="${inspection.signedDocumentFromApplicantUrl}" target="_blank">Ver Documento Firmado</a></p><p>Saludos,<br>El Sistema de Zurcher Construction</p>`;
+     
+      const attachments = [];
+      if (inspection.signedDocumentFromApplicantUrl) {
+        // Extraer un nombre de archivo razonable de la URL o usar uno genérico
+        let signedDocFilename = 'Documento_Firmado_Aplicante.pdf';
+        try {
+            // Intentar obtener el nombre del archivo original si lo guardaste en la inspección
+            // o construirlo a partir de la URL si es posible.
+            // Por ahora, un nombre genérico con la dirección de la obra.
+            signedDocFilename = `Doc_Firmado_${workDetails.propertyAddress.replace(/\s+/g, '_')}.pdf`;
+        } catch (e) { /* Usar el nombre por defecto */ }
+
+        attachments.push({
+          filename: signedDocFilename,
+          path: inspection.signedDocumentFromApplicantUrl, // Nodemailer descargará desde esta URL
+          // contentType: 'application/pdf' // Opcional, Nodemailer usualmente lo infiere bien
+        });
+      }
+
+       await sendEmail({
+        to: inspectorEmail,
+        subject: mailSubject,
+        text: mailText,
+        html: mailHtml,
+        attachments: attachments, // <--- USAR LOS ATTACHMENTS
+      });
+      console.log(`API_INFO: Correo con documento firmado (URL: ${inspection.signedDocumentFromApplicantUrl}) enviado al inspector ${inspectorEmail} para la inspección ${inspection.idInspection}`);
+    } else {
+      console.warn(`API_WARN: No se pudo enviar correo al inspector para la inspección ${inspection.idInspection}. Email del inspector no encontrado (${inspectorEmail}) o detalles de la obra faltantes (workDetails: ${workDetails ? 'presente' : 'ausente'}).`);
+    }
+  }
+  // --- FIN NUEVO ---
+
+  res.status(200).json({
+    message: 'Documento firmado por el aplicante registrado exitosamente.',
+    inspection,
+  });
   } catch (error) {
     console.error('Error en registerSignedApplicantDocument:', error);
     res.status(500).json({ error: true, message: 'Error interno del servidor al registrar documento firmado.' });
@@ -371,6 +438,7 @@ const requestReinspection = async (req, res, next) => {
   try {
     const { workId } = req.params;
     const { inspectorEmail, notes, originalInspectionId, workImageId } = req.body; // workImageId es opcional para reinspección
+    const reinspectionFile = req.file; 
 
     if (!inspectorEmail) {
       return res.status(400).json({ error: true, message: 'Falta el email del inspector.' });
@@ -421,12 +489,13 @@ const requestReinspection = async (req, res, next) => {
       // workerHasCorrected será false por defecto para esta nueva inspección
     });
 
-
-    // 2. Preparar y enviar correo simple a inspectores
-    const emailSubject = `Solicitud de REINSPECCIÓN (${previousInspectionTypeForNotification}) - Obra: ${work.propertyAddress}`;
-    const emailText = `Estimados Inspectores,\n\nSe solicita una REINSPECCIÓN (${previousInspectionTypeForNotification}) para la obra ubicada en ${work.propertyAddress} (Permit N°: ${work.Permit?.permitNumber || 'N/A'}).\nLas correcciones necesarias han sido realizadas por el personal de campo.\n\nPor favor, procedan a programar la visita e informar el resultado.\n\nSaludos cordiales.`;
+ // 2. Preparar y enviar correo simple a inspectores
+    const emailSubject = `Solicitud de REINSPECCIÓN (${previousInspectionTypeForNotification}) - Obra: ${work.propertyAddress}`; // 'const' está bien aquí
+    let emailText = `Estimados Inspectores,\n\nSe solicita una REINSPECCIÓN (${previousInspectionTypeForNotification}) para la obra ubicada en ${work.propertyAddress} (Permit N°: ${work.Permit?.permitNumber || 'N/A'}).\nLas correcciones necesarias han sido realizadas por el personal de campo.\n\nPor favor, procedan a programar la visita e informar el resultado.\n\nSaludos cordiales.`; // 'let' es correcto
     
-    // Adjuntar documentos si es necesario para la reinspección (Permit, imagen opcional)
+    // Asegúrate de que emailHtml se inicialice aquí con 'let'
+    let emailHtml = `<p>${emailText.replace(/\n/g, '<br>')}</p>`; 
+
     const attachments = [];
     if (work.Permit && work.Permit.pdfData) {
         attachments.push({
@@ -435,19 +504,92 @@ const requestReinspection = async (req, res, next) => {
             contentType: 'application/pdf'
         });
     }
+
+    // Añadir enlace a la imagen si se proporcionó workImageId y la imagen existe
     if (workImageId && work.images && work.images.length > 0) {
         const workImage = work.images[0];
-        // Aquí podrías adjuntar la imagen o enviar el link como en requestInitialInspection
-        // emailText += `\n\nImagen de referencia (opcional): ${workImage.imageUrl}`;
+        if (workImage && workImage.imageUrl) {
+            const imageLinkText = `\n\nImagen de referencia actualizada: Ver Imagen`;
+            const imageLinkHtmlContent = `<p>Imagen de referencia actualizada: <a href="${workImage.imageUrl}">Ver Imagen</a></p>`; // Renombré para evitar confusión con la variable emailHtml
+            emailText += imageLinkText;
+            emailHtml += imageLinkHtmlContent; // Ahora esto debería funcionar
+        }
     }
+
+      if (reinspectionFile) {
+        try {
+          console.log("API_INFO: Procesando reinspectionFile para subida:", {
+            originalname: reinspectionFile.originalname,
+            mimetype: reinspectionFile.mimetype,
+            size: reinspectionFile.size
+          });
+
+          // --- INICIO: PRUEBA DE SIMPLIFICACIÓN DE SUBIDA A CLOUDINARY ---
+          const originalNameBase = reinspectionFile.originalname.substring(0, reinspectionFile.originalname.lastIndexOf('.')) || reinspectionFile.originalname;
+          const originalExtension = reinspectionFile.originalname.substring(reinspectionFile.originalname.lastIndexOf('.')); // .pdf
+          
+          // Construir el public_id para que la extensión .pdf quede al final
+          const testPublicId = `reinspection_test/${workId}/${reinspection.idInspection}/${originalNameBase}_${Date.now()}${originalExtension}`;
+          // Ejemplo: reinspection_test/workId/inspectionId/certificado_1747426542727.pdf
+
+          console.log("API_INFO: Intentando subir a Cloudinary con public_id modificado:", testPublicId);
+
+          const cloudinaryResult = await uploadBufferToCloudinary(
+            reinspectionFile.buffer,
+            {
+              folder: `reinspections_test_folder/${workId}/${reinspection.idInspection}`, // La carpeta se antepone al public_id si este no es una ruta completa
+              public_id: testPublicId, // Cloudinary usará esto como la parte final de la ruta del archivo
+              resource_type: 'raw',
+              original_filename: reinspectionFile.originalname,
+              
+            }
+          );
+          // --- FIN: PRUEBA DE SIMPLIFICACIÓN DE SUBIDA A CLOUDINARY ---
+
+          console.log("API_INFO: Cloudinary upload result (prueba simplificada):", { 
+            secure_url: cloudinaryResult.secure_url, 
+            public_id: cloudinaryResult.public_id,
+            format: cloudinaryResult.format, // Ver qué formato detecta Cloudinary
+            resource_type: cloudinaryResult.resource_type, // Confirmar que es 'raw'
+            bytes: cloudinaryResult.bytes, // Comparar con reinspectionFile.size
+            original_filename: cloudinaryResult.original_filename // Ver qué nombre original guarda Cloudinary
+          });
+
+          // Comprobar si el tamaño del archivo subido coincide con el original
+          if (reinspectionFile.size !== cloudinaryResult.bytes) {
+            console.warn("API_WARN: El tamaño del archivo original (", reinspectionFile.size, ") no coincide con el tamaño del archivo en Cloudinary (", cloudinaryResult.bytes, "). Esto podría indicar un problema en la subida.");
+          }
+
+          reinspection.reinspectionExtraDocumentUrl = cloudinaryResult.secure_url;
+          reinspection.reinspectionExtraDocumentPublicId = cloudinaryResult.public_id; // El public_id devuelto por Cloudinary
+          reinspection.reinspectionExtraDocumentOriginalName = reinspectionFile.originalname;
+
+            const suggestedDownloadFileName = reinspectionFile.originalname.replace(/^~\$/, '');
+          
+          attachments.push({
+            filename: suggestedDownloadFileName, // Usar el nombre original o uno limpio
+            path: cloudinaryResult.secure_url, // Nodemailer descargará desde esta URL para adjuntar
+            // contentType: reinspectionFile.mimetype // Opcional, Nodemailer usualmente lo infiere
+          });
+          const extraDocLinkText = `\n\nDocumento adicional para reinspección: Ver Documento (${reinspectionFile.originalname})`;
+          const extraDocLinkHtml = `<p>Documento adicional para reinspección: <a href="${cloudinaryResult.secure_url}" target="_blank" download="${suggestedDownloadFileName}">Ver Documento (${reinspectionFile.originalname})</a></p>`;
+          emailText += extraDocLinkText;
+          emailHtml += extraDocLinkHtml;
+          console.log("API_INFO: Enlace a documento extra añadido al correo. URL:", cloudinaryResult.secure_url, "Download Filename:", suggestedDownloadFileName);
+
+        } catch (uploadError) {
+          console.error('Error al subir documento de reinspección a Cloudinary:', uploadError);
+          // Considera cómo manejar este error
+        }
+      }
 
 
     await sendEmail({
       to: inspectorEmail,
       subject: emailSubject,
       text: emailText,
-      html: `<p>${emailText.replace(/\n/g, '<br>')}</p>`,
-      attachments, // Añadir adjuntos si los preparaste
+      html: emailHtml, // Usar el HTML con el enlace
+      attachments,
     });
 
     // 3. Actualizar estado de la obra (la inspección ya se creó con el processStatus correcto)
