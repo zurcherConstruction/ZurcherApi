@@ -5,6 +5,7 @@ const {generateAndSaveChangeOrderPDF} = require('../utils/pdfGenerator')
 const fs = require('fs'); 
 const { v4: uuidv4 } = require('uuid');
 const { Op } = require('sequelize');
+const cloudinary = require('cloudinary').v2;
 
 const recordOrUpdateChangeOrderDetails = async (req, res) => {
   try {
@@ -15,6 +16,7 @@ const recordOrUpdateChangeOrderDetails = async (req, res) => {
       changeOrderId: changeOrderIdFromBody, 
       description,
       itemDescription,
+      isStoneExtractionCO,
       hours,
       unitCost,
       totalCost,
@@ -28,49 +30,56 @@ const recordOrUpdateChangeOrderDetails = async (req, res) => {
     const effectiveChangeOrderId = changeOrderIdFromParams || changeOrderIdFromBody;
 
     if (effectiveChangeOrderId) {
-      
       changeOrder = await ChangeOrder.findByPk(effectiveChangeOrderId, {
-        include: [{ model: Work, as: 'work' }] // Incluir el trabajo para obtener workId y datos del trabajo
+        include: [{ model: Work, as: 'work' }] 
       });
 
       if (!changeOrder) {
         return res.status(404).json({ error: true, message: 'Change Order no encontrado.' });
       }
-      // Si el CO existe, el trabajo asociado es changeOrder.work
       work = changeOrder.work; 
       if (!work) {
-         // Esto no debería pasar si la FK está bien, pero por si acaso
         return res.status(404).json({ error: true, message: 'Trabajo asociado al Change Order no encontrado.' });
       }
 
-      // Permitir actualización solo si está en borrador o pendiente de revisión del admin
-      if (changeOrder.status !== 'draft' && changeOrder.status !== 'pendingAdminReview') {
+      // Validar si se puede modificar
+      if (changeOrder.status !== 'draft' && changeOrder.status !== 'pendingAdminReview' && changeOrder.status !== 'rejected') {
         return res.status(400).json({
           error: true,
           message: `El Change Order no puede modificarse en su estado actual: ${changeOrder.status}`,
         });
       }
+
+      // Si la CO estaba rechazada y se está editando, resetear para un nuevo ciclo
+      if (changeOrder.status === 'rejected') {
+        changeOrder.status = 'pendingAdminReview'; // O 'draft', según prefieras el flujo
+        changeOrder.approvalToken = null;
+        changeOrder.rejectionToken = null;
+        changeOrder.respondedAt = null;
+        changeOrder.pdfUrl = null; // Importante: Limpiar la URL del PDF anterior
+        changeOrder.requestedAt = null; // Limpiar fecha de envío anterior
+        console.log(`Change Order ${changeOrder.id} estaba 'rejected', ahora es '${changeOrder.status}' y se han limpiado los campos de respuesta/PDF/envío.`);
+      }
     } else if (workIdFromParams) {
-      // Si no hay ID de CO pero sí de Trabajo (ruta POST para crear nuevo CO)
+      // Creando un nuevo CO para un trabajo existente
       work = await Work.findByPk(workIdFromParams);
       if (!work) {
         return res.status(404).json({ error: true, message: 'Trabajo no encontrado.' });
       }
-      // Crear un nuevo Change Order
       changeOrder = await ChangeOrder.create({
         workId: workIdFromParams,
-        description: description || "Change Order",
-        status: 'draft',
+        description: description || "Change Order", // Valor por defecto si no se provee
+        status: 'draft', // Estado inicial
+        // ... otros campos que quieras inicializar ...
       });
       isNew = true;
     } else {
-      // Ni ID de CO ni ID de Trabajo en los parámetros esperados
-      return res.status(400).json({ error: true, message: 'Se requiere ID de Trabajo para crear un Change Order o ID de Change Order para actualizar.' });
+      return res.status(400).json({ error: true, message: 'Se requiere ID de Trabajo o ID de Change Order.' });
     }
 
     // Actualizar los campos del Change Order
+   // Actualizar los campos del Change Order
     changeOrder.description = description !== undefined ? description : changeOrder.description;
-    // ... (resto de las actualizaciones de campos como estaban) ...
     changeOrder.itemDescription = itemDescription !== undefined ? itemDescription : changeOrder.itemDescription;
     changeOrder.hours = hours !== undefined ? parseFloat(hours) : changeOrder.hours;
     changeOrder.unitCost = unitCost !== undefined ? parseFloat(unitCost) : changeOrder.unitCost;
@@ -84,20 +93,30 @@ const recordOrUpdateChangeOrderDetails = async (req, res) => {
     changeOrder.clientMessage = clientMessage !== undefined ? clientMessage : changeOrder.clientMessage;
     changeOrder.adminNotes = adminNotes !== undefined ? adminNotes : changeOrder.adminNotes;
     
-    if (isNew && description && changeOrder.totalCost > 0) {
-        changeOrder.status = 'pendingAdminReview';
-    } else if (!isNew) {
-        if (changeOrder.status === 'draft' && description && changeOrder.totalCost > 0) {
+    // Lógica para cambiar el estado a 'pendingAdminReview' si es nuevo o estaba en 'draft'
+    // No se aplica si ya se cambió de 'rejected' a 'pendingAdminReview' arriba.
+    if (changeOrder.status !== 'pendingAdminReview') { // Evitar cambiar si ya lo pusimos en pendingAdminReview desde rejected
+        if (isNew && description && changeOrder.totalCost && changeOrder.totalCost > 0) {
             changeOrder.status = 'pendingAdminReview';
+        } else if (!isNew && changeOrder.status === 'draft') { 
+            if (description && changeOrder.totalCost && changeOrder.totalCost > 0) {
+                changeOrder.status = 'pendingAdminReview';
+            }
         }
     }
-    // ... (fin de las actualizaciones de campos) ...
-
+    
     await changeOrder.save();
 
-    // Para la respuesta, nos aseguramos de tener el 'work' asociado si no lo incluimos antes
+    const coIsForStoneExtraction = isStoneExtractionCO === true || (description && description.toLowerCase().includes('extracción de piedras'));
+
+    if (work && coIsForStoneExtraction) { 
+      work.stoneExtractionCONeeded = false; 
+      await work.save();
+      console.log(`[Backend] Work ${work.idWork} actualizado: stoneExtractionCONeeded a false.`);
+    }
+
     const finalChangeOrder = await ChangeOrder.findByPk(changeOrder.id, {
-        include: [{ model: Work, as: 'work' }]
+        include: [{ model: Work, as: 'work' }] 
     });
 
     res.status(isNew ? 201 : 200).json({
@@ -111,8 +130,10 @@ const recordOrUpdateChangeOrderDetails = async (req, res) => {
   }
 };
 
+
+// ...existing code...
 const sendChangeOrderToClient = async (req, res) => {
-  let pdfPath;
+  let pdfPath; // Declarar pdfPath aquí para que esté disponible en el bloque finally
   try {
     const { changeOrderId } = req.params;
 
@@ -122,8 +143,8 @@ const sendChangeOrderToClient = async (req, res) => {
           model: Work,
           as: 'work',
            include: [
-            { model: Budget, as: 'budget'}, // Asegúrate de pedir los atributos necesarios
-            { model: Permit, as: 'Permit', attributes: ['applicantEmail', 'applicantName'] }  // Y aquí también
+            { model: Budget, as: 'budget'}, 
+            { model: Permit, as: 'Permit', attributes: ['applicantEmail', 'applicantName'] } 
           ]
         }
       ]
@@ -136,7 +157,7 @@ const sendChangeOrderToClient = async (req, res) => {
       return res.status(500).json({ error: true, message: 'No se pudo cargar la información del trabajo asociado al Change Order.' });
     }
 
-    // Verificar estado del Change Order (ej. 'pendingAdminReview' o 'draft' si se permite enviar desde draft)
+    // Permitir enviar si está en 'draft' o 'pendingAdminReview'
     if (changeOrder.status !== 'pendingAdminReview' && changeOrder.status !== 'draft') {
       return res.status(400).json({
         error: true,
@@ -147,86 +168,61 @@ const sendChangeOrderToClient = async (req, res) => {
         return res.status(400).json({ error: true, message: 'El Change Order debe tener un costo total definido antes de enviarse.'});
     }
 
-
-    // --- 1. Generar el PDF ---
-    // Datos de la empresa (puedes tenerlos en una config o pasarlos)
     const companyData = {
       name: "ZURCHER CONSTRUCTION LLC.",
       addressLine1: "9837 Clear Cloud Aly",
       cityStateZip: "Winter Garden 34787",
       phone: "+1 (407) 419-4495",
       email: "zurcherseptic@gmail.com",
-      logoPath: path.join(__dirname, '../assets/logo_zurcher_construction.png'), // Ajusta la ruta a tu logo
-      // ... otros datos de la empresa que necesite el PDF ...
+      logoPath: path.join(__dirname, '../assets/logo_zurcher_construction.png'), 
     };
-    const pdfPath = await generateAndSaveChangeOrderPDF(changeOrder.get({ plain: true }), changeOrder.work.get({ plain: true }), companyData);
     
-    let pdfUrlForRecord = pdfPath; // URL local por defecto
+    pdfPath = await generateAndSaveChangeOrderPDF(changeOrder.get({ plain: true }), changeOrder.work.get({ plain: true }), companyData);
+    
+    let pdfUrlForRecord = null; // Iniciar como null
 
-    // --- 2. (Opcional) Subir PDF a Cloudinary ---
-    if (process.env.CLOUDINARY_URL) { // Verifica si Cloudinary está configurado
+    if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+      console.log('[ChangeOrderController] Cloudinary credentials found, attempting upload...');
       try {
         const uploadResult = await cloudinary.uploader.upload(pdfPath, {
-          folder: `change_orders/${changeOrder.work.idWork}`, // Organiza en Cloudinary
-          public_id: `co_${changeOrder.id}`,
-          resource_type: 'raw', // o 'image' si Cloudinary lo maneja mejor como imagen
+          folder: `change_orders/${changeOrder.work.idWork}`, 
+          public_id: `co_${changeOrder.id}`, // Usar un ID único para el archivo en Cloudinary
+          resource_type: 'raw', 
+          overwrite: true, // Sobrescribir si ya existe un PDF para esta CO (útil para reenvíos)
         });
         pdfUrlForRecord = uploadResult.secure_url;
-        changeOrder.pdfUrl = pdfUrlForRecord; // Guardar URL de Cloudinary
-        // Opcional: Borrar el archivo PDF local después de subirlo a Cloudinary
-         fs.unlinkSync(pdfPath); 
       } catch (uploadError) {
         console.error("Error al subir Change Order PDF a Cloudinary:", uploadError);
-        // Decidir si continuar sin Cloudinary o devolver error
-        // Por ahora, continuamos con la URL local si falla la subida
+        pdfUrlForRecord = null; // Asegurar que sea null si falla la subida
       }
-    } else {
-      changeOrder.pdfUrl = pdfPath; // Guardar path local si no se usa Cloudinary
     }
+    changeOrder.pdfUrl = pdfUrlForRecord; // Guardar URL de Cloudinary o null
 
-
-    // --- 3. Obtener Email del Cliente ---
     const workDetails = changeOrder.work;
     let clientEmail = null;
-    let clientName = "Valued Customer"; // Nombre por defecto
+    let clientName = "Valued Customer"; 
 
     if (workDetails.budget && workDetails.budget.applicantEmail) {
       clientEmail = workDetails.budget.applicantEmail;
       clientName = workDetails.budget.applicantName || clientName;
-      console.log(`Email del cliente obtenido del Budget: ${clientEmail}`);
     } else if (workDetails.Permit && workDetails.Permit.applicantEmail) {
       clientEmail = workDetails.Permit.applicantEmail;
       clientName = workDetails.Permit.applicantName || clientName;
-      console.log(`Email del cliente obtenido del Permit: ${clientEmail}`);
-    } else {
-      console.log('No se encontró applicantEmail ni en Budget ni en Permit para el trabajo:', workDetails.idWork);
     }
 
- if (!clientEmail) {
-      if (pdfPath && fs.existsSync(pdfPath) && !process.env.CLOUDINARY_URL) { // Solo borrar si no se subió a Cloudinary y existe
-          fs.unlinkSync(pdfPath); // Comentado temporalmente para no borrar el PDF durante la depuración
-         console.log(`PDF no borrado (depuración): ${pdfPath}`);
-      }
-      return res.status(400).json({ error: true, message: 'No se pudo encontrar el email del cliente para este trabajo. Verifique los datos del Budget o Permit asociados.' });
+    if (!clientEmail) {
+      return res.status(400).json({ error: true, message: 'No se pudo encontrar el email del cliente.' });
     }
 
-    // --- 4. Generar Tokens y Enlaces de Acción ---
-  
-
-
- // ... (Generar Tokens y Enlaces de Acción como antes) ...
     const approvalToken = uuidv4();
     const rejectionToken = uuidv4();
     changeOrder.approvalToken = approvalToken;
     changeOrder.rejectionToken = rejectionToken;
-       const frontendBaseUrl = process.env.FRONTEND_URL2 || 'http://localhost:5174'; // URL base de tu frontend
+    const frontendBaseUrl = process.env.FRONTEND_URL2 || 'http://localhost:5174'; 
 
-    // Los enlaces ahora apuntan a una página del frontend que manejará la lógica
-    // Esta página del frontend luego llamará a la API del backend
     const approvalLink = `${frontendBaseUrl}/change-order-response?token=${approvalToken}&decision=approved&coId=${changeOrder.id}`;
     const rejectionLink = `${frontendBaseUrl}/change-order-response?token=${rejectionToken}&decision=rejected&coId=${changeOrder.id}`;
 
-     // --- 5. Enviar Email ---
     const emailSubject = `Acción Requerida: Orden de Cambio #${changeOrder.changeOrderNumber || changeOrder.id.substring(0,8)} para ${workDetails.propertyAddress}`;
     const emailHtml = `
       <p>Estimado/a ${clientName},</p>
@@ -249,49 +245,39 @@ const sendChangeOrderToClient = async (req, res) => {
       <p>Si tiene alguna pregunta, no dude en contactarnos.</p>
       <p>Gracias,<br/>El Equipo de ${companyData.name}</p>
     `;
-
-    console.log(`Intentando enviar email a: ${clientEmail}`);
     
-    // --- AJUSTE AQUÍ ---
     await sendEmail({
       to: clientEmail,
       subject: emailSubject,
       html: emailHtml,
-      text: `Texto alternativo: ${emailSubject}`, // O un texto plano más elaborado
+      text: `Texto alternativo: ${emailSubject}`, 
       attachments: [{ filename: `Change_Order_${changeOrder.id.substring(0,8)}.pdf`, path: pdfPath }]
     });
-    // --- FIN DEL AJUSTE ---
 
-    console.log(`Email enviado (o intento realizado) a ${clientEmail}`);
-
-    // --- 6. Actualizar Estado del Change Order ---
     changeOrder.status = 'pendingClientApproval';
-    changeOrder.requestedAt = new Date();
-    // pdfUrl ya se asignó si se usa Cloudinary, o se puede dejar como path local si no.
-    // Si no usas Cloudinary y quieres guardar una URL relativa o un identificador del archivo:
-    if (!changeOrder.pdfUrl) changeOrder.pdfUrl = `local_co_pdf_${path.basename(pdfPath)}`;
-
-
+    changeOrder.requestedAt = new Date(); // Registrar la fecha de (re)envío
     await changeOrder.save();
     
-    // Opcional: Borrar el archivo PDF local si ya se envió y/o subió a Cloudinary
-     if (process.env.CLOUDINARY_URL) fs.unlinkSync(pdfPath);
-
-
     res.status(200).json({
       message: 'Change Order enviado al cliente exitosamente.',
-      changeOrder: await ChangeOrder.findByPk(changeOrder.id) // Devolver el CO actualizado
+      changeOrder: await ChangeOrder.findByPk(changeOrder.id) 
     });
 
   } catch (error) {
-    console.error('Error al enviar Change Order al cliente:', error);
-    // Intentar borrar el PDF si se creó y hubo un error posterior
-    if (pdfPath && fs.existsSync(pdfPath)) {
-      fs.unlinkSync(pdfPath);
-    }
+    console.error('Error DETALLADO dentro de sendChangeOrderToClient:', error);
     res.status(500).json({ error: true, message: 'Error interno del servidor al enviar el Change Order.', details: error.message });
+  } finally {
+    if (pdfPath && fs.existsSync(pdfPath)) {
+      try {
+        fs.unlinkSync(pdfPath);
+        console.log(`Archivo PDF local ${pdfPath} borrado exitosamente.`);
+      } catch (unlinkError) {
+        console.error(`Error al borrar el archivo PDF local ${pdfPath}:`, unlinkError);
+      }
+    }
   }
 };
+// ...existing code...
 
 const handleClientChangeOrderResponse = async (req, res) => {
   try {
@@ -446,9 +432,121 @@ const handleClientChangeOrderResponse = async (req, res) => {
   }
 };
 
+const previewChangeOrderPDF = async (req, res) => {
+  let tempPdfPath = null; // Para guardar la ruta del PDF temporalmente
+  try {
+    const { changeOrderId } = req.params;
+    const changeOrder = await ChangeOrder.findByPk(changeOrderId, {
+      include: [{ model: Work, as: 'work', include: [{ model: Budget, as: 'budget'}] }] // Incluir lo necesario para el PDF
+    });
+
+    if (!changeOrder) {
+      return res.status(404).json({ error: true, message: 'Change Order no encontrado.' });
+    }
+    if (!changeOrder.work) {
+      return res.status(500).json({ error: true, message: 'No se pudo cargar la información del trabajo asociado.' });
+    }
+
+    // No es necesario verificar el estado aquí, ya que es solo una previsualización
+    // a menos que quieras restringirlo a ciertos estados.
+
+    const companyData = {
+      name: "ZURCHER CONSTRUCTION LLC.",
+      addressLine1: "9837 Clear Cloud Aly",
+      cityStateZip: "Winter Garden 34787",
+      phone: "+1 (407) 419-4495",
+      email: "zurcherseptic@gmail.com",
+      logoPath: path.join(__dirname, '../assets/logo_zurcher_construction.png'),
+    };
+
+    // Usar generateAndSaveChangeOrderPDF para crear el archivo PDF
+    // La función guarda el archivo, así que necesitamos su ruta.
+    tempPdfPath = await generateAndSaveChangeOrderPDF(changeOrder.get({ plain: true }), changeOrder.work.get({ plain: true }), companyData, true /* isPreview */);
+    // El 'true' como último argumento es un ejemplo si modificas generateAndSaveChangeOrderPDF
+    // para que no use un nombre de archivo basado en UUID para previews, o para que lo guarde en una carpeta 'temp'.
+    // Si no, simplemente generará el archivo como siempre.
+
+    if (!fs.existsSync(tempPdfPath)) {
+        console.error(`[previewChangeOrderPDF] El archivo PDF no se generó o no se encontró en: ${tempPdfPath}`);
+        return res.status(500).json({ error: true, message: 'Error al generar la vista previa del PDF.' });
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="preview_co_${changeOrder.id.substring(0,8)}.pdf"`); // 'inline' para mostrar en navegador
+
+    const fileStream = fs.createReadStream(tempPdfPath);
+    fileStream.pipe(res);
+
+    // Limpiar el archivo temporal después de enviarlo
+    fileStream.on('close', () => {
+      if (tempPdfPath && fs.existsSync(tempPdfPath)) {
+        fs.unlink(tempPdfPath, (err) => {
+          if (err) console.error(`Error al borrar el PDF temporal de previsualización ${tempPdfPath}:`, err);
+          else console.log(`PDF temporal de previsualización ${tempPdfPath} borrado.`);
+        });
+      }
+    });
+    fileStream.on('error', (err) => {
+        console.error(`Error en el stream del archivo PDF de previsualización ${tempPdfPath}:`, err);
+        // Asegurarse de borrar el archivo si aún existe y no se envió
+        if (tempPdfPath && fs.existsSync(tempPdfPath)) {
+            fs.unlinkSync(tempPdfPath);
+        }
+        if (!res.headersSent) {
+            res.status(500).send('Error al transmitir el PDF.');
+        }
+    });
+
+  } catch (error) {
+    console.error('Error al generar la vista previa del PDF del Change Order:', error);
+    // Intentar borrar el PDF si se creó y hubo un error
+    if (tempPdfPath && fs.existsSync(tempPdfPath)) {
+      try {
+        fs.unlinkSync(tempPdfPath);
+      } catch (unlinkErr) {
+        console.error(`Error al intentar borrar PDF temporal ${tempPdfPath} después de un error:`, unlinkErr);
+      }
+    }
+    if (!res.headersSent) {
+        res.status(500).json({ error: true, message: 'Error interno del servidor al generar la vista previa del PDF.', details: error.message });
+    }
+  }
+};
+
+const deleteChangeOrder = async (req, res) => {
+  try {
+    const { changeOrderId } = req.params;
+    const changeOrder = await ChangeOrder.findByPk(changeOrderId);
+
+    if (!changeOrder) {
+      return res.status(404).json({ error: true, message: 'Change Order no encontrado.' });
+    }
+
+    // Si tienes archivos PDF en Cloudinary, podrías eliminarlos aquí también (opcional)
+    if (changeOrder.pdfUrl && changeOrder.pdfUrl.includes('cloudinary.com')) {
+      try {
+        // Extraer public_id de la URL si lo necesitas para borrar en Cloudinary
+        const publicId = `change_orders/${changeOrder.workId}/co_${changeOrder.id}`;
+        await cloudinary.uploader.destroy(publicId, { resource_type: 'raw' });
+      } catch (cloudErr) {
+        console.error('Error al eliminar PDF de Cloudinary:', cloudErr);
+      }
+    }
+
+    await changeOrder.destroy();
+
+    res.status(200).json({ success: true, message: 'Change Order eliminada correctamente.' });
+  } catch (error) {
+    console.error('Error al eliminar Change Order:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor al eliminar la Change Order.', details: error.message });
+  }
+};
+
 module.exports = {
 
   recordOrUpdateChangeOrderDetails,
   sendChangeOrderToClient,
-  handleClientChangeOrderResponse
+  handleClientChangeOrderResponse,
+  previewChangeOrderPDF,
+  deleteChangeOrder,
 };

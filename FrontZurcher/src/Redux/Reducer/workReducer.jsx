@@ -5,6 +5,8 @@ const initialState = {
   selectedWork: null, // Obra seleccionada (por ID)
   loading: false, // Estado de carga
   error: null, // Mensaje de error
+  loadingChangeOrder: false, // Estado de carga específico para CO
+  errorChangeOrder: null,
 };
 
 const workSlice = createSlice({
@@ -114,6 +116,75 @@ const workSlice = createSlice({
       state.loading = false;
       state.error = action.payload;
     },
+    // --- Reducers para Órdenes de Cambio ---
+    createChangeOrderRequest: (state) => {
+      state.loadingChangeOrder = true;
+      state.errorChangeOrder = null;
+    },
+    createChangeOrderSuccess: (state, action) => {
+      state.loadingChangeOrder = false;
+      // action.payload es { message: '...', changeOrder: { ... } }
+      const { changeOrder } = action.payload;
+      if (state.selectedWork && state.selectedWork.idWork === changeOrder.idWork) {
+        // Asegúrate que la propiedad ChangeOrders exista y sea un array
+        if (!state.selectedWork.ChangeOrders) {
+          state.selectedWork.ChangeOrders = [];
+        }
+        state.selectedWork.ChangeOrders.push(changeOrder);
+      }
+      // Opcional: si también mantienes una lista global de COs, actualízala aquí.
+    },
+    createChangeOrderFailure: (state, action) => {
+      state.loadingChangeOrder = false;
+      state.errorChangeOrder = action.payload.message; // action.payload es { message, details }
+    },
+
+    updateChangeOrderRequest: (state) => {
+      state.loadingChangeOrder = true;
+      state.errorChangeOrder = null;
+    },
+    updateChangeOrderSuccess: (state, action) => {
+      state.loadingChangeOrder = false;
+      // action.payload es { message: '...', changeOrder: { ... } }
+      const { changeOrder } = action.payload;
+      if (state.selectedWork && state.selectedWork.idWork === changeOrder.idWork) {
+        // Asegúrate que la propiedad ChangeOrders exista y sea un array
+        if (!state.selectedWork.ChangeOrders) {
+          state.selectedWork.ChangeOrders = [];
+        }
+        const coIndex = state.selectedWork.ChangeOrders.findIndex(co => co.idChangeOrder === changeOrder.idChangeOrder);
+        if (coIndex !== -1) {
+          state.selectedWork.ChangeOrders[coIndex] = changeOrder;
+        } else {
+          // Si no se encontró, podría ser un caso raro, agrégalo
+          state.selectedWork.ChangeOrders.push(changeOrder);
+        }
+      }
+    },
+    updateChangeOrderFailure: (state, action) => {
+      state.loadingChangeOrder = false;
+      state.errorChangeOrder = action.payload.message; // action.payload es { message, details }
+    },
+    clearChangeOrderError: (state) => {
+      state.errorChangeOrder = null;
+    },
+    deleteChangeOrderRequest: (state) => {
+  state.loadingChangeOrder = true;
+  state.errorChangeOrder = null;
+},
+deleteChangeOrderSuccess: (state, action) => {
+  state.loadingChangeOrder = false;
+  // Elimina la CO del array de la obra seleccionada
+  if (state.selectedWork && state.selectedWork.ChangeOrders) {
+    state.selectedWork.ChangeOrders = state.selectedWork.ChangeOrders.filter(
+      (co) => co.idChangeOrder !== action.payload
+    );
+  }
+},
+deleteChangeOrderFailure: (state, action) => {
+  state.loadingChangeOrder = false;
+  state.errorChangeOrder = action.payload;
+},
 
     // Limpiar errores
     clearWorkError: (state) => {
@@ -142,6 +213,16 @@ export const {
   deleteWorkSuccess,
   deleteWorkFailure,
   clearWorkError,
+  createChangeOrderRequest,
+  createChangeOrderSuccess,
+  createChangeOrderFailure,
+  updateChangeOrderRequest,
+  updateChangeOrderSuccess,
+  updateChangeOrderFailure,
+  clearChangeOrderError,
+  deleteChangeOrderRequest,
+  deleteChangeOrderSuccess,
+  deleteChangeOrderFailure,
 } = workSlice.actions;
 
 export default workSlice.reducer;

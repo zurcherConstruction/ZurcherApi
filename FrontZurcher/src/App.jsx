@@ -45,7 +45,7 @@ import PriceBudgetManagement from "./Components/Budget/PriceBudgetManagement";
 import ItemsBudgets from "./Components/Budget/ItemsBudgets";
 import EditBudget from "./Components/Budget/EditBudget";
 import Summary from "./Components/Summary";
-import ChangeOrderResponsePage from "./Components/ChangeOrderResponsePage";
+
 
 function App() {
   const dispatch = useDispatch();
@@ -80,7 +80,7 @@ function App() {
           <Routes>
             {/* Ruta pública */}
             <Route path="/" element={<Landing />} />
-           <Route path="/change-order-response" element={<ChangeOrderResponsePage />} />
+           
             {/* Rutas privadas */}
             <Route
               path="/dashboard"

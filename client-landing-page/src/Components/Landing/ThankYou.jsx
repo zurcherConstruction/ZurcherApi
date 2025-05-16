@@ -1,6 +1,4 @@
-import React from 'react';
-// Importa tu imagen de fondo desde la carpeta assets
-import backgroundImage from '../../assets/banner.png'; // IMPORTANT: Replace 'thankyou-background.jpg' with your image file name
+import backgroundImage from '../../assets/5.jpeg'; // IMPORTANT: Replace 'thankyou-background.jpg' with your image file name
 
 function ThankYou() {
   // Configuración de WhatsApp
@@ -23,13 +21,13 @@ function ThankYou() {
     backgroundPosition: 'center', // Centra la imagen
     backgroundRepeat: 'no-repeat',
     padding: '20px',
-    color: '#fff', // Color de texto base, ajusta si tu imagen es muy clara
+    color: '#e5e7e9', // Color de texto base, ajusta si tu imagen es muy clara
     textAlign: 'center',
     fontFamily: 'Arial, sans-serif',
   };
 
   const overlayStyle = { // Un overlay semi-transparente para mejorar la legibilidad del texto
-    backgroundColor: 'rgba(0, 0, 0, 0.5)', // Negro con 50% de opacidad
+    backgroundColor: 'rgba(0, 0, 0, 0.7)', // Negro con 50% de opacidad
     padding: '40px',
     borderRadius: '10px',
     maxWidth: '600px',
@@ -37,10 +35,10 @@ function ThankYou() {
   };
 
   const headingStyle = {
-    fontSize: '2.8em',
+    fontSize: '3em',
     fontWeight: 'bold',
     marginBottom: '20px',
-    // textShadow: '2px 2px 4px rgba(0,0,0,0.7)', // Sombra para el texto si es necesario
+     textShadow: '2px 2px 4px rgba(0,0,0,0.7)', // Sombra para el texto si es necesario
   };
 
   const paragraphStyle = {
@@ -77,13 +75,13 @@ function ThankYou() {
   return (
     <div style={pageStyle}>
       <div style={overlayStyle}>
-        <h1 style={headingStyle}>¡Gracias por Confiar en Nosotros!</h1>
+        <h1 style={headingStyle}>¡Thank you for trusting us!</h1>
         <p style={paragraphStyle}>
-          Apreciamos enormemente que hayas elegido nuestros servicios. Estamos emocionados de comenzar
-          y comprometidos a brindarte la mejor experiencia.
+         We greatly appreciate your choice of our services. We're excited to get started
+and committed to providing you with the best experience.
         </p>
         <p style={paragraphStyle}>
-          Si tienes alguna pregunta o necesitas asistencia, no dudes en contactarnos.
+         If you have any questions or need assistance, please do not hesitate to contact us..
         </p>
         <button
           style={buttonStyle}
@@ -91,7 +89,7 @@ function ThankYou() {
           onMouseOver={handleButtonMouseOver}
           onMouseOut={handleButtonMouseOut}
         >
-          Contáctanos por WhatsApp
+          Contact us
         </button>
       </div>
     </div>

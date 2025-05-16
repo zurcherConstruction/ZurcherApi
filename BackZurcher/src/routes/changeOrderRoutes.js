@@ -12,7 +12,10 @@ router.put('/:changeOrderId', verifyToken, allowRoles(['admin', 'recept', 'owner
 router.post(
   '/:changeOrderId/send-to-client',verifyToken, allowRoles(['admin', 'recept', 'owner','worker']), ChangeOrderController.sendChangeOrderToClient
 );
+router.get('/:changeOrderId/preview-pdf', verifyToken, allowRoles(['admin', 'recept', 'owner','worker']), ChangeOrderController.previewChangeOrderPDF);
 
 router.get('/respond', ChangeOrderController.handleClientChangeOrderResponse);
+
+router.delete('/:changeOrderId', verifyToken, allowRoles(['admin', 'recept', 'owner','worker']), ChangeOrderController.deleteChangeOrder);
 
 module.exports = router;

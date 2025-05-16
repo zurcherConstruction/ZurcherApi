@@ -35,6 +35,7 @@ const UploadScreen = () => {
   const [isBatchUploading, setIsBatchUploading] = useState(false);
   const [isMarkingCorrected, setIsMarkingCorrected] = useState(false); // Nuevo estado para el botón
   const [isMarkingCovered, setIsMarkingCovered] = useState(false);
+ const [notifiedForStoneCO, setNotifiedForStoneCO] = useState(false); // Para controlar la notificación/actualización
 
   // --- EFECTO PARA BUSCAR DETALLES DEL TRABAJO ---
   useEffect(() => {
@@ -55,7 +56,9 @@ const UploadScreen = () => {
   // --- AÑADIR ESTE LOG ---
   useEffect(() => {
     if (currentWork && currentWork.idWork === idWork) { // Solo loguear cuando currentWork esté poblado con datos del estado
-        
+         if (currentWork.stoneExtractionCONeeded === false) {
+        setNotifiedForStoneCO(false);
+      }
         if (currentWork.inspections) { // <--- CAMBIO AQUÍ
            
         } else {
@@ -485,6 +488,21 @@ const UploadScreen = () => {
             }
             return newUrls;
         });
+
+        // --- LÓGICA PARA CHANGE ORDER POR EXTRACCIÓN DE PIEDRAS ---
+        if (stageToUse === 'extracción de piedras' && (!currentWork || currentWork.stoneExtractionCONeeded === false) && !notifiedForStoneCO) {
+          Alert.alert(
+            "Extracción de Piedras Registrada",
+            "Se ha subido una imagen para 'extracción de piedras'. Se notificará a la oficina para generar una Orden de Cambio."
+          );
+          // Despachar acción para actualizar el work en el backend
+          dispatch(updateWork(idWork, { stoneExtractionCONeeded: true }))
+            .then(() => {
+              setNotifiedForStoneCO(true); // Marcar como notificado para esta sesión/estado
+              dispatch(fetchWorkById(idWork)); // Volver a cargar los datos del work para reflejar el cambio
+            })
+            .catch(err => console.error("Error al marcar stoneExtractionCONeeded:", err));
+        }
        
         // Alert.alert('Éxito', `Imagen ${filename} cargada.`); // Quizás no alertar por cada una en un lote
       } else {
@@ -721,6 +739,15 @@ const UploadScreen = () => {
         <Text className="text-center text-sm text-gray-500 mb-3">
             Estado Actual: <Text className="font-semibold">{currentWork.status}</Text>
         </Text>
+
+            {currentWork && currentWork.stoneExtractionCONeeded === true && (
+          <View className="my-4 p-3 border border-yellow-500 bg-yellow-100 rounded-lg items-center">
+            <Ionicons name="warning-outline" size={20} color="#D97706" />
+            <Text className="text-yellow-700 text-center ml-2">
+              Atención: Se requiere una Orden de Cambio por extracción de piedras. La oficina la generará.
+            </Text>
+          </View>
+        )}
 
        {/* --- BLOQUE DE INSPECCIÓN RECHAZADA MODIFICADO --- */}
        {currentWork.status === 'rejectedInspection' && relevantInitialInspection && relevantInitialInspection.finalStatus === 'rejected' && (

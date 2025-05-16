@@ -1,25 +1,28 @@
 import { useEffect, useState, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchWorkById, updateWork } from "../../Redux/Actions/workActions";
+import { fetchWorkById, updateWork, sendChangeOrderToClient, deleteChangeOrder } from "../../Redux/Actions/workActions";
 import { balanceActions } from "../../Redux/Actions/balanceActions";
 import {
   fetchIncomesAndExpensesRequest,
   fetchIncomesAndExpensesSuccess,
   fetchIncomesAndExpensesFailure,
 } from "../../Redux/Reducer/balanceReducer"; // Ajusta esta ruta si es necesario
-import {fetchInspectionsByWork} from '../../Redux/Actions/inspectionActions'
+import { fetchInspectionsByWork } from '../../Redux/Actions/inspectionActions'
 import { useParams } from "react-router-dom";
 //import api from "../../utils/axios";
 import FinalInvoice from "../Budget/FinalInvoice"
 import InspectionFlowManager from "./InspectionFlowManager";
+import { ExclamationTriangleIcon } from '@heroicons/react/24/solid'; // Para el banner
+import CreateChangeOrderModal from './CreateChangeOrderModal'; // Importar el nuevo modal
+import api from "../../utils/axios";
 
 
 const WorkDetail = () => {
   const { idWork } = useParams();
   const dispatch = useDispatch();
 
- 
- 
+
+
   const {
     selectedWork: work,
     loading: workLoading, // Renombrado para evitar conflicto si FinalInvoice usa 'loading'
@@ -39,6 +42,14 @@ const WorkDetail = () => {
     loading: balanceLoading, // Renombrado para evitar conflicto
     error: balanceError, // Renombrado para evitar conflicto
   } = useSelector((state) => state.balance);
+
+  const [showCreateCOModal, setShowCreateCOModal] = useState(false);
+  const [showEditCOModal, setShowEditCOModal] = useState(false); // Estado para el modal de edición
+  const [editingCO, setEditingCO] = useState(null); // Estado para la CO que se está editando
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [pdfUrlCo, setPdfUrlCo] = useState('');
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState('');
 
   // --- 1. CALCULAR TOTALES Y BALANCE ---
   const { totalIncome, totalExpense, balance } = useMemo(() => {
@@ -75,12 +86,12 @@ const WorkDetail = () => {
       const initialPaymentDisplayAmount = work.budget.paymentProofAmount !== null && !isNaN(parseFloat(work.budget.paymentProofAmount))
         ? parseFloat(work.budget.paymentProofAmount).toFixed(2)
         : parseFloat(work.budget.initialPayment || 0).toFixed(2);
-      
+
       const paymentNotes = work.budget.paymentProofAmount !== null && !isNaN(parseFloat(work.budget.paymentProofAmount))
         ? `Comprobante cargado por $${initialPaymentDisplayAmount}`
         : `Pago inicial del presupuesto por $${initialPaymentDisplayAmount}`;
 
-        consolidated.push({
+      consolidated.push({
         idReceipt: `budget-${work.budget.idBudget}-payment`,
         fileUrl: work.budget.paymentInvoice,
         mimeType: mimeType,
@@ -181,43 +192,97 @@ const WorkDetail = () => {
       : [];
   }, [work?.images]);
 
-   // Lógica para determinar el botón a mostrar en el encabezado
-   let displayHeaderButton = false;
-   let headerButtonText = "";
-   let headerButtonAction = null;
-   let headerButtonClasses = "text-white font-bold py-2 px-4 rounded shadow-lg transition duration-150 ease-in-out";
- 
-   // --- LÓGICA DEL BOTÓN AJUSTADA ---
+   // Define los estados en los que se debe poder seleccionar una imagen para inspección/reinspección
+  const canSelectInspectionImageStates = [
+    'installed', // Para inspección inicial
+    'rejectedInspection', // Para reinspección de inicial
+    'finalRejected' // Para reinspección de final (si tienes un estado así)
+    // Añade otros estados si es necesario, por ejemplo, si una reinspección puede pedirse desde 'workerCorrected'
+  ];
 
-   // Caso 1: Si work.status es 'approvedInspection', mostrar botón para cambiar a 'coverPending'
-   if (work?.status === 'approvedInspection') {
+  // Lógica para determinar el botón a mostrar en el encabezado
+  let displayHeaderButton = false;
+  let headerButtonText = "";
+  let headerButtonAction = null;
+  let headerButtonClasses = "text-white font-bold py-2 px-4 rounded shadow-lg transition duration-150 ease-in-out";
+
+  // --- LÓGICA DEL BOTÓN AJUSTADA ---
+
+  // Caso 1: Si work.status es 'approvedInspection', mostrar botón para cambiar a 'coverPending'
+  if (work?.status === 'approvedInspection') {
     displayHeaderButton = true;
-    headerButtonText = "Inspección Aprobada, Pasar a Cubierta"; 
+    headerButtonText = "Inspección Aprobada, Pasar a Cubierta";
     headerButtonClasses += " bg-green-500 hover:bg-green-600";
     headerButtonAction = async () => {
       console.log(`Cambiando estado de obra ${idWork} de 'approvedInspection' a 'coverPending'`);
       await dispatch(updateWork(idWork, { status: "coverPending" }));
       // dispatch(fetchWorkById(idWork)); // Opcional: Redux debe manejar la actualización del store
     };
-   } else if (work?.status === 'covered') { // <-- ESTE ES EL BLOQUE PARA 'COVERED'
-     displayHeaderButton = true;
-    
-     headerButtonText = "Marcar Factura Final Enviada"; 
-     headerButtonClasses += " bg-purple-600 hover:bg-purple-700"; // Color distintivo
-     headerButtonAction = async () => {
-       console.log(`Cambiando estado de obra ${idWork} de 'covered' a 'invoiceFinal'`);
-       await dispatch(updateWork(idWork, { status: "invoiceFinal" }));
-       // dispatch(fetchWorkById(idWork)); // Opcional: Redux debe manejar la actualización del store
-     };
-   }
+  } else if (work?.status === 'covered') { // <-- ESTE ES EL BLOQUE PARA 'COVERED'
+    displayHeaderButton = true;
+
+    headerButtonText = "Marcar Factura Final Enviada";
+    headerButtonClasses += " bg-purple-600 hover:bg-purple-700"; // Color distintivo
+    headerButtonAction = async () => {
+      console.log(`Cambiando estado de obra ${idWork} de 'covered' a 'invoiceFinal'`);
+      await dispatch(updateWork(idWork, { status: "invoiceFinal" }));
+      // dispatch(fetchWorkById(idWork)); // Opcional: Redux debe manejar la actualización del store
+    };
+  }
+
+  const needsStoneExtractionCO = work?.stoneExtractionCONeeded === true;
+
+  const handleSendCOToClient = async (coId) => {
+    if (!coId) {
+      console.error("ID de Orden de Cambio no válido para enviar.");
+      alert("Error: ID de Orden de Cambio no válido.");
+      return;
+    }
+    // Opcional: Mostrar un indicador de carga
+    console.log(`Intentando enviar CO ${coId} al cliente...`);
+    try {
+      const result = await dispatch(sendChangeOrderToClient(coId));
+      if (result && !result.error) {
+        alert(result.message || 'Orden de Cambio enviada al cliente exitosamente!');
+        // Refrescar los datos de la obra para ver el estado actualizado de la CO
+        dispatch(fetchWorkById(work.idWork));
+      } else {
+        alert(`Error al enviar la Orden de Cambio: ${result?.message || 'Error desconocido'}`);
+      }
+    } catch (error) {
+      alert(`Error al enviar la Orden de Cambio: ${error.message}`);
+    }
+    // Opcional: Ocultar indicador de carga
+  };
+  const handleEditCO = (coToEdit) => {
+    console.log("Abriendo modal para editar CO:", coToEdit);
+    setEditingCO(coToEdit);
+    setShowEditCOModal(true);
+  };
+
+  const handleDeleteCO = async (coId) => {
+    if (!window.confirm("¿Estás seguro de que deseas eliminar esta Orden de Cambio? Esta acción no se puede deshacer.")) return;
+    try {
+      const result = await dispatch(deleteChangeOrder(coId));
+      if (result && result.success) {
+        alert("Orden de Cambio eliminada correctamente.");
+        dispatch(fetchWorkById(work.idWork)); // Refresca la lista
+      } else {
+        alert(result?.message || "Error al eliminar la Orden de Cambio.");
+      }
+    } catch (error) {
+      alert(error.message || "Error inesperado al eliminar la Orden de Cambio.");
+    }
+  };
 
 
-   if (workLoading) {
+
+  if (workLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex justify-center items-center h-screen">
-        <p className="text-xl text-gray-700">Cargando detalles de la obra...</p>
-      </div>
+          <p className="text-xl text-gray-700">Cargando detalles de la obra...</p>
+        </div>
       </div>
     );
   }
@@ -272,19 +337,65 @@ const WorkDetail = () => {
   };
 
   const finalInvoiceVisibleStates = [
-    'approvedInspection',  
-        'rejectedInspection',
-        'coverPending', 
-        'covered',
-        'invoiceFinal',
-        'paymentReceived',
-        'finalInspectionPending', 
-        'finalApproved',
-        'finalRejected',
-        'maintenance',
+    'approvedInspection',
+    'rejectedInspection',
+    'coverPending',
+    'covered',
+    'invoiceFinal',
+    'paymentReceived',
+    'finalInspectionPending',
+    'finalApproved',
+    'finalRejected',
+    'maintenance',
   ];
 
   const canShowFinalInvoiceSection = finalInvoiceVisibleStates.includes(work.status);
+
+
+  const handlePreviewPdf = async (coId) => {
+    setPdfLoading(true);
+    setPdfError('');
+    setPdfUrlCo(''); // Limpiar URL anterior
+    setShowPdfModal(true); // Mostrar modal inmediatamente con indicador de carga
+
+    try {
+      // La instancia 'api' ya tiene la baseURL y enviará el token
+      const response = await api.get(`/change-orders/${coId}/preview-pdf`, {
+        responseType: 'blob', // Importante: para recibir datos binarios
+      });
+
+      if (response.data) {
+        const file = new Blob([response.data], { type: 'application/pdf' });
+        const fileURL = URL.createObjectURL(file);
+        setPdfUrlCo(fileURL);
+      } else {
+        throw new Error("No se recibieron datos del PDF.");
+      }
+    } catch (error) {
+      console.error("Error al cargar la vista previa del PDF:", error);
+      let message = "Error al cargar el PDF.";
+      if (error.response) {
+        // Intentar decodificar el error si es un blob (json de error)
+        if (error.response.data instanceof Blob && error.response.data.type === "application/json") {
+          try {
+            const errorJson = JSON.parse(await error.response.data.text());
+            message = errorJson.message || message;
+          } catch (e) {
+            // No hacer nada si no se puede parsear
+          }
+        } else if (error.response.data && error.response.data.message) {
+          message = error.response.data.message;
+        } else if (error.response.statusText) {
+          message = error.response.statusText;
+        }
+      } else if (error.message) {
+        message = error.message;
+      }
+      setPdfError(message);
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
 
   return (
@@ -322,6 +433,39 @@ const WorkDetail = () => {
           </button>
         )}
       </div>
+
+      {/* --- BANNER Y BOTÓN PARA ORDEN DE CAMBIO POR EXTRACCIÓN DE PIEDRAS --- */}
+      {needsStoneExtractionCO && (
+        <div className="mb-6 bg-yellow-50 border-l-4 border-yellow-500 p-4 shadow-md rounded-md">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <ExclamationTriangleIcon className="h-6 w-6 text-yellow-600" aria-hidden="true" />
+            </div>
+            <div className="ml-3 flex-grow">
+              <h3 className="text-md font-semibold text-yellow-800">
+                Acción Requerida: Orden de Cambio
+              </h3>
+              <div className="mt-1 text-sm text-yellow-700">
+                <p>
+                  Se han registrado imágenes/costos por "extracción de piedras" desde la aplicación móvil. Es necesario generar una Orden de Cambio para formalizar estos trabajos/costos adicionales.
+                </p>
+              </div>
+            </div>
+            <div className="ml-auto pl-3">
+              <div className="-mx-1.5 -my-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateCOModal(true)}
+                  className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
+                >
+                  Generar CO
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* --- FIN BANNER --- */}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Columna izquierda: Tarjetas desplegables */}
@@ -394,7 +538,7 @@ const WorkDetail = () => {
                     <strong>Total Presupuesto:</strong> ${parseFloat(work.budget.totalPrice || 0).toFixed(2)}
                   </p>
 
-                 {/* Pago Inicial Esperado */}
+                  {/* Pago Inicial Esperado */}
                   <p className="mb-1 text-gray-700">
                     <strong>Pago Inicial Esperado ({work.budget.initialPaymentPercentage || 0}%):</strong> ${parseFloat(work.budget.initialPayment || 0).toFixed(2)}
                   </p>
@@ -408,12 +552,12 @@ const WorkDetail = () => {
                       )}
                     </p>
                   )}
-                  
+
                   {/* Restante (basado en el monto del comprobante cargado si existe, sino en el initialPayment esperado) */}
                   <p className="mb-1 text-orange-700">
                     <strong>Restante (vs. Total):</strong> ${
                       (
-                        parseFloat(work.budget.totalPrice || 0) - 
+                        parseFloat(work.budget.totalPrice || 0) -
                         (
                           work.budget.paymentProofAmount !== null && !isNaN(parseFloat(work.budget.paymentProofAmount))
                             ? parseFloat(work.budget.paymentProofAmount)
@@ -569,9 +713,11 @@ const WorkDetail = () => {
                 )
               })}
           </div>
-          {work?.status === 'installed' && installedImages.length > 0 && (
+    {canSelectInspectionImageStates.includes(work?.status) && installedImages.length > 0 && (
             <div className="my-6 p-4 border rounded-lg shadow-sm bg-white">
-              <h3 className="text-lg font-semibold mb-3 text-gray-700">Seleccionar Imagen de Referencia (Sistema Instalado)</h3>
+              <h3 className="text-lg font-semibold mb-3 text-gray-700">
+                Seleccionar Imagen de Referencia para Inspección
+              </h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-72 overflow-y-auto p-2 border rounded-md">
                 {installedImages.map(image => (
                   <div
@@ -590,10 +736,10 @@ const WorkDetail = () => {
               </div>
               {selectedInstalledImage && (
                 <p className="text-sm text-green-700 mt-2">
-                  Imagen seleccionada para inspección: ID {selectedInstalledImage.id}
+                  Imagen de referencia seleccionada: ID {selectedInstalledImage.id}
                 </p>
               )}
-              {!selectedInstalledImage && (
+              {!selectedInstalledImage && installedImages.length > 0 && ( // Mostrar solo si hay imágenes para seleccionar
                 <p className="text-sm text-yellow-600 mt-2">
                   Por favor, selecciona una imagen de "sistema instalado" como referencia para la inspección.
                 </p>
@@ -602,8 +748,8 @@ const WorkDetail = () => {
           )}
 
           {/* Pasar la imagen seleccionada (o su ID) a InspectionFlowManager */}
-          {work && ( 
-            <div className="bg-white shadow-md rounded-lg border-l-4 border-teal-500"> 
+          {work && (
+            <div className="bg-white shadow-md rounded-lg border-l-4 border-teal-500">
               <h2
                 className="text-xl font-semibold p-6 cursor-pointer flex justify-between items-center"
                 onClick={() => toggleSection("inspectionFlow")} // <-- PARECE CORRECTO
@@ -628,12 +774,14 @@ const WorkDetail = () => {
               />
             </div>
           )}
+
         </div>
 
 
 
         {/* Columna derecha: Tarjetas de gastos e ingresos */}
         <div className="space-y-6">
+         
           {/* --- 2. TARJETA DE BALANCE TOTAL --- */}
           <div className={`
             shadow-lg rounded-lg p-6 border-l-8
@@ -671,6 +819,7 @@ const WorkDetail = () => {
               </div>
             </div>
           </div>
+
           {/* --- FIN TARJETA BALANCE --- */}
           {/* Tarjeta: Gastos */}
           <div className="bg-red-100 shadow-md rounded-lg p-6 border-l-4 border-red-500">
@@ -803,7 +952,160 @@ const WorkDetail = () => {
               </>
             )}
           </div>
+           <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-orange-500">
+      <h3
+        className="text-lg font-semibold mb-4 text-gray-700 flex justify-between items-center cursor-pointer"
+          onClick={() => toggleSection("changeOrders")}
+        >
+          <span>Órdenes de Cambio</span>
+          <button
+            className="bg-blue-600 hover:bg-blue-800 text-white px-3 py-2 rounded-xl shadow ml-4"
+            onClick={e => {
+              e.stopPropagation(); // Evita que el click colapse la sección
+              setShowCreateCOModal(true);
+            }}
+          >
+            Generate Change Order
+          </button>
+          <span className="ml-2">
+            {openSections.changeOrders ? "▲" : "▼"}
+          </span>
+        </h3>
+        {openSections.changeOrders && (
+          work?.changeOrders && work.changeOrders.length > 0 ? (
+            <ul className="space-y-4">
+              {work.changeOrders.map(co => {
+                // Determinar el color y el texto del badge de estado
+                let statusColor = 'bg-gray-500'; // Color por defecto
+                let statusTextColor = 'text-white';
+                let statusText = co.status;
+
+                switch (co.status) {
+                  case 'approved':
+                    statusColor = 'bg-green-500';
+                    statusText = 'Aprobada';
+                    break;
+                  case 'rejected':
+                    statusColor = 'bg-red-600';
+                    statusText = 'Rechazada';
+                    break;
+                  case 'pendingClientApproval':
+                    statusColor = 'bg-yellow-500';
+                    statusTextColor = 'text-yellow-800';
+                    statusText = 'Pendiente Cliente';
+                    break;
+                  case 'pendingAdminReview':
+                    statusColor = 'bg-blue-500';
+                    statusText = 'Pendiente Revisión';
+                    break;
+                  case 'draft':
+                    statusColor = 'bg-gray-400';
+                    statusTextColor = 'text-gray-800';
+                    statusText = 'Borrador';
+                    break;
+                  default:
+                    statusText = co.status;
+                }
+
+                return (
+                  <li key={co.id} className="border p-4 rounded-lg shadow-sm bg-gray-50 hover:shadow-md transition-shadow">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <p className="font-semibold text-gray-800">
+                          CO #: {co.changeOrderNumber || co.id.substring(0, 8)}
+                        </p>
+                        <p className="text-sm text-gray-700">
+                          <strong>Descripción:</strong> {co.description}
+                        </p>
+                      </div>
+                      <span
+                        className={`px-3 py-1 text-xs font-bold rounded-full ${statusColor} ${statusTextColor} shadow-sm`}
+                      >
+                        {statusText.toUpperCase()}
+                      </span>
+                    </div>
+
+                    {co.itemDescription && co.itemDescription !== co.description && (
+                      <p className="text-sm text-gray-600 mb-1">
+                        <strong>Detalle:</strong> {co.itemDescription}
+                      </p>
+                    )}
+                    <p className="text-sm text-gray-700 mb-1">
+                      <strong>Costo Total:</strong> ${parseFloat(co.totalCost || 0).toFixed(2)}
+                    </p>
+
+                    {co.respondedAt && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        <strong>Respondida por Cliente:</strong> {new Date(co.respondedAt).toLocaleString()}
+                      </p>
+                    )}
+
+                    {co.clientMessage && (
+                      <div className="mt-2 text-xs p-2 bg-blue-50 border border-blue-200 rounded">
+                        <p className="font-semibold text-blue-700">Mensaje para el Cliente (al enviar):</p>
+                        <p className="text-gray-700">{co.clientMessage}</p>
+                      </div>
+                    )}
+
+                    <div className="mt-3 flex items-center space-x-2">
+                      {(co.status === 'draft' || co.status === 'pendingAdminReview') && (
+                        <button
+                          onClick={() => handlePreviewPdf(co.id)} // Llamar a la nueva función
+                          className="ml-2 px-3 py-1 text-xs font-medium text-white bg-gray-600 hover:bg-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1"
+                        >
+                          Ver Borrador PDF
+                        </button>
+                      )}
+
+                      {(co.status === 'draft' || co.status === 'pendingAdminReview' || co.status === 'rejected') && (
+                        <button
+                          onClick={() => handleEditCO(co)}
+                          className="ml-2 px-3 py-1 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1"
+                        >
+                          Editar CO
+                        </button>
+                      )}
+                      {(co.status === 'draft' || co.status === 'pendingAdminReview' || co.status === 'rejected') && (
+                        <button
+                          onClick={() => handleDeleteCO(co.id)}
+                          className="ml-2 px-3 py-1 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
+                        >
+                          Eliminar
+                        </button>
+                      )}
+                      {(co.status === 'draft' || co.status === 'pendingAdminReview') && !co.pdfUrl && ( // Condición adicional: no enviado aún
+                        <button
+                          onClick={() => handleSendCOToClient(co.id)}
+                          className="ml-2 px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                        >
+                          Enviar al Cliente
+                        </button>
+                      )}
+
+
+                      {/* Enlace para ver el PDF enviado/actual */}
+                      {co.pdfUrl && !co.pdfUrl.startsWith('file:///') && (co.status === 'pendingClientApproval' || co.status === 'approved' || co.status === 'rejected') && (
+                        <a
+                          href={co.pdfUrl} // Debería ser una URL de Cloudinary
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-2 inline-flex items-center px-3 py-1 text-xs font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-1"
+                        >
+                          Ver PDF
+                        </a>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="mt-4 text-gray-600">No hay Órdenes de Cambio registradas para esta obra.</p>
+          )
+        )}
+      </div>
         </div>
+
       </div>
       {/* --- SECCIÓN PARA FACTURA FINAL --- */}
       {/* Mostrar solo si la obra está en un estado apropiado (ej: 'completed', 'finalApproved') */}
@@ -871,6 +1173,80 @@ const WorkDetail = () => {
                 Descargar
               </a>
             </div>
+          </div>
+        </div>
+      )}
+    
+      {/* --- MODAL PARA CREAR ORDEN DE CAMBIO --- */}
+      {work && ( // work debe existir, y por lo tanto work.idWork también
+        <> {/* Fragmento para el log */}
+          {console.log('[WorkDetail] Rendering CreateCOModal. idWork from useParams:', idWork, 'Using work.idWork for modal:', work.idWork, 'Current work object:', work)}
+          <CreateChangeOrderModal
+            isOpen={showCreateCOModal}
+            onClose={() => setShowCreateCOModal(false)}
+            idWork={work.idWork}  // <--- CAMBIO IMPORTANTE AQUÍ: USA work.idWork
+            workPropertyAddress={work?.propertyAddress}
+            currentTotalBudget={parseFloat(work.budget?.totalPrice || 0)}
+            onCOCreated={() => {
+              setShowCreateCOModal(false);
+              // Aquí puedes seguir usando 'idWork' de useParams o 'work.idWork', ambos deberían ser válidos
+              // pero por consistencia y seguridad, work.idWork es más robusto si 'work' está definido.
+              dispatch(fetchWorkById(work.idWork));
+              // ...
+            }}
+          />
+        </>
+      )}
+      {editingCO && showEditCOModal && (
+        <CreateChangeOrderModal
+          isOpen={showEditCOModal}
+          onClose={() => {
+            setShowEditCOModal(false);
+            setEditingCO(null);
+          }}
+          idWork={work.idWork} // o editingCO.workId si lo tienes disponible y es más directo
+          workPropertyAddress={work?.propertyAddress}
+          // --- Props específicas para edición ---
+          isEditing={true}
+          initialCOData={editingCO}
+          // ---
+          // Renombrar onCOCreated a una prop más genérica como onCOProcessed o tener una específica para update
+          onCOCreated={() => { // Esta prop se llamará tanto en creación como en edición si reutilizas el mismo callback
+            setShowEditCOModal(false);
+            setEditingCO(null);
+            dispatch(fetchWorkById(work.idWork)); // Refrescar datos de la obra
+          }}
+        />
+      )}
+      {/* Modal para mostrar el PDF */}
+      {showPdfModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-4 rounded shadow-lg w-full max-w-3xl h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-lg font-semibold">Vista Previa del PDF</h3>
+              <button
+                onClick={() => {
+                  setShowPdfModal(false);
+                  if (pdfUrlCo) {
+                    URL.revokeObjectURL(pdfUrlCo); // Limpiar el object URL
+                  }
+                  setPdfUrlCo('');
+                  setPdfError('');
+                }}
+                className="text-black text-2xl"
+              >
+                &times;
+              </button>
+            </div>
+            {pdfLoading && <p className="text-center">Cargando PDF...</p>}
+            {pdfError && <p className="text-center text-red-500">Error: {pdfError}</p>}
+            {pdfUrlCo && !pdfLoading && !pdfError && (
+              <iframe
+                src={pdfUrlCo}
+                title="Vista previa del PDF"
+                className="w-full h-full border-0"
+              />
+            )}
           </div>
         </div>
       )}

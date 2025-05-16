@@ -62,6 +62,11 @@ module.exports = (sequelize) => {
         key: 'idBudget',
       },
     },
+       stoneExtractionCONeeded: { // NUEVO CAMPO
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
     
   });
 };
