@@ -1,68 +1,115 @@
-const { FinalInvoice, WorkExtraItem, Work, Budget, Permit, conn } = require('../data'); // Asegúrate que los modelos se exportan correctamente desde data/index.js
+const { FinalInvoice, WorkExtraItem, Work, Budget, Permit, ChangeOrder, conn } = require('../data'); // Asegúrate que los modelos se exportan correctamente desde data/index.js
 const { Op } = require('sequelize');
  const { generateAndSaveFinalInvoicePDF } = require('../utils/pdfGenerator'); // Necesitarás crear esta función
  const fs = require('fs'); // <-- AÑADIR ESTA LÍNEA
  const path = require('path'); //
-
+const { sendEmail } = require('../utils/notifications/emailService'); // Asegúrate de tener esta función para enviar correos electrónicos
 const FinalInvoiceController = {
 
   // Crear la factura final inicial para una obra
   async createFinalInvoice(req, res) {
     const { workId } = req.params;
+    const transaction = await conn.transaction(); // Start transaction
+
     try {
-      // 1. Buscar Work y Budget asociado (asegúrate que la relación Work->Budget existe y funciona)
       const work = await Work.findByPk(workId, {
-        include: [{ model: Budget, as: 'budget' }] // Asumiendo alias 'budget'
+        include: [
+          { model: Budget, as: 'budget' },
+          { 
+            model: ChangeOrder, 
+            as: 'changeOrders', 
+            where: { status: 'approved' }, 
+            required: false // Makes it an outer join, so work is returned even if no approved COs
+          }
+        ],
+        transaction
       });
 
       if (!work) {
+        await transaction.rollback();
         return res.status(404).json({ error: true, message: 'Obra no encontrada.' });
       }
       if (!work.budget) {
+        await transaction.rollback();
         return res.status(400).json({ error: true, message: 'La obra no tiene un presupuesto asociado.' });
       }
       if (work.budget.status !== 'approved') {
-         return res.status(400).json({ error: true, message: 'El presupuesto asociado a la obra no está aprobado.' });
+        await transaction.rollback();
+        return res.status(400).json({ error: true, message: 'El presupuesto asociado a la obra no está aprobado.' });
       }
 
-      // 2. Verificar si ya existe una factura final para esta obra
-      const existingInvoice = await FinalInvoice.findOne({ where: { workId } });
+      const existingInvoice = await FinalInvoice.findOne({ where: { workId }, transaction });
       if (existingInvoice) {
-        return res.status(409).json({ error: true, message: 'Ya existe una factura final para esta obra.', finalInvoice: existingInvoice });
+        await transaction.rollback();
+        // Fetch with items to return consistent data
+        const invoiceWithDetails = await FinalInvoice.findByPk(existingInvoice.id, {
+            include: [{ model: WorkExtraItem, as: 'extraItems' }]
+        });
+        return res.status(409).json({ error: true, message: 'Ya existe una factura final para esta obra.', finalInvoice: invoiceWithDetails });
       }
 
-      // 3. Calcular monto final inicial (sin extras)
       const originalBudgetTotal = parseFloat(work.budget.totalPrice);
-      
-      // --- MODIFICACIÓN AQUÍ ---
       let actualInitialPaymentMade = 0;
       if (work.budget.paymentProofAmount !== null && !isNaN(parseFloat(work.budget.paymentProofAmount))) {
         actualInitialPaymentMade = parseFloat(work.budget.paymentProofAmount);
       } else if (work.budget.initialPayment !== null && !isNaN(parseFloat(work.budget.initialPayment))) {
-        // Fallback al initialPayment calculado si paymentProofAmount no está o no es válido
         actualInitialPaymentMade = parseFloat(work.budget.initialPayment);
       }
-      // --- FIN DE LA MODIFICACIÓN ---
 
-      const finalAmountDueInitial = originalBudgetTotal - actualInitialPaymentMade;
+      let subtotalFromChangeOrders = 0;
+      const extraItemsFromChangeOrdersInput = [];
 
-      // 4. Crear la FinalInvoice
+      if (work.changeOrders && work.changeOrders.length > 0) {
+        work.changeOrders.forEach(co => {
+          const coTotal = parseFloat(co.totalCost);
+          if (!isNaN(coTotal) && coTotal > 0) {
+            extraItemsFromChangeOrdersInput.push({
+              description: `Change Order #${co.changeOrderNumber || co.id.substring(0,8)}: ${co.itemDescription || co.description}`,
+              quantity: 1,
+              unitPrice: coTotal,
+              lineTotal: coTotal,
+            });
+            subtotalFromChangeOrders += coTotal;
+          }
+        });
+      }
+      
+      const initialSubtotalExtras = subtotalFromChangeOrders;
+      const finalAmountDueInitial = originalBudgetTotal + initialSubtotalExtras - actualInitialPaymentMade;
+
       const newFinalInvoice = await FinalInvoice.create({
         workId: work.idWork,
         budgetId: work.budget.idBudget,
         invoiceDate: new Date(),
         originalBudgetTotal: originalBudgetTotal,
-        initialPaymentMade: actualInitialPaymentMade, // <-- Usar la variable actualizada
-        subtotalExtras: 0.00, // Inicialmente no hay extras
+        initialPaymentMade: actualInitialPaymentMade,
+        subtotalExtras: initialSubtotalExtras,
         finalAmountDue: finalAmountDueInitial,
         status: 'pending',
+      }, { transaction });
+
+      if (extraItemsFromChangeOrdersInput.length > 0) {
+        const itemsToCreate = extraItemsFromChangeOrdersInput.map(item => ({
+          ...item,
+          finalInvoiceId: newFinalInvoice.id
+        }));
+        await WorkExtraItem.bulkCreate(itemsToCreate, { transaction });
+      }
+
+      await transaction.commit();
+
+      const finalInvoiceWithDetails = await FinalInvoice.findByPk(newFinalInvoice.id, {
+        include: [{ model: WorkExtraItem, as: 'extraItems' }]
       });
 
-      res.status(201).json(newFinalInvoice);
+      res.status(201).json(finalInvoiceWithDetails);
 
     } catch (error) {
+      if (transaction && !transaction.finished) {
+        await transaction.rollback();
+      }
       console.error(`Error al crear la factura final para workId ${workId}:`, error);
-      res.status(500).json({ error: true, message: 'Error interno del servidor.' });
+      res.status(500).json({ error: true, message: 'Error interno del servidor al crear factura final.' });
     }
   },
 
@@ -341,6 +388,10 @@ const FinalInvoiceController = {
                  as: 'budget',
                  include: [ { model: Permit } ] // Incluir Permit desde Budget
                },
+               { // <--- AÑADIR ESTO PARA INCLUIR CHANGE ORDERS
+                 model: ChangeOrder,
+                 as: 'changeOrders' // Usar el alias definido en la asociación Work.hasMany(ChangeOrder)
+               }
                // Si Work puede tener Permit directamente, incluirlo también como fallback
                // { model: Permit }
              ]
@@ -429,11 +480,10 @@ async viewFinalInvoicePDF(req, res) {
  // --- NUEVO: emailFinalInvoicePDF ---
  async emailFinalInvoicePDF(req, res) {
    const { finalInvoiceId } = req.params;
-   const { recipientEmail } = req.body; // Permitir especificar email o usar el del cliente
+   const { recipientEmail } = req.body;
 
    try {
-       // 1. Buscar factura, PDF y datos del cliente
-       const finalInvoice = await FinalInvoice.findByPk(finalInvoiceId, {
+       let finalInvoice = await FinalInvoice.findByPk(finalInvoiceId, {
            include: [
                {
                    model: Work,
@@ -442,24 +492,46 @@ async viewFinalInvoicePDF(req, res) {
            ]
        });
 
-       if (!finalInvoice) return res.status(404).json({ error: 'Factura final no encontrada.' });
-       if (!finalInvoice.pdfPath || !fs.existsSync(finalInvoice.pdfPath)) {
-           return res.status(400).json({ error: 'El PDF de la factura final no existe o no se ha generado.' });
+       if (!finalInvoice) {
+           return res.status(404).json({ error: true, message: 'Factura final no encontrada.' });
        }
 
-       // Determinar email del destinatario
+       // Verificar si el PDF existe y está actualizado. Si no, intentar generarlo.
+       let pdfPathToUse = finalInvoice.pdfPath;
+       if (!pdfPathToUse || !fs.existsSync(pdfPathToUse)) {
+           console.log(`PDF no encontrado o ruta no válida para finalInvoiceId ${finalInvoiceId}. Intentando generar/regenerar...`);
+           try {
+               // Reutilizar la lógica de generación de PDF.
+               // Es importante que generateAndSaveFinalInvoicePDF no dependa de 'req' y 'res'
+               // y que devuelva la ruta del archivo generado.
+               // Asumimos que finalInvoice ya tiene los datos necesarios cargados.
+               const generatedPath = await generateAndSaveFinalInvoicePDF(finalInvoice.toJSON());
+               await finalInvoice.update({ pdfPath: generatedPath }); // Actualizar en BD
+               pdfPathToUse = generatedPath;
+               console.log(`PDF regenerado y guardado en: ${pdfPathToUse}`);
+           } catch (generationError) {
+               console.error(`Error al intentar regenerar PDF para finalInvoiceId ${finalInvoiceId} antes de enviar email:`, generationError);
+               return res.status(500).json({ error: true, message: 'Error al generar el PDF necesario para el envío. Por favor, intente generar el PDF manualmente primero y luego envíelo.' });
+           }
+       }
+       
+       // Doble chequeo por si la regeneración falló silenciosamente o la ruta sigue siendo inválida
+       if (!pdfPathToUse || !fs.existsSync(pdfPathToUse)) {
+            return res.status(400).json({ error: true, message: 'El PDF de la factura final no existe o no se pudo generar. Por favor, genere el PDF primero.' });
+       }
+
+
        const budget = finalInvoice.Work?.budget;
        const permit = budget?.Permit;
-       const clientEmail = recipientEmail || permit?.applicantEmail || budget?.applicantEmail; // Prioridad: body, permit, budget
+       const clientEmail = recipientEmail || permit?.applicantEmail || budget?.applicantEmail;
        const clientName = budget?.applicantName || permit?.applicantName || 'Customer';
        const propertyAddress = finalInvoice.Work?.propertyAddress || budget?.propertyAddress || 'N/A';
 
        if (!clientEmail || !clientEmail.includes('@')) {
-           return res.status(400).json({ error: 'No se pudo determinar un correo electrónico válido para el cliente.' });
+           return res.status(400).json({ error: true, message: 'No se pudo determinar un correo electrónico válido para el cliente.' });
        }
 
-       // 2. Configurar y enviar correo
-       const { sendEmail } = require('../utils/notifications/emailService'); // Importar sendEmail
+      
        const mailOptions = {
            to: clientEmail,
            subject: `Final Invoice #${finalInvoice.id} for ${propertyAddress}`,
@@ -467,22 +539,23 @@ async viewFinalInvoicePDF(req, res) {
            attachments: [
                {
                    filename: `final_invoice_${finalInvoice.id}.pdf`,
-                   path: finalInvoice.pdfPath,
+                   path: pdfPathToUse, // Usar la ruta verificada/regenerada
                    contentType: 'application/pdf'
                }
            ]
        };
 
        await sendEmail(mailOptions);
+       // Marcar la factura como enviada (opcional)
+       // await finalInvoice.update({ lastEmailedAt: new Date(), emailSentCount: (finalInvoice.emailSentCount || 0) + 1 });
+       
        res.status(200).json({ message: `Factura final enviada exitosamente a ${clientEmail}.` });
 
    } catch (error) {
        console.error(`Error al enviar por correo la factura final ${finalInvoiceId}:`, error);
-       res.status(500).json({ error: 'Error interno al enviar el correo electrónico.' });
+       res.status(500).json({ error: true, message: 'Error interno al enviar el correo electrónico.' });
    }
  },
-
-
 };
 
 

@@ -486,48 +486,96 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
         doc.moveDown(1);
       }
 
-      // Línea antes de totales
+       // Línea antes de totales
       const finalItemsYExtras = doc.y;
-      doc.moveTo(unitPriceX - 10, finalItemsYExtras).lineTo(tableHeaderRightEdge, finalItemsYExtras).strokeColor("#cccccc").stroke();
-      doc.moveDown(0.5);
+      // Ajustar la X inicial de la línea para que comience donde empiezan las etiquetas de los totales
+      const totalsLabelStartXForLine = pageMargin + contentWidth * 0.55; // Un poco antes de las etiquetas
+      doc.moveTo(totalsLabelStartXForLine, finalItemsYExtras).lineTo(tableHeaderRightEdge, finalItemsYExtras).strokeColor("#cccccc").stroke();
+      doc.moveDown(1); // Más espacio después de la línea
 
-      // === SECCIÓN TOTALES === (Alineada a la derecha)
-      const totalsLabelStartX = pageMargin + contentWidth * 0.60;
-      const totalsValueStartX = pageMargin + contentWidth * 0.80;
-      const totalsRightEdge = doc.page.width - pageMargin;
-      const labelWidth = totalsValueStartX - totalsLabelStartX - 5;
-      const valueWidth = totalsRightEdge - totalsValueStartX;
+      // === SECCIÓN TOTALES (REDISEÑADA PARA MEJOR LEGIBILIDAD) ===
+      const totalsSectionStartY = doc.y;
+      const labelColumnX = pageMargin + contentWidth * 0.50; // X para inicio de etiquetas (más a la izquierda)
+      const valueColumnX = pageMargin + contentWidth * 0.80; // X para inicio de valores (más a la derecha)
+      const columnWidth = contentWidth * 0.20; // Ancho para cada columna de valor/etiqueta (ajustar según necesidad)
+
       doc.fontSize(10);
 
+      // --- Función auxiliar para dibujar una fila de total ---
+      const drawTotalRow = (label, value, options = {}) => {
+        const yPos = doc.y;
+        const isBold = options.bold || false;
+        const labelColor = options.labelColor || 'black';
+        const valueColor = options.valueColor || 'black';
+        const font = isBold ? 'Helvetica-Bold' : 'Helvetica';
+        
+        doc.font(font).fillColor(labelColor).text(label, labelColumnX, yPos, { 
+            width: valueColumnX - labelColumnX - 10, // Ancho para la etiqueta
+            align: 'right' 
+        });
+        doc.font(font).fillColor(valueColor).text(value, valueColumnX, yPos, { 
+            width: (doc.page.width - pageMargin) - valueColumnX, // Ancho para el valor hasta el borde
+            align: 'right' 
+        });
+        doc.fillColor('black'); // Reset color
+        doc.moveDown(options.moveDownFactor !== undefined ? options.moveDownFactor : 0.65); // Espacio después de la fila
+      };
+
       // --- Original Budget Total ---
-      let currentY = doc.y;
       const originalTotalNum = parseFloat(originalBudgetTotal);
-      doc.text(`Original Budget Total:`, totalsLabelStartX, currentY, { width: labelWidth, align: 'right' });
-      doc.text(`$${!isNaN(originalTotalNum) ? originalTotalNum.toFixed(2) : '0.00'}`, totalsValueStartX, currentY, { width: valueWidth, align: 'right' });
-      doc.moveDown(0.5);
+      drawTotalRow(
+        `Original Budget Total:`, 
+        `$${!isNaN(originalTotalNum) ? originalTotalNum.toFixed(2) : '0.00'}`
+      );
 
       // --- Subtotal Extras ---
-      currentY = doc.y;
       const extrasNum = parseFloat(subtotalExtras);
-      doc.text(`Additional Items Total:`, totalsLabelStartX, currentY, { width: labelWidth, align: 'right' });
-      doc.text(`$${!isNaN(extrasNum) ? extrasNum.toFixed(2) : '0.00'}`, totalsValueStartX, currentY, { width: valueWidth, align: 'right' });
-      doc.moveDown(0.5);
+      if (!isNaN(extrasNum) && extrasNum !== 0) { // Solo mostrar si hay extras
+        drawTotalRow(
+            `Additional Items Total:`, 
+            `$${extrasNum.toFixed(2)}`
+        );
+      }
+      
+      // --- Gran Total (Suma de Budget + Extras) ---
+      const grandTotalNum = (originalTotalNum || 0) + (extrasNum || 0);
+      drawTotalRow(
+        `Total Before Payments:`, 
+        `$${grandTotalNum.toFixed(2)}`,
+        { bold: false, moveDownFactor: 0.8 } // Un poco más de espacio antes del pago
+      );
+      
+      // Línea delgada antes de los pagos
+      const lineBeforePaymentsY = doc.y;
+      doc.moveTo(labelColumnX, lineBeforePaymentsY)
+         .lineTo(doc.page.width - pageMargin, lineBeforePaymentsY)
+         .lineWidth(0.5) // Línea más delgada
+         .strokeColor("#999999") // Gris más oscuro para esta línea
+         .stroke();
+      doc.moveDown(0.8);
+
 
       // --- Initial Payment ---
-      currentY = doc.y;
       const initialPaymentNum = parseFloat(initialPaymentMade);
-      doc.fillColor('green').text(`Initial Payment Received:`, totalsLabelStartX, currentY, { width: labelWidth, align: 'right' });
-      doc.text(`-$${!isNaN(initialPaymentNum) ? initialPaymentNum.toFixed(2) : '0.00'}`, totalsValueStartX, currentY, { width: valueWidth, align: 'right' });
-      doc.fillColor('black').moveDown(0.5);
+      if (!isNaN(initialPaymentNum) && initialPaymentNum !== 0) { // Solo mostrar si hubo pago inicial
+        drawTotalRow(
+            `Initial Payment Received:`, 
+            `-$${initialPaymentNum.toFixed(2)}`,
+            { valueColor: 'green' } // Color verde para el pago recibido
+        );
+      }
 
-      // --- Final Amount Due ---
-      currentY = doc.y;
+      // --- Final Amount Due / Paid ---
       const finalAmountNum = parseFloat(finalAmountDue);
-      doc.font('Helvetica-Bold'); // Total en negrita
-      doc.text(status === 'paid' ? `Final Amount Paid:` : `Final Amount Due:`, totalsLabelStartX, currentY, { width: labelWidth, align: 'right' });
-      doc.text(`$${!isNaN(finalAmountNum) ? finalAmountNum.toFixed(2) : '0.00'}`, totalsValueStartX, currentY, { width: valueWidth, align: 'right' });
-      doc.font('Helvetica'); // Volver a normal
-      doc.moveDown(2);
+      const finalAmountLabel = status === 'paid' ? `Final Amount Paid:` : `Final Amount Due:`;
+      const finalAmountColor = status === 'paid' ? 'green' : 'black';
+      drawTotalRow(
+        finalAmountLabel, 
+        `$${!isNaN(finalAmountNum) ? finalAmountNum.toFixed(2) : '0.00'}`,
+        { bold: true, valueColor: finalAmountColor, moveDownFactor: 2 } // Negrita y más espacio después
+      );
+
+      doc.lineWidth(1); 
 
       // === SECCIÓN ESTADO ===
       doc.fontSize(12).font('Helvetica-Bold').text(`Status: ${status?.replace('_', ' ').toUpperCase() || 'N/A'}`, pageMargin, doc.y);
