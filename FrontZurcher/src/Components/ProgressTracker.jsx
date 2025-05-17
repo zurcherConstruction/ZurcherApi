@@ -153,14 +153,23 @@ const ProgressTracker = () => {
                   // Titileo del texto: solo si es la etapa visualmente actual
                   const pulseText = isCurrentVisualStage;
                   
-                  let rejectionAlert = null;
-                  // Mostrar alerta de rechazo si la etapa visual es "Inspection Pending" y el estado es "rejectedInspection"
-                  if (etapa.backend === 'installed' && status === 'rejectedInspection') {
-                    rejectionAlert = "Rechazada";
-                  } 
-                  // Mostrar alerta de rechazo si la etapa visual es "Final Inspection Pending" y el estado es "finalRejected"
-                  else if (etapa.backend === 'paymentReceived' && status === 'finalRejected') {
-                    rejectionAlert = "Rechazada";
+                             let rejectionAlertContent = null;
+                  const isRejectedInspectionStage = etapa.backend === 'installed' && status === 'rejectedInspection';
+                  const isRejectedFinalInspectionStage = etapa.backend === 'paymentReceived' && status === 'finalRejected';
+
+                  if (isRejectedInspectionStage || isRejectedFinalInspectionStage) {
+                    rejectionAlertContent = (
+                      <span className="flex items-center justify-center text-red-600 mt-1">
+                        <span
+                          title={isRejectedInspectionStage ? "Inspección Rechazada" : "Inspección Final Rechazada"}
+                          className="relative inline-flex items-center justify-center h-4 w-4 mr-1" // Ícono más pequeño
+                        >
+                          <span className="absolute inline-flex h-full w-full rounded-full bg-red-300 opacity-75 animate-ping"></span>
+                          <ExclamationTriangleIcon className="relative z-10 inline-flex h-4 w-4 text-red-500" />
+                        </span>
+                        Rechazada
+                      </span>
+                    );
                   }
 
                   return (
@@ -183,10 +192,10 @@ const ProgressTracker = () => {
                         >
                           {etapa.display}
                         </p>
-                        {rejectionAlert && (
-                          <p className="text-xs text-red-600 font-semibold px-1">
-                            {rejectionAlert}
-                          </p>
+                       {rejectionAlertContent && (
+                          <div className="text-xs font-semibold"> {/* Contenedor para el contenido de la alerta */}
+                            {rejectionAlertContent}
+                          </div>
                         )}
                       </div>
                     </div>

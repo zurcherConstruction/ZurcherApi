@@ -9,6 +9,24 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 // --- 1. Mover la creación del Stack fuera del componente ---
 const Stack = createStackNavigator();
 
+const statusTranslations = {
+  pending: "Pendiente",
+  assigned: "Asignado",
+  inProgress: "En Progreso",
+  installed: "Instalado",
+  firstInspectionPending: "1ª Inspección Pendiente",
+  approvedInspection: "Inspección Aprobada",
+  rejectedInspection: "Inspección Rechazada",
+  coverPending: "Listo Para Cubrir",
+  covered: "Cubierto",
+  invoiceFinal: "Factura Final",
+  paymentReceived: "Pago Recibido",
+  finalInspectionPending: "Inspección Final Pendiente",
+  finalApproved: "Aprobado Final",
+  finalRejected: "Rechazado Final",
+  maintenance: "Mantenimiento",
+};
+
 const WorksListScreen = ({ navigation }) => { // Recibe navigation como prop
   const dispatch = useDispatch();
   const { staff } = useSelector((state) => state.auth);
@@ -98,28 +116,46 @@ const WorksListScreen = ({ navigation }) => { // Recibe navigation como prop
       <FlatList
         data={filteredWorks}
         keyExtractor={(item) => item.idWork.toString()}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            onPress={() =>
-              navigation.navigate("UploadScreen", {
-                idWork: item.idWork,
-                propertyAddress: item.propertyAddress,
-                // NO pasar item.images ni item.Permit si no están completos aquí
-              })
-            }
-            className="mb-4 p-4 bg-white rounded-lg shadow mx-2 mt-2"
-          >
-            <Text className="text-lg font-semibold uppercase text-gray-800 mb-2">
-              {item.propertyAddress || "Dirección no disponible"}
-            </Text>
-            <Text className="text-sm text-blue-600 mb-2">
-              <Text className="font-bold text-gray-700">Fecha Instalacion:</Text>{" "}
-              {item.startDate
-                ? new Intl.DateTimeFormat('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(item.startDate))
-                : "Sin Fecha de instalación"}
-            </Text>
-          </TouchableOpacity>
-        )}
+        renderItem={({ item }) => {
+          // Determinar el color de fondo de la tarjeta
+          const cardBackgroundColor = item.status === 'rejectedInspection' 
+            ? 'bg-red-200' // Un rojo claro para el fondo de la tarjeta
+            : 'bg-white';
+
+          // Determinar el color de fondo y texto para el tag de estado
+          let statusTagBackgroundColor = 'bg-sky-800';
+          let statusTagTextColor = 'text-gray-200';
+
+          if (item.status === 'rejectedInspection') {
+            statusTagBackgroundColor = 'bg-red-600'; // Rojo más oscuro para el tag
+            statusTagTextColor = 'text-white';    // Texto blanco para contraste
+          }
+          
+          return (
+            <TouchableOpacity
+              onPress={() =>
+                navigation.navigate("UploadScreen", {
+                  idWork: item.idWork,
+                  propertyAddress: item.propertyAddress,
+                })
+              }
+              className={`mb-4 p-4 rounded-lg shadow mx-2 mt-2 ${cardBackgroundColor}`} // Aplicar color de fondo dinámico
+            >
+              <Text className="text-lg font-semibold uppercase text-gray-800 mb-2">
+                {item.propertyAddress || "Dirección no disponible"}
+              </Text>
+              <Text className={`text-sm font-semibold uppercase p-1 text-center mb-2 rounded-md ${statusTagBackgroundColor} ${statusTagTextColor}`}>
+                {statusTranslations[item.status] || item.status || "Estado no definido"}
+              </Text>
+              <Text className="text-sm text-blue-600 mb-2 ">
+                <Text className="font-bold text-gray-700">Fecha Instalacion:</Text>{" "}
+                {item.startDate
+                  ? new Intl.DateTimeFormat('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(item.startDate))
+                  : "Sin Fecha de instalación"}
+              </Text>
+            </TouchableOpacity>
+          );
+        }}
         contentContainerStyle={{ paddingBottom: 10 }}
       />
     </View>

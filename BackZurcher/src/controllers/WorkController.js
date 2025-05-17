@@ -592,6 +592,7 @@ const addImagesToWork = async (req, res) => {
     'sistema instalado',
     'extracción de piedras',
     'camiones de tierra',
+    'trabajo cubierto',
     'inspeccion final'
     ];
     if (!validStages.includes(stage)) {

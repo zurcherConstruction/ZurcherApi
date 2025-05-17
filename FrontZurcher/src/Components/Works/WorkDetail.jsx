@@ -957,7 +957,7 @@ const WorkDetail = () => {
         className="text-lg font-semibold mb-4 text-gray-700 flex justify-between items-center cursor-pointer"
           onClick={() => toggleSection("changeOrders")}
         >
-          <span>Órdenes de Cambio</span>
+          <span>Changes Orders</span>
           <button
             className="bg-blue-600 hover:bg-blue-800 text-white px-3 py-2 rounded-xl shadow ml-4"
             onClick={e => {

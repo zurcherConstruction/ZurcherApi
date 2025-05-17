@@ -326,7 +326,7 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
         {
           model: Permit,
           // Asegúrate de incluir expirationDate y otros campos necesarios del Permit
-          attributes: ['idPermit', 'propertyAddress', 'systemType', 'expirationDate', 'applicantEmail'] 
+          attributes: ['idPermit', 'propertyAddress', 'systemType', 'expirationDate', 'applicantEmail', 'pdfData', 'optionalDocs'] 
         }
       ],
       order: [['date', 'DESC']]

@@ -10,6 +10,8 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Buffer } from "buffer";
 import PdfViewer from '../utils/PdfViewer'; // Asegúrate de que la ruta sea correcta
 
+    
+
 
 const UploadScreen = () => {
   const { idWork, propertyAddress: routePropertyAddress } = useRoute().params; // Solo idWork y la dirección inicial de la ruta
@@ -94,7 +96,7 @@ const UploadScreen = () => {
     'sistema instalado',
     'extracción de piedras',
     'camiones de tierra',
-    'inspeccion final'
+    'trabajo cubierto'
   ];
 
   const stageColors = [
@@ -605,7 +607,7 @@ const UploadScreen = () => {
   const handleMarkCovered = async () => {
     if (isMarkingCovered || !hasFinalCoverImages) {
       if (!hasFinalCoverImages) {
-        Alert.alert("Atención", "Debe subir imágenes a 'inspeccion final' antes de marcar como cubierto.");
+        Alert.alert("Atención", "Debe subir imágenes a 'trabajo cubierto' antes de marcar como cubierto.");
       }
       return;
     }
@@ -693,7 +695,7 @@ const UploadScreen = () => {
   };
 
   const hasSystemInstalledImages = imagesByStage['sistema instalado']?.length > 0; // Renombrado para claridad, antes era hasFinalInspectionImages
-  const hasFinalCoverImages = imagesByStage['inspeccion final']?.length > 0; // Renombrado para claridad, antes era hasCoverImages
+  const hasFinalCoverImages = imagesByStage['trabajo cubierto']?.length > 0; // Renombrado para claridad, antes era hasCoverImages
 
   const showWorkInstalledButton =
     hasSystemInstalledImages &&
@@ -842,7 +844,7 @@ const UploadScreen = () => {
               Por favor, asegúrate de que la instalación esté completamente cubierta.
             </Text>
             <Text className="text-sm text-teal-600 mb-1">
-              Sube las imágenes correspondientes a la etapa <Text className="font-semibold">'inspeccion final'</Text> si aún no lo has hecho (actualmente {imagesByStage['inspeccion final']?.length || 0} imágenes).
+              Sube las imágenes correspondientes a la etapa <Text className="font-semibold">'Trabajo Cubierto'</Text> si aún no lo has hecho (actualmente {imagesByStage['trabajo cubierto']?.length || 0} imágenes).
             </Text>
             <Text className="text-sm text-teal-600 mb-3">
               Luego, presiona el botón <Text className="font-semibold">"TRABAJO CUBIERTO"</Text> para notificar a la oficina.
@@ -865,7 +867,7 @@ const UploadScreen = () => {
             </Pressable>
             {!hasFinalCoverImages && (
                 <Text className="text-xs text-red-500 text-center mt-2">
-                    Debes subir imágenes a 'inspeccion final' para poder marcar como cubierto.
+                    Debes subir imágenes a 'Trabajo Cubierto' para poder marcar como cubierto.
                 </Text>
             )}
           </View>
@@ -966,7 +968,7 @@ const UploadScreen = () => {
                     <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
                     ) : null}
                     <Text className="text-white text-center text-lg font-semibold">
-                    {isSubmittingWorkInstalled ? 'Enviando...' : 'WORK INSTALLED'}
+                    {isSubmittingWorkInstalled ? 'Enviando...' : 'PEDIR INSPECCIÓN'}
                     </Text>
                 </Pressable>
                 )}
@@ -990,7 +992,7 @@ const UploadScreen = () => {
                         ? 'Solicitando...'
                         : isFinalInspectionRequested 
                         ? 'Inspección Final Solicitada'
-                        : 'REQUEST FINAL INSPECTION'}
+                        : 'PEDIR INSPECCION FINAL'}
                     </Text>
                 </Pressable>
                 )}
