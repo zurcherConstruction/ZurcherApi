@@ -37,6 +37,22 @@ const receiptSlice = createSlice({
       state.loading = false;
       state.error = action.payload;
     },
+     deleteReceiptRequest: (state) => {
+      state.loading = true;
+      state.error = null;
+    },
+    deleteReceiptSuccess: (state, action) => {
+      state.loading = false;
+      // action.payload aquí debería ser el idReceipt del comprobante eliminado
+      state.receipts = state.receipts.filter(
+        (receipt) => receipt.idReceipt !== action.payload 
+      );
+      state.error = null;
+    },
+    deleteReceiptFailure: (state, action) => {
+      state.loading = false;
+      state.error = action.payload;
+    },
 
     // Limpiar errores
     clearReceiptError: (state) => {
@@ -52,6 +68,9 @@ export const {
   createReceiptRequest,
   createReceiptSuccess,
   createReceiptFailure,
+  deleteReceiptRequest,
+  deleteReceiptSuccess,
+  deleteReceiptFailure,
   clearReceiptError,
 } = receiptSlice.actions;
 

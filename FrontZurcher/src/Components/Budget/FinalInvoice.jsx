@@ -403,15 +403,15 @@ const handleGeneratePdf = () => {
                 <input type="number" id="newPrice" name="unitPrice" value={newItem.unitPrice} onChange={handleNewItemChange} className="input-style w-full" min="0.01" step="0.01" required />
               </div>
             </div>
-             <button type="submit" className="button-add-item mt-2" disabled={loading}>
-               {loading ? 'Añadiendo...' : 'Añadir Item Extra'}
+             <button type="submit" className="button-add-item mt-2 bg-blue-500 p-2 rounded text-sm text-white" disabled={loading}>
+               {loading ? 'Añadiendo...' : 'Añadir Item '}
              </button>
           </form>
         )}
       {/* SECCIÓN PARA AÑADIR ÓRDENES DE CAMBIO */}
       {currentInvoice && currentInvoice.status !== 'paid' && currentInvoice.status !== 'cancelled' && addableChangeOrders.length > 0 && (
         <div className="bg-gray-50 p-4 rounded border border-gray-200 mt-6">
-            <h3 className="text-lg font-semibold mb-3 border-b pb-2">Añadir Órdenes de Cambio Aprobadas</h3>
+            <h3 className="text-lg font-semibold mb-3 border-b pb-2">Añadir Change Orders Aprobadas</h3>
             <div className="space-y-2">
                 {addableChangeOrders.map(co => (
                     <div key={co.id} className="flex items-center justify-between p-2 border rounded bg-white hover:bg-gray-100">

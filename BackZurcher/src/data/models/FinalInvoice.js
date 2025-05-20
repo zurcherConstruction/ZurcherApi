@@ -38,6 +38,11 @@ module.exports = (sequelize) => {
       type: DataTypes.DATEONLY,
       allowNull: true,
     },
+     totalAmountPaid: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: false,
+        defaultValue: 0.00
+    },
     paymentNotes: { // Notas sobre el pago final
       type: DataTypes.TEXT,
       allowNull: true,
