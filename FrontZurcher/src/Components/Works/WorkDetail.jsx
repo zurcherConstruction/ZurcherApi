@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchWorkById, updateWork, sendChangeOrderToClient, deleteChangeOrder } from "../../Redux/Actions/workActions";
+import { fetchWorkById, updateWork, sendChangeOrderToClient, deleteChangeOrder, addImagesToWork } from "../../Redux/Actions/workActions";
 import { balanceActions } from "../../Redux/Actions/balanceActions";
 import {
   fetchIncomesAndExpensesRequest,
@@ -50,6 +50,9 @@ const WorkDetail = () => {
   const [pdfUrlCo, setPdfUrlCo] = useState('');
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState('');
+  const [showUploadFinalInspectionImage, setShowUploadFinalInspectionImage] = useState(false);
+  const [finalInspectionImageFile, setFinalInspectionImageFile] = useState(null);
+  const [uploadingFinalImage, setUploadingFinalImage] = useState(false);
 
   // --- 1. CALCULAR TOTALES Y BALANCE ---
   const { totalIncome, totalExpense, balance } = useMemo(() => {
@@ -275,6 +278,44 @@ const WorkDetail = () => {
     }
   };
 
+    const handleFinalInspectionImageChange = (event) => {
+    if (event.target.files && event.target.files[0]) {
+      setFinalInspectionImageFile(event.target.files[0]);
+    }
+  };
+
+  const handleUploadFinalInspectionImage = async () => {
+    if (!finalInspectionImageFile || !work?.idWork) {
+      alert("Por favor, selecciona un archivo y asegúrate de que la obra esté cargada.");
+      return;
+    }
+
+    setUploadingFinalImage(true);
+    const formData = new FormData();
+    formData.append("imageFile", finalInspectionImageFile); // El backend espera 'images' como un array de archivos
+    formData.append("stage", "inspeccion final");
+    // Puedes añadir más campos al formData si tu backend los espera para esta etapa, ej: comment, dateTime
+    // formData.append("comment", "Imagen para inspección final subida por el administrador.");
+    // formData.append("dateTime", new Date().toISOString());
+
+    try {
+      const result = await dispatch(addImagesToWork(work.idWork, formData));
+      if (result && !result.error) {
+        alert("Imagen para inspección final subida correctamente.");
+        setFinalInspectionImageFile(null);
+        setShowUploadFinalInspectionImage(false);
+        // Opcional: refrescar los datos de la obra para ver la nueva imagen inmediatamente
+        dispatch(fetchWorkById(work.idWork));
+      } else {
+        alert(`Error al subir la imagen: ${result?.message || 'Error desconocido'}`);
+      }
+    } catch (error) {
+      alert(`Error al subir la imagen: ${error.message}`);
+    } finally {
+      setUploadingFinalImage(false);
+    }
+  };
+
 
 
   if (workLoading) {
@@ -290,7 +331,7 @@ const WorkDetail = () => {
   if (workError) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <p className="text-xl font-semibold text-red-500">Error: {error}</p>
+        <p className="text-xl font-semibold text-red-500">Error: {workError}</p>
       </div>
     );
   }
@@ -650,14 +691,56 @@ const WorkDetail = () => {
           {/* --- FIN SECCIÓN COMPROBANTES ACTUALIZADA --- */}
 
 
-          {/* Tarjeta: Imágenes */}
+           {/* Tarjeta: Imágenes */}
           <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-yellow-500">
-            <h2
-              className="text-xl font-semibold mb-4 cursor-pointer"
-              onClick={() => toggleSection("images")}
-            >
-              Imágenes de la Obra
-            </h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2
+                className="text-xl font-semibold cursor-pointer"
+                onClick={() => toggleSection("images")}
+              >
+                Imágenes de la Obra
+              </h2>
+              {/* Botón para mostrar/ocultar la subida de imagen de inspección final */}
+              {work?.status && (work.status === 'paymentReceived' || work.status === 'finalRejected' || work.status === 'finalInspectionPending' ) && ( // Mostrar solo en estados relevantes
+                <button
+                  onClick={() => setShowUploadFinalInspectionImage(!showUploadFinalInspectionImage)}
+                  className="text-sm bg-teal-500 hover:bg-teal-600 text-white font-semibold py-2 px-3 rounded shadow"
+                >
+                  {showUploadFinalInspectionImage ? 'Cancelar Subida' : 'Subir Img. Insp. Final'}
+                </button>
+              )}
+            </div>
+
+            {/* Sección para subir imagen de inspección final */}
+            {showUploadFinalInspectionImage && (
+              <div className="my-4 p-4 border border-gray-300 rounded-md bg-gray-50">
+                <h3 className="text-md font-semibold text-gray-700 mb-2">Subir Imagen para Inspección Final</h3>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFinalInspectionImageChange}
+                  className="block w-full text-sm text-gray-500
+                             file:mr-4 file:py-2 file:px-4
+                             file:rounded-full file:border-0
+                             file:text-sm file:font-semibold
+                             file:bg-blue-50 file:text-blue-700
+                             hover:file:bg-blue-100 mb-3"
+                />
+                {finalInspectionImageFile && (
+                  <div className="mb-3">
+                    <p className="text-xs text-gray-600">Archivo seleccionado: {finalInspectionImageFile.name}</p>
+                    <img src={URL.createObjectURL(finalInspectionImageFile)} alt="Previsualización" className="mt-2 max-h-40 rounded border"/>
+                  </div>
+                )}
+                <button
+                  onClick={handleUploadFinalInspectionImage}
+                  disabled={!finalInspectionImageFile || uploadingFinalImage}
+                  className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded disabled:bg-gray-400"
+                >
+                  {uploadingFinalImage ? 'Subiendo...' : 'Confirmar y Subir Imagen'}
+                </button>
+              </div>
+            )}
             {openSections.images &&
               Object.entries(groupedImages).map(([stage, images]) => {
                 const truckSumStages = ['camiones de arena', 'camiones de tierra'];
@@ -742,6 +825,41 @@ const WorkDetail = () => {
               {!selectedInstalledImage && installedImages.length > 0 && ( // Mostrar solo si hay imágenes para seleccionar
                 <p className="text-sm text-yellow-600 mt-2">
                   Por favor, selecciona una imagen de "sistema instalado" como referencia para la inspección.
+                </p>
+              )}
+            </div>
+          )}
+
+           {(work?.status === 'paymentReceived' || work?.status === 'finalRejected' || work?.status === 'finalInspectionPending') && (
+            <div className="my-6 p-4 border rounded-lg shadow-sm bg-white">
+              <h3 className="text-lg font-semibold mb-3 text-gray-700">
+                Seleccionar Imagen para Inspección Final
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 max-h-72 overflow-y-auto p-2 border rounded-md">
+                {(groupedImages['inspeccion final'] || []).map(image => ( // Filtrar solo imágenes de 'inspeccion final'
+                  <div
+                    key={image.id}
+                    className={`cursor-pointer border-2 p-1 rounded-md hover:border-green-500 transition-all ${selectedInstalledImage?.id === image.id ? 'border-green-600 ring-2 ring-green-500' : 'border-gray-200'}`}
+                    onClick={() => setSelectedInstalledImage(image)} // Usar selectedInstalledImage o un nuevo estado si prefieres
+                  >
+                    <img
+                      src={image.imageUrl}
+                      alt={`Inspección Final - ${image.id}`}
+                      className="w-full h-28 object-cover rounded"
+                    />
+                    <p className="text-xs text-center mt-1 truncate" title={`ID: ${image.id}`}>ID: {image.id}</p>
+                  </div>
+                ))}
+                {(groupedImages['inspeccion final'] === undefined || groupedImages['inspeccion final'].length === 0) && (
+                    <p className="col-span-full text-center text-sm text-gray-500 py-4">
+                        No hay imágenes cargadas para la etapa 'inspección final'.
+                        Puedes subir una usando el botón de arriba.
+                    </p>
+                )}
+              </div>
+              {selectedInstalledImage && groupedImages['inspeccion final']?.some(img => img.id === selectedInstalledImage.id) && ( // Asegurarse que la seleccionada es de esta etapa
+                <p className="text-sm text-green-700 mt-2">
+                  Imagen para inspección final seleccionada: ID {selectedInstalledImage.id}
                 </p>
               )}
             </div>

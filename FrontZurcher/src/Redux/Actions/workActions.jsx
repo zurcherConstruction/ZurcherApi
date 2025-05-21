@@ -24,6 +24,12 @@ import {
   updateChangeOrderRequest,
   updateChangeOrderSuccess,
   updateChangeOrderFailure,
+  addImagesRequest,
+  addImagesSuccess,
+  addImagesFailure,
+  deleteImagesRequest,
+  deleteImagesSuccess,
+  deleteImagesFailure,
   
 } from '../Reducer/workReducer';
 
@@ -347,5 +353,64 @@ export const deleteChangeOrder = (changeOrderId) => async (dispatch, getState) =
     const errorMessage = error.response?.data?.message || 'Error al eliminar la Orden de Cambio.';
     dispatch(deleteChangeOrderFailure(errorMessage));
     return { error: true, message: errorMessage };
+  }
+};
+
+//images front 
+export const addImagesToWork = (idWork, formData) => async (dispatch) => {
+  dispatch(addImagesRequest());
+  try {
+    const response = await api.post(`/work/${idWork}/images`, formData, {
+      // ... headers si son necesarios ...
+    });
+    // Loguea para confirmar la estructura de response.data
+    console.log('[workActions] addImagesToWork SUCCESS, response.data:', response.data); 
+    
+    // Asegúrate de que response.data y response.data.createdImage existan
+    if (response.data && response.data.createdImage) {
+      dispatch(addImagesSuccess(response.data)); 
+      return response.data; // Devuelve { message, work, createdImage }
+    } else {
+      // Si la respuesta es 2xx pero no tiene la estructura esperada
+      console.error('[workActions] addImagesToWork SUCCESS pero respuesta inesperada:', response.data);
+      const failureMsg = 'Respuesta inesperada del servidor tras subir imagen.';
+      dispatch(addImagesFailure(failureMsg));
+      Alert.alert('Error', failureMsg);
+      return { error: true, message: failureMsg, details: response.data };
+    }
+  } catch (error) {
+    const backendErrorMessage = error.response?.data?.message;
+    const displayErrorMessage = backendErrorMessage || 'Error al agregar las imágenes';
+    
+    console.error('[workActions] addImagesToWork FAILURE:', displayErrorMessage, 'Full error response:', error.response?.data); // <--- AQUÍ error.response?.data es undefined
+    dispatch(addImagesFailure(displayErrorMessage)); 
+    Alert.alert('Error', displayErrorMessage); 
+    return { error: true, message: displayErrorMessage, details: error.response?.data }; 
+  }
+};
+// ...
+export const deleteImagesFromWork = (idWork, imageId) => async (dispatch) => { // Cambiado imageData por imageId
+  dispatch(deleteImagesRequest()); // Acción para iniciar la solicitud
+  try {
+    // URL corregida, sin cuerpo (data)
+    const response = await api.delete(`/work/${idWork}/images/${imageId}`);
+
+    // Verificar si la respuesta es 204 No Content (éxito sin cuerpo)
+    if (response.status === 204) {
+      // Payload opcional, podría ser útil para el reducer si no se refresca
+      dispatch(deleteImagesSuccess({ idWork, imageId })); // Acción para éxito
+      // *** CLAVE: Refrescar la lista de trabajos para actualizar la UI ***
+      dispatch(fetchAssignedWorks());
+    } else {
+      // Manejar otros códigos de estado si es necesario
+      throw new Error(`Error inesperado al eliminar: ${response.status}`);
+    }
+    // No necesitas devolver response.data porque es 204 No Content
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.message || error.message || 'Error al eliminar la imagen';
+    dispatch(deleteImagesFailure(errorMessage)); // Acción para error
+    Alert.alert('Error', errorMessage); // Mostrar error en una alerta
+    throw error; // Lanzar el error para manejarlo en el componente
   }
 };
