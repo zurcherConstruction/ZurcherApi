@@ -15,6 +15,7 @@ module.exports = (sequelize) => {
         'sistema instalado',
         'extracción de piedras',
         'camiones de tierra',
+        'trabajo cubierto',
         'inspeccion final'
       ),
       allowNull: false,

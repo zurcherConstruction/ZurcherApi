@@ -146,12 +146,18 @@ const finalInvoiceReducer = createSlice({
         state.errorPdf = null;
         // No limpiamos currentInvoice aquí, solo el estado de PDF
       })
-      .addCase(generateFinalInvoicePdf.fulfilled, (state, action) => {
-        state.loadingPdf = false;
-        // El payload es la factura COMPLETA actualizada desde el backend
-        state.currentInvoice = action.payload;
-        // state.pdfUrl = action.payload.pdfUrl; // Opcional si necesitas acceso directo
-      })
+     .addCase(generateFinalInvoicePdf.fulfilled, (state, action) => {
+  state.loadingPdf = false;
+  // action.payload debería ser el objeto completo que envió el backend
+  // incluyendo { message, pdfPath, pdfUrl, finalInvoice }
+  if (action.payload && action.payload.finalInvoice) {
+    state.currentInvoice = action.payload.finalInvoice; // <--- ESTO ES CRUCIAL
+  }
+  state.errorPdf = null;
+  // Opcional: puedes guardar el mensaje o la URL del PDF directamente en el estado si es útil
+  // state.pdfGenerationMessage = action.payload.message;
+  // state.lastGeneratedPdfUrl = action.payload.pdfUrl;
+})
       .addCase(generateFinalInvoicePdf.rejected, (state, action) => {
         state.loadingPdf = false;
         state.errorPdf = action.payload?.message || 'Error al generar/obtener PDF.';

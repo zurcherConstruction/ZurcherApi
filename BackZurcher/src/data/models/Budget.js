@@ -35,6 +35,10 @@ module.exports = (sequelize) => {
       type: DataTypes.ENUM("created","send", "approved", "notResponded", "rejected"),
       allowNull: false,
     },
+    paymentProofAmount:{
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+    },
 
     //  systemType: {
     //   type: DataTypes.TEXT,

@@ -5,11 +5,38 @@ import {
   updateBudget,
   // uploadInvoice, // Ya no se usa aquí si se eliminó handleUploadPayment
 } from "../../Redux/Actions/budgetActions";
-import { DocumentArrowDownIcon, EyeIcon, PencilIcon, CheckIcon, XMarkIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'; // Icono para descarga
+import { DocumentArrowDownIcon, EyeIcon, PencilIcon, CheckIcon, XMarkIcon, ExclamationTriangleIcon, PaperClipIcon } from '@heroicons/react/24/outline'; // Icono para descarga
 //import BudgetPDF from "./BudgetPDF";
 import { parseISO,  format } from "date-fns";
 import api from "../../utils/axios";
 
+const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
+  if (!isOpen || !pdfUrl) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl h-[90vh] flex flex-col">
+        <div className="flex justify-between items-center p-4 border-b">
+          <h3 className="text-lg font-semibold text-gray-700">{title || "Vista Previa del PDF"}</h3>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700"
+            title="Cerrar"
+          >
+            <XMarkIcon className="h-6 w-6" />
+          </button>
+        </div>
+        <div className="flex-grow p-1">
+          <iframe
+            src={pdfUrl}
+            title={title || "PDF Viewer"}
+            className="w-full h-full border-none"
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const BudgetList = () => {
   // ... (dispatch, useSelector, state, useEffect, filtros, ordenación, paginación) ...
@@ -26,6 +53,12 @@ console.log("Presupuestos:", budgets); // Verifica si los presupuestos se están
 
 const [downloadingPdfId, setDownloadingPdfId] = useState(null); // Estado para indicar descarga
 const [viewingPdfId, setViewingPdfId] = useState(null);
+
+  // --- NUEVOS ESTADOS PARA EL MODAL DE PDF ---
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [pdfUrlForModal, setPdfUrlForModal] = useState('');
+  const [pdfTitleForModal, setPdfTitleForModal] = useState('');
+    const [isLoadingPdfInModal, setIsLoadingPdfInModal] = useState(null);
 
 useEffect(() => {
     dispatch(fetchBudgets());
@@ -226,8 +259,127 @@ useEffect(() => {
       });
   };
 
-  // --- ELIMINA handleUploadPayment si ya no se usa ---
-  // const handleUploadPayment = async (idBudget, file) => { ... };
+ // ...existing code...
+
+  // --- MODIFICADA: FUNCIÓN PARA MOSTRAR PDF DE PERMISO/OPCIONAL EN MODAL ---
+  const handleShowPermitPdfInModal = async (budget, pdfType) => {
+    console.log(`handleShowPermitPdfInModal llamado con budget ID: ${budget.idBudget}, pdfType: ${pdfType}`); // DEBUG INICIAL
+    const loadingKey = `${budget.idBudget}-${pdfType}`;
+    setIsLoadingPdfInModal(loadingKey);
+
+    if (pdfUrlForModal) {
+      console.log("Revocando URL de modal anterior:", pdfUrlForModal); // DEBUG
+      URL.revokeObjectURL(pdfUrlForModal);
+      setPdfUrlForModal('');
+    }
+
+    let pdfDataBlob;
+    let title;
+
+    if (pdfType === 'budgetSelf') { // Para el PDF del presupuesto mismo
+        try {
+            console.log(`Obteniendo PDF del presupuesto (budgetSelf) para ID: ${budget.idBudget}`); // DEBUG
+            const response = await api.get(`/budget/${budget.idBudget}/pdf`, {
+                responseType: 'blob',
+            });
+            pdfDataBlob = response.data;
+            title = `Presupuesto - ${budget.idBudget}`;
+            console.log("PDF del presupuesto (budgetSelf) obtenido, blob:", pdfDataBlob); // DEBUG
+        } catch (error) {
+            console.error(`Error al obtener PDF del presupuesto (${budget.idBudget}):`, error);
+            alert(`Error al obtener el PDF del presupuesto: ${error.response?.data?.message || error.message}`);
+            setIsLoadingPdfInModal(null);
+            return;
+        }
+    } else if (budget.Permit) {
+        console.log("Procesando PDF de Permiso. budget.Permit:", budget.Permit); // DEBUG
+        if (pdfType === 'pdfData' && budget.Permit.pdfData) {
+            pdfDataBlob = budget.Permit.pdfData; 
+            title = `Permiso Principal - Presupuesto ${budget.idBudget}`;
+            console.log("Usando budget.Permit.pdfData para 'pdfData', blob:", pdfDataBlob); // DEBUG
+        } else if (pdfType === 'optionalDocs' && budget.Permit.optionalDocs) {
+            pdfDataBlob = budget.Permit.optionalDocs; 
+            title = `Documentos Opcionales - Presupuesto ${budget.idBudget}`;
+            console.log("Usando budget.Permit.optionalDocs para 'optionalDocs', blob:", pdfDataBlob); // DEBUG
+        } else {
+            console.log(`Tipo de PDF de permiso '${pdfType}' no encontrado o sin datos en budget.Permit`); // DEBUG
+        }
+    } else {
+        console.log("budget.Permit no existe, no se puede procesar PDF de permiso."); // DEBUG
+    }
+
+    if (pdfDataBlob) {
+      try {
+        console.log("Procesando pdfDataBlob:", pdfDataBlob, "para pdfType:", pdfType, "con título:", title); // DEBUG
+        let finalBlob;
+        if (pdfDataBlob instanceof Blob) {
+            finalBlob = pdfDataBlob;
+            console.log("pdfDataBlob ya es una instancia de Blob."); // DEBUG
+        } else if (typeof pdfDataBlob === 'string') { // Asumir base64
+            console.log("pdfDataBlob es un string, intentando convertir desde base64."); // DEBUG
+            const byteCharacters = atob(pdfDataBlob);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+              byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            finalBlob = new Blob([byteArray], {type: 'application/pdf'});
+            console.log("finalBlob creado desde string base64:", finalBlob); // DEBUG
+        } else if (pdfDataBlob && pdfDataBlob.type === 'Buffer' && Array.isArray(pdfDataBlob.data)) { // Común desde Node.js
+            console.log("pdfDataBlob es un objeto Buffer, intentando convertir."); // DEBUG
+            finalBlob = new Blob([new Uint8Array(pdfDataBlob.data)], { type: 'application/pdf' });
+            console.log("finalBlob creado desde Buffer:", finalBlob); // DEBUG
+        } else {
+            console.error("Formato de pdfDataBlob no reconocido o es nulo:", pdfDataBlob);
+            alert("No se pudo procesar el archivo PDF. Formato no reconocido.");
+            setIsLoadingPdfInModal(null);
+            return;
+        }
+
+        if (!title) {
+            console.warn("El título del PDF es undefined. Usando título por defecto."); // DEBUG
+            // title = "Vista Previa del PDF"; // Opcional: poner un default si es crítico
+        }
+
+        const objectUrl = URL.createObjectURL(finalBlob);
+        console.log("objectUrl creado:", objectUrl, "con título:", title); // DEBUG
+        setPdfUrlForModal(objectUrl);
+        setPdfTitleForModal(title);
+        setIsModalOpen(true);
+        console.log("Modal debería estar abriéndose."); // DEBUG
+      } catch (e) {
+        console.error("Error creando Object URL o procesando el blob:", e, pdfDataBlob);
+        alert("Error al procesar el archivo PDF.");
+        setPdfUrlForModal('');
+      }
+    } else {
+      console.log(`No se encontraron datos válidos en pdfDataBlob para el PDF (${pdfType}) en el presupuesto ${budget.idBudget}. No se abrirá el modal.`); // DEBUG
+      alert(`No se encontraron datos para el PDF (${pdfType}) en el presupuesto ${budget.idBudget}.`);
+      setPdfUrlForModal('');
+    }
+    setIsLoadingPdfInModal(null);
+  };
+
+// ...existing code...
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    if (pdfUrlForModal) {
+      URL.revokeObjectURL(pdfUrlForModal);
+    }
+    setPdfUrlForModal('');
+    setPdfTitleForModal('');
+  };
+
+   useEffect(() => {
+    return () => {
+      if (pdfUrlForModal) {
+        URL.revokeObjectURL(pdfUrlForModal);
+      }
+    };
+  }, [pdfUrlForModal]);
+
+
 
   const getStatusColor = (status) => {
     // ... (sin cambios) ...
@@ -277,6 +429,7 @@ useEffect(() => {
                   const permitExpStatus = budget.Permit?.expirationStatus || budget.permitExpirationStatus;
                   const permitExpMessage = budget.Permit?.expirationMessage || budget.permitExpirationMessage;
 
+                  
                   if (permitExpStatus === "expired" || permitExpStatus === "soon_to_expire") {
                     const isError = permitExpStatus === "expired";
                     const alertColorClass = isError ? "text-red-500" : "text-yellow-500";
@@ -294,6 +447,13 @@ useEffect(() => {
                     );
                   }
 
+                 const permitId = budget.Permit?.idPermit;
+
+                  // --- CONDICIÓN DE RENDERIZADO DE BOTONES AJUSTADA ---
+                  // Ahora verificamos si budget.Permit existe y si los campos pdfData/optionalDocs tienen contenido.
+                  const hasPermitPdfData = !!(budget.Permit && budget.Permit.pdfData);
+                  const hasPermitOptionalDocs = !!(budget.Permit && budget.Permit.optionalDocs);
+                  const hasBudgetPdfItself = !!budget.pdfPath; // O la lógica que uses para el PDF del presupuesto
                   return (
                     <tr
                       key={budget.idBudget}
@@ -414,44 +574,63 @@ useEffect(() => {
                           </p>
                         )}
                       
-                        {budget.pdfPath ? (
-                          <>
-                           
-                            <button
-                              onClick={() => handleViewPdf(budget.idBudget)}
-                              disabled={viewingPdfId === budget.idBudget} // Deshabilitar mientras carga
-                              className="inline-flex items-center justify-center bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700 w-16 disabled:opacity-50 disabled:cursor-wait"
-                              title="View PDF"
+                        {/* Acciones para el PDF del Presupuesto mismo */}
+                        {hasBudgetPdfItself && ( // Si budget.pdfPath existe
+                        <>
+                            {/* Botón para VER el PDF del Presupuesto EN MODAL */}
+                            <button 
+                            onClick={() => handleShowPermitPdfInModal(budget, 'budgetSelf')} 
+                            disabled={isLoadingPdfInModal === `${budget.idBudget}-budgetSelf`} 
+                            className="inline-flex items-center justify-center bg-teal-600 text-white px-2 py-1 rounded text-xs hover:bg-teal-700 min-w-[70px] m-0.5 disabled:opacity-50" 
+                            title="View Budget PDF"
                             >
-                              {viewingPdfId === budget.idBudget ? (
-                                <svg className="animate-spin h-4 w-4 text-white" /* ... spinner ... */ ></svg>
-                              ) : (
-                                <EyeIcon className="h-4 w-4" />
-                              )}
-                              <span className="ml-1">View</span>
+                            {isLoadingPdfInModal === `${budget.idBudget}-budgetSelf` ? <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <EyeIcon className="h-4 w-4" />}
+                            <span className="ml-1 text-[10px]">Budget</span>
                             </button>
 
-                            
-                            <button
-                              onClick={() => handleDownloadPdf(budget.idBudget, `budget_${budget.idBudget}.pdf`)}
-                              disabled={downloadingPdfId === budget.idBudget}
-                              className="inline-flex items-center justify-center bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 w-16 disabled:opacity-50 disabled:cursor-wait"
-                              title="Download PDF"
+                            {/* Botón para DESCARGAR el PDF del Presupuesto */}
+                            <button 
+                            onClick={() => handleDownloadPdf(budget.idBudget, `budget_${budget.idBudget}.pdf`)} 
+                            disabled={downloadingPdfId === budget.idBudget} 
+                            className="inline-flex items-center justify-center bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 min-w-[80px] m-0.5 disabled:opacity-50"  // Ajustado min-w para "Download"
+                            title="Download Budget PDF"
                             >
-                              {downloadingPdfId === budget.idBudget ? (
-                                <svg className="animate-spin h-4 w-4 text-white" /* ... */ ></svg>
-                              ) : (
-                                <DocumentArrowDownIcon className="h-4 w-4" />
-                              )}
-                              <span className="ml-1">PDF</span>
+                            {downloadingPdfId === budget.idBudget ? <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <DocumentArrowDownIcon className="h-4 w-4" />}
+                            <span className="ml-1 text-[10px]">Download</span>
                             </button>
-                            </>
-                        ) : (
-                          // Espaciador si no hay PDF para mantener alineación (opcional)
-                          <div className="w-16 h-px"></div> // O un span vacío con ancho
+                        </>
                         )}
-                       
 
+                        {/* Botón para ver PDF Principal del Permiso */}
+                        {permitId && hasPermitPdfData && (
+                            <button
+                            onClick={() => handleShowPermitPdfInModal(budget, 'pdfData')}
+                            disabled={isLoadingPdfInModal === `${budget.idBudget}-pdfData`}
+                            className="inline-flex items-center justify-center bg-indigo-600 text-white px-2 py-1 rounded text-xs hover:bg-indigo-700 min-w-[70px] m-0.5 disabled:opacity-50"
+                            title="View Permit PDF"
+                            >
+                            {isLoadingPdfInModal === `${budget.idBudget}-pdfData` ? <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <PaperClipIcon className="h-4 w-4" />}
+                            <span className="ml-1 text-[10px]">Permit</span>
+                            </button>
+                        )}
+
+                        {/* Botón para ver Documentos Opcionales del Permiso */}
+                        {permitId && hasPermitOptionalDocs && (
+                            <button
+                            onClick={() => handleShowPermitPdfInModal(budget, 'optionalDocs')}
+                            disabled={isLoadingPdfInModal === `${budget.idBudget}-optionalDocs`}
+                            className="inline-flex items-center justify-center bg-purple-600 text-white px-2 py-1 rounded text-xs hover:bg-purple-700 min-w-[70px] m-0.5 disabled:opacity-50"
+                            title="View Optional Docs"
+                            >
+                            {isLoadingPdfInModal === `${budget.idBudget}-optionalDocs` ? <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <PaperClipIcon className="h-4 w-4" />}
+                            <span className="ml-1 text-[10px]">Optional</span>
+                            </button>
+                        )}
+                        
+                        {/* Placeholder si no hay NINGÚN PDF (ni de budget, ni de permit, ni opcional) */}
+                        {!hasBudgetPdfItself && !(permitId && (hasPermitPdfData || hasPermitOptionalDocs)) && (
+                            <div className="w-px h-px m-0.5"></div> 
+                        )}
                       </div> 
                     </td>
                   </tr>
@@ -487,98 +666,116 @@ useEffect(() => {
                   </span>
                 );
               }
+                // Variables para la lógica de los botones PDF (igual que en la tabla)
+              const permitId = budget.Permit?.idPermit;
+              const hasPermitPdfData = !!(budget.Permit && budget.Permit.pdfData);
+              const hasPermitOptionalDocs = !!(budget.Permit && budget.Permit.optionalDocs);
+              const hasBudgetPdfItself = !!budget.pdfPath;
               
-              return (
+         return (
                 <div
-                  key={budget.idBudget} // Ensure key is on the outermost element of the map
+                  key={budget.idBudget}
                   className={`border border-gray-300 rounded-lg p-4 shadow-md ${getStatusColor(budget.status)}`}
                 >
-                  <p className="text-sm font-semibold text-gray-700 flex items-center">
-                    Applicant: {budget.applicantName}
-                    {permitExpirationAlertIconCard}
-                  </p>
+                  <div className="flex justify-between items-start mb-2">
+                    <p className="text-sm font-semibold text-gray-700 flex items-center">
+                      {budget.applicantName}
+                      {permitExpirationAlertIconCard}
+                    </p>
+                    {/* Aquí puedes poner el botón de editar notas si lo deseas en la parte superior */}
+                  </div>
                
-                <p className="text-xs text-gray-600">Date: {formatDate(budget.date)}</p>
-                <p className="text-xs text-gray-600">End Date: {budget.expirationDate ? formatDate(budget.expirationDate) : "N/A"}</p>
-                <p className="text-xs text-gray-600">Price: ${budget.totalPrice}</p>
-                <p className="text-xs text-gray-600">{paymentLabel}: ${budget.initialPayment}</p>
-                <p className="text-xs text-gray-600">Status: <span className="font-medium">{budget.status}</span></p>
-                <p className="text-xs text-gray-600">Address: {budget.propertyAddress || "N/A"}</p>
-                <p className="text-xs text-gray-600">System Type: {budget.systemType || "N/A"}</p>
-                <div className="mt-3 border-t pt-2 flex items-center justify-between"> {/* Separador y flex */}
+                  <p className="text-xs text-gray-600">Date: {formatDate(budget.date)}</p>
+                  <p className="text-xs text-gray-600">End Date: {budget.expirationDate ? formatDate(budget.expirationDate) : "N/A"}</p>
+                  <p className="text-xs text-gray-600">Price: ${budget.totalPrice}</p>
+                  <p className="text-xs text-gray-600">{paymentLabel}: ${budget.initialPayment}</p>
+                  <p className="text-xs text-gray-600">Status: <span className="font-medium">{budget.status}</span></p>
+                  <p className="text-xs text-gray-600">Address: {budget.propertyAddress || "N/A"}</p>
+                  <p className="text-xs text-gray-600">System Type: {budget.Permit?.systemType || budget.systemType || "N/A"}</p>
                   
-                  <div> 
-                    {budget.status === "created" && (
-                      <button
-                        onClick={() => handleUpdateStatus(budget.idBudget, "send", budget)}
-                        className="bg-yellow-500 text-white px-2 py-1 rounded text-xs hover:bg-yellow-600"
-                      >
-                        Send
-                      </button>
-                    )}
-
-                    {budget.status === "send" && (
-                      <div className="flex items-center space-x-2"> {/* Flex para alinear */}
-                        {budget.paymentInvoice ? (
-                          <p className="text-green-600 text-xs font-semibold">Invoice Uploaded</p>
-                        ) : (
-                          <p className="text-orange-600 text-xs font-semibold">Pending Invoice</p>
-                        )}
-
-                       
-                        <button
-                          onClick={() => handleUpdateStatus(budget.idBudget, "rejected", budget)}
-                          className="bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    )}
-
-                    {budget.status === "approved" && (
-                      <p className="text-green-600 text-xs font-semibold">
-                        Approved
-                      </p>
-                    )}
-
-                    {budget.status === "rejected" && (
-                      <p className="text-red-600 text-xs font-semibold">
-                        Rejected
-                      </p>
-                    )}
+                  {/* Notas (similar a la tabla) */}
+                  <div className="mt-2 pt-2 border-t">
+                    <p className="text-xs font-semibold text-gray-700 mb-1">Notes:</p>
+                    {editingBudgetId === budget.idBudget ? (
+                        <div className="flex flex-col">
+                          <textarea
+                            value={currentNote}
+                            onChange={handleNoteChange}
+                            className="w-full p-1 border rounded text-xs resize-y min-h-[40px]"
+                            rows={2}
+                            disabled={isSavingNote}
+                          />
+                          <div className="flex justify-end space-x-1 mt-1">
+                            <button onClick={handleSaveNote} disabled={isSavingNote} className="p-1 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50" title="Save Notes">
+                              {isSavingNote ? <svg className="animate-spin h-3 w-3 text-white" viewBox="0 0 24 24">...</svg> : <CheckIcon className="h-3 w-3" />}
+                            </button>
+                            <button onClick={handleCancelEditNote} disabled={isSavingNote} className="p-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50" title="Cancel Edit">
+                              <XMarkIcon className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex justify-between items-start">
+                          <span className="whitespace-pre-wrap break-words text-xs text-gray-600 max-w-[calc(100%-2rem)]">
+                            {budget.generalNotes || <span className="text-gray-400 italic">No notes</span>}
+                          </span>
+                          <button onClick={() => handleEditNoteClick(budget)} className="ml-2 p-0.5 text-blue-600 hover:text-blue-800" title="Edit Notes">
+                            <PencilIcon className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
                   </div>
 
-                  
-                  <div className="flex items-center space-x-1"> 
-                    {budget.pdfPath ? (
-                      <>
-                        
-                        <button
-                                  onClick={() => handleViewPdf(budget.idBudget)}
-                                  disabled={viewingPdfId === budget.idBudget}
-                                  className="inline-flex items-center justify-center bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700 w-16 disabled:opacity-50 disabled:cursor-wait"
-                                  title="View PDF"
-                               >
-                                  {viewingPdfId === budget.idBudget ? ( <svg /* spinner */></svg> ) : ( <EyeIcon className="h-4 w-4" /> )}
-                                  <span className="ml-1">View</span>
-                               </button>
-                        
-                        <button
-                          onClick={() => handleDownloadPdf(budget.idBudget, `budget_${budget.idBudget}.pdf`)}
-                          disabled={downloadingPdfId === budget.idBudget}
-                          className="inline-flex items-center justify-center bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 w-16 disabled:opacity-50 disabled:cursor-wait"
-                          title="Download PDF"
-                        >
-                          {downloadingPdfId === budget.idBudget ? ( <svg /* ... */></svg> ) : ( <DocumentArrowDownIcon className="h-4 w-4" /> )}
-                          <span className="ml-1">PDF</span>
-                        </button>
-                      </>
-                    ) : (
-                      <span className="text-xs text-gray-400 italic">No PDF</span>
-                    )}
-                  </div> 
+                  {/* Acciones (Botones de estado y PDF) */}
+                  <div className="mt-3 border-t pt-3">
+                    <p className="text-xs font-semibold mb-1 text-gray-600">Actions:</p>
+                    <div className="space-y-2"> {/* Contenedor principal para acciones */}
+                        {/* Botones de Estado */}
+                        {budget.status === "created" && (
+                            <button onClick={() => handleUpdateStatus(budget.idBudget, "send", budget)} className="w-full text-center bg-yellow-500 text-white px-3 py-1.5 rounded text-xs hover:bg-yellow-600">Send Budget</button>
+                        )}
+                        {budget.status === "send" && (
+                            <div className="w-full text-center p-2 border rounded bg-gray-50">
+                                <p className="text-xs font-semibold text-gray-500">Sent</p>
+                                {budget.paymentInvoice ? <p className="text-green-600 text-[10px] font-semibold">Invoice OK</p> : <p className="text-orange-600 text-[10px] font-semibold">Need Invoice</p>}
+                                <button onClick={() => handleUpdateStatus(budget.idBudget, "rejected", budget)} className="mt-1 w-full bg-red-500 text-white px-3 py-1.5 rounded text-xs hover:bg-red-600">Reject</button>
+                            </div>
+                        )}
+                        {budget.status === "approved" && <p className="w-full text-center text-green-600 text-xs font-semibold p-2 border rounded bg-green-50">Approved</p>}
+                        {budget.status === "rejected" && <p className="w-full text-center text-red-600 text-xs font-semibold p-2 border rounded bg-red-50">Rejected</p>}
+
+                        {/* Botones de PDF (usando grid para mejor distribución si hay varios) */}
+                        {(hasBudgetPdfItself || (permitId && (hasPermitPdfData || hasPermitOptionalDocs))) && (
+                          <div className="grid grid-cols-2 gap-2 pt-2">
+                            {hasBudgetPdfItself && (
+                                <>
+                                    <button onClick={() => handleShowPermitPdfInModal(budget, 'budgetSelf')} disabled={isLoadingPdfInModal === `${budget.idBudget}-budgetSelf`} className="inline-flex items-center justify-center bg-teal-600 text-white px-2 py-1.5 rounded text-xs hover:bg-teal-700 disabled:opacity-50">
+                                        {isLoadingPdfInModal === `${budget.idBudget}-budgetSelf` ? <svg className="animate-spin h-3 w-3 mr-1" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <EyeIcon className="h-3 w-3 mr-1" />} Budget
+                                    </button>
+                                    <button onClick={() => handleDownloadPdf(budget.idBudget, `budget_${budget.idBudget}.pdf`)} disabled={downloadingPdfId === budget.idBudget} className="inline-flex items-center justify-center bg-blue-600 text-white px-2 py-1.5 rounded text-xs hover:bg-blue-700 disabled:opacity-50">
+                                        {downloadingPdfId === budget.idBudget ? <svg className="animate-spin h-3 w-3 mr-1" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <DocumentArrowDownIcon className="h-3 w-3 mr-1" />} Download
+                                    </button>
+                                </>
+                            )}
+                            {permitId && hasPermitPdfData && (
+                                <button onClick={() => handleShowPermitPdfInModal(budget, 'pdfData')} disabled={isLoadingPdfInModal === `${budget.idBudget}-pdfData`} className="inline-flex items-center justify-center bg-indigo-600 text-white px-2 py-1.5 rounded text-xs hover:bg-indigo-700 disabled:opacity-50">
+                                    {isLoadingPdfInModal === `${budget.idBudget}-pdfData` ? <svg className="animate-spin h-3 w-3 mr-1" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <PaperClipIcon className="h-3 w-3 mr-1" />} Permit
+                                </button>
+                            )}
+                            {permitId && hasPermitOptionalDocs && (
+                                <button onClick={() => handleShowPermitPdfInModal(budget, 'optionalDocs')} disabled={isLoadingPdfInModal === `${budget.idBudget}-optionalDocs`} className="inline-flex items-center justify-center bg-purple-600 text-white px-2 py-1.5 rounded text-xs hover:bg-purple-700 disabled:opacity-50">
+                                    {isLoadingPdfInModal === `${budget.idBudget}-optionalDocs` ? <svg className="animate-spin h-3 w-3 mr-1" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <PaperClipIcon className="h-3 w-3 mr-1" />} Optional
+                                </button>
+                            )}
+                          </div>
+                        )}
+                        {/* Mensaje si no hay PDFs */}
+                        {!hasBudgetPdfItself && !(permitId && (hasPermitPdfData || hasPermitOptionalDocs)) && (
+                            <p className="text-xs text-gray-400 italic text-center pt-2">No PDF actions available</p> 
+                        )}
+                    </div>
+                  </div>
                 </div>
-              </div>
                );
               })}
           </div>
@@ -599,6 +796,12 @@ useEffect(() => {
               </button>
             ))}
           </div>
+            <PdfModal
+            isOpen={isModalOpen}
+            onClose={closeModal}
+            pdfUrl={pdfUrlForModal}
+            title={pdfTitleForModal}
+          />
         </>
       )}
     </div>

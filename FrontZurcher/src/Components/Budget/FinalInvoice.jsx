@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   fetchFinalInvoiceByWorkId,
@@ -69,7 +69,8 @@ const FinalInvoiceComponent = ({ workId }) => {
   // Estado para la carga y error de la descarga del PDF
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [downloadPdfError, setDownloadPdfError] = useState(null);
-
+  const [selectedChangeOrderIds, setSelectedChangeOrderIds] = useState([]);
+  
   useEffect(() => {
     if (workId) {
       console.log("FinalInvoiceComponent: Fetching invoice for workId", workId);
@@ -80,6 +81,54 @@ const FinalInvoiceComponent = ({ workId }) => {
       dispatch(clearFinalInvoiceState());
     };
   }, [dispatch, workId]);
+
+
+   const changeOrders = selectedWork?.changeOrders || [];
+
+  // Filtrar Change Orders que son 'approved' y no están ya en la factura como extraItems
+  const addableChangeOrders = useMemo(() => {
+    if (!currentInvoice || !changeOrders.length) return [];
+
+    const approvedCOs = changeOrders.filter(co => co.status === 'approved');
+    const existingExtraItemDescriptions = currentInvoice.extraItems?.map(item => item.description.toLowerCase()) || [];
+    
+    return approvedCOs.filter(co => {
+        // Crear un identificador único para el CO basado en su número o ID, y descripción
+        // Este identificador debe ser similar al que se usa en el backend al agregar COs automáticamente
+        const coDescriptionFragment = `Change Order #${co.changeOrderNumber || co.id?.substring(0,8)}`.toLowerCase();
+        return !existingExtraItemDescriptions.some(desc => desc.includes(coDescriptionFragment));
+    });
+  }, [currentInvoice, changeOrders, selectedWork]); // selectedWork añadido como dependencia por si changeOrders cambia
+
+  const handleToggleChangeOrderSelection = (coId) => {
+    setSelectedChangeOrderIds(prevSelected =>
+        prevSelected.includes(coId)
+            ? prevSelected.filter(id => id !== coId)
+            : [...prevSelected, coId]
+    );
+  };
+
+  const handleAddSelectedChangeOrders = () => {
+    if (!currentInvoice || selectedChangeOrderIds.length === 0) return;
+
+    selectedChangeOrderIds.forEach(coId => {
+        const co = changeOrders.find(c => c.id === coId);
+        if (co) {
+            const itemData = {
+                description: `Change Order #${co.changeOrderNumber || co.id?.substring(0,8)}: ${co.itemDescription || co.description || 'Detalle de Orden de Cambio'}`,
+                quantity: 1, // Los COs generalmente se añaden como una unidad global
+                unitPrice: parseFloat(co.totalCost) || 0,
+            };
+            // Solo añadir si tiene un costo válido
+            if (itemData.unitPrice > 0 || (itemData.unitPrice === 0 && window.confirm(`La Orden de Cambio #${co.changeOrderNumber || co.id?.substring(0,8)} tiene costo $0. ¿Añadir de todas formas?`))) {
+                 dispatch(addExtraItemToInvoice({ finalInvoiceId: currentInvoice.id, itemData }));
+            } else if (itemData.unitPrice < 0) {
+                 alert(`La Orden de Cambio #${co.changeOrderNumber || co.id?.substring(0,8)} tiene un costo negativo y no se puede añadir.`);
+            }
+        }
+    });
+    setSelectedChangeOrderIds([]); // Limpiar selección después de añadir
+  };
 
   const handleCreateInvoice = () => {
     if (window.confirm('¿Seguro que quieres generar la factura final para esta obra?')) {
@@ -229,6 +278,9 @@ const handleGeneratePdf = () => {
   }, [emailSuccessMessage, errorEmail, dispatch]);
 
 
+
+
+
   // --- Renderizado ---
   if (loading) return <p className="text-blue-600">Cargando factura final...</p>;
   if (error) return <p className="text-red-600">Error: {error}</p>;
@@ -351,11 +403,48 @@ const handleGeneratePdf = () => {
                 <input type="number" id="newPrice" name="unitPrice" value={newItem.unitPrice} onChange={handleNewItemChange} className="input-style w-full" min="0.01" step="0.01" required />
               </div>
             </div>
-             <button type="submit" className="button-add-item mt-2" disabled={loading}>
-               {loading ? 'Añadiendo...' : 'Añadir Item Extra'}
+             <button type="submit" className="button-add-item mt-2 bg-blue-500 p-2 rounded text-sm text-white" disabled={loading}>
+               {loading ? 'Añadiendo...' : 'Añadir Item '}
              </button>
           </form>
         )}
+      {/* SECCIÓN PARA AÑADIR ÓRDENES DE CAMBIO */}
+      {currentInvoice && currentInvoice.status !== 'paid' && currentInvoice.status !== 'cancelled' && addableChangeOrders.length > 0 && (
+        <div className="bg-gray-50 p-4 rounded border border-gray-200 mt-6">
+            <h3 className="text-lg font-semibold mb-3 border-b pb-2">Añadir Change Orders Aprobadas</h3>
+            <div className="space-y-2">
+                {addableChangeOrders.map(co => (
+                    <div key={co.id} className="flex items-center justify-between p-2 border rounded bg-white hover:bg-gray-100">
+                        <div>
+                            <label htmlFor={`co-${co.id}`} className="flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    id={`co-${co.id}`}
+                                    checked={selectedChangeOrderIds.includes(co.id)}
+                                    onChange={() => handleToggleChangeOrderSelection(co.id)}
+                                    className="mr-3 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                />
+                                <span className="text-sm">
+                                    CO #{co.changeOrderNumber || co.id?.substring(0,8)}: {co.itemDescription || co.description || 'Sin descripción específica'}
+                                    <span className="text-xs text-gray-600 ml-2 font-medium">(Total: ${parseFloat(co.totalCost || 0).toFixed(2)})</span>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                ))}
+            </div>
+            {selectedChangeOrderIds.length > 0 && (
+                <button
+                    onClick={handleAddSelectedChangeOrders}
+                    className="button-add-item mt-4 bg-orange-500 hover:bg-orange-600" // Estilo similar al de añadir item, o uno nuevo
+                    disabled={loading} // Puedes usar el 'loading' general o uno específico si lo creas
+                >
+                    {loading ? 'Procesando...' : `Añadir ${selectedChangeOrderIds.length} Órden(es) de Cambio Seleccionada(s)`}
+                </button>
+            )}
+        </div>
+      )}
+
       </div>
 
     {/* --- Opciones de Factura --- */}

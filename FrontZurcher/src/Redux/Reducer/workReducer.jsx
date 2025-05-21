@@ -3,8 +3,12 @@ import { createSlice } from '@reduxjs/toolkit';
 const initialState = {
   works: [], // Lista de obras
   selectedWork: null, // Obra seleccionada (por ID)
+  work: null,
+  images: [], 
   loading: false, // Estado de carga
   error: null, // Mensaje de error
+  loadingChangeOrder: false, // Estado de carga específico para CO
+  errorChangeOrder: null,
 };
 
 const workSlice = createSlice({
@@ -114,6 +118,148 @@ const workSlice = createSlice({
       state.loading = false;
       state.error = action.payload;
     },
+    // --- Reducers para Órdenes de Cambio ---
+    createChangeOrderRequest: (state) => {
+      state.loadingChangeOrder = true;
+      state.errorChangeOrder = null;
+    },
+    createChangeOrderSuccess: (state, action) => {
+      state.loadingChangeOrder = false;
+      // action.payload es { message: '...', changeOrder: { ... } }
+      const { changeOrder } = action.payload;
+      if (state.selectedWork && state.selectedWork.idWork === changeOrder.idWork) {
+        // Asegúrate que la propiedad ChangeOrders exista y sea un array
+        if (!state.selectedWork.ChangeOrders) {
+          state.selectedWork.ChangeOrders = [];
+        }
+        state.selectedWork.ChangeOrders.push(changeOrder);
+      }
+      // Opcional: si también mantienes una lista global de COs, actualízala aquí.
+    },
+    createChangeOrderFailure: (state, action) => {
+      state.loadingChangeOrder = false;
+      state.errorChangeOrder = action.payload.message; // action.payload es { message, details }
+    },
+
+    updateChangeOrderRequest: (state) => {
+      state.loadingChangeOrder = true;
+      state.errorChangeOrder = null;
+    },
+    updateChangeOrderSuccess: (state, action) => {
+      state.loadingChangeOrder = false;
+      // action.payload es { message: '...', changeOrder: { ... } }
+      const { changeOrder } = action.payload;
+      if (state.selectedWork && state.selectedWork.idWork === changeOrder.idWork) {
+        // Asegúrate que la propiedad ChangeOrders exista y sea un array
+        if (!state.selectedWork.ChangeOrders) {
+          state.selectedWork.ChangeOrders = [];
+        }
+        const coIndex = state.selectedWork.ChangeOrders.findIndex(co => co.idChangeOrder === changeOrder.idChangeOrder);
+        if (coIndex !== -1) {
+          state.selectedWork.ChangeOrders[coIndex] = changeOrder;
+        } else {
+          // Si no se encontró, podría ser un caso raro, agrégalo
+          state.selectedWork.ChangeOrders.push(changeOrder);
+        }
+      }
+    },
+    updateChangeOrderFailure: (state, action) => {
+      state.loadingChangeOrder = false;
+      state.errorChangeOrder = action.payload.message; // action.payload es { message, details }
+    },
+    clearChangeOrderError: (state) => {
+      state.errorChangeOrder = null;
+    },
+    deleteChangeOrderRequest: (state) => {
+  state.loadingChangeOrder = true;
+  state.errorChangeOrder = null;
+},
+deleteChangeOrderSuccess: (state, action) => {
+  state.loadingChangeOrder = false;
+  // Elimina la CO del array de la obra seleccionada
+  if (state.selectedWork && state.selectedWork.ChangeOrders) {
+    state.selectedWork.ChangeOrders = state.selectedWork.ChangeOrders.filter(
+      (co) => co.idChangeOrder !== action.payload
+    );
+  }
+},
+deleteChangeOrderFailure: (state, action) => {
+  state.loadingChangeOrder = false;
+  state.errorChangeOrder = action.payload;
+},
+
+ addImagesRequest: (state) => {
+      state.loading = true;
+      state.error = null;
+    },
+    addImagesSuccess: (state, action) => {
+      state.loading = false;
+      // El payload ahora es { message: '...', work: updatedWork }
+      // donde updatedWork es el trabajo completo con todas sus imágenes.
+      if (action.payload && action.payload.work) {
+        const updatedWork = action.payload.work;
+
+        // 1. Actualizar el trabajo en la lista general 'state.works'
+        const workIndexInList = state.works.findIndex(w => w.idWork === updatedWork.idWork);
+        if (workIndexInList !== -1) {
+          state.works[workIndexInList] = updatedWork;
+        } else {
+          // Opcional: si el trabajo no estaba en la lista, podrías agregarlo
+          // state.works.push(updatedWork); 
+          console.warn(`addImagesSuccess: El trabajo con ID ${updatedWork.idWork} no se encontró en state.works para actualizar.`);
+        }
+
+        // 2. Actualizar el trabajo detallado 'state.work' si es el mismo que se modificó
+        if (state.work && state.work.idWork === updatedWork.idWork) {
+          state.work = updatedWork; // Esto actualizará UploadScreen
+        }
+        
+        state.error = null;
+      } else {
+        console.error("addImagesSuccess: La respuesta no contiene la propiedad 'work':", action.payload);
+        state.error = "Respuesta inesperada del servidor al agregar la imagen.";
+      }
+    },
+    addImagesFailure: (state, action) => {
+      state.loading = false;
+      state.error = action.payload; 
+    },
+    deleteImagesRequest: (state) => {
+      state.loading = true;
+      state.error = null;
+    },
+    deleteImagesSuccess: (state, action) => {
+      state.loading = false;
+      const { idWork, imageId } = action.payload;
+
+      // 1. Actualizar la lista de trabajos (state.works)
+      const workIndexInList = state.works.findIndex(w => w.idWork === idWork);
+      if (workIndexInList !== -1) {
+        const workToUpdateInList = { ...state.works[workIndexInList] };
+        if (workToUpdateInList.images && Array.isArray(workToUpdateInList.images)) {
+          workToUpdateInList.images = workToUpdateInList.images.filter(img => img.id !== imageId);
+          state.works[workIndexInList] = workToUpdateInList;
+        }
+      } else {
+        console.warn(`deleteImagesSuccess: Trabajo con ID ${idWork} no encontrado en state.works.`);
+      }
+
+      // 2. Actualizar el trabajo detallado (state.work) si es el mismo
+      if (state.work && state.work.idWork === idWork) {
+        const updatedDetailedWork = { ...state.work };
+        if (updatedDetailedWork.images && Array.isArray(updatedDetailedWork.images)) {
+          updatedDetailedWork.images = updatedDetailedWork.images.filter(img => img.id !== imageId);
+          state.work = updatedDetailedWork; // <-- ACTUALIZAR EL TRABAJO DETALLADO
+        }
+      }
+      state.error = null;
+    },
+    // --- FIN REDUCER CORREGIDO ---
+    deleteImagesFailure: (state, action) => {
+      state.loading = false;
+      state.error = action.payload; // Guardar el mensaje de error
+      console.error("Error en deleteImagesFailure:", action.payload); // Log del error
+    },
 
     // Limpiar errores
     clearWorkError: (state) => {
@@ -142,6 +288,22 @@ export const {
   deleteWorkSuccess,
   deleteWorkFailure,
   clearWorkError,
+  createChangeOrderRequest,
+  createChangeOrderSuccess,
+  createChangeOrderFailure,
+  updateChangeOrderRequest,
+  updateChangeOrderSuccess,
+  updateChangeOrderFailure,
+  clearChangeOrderError,
+  deleteChangeOrderRequest,
+  deleteChangeOrderSuccess,
+  deleteChangeOrderFailure,
+  addImagesRequest,
+  addImagesSuccess,
+  addImagesFailure,
+  deleteImagesRequest,
+  deleteImagesSuccess,
+  deleteImagesFailure,
 } = workSlice.actions;
 
 export default workSlice.reducer;

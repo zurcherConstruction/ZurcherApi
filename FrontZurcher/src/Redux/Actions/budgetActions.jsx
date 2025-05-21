@@ -112,10 +112,11 @@ export const fetchArchivedBudgets = () => async (dispatch) => {
   }
 };
 
-export const uploadInvoice = (budgetId, file, onProgress) => async (dispatch) => {
+export const uploadInvoice = (budgetId, file, uploadedAmount, onProgress) => async (dispatch) => {
   try {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('uploadedAmount', uploadedAmount); // <--- AÑADIR ESTA LÍNEA
 
     const response = await api.post(`/budget/${budgetId}/upload`, formData, {
       headers: {

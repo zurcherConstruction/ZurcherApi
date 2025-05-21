@@ -4,8 +4,8 @@ import {
   expenseActions,
   balanceActions,
 } from "../Redux/Actions/balanceActions";
-
-
+import { createReceipt, deleteReceipt } from "../Redux/Actions/receiptActions";
+import { toast } from 'react-toastify';
 
 
 const incomeTypes = [
@@ -39,7 +39,7 @@ const Summary = () => {
   const [editModal, setEditModal] = useState({ open: false, movement: null });
   const [editData, setEditData] = useState({});
   const [receiptUrl, setReceiptUrl] = useState(null);
-  
+
   // Obtener movimientos con filtros
   const fetchMovements = async () => {
     setLoading(true);
@@ -87,12 +87,69 @@ const Summary = () => {
   // Eliminar movimiento
   const handleDelete = async (mov) => {
     if (window.confirm("¿Seguro que deseas eliminar este movimiento?")) {
-      if (mov.movimiento === "Ingreso") {
-        await incomeActions.delete(mov.idIncome);
-      } else {
-        await expenseActions.delete(mov.idExpense);
+      try {
+        if (mov.movimiento === "Ingreso") {
+          const isInvoicePayment = 
+            mov.typeIncome === "Factura Pago Final Budget" || 
+            mov.typeIncome === "Factura Pago Inicial Budget";
+
+          if (isInvoicePayment) {
+            // Es un ingreso de tipo factura
+            if (mov.Receipts && mov.Receipts.length > 0) {
+              const receiptToDelete = mov.Receipts[0]; 
+              if (receiptToDelete && receiptToDelete.idReceipt) {
+                console.log(`SUMMARY: Intentando llamar a deleteReceipt (de receiptActions) con ID de Recibo: ${receiptToDelete.idReceipt}`);
+                await deleteReceipt(receiptToDelete.idReceipt); 
+                toast.success("Comprobante y movimiento asociado eliminados correctamente.");
+              } else {
+                // Es un ingreso de factura, se esperaba un recibo con ID, pero no se encontró.
+                // Esto podría ser un estado de datos inconsistente.
+                // Decide si quieres borrar solo el income como fallback o mostrar un error más específico.
+                console.warn(`SUMMARY: Ingreso de factura (ID: ${mov.idIncome}, Tipo: ${mov.typeIncome}) no tiene un idReceipt válido en sus Receipts. Borrando solo el ingreso como fallback.`);
+                await incomeActions.delete(mov.idIncome);
+                toast.warn("Movimiento de ingreso eliminado, pero hubo un problema al procesar el comprobante asociado (ID de recibo no encontrado).");
+              }
+            } else {
+              // Es un ingreso de factura, pero no tiene `mov.Receipts`.
+              // Esto también podría ser un estado de datos inconsistente.
+              console.warn(`SUMMARY: Ingreso de factura (ID: ${mov.idIncome}, Tipo: ${mov.typeIncome}) no tiene Receipts adjuntos. Borrando solo el ingreso como fallback.`);
+              await incomeActions.delete(mov.idIncome);
+              toast.warn("Movimiento de ingreso eliminado, pero no se encontraron comprobantes asociados para una eliminación completa.");
+            }
+          } else {
+            // No es un ingreso de tipo factura, borrar solo el income.
+            console.log(`SUMMARY: Llamando a incomeActions.delete para Ingreso (no factura) ID: ${mov.idIncome}, Tipo: ${mov.typeIncome}`);
+            await incomeActions.delete(mov.idIncome);
+            toast.success("Movimiento de ingreso eliminado.");
+          }
+        } else if (mov.movimiento === "Gasto") {
+          // Lógica para gastos
+          if (mov.Receipts && mov.Receipts.length > 0) {
+            const receiptToDelete = mov.Receipts[0];
+            if (receiptToDelete && receiptToDelete.idReceipt) {
+              console.log(`SUMMARY: Intentando llamar a deleteReceipt (de receiptActions) con ID de Recibo (Gasto): ${receiptToDelete.idReceipt}`);
+              await deleteReceipt(receiptToDelete.idReceipt);
+              toast.success("Comprobante y movimiento de gasto asociado eliminados correctamente.");
+            } else {
+              console.warn(`SUMMARY: Gasto (ID: ${mov.idExpense}) no tiene un idReceipt válido en sus Receipts. Borrando solo el gasto como fallback.`);
+              await expenseActions.delete(mov.idExpense);
+              toast.warn("Movimiento de gasto eliminado, pero hubo un problema al procesar el comprobante asociado (ID de recibo no encontrado).");
+            }
+          } else {
+            // Gasto sin recibos, borrar solo el gasto.
+            console.log(`SUMMARY: Llamando a expenseActions.delete para Gasto ID: ${mov.idExpense}`);
+            await expenseActions.delete(mov.idExpense);
+            toast.success("Movimiento de gasto eliminado.");
+          }
+        }
+        fetchMovements(); // Recargar movimientos después de la eliminación
+      } catch (error) {
+        console.error("Error al eliminar en Summary:", error);
+        // Asegúrate de que el error que se muestra sea útil.
+        // Si el error viene de la acción de Redux, ya debería estar formateado.
+        const displayError = error.response?.data?.message || error.message || "Error desconocido al eliminar.";
+        toast.error(displayError);
       }
-      fetchMovements();
     }
   };
 
@@ -111,20 +168,27 @@ const Summary = () => {
   // Guardar edición
   const handleEditSave = async () => {
     const mov = editModal.movement;
-    if (mov.movimiento === "Ingreso") {
-      await incomeActions.update(mov.idIncome, {
-        ...editData,
-        typeIncome: editData.typeIncome,
-      });
-    } else {
-      await expenseActions.update(mov.idExpense, {
-        ...editData,
-        typeExpense: editData.typeExpense,
-      });
+    try {
+      if (mov.movimiento === "Ingreso") {
+        await incomeActions.update(mov.idIncome, {
+          ...editData, // Contiene amount, notes, date
+          typeIncome: editData.typeIncome, // Asegúrate que el backend acepte typeIncome en la actualización
+        });
+      } else {
+        await expenseActions.update(mov.idExpense, {
+          ...editData,
+          typeExpense: editData.typeExpense,
+        });
+      }
+      toast.success("Movimiento actualizado correctamente.");
+      setEditModal({ open: false, movement: null });
+      fetchMovements();
+    } catch (error) {
+      console.error("Error al actualizar:", error);
+      toast.error(error?.response?.data?.message || error.message || "Error al actualizar el movimiento.");
     }
-    setEditModal({ open: false, movement: null });
-    fetchMovements();
   };
+
 
   // Filtrado en frontend
   const filteredMovements = movements.filter((mov) => {
@@ -263,22 +327,22 @@ const Summary = () => {
                   </td>
                   <td className="border px-2 py-1">{mov.notes}</td>
                   <td className="border px-2 py-1">{mov.Staff?.name || "-"}</td>
-                  
+
                   <td className="border px-2 py-1">
-  {mov.Receipts && mov.Receipts.length > 0 ? (
-    <button
-      className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-700"
-      onClick={() => {
-        console.log('Abriendo comprobante:', mov.Receipts[0]);
-        setReceiptUrl(mov.Receipts[0]);
-      }}
-    >
-      Ver
-    </button>
-  ) : (
-    "Sin comprobante"
-  )}
-</td>
+                    {mov.Receipts && mov.Receipts.length > 0 ? (
+                      <button
+                        className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-700"
+                        onClick={() => {
+                          console.log('Abriendo comprobante:', mov.Receipts[0]);
+                          setReceiptUrl(mov.Receipts[0]);
+                        }}
+                      >
+                        Ver
+                      </button>
+                    ) : (
+                      "Sin comprobante"
+                    )}
+                  </td>
                   <td className="border px-2 py-1 flex gap-2">
                     <button
                       className="bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600"
@@ -293,7 +357,7 @@ const Summary = () => {
                       Eliminar
                     </button>
                   </td>
-                  
+
                 </tr>
               ))
             )}
@@ -315,16 +379,19 @@ const Summary = () => {
               }}
               className="flex flex-col gap-3"
             >
+              <label className="text-sm font-medium">Fecha:</label>
               <input
                 type="date"
-                value={editData.date}
+                value={editData.date ? new Date(editData.date).toISOString().split('T')[0] : ''}
                 onChange={(e) =>
                   setEditData({ ...editData, date: e.target.value })
                 }
                 className="border rounded px-2 py-1"
               />
+              <label className="text-sm font-medium">Monto:</label>
               <input
                 type="number"
+                step="0.01"
                 value={editData.amount}
                 onChange={(e) =>
                   setEditData({ ...editData, amount: e.target.value })
@@ -332,35 +399,46 @@ const Summary = () => {
                 className="border rounded px-2 py-1"
                 placeholder="Monto"
               />
-              <input
-                type="text"
+              <label className="text-sm font-medium">Notas:</label>
+              <textarea
                 value={editData.notes}
                 onChange={(e) =>
                   setEditData({ ...editData, notes: e.target.value })
                 }
                 className="border rounded px-2 py-1"
                 placeholder="Notas"
+                rows="3"
               />
               {editModal.movement.movimiento === "Ingreso" ? (
-                <input
-                  type="text"
-                  value={editData.typeIncome}
-                  onChange={(e) =>
-                    setEditData({ ...editData, typeIncome: e.target.value })
-                  }
-                  className="border rounded px-2 py-1"
-                  placeholder="Tipo de ingreso"
-                />
+                <>
+                  <label className="text-sm font-medium">Tipo de Ingreso:</label>
+                  <select
+                    name="typeIncome"
+                    value={editData.typeIncome}
+                    onChange={(e) =>
+                      setEditData({ ...editData, typeIncome: e.target.value })
+                    }
+                    className="border rounded px-2 py-1"
+                  >
+                    <option value="">Seleccione tipo</option>
+                    {incomeTypes.map(type => <option key={type} value={type}>{type}</option>)}
+                  </select>
+                </>
               ) : (
-                <input
-                  type="text"
-                  value={editData.typeExpense}
-                  onChange={(e) =>
-                    setEditData({ ...editData, typeExpense: e.target.value })
-                  }
-                  className="border rounded px-2 py-1"
-                  placeholder="Tipo de gasto"
-                />
+                <>
+                  <label className="text-sm font-medium">Tipo de Gasto:</label>
+                  <select
+                    name="typeExpense"
+                    value={editData.typeExpense}
+                    onChange={(e) =>
+                      setEditData({ ...editData, typeExpense: e.target.value })
+                    }
+                    className="border rounded px-2 py-1"
+                  >
+                    <option value="">Seleccione tipo</option>
+                    {expenseTypes.map(type => <option key={type} value={type}>{type}</option>)}
+                  </select>
+                </>
               )}
               <div className="flex gap-2 mt-2">
                 <button

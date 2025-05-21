@@ -5,11 +5,11 @@ const { Op } = require('sequelize'); // Asegúrate de importar Op para usar oper
 // Mapeo de estados a roles y mensajes
 const stateNotificationMap = {
   pending: {
-    roles: ['admin', 'owner', 'recept'], 
+    roles: ['owner', 'recept'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ya fue confirmado. Por favor, compra los materiales necesarios  para la fecha ${work.startDate}.`,
   },
   assigned: {
-    roles: ['owner', 'admin', 'recept', 'worker'], // Roles que reciben email
+    roles: ['owner', 'recept'], // Roles que reciben email
     subject: (work) => `Trabajo Asignado: ${work?.propertyAddress || 'Dirección desconocida'}`,
     message: (work) => {
         // Asumiendo que el Staff asignado se incluye en la consulta o se busca después
@@ -21,8 +21,8 @@ const stateNotificationMap = {
         // Mensaje más detallado para email
         return `Se ha asignado el trabajo en ${work?.propertyAddress || 'Dirección desconocida'} a ${assignedName}.\n` +
                `La fecha de inicio programada es: ${startDateFormatted}.\n\n` +
-               `**Para Recepción:** Por favor, coordinar la compra de materiales necesarios para esta fecha.\n\n` +
-               `Notas adicionales: ${work?.notes || 'Ninguna'}`;
+               `Por favor, coordinar la compra de materiales necesarios para esta fecha.\n\n` 
+               
     },
     // Ajusta getStaff si es necesario para incluir al trabajador asignado y a los roles de gestión
     getStaff: async (work) => {
@@ -44,10 +44,10 @@ const stateNotificationMap = {
 },
   inProgress: {
     roles: ['worker', 'recept', 'owner'], 
-    message: (work) => `Los materiales ya fueron comprados para la dirección ${work.propertyAddress} .`,
+    message: (work) => `Los materiales ya fueron comprados para la dirección ${work.propertyAddress}, La fecha de Instalación es el día: ${work.startDate} .`,
   },
   installed: {
-    roles: ['recept', 'admin', 'owner'], 
+    roles: ['admin', 'owner'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido instalado. Por favor, solicita la primera inspección.`,
   },
   firstInspectionPending: {
@@ -62,6 +62,10 @@ const stateNotificationMap = {
     roles: ['admin','recept','owner'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido rechazado en la inspección inicial. Por favor, revisa los detalles y toma las medidas necesarias.`,
   },
+   reinspection_initial_requested: { // Added new status
+    roles: ['admin', 'recept', 'owner'], // Define appropriate roles
+    message: (work, context) => `Se ha solicitado una reinspección inicial para la obra en ${work.propertyAddress}. Inspección ID: ${context?.inspectionId || 'N/A'}.`,
+  },
   completed: {
     roles: ['owner', 'admin', 'recept'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido completado. Por favor, revisa el estado final.`,
@@ -71,8 +75,8 @@ const stateNotificationMap = {
     message: (work) => `El trabajo con dirección ${work.propertyAddress} esta listo para ser tapado.`,
   },
   covered: {
-    roles: ['owner', 'admin', 'recept'], 
-    message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido Tapado. Por favor, revisa el estado final.`,
+    roles: ['owner', 'admin'], 
+    message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido Tapado. Por favor, revisa los detalles y envía el Invoice Final.`,
   },
   finalInspectionPending: {
     roles: ['recept'], 
@@ -85,6 +89,10 @@ const stateNotificationMap = {
   finalRejected: {
     roles: ['admin', 'recept'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido rechazado en la inspección final. Por favor, revisa los detalles.`,
+  },
+    reinspection_final_requested: { // Added new status
+    roles: ['admin', 'recept', 'owner'], // Define appropriate roles
+    message: (work, context) => `Se ha solicitado una reinspección final para la obra en ${work.propertyAddress}. Inspección ID: ${context?.inspectionId || 'N/A'}.`,
   },
   maintenance: {
     roles: ['owner'], 

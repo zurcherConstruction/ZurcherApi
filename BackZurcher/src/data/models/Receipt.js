@@ -14,7 +14,7 @@ module.exports = (sequelize) => {
       allowNull: false,
     },
     relatedId: {
-      type: DataTypes.UUID, // ID del registro relacionado
+      type: DataTypes.STRING, // ID del registro relacionado
       allowNull: false,
     },
     type: {

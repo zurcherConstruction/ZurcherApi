@@ -1,14 +1,14 @@
-const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, NotificationApp } = require('../data');
+const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, ChangeOrder, FinalInvoice } = require('../data');
 const { sendEmail } = require('../utils/notifications/emailService');
-const { getNotificationDetails } = require('../utils/notifications/notificationService');
-const { getNotificationDetailsApp } = require('../utils/notifications/notificationServiceApp');
 const convertPdfDataToUrl = require('../utils/convertPdfDataToUrl');
 const { sendNotifications } = require('../utils/notifications/notificationManager');
 const { uploadToCloudinary, deleteFromCloudinary, uploadBufferToCloudinary } = require('../utils/cloudinaryUploader'); // Asegúrate de importar la función de subida a Cloudinary
 const multer = require('multer');
 const path = require('path');
-
-
+const {generateAndSaveChangeOrderPDF} = require('../utils/pdfGenerator')
+const fs = require('fs'); 
+const { v4: uuidv4 } = require('uuid');
+const { Op, literal} = require('sequelize');
 
 const createWork = async (req, res) => {
   try {
@@ -58,13 +58,18 @@ const getWorks = async (req, res) => {
         {
           model: Budget,
           as: 'budget',
-          attributes: ['idBudget', 'propertyAddress', 'status', 'paymentInvoice', 'initialPayment', 'date'],
+          attributes: ['idBudget', 'propertyAddress', 'status', 'paymentInvoice', 'initialPayment', 'paymentProofAmount', 'date'],
         },
         {
           model: Permit,
           // Asegúrate de que 'expirationDate' esté aquí
           attributes: ['idPermit', 'propertyAddress', 'applicantName', 'expirationDate', 'applicantEmail'],
         },
+          {
+          model: FinalInvoice,
+          as: 'finalInvoice', // <--- ASEGÚRATE DE QUE ESTÉ AQUÍ
+          required: false // LEFT JOIN para obtener obras aunque no tengan factura final
+        }
       ],
       // Podrías querer ordenar los trabajos, por ejemplo, por fecha de creación o actualización
       order: [['createdAt', 'DESC']], 
@@ -146,7 +151,7 @@ const getWorkById = async (req, res) => {
 
           model: Budget,
           as: 'budget',
-          attributes: ['idBudget', 'propertyAddress', 'status', 'paymentInvoice', 'paymentProofType', 'initialPayment', 'date', 'applicantName','totalPrice', 'initialPaymentPercentage'],
+          attributes: ['idBudget', 'propertyAddress', 'status', 'paymentInvoice', 'paymentProofType', 'initialPayment', 'paymentProofAmount', 'date', 'applicantName','totalPrice', 'initialPaymentPercentage'],
         },
         {
 
@@ -210,8 +215,30 @@ const getWorkById = async (req, res) => {
         {
           model: Receipt,
           as: 'Receipts',
+          required: false, // Para asegurar un LEFT JOIN
+          on: {
+            [Op.and]: [
+              // Condición para el relatedModel
+              literal(`"Receipts"."relatedModel" = 'Work'`),
+              // Condición para el relatedId, casteando relatedId a UUID para comparar con Work.idWork
+              literal(`"Work"."idWork" = CAST("Receipts"."relatedId" AS UUID)`)
+            ]
+          },
           attributes: ['idReceipt', 'type', 'notes', 'fileUrl', 'publicId', 'mimeType', 'originalName','createdAt'],
         },
+         {
+          model: ChangeOrder,
+          as: 'changeOrders', // <--- ESTA ES LA INCLUSIÓN CRUCIAL
+          // Opcional: puedes ordenar las COs si lo deseas
+          // order: [['createdAt', 'DESC']] 
+        },
+        { // --- AÑADIR ESTA SECCIÓN PARA FINALINVOICE ---
+          model: FinalInvoice,
+          as: 'finalInvoice', // Asegúrate que este alias 'as' coincida con la definición de la relación en data/index.js (Work.hasOne(FinalInvoice, { as: 'FinalInvoice', ... }))
+          required: false, // Hace que sea un LEFT JOIN, así la obra se devuelve aunque no tenga factura final
+          // Opcional: puedes incluir los WorkExtraItem de la FinalInvoice si son necesarios
+          // include: [{ model: WorkExtraItem, as: 'extraItems' }] 
+        }
       ],
     });
 
@@ -254,7 +281,7 @@ const getWorkById = async (req, res) => {
 const updateWork = async (req, res) => {
   try {
     const { idWork } = req.params;
-    const { propertyAddress, status, startDate, notes, staffId } = req.body;
+    const { propertyAddress, status, startDate, notes, staffId, stoneExtractionCONeeded  } = req.body;
 
     let workInstance = await Work.findByPk(idWork); // Renombrado a workInstance para claridad
     if (!workInstance) {
@@ -262,6 +289,7 @@ const updateWork = async (req, res) => {
     }
     // --- Guardar el estado anterior ---
     const oldStatus = workInstance.status;
+    const oldStoneExtractionCONeeded = workInstance.stoneExtractionCONeeded; // Guardar valor anterior para log
     let statusChanged = false;
 
     // --- Actualizar los campos ---
@@ -277,9 +305,14 @@ const updateWork = async (req, res) => {
     workInstance.startDate = startDate || workInstance.startDate;
     workInstance.staffId = staffId || workInstance.staffId;
     workInstance.notes = notes || workInstance.notes;
+ if (typeof stoneExtractionCONeeded === 'boolean') {
+      workInstance.stoneExtractionCONeeded = stoneExtractionCONeeded;
+      if (oldStoneExtractionCONeeded !== stoneExtractionCONeeded) {
+        console.log(`[WorkController - updateWork] ID: ${idWork}, stoneExtractionCONeeded cambiado de ${oldStoneExtractionCONeeded} a ${stoneExtractionCONeeded}`);
+      }
+    }
 
     await workInstance.save();
-
     // --- Enviar notificaciones SOLO SI el estado cambió ---
     if (statusChanged) {
       console.log(`Work ${idWork}: Status changed from '${oldStatus}' to '${workInstance.status}'. Sending notifications...`);
@@ -333,7 +366,21 @@ const updateWork = async (req, res) => {
         { model: InstallationDetail, as: 'installationDetails', attributes: ['idInstallationDetail', 'date', 'extraDetails', 'extraMaterials', 'images']},
         { model: MaterialSet, as: 'MaterialSets', attributes: ['idMaterialSet', 'invoiceFile', 'totalCost']},
         { model: Image, as: 'images', attributes: ['id', 'stage', 'dateTime', 'imageUrl', 'publicId', 'comment', 'truckCount']},
-        { model: Receipt, as: 'Receipts', attributes: ['idReceipt', 'type', 'notes', 'fileUrl', 'publicId', 'mimeType', 'originalName','createdAt']},
+       {
+          model: Receipt,
+          as: 'Receipts',
+          required: false, // Para asegurar un LEFT JOIN
+          on: {
+            [Op.and]: [
+              // Condición para el relatedModel
+              literal(`"Receipts"."relatedModel" = 'Work'`),
+              // Condición para el relatedId, casteando relatedId a UUID para comparar con Work.idWork
+              literal(`"Work"."idWork" = CAST("Receipts"."relatedId" AS UUID)`)
+            ]
+          },
+          attributes: ['idReceipt', 'type', 'notes', 'fileUrl', 'publicId', 'mimeType', 'originalName','createdAt'],
+        },
+         { model: ChangeOrder, as: 'changeOrders' },
       ],
     });
 
@@ -579,6 +626,7 @@ const addImagesToWork = async (req, res) => {
     'sistema instalado',
     'extracción de piedras',
     'camiones de tierra',
+    'trabajo cubierto',
     'inspeccion final'
     ];
     if (!validStages.includes(stage)) {
@@ -710,6 +758,9 @@ const deleteImagesFromWork = async (req, res) => {
 
 
 
+
+
+
 module.exports = {
   createWork,
   getWorks,
@@ -720,5 +771,6 @@ module.exports = {
   attachInvoiceToWork,
   getAssignedWorks,
   addImagesToWork,
-  deleteImagesFromWork
+  deleteImagesFromWork,
+ 
 };

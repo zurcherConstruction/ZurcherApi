@@ -4,14 +4,20 @@ const path = require('path');
 const { format, parseISO } = require('date-fns'); // Para formatear fechas
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 // Helper para formatear fechas o devolver N/A
-const formatDateDDMMYYYY = (dateString) => {
-  if (!dateString) return 'N/A';
+const formatDateDDMMYYYY = (dateInput) => {
+  if (!dateInput) return 'N/A';
   try {
-    // parseISO maneja strings como '2025-04-29T19:01:03.311Z' o '2025-04-29'
-    const dateObj = parseISO(dateString);
+    let dateObj;
+    if (typeof dateInput === 'string') {
+      dateObj = parseISO(dateInput); // Si es string, intenta parsearlo
+    } else if (dateInput instanceof Date) {
+      dateObj = dateInput; // Si ya es un objeto Date, úsalo directamente
+    } else {
+      return 'Invalid Date Input'; // Si no es ni string ni Date
+    }
     return format(dateObj, 'MM-dd-yyyy');
   } catch (e) {
-    console.error("Error formateando fecha:", dateString, e);
+    console.error("Error formateando fecha:", dateInput, e);
     return 'Invalid Date';
   }
 };
@@ -480,48 +486,96 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
         doc.moveDown(1);
       }
 
-      // Línea antes de totales
+       // Línea antes de totales
       const finalItemsYExtras = doc.y;
-      doc.moveTo(unitPriceX - 10, finalItemsYExtras).lineTo(tableHeaderRightEdge, finalItemsYExtras).strokeColor("#cccccc").stroke();
-      doc.moveDown(0.5);
+      // Ajustar la X inicial de la línea para que comience donde empiezan las etiquetas de los totales
+      const totalsLabelStartXForLine = pageMargin + contentWidth * 0.55; // Un poco antes de las etiquetas
+      doc.moveTo(totalsLabelStartXForLine, finalItemsYExtras).lineTo(tableHeaderRightEdge, finalItemsYExtras).strokeColor("#cccccc").stroke();
+      doc.moveDown(1); // Más espacio después de la línea
 
-      // === SECCIÓN TOTALES === (Alineada a la derecha)
-      const totalsLabelStartX = pageMargin + contentWidth * 0.60;
-      const totalsValueStartX = pageMargin + contentWidth * 0.80;
-      const totalsRightEdge = doc.page.width - pageMargin;
-      const labelWidth = totalsValueStartX - totalsLabelStartX - 5;
-      const valueWidth = totalsRightEdge - totalsValueStartX;
+      // === SECCIÓN TOTALES (REDISEÑADA PARA MEJOR LEGIBILIDAD) ===
+      const totalsSectionStartY = doc.y;
+      const labelColumnX = pageMargin + contentWidth * 0.50; // X para inicio de etiquetas (más a la izquierda)
+      const valueColumnX = pageMargin + contentWidth * 0.80; // X para inicio de valores (más a la derecha)
+      const columnWidth = contentWidth * 0.20; // Ancho para cada columna de valor/etiqueta (ajustar según necesidad)
+
       doc.fontSize(10);
 
+      // --- Función auxiliar para dibujar una fila de total ---
+      const drawTotalRow = (label, value, options = {}) => {
+        const yPos = doc.y;
+        const isBold = options.bold || false;
+        const labelColor = options.labelColor || 'black';
+        const valueColor = options.valueColor || 'black';
+        const font = isBold ? 'Helvetica-Bold' : 'Helvetica';
+        
+        doc.font(font).fillColor(labelColor).text(label, labelColumnX, yPos, { 
+            width: valueColumnX - labelColumnX - 10, // Ancho para la etiqueta
+            align: 'right' 
+        });
+        doc.font(font).fillColor(valueColor).text(value, valueColumnX, yPos, { 
+            width: (doc.page.width - pageMargin) - valueColumnX, // Ancho para el valor hasta el borde
+            align: 'right' 
+        });
+        doc.fillColor('black'); // Reset color
+        doc.moveDown(options.moveDownFactor !== undefined ? options.moveDownFactor : 0.65); // Espacio después de la fila
+      };
+
       // --- Original Budget Total ---
-      let currentY = doc.y;
       const originalTotalNum = parseFloat(originalBudgetTotal);
-      doc.text(`Original Budget Total:`, totalsLabelStartX, currentY, { width: labelWidth, align: 'right' });
-      doc.text(`$${!isNaN(originalTotalNum) ? originalTotalNum.toFixed(2) : '0.00'}`, totalsValueStartX, currentY, { width: valueWidth, align: 'right' });
-      doc.moveDown(0.5);
+      drawTotalRow(
+        `Original Budget Total:`, 
+        `$${!isNaN(originalTotalNum) ? originalTotalNum.toFixed(2) : '0.00'}`
+      );
 
       // --- Subtotal Extras ---
-      currentY = doc.y;
       const extrasNum = parseFloat(subtotalExtras);
-      doc.text(`Additional Items Total:`, totalsLabelStartX, currentY, { width: labelWidth, align: 'right' });
-      doc.text(`$${!isNaN(extrasNum) ? extrasNum.toFixed(2) : '0.00'}`, totalsValueStartX, currentY, { width: valueWidth, align: 'right' });
-      doc.moveDown(0.5);
+      if (!isNaN(extrasNum) && extrasNum !== 0) { // Solo mostrar si hay extras
+        drawTotalRow(
+            `Additional Items Total:`, 
+            `$${extrasNum.toFixed(2)}`
+        );
+      }
+      
+      // --- Gran Total (Suma de Budget + Extras) ---
+      const grandTotalNum = (originalTotalNum || 0) + (extrasNum || 0);
+      drawTotalRow(
+        `Total Before Payments:`, 
+        `$${grandTotalNum.toFixed(2)}`,
+        { bold: false, moveDownFactor: 0.8 } // Un poco más de espacio antes del pago
+      );
+      
+      // Línea delgada antes de los pagos
+      const lineBeforePaymentsY = doc.y;
+      doc.moveTo(labelColumnX, lineBeforePaymentsY)
+         .lineTo(doc.page.width - pageMargin, lineBeforePaymentsY)
+         .lineWidth(0.5) // Línea más delgada
+         .strokeColor("#999999") // Gris más oscuro para esta línea
+         .stroke();
+      doc.moveDown(0.8);
+
 
       // --- Initial Payment ---
-      currentY = doc.y;
       const initialPaymentNum = parseFloat(initialPaymentMade);
-      doc.fillColor('green').text(`Initial Payment Received:`, totalsLabelStartX, currentY, { width: labelWidth, align: 'right' });
-      doc.text(`-$${!isNaN(initialPaymentNum) ? initialPaymentNum.toFixed(2) : '0.00'}`, totalsValueStartX, currentY, { width: valueWidth, align: 'right' });
-      doc.fillColor('black').moveDown(0.5);
+      if (!isNaN(initialPaymentNum) && initialPaymentNum !== 0) { // Solo mostrar si hubo pago inicial
+        drawTotalRow(
+            `Initial Payment Received:`, 
+            `-$${initialPaymentNum.toFixed(2)}`,
+            { valueColor: 'green' } // Color verde para el pago recibido
+        );
+      }
 
-      // --- Final Amount Due ---
-      currentY = doc.y;
+      // --- Final Amount Due / Paid ---
       const finalAmountNum = parseFloat(finalAmountDue);
-      doc.font('Helvetica-Bold'); // Total en negrita
-      doc.text(status === 'paid' ? `Final Amount Paid:` : `Final Amount Due:`, totalsLabelStartX, currentY, { width: labelWidth, align: 'right' });
-      doc.text(`$${!isNaN(finalAmountNum) ? finalAmountNum.toFixed(2) : '0.00'}`, totalsValueStartX, currentY, { width: valueWidth, align: 'right' });
-      doc.font('Helvetica'); // Volver a normal
-      doc.moveDown(2);
+      const finalAmountLabel = status === 'paid' ? `Final Amount Paid:` : `Final Amount Due:`;
+      const finalAmountColor = status === 'paid' ? 'green' : 'black';
+      drawTotalRow(
+        finalAmountLabel, 
+        `$${!isNaN(finalAmountNum) ? finalAmountNum.toFixed(2) : '0.00'}`,
+        { bold: true, valueColor: finalAmountColor, moveDownFactor: 2 } // Negrita y más espacio después
+      );
+
+      doc.lineWidth(1); 
 
       // === SECCIÓN ESTADO ===
       doc.fontSize(12).font('Helvetica-Bold').text(`Status: ${status?.replace('_', ' ').toUpperCase() || 'N/A'}`, pageMargin, doc.y);
@@ -650,4 +704,219 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
     }
   });
 }
-module.exports = { generateAndSaveBudgetPDF, generateAndSaveFinalInvoicePDF };
+
+async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyData) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      // --- 1. Preparar Datos ---
+      const {
+        id: changeOrderId,
+        changeOrderNumber, // Asumimos que lo tienes o lo generas
+        description: coDescription,
+        itemDescription,
+        hours,
+        unitCost,
+        totalCost,
+        status: coStatus,
+        clientMessage,
+        createdAt: coCreatedAt, // Fecha de creación del CO
+      } = changeOrderData;
+
+      const {
+        propertyAddress,
+        // Podrías necesitar el nombre del cliente del Work o su Budget/Permit asociado
+      } = workData;
+      
+      // Datos de tu empresa (puedes pasarlos o tenerlos como constantes)
+      const defaultCompanyData = {
+        name: "ZURCHER CONSTRUCTION LLC.",
+        addressLine1: "9837 Clear Cloud Aly",
+        cityStateZip: "Winter Garden 34787",
+        phone: "+1 (407) 419-4495",
+        email: "zurcherseptic@gmail.com", // O el email que uses para contacto
+        logoPath: path.join(__dirname, '../assets/logo_zurcher_construction.png') // Asegúrate que el path y nombre del logo sean correctos
+      };
+      const currentCompany = { ...defaultCompanyData, ...companyData };
+
+
+      // Datos del cliente (ejemplo, necesitarás obtenerlos del workData o sus relaciones)
+      const clientName = workData.Budget?.applicantName || workData.Permit?.applicantName || "Valued Customer";
+      const clientCompanyName = workData.Budget?.companyName || ""; // Si tienes compañía del cliente
+
+      const formattedCODate = formatDateDDMMYYYY(coCreatedAt || new Date().toISOString()); // Fecha del CO
+      const coNumber = changeOrderNumber || `CO-${changeOrderId.substring(0, 8)}`;
+
+
+      // --- 2. Configurar PDF ---
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const uploadsDir = path.join(__dirname, '../uploads/change_orders'); // Carpeta específica para COs
+      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+      const pdfPath = path.join(uploadsDir, `change_order_${coNumber.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
+      const stream = fs.createWriteStream(pdfPath);
+      doc.pipe(stream);
+
+      // --- CONSTANTES DE DISEÑO ---
+      const pageMargin = 50;
+      const contentWidth = doc.page.width - pageMargin * 2;
+      
+      // Colores
+      const primaryColor = '#003366'; // Azul oscuro para encabezados y acentos
+      const secondaryColor = '#4A90E2'; // Azul más claro
+      const textColor = '#333333';
+      const lightGrayColor = '#DDDDDD';
+      const whiteColor = '#FFFFFF';
+
+      // --- 3. Contenido del PDF ---
+
+      // === ENCABEZADO ===
+      const headerHeight = 80;
+      doc.rect(0, 0, doc.page.width, headerHeight).fill(primaryColor);
+      if (fs.existsSync(currentCompany.logoPath)) {
+        doc.image(currentCompany.logoPath, pageMargin, 15, { height: 50 });
+      }
+      doc.fontSize(24).fillColor(whiteColor).font('Helvetica-Bold')
+         .text('CHANGE ORDER', pageMargin + 200, 30, { align: 'right', width: contentWidth - 200 - pageMargin });
+      
+      doc.fillColor(textColor); // Reset color
+
+      // === INFORMACIÓN DE LA EMPRESA Y DEL DOCUMENTO ===
+      let currentY = headerHeight + 20;
+      doc.fontSize(9).font('Helvetica-Bold').text(currentCompany.name, pageMargin, currentY);
+      currentY += doc.currentLineHeight();
+      doc.font('Helvetica').text(currentCompany.addressLine1, pageMargin, currentY);
+      currentY += doc.currentLineHeight();
+      doc.text(currentCompany.cityStateZip, pageMargin, currentY);
+      currentY += doc.currentLineHeight();
+      doc.text(currentCompany.phone, pageMargin, currentY);
+
+      const rightInfoX = doc.page.width - pageMargin - 200;
+      currentY = headerHeight + 20; // Reset Y para la columna derecha
+      doc.fontSize(10).font('Helvetica-Bold').text(`NO: ${coNumber}`, rightInfoX, currentY, { width: 200, align: 'right' });
+      currentY += doc.currentLineHeight();
+      doc.font('Helvetica').text(`Date: ${formattedCODate}`, rightInfoX, currentY, { width: 200, align: 'right' });
+      currentY += doc.currentLineHeight();
+      if (clientCompanyName) {
+        doc.font('Helvetica-Bold').text(clientCompanyName.toUpperCase(), rightInfoX, currentY, { width: 200, align: 'right' });
+      } else {
+        doc.font('Helvetica-Bold').text(clientName.toUpperCase(), rightInfoX, currentY, { width: 200, align: 'right' });
+      }
+      
+      currentY = Math.max(currentY, headerHeight + 20 + (4 * 12)) + 20; // Espacio después de la info
+
+      // === DIRECCIÓN DE LA OBRA ===
+      doc.fontSize(11).font('Helvetica-Bold').text(propertyAddress.toUpperCase(), pageMargin, currentY, {align: 'left'});
+      currentY += doc.currentLineHeight() + 20;
+
+      // === TABLA DE ÍTEMS DEL CHANGE ORDER ===
+      const tableTop = currentY;
+      const colQtyX = pageMargin;
+      const colDescX = pageMargin + 60;
+      const colUnitPriceX = pageMargin + contentWidth - 180;
+      const colTotalX = pageMargin + contentWidth - 90;
+
+      // Cabeceras
+      doc.fontSize(10).font('Helvetica-Bold');
+      doc.rect(pageMargin, tableTop - 5, contentWidth, 20).fill(primaryColor);
+      doc.fillColor(whiteColor);
+      doc.text('Qty', colQtyX + 5, tableTop, { width: colDescX - colQtyX - 10 });
+      doc.text('Item Description', colDescX + 5, tableTop);
+      doc.text('Unit Price', colUnitPriceX, tableTop, { width: colTotalX - colUnitPriceX - 10, align: 'right' });
+      doc.text('Total', colTotalX, tableTop, { width: contentWidth - (colTotalX - pageMargin), align: 'right' });
+      doc.fillColor(textColor); // Reset color
+      currentY = tableTop + 25;
+
+      // Fila del ítem
+      doc.fontSize(10).font('Helvetica');
+      const qtyText = hours ? `${parseFloat(hours).toFixed(1)} hours` : '1'; // Asume 1 si no hay horas
+      const itemDescText = itemDescription || coDescription || "Work as per Change Order";
+      const unitPriceText = `$${parseFloat(unitCost || totalCost || 0).toFixed(2)}`;
+      const totalText = `$${parseFloat(totalCost || 0).toFixed(2)}`;
+
+      doc.text(qtyText, colQtyX + 5, currentY, { width: colDescX - colQtyX - 10 });
+      doc.text(itemDescText, colDescX + 5, currentY, { width: colUnitPriceX - colDescX - 10 });
+      doc.text(unitPriceText, colUnitPriceX, currentY, { width: colTotalX - colUnitPriceX - 10, align: 'right' });
+      doc.text(totalText, colTotalX, currentY, { width: contentWidth - (colTotalX - pageMargin), align: 'right' });
+      
+      currentY += doc.currentLineHeight() + 10; // Espacio después de la fila
+      // Línea debajo de la fila
+      doc.moveTo(pageMargin, currentY).lineTo(doc.page.width - pageMargin, currentY).strokeColor(lightGrayColor).stroke();
+      currentY += 15;
+
+      // === TOTAL DEL CHANGE ORDER ===
+      doc.fontSize(12).font('Helvetica-Bold');
+      doc.text('TOTAL CHANGE ORDER:', colUnitPriceX - 100, currentY, { width: 100, align: 'right' });
+      doc.text(`$${parseFloat(totalCost || 0).toFixed(2)}`, colTotalX, currentY, { width: contentWidth - (colTotalX - pageMargin), align: 'right' });
+      currentY += doc.currentLineHeight() + 20;
+
+      // === MENSAJE AL CLIENTE (SI EXISTE) ===
+      if (clientMessage) {
+        doc.fontSize(10).font('Helvetica-Oblique').text("Note:", pageMargin, currentY);
+        currentY += doc.currentLineHeight();
+        doc.font('Helvetica').text(clientMessage, pageMargin, currentY, { width: contentWidth });
+        currentY += doc.currentLineHeight() * (Math.ceil(doc.heightOfString(clientMessage, {width: contentWidth}) / doc.currentLineHeight())) + 10;
+      }
+      
+      // === SECCIÓN DE APROBACIÓN (SI EL ESTADO ES APROBADO) ===
+      // Esto es solo para mostrarlo en el PDF si YA está aprobado.
+      // La aprobación real vendrá del enlace en el email.
+      if (coStatus === 'approved') {
+        const approvedStampPath = path.join(__dirname, '../assets/approved_stamp.png'); // Necesitarás una imagen de sello "APPROVED"
+        if (fs.existsSync(approvedStampPath)) {
+            doc.image(approvedStampPath, doc.page.width - pageMargin - 150, currentY, { width: 120 });
+            currentY += 70; // Ajustar según el tamaño del sello
+        } else {
+            doc.fontSize(18).fillColor('green').font('Helvetica-Bold')
+               .text('APPROVED', doc.page.width - pageMargin - 200, currentY, { width: 180, align: 'center' });
+            currentY += 30;
+        }
+        // Podrías añadir "Approved by: [Nombre]" y "Date: [Fecha]" si tienes esa info
+      }
+
+      // Mover al final de la página para el "Thank You" y la info de pago si es necesario
+      const spaceForFooter = 150;
+      if (doc.page.height - currentY < spaceForFooter) {
+        doc.addPage();
+        currentY = pageMargin;
+      } else {
+        currentY = doc.page.height - spaceForFooter - 20; // Posicionar más arriba
+      }
+
+
+      // === INFORMACIÓN DE PAGO (Opcional, si aplica para COs) ===
+      doc.fontSize(9).font('Helvetica-Bold').text('Payment Information:', pageMargin, currentY);
+      currentY += doc.currentLineHeight();
+      doc.font('Helvetica');
+      doc.text(`Bank: ${currentCompany.bankName || "Chase"}`, pageMargin, currentY); // Añade bankName a companyData si es diferente
+      currentY += doc.currentLineHeight();
+      doc.text(`Routing number: ${currentCompany.routingNumber || "267084131"}`, pageMargin, currentY);
+      currentY += doc.currentLineHeight();
+      doc.text(`Account number: ${currentCompany.accountNumber || "686125371"}`, pageMargin, currentY);
+      currentY += doc.currentLineHeight();
+      doc.text(`Email: ${currentCompany.paymentEmail || "zurcherseptic@gmail.com"}`, pageMargin, currentY);
+      
+      // === THANK YOU ===
+      doc.fontSize(22).font('Helvetica-BoldOblique').fillColor(primaryColor)
+         .text('Thank You!', doc.page.width - pageMargin - 200, doc.page.height - pageMargin - 60, { width: 180, align: 'right' });
+
+
+      // --- 4. Finalizar PDF ---
+      doc.end();
+
+      // --- 5. Resolver Promesa ---
+      stream.on('finish', () => {
+        console.log(`Change Order PDF generado: ${pdfPath}`);
+        resolve(pdfPath);
+      });
+      stream.on('error', (err) => {
+        console.error("Error al escribir el stream del PDF del Change Order:", err);
+        reject(err);
+      });
+
+    } catch (error) {
+      console.error("Error dentro de generateAndSaveChangeOrderPDF:", error);
+      reject(error);
+    }
+  });
+}
+
+module.exports = { generateAndSaveBudgetPDF, generateAndSaveFinalInvoicePDF,generateAndSaveChangeOrderPDF };

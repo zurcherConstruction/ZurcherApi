@@ -1,11 +1,13 @@
 const express = require('express');
 const WorkController = require('../controllers/WorkController');
 const { verifyToken } = require('../middleware/isAuth');
-const { allowRoles, isOwner, isAdmin, isRecept, isStaff } = require('../middleware/byRol')
+const { allowRoles } = require('../middleware/byRol')
 const { uploadToDisk } = require('../middleware/multerDisk');
 const { upload } = require('../middleware/multer'); // Asegúrate de que esta ruta sea correcta
 
 const router = express.Router();
+
+
 
 // Crear una obra (solo administradores)
 router.post('/', verifyToken, allowRoles(['admin', 'recept', 'owner']), WorkController.createWork);
@@ -36,6 +38,9 @@ router.post('/:idWork/images',
   );
 
 router.delete('/:idWork/images/:imageId', verifyToken, allowRoles(['owner', 'worker']), WorkController.deleteImagesFromWork);
+
+
+
 
 
 module.exports = router;

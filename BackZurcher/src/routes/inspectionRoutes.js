@@ -44,9 +44,7 @@ router.post(
   );
   router.post(
     '/reinspection/:workId',
-    verifyToken, allowRoles(['owner', 'admin', 'staff']),
-    // 'reinspectionFiles' es el nombre del campo en FormData, 5 es el max de archivos
-    InspectionController.requestReinspection
+    verifyToken, allowRoles(['owner', 'admin', 'staff']), upload.single('reinspectionFiles'), InspectionController.requestReinspection
 );
 router.post(
   '/:inspectionId/mark-corrected',

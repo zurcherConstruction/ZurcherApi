@@ -15,29 +15,31 @@ import { fetchWorks } from "../Redux/Actions/workActions";
 import { useNavigation } from "@react-navigation/native";
 
 const etapas = [
-  { backend: "inProgress", display: "Purchase in Progress" },
-  { backend: "installed", display: "Installing" },
-  { backend: "firstInspectionPending", display: "Inspection Pending" },
-  { backend: "approvedInspection", display: "Inspection Approved" }, // Añadido para referencia en getDisplayName
+   { backend: "assigned", display: "Purchase in Progress" },
+  { backend: "inProgress", display: "Installing" },
+  { backend: "installed", display: "Inspection Pending" },
+  { backend: "approvedInspection", display: "Inspection Approved" }, // Para getDisplayName
   { backend: "coverPending", display: "Cover Pending" },
-  { backend: "covered", display: "Covered - Awaiting Final Invoice" }, // <-- ADDED
-  { backend: "invoiceFinal", display: "Send Final Invoice" },
-  { backend: "paymentReceived", display: "Payment Received" },
-  { backend: "finalInspectionPending", display: "Final Inspection Pending" },
-  { backend: "finalApproved", display: "Final Insp. Approved" }, // Añadido para referencia
+  { backend: "covered", display: "Send Final Invoice" }, // Esta será la visual para 'covered'
+  { backend: "invoiceFinal", display: "Payment Received" },
+  { backend: "paymentReceived", display: "Final Inspection Pending" },
+  { backend: "finalApproved", display: "Final Insp. Approved" }, // Para getDisplayName
   { backend: "maintenance", display: "Maintenance" },
   // Estados de rechazo no se suelen poner en la línea de progreso visual principal,
   // pero getDisplayName los manejará.
 ];
 
-// Etapas que se mostrarán visualmente en la barra de progreso
-const visualEtapas = etapas.filter(e => ![
-    "approvedInspection", // No es una etapa visual separada de firstInspectionPending
-    "covered",
-    "finalApproved",      // No es una etapa visual separada de finalInspectionPending
-    "rejectedInspection",
-    "finalRejected"
-].includes(e.backend));
+// Definir las 8 etapas visuales explícitamente
+const visualEtapas = [
+  etapas.find(e => e.backend === "assigned"),
+  etapas.find(e => e.backend === "inProgress"),
+  etapas.find(e => e.backend === "installed"),
+  etapas.find(e => e.backend === "coverPending"),
+  etapas.find(e => e.backend === "covered" && e.display === "Send Final Invoice"),
+  etapas.find(e => e.backend === "invoiceFinal"), // Esta es la etapa "Payment Received"
+  etapas.find(e => e.backend === "paymentReceived"), // Esta es la etapa "Final Inspection Pending"
+  etapas.find(e => e.backend === "maintenance"),
+].filter(Boolean);
 
 
 const HomeScreen = () => {
@@ -65,32 +67,42 @@ const HomeScreen = () => {
   };
 
   const getProgressIndexForBar = (currentWorkStatus) => {
-    let statusToFindInVisualEtapas = currentWorkStatus;
+    let visualStageBackendKey;
 
-    if (currentWorkStatus === "firstInspectionPending" || currentWorkStatus === "rejectedInspection") {
-      statusToFindInVisualEtapas = "installed";
-    } else if (currentWorkStatus === "approvedInspection") {
-      statusToFindInVisualEtapas = "firstInspectionPending";
-    } else if (currentWorkStatus === "finalInspectionPending" || currentWorkStatus === "finalRejected") {
-      statusToFindInVisualEtapas = "coverPending";
-    } else if (currentWorkStatus === "finalApproved") {
-      statusToFindInVisualEtapas = "finalInspectionPending";
-    } else if (currentWorkStatus === "covered") { // <-- ADDED CONDITION
-      statusToFindInVisualEtapas = "coverPending";
+    // Mapear el estado actual del trabajo a la clave 'backend' de la etapa visual correspondiente
+   if (["installed", "firstInspectionPending", "approvedInspection", "rejectedInspection"].includes(currentWorkStatus)) {
+      visualStageBackendKey = "installed";
+    } else if (["paymentReceived", "finalInspectionPending", "finalApproved", "finalRejected"].includes(currentWorkStatus)) {
+      visualStageBackendKey = "paymentReceived";
+    } else if (currentWorkStatus === "invoiceFinal") { // Ser explícito para invoiceFinal
+      visualStageBackendKey = "invoiceFinal";
+    } else {
+      visualStageBackendKey = currentWorkStatus;
     }
+
+
+    const index = visualEtapas.findIndex((etapa) => etapa && etapa.backend === visualStageBackendKey);
     
-    const index = visualEtapas.findIndex((etapa) => etapa.backend === statusToFindInVisualEtapas);
+    // Para depuración, puedes añadir un console.log aquí:
+    // console.log(`HomeScreen - Work Status: ${currentWorkStatus}, VisualKey: ${visualStageBackendKey}, ProgressBarIndex: ${index}`);
+    
     return index;
   };
 
-  const getDisplayName = (status) => {
+const getDisplayName = (status) => {
+    // Busca primero en el array 'etapas' que tiene más definiciones
     const etapaDef = etapas.find((e) => e.backend === status);
     if (etapaDef) return etapaDef.display;
 
-    // Casos especiales no en la lista principal de 'etapas' para display
+    // Casos especiales para estados que no están en 'etapas' o para darles un nombre específico
+    // Asegúrate de que estos no entren en conflicto con los 'display' de 'visualEtapas' si son diferentes.
     if (status === "rejectedInspection") return "Inspection Rejected";
     if (status === "finalRejected") return "Final Insp. Rejected";
-    return "Unknown Status";
+    if (status === "approvedInspection") return "Inspection Approved"; // Ya está en etapas
+    if (status === "finalApproved") return "Final Insp. Approved"; // Ya está en etapas
+    if (status === "covered" && !etapaDef) return "Covered - Awaiting Invoice"; // Fallback si 'covered' no tiene el display esperado
+
+    return "Estado Desconocido";
   };
 
 
@@ -186,53 +198,36 @@ const HomeScreen = () => {
                 Estado: {getDisplayName(status)}
               </Text>
 
-              <View style={styles.progressBarContainer}>
+               <View style={styles.progressBarContainer}>
                 <View style={styles.progressBarTrack} />
                 <View
                   style={[
                     styles.progressBarFill,
-                    { width: `${visualEtapas.length > 1 ? (progressBarIndex / (visualEtapas.length - 1)) * 100 : (progressBarIndex >= 0 ? 100 : 0)}%` }
+                    { width: progressBarIndex >= 0 && visualEtapas.length > 1 ? `${(progressBarIndex / (visualEtapas.length - 1)) * 100}%` : (progressBarIndex >= 0 && visualEtapas.length === 1 ? '100%' : '0%') }
                   ]}
                 />
                  {visualEtapas.map((etapa, etapaMapIndex) => {
-                  let circleBgClassName = styles.circleBgGray;
-                  let isPulsing = false;
+                  if (!etapa) return null; // Si alguna etapa en visualEtapas es undefined
 
-                  if (progressBarIndex >= 0 && etapaMapIndex < progressBarIndex) {
-                    circleBgClassName = styles.circleBgGreen;
-                  } else if (progressBarIndex >= 0 && etapaMapIndex === progressBarIndex) {
-                    circleBgClassName = styles.circleBgGreen;
-                  }
+                  // Determinar si esta etapa del map es la etapa visualmente actual
+                  const isCurrentVisualStage = etapaMapIndex === progressBarIndex;
+                  // Determinar si esta etapa del map es una etapa completada (anterior a la actual)
+                  const isCompletedStage = etapaMapIndex < progressBarIndex;
 
-                  if (etapa.backend === "firstInspectionPending") {
-                    if (status === "firstInspectionPending") { circleBgClassName = styles.circleBgYellow; isPulsing = true; }
-                    else if (status === "rejectedInspection") { circleBgClassName = styles.circleBgRed; isPulsing = true; }
-                    else if (status === "approvedInspection") { circleBgClassName = styles.circleBgGreen; isPulsing = true; }
-                  } else if (etapa.backend === "finalInspectionPending") {
-                    if (status === "finalInspectionPending") { circleBgClassName = styles.circleBgYellow; isPulsing = true; }
-                    else if (status === "finalRejected") { circleBgClassName = styles.circleBgRed; isPulsing = true; }
-                    else if (status === "finalApproved") { circleBgClassName = styles.circleBgGreen; isPulsing = true; }
-                  }
+                  // Color del círculo: verde si está completada o es la actual, sino gris
+                  const circleBgStyle = (isCurrentVisualStage || isCompletedStage) ? styles.circleBgGreen : styles.circleBgGray;
                   
-                  // Pulsing logic for the current visual step if not handled by inspection logic
-                  if (progressBarIndex === etapaMapIndex && !isPulsing) {
-                    const isInspectionVisualStep = etapa.backend === "firstInspectionPending" || etapa.backend === "finalInspectionPending";
-                    if (!isInspectionVisualStep) {
-                      if (status === etapa.backend) { // Actual status matches this linear visual step
-                        isPulsing = true;
-                      } else if (etapa.backend === "coverPending" && status === "covered") { // Specific case for 'covered'
-                        isPulsing = true;
-                      }
-                    }
-                  }
-                  const etapaKey = String(etapa.backend || `unknown-etapa-${etapaMapIndex}`);
+                  // Titileo del círculo: solo si es la etapa visualmente actual
+                  const isPulsing = isCurrentVisualStage;
+                  
+                  const etapaKey = String(etapa.backend || `unknown-etapa-${etapaMapIndex}-${Math.random()}`);
                   return (
                     <View key={etapaKey} style={styles.progressStepContainer}>
                       <Animated.View
                         style={[
                           styles.progressCircle,
-                          circleBgClassName,
-                          isPulsing ? pulseStyle : {},
+                          circleBgStyle, // Aplicar el estilo de fondo determinado
+                          isPulsing ? pulseStyle : {}, // Aplicar titileo si es la etapa actual
                         ]}
                       >
                         <Text style={styles.progressCircleText}>{etapaMapIndex + 1}</Text>

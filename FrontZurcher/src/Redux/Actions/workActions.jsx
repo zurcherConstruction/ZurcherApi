@@ -18,6 +18,19 @@ import {
   deleteWorkRequest,
   deleteWorkSuccess,
   deleteWorkFailure,
+  createChangeOrderRequest,
+  createChangeOrderSuccess,
+  createChangeOrderFailure,
+  updateChangeOrderRequest,
+  updateChangeOrderSuccess,
+  updateChangeOrderFailure,
+  addImagesRequest,
+  addImagesSuccess,
+  addImagesFailure,
+  deleteImagesRequest,
+  deleteImagesSuccess,
+  deleteImagesFailure,
+  
 } from '../Reducer/workReducer';
 
 // Obtener todas las obras
@@ -177,6 +190,227 @@ export const attachInvoiceToWork = (idWork, file, totalCost) => async (dispatch)
     const errorMessage =
       error.response?.data?.message || 'Error al adjuntar la factura';
     dispatch(updateWorkFailure(errorMessage)); // Despachar el error al estado global
+    throw error; // Lanzar el error para manejarlo en el componente
+  }
+};
+
+export const recordOrUpdateChangeOrderDetails = (idWork, changeOrderId, coData) => async (dispatch, getState) => {
+  const { token } = getState().auth; // Asumiendo que obtienes el token del estado de autenticación
+
+  // Usar los action creators específicos si los tienes, o un tipo genérico
+  // Aquí se asume que tienes un tipo genérico para la solicitud inicial.
+  // Si usas createChangeOrderRequest y updateChangeOrderRequest, necesitarías lógica condicional.
+  // Por simplicidad, usaré un tipo genérico aquí, o puedes ajustar.
+  // dispatch({ type: 'RECORD_OR_UPDATE_CHANGE_ORDER_DETAILS_REQUEST' }); // O usa tus action creators específicos
+  // Basado en tu código, parece que ya tienes un RECORD_OR_UPDATE_CHANGE_ORDER_DETAILS_REQUEST
+  // que se despacha como un objeto literal, lo cual está bien.
+  dispatch({ type: 'RECORD_OR_UPDATE_CHANGE_ORDER_DETAILS_REQUEST' });
+
+
+  console.log(`[WorkActions] recordOrUpdateChangeOrderDetails - START. Is updating: ${!!changeOrderId}`, { idWork, changeOrderId, coData });
+
+  const isUpdating = !!changeOrderId;
+  // Asegurar que effectiveIdWork se tome correctamente, priorizando idWork si está presente,
+  // luego coData.workId si es una creación y idWork no vino como parámetro directo.
+  const effectiveIdWork = idWork || (!isUpdating ? coData?.workId : null);
+
+
+  if (!effectiveIdWork && !isUpdating) { // Solo es crítico si es una nueva CO y no hay idWork
+    console.error('[WorkActions] recordOrUpdateChangeOrderDetails - CRITICAL: effectiveIdWork is undefined for new CO.');
+    dispatch(createChangeOrderFailure({ message: 'ID de la obra es indefinido. No se puede crear la Orden de Cambio.' }));
+    return { error: true, message: 'ID de la obra es indefinido.' };
+  }
+  if (!changeOrderId && isUpdating) { // Crítico si se intenta actualizar sin un changeOrderId
+    console.error('[WorkActions] recordOrUpdateChangeOrderDetails - CRITICAL: changeOrderId is undefined for updating CO.');
+    dispatch(updateChangeOrderFailure({ message: 'ID de la Orden de Cambio es indefinido. No se puede actualizar.' }));
+    return { error: true, message: 'ID de la Orden de Cambio es indefinido.' };
+  }
+
+
+  let apiUrl = '';
+  let httpMethod = '';
+
+  if (isUpdating) {
+    apiUrl = `/change-orders/${changeOrderId}`; // Ruta para actualizar una CO existente
+    httpMethod = 'PUT';
+    console.log(`[WorkActions] recordOrUpdateChangeOrderDetails - PUT request to: ${apiUrl}`);
+  } else {
+    // Para CREAR un CO:
+    apiUrl = `/change-orders/${effectiveIdWork}/change-orders`; // Ruta para crear una nueva CO asociada a un workId
+    httpMethod = 'POST';
+    console.log(`[WorkActions] recordOrUpdateChangeOrderDetails - POST request to: ${apiUrl}`);
+  }
+
+  try {
+    const config = {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`, // Incluir el token si tu API lo requiere
+      },
+    };
+
+    let response;
+
+    if (httpMethod === 'POST') {
+      response = await api.post(apiUrl, coData, config);
+      dispatch(createChangeOrderSuccess(response.data)); // Despachar acción de éxito para creación
+    } else { // PUT
+      response = await api.put(apiUrl, coData, config);
+      dispatch(updateChangeOrderSuccess(response.data)); // Despachar acción de éxito para actualización
+    }
+    
+    console.log(`[WorkActions] Change Order ${isUpdating ? 'updated' : 'created'} successfully. Payload to reducer:`, response.data);
+    return response.data; // Devolver los datos de la respuesta
+
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || error.message || `Error al ${isUpdating ? 'actualizar' : 'crear'} la Orden de Cambio.`;
+    console.error(`[WorkActions] Error in recordOrUpdateChangeOrderDetails (${isUpdating ? 'update' : 'create'}):`, error.response || error);
+    
+    // Despachar la acción de fracaso correspondiente
+    dispatch(
+      isUpdating 
+        ? updateChangeOrderFailure({ message: errorMessage, details: error.response?.data?.details })
+        : createChangeOrderFailure({ message: errorMessage, details: error.response?.data?.details })
+    );
+
+    console.log('[WorkActions] recordOrUpdateChangeOrderDetails - Returning error structure to component:', { error: true, message: errorMessage, details: error.response?.data?.details });
+    // Devolver una estructura de error para que el componente pueda manejarlo
+    return { 
+      error: true, 
+      message: errorMessage, 
+      details: error.response?.data?.details, 
+      type: isUpdating ? 'UPDATE_CHANGE_ORDER_FAILURE' : 'CREATE_CHANGE_ORDER_FAILURE' 
+    };
+  }
+};
+// ... (importaciones existentes) ...
+
+// Podrías añadir tipos de acción específicos para el reducer si quieres manejar estados de loading/error
+// export const SEND_CO_TO_CLIENT_REQUEST = 'SEND_CO_TO_CLIENT_REQUEST';
+// export const SEND_CO_TO_CLIENT_SUCCESS = 'SEND_CO_TO_CLIENT_SUCCESS';
+// export const SEND_CO_TO_CLIENT_FAILURE = 'SEND_CO_TO_CLIENT_FAILURE';
+
+// ... (otras actions) ...
+
+export const sendChangeOrderToClient = (changeOrderId) => async (dispatch, getState) => {
+  // dispatch({ type: SEND_CO_TO_CLIENT_REQUEST }); // O un action creator si lo defines
+  const { token } = getState().auth;
+  console.log(`[WorkActions] sendChangeOrderToClient - START. Change Order ID: ${changeOrderId}`);
+
+  if (!changeOrderId) {
+    console.error('[WorkActions] sendChangeOrderToClient - CRITICAL: changeOrderId is undefined.');
+    const errorMsg = 'ID de la Orden de Cambio es indefinido.';
+    // dispatch({ type: SEND_CO_TO_CLIENT_FAILURE, payload: errorMsg });
+    return { error: true, message: errorMsg };
+  }
+
+  try {
+    const config = {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        // 'Content-Type': 'application/json' // El backend no parece esperar un body, así que esto podría no ser necesario
+      },
+    };
+    
+    // El backend espera un POST a /change-orders/:changeOrderId/send-to-client.
+    // Si no necesita un body, puedes pasar un objeto vacío {} o null.
+    const response = await api.post(`/change-orders/${changeOrderId}/send-to-client`, {}, config);
+
+    console.log('[WorkActions] sendChangeOrderToClient - Success:', response.data);
+    // dispatch({ type: SEND_CO_TO_CLIENT_SUCCESS, payload: response.data });
+
+    // Considera si necesitas refrescar datos después de esto.
+    // Por ejemplo, el estado de la CO podría cambiar a 'pendingClientApproval'.
+    // Podrías querer volver a obtener la Work (que contiene las COs) o la CO específica.
+    // dispatch(fetchWorkById(response.data.workId)); // Si la respuesta te da el workId
+    // O si la respuesta es la CO actualizada:
+    // dispatch(updateChangeOrderSuccess(response.data.changeOrder)); // Asumiendo que tienes una forma de actualizar una CO individual en el store
+
+    return response.data; // Devuelve la respuesta del backend
+
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || error.message || 'Error al enviar la Orden de Cambio al cliente.';
+    console.error('[WorkActions] sendChangeOrderToClient - Error:', error.response || error);
+    // dispatch({ type: SEND_CO_TO_CLIENT_FAILURE, payload: errorMessage });
+    return { error: true, message: errorMessage, details: error.response?.data?.details };
+  }
+};
+
+export const deleteChangeOrderRequest = () => ({ type: 'DELETE_CHANGE_ORDER_REQUEST' });
+export const deleteChangeOrderSuccess = (changeOrderId) => ({ type: 'DELETE_CHANGE_ORDER_SUCCESS', payload: changeOrderId });
+export const deleteChangeOrderFailure = (error) => ({ type: 'DELETE_CHANGE_ORDER_FAILURE', payload: error });
+
+export const deleteChangeOrder = (changeOrderId) => async (dispatch, getState) => {
+  dispatch(deleteChangeOrderRequest());
+  const { token } = getState().auth;
+  try {
+    await api.delete(`/change-orders/${changeOrderId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    dispatch(deleteChangeOrderSuccess(changeOrderId));
+    return { success: true };
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || 'Error al eliminar la Orden de Cambio.';
+    dispatch(deleteChangeOrderFailure(errorMessage));
+    return { error: true, message: errorMessage };
+  }
+};
+
+//images front 
+export const addImagesToWork = (idWork, formData) => async (dispatch) => {
+  dispatch(addImagesRequest());
+  try {
+    const response = await api.post(`/work/${idWork}/images`, formData, {
+      // ... headers si son necesarios ...
+    });
+    // Loguea para confirmar la estructura de response.data
+    console.log('[workActions] addImagesToWork SUCCESS, response.data:', response.data); 
+    
+    // Asegúrate de que response.data y response.data.createdImage existan
+    if (response.data && response.data.createdImage) {
+      dispatch(addImagesSuccess(response.data)); 
+      return response.data; // Devuelve { message, work, createdImage }
+    } else {
+      // Si la respuesta es 2xx pero no tiene la estructura esperada
+      console.error('[workActions] addImagesToWork SUCCESS pero respuesta inesperada:', response.data);
+      const failureMsg = 'Respuesta inesperada del servidor tras subir imagen.';
+      dispatch(addImagesFailure(failureMsg));
+      Alert.alert('Error', failureMsg);
+      return { error: true, message: failureMsg, details: response.data };
+    }
+  } catch (error) {
+    const backendErrorMessage = error.response?.data?.message;
+    const displayErrorMessage = backendErrorMessage || 'Error al agregar las imágenes';
+    
+    console.error('[workActions] addImagesToWork FAILURE:', displayErrorMessage, 'Full error response:', error.response?.data); // <--- AQUÍ error.response?.data es undefined
+    dispatch(addImagesFailure(displayErrorMessage)); 
+    Alert.alert('Error', displayErrorMessage); 
+    return { error: true, message: displayErrorMessage, details: error.response?.data }; 
+  }
+};
+// ...
+export const deleteImagesFromWork = (idWork, imageId) => async (dispatch) => { // Cambiado imageData por imageId
+  dispatch(deleteImagesRequest()); // Acción para iniciar la solicitud
+  try {
+    // URL corregida, sin cuerpo (data)
+    const response = await api.delete(`/work/${idWork}/images/${imageId}`);
+
+    // Verificar si la respuesta es 204 No Content (éxito sin cuerpo)
+    if (response.status === 204) {
+      // Payload opcional, podría ser útil para el reducer si no se refresca
+      dispatch(deleteImagesSuccess({ idWork, imageId })); // Acción para éxito
+      // *** CLAVE: Refrescar la lista de trabajos para actualizar la UI ***
+      dispatch(fetchAssignedWorks());
+    } else {
+      // Manejar otros códigos de estado si es necesario
+      throw new Error(`Error inesperado al eliminar: ${response.status}`);
+    }
+    // No necesitas devolver response.data porque es 204 No Content
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.message || error.message || 'Error al eliminar la imagen';
+    dispatch(deleteImagesFailure(errorMessage)); // Acción para error
+    Alert.alert('Error', errorMessage); // Mostrar error en una alerta
     throw error; // Lanzar el error para manejarlo en el componente
   }
 };

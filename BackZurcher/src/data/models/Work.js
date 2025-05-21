@@ -22,11 +22,11 @@ module.exports = (sequelize) => {
         'firstInspectionPending',
         'approvedInspection',  
         'rejectedInspection',
-        'coverPending', //se agrega installed
+        'coverPending', 
         'covered',
         'invoiceFinal',
         'paymentReceived',
-        'finalInspectionPending', //cambiar por firstInspectionPending revisar inspecciones
+        'finalInspectionPending', 
         'finalApproved',
         'finalRejected',
         'maintenance'
@@ -61,6 +61,11 @@ module.exports = (sequelize) => {
         model: 'Budgets',
         key: 'idBudget',
       },
+    },
+       stoneExtractionCONeeded: { // NUEVO CAMPO
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
     },
     
   });

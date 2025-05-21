@@ -10,6 +10,8 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Buffer } from "buffer";
 import PdfViewer from '../utils/PdfViewer'; // Asegúrate de que la ruta sea correcta
 
+    
+
 
 const UploadScreen = () => {
   const { idWork, propertyAddress: routePropertyAddress } = useRoute().params; // Solo idWork y la dirección inicial de la ruta
@@ -35,6 +37,7 @@ const UploadScreen = () => {
   const [isBatchUploading, setIsBatchUploading] = useState(false);
   const [isMarkingCorrected, setIsMarkingCorrected] = useState(false); // Nuevo estado para el botón
   const [isMarkingCovered, setIsMarkingCovered] = useState(false);
+ const [notifiedForStoneCO, setNotifiedForStoneCO] = useState(false); // Para controlar la notificación/actualización
 
   // --- EFECTO PARA BUSCAR DETALLES DEL TRABAJO ---
   useEffect(() => {
@@ -55,7 +58,9 @@ const UploadScreen = () => {
   // --- AÑADIR ESTE LOG ---
   useEffect(() => {
     if (currentWork && currentWork.idWork === idWork) { // Solo loguear cuando currentWork esté poblado con datos del estado
-        
+         if (currentWork.stoneExtractionCONeeded === false) {
+        setNotifiedForStoneCO(false);
+      }
         if (currentWork.inspections) { // <--- CAMBIO AQUÍ
            
         } else {
@@ -91,7 +96,7 @@ const UploadScreen = () => {
     'sistema instalado',
     'extracción de piedras',
     'camiones de tierra',
-    'inspeccion final'
+    'trabajo cubierto'
   ];
 
   const stageColors = [
@@ -106,36 +111,67 @@ const UploadScreen = () => {
 
   ];
 
-  const handleOpenPdf = async (pdfData) => {
+ const handleOpenPdf = async (pdfSource) => {
     try {
-      const base64Pdf =
-        pdfData?.data
-          ? Buffer.from(pdfData.data).toString("base64")
-          : typeof pdfData === 'string' && pdfData.startsWith("data:application/pdf;base64,")
-            ? pdfData.split(",")[1]
-            : typeof pdfData === 'string'
-              ? pdfData
-              : null;
+      let fileUri;
+      let isDownloadedTempFile = false;
 
-      if (!base64Pdf) {
-        throw new Error("El PDF no está en un formato válido o no se encontró.");
+      // Verificar si pdfSource es una URL
+      if (typeof pdfSource === 'string' && (pdfSource.startsWith('http://') || pdfSource.startsWith('https://'))) {
+        const tempFileName = `temp_download_${Date.now()}.pdf`; // Asegurar extensión .pdf
+        fileUri = `${FileSystem.cacheDirectory}${tempFileName}`;
+        console.log(`Intentando descargar PDF desde: ${pdfSource} a ${fileUri}`);
+        
+        const downloadResult = await FileSystem.downloadAsync(pdfSource, fileUri);
+        
+        if (downloadResult.status !== 200) {
+          throw new Error(`Error al descargar PDF (status ${downloadResult.status}).`);
+        }
+        console.log('PDF descargado exitosamente:', downloadResult.uri);
+        isDownloadedTempFile = true; 
+        // fileUri ya es la URI del archivo descargado
+      } else {
+        // Lógica existente para base64
+        const base64Pdf =
+          pdfSource?.data // Si viene de currentWork.Permit.pdfData (objeto con Buffer)
+            ? Buffer.from(pdfSource.data).toString("base64")
+            : typeof pdfSource === 'string' && pdfSource.startsWith("data:application/pdf;base64,")
+              ? pdfSource.split(",")[1]
+              : typeof pdfSource === 'string' // Asumir que es base64 puro si no es URL y es string
+                ? pdfSource 
+                : null;
+
+        if (!base64Pdf) {
+          throw new Error("El PDF no está en un formato válido (base64) o no se encontró.");
+        }
+        const tempFileNameBase64 = `temp_base64_${Date.now()}.pdf`;
+        fileUri = `${FileSystem.cacheDirectory}${tempFileNameBase64}`;
+        await FileSystem.writeAsStringAsync(fileUri, base64Pdf, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        isDownloadedTempFile = true; // También es un archivo temporal
       }
 
-      // --- GUARDAR PDF EN ARCHIVO TEMPORAL ---
-      const fileUri = `${FileSystem.cacheDirectory}temp_${Date.now()}.pdf`;
-      await FileSystem.writeAsStringAsync(fileUri, base64Pdf, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-    
-
-      // --- Guardar la URI del archivo y mostrar el modal ---
-      setSelectedPdfUri(fileUri); // Guardar la URI del archivo
+      setSelectedPdfUri(fileUri);
       setPdfViewerVisible(true);
+      // No eliminamos el archivo aquí, PdfViewer lo hará en su onClose
 
     } catch (error) {
-      console.error("Error al abrir/guardar PDF:", error);
-      Alert.alert("Error", `No se pudo abrir el PDF: ${error.message}`);
+      console.error("Error en handleOpenPdf:", error);
+      Alert.alert("Error al abrir PDF", `${error.message}. Asegúrate de que la URL sea accesible y el archivo sea un PDF válido.`);
+      // Si hubo un error y se descargó un archivo, intentar limpiarlo
+      if (fileUri && isDownloadedTempFile) {
+        FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(delError => console.error("Error al limpiar archivo temporal tras fallo en handleOpenPdf:", delError));
+      }
     }
+  };
+
+  // Función para identificar URLs de imágenes comunes (puedes mejorarla)
+  const isCommonImageUrl = (url) => {
+    if (!url || typeof url !== 'string') return false;
+    // Intenta ser un poco más flexible con las URLs de Cloudinary que pueden no tener extensión
+    if (url.includes('cloudinary.com')) return true; 
+    return /\.(jpeg|jpg|gif|png)(\?|$)/i.test(url);
   };
 
   useEffect(() => {
@@ -195,8 +231,10 @@ const UploadScreen = () => {
   }, [currentWork, idWork]);
 
 
-  const handlePickImage = async () => {
-    if (!selectedStage) {
+  const handlePickImage = async () => { // Sin stageOverride
+    // const stageToUse = selectedStage; // Ya no es necesario, selectedStage es la fuente
+
+    if (!selectedStage) { // Usar selectedStage directamente
       Alert.alert("Error", "Por favor, selecciona una etapa primero.");
       return;
     }
@@ -204,7 +242,7 @@ const UploadScreen = () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) { return; }
 
-    const isTruckStage = selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra';
+    const isTruckStage = selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra'; // Usar selectedStage
     const allowMultiple = !isTruckStage; 
 
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -216,48 +254,33 @@ const UploadScreen = () => {
     if (!result.canceled && result.assets && result.assets.length > 0) {
       const selectedAssets = result.assets;
      
-      //setIsBatchUploading(true); // Iniciar indicador de carga para el lote
-
       if (isTruckStage) {
-        // Para etapas de camiones, procesar una por una como antes (o la primera si se seleccionaron múltiples accidentalmente)
-        // La UI de ImagePicker en Android podría no respetar 'allowsMultipleSelection: false' perfectamente.
-        const assetToProcess = selectedAssets[0]; // Tomar solo la primera para el flujo de camiones
-        if (imagesByStage[selectedStage]?.length >= 12) {
+        const assetToProcess = selectedAssets[0];
+        if (imagesByStage[selectedStage]?.length >= 12) { // Usar selectedStage
             Alert.alert('Límite Alcanzado', `Ya has alcanzado el límite de 12 imágenes para ${selectedStage}.`);
-            //setIsBatchUploading(false);
             return;
         }
-        // Flujo existente para camiones (pedir comentario y cantidad)
         if (Platform.OS === 'ios') {
-          Alert.prompt('Añadir Comentario', 'Ingresa un comentario (opcional):', [
-            { text: 'Cancelar', style: 'cancel', onPress: () => setIsBatchUploading(false) },
-            { text: 'Siguiente', onPress: (commentText) => {
-                const comment = commentText || '';
-                Alert.prompt('Cantidad de Camiones', 'Ingresa la cantidad de camiones:', [
-                  { text: 'Cancelar', style: 'cancel', onPress: () => setIsBatchUploading(false) },
-                  { text: 'Cargar Imagen', onPress: async (truckCountInput) => {
-                      const count = parseInt(truckCountInput, 10);
-                      if (isNaN(count) || count < 0) {
-                        Alert.alert('Error', 'Por favor, ingresa un número válido de camiones.');
-                       // setIsBatchUploading(false); return;
-                      }
-                      await processAndUploadImage(assetToProcess.uri, comment, count, selectedStage);
-                      //setIsBatchUploading(false); // Mover aquí después de procesar la única imagen
-                  }},
-                ], 'plain-text', '', 'numeric');
+     Alert.prompt('Cantidad de Camiones', 'Ingresa la cantidad de camiones:', [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Cargar Imagen', onPress: async (truckCountInput) => {
+                const count = parseInt(truckCountInput, 10);
+                if (isNaN(count) || count < 0) {
+                  Alert.alert('Error', 'Por favor, ingresa un número válido de camiones.');
+                  return;
+                }
+                await processAndUploadImage(assetToProcess.uri, '', count, selectedStage); // Pasar comentario vacío
             }},
-          ], 'plain-text');
-        } else { // Android para camiones
-         
-          // Aquí podrías implementar prompts nativos o una UI modal para comentario/cantidad si es necesario
-          await processAndUploadImage(assetToProcess.uri, '', null, selectedStage); // Usar null para truckCount si no se pide
-          //setIsBatchUploading(false);
+          ], 'plain-text', '', 'numeric');
+        } else { 
+          // Para Android, si quieres pedir cantidad, necesitarías un modal personalizado o similar.
+          // Actualmente, solo sube la imagen. Si quieres añadir cantidad, se necesitaría un flujo de UI.
+          // Por ahora, mantenemos el comportamiento de subir sin comentario ni cantidad explícita aquí.
+          await processAndUploadImage(assetToProcess.uri, '', null, selectedStage); // Pasar comentario vacío y null para cantidad
         }
-      } else { // Etapas que NO son de camiones (permiten múltiple)
-        // Pedir comentario UNA VEZ para la última imagen del lote (opcional)
+      } else {  
         let commentForLast = '';
         if (Platform.OS === 'ios') {
-          // Usamos una Promise para manejar el Alert.prompt asíncrono
           const askCommentPromise = new Promise((resolve) => {
             Alert.prompt(
               'Añadir Comentario (Opcional)',
@@ -271,14 +294,12 @@ const UploadScreen = () => {
           });
           commentForLast = await askCommentPromise;
         } else {
-          // En Android, podrías tener un modal simple o decidir no pedir comentario para lotes.
-          // Por ahora, lo dejamos vacío para Android en lotes.
           console.log("Comentario para lote en Android no implementado, se usará vacío.");
         }
 
-        setIsBatchUploading(true); // Asegúrate de que esto esté antes del bucle
+        setIsBatchUploading(true);
         for (let i = 0; i < selectedAssets.length; i++) {
-          if (imagesByStage[selectedStage]?.length + i >= 12) {
+          if (imagesByStage[selectedStage]?.length + i >= 12) { // Usar selectedStage
             Alert.alert('Límite Parcialmente Alcanzado', `Se cargarán ${i} imágenes. Se alcanzó el límite de 12 para ${selectedStage}.`);
             break;
           }
@@ -286,34 +307,21 @@ const UploadScreen = () => {
           const isLastImage = i === selectedAssets.length - 1;
           const commentToApply = isLastImage ? commentForLast : '';
           
-        
           try {
-            await processAndUploadImage(asset.uri, commentToApply, null, selectedStage);
-           
+            await processAndUploadImage(asset.uri, commentToApply, null, selectedStage); // Usar selectedStage
           } catch (uploadError) {
             console.error(`Error al procesar imagen ${i + 1} (${asset.uri}):`, uploadError);
-            // Decidir si continuar con las siguientes o detenerse.
-            // Por ahora, alertamos y continuamos (o podrías romper el bucle).
             Alert.alert('Error de Carga', `No se pudo cargar la imagen ${asset.uri.split('/').pop()}: ${uploadError.message}`);
-            // break; // Descomenta para detener en el primer error
           }
         }
         
-    // --- INICIO: Mensaje de éxito opcional para el lote ---
-    if (selectedAssets.length > 0) { // Solo si se intentó subir alguna imagen
-        const successfulUploads = selectedAssets.filter(asset => {
-            // Necesitarías una forma de saber si la subida de este asset fue exitosa.
-            // Esto es un poco más complejo de rastrear aquí sin cambiar más la lógica.
-            // Por ahora, un mensaje genérico si no hubo errores que detuvieran el proceso.
-            return true; // Asumir éxito si no hubo 'break' por error
-        }).length;
-
-        if (successfulUploads > 0) {
-            Alert.alert('Carga Completa', `${successfulUploads} imagen(es) procesada(s).`);
+        if (selectedAssets.length > 0) {
+            const successfulUploads = selectedAssets.length;
+            if (successfulUploads > 0) {
+                Alert.alert('Carga Completa', `${successfulUploads} imagen(es) procesada(s).`);
+            }
         }
-    }
-    // --- FIN: Mensaje de éxito opcional para el lote ---
-    setIsBatchUploading(false);
+        setIsBatchUploading(false);
       }
     } else if (result.canceled) {
         console.log("Selección de imágenes cancelada por el usuario.");
@@ -322,13 +330,18 @@ const UploadScreen = () => {
     }
   };
 
-  const handleTakePhoto = async () => {
 
-    if (!selectedStage) {
+  const handleTakePhoto = async () => { // Sin stageOverride
+    // const stageToUse = selectedStage; // Ya no es necesario
+
+    if (!selectedStage) { // Usar selectedStage
       Alert.alert("Error", "Por favor, selecciona una etapa primero.");
       return;
     }
-    if (imagesByStage[selectedStage]?.length >= 12) { return; }
+    if (imagesByStage[selectedStage]?.length >= 12) { // Usar selectedStage
+        Alert.alert('Límite Alcanzado', `Ya has alcanzado el límite de 12 imágenes para ${selectedStage}.`);
+        return; 
+    }
     const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
     if (!permissionResult.granted) { return; }
 
@@ -339,54 +352,54 @@ const UploadScreen = () => {
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
       const imageUri = result.assets[0].uri;
-      const isTruckStage = selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra';
-      // --- Solicitar Comentario (iOS) ---
+      const isTruckStage = selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra'; // Usar selectedStage
       if (Platform.OS === 'ios') {
-        Alert.prompt(
-          'Añadir Comentario',
-          'Ingresa un comentario (opcional):',
-          [
-            { text: 'Cancelar', style: 'cancel' },
-            {
-              text: 'Siguiente',
-              onPress: (commentText) => {
-                const comment = commentText || '';
-                if (isTruckStage) {
-                  Alert.prompt(
-                    'Cantidad de Camiones',
-                    'Ingresa la cantidad de camiones:',
-                    [
-                      { text: 'Cancelar', style: 'cancel' },
-                      {
-                        text: 'Cargar Imagen',
-                        onPress: (truckCountInput) => {
-                          const count = parseInt(truckCountInput, 10);
-                          if (isNaN(count) || count < 0) {
-                            Alert.alert('Error', 'Por favor, ingresa un número válido de camiones.');
-                            return;
-                          }
-                          processAndUploadImage(imageUri, comment, count);
-                        },
-                      },
-                    ],
-                    'plain-text',
-                    '',
-                    'numeric'
-                  );
-                } else {
-                  processAndUploadImage(imageUri, comment, null);
-                }
+        if (isTruckStage) {
+          // Directamente pedir cantidad de camiones, sin comentario
+          Alert.prompt(
+            'Cantidad de Camiones',
+            'Ingresa la cantidad de camiones:',
+            [
+              { text: 'Cancelar', style: 'cancel' },
+              {
+                text: 'Cargar Imagen',
+                onPress: (truckCountInput) => {
+                  const count = parseInt(truckCountInput, 10);
+                  if (isNaN(count) || count < 0) {
+                    Alert.alert('Error', 'Por favor, ingresa un número válido de camiones.');
+                    return;
+                  }
+                  processAndUploadImage(imageUri, '', count, selectedStage); // Pasar comentario vacío
+                },
               },
-            },
-          ],
-          'plain-text'
-        );
-      } else { // Android (sin cambios por ahora)
-       
-        let truckCount = null;
-        await processAndUploadImage(imageUri, '', truckCount);
+            ],
+            'plain-text',
+            '',
+            'numeric'
+          );
+        } else {
+          // Pedir comentario para otras etapas
+          Alert.prompt(
+            'Añadir Comentario',
+            'Ingresa un comentario (opcional):',
+            [
+              { text: 'Cancelar', style: 'cancel' },
+              {
+                text: 'Cargar Imagen', // Cambiado de 'Siguiente'
+                onPress: (commentText) => {
+                  const comment = commentText || '';
+                  processAndUploadImage(imageUri, comment, null, selectedStage); 
+                },
+              },
+            ],
+            'plain-text'
+          );
+        }
+      } else { 
+        // Para Android, si quieres pedir cantidad para truckStage, necesitarías un modal personalizado.
+        // Actualmente, solo sube la imagen.
+        await processAndUploadImage(imageUri, '', null, selectedStage); // Pasar comentario vacío y null para cantidad
       }
-      // --- Fin solicitud ---
     }
   };
 
@@ -477,6 +490,21 @@ const UploadScreen = () => {
             }
             return newUrls;
         });
+
+        // --- LÓGICA PARA CHANGE ORDER POR EXTRACCIÓN DE PIEDRAS ---
+        if (stageToUse === 'extracción de piedras' && (!currentWork || currentWork.stoneExtractionCONeeded === false) && !notifiedForStoneCO) {
+          Alert.alert(
+            "Extracción de Piedras Registrada",
+            "Se ha subido una imagen para 'extracción de piedras'. Se notificará a la oficina para generar una Orden de Cambio."
+          );
+          // Despachar acción para actualizar el work en el backend
+          dispatch(updateWork(idWork, { stoneExtractionCONeeded: true }))
+            .then(() => {
+              setNotifiedForStoneCO(true); // Marcar como notificado para esta sesión/estado
+              dispatch(fetchWorkById(idWork)); // Volver a cargar los datos del work para reflejar el cambio
+            })
+            .catch(err => console.error("Error al marcar stoneExtractionCONeeded:", err));
+        }
        
         // Alert.alert('Éxito', `Imagen ${filename} cargada.`); // Quizás no alertar por cada una en un lote
       } else {
@@ -579,7 +607,7 @@ const UploadScreen = () => {
   const handleMarkCovered = async () => {
     if (isMarkingCovered || !hasFinalCoverImages) {
       if (!hasFinalCoverImages) {
-        Alert.alert("Atención", "Debe subir imágenes a 'inspeccion final' antes de marcar como cubierto.");
+        Alert.alert("Atención", "Debe subir imágenes a 'trabajo cubierto' antes de marcar como cubierto.");
       }
       return;
     }
@@ -667,7 +695,7 @@ const UploadScreen = () => {
   };
 
   const hasSystemInstalledImages = imagesByStage['sistema instalado']?.length > 0; // Renombrado para claridad, antes era hasFinalInspectionImages
-  const hasFinalCoverImages = imagesByStage['inspeccion final']?.length > 0; // Renombrado para claridad, antes era hasCoverImages
+  const hasFinalCoverImages = imagesByStage['trabajo cubierto']?.length > 0; // Renombrado para claridad, antes era hasCoverImages
 
   const showWorkInstalledButton =
     hasSystemInstalledImages &&
@@ -714,38 +742,96 @@ const UploadScreen = () => {
             Estado Actual: <Text className="font-semibold">{currentWork.status}</Text>
         </Text>
 
-       {/* --- BLOQUE DE INSPECCIÓN RECHAZADA --- */}
+            {currentWork && currentWork.stoneExtractionCONeeded === true && (
+          <View className="my-4 p-3 border border-yellow-500 bg-yellow-100 rounded-lg items-center">
+            <Ionicons name="warning-outline" size={20} color="#D97706" />
+            <Text className="text-yellow-700 text-center ml-2">
+              Atención: Se requiere una Orden de Cambio por extracción de piedras. La oficina la generará.
+            </Text>
+          </View>
+        )}
+
+       {/* --- BLOQUE DE INSPECCIÓN RECHAZADA MODIFICADO --- */}
        {currentWork.status === 'rejectedInspection' && relevantInitialInspection && relevantInitialInspection.finalStatus === 'rejected' && (
           <View className="my-4 p-4 border border-red-400 bg-red-50 rounded-lg">
             <Text className="text-lg font-bold text-red-700 mb-2 text-center">¡INSPECCIÓN INICIAL RECHAZADA!</Text>
             <Text className="text-sm text-red-600 mb-1">
               <Text className="font-semibold">Notas del Inspector:</Text>
             </Text>
-            <Text className="text-sm text-red-600 mb-3 whitespace-pre-wrap bg-red-100 p-2 rounded">
-              {relevantInitialInspection.notes || "No hay notas detalladas."}
-            </Text>
+            
+
+            {/* Botón para ver documento/imagen de rechazo */}
+            {relevantInitialInspection.resultDocumentUrl && (
+              <Pressable
+                onPress={() => {
+                  const url = relevantInitialInspection.resultDocumentUrl;
+                  if (isCommonImageUrl(url)) {
+                    // Si es una imagen, la abrimos en el modal grande
+                    handleOpenLargeImage(url); 
+                  } else {
+                    // Si no, intentamos abrirla como PDF
+                    handleOpenPdf(url); 
+                  }
+                }}
+                className="bg-red-200 py-2 px-4 rounded-lg shadow-sm mb-3 flex-row justify-center items-center"
+              >
+                <Ionicons name="document-attach-outline" size={20} color="rgb(185 28 28)" style={{ marginRight: 8 }} />
+                <Text className="text-red-700 font-semibold text-center">Ver Documento/Imagen de Rechazo</Text>
+              </Pressable>
+            )}
 
             {relevantInitialInspection.workerHasCorrected ? (
               <Text className="text-md font-semibold text-green-700 text-center p-3 bg-green-100 rounded">
                 Correcciones marcadas. La oficina solicitará la reinspección.
               </Text>
             ) : (
-              <Pressable
-                onPress={handleMarkCorrected}
-                disabled={isMarkingCorrected}
-                className={`py-3 rounded-lg shadow-md flex-row justify-center items-center ${
-                  isMarkingCorrected ? 'bg-gray-400' : 'bg-orange-500'
-                }`}
-              >
-                {isMarkingCorrected ? (
-                  <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
-                ) : (
-                  <Ionicons name="checkmark-circle-outline" size={22} color="white" style={{ marginRight: 8 }} />
-                )}
-                <Text className="text-white text-center text-lg font-semibold">
-                  {isMarkingCorrected ? 'Marcando...' : 'Marcar Correcciones Realizadas'}
+              <>
+                {/* Botones para subir foto de corrección a "Sistema Instalado" */}
+                <Text className="text-sm text-gray-700 mb-2 text-center mt-2">
+                  Sube una foto de la corrección realizada a "Sistema Instalado":
                 </Text>
-              </Pressable>
+                <View className="flex-row justify-around mb-3">
+                  <Pressable
+                    onPress={() => {
+                      setSelectedStage('sistema instalado'); // Establecer la etapa
+                      setModalVisible(true);                // Abrir el modal de carga
+                    }}
+                    disabled={isUploading || isBatchUploading}
+                    className="bg-yellow-500 py-2 px-2 rounded-lg shadow-sm flex-row items-center"
+                  >
+                    <Ionicons name="images-outline" size={18} color="white" style={{ marginRight: 4 }}/>
+                    <Text className="text-white font-semibold text-xs">Galería (Corrección)</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      setSelectedStage('sistema instalado'); // Establecer la etapa
+                      setModalVisible(true);                // Abrir el modal de carga
+                    }}
+                    disabled={isUploading || isBatchUploading}
+                    className="bg-yellow-600 py-2 px-2 rounded-lg shadow-sm flex-row items-center"
+                  >
+                    <Ionicons name="camera-outline" size={18} color="white" style={{ marginRight: 4 }}/>
+                    <Text className="text-white font-semibold text-xs">Cámara (Corrección)</Text>
+                  </Pressable>
+                </View>
+                {/* Botón existente para marcar correcciones */}
+                <Pressable
+                  onPress={handleMarkCorrected}
+                  disabled={isMarkingCorrected}
+                  className={`py-3 rounded-lg shadow-md flex-row justify-center items-center mt-1 ${ // Añadido mt-1
+                    isMarkingCorrected ? 'bg-gray-400' : 'bg-orange-500'
+                  }`}
+                >
+                  {isMarkingCorrected ? (
+                    <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
+                  ) : (
+                    <Ionicons name="checkmark-circle-outline" size={22} color="white" style={{ marginRight: 8 }} />
+                  )}
+                  <Text className="text-white text-center text-lg font-semibold">
+                    {isMarkingCorrected ? 'Marcando...' : 'Marcar Correcciones Realizadas'}
+                  </Text>
+                </Pressable>
+              </>
             )}
           </View>
         )}
@@ -758,7 +844,7 @@ const UploadScreen = () => {
               Por favor, asegúrate de que la instalación esté completamente cubierta.
             </Text>
             <Text className="text-sm text-teal-600 mb-1">
-              Sube las imágenes correspondientes a la etapa <Text className="font-semibold">'inspeccion final'</Text> si aún no lo has hecho (actualmente {imagesByStage['inspeccion final']?.length || 0} imágenes).
+              Sube las imágenes correspondientes a la etapa <Text className="font-semibold">'Trabajo Cubierto'</Text> si aún no lo has hecho (actualmente {imagesByStage['trabajo cubierto']?.length || 0} imágenes).
             </Text>
             <Text className="text-sm text-teal-600 mb-3">
               Luego, presiona el botón <Text className="font-semibold">"TRABAJO CUBIERTO"</Text> para notificar a la oficina.
@@ -781,7 +867,7 @@ const UploadScreen = () => {
             </Pressable>
             {!hasFinalCoverImages && (
                 <Text className="text-xs text-red-500 text-center mt-2">
-                    Debes subir imágenes a 'inspeccion final' para poder marcar como cubierto.
+                    Debes subir imágenes a 'Trabajo Cubierto' para poder marcar como cubierto.
                 </Text>
             )}
           </View>
@@ -882,7 +968,7 @@ const UploadScreen = () => {
                     <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
                     ) : null}
                     <Text className="text-white text-center text-lg font-semibold">
-                    {isSubmittingWorkInstalled ? 'Enviando...' : 'WORK INSTALLED'}
+                    {isSubmittingWorkInstalled ? 'Enviando...' : 'PEDIR INSPECCIÓN'}
                     </Text>
                 </Pressable>
                 )}
@@ -906,7 +992,7 @@ const UploadScreen = () => {
                         ? 'Solicitando...'
                         : isFinalInspectionRequested 
                         ? 'Inspección Final Solicitada'
-                        : 'REQUEST FINAL INSPECTION'}
+                        : 'PEDIR INSPECCION FINAL'}
                     </Text>
                 </Pressable>
                 )}

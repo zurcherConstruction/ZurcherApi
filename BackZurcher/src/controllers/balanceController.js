@@ -1,25 +1,41 @@
 const { Income, Expense, Receipt, Staff } = require('../data');
-const { Sequelize } = require('sequelize');
+const { Sequelize, Op, literal } = require('sequelize');
 
 const getIncomesAndExpensesByWorkId = async (req, res) => {
   const { workId } = req.params;
   try {
     const incomes = await Income.findAll({ 
       where: { workId },
-      include: [{ // <-- Incluir Recibos
+     include: [{
         model: Receipt,
         as: 'Receipts',
-        attributes: ['idReceipt', 'fileUrl', 'mimeType', 'originalName', 'notes'], // Especifica columnas
-        required: false // Para que no falle si no hay recibo
+        required: false,
+        on: { // Condición de JOIN explícita
+          [Op.and]: [
+            literal(`"Receipts"."relatedModel" = 'Income'`), // Asegura que el recibo es de tipo Income
+            // Asume que la PK de Income es 'idIncome' y es UUID
+            // y se une con Receipt.relatedId (que es STRING)
+            literal(`"Income"."idIncome" = CAST("Receipts"."relatedId" AS UUID)`) 
+          ]
+        },
+        attributes: ['idReceipt', 'fileUrl', 'mimeType', 'originalName', 'notes'],
     }]
      });
     const expenses = await Expense.findAll({ 
       where: { workId },
-      include: [{ // <-- Include para Expense (AÑADIDO)
+      include: [{
         model: Receipt,
-        as: 'Receipts', // Asegúrate que este alias coincida con tu definición en index.js
+        as: 'Receipts', 
+        required: false,
+        on: { // Condición de JOIN explícita
+          [Op.and]: [
+            literal(`"Receipts"."relatedModel" = 'Expense'`), // Asegura que el recibo es de tipo Expense
+            // Asume que la PK de Expense es 'idExpense' y es UUID
+            // y se une con Receipt.relatedId (que es STRING)
+            literal(`"Expense"."idExpense" = CAST("Receipts"."relatedId" AS UUID)`)
+          ]
+        },
         attributes: ['idReceipt', 'fileUrl', 'mimeType', 'originalName', 'notes'],
-        required: false
       }]
      });
 
@@ -162,11 +178,17 @@ const getGeneralBalance = async (req, res) => {
       where: incomeWhere,
       order: [['date', 'DESC']],
       include: [
-        {
+       {
           model: Receipt,
           as: 'Receipts',
+          required: false,
+          on: {
+            [Op.and]: [
+              literal(`"Receipts"."relatedModel" = 'Income'`),
+              literal(`"Income"."idIncome" = CAST("Receipts"."relatedId" AS UUID)`)
+            ]
+          },
           attributes: ['idReceipt', 'fileUrl', 'mimeType', 'originalName', 'notes'],
-          required: false
         },
         {
           model: Staff,
@@ -181,11 +203,17 @@ const getGeneralBalance = async (req, res) => {
       where: expenseWhere,
       order: [['date', 'DESC']],
       include: [
-        {
+         {
           model: Receipt,
           as: 'Receipts',
+          required: false,
+          on: {
+            [Op.and]: [
+              literal(`"Receipts"."relatedModel" = 'Expense'`),
+              literal(`"Expense"."idExpense" = CAST("Receipts"."relatedId" AS UUID)`)
+            ]
+          },
           attributes: ['idReceipt', 'fileUrl', 'mimeType', 'originalName', 'notes'],
-          required: false
         },
         {
           model: Staff,

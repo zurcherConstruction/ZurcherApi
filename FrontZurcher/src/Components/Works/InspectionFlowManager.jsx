@@ -55,7 +55,7 @@ const InspectionFlowManager = ({ work, selectedWorkImageId, isVisible }) => {
                 registerInspectorResponse,
                 registerSignedApplicantDocument,
                 registerInspectionResult,
-                // requestReinspection, // Descomentar si requestReinspection maneja archivos directamente aquí
+                 requestReinspection, // Descomentar si requestReinspection maneja archivos directamente aquí
             ].includes(actionCreator);
 
             if (actionInvolvesFiles) {
@@ -82,16 +82,32 @@ const InspectionFlowManager = ({ work, selectedWorkImageId, isVisible }) => {
             } else {
                 console.log('[handleActionSubmit] La acción NO involucra archivos.');
                 if (actionCreator === requestInitialInspection) {
+                    // Para la inspección inicial, selectedWorkImageId es crucial
                     if (selectedWorkImageId && !dataToSend.workImageId) {
+                        dataToSend.workImageId = selectedWorkImageId;
+                    } else if (selectedWorkImageId && dataToSend.workImageId !== selectedWorkImageId) {
+                        // Asegurar que se usa el más reciente si hubo un cambio
                         dataToSend.workImageId = selectedWorkImageId;
                     }
                 }
-                // Si requestReinspection no maneja archivos aquí, pero necesita workImageId
+                
                 if (actionCreator === requestReinspection) {
-                    if (selectedWorkImageId && !dataToSend.workImageId) { // Si se seleccionó una nueva imagen para la reinspección
-                        dataToSend.workImageId = selectedWorkImageId;
+                    // Para la reinspección, siempre usar el selectedWorkImageId más reciente del prop
+                    if (selectedWorkImageId) {
+                        if (dataToSend.workImageId !== selectedWorkImageId) {
+                            console.log(`[handleActionSubmit] Reinspección: Actualizando workImageId. Anterior en form: ${dataToSend.workImageId}, Nuevo del prop: ${selectedWorkImageId}`);
+                            dataToSend.workImageId = selectedWorkImageId;
+                        }
+                    } else {
+                        // Si no hay selectedWorkImageId en el prop (usuario deseleccionó),
+                        // asegurarse que no se envíe uno obsoleto del formulario.
+                        if (dataToSend.workImageId) {
+                            console.log(`[handleActionSubmit] Reinspección: Eliminando workImageId obsoleto del form. Valor anterior: ${dataToSend.workImageId}`);
+                            dataToSend.workImageId = null; // O undefined para que no se envíe si el backend lo prefiere
+                        }
                     }
-                    // Asegurarse de que originalInspectionId se envía si está en formDataObject
+
+                    // originalInspectionId viene del estado del formulario (reinspectionInitialData), lo cual es correcto.
                     if (formDataObject.originalInspectionId) {
                         dataToSend.originalInspectionId = formDataObject.originalInspectionId;
                     }
@@ -104,7 +120,7 @@ const InspectionFlowManager = ({ work, selectedWorkImageId, isVisible }) => {
             dispatch(fetchWorkById(work.idWork));
             if (work?.idWork) {
                 // Comentado temporalmente para evitar sobrescribir el estado de la reinspección
-                // dispatch(fetchInspectionsByWork(work.idWork));
+                 dispatch(fetchInspectionsByWork(work.idWork));
             }
             setActiveForm(null);
         } catch (err) {
@@ -565,7 +581,9 @@ const InspectionActionForm = ({ inspection, actionType, onSubmit, isLoading, ini
                 dataToSubmit[key] = files[key];
             }
         });
-        console.log('[InspectionActionForm] handleSubmit - dataToSubmit final:', dataToSubmit);
+        // No es necesario forzar selectedWorkImageId aquí, handleActionSubmit lo hará
+        // basado en el prop más reciente.
+        console.log('[InspectionActionForm] handleSubmit - dataToSubmit (antes de que handleActionSubmit ajuste workImageId):', dataToSubmit);
         onSubmit(dataToSubmit);
     };
 
@@ -610,10 +628,7 @@ const InspectionActionForm = ({ inspection, actionType, onSubmit, isLoading, ini
             case 'scheduleReceived':
                 return (
                     <>
-                        <div className="mb-4">
-                            <label htmlFor="inspectorScheduledDate" className="block text-sm font-medium text-gray-700">Fecha Programada (YYYY-MM-DD)</label>
-                            <input type="date" name="inspectorScheduledDate" id="inspectorScheduledDate" required onChange={handleInputChange} value={formData.inspectorScheduledDate || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
-                        </div>
+                       
                         <div className="mb-4">
                             <label htmlFor="documentForApplicantFile" className="block text-sm font-medium text-gray-700">Documento(s) para Aplicante (PDF/Imagen)</label>
                             <input
@@ -703,38 +718,48 @@ const InspectionActionForm = ({ inspection, actionType, onSubmit, isLoading, ini
                         </div>
                     </>
                 );
-            case 'requestReinspection':
+              case 'requestReinspection':
                 return (
                     <>
                         <p className="text-sm text-orange-600 mb-3">Solicitando reinspección. Asegúrate de que los problemas anteriores hayan sido corregidos.</p>
                         {formData.originalInspectionId && <p className="text-xs text-gray-500 mb-2">Esto es una reinspección de la inspección ID: {formData.originalInspectionId}</p>}
+                        
                         <div className="mb-4">
                             <label htmlFor="inspectorEmail" className="block text-sm font-medium text-gray-700">Email del Inspector (puede ser el mismo o uno nuevo)</label>
                             <input type="email" name="inspectorEmail" id="inspectorEmail" onChange={handleInputChange} value={formData.inspectorEmail || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
                         </div>
-                        {/* Campo para workImageId (imagen de referencia para la reinspección) */}
-                        {/* Si workImageId se maneja a través de selectedWorkImageId, no se necesita un input aquí,
-                            ya que se pasa en initialData y se incluye en handleActionSubmit si es necesario.
-                            Si quieres permitir al usuario *cambiarlo* o *añadirlo* específicamente para la reinspección
-                            desde el formulario, necesitarías un input de archivo o un selector.
-                            Por ahora, se asume que selectedWorkImageId es la fuente si se quiere una nueva imagen.
-                        */}
-                        {formData.workImageId && <p className="text-sm text-gray-600 mb-2">ID de Imagen de Referencia (opcional, si se seleccionó una nueva): {formData.workImageId}</p>}
+
+                        {/* Mensaje sobre la imagen de referencia */}
+                        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                            {initialData.workImageId ? ( // Usamos initialData.workImageId que viene de selectedWorkImageId del prop
+                                <p className="text-sm text-blue-700">
+                                    Se utilizará la imagen de referencia seleccionada actualmente (ID: {initialData.workImageId}).
+                                    <br />
+                                    Si deseas cambiarla, selecciona otra imagen en la sección "Imágenes de la Obra" antes de enviar.
+                                </p>
+                            ) : (
+                                <p className="text-sm text-yellow-700">
+                                    No se ha seleccionado una nueva imagen de referencia para esta reinspección.
+                                    <br />
+                                    Si deseas adjuntar una, selecciónala en la sección "Imágenes de la Obra" antes de enviar.
+                                </p>
+                            )}
+                        </div>
                         
-                        <div className="mb-4">
+                        {/* <div className="mb-4">
                             <label htmlFor="reinspectionFiles" className="block text-sm font-medium text-gray-700">
-                                Adjuntar Nuevos Documentos/Imágenes para Reinspección (Opcional)
+                                Adjuntar Nuevos Documentos/Imágenes Adicionales para Reinspección (Opcional)
                             </label>
                             <input
                                 type="file"
-                                name="reinspectionFiles" // Asegúrate que el backend maneje este campo
+                                name="reinspectionFiles"
                                 id="reinspectionFiles"
                                 multiple
                                 onChange={handleFileChange}
                                 className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                             />
                             {renderSelectedFiles('reinspectionFiles')}
-                        </div>
+                        </div> */}
                     </>
                 );
             default:

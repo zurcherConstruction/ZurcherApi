@@ -53,7 +53,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, SystemType, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem } = sequelize.models;
 
 // Relaciones
 Permit.hasMany(Work, { foreignKey: 'propertyAddress', sourceKey: 'propertyAddress' });
@@ -209,7 +209,15 @@ WorkExtraItem.belongsTo(FinalInvoice, {
 Income.belongsTo(Staff, { as: 'Staff', foreignKey: 'staffId' });
 Expense.belongsTo(Staff, { as: 'Staff', foreignKey: 'staffId' });
 
-
+// --- RELACIONES PARA CHANGE ORDER ---
+Work.hasMany(ChangeOrder, {
+  foreignKey: 'workId', // La clave foránea en ChangeOrder que apunta a Work
+  as: 'changeOrders'    // Alias para usar al incluir ChangeOrders en consultas de Work
+});
+ChangeOrder.belongsTo(Work, {
+  foreignKey: 'workId',
+  as: 'work'             // Alias para usar al incluir Work en consultas de ChangeOrder
+});
 //---------------------------------------------------------------------------------//
 module.exports = {
   ...sequelize.models, // para poder importar los modelos así: const { Product, User } = require('./db.js');
