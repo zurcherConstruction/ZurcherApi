@@ -6,6 +6,7 @@ const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const { Op } = require('sequelize');
 const cloudinary = require('cloudinary').v2;
+const envs = require('../config/envs');
 
 const recordOrUpdateChangeOrderDetails = async (req, res) => {
   try {
