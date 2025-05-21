@@ -5,7 +5,7 @@ import { setLoading } from '../Redux/Reducer/uiReducer'; // You'll need to creat
 
 const api = axios.create({
 
-  baseURL: 'https://zurcherapi-production.up.railway.app/',
+  baseURL: 'https://zurcherapi.onrender.com/',
   timeout: 15000,
 
 });
