@@ -84,37 +84,53 @@ const getMaintenanceVisitsForWork = async (req, res) => {
 const updateMaintenanceVisit = async (req, res) => {
   try {
     const { visitId } = req.params;
-    const { actualVisitDate, notes, status, staffId } = req.body;
+    // Destructuring all potential fields from req.body
+    // workId is received but generally not used to modify the visit's own workId.
+    const { actualVisitDate, notes, status, staffId, scheduledDate, workId: receivedWorkId } = req.body;
 
     const visit = await MaintenanceVisit.findByPk(visitId);
     if (!visit) {
       return res.status(404).json({ error: true, message: 'Visita de mantenimiento no encontrada.' });
     }
 
-  if (actualVisitDate !== undefined) visit.actualVisitDate = actualVisitDate;
-  if (notes !== undefined) visit.notes = notes;
-  if (status !== undefined) visit.status = status;
-  if (scheduledDate !== undefined) visit.scheduledDate = scheduledDate; // Para reprogramar
-  if (staffId !== undefined) visit.staffId = staffId; // Para asignar/reasignar
+    // Update fields if they were provided in the request body
+    if (actualVisitDate !== undefined) {
+        // Ensure actualVisitDate is null if an empty string is sent, or a valid date
+        visit.actualVisitDate = actualVisitDate === '' ? null : actualVisitDate;
+    }
+    if (notes !== undefined) {
+        visit.notes = notes;
+    }
+    if (status !== undefined) {
+        visit.status = status; // Status is determined by frontend logic
+    }
+    if (scheduledDate !== undefined) { // For rescheduling
+        visit.scheduledDate = scheduledDate; // Frontend sends 'yyyy-MM-dd'
+    }
+    
+    // Handle staffId: allows assigning a new staff, or unassigning (setting to null)
+    // if 'staffId' is explicitly part of the request body.
+    if (req.body.hasOwnProperty('staffId')) {
+        visit.staffId = staffId; // staffId can be a UUID or null
+    }
 
-  await visit.save();
+    await visit.save();
 
-    // Opcional: Si se completa la 4ta visita, actualizar estado en Work
+    // Optional: Logic for 4th visit completion
     if (visit.visitNumber === 4 && visit.status === 'completed') {
-      const work = await Work.findByPk(visit.workId);
+      const work = await Work.findByPk(visit.workId); // visit.workId is the correct FK
       if (work) {
-        // Podrías tener un campo como work.maintenanceCycleCompleted = true;
-        // o cambiar work.status a 'maintenance_completed'
         console.log(`Ciclo de mantenimiento completado para la obra ${work.idWork}`);
-        // work.status = 'maintenance_completed'; // Si tienes este estado
+        // Example: work.status = 'maintenance_completed';
         // await work.save();
       }
     }
 
+    // Refetch the updated visit to include associations for the response
     const updatedVisit = await MaintenanceVisit.findByPk(visitId, {
         include: [
-        { model: MaintenanceMedia, as: 'mediaFiles' },
-        { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] } // Incluir datos del staff asignado
+        { model: MaintenanceMedia, as: 'mediaFiles' }, // Good to keep for consistency
+        { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] } // Crucial for frontend update
       ]});
 
     res.status(200).json({ message: 'Visita de mantenimiento actualizada.', visit: updatedVisit });

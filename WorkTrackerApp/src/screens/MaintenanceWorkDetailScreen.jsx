@@ -45,11 +45,15 @@ console.log('[DEBUG] workId from route.params:', workId);
     return state.maintenance;
   });
   // Para staff, no usaremos un flag 'staffLoaded' del slice, sino que manejaremos la carga inicial aquí.
-  const {
-    staffList,
+   const {
+    staff: staffList, // <--- CAMBIO AQUÍ: Desestructura 'staff' y renómbralo a 'staffList'
     loading: loadingStaff,
     error: staffError
-  } = useSelector(state => state.staff);
+  } = useSelector(state => {
+    // ----> ASEGÚRATE DE QUE ESTE LOG ESTÉ ACTIVO Y REVISA SU SALIDA <----
+    console.log('[DEBUG] useSelector - state.staff:', JSON.stringify(state.staff, null, 2)); 
+    return state.staff;
+  });
 
  const [selectedVisitForEditing, setSelectedVisitForEditing] = useState(null);
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
@@ -57,9 +61,10 @@ console.log('[DEBUG] workId from route.params:', workId);
   const [selectedStaffId, setSelectedStaffId] = useState(null);
   const [showCalendar, setShowCalendar] = useState(false); // <--- Para controlar visibilidad del calendario
 
-  const workData = routeWorkDetails || (currentWorkDetail && currentWorkDetail.idWork === workId ? currentWorkDetail : null);
-  const visitsForCurrentWork = maintenanceVisitsByWorkId[workId] || [];
-  const initialStaffFetchAttempted = useRef(false);
+   const workData = routeWorkDetails || (currentWorkDetail && currentWorkDetail.idWork === workId ? currentWorkDetail : null);
+  // --- AJUSTE AQUÍ ---
+  const visitsForCurrentWork = maintenanceVisitsByWorkId[workId]?.visits || [];
+  //const initialStaffFetchAttempted = useRef(false);
 
   // Efecto para cargar las visitas de mantenimiento (usando el flag del slice)
   useEffect(() => {
@@ -73,14 +78,14 @@ console.log('[DEBUG] workId from route.params:', workId);
 
 
   // Efecto para cargar la lista de staff (solo una vez si es necesario)
-  useEffect(() => {
-    // Si no hay staff, no se está cargando, y no se ha intentado la carga inicial.
-    if ((!staffList || staffList.length === 0) && !loadingStaff && !initialStaffFetchAttempted.current) {
-      console.log("EFFECT: Fetching staff list (initial attempt)...");
-      dispatch(fetchStaff());
-      initialStaffFetchAttempted.current = true; // Marcar que se intentó
-    }
-  }, [dispatch, staffList, loadingStaff]); // Depender de staffList y loadingStaff para re-evaluar si es necesario,
+//   useEffect(() => {
+//     // Si no hay staff, no se está cargando, y no se ha intentado la carga inicial.
+//     if ((!staffList || staffList.length === 0) && !loadingStaff && !initialStaffFetchAttempted.current) {
+//       console.log("EFFECT: Fetching staff list (initial attempt)...");
+//       dispatch(fetchStaff());
+//       initialStaffFetchAttempted.current = true; // Marcar que se intentó
+//     }
+//   }, [dispatch, staffList, loadingStaff]); // Depender de staffList y loadingStaff para re-evaluar si es necesario,
                                            // pero initialStaffFetchAttempted.current previene el bucle.
 
   useFocusEffect(
@@ -92,21 +97,18 @@ console.log('[DEBUG] workId from route.params:', workId);
          dispatch(fetchMaintenanceVisitsByWork(workId));
       }
 
-      // Opcional: Lógica para recargar staff al enfocar, similar a PendingWorks.
-      // Esto podría ser útil si la lista de staff puede cambiar mientras el usuario está en otras pantallas.
-      // Si decides hacerlo, asegúrate de que no cause problemas si `fetchStaff` siempre cambia la referencia de `staffList`.
-      // Una forma sería solo si está vacía:
-      // if ((!staffList || staffList.length === 0) && !loadingStaff) {
-      //   console.log("FOCUS EFFECT: Re-fetching staff list as it's empty or not loading.");
-      //   dispatch(fetchStaff());
-      //   initialStaffFetchAttempted.current = true; // Actualizar ref si se hace fetch aquí
-      // }
-      // O simplemente llamar dispatch(fetchStaff()); si quieres que siempre se refresque al enfocar.
+      // Cargar/Refrescar staff cada vez que la pantalla obtiene el foco, como en PendingWorks
+      console.log("FOCUS EFFECT: Fetching staff list.");
+      dispatch(fetchStaff());
 
       return () => {
         console.log("FOCUS EFFECT: MaintenanceWorkDetailScreen unfocused/cleaned up.");
       };
-    }, [dispatch, workId, visitsLoadedForWork, loadingVisits, staffList, loadingStaff]) // Añadir staffList y loadingStaff si se usan en la lógica de staff del focus effect
+    }, [dispatch, workId, visitsLoadedForWork, loadingVisits]) // Quitamos staffList y loadingStaff de las dependencias aquí
+                                                              // para que fetchStaff se llame siempre al enfocar,
+                                                              // similar a PendingWorks.
+                                                              // dispatch y workId son las dependencias principales para esta lógica.
+                                                              // visitsLoadedForWork y loadingVisits son para la lógica de visitas.
   );
 
    const handleOpenEditModal = (visit) => {
