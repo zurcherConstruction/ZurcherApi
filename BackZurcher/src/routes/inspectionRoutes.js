@@ -44,7 +44,7 @@ router.post(
   );
   router.post(
     '/reinspection/:workId',
-    verifyToken, allowRoles(['owner', 'admin', 'staff']), upload.single('reinspectionFiles'), InspectionController.requestReinspection
+    verifyToken, allowRoles(['owner', 'admin', 'staff']), upload.array('attachments', 5), InspectionController.requestReinspection
 );
 router.post(
   '/:inspectionId/mark-corrected',
@@ -65,6 +65,49 @@ router.post(
     verifyToken, allowRoles(['admin', 'recept', 'owner']), 
     InspectionController.getInspectionById
   );
+
+  // --- INICIO: RUTAS PARA EL FLUJO DE INSPECCIÓN FINAL ---
+
+// 6. Cliente solicita la inspección final (puede incluir adjuntos)
+router.post(
+  '/:workId/request-final',
+  verifyToken, allowRoles(['admin', 'recept', 'owner', 'client']), // Ajusta roles según quién puede solicitar
+  upload.array('attachments', 5), // 'attachments' es el name del input file, permite hasta 5 archivos
+  InspectionController.requestFinalInspection
+);
+
+// 7. Inspectores responden con el invoice para la inspección final (sube archivo de invoice)
+router.put(
+  '/:inspectionId/register-final-invoice',
+  verifyToken, allowRoles(['admin', 'recept', 'owner']),
+  upload.single('invoiceFile'), // 'invoiceFile' es el name del input file
+  InspectionController.registerInspectorInvoiceForFinal
+);
+
+// 8. Se reenvía el invoice (recibido de inspectores) al cliente
+router.post(
+  '/:inspectionId/send-final-invoice-to-client',
+  verifyToken, allowRoles(['admin', 'recept', 'owner']),
+  InspectionController.sendInvoiceToClientForFinal
+);
+
+// 9. Cliente avisa que abonó el invoice (puede incluir comprobante de pago)
+router.put(
+  '/:inspectionId/confirm-client-payment',
+  verifyToken, allowRoles(['admin', 'recept', 'owner', 'client']), // Ajusta roles
+  upload.single('paymentProofFile'), // 'paymentProofFile' es el name del input file
+  InspectionController.confirmClientPaymentForFinal
+);
+
+// 10. Se envía confirmación de pago al inspector para que termine la inspección final
+router.post(
+  '/:inspectionId/notify-inspector-payment',
+  verifyToken, allowRoles(['admin', 'recept', 'owner']),
+  InspectionController.notifyInspectorPaymentForFinal
+);
+
+// --- FIN: RUTAS PARA EL FLUJO DE INSPECCIÓN FINAL ---
+
   
 
 // // Crear una inspección (solo administradores)

@@ -338,7 +338,7 @@ const handleGeneratePdf = () => {
            )}
         </div>
          {/* Botón Marcar como Pagada */}
-         {currentInvoice.status === 'pending' && (
+         {/* {currentInvoice.status === 'pending' && (
             <div className="mt-4 text-center">
                 <button
                     onClick={handleMarkAsPaid}
@@ -348,7 +348,7 @@ const handleGeneratePdf = () => {
                     Marcar como Pagada
                 </button>
             </div>
-        )}
+        )} */}
       </div>
 
       {/* Items Extras */}

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorkById, updateWork, sendChangeOrderToClient, deleteChangeOrder, addImagesToWork } from "../../Redux/Actions/workActions";
 import { balanceActions } from "../../Redux/Actions/balanceActions";
@@ -12,9 +12,11 @@ import { useParams } from "react-router-dom";
 //import api from "../../utils/axios";
 import FinalInvoice from "../Budget/FinalInvoice"
 import InspectionFlowManager from "./InspectionFlowManager";
+import FinalInspectionFlowManager from "./FinalInspectionFlowManager"
 import { ExclamationTriangleIcon } from '@heroicons/react/24/solid'; // Para el banner
 import CreateChangeOrderModal from './CreateChangeOrderModal'; // Importar el nuevo modal
 import api from "../../utils/axios";
+
 
 
 const WorkDetail = () => {
@@ -29,6 +31,25 @@ const WorkDetail = () => {
     error: workError,     // Renombrado
   } = useSelector((state) => state.work);
 
+const workRef = useRef(work);
+
+  useEffect(() => {
+    // Compara la referencia actual de work con la guardada
+    if (workRef.current !== work) {
+      console.error(
+        '[WorkDetail] REFERENCIA DEL OBJETO WORK CAMBIÓ!', 
+        { 
+          prevStatus: workRef.current?.status, 
+          currentStatus: work?.status,
+          prevRef: workRef.current, // Loguea el objeto anterior
+          currentRef: work // Loguea el objeto actual
+        }
+      );
+      workRef.current = work; // Actualiza la referencia guardada
+    } else {
+      // console.log('[WorkDetail] Referencia del objeto work ESTABLE.');
+    }
+  }, [work]);
 
   console.log("Datos de la obra:", work); // Para depuración
   const [selectedImage, setSelectedImage] = useState(null);
@@ -214,7 +235,7 @@ const WorkDetail = () => {
   // Caso 1: Si work.status es 'approvedInspection', mostrar botón para cambiar a 'coverPending'
   if (work?.status === 'approvedInspection') {
     displayHeaderButton = true;
-    headerButtonText = "Inspección Aprobada, Pasar a Cubierta";
+    headerButtonText = "Inspección Aprobada, Cubrir Obra";
     headerButtonClasses += " bg-green-500 hover:bg-green-600";
     headerButtonAction = async () => {
       console.log(`Cambiando estado de obra ${idWork} de 'approvedInspection' a 'coverPending'`);
@@ -316,6 +337,44 @@ const WorkDetail = () => {
     }
   };
 
+   // Lógica para determinar qué gestor de flujo mostrar
+  const showInitialInspectionManager = useMemo(() => {
+    if (!work?.status) return false;
+    // Estados de la OBRA en los que se muestra el gestor de inspección INICIAL
+    const initialWorkStates = [
+      'installed',              // Listo para solicitar inspección inicial
+      'firstInspectionPending', // Inspección inicial en curso
+      'rejectedInspection',     // Inspección inicial rechazada (para gestionar reinspección)
+    ];
+    return initialWorkStates.includes(work.status);
+  }, [work?.status]);
+
+  const showFinalInspectionManager = useMemo(() => {
+    if (!work?.status) return false;
+    // Estados de la OBRA en los que se muestra el gestor de inspección FINAL
+    const finalWorkStates = [
+      'approvedInspection',     // Inspección inicial aprobada, listo para flujo final
+      'coverPending',           // Si el flujo final puede comenzar o continuar aquí
+      'covered',                // Si el flujo final puede comenzar o continuar aquí
+      'invoiceFinal',           // Si el flujo final puede comenzar o continuar aquí
+      'paymentReceived',        // Si el flujo final puede comenzar o continuar aquí
+      'finalInspectionPending', // Inspección final en curso
+      'finalRejected',          // Inspección final rechazada (para gestionar nueva solicitud/reinspección final)
+      // Los siguientes estados indican que el flujo final ha concluido o está en su etapa final.
+      // El FinalInspectionFlowManager puede mostrar un estado de "completado".
+      'finalApproved',          // Inspección final aprobada (estado de obra)
+      'maintenance',            // Obra en mantenimiento post-aprobación final
+    ];
+    return finalWorkStates.includes(work.status);
+  }, [work?.status]);
+
+  const toggleSection = (section) => {
+    setOpenSections((prev) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  };
+
 
 
   if (workLoading) {
@@ -370,12 +429,12 @@ const WorkDetail = () => {
 
 
 
-  const toggleSection = (section) => {
-    setOpenSections((prev) => ({
-      ...prev,
-      [section]: !prev[section],
-    }));
-  };
+  // const toggleSection = (section) => {
+  //   setOpenSections((prev) => ({
+  //     ...prev,
+  //     [section]: !prev[section],
+  //   }));
+  // };
 
   const finalInvoiceVisibleStates = [
     'approvedInspection',
@@ -866,15 +925,15 @@ const WorkDetail = () => {
           )}
 
           {/* Pasar la imagen seleccionada (o su ID) a InspectionFlowManager */}
-          {work && (
+     {work && (showInitialInspectionManager || showFinalInspectionManager) && (
             <div className="bg-white shadow-md rounded-lg border-l-4 border-teal-500">
               <h2
                 className="text-xl font-semibold p-6 cursor-pointer flex justify-between items-center"
-                onClick={() => toggleSection("inspectionFlow")} // <-- PARECE CORRECTO
+                onClick={() => toggleSection("inspectionFlow")}
               >
                 <span>Gestión de Inspección</span>
                 <span className="text-gray-600 transform transition-transform duration-200">
-                  {openSections.inspectionFlow ? ( // <-- PARECE CORRECTO
+                  {openSections.inspectionFlow ? (
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
                       <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
                     </svg>
@@ -885,14 +944,24 @@ const WorkDetail = () => {
                   )}
                 </span>
               </h2>
-              <InspectionFlowManager
-                work={work}
-                selectedWorkImageId={selectedInstalledImage?.id || null}
-                isVisible={openSections.inspectionFlow} // <-- PARECE CORRECTO
-              />
+              
+              {/* Renderizado condicional del gestor de flujo apropiado */}
+              {showInitialInspectionManager && (
+                <InspectionFlowManager
+                  work={work}
+                  selectedWorkImageId={selectedInstalledImage?.id || null}
+                  isVisible={openSections.inspectionFlow}
+                />
+              )}
+
+              {showFinalInspectionManager && !showInitialInspectionManager && (
+                <FinalInspectionFlowManager
+                  work={work}
+                  isVisible={openSections.inspectionFlow}
+                />
+              )}
             </div>
           )}
-
         </div>
 
 

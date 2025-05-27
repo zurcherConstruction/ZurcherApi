@@ -9,6 +9,7 @@ import {
     registerSignedApplicantDocument,
     registerInspectionResult,
 } from '../../Redux/Actions/inspectionActions';
+import InspectionActionForm from './InspectionActionForm';
 import { fetchWorkById } from '../../Redux/Actions/workActions';
 
 const InspectionFlowManager = ({ work, selectedWorkImageId, isVisible }) => {
@@ -514,271 +515,271 @@ const InspectionFlowManager = ({ work, selectedWorkImageId, isVisible }) => {
     );
 };
 
-const InspectionActionForm = ({ inspection, actionType, onSubmit, isLoading, initialData = {} }) => {
-    const memoizedInitialFormData = useMemo(() => {
-        let baseData = { ...initialData };
-        if (actionType === 'sendToApplicant' && inspection?.Work) {
-            baseData.applicantEmail = inspection.Work.Permit?.applicantEmail || initialData.applicantEmail || '';
-            baseData.applicantName = inspection.Work.budget?.applicantName || initialData.applicantName || '';
-        }
-        // Pre-rellenar campos comunes o específicos del actionType
-        baseData.inspectorEmail = baseData.inspectorEmail || (actionType === 'requestReinspection' && inspection?.notes?.match(/Inspector: ([\w@.]+)/)?.[1]) || '';
-        baseData.inspectorScheduledDate = baseData.inspectorScheduledDate || '';
-        baseData.finalStatus = baseData.finalStatus || '';
-        baseData.dateInspectionPerformed = baseData.dateInspectionPerformed || '';
-        baseData.notes = baseData.notes || '';
-        if (actionType === 'requestReinspection') {
-            baseData.originalInspectionId = inspection?.idInspection || initialData.originalInspectionId || null;
-        }
-        return baseData;
-    }, [inspection, actionType, initialData]);
+// const InspectionActionForm = ({ inspection, actionType, onSubmit, isLoading, initialData = {} }) => {
+//     const memoizedInitialFormData = useMemo(() => {
+//         let baseData = { ...initialData };
+//         if (actionType === 'sendToApplicant' && inspection?.Work) {
+//             baseData.applicantEmail = inspection.Work.Permit?.applicantEmail || initialData.applicantEmail || '';
+//             baseData.applicantName = inspection.Work.budget?.applicantName || initialData.applicantName || '';
+//         }
+//         // Pre-rellenar campos comunes o específicos del actionType
+//         baseData.inspectorEmail = baseData.inspectorEmail || (actionType === 'requestReinspection' && inspection?.notes?.match(/Inspector: ([\w@.]+)/)?.[1]) || '';
+//         baseData.inspectorScheduledDate = baseData.inspectorScheduledDate || '';
+//         baseData.finalStatus = baseData.finalStatus || '';
+//         baseData.dateInspectionPerformed = baseData.dateInspectionPerformed || '';
+//         baseData.notes = baseData.notes || '';
+//         if (actionType === 'requestReinspection') {
+//             baseData.originalInspectionId = inspection?.idInspection || initialData.originalInspectionId || null;
+//         }
+//         return baseData;
+//     }, [inspection, actionType, initialData]);
 
-    const [formData, setFormData] = useState(memoizedInitialFormData);
-    const [files, setFiles] = useState({});
+//     const [formData, setFormData] = useState(memoizedInitialFormData);
+//     const [files, setFiles] = useState({});
 
-    useEffect(() => {
-        setFormData(memoizedInitialFormData);
-    }, [memoizedInitialFormData]);
+//     useEffect(() => {
+//         setFormData(memoizedInitialFormData);
+//     }, [memoizedInitialFormData]);
 
-    const handleInputChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
+//     const handleInputChange = (e) => {
+//         setFormData({ ...formData, [e.target.name]: e.target.value });
+//     };
 
-    const handleFileChange = (e) => {
-        const { name, files: filesFromEvent } = e.target;
-        let newFilesArray = [];
-        if (filesFromEvent && filesFromEvent.length > 0) {
-            for (let i = 0; i < filesFromEvent.length; i++) {
-                newFilesArray.push(filesFromEvent[i]);
-            }
-        }
-        setFiles(prevFilesState => {
-            const existingFilesForField = prevFilesState[name] ? Array.from(prevFilesState[name]) : [];
-            const combinedFiles = [...existingFilesForField];
-            newFilesArray.forEach(newFile => {
-                if (!combinedFiles.some(existingFile => existingFile.name === newFile.name && existingFile.size === newFile.size)) {
-                    combinedFiles.push(newFile);
-                }
-            });
-            return { ...prevFilesState, [name]: combinedFiles };
-        });
-        e.target.value = null;
-    };
+//     const handleFileChange = (e) => {
+//         const { name, files: filesFromEvent } = e.target;
+//         let newFilesArray = [];
+//         if (filesFromEvent && filesFromEvent.length > 0) {
+//             for (let i = 0; i < filesFromEvent.length; i++) {
+//                 newFilesArray.push(filesFromEvent[i]);
+//             }
+//         }
+//         setFiles(prevFilesState => {
+//             const existingFilesForField = prevFilesState[name] ? Array.from(prevFilesState[name]) : [];
+//             const combinedFiles = [...existingFilesForField];
+//             newFilesArray.forEach(newFile => {
+//                 if (!combinedFiles.some(existingFile => existingFile.name === newFile.name && existingFile.size === newFile.size)) {
+//                     combinedFiles.push(newFile);
+//                 }
+//             });
+//             return { ...prevFilesState, [name]: combinedFiles };
+//         });
+//         e.target.value = null;
+//     };
 
-    const handleRemoveFile = (fieldName, fileNameToRemove) => {
-        setFiles(prevFilesState => {
-            const existingFiles = prevFilesState[fieldName] ? Array.from(prevFilesState[fieldName]) : [];
-            const updatedFiles = existingFiles.filter(file => file.name !== fileNameToRemove);
-            return { ...prevFilesState, [fieldName]: updatedFiles };
-        });
-    };
+//     const handleRemoveFile = (fieldName, fileNameToRemove) => {
+//         setFiles(prevFilesState => {
+//             const existingFiles = prevFilesState[fieldName] ? Array.from(prevFilesState[fieldName]) : [];
+//             const updatedFiles = existingFiles.filter(file => file.name !== fileNameToRemove);
+//             return { ...prevFilesState, [fieldName]: updatedFiles };
+//         });
+//     };
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        const dataToSubmit = { ...formData };
-        Object.keys(files).forEach(key => {
-            if (files[key] && Array.isArray(files[key]) && files[key].length > 0) {
-                dataToSubmit[key] = files[key];
-            }
-        });
-        // No es necesario forzar selectedWorkImageId aquí, handleActionSubmit lo hará
-        // basado en el prop más reciente.
-        console.log('[InspectionActionForm] handleSubmit - dataToSubmit (antes de que handleActionSubmit ajuste workImageId):', dataToSubmit);
-        onSubmit(dataToSubmit);
-    };
+//     const handleSubmit = (e) => {
+//         e.preventDefault();
+//         const dataToSubmit = { ...formData };
+//         Object.keys(files).forEach(key => {
+//             if (files[key] && Array.isArray(files[key]) && files[key].length > 0) {
+//                 dataToSubmit[key] = files[key];
+//             }
+//         });
+//         // No es necesario forzar selectedWorkImageId aquí, handleActionSubmit lo hará
+//         // basado en el prop más reciente.
+//         console.log('[InspectionActionForm] handleSubmit - dataToSubmit (antes de que handleActionSubmit ajuste workImageId):', dataToSubmit);
+//         onSubmit(dataToSubmit);
+//     };
 
-    const renderSelectedFiles = (fieldName) => {
-        if (files[fieldName] && files[fieldName].length > 0) {
-            return (
-                <div className="mt-2 text-xs text-gray-600">
-                    <p>Archivos seleccionados ({files[fieldName].length}):</p>
-                    <ul className="list-disc pl-5">
-                        {Array.from(files[fieldName]).map((file, index) => (
-                            <li key={`${fieldName}-${index}-${file.name}`} className="flex justify-between items-center">
-                                <span>- {file.name} ({(file.size / 1024).toFixed(2)} KB)</span>
-                                <button
-                                    type="button"
-                                    onClick={() => handleRemoveFile(fieldName, file.name)}
-                                    className="ml-2 text-red-500 hover:text-red-700 text-xs"
-                                    title="Eliminar archivo"
-                                >
-                                    &times;
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            );
-        }
-        return null;
-    };
+//     const renderSelectedFiles = (fieldName) => {
+//         if (files[fieldName] && files[fieldName].length > 0) {
+//             return (
+//                 <div className="mt-2 text-xs text-gray-600">
+//                     <p>Archivos seleccionados ({files[fieldName].length}):</p>
+//                     <ul className="list-disc pl-5">
+//                         {Array.from(files[fieldName]).map((file, index) => (
+//                             <li key={`${fieldName}-${index}-${file.name}`} className="flex justify-between items-center">
+//                                 <span>- {file.name} ({(file.size / 1024).toFixed(2)} KB)</span>
+//                                 <button
+//                                     type="button"
+//                                     onClick={() => handleRemoveFile(fieldName, file.name)}
+//                                     className="ml-2 text-red-500 hover:text-red-700 text-xs"
+//                                     title="Eliminar archivo"
+//                                 >
+//                                     &times;
+//                                 </button>
+//                             </li>
+//                         ))}
+//                     </ul>
+//                 </div>
+//             );
+//         }
+//         return null;
+//     };
 
-    const renderFields = () => {
-        switch (actionType) {
-            case 'requestInitial':
-                return (
-                    <>
-                        <div className="mb-4">
-                            <label htmlFor="inspectorEmail" className="block text-sm font-medium text-gray-700">Email del Inspector</label>
-                            <input type="email" name="inspectorEmail" id="inspectorEmail" required onChange={handleInputChange} value={formData.inspectorEmail || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
-                        </div>
-                        {formData.workImageId && <p className="text-sm text-gray-600">ID de Imagen de Referencia: {formData.workImageId}</p>}
-                    </>
-                );
-            case 'scheduleReceived':
-                return (
-                    <>
+//     const renderFields = () => {
+//         switch (actionType) {
+//             case 'requestInitial':
+//                 return (
+//                     <>
+//                         <div className="mb-4">
+//                             <label htmlFor="inspectorEmail" className="block text-sm font-medium text-gray-700">Email del Inspector</label>
+//                             <input type="email" name="inspectorEmail" id="inspectorEmail" required onChange={handleInputChange} value={formData.inspectorEmail || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+//                         </div>
+//                         {formData.workImageId && <p className="text-sm text-gray-600">ID de Imagen de Referencia: {formData.workImageId}</p>}
+//                     </>
+//                 );
+//             case 'scheduleReceived':
+//                 return (
+//                     <>
                        
-                        <div className="mb-4">
-                            <label htmlFor="documentForApplicantFile" className="block text-sm font-medium text-gray-700">Documento(s) para Aplicante (PDF/Imagen)</label>
-                            <input
-                                type="file"
-                                name="documentForApplicantFile"
-                                id="documentForApplicantFile"
-                                onChange={handleFileChange}
-                                multiple
-                                className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                            />
-                            {renderSelectedFiles('documentForApplicantFile')}
-                        </div>
-                    </>
-                );
-            case 'sendToApplicant':
-                return (
-                    <>
-                        <div className="mb-4">
-                            <label htmlFor="applicantEmail" className="block text-sm font-medium text-gray-700">Email del Aplicante</label>
-                            <input
-                                type="email"
-                                name="applicantEmail"
-                                id="applicantEmail"
-                                required
-                                onChange={handleInputChange}
-                                value={formData.applicantEmail || ''}
-                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                            />
-                        </div>
-                        <div className="mb-4">
-                            <label htmlFor="applicantName" className="block text-sm font-medium text-gray-700">Nombre del Aplicante</label>
-                            <input
-                                type="text"
-                                name="applicantName"
-                                id="applicantName"
-                                required
-                                onChange={handleInputChange}
-                                value={formData.applicantName || ''}
-                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                            />
-                        </div>
-                    </>
-                );
-            case 'applicantDocumentReceived':
-                return (
-                    <div className="mb-4">
-                        <label htmlFor="signedDocumentFile" className="block text-sm font-medium text-gray-700">Documento(s) Firmado(s) por Aplicante</label>
-                        <input
-                            type="file"
-                            name="signedDocumentFile"
-                            id="signedDocumentFile"
-                            onChange={handleFileChange}
-                            multiple
-                            className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                        />
-                        {renderSelectedFiles('signedDocumentFile')}
-                    </div>
-                );
-            case 'registerResult':
-                return (
-                    <>
-                        <div className="mb-4">
-                            <label htmlFor="finalStatus" className="block text-sm font-medium text-gray-700">Resultado Final</label>
-                            <select name="finalStatus" id="finalStatus" required onChange={handleInputChange} value={formData.finalStatus || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                                <option value="">Seleccionar...</option>
-                                <option value="approved">Aprobado</option>
-                                <option value="rejected">Rechazado</option>
-                            </select>
-                        </div>
-                        <div className="mb-4">
-                            <label htmlFor="dateInspectionPerformed" className="block text-sm font-medium text-gray-700">Fecha de Inspección Realizada (YYYY-MM-DD)</label>
-                            <input type="date" name="dateInspectionPerformed" id="dateInspectionPerformed" onChange={handleInputChange} value={formData.dateInspectionPerformed || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
-                        </div>
-                        <div className="mb-4">
-                            <label htmlFor="resultDocumentFiles" className="block text-sm font-medium text-gray-700">
-                                Documento(s) de Resultado
-                            </label>
-                            <input
-                                type="file"
-                                name="resultDocumentFiles"
-                                id="resultDocumentFiles"
-                                multiple
-                                onChange={handleFileChange}
-                                className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                            />
-                            {renderSelectedFiles('resultDocumentFiles')}
-                        </div>
-                    </>
-                );
-              case 'requestReinspection':
-                return (
-                    <>
-                        <p className="text-sm text-orange-600 mb-3">Solicitando reinspección. Asegúrate de que los problemas anteriores hayan sido corregidos.</p>
-                        {formData.originalInspectionId && <p className="text-xs text-gray-500 mb-2">Esto es una reinspección de la inspección ID: {formData.originalInspectionId}</p>}
+//                         <div className="mb-4">
+//                             <label htmlFor="documentForApplicantFile" className="block text-sm font-medium text-gray-700">Documento(s) para Aplicante (PDF/Imagen)</label>
+//                             <input
+//                                 type="file"
+//                                 name="documentForApplicantFile"
+//                                 id="documentForApplicantFile"
+//                                 onChange={handleFileChange}
+//                                 multiple
+//                                 className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+//                             />
+//                             {renderSelectedFiles('documentForApplicantFile')}
+//                         </div>
+//                     </>
+//                 );
+//             case 'sendToApplicant':
+//                 return (
+//                     <>
+//                         <div className="mb-4">
+//                             <label htmlFor="applicantEmail" className="block text-sm font-medium text-gray-700">Email del Aplicante</label>
+//                             <input
+//                                 type="email"
+//                                 name="applicantEmail"
+//                                 id="applicantEmail"
+//                                 required
+//                                 onChange={handleInputChange}
+//                                 value={formData.applicantEmail || ''}
+//                                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+//                             />
+//                         </div>
+//                         <div className="mb-4">
+//                             <label htmlFor="applicantName" className="block text-sm font-medium text-gray-700">Nombre del Aplicante</label>
+//                             <input
+//                                 type="text"
+//                                 name="applicantName"
+//                                 id="applicantName"
+//                                 required
+//                                 onChange={handleInputChange}
+//                                 value={formData.applicantName || ''}
+//                                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+//                             />
+//                         </div>
+//                     </>
+//                 );
+//             case 'applicantDocumentReceived':
+//                 return (
+//                     <div className="mb-4">
+//                         <label htmlFor="signedDocumentFile" className="block text-sm font-medium text-gray-700">Documento(s) Firmado(s) por Aplicante</label>
+//                         <input
+//                             type="file"
+//                             name="signedDocumentFile"
+//                             id="signedDocumentFile"
+//                             onChange={handleFileChange}
+//                             multiple
+//                             className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+//                         />
+//                         {renderSelectedFiles('signedDocumentFile')}
+//                     </div>
+//                 );
+//             case 'registerResult':
+//                 return (
+//                     <>
+//                         <div className="mb-4">
+//                             <label htmlFor="finalStatus" className="block text-sm font-medium text-gray-700">Resultado Final</label>
+//                             <select name="finalStatus" id="finalStatus" required onChange={handleInputChange} value={formData.finalStatus || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+//                                 <option value="">Seleccionar...</option>
+//                                 <option value="approved">Aprobado</option>
+//                                 <option value="rejected">Rechazado</option>
+//                             </select>
+//                         </div>
+//                         <div className="mb-4">
+//                             <label htmlFor="dateInspectionPerformed" className="block text-sm font-medium text-gray-700">Fecha de Inspección Realizada (YYYY-MM-DD)</label>
+//                             <input type="date" name="dateInspectionPerformed" id="dateInspectionPerformed" onChange={handleInputChange} value={formData.dateInspectionPerformed || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+//                         </div>
+//                         <div className="mb-4">
+//                             <label htmlFor="resultDocumentFiles" className="block text-sm font-medium text-gray-700">
+//                                 Documento(s) de Resultado
+//                             </label>
+//                             <input
+//                                 type="file"
+//                                 name="resultDocumentFiles"
+//                                 id="resultDocumentFiles"
+//                                 multiple
+//                                 onChange={handleFileChange}
+//                                 className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+//                             />
+//                             {renderSelectedFiles('resultDocumentFiles')}
+//                         </div>
+//                     </>
+//                 );
+//               case 'requestReinspection':
+//                 return (
+//                     <>
+//                         <p className="text-sm text-orange-600 mb-3">Solicitando reinspección. Asegúrate de que los problemas anteriores hayan sido corregidos.</p>
+//                         {formData.originalInspectionId && <p className="text-xs text-gray-500 mb-2">Esto es una reinspección de la inspección ID: {formData.originalInspectionId}</p>}
                         
-                        <div className="mb-4">
-                            <label htmlFor="inspectorEmail" className="block text-sm font-medium text-gray-700">Email del Inspector (puede ser el mismo o uno nuevo)</label>
-                            <input type="email" name="inspectorEmail" id="inspectorEmail" onChange={handleInputChange} value={formData.inspectorEmail || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
-                        </div>
+//                         <div className="mb-4">
+//                             <label htmlFor="inspectorEmail" className="block text-sm font-medium text-gray-700">Email del Inspector (puede ser el mismo o uno nuevo)</label>
+//                             <input type="email" name="inspectorEmail" id="inspectorEmail" onChange={handleInputChange} value={formData.inspectorEmail || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+//                         </div>
 
-                        {/* Mensaje sobre la imagen de referencia */}
-                        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                            {initialData.workImageId ? ( // Usamos initialData.workImageId que viene de selectedWorkImageId del prop
-                                <p className="text-sm text-blue-700">
-                                    Se utilizará la imagen de referencia seleccionada actualmente (ID: {initialData.workImageId}).
-                                    <br />
-                                    Si deseas cambiarla, selecciona otra imagen en la sección "Imágenes de la Obra" antes de enviar.
-                                </p>
-                            ) : (
-                                <p className="text-sm text-yellow-700">
-                                    No se ha seleccionado una nueva imagen de referencia para esta reinspección.
-                                    <br />
-                                    Si deseas adjuntar una, selecciónala en la sección "Imágenes de la Obra" antes de enviar.
-                                </p>
-                            )}
-                        </div>
+//                         {/* Mensaje sobre la imagen de referencia */}
+//                         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+//                             {initialData.workImageId ? ( // Usamos initialData.workImageId que viene de selectedWorkImageId del prop
+//                                 <p className="text-sm text-blue-700">
+//                                     Se utilizará la imagen de referencia seleccionada actualmente (ID: {initialData.workImageId}).
+//                                     <br />
+//                                     Si deseas cambiarla, selecciona otra imagen en la sección "Imágenes de la Obra" antes de enviar.
+//                                 </p>
+//                             ) : (
+//                                 <p className="text-sm text-yellow-700">
+//                                     No se ha seleccionado una nueva imagen de referencia para esta reinspección.
+//                                     <br />
+//                                     Si deseas adjuntar una, selecciónala en la sección "Imágenes de la Obra" antes de enviar.
+//                                 </p>
+//                             )}
+//                         </div>
                         
-                        {/* <div className="mb-4">
-                            <label htmlFor="reinspectionFiles" className="block text-sm font-medium text-gray-700">
-                                Adjuntar Nuevos Documentos/Imágenes Adicionales para Reinspección (Opcional)
-                            </label>
-                            <input
-                                type="file"
-                                name="reinspectionFiles"
-                                id="reinspectionFiles"
-                                multiple
-                                onChange={handleFileChange}
-                                className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-                            />
-                            {renderSelectedFiles('reinspectionFiles')}
-                        </div> */}
-                    </>
-                );
-            default:
-                return null;
-        }
-    };
+//                         {/* <div className="mb-4">
+//                             <label htmlFor="reinspectionFiles" className="block text-sm font-medium text-gray-700">
+//                                 Adjuntar Nuevos Documentos/Imágenes Adicionales para Reinspección (Opcional)
+//                             </label>
+//                             <input
+//                                 type="file"
+//                                 name="reinspectionFiles"
+//                                 id="reinspectionFiles"
+//                                 multiple
+//                                 onChange={handleFileChange}
+//                                 className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+//                             />
+//                             {renderSelectedFiles('reinspectionFiles')}
+//                         </div> */}
+//                     </>
+//                 );
+//             default:
+//                 return null;
+//         }
+//     };
 
-    return (
-        <form onSubmit={handleSubmit} className="space-y-4 my-4 p-4 border rounded-md bg-gray-50">
-            {renderFields()}
-            <div className="mb-4">
-                <label htmlFor="notes" className="block text-sm font-medium text-gray-700">Notas Adicionales</label>
-                <textarea name="notes" id="notes" rows="2" onChange={handleInputChange} value={formData.notes || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"></textarea>
-            </div>
-            <button type="submit" disabled={isLoading} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300">
-                {isLoading ? 'Procesando...' : 'Enviar'}
-            </button>
-        </form>
-    );
-};
+//     return (
+//         <form onSubmit={handleSubmit} className="space-y-4 my-4 p-4 border rounded-md bg-gray-50">
+//             {renderFields()}
+//             <div className="mb-4">
+//                 <label htmlFor="notes" className="block text-sm font-medium text-gray-700">Notas Adicionales</label>
+//                 <textarea name="notes" id="notes" rows="2" onChange={handleInputChange} value={formData.notes || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"></textarea>
+//             </div>
+//             <button type="submit" disabled={isLoading} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300">
+//                 {isLoading ? 'Procesando...' : 'Enviar'}
+//             </button>
+//         </form>
+//     );
+// };
 
 export default InspectionFlowManager;
