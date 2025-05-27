@@ -1,4 +1,4 @@
-const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, ChangeOrder, FinalInvoice } = require('../data');
+const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, ChangeOrder, FinalInvoice, MaintenanceVisit } = require('../data');
 const { sendEmail } = require('../utils/notifications/emailService');
 const convertPdfDataToUrl = require('../utils/convertPdfDataToUrl');
 const { sendNotifications } = require('../utils/notifications/notificationManager');
@@ -9,6 +9,7 @@ const {generateAndSaveChangeOrderPDF} = require('../utils/pdfGenerator')
 const fs = require('fs'); 
 const { v4: uuidv4 } = require('uuid');
 const { Op, literal} = require('sequelize');
+const {scheduleInitialMaintenanceVisits} = require('./MaintenanceController'); // Asegúrate de importar la función de programación de mantenimientos iniciales
 
 const createWork = async (req, res) => {
   try {
@@ -295,12 +296,44 @@ const updateWork = async (req, res) => {
     // --- Actualizar los campos ---
     workInstance.propertyAddress = propertyAddress || workInstance.propertyAddress;
 
-    if (status && status !== oldStatus) {
+   if (status && status !== oldStatus) {
       workInstance.status = status;
       statusChanged = true;
       if (status === 'inProgress' && !workInstance.startDate) {
         workInstance.startDate = new Date();
       }
+    } // Mover la lógica de mantenimiento fuera del if (status && status !== oldStatus)
+      // para que se evalúe incluso si el estado 'maintenance' no cambió pero se está actualizando la obra.
+
+    // --- LÓGICA DE MANTENIMIENTO ---
+    // Si el estado final es 'maintenance'
+    if (workInstance.status === 'maintenance') {
+        // Establecer maintenanceStartDate si aún no tiene una, o si la política es actualizarla siempre.
+        // Para asegurar que se establezca si es null, incluso si oldStatus era 'maintenance' (caso de corrección)
+        if (!workInstance.maintenanceStartDate) { 
+            workInstance.maintenanceStartDate = new Date();
+            console.log(`[WorkController - updateWork] Work ${idWork} IS 'maintenance' and maintenanceStartDate was NULL. SETTING MaintenanceStartDate TO: ${workInstance.maintenanceStartDate}`);
+        }
+
+        // Llamar a programar visitas SOLO si el estado CAMBIÓ a 'maintenance' desde otro estado.
+          if (status === 'maintenance' && oldStatus !== 'maintenance') {
+            // Si acabamos de establecer maintenanceStartDate arriba y era null, esta es la primera vez.
+            // O si ya tenía una fecha pero el estado cambió de no-mantenimiento a mantenimiento.
+            console.log(`[WorkController - updateWork] DETECTED status change to 'maintenance' for work ${idWork}. Old status: ${oldStatus}. MaintenanceStartDate IS: ${workInstance.maintenanceStartDate}`);
+            
+            // --- GUARDAR WORK ANTES DE PROGRAMAR VISITAS ---
+            await workInstance.save(); // Guardar los cambios en workInstance (status, maintenanceStartDate)
+            console.log(`[WorkController - updateWork] Work ${idWork} saved before calling scheduleInitialMaintenanceVisits. Status: ${workInstance.status}, MaintenanceStartDate: ${workInstance.maintenanceStartDate}`);
+            // --- FIN GUARDAR WORK ---
+
+            console.log(`[WorkController - updateWork] ATTEMPTING to call scheduleInitialMaintenanceVisits for work ${idWork}`);
+            try {
+              await scheduleInitialMaintenanceVisits(idWork); 
+              console.log(`[WorkController - updateWork] SUCCESSFULLY CALLED scheduleInitialMaintenanceVisits for work ${idWork}`);
+            } catch (scheduleError) {
+              console.error(`[WorkController - updateWork] ERROR CALLING scheduleInitialMaintenanceVisits for work ${idWork}:`, scheduleError);
+            }
+        }
     }
     workInstance.startDate = startDate || workInstance.startDate;
     workInstance.staffId = staffId || workInstance.staffId;
@@ -756,6 +789,69 @@ const deleteImagesFromWork = async (req, res) => {
   }
 };
 
+// --- NUEVA FUNCIÓN PARA OBTENER OBRAS EN MANTENIMIENTO CON DETALLES DE PRÓXIMA VISITA ---
+const getMaintenanceOverviewWorks = async (req, res) => {
+  try {
+    const worksInMaintenance = await Work.findAll({
+      where: { status: 'maintenance' },
+      include: [
+         {
+          model: Permit,
+          as: 'Permit', // Asegúrate que el alias 'as' coincida con tu definición de modelo si existe
+          attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'applicantName'],
+        },
+      
+        {
+          model: MaintenanceVisit,
+          as: 'maintenanceVisits', // Asegúrate que este 'as' coincida con tu definición de asociación
+          attributes: ['id', 'visitNumber', 'scheduledDate', 'status', 'actualVisitDate'],
+          // Solo nos interesan las visitas que no están completadas o saltadas para determinar la "próxima"
+          where: {
+            status: { [Op.notIn]: ['completed', 'skipped'] }
+          },
+          order: [['scheduledDate', 'ASC']], // La más próxima primero
+          required: false, // LEFT JOIN para incluir obras en mantenimiento aunque aún no tengan visitas programadas (raro, pero posible)
+        },
+        // Puedes añadir otros includes que sean relevantes para la vista de "obras en mantenimiento"
+      ],
+      order: [['propertyAddress', 'ASC']], // O por la fecha de la próxima visita si prefieres
+    });
+
+    const worksWithNextVisitDetails = worksInMaintenance.map(workInstance => {
+      const work = workInstance.get({ plain: true });
+      let nextMaintenanceDate = null;
+      let nextVisitNumber = null;
+      let nextVisitStatus = null;
+      let nextVisitId = null;
+
+      if (work.maintenanceVisits && work.maintenanceVisits.length > 0) {
+        // La primera visita en la lista ordenada es la próxima
+        const nextVisit = work.maintenanceVisits[0];
+        nextMaintenanceDate = nextVisit.scheduledDate;
+        nextVisitNumber = nextVisit.visitNumber;
+        nextVisitStatus = nextVisit.status;
+        nextVisitId = nextVisit.id;
+      }
+
+      // Eliminar el array completo de maintenanceVisits si solo quieres el resumen en esta vista
+      // delete work.maintenanceVisits; 
+
+      return {
+        ...work, // Todos los campos de la obra y sus otros includes (Permit, Budget)
+        nextMaintenanceDate,
+        nextVisitNumber,
+        nextVisitStatus,
+        nextVisitId,
+      };
+    });
+
+    res.status(200).json(worksWithNextVisitDetails);
+  } catch (error) {
+    console.error('Error al obtener obras en mantenimiento con detalles:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor.' });
+  }
+};
+
 
 
 
@@ -772,5 +868,6 @@ module.exports = {
   getAssignedWorks,
   addImagesToWork,
   deleteImagesFromWork,
+  getMaintenanceOverviewWorks,
  
 };

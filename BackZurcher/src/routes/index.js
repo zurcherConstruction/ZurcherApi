@@ -18,7 +18,7 @@ const systemRoutes = require('./systemRoutes'); // Asegúrate de que la ruta sea
 const budgetItemRoutes = require('./BudgetItemRoutes'); // Asegúrate de que la ruta sea correcta
 const finalInvoiceRoutes = require('./finalInvoiceRutes'); // Asegúrate de que la ruta sea correcta
 const changeOrdersRoutes = require('./changeOrderRoutes'); // Asegúrate de que la ruta sea correcta
-
+const maintenanceRoutes = require('./maintenanceRoutes'); // Asegúrate de que la ruta sea correcta
 
 router.use('/auth', authRoutes); // Registro y login no requieren token
 router.use('/change-orders',changeOrdersRoutes); // Ruta para comprobantes
@@ -41,5 +41,6 @@ router.use('/income', incomeRoutes); // Ruta para ingresos
 router.use('/expense', expenseRoutes); // Ruta para gastos
 router.use('/system', systemRoutes); // Ruta para comprobantes
 router.use('/final-invoice', finalInvoiceRoutes); // Ruta para comprobantes
+router.use('/maintenance', maintenanceRoutes); // Ruta para visitas de mantenimiento
 
 module.exports = router;

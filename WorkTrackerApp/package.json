@@ -19,7 +19,9 @@
     "@reduxjs/toolkit": "^2.6.1",
     "axios": "^1.8.4",
     "babel-preset-expo": "^12.0.11",
+    "date-fns": "^4.1.0",
     "expo": "~52.0.42",
+    "expo-dev-client": "~5.0.20",
     "expo-device": "~7.0.3",
     "expo-document-picker": "~13.0.3",
     "expo-file-system": "~18.0.12",
@@ -51,8 +53,7 @@
     "react-native-web": "~0.19.13",
     "react-native-webview": "13.12.5",
     "react-redux": "^9.2.0",
-    "tailwindcss": "3.4.17",
-    "expo-dev-client": "~5.0.20"
+    "tailwindcss": "3.4.17"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"

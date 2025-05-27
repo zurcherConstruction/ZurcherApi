@@ -52,7 +52,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia } = sequelize.models;
 
 // Relaciones
 Permit.hasMany(Work, { foreignKey: 'propertyAddress', sourceKey: 'propertyAddress' });
@@ -216,6 +216,36 @@ Work.hasMany(ChangeOrder, {
 ChangeOrder.belongsTo(Work, {
   foreignKey: 'workId',
   as: 'work'             // Alias para usar al incluir Work en consultas de ChangeOrder
+});
+
+//mantenimiento
+Work.hasMany(MaintenanceVisit, {
+  foreignKey: 'workId',
+  as: 'maintenanceVisits'
+});
+MaintenanceVisit.belongsTo(Work, {
+  foreignKey: 'workId',
+  as: 'work'
+});
+
+MaintenanceVisit.hasMany(MaintenanceMedia, {
+  foreignKey: 'maintenanceVisitId',
+  as: 'mediaFiles'
+});
+MaintenanceMedia.belongsTo(MaintenanceVisit, {
+  foreignKey: 'maintenanceVisitId',
+  as: 'maintenanceVisit'
+});
+// Dentro del método associate si lo usas, o después de definir el modelo
+MaintenanceVisit.belongsTo(Staff, { // <--- CAMBIO AQUÍ: Usa 'Staff' directamente
+  foreignKey: 'staffId', 
+  as: 'assignedStaff' 
+});
+
+// Un Staff puede tener muchas MaintenanceVisits asignadas
+Staff.hasMany(MaintenanceVisit, { // <--- CAMBIO AQUÍ: Usa 'MaintenanceVisit' directamente
+  foreignKey: 'staffId', 
+  as: 'maintenanceVisitsAssigned' 
 });
 //---------------------------------------------------------------------------------//
 module.exports = {
