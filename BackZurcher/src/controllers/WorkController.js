@@ -816,15 +816,28 @@ const getMaintenanceOverviewWorks = async (req, res) => {
       ],
       order: [['propertyAddress', 'ASC']], // O por la fecha de la próxima visita si prefieres
     });
-
+ 
     const worksWithNextVisitDetails = worksInMaintenance.map(workInstance => {
       const work = workInstance.get({ plain: true });
+
       let nextMaintenanceDate = null;
       let nextVisitNumber = null;
       let nextVisitStatus = null;
       let nextVisitId = null;
 
+       // --- RE-ORDENAR LAS VISITAS EN JAVASCRIPT ---
       if (work.maintenanceVisits && work.maintenanceVisits.length > 0) {
+        work.maintenanceVisits.sort((a, b) => {
+          // Ordenar por scheduledDate ASC. Si son iguales, por visitNumber ASC.
+          const dateA = new Date(a.scheduledDate);
+          const dateB = new Date(b.scheduledDate);
+          if (dateA < dateB) return -1;
+          if (dateA > dateB) return 1;
+          // Si las fechas son iguales, ordenar por número de visita
+          if (a.visitNumber < b.visitNumber) return -1;
+          if (a.visitNumber > b.visitNumber) return 1;
+          return 0;
+        });
         // La primera visita en la lista ordenada es la próxima
         const nextVisit = work.maintenanceVisits[0];
         nextMaintenanceDate = nextVisit.scheduledDate;
