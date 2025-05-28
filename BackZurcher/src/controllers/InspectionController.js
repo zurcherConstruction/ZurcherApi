@@ -2,7 +2,7 @@ const { Inspection, Work, Permit, Image, Budget } = require('../data'); // Aseg�
 const { sendEmail } = require('../utils/notifications/emailService');
 const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryUploader');
 const { sendNotifications } = require('../utils/notifications/notificationManager'); // Para notificaciones internas si es necesario
-
+const { scheduleInitialMaintenanceVisits } = require('./MaintenanceController'); // <--- IMPORTANTE: AÑADIR ESTA LÍNEA
 // --- INICIO: NUEVAS FUNCIONES PARA EL FLUJO DE INSPECCIÓN DETALLADO ---
 
 /**
@@ -317,67 +317,123 @@ const registerInspectionResult = async (req, res) => {
       return res.status(404).json({ error: true, message: 'Registro de inspección no encontrado.' });
     }
 
+     // Validar que la inspección esté en el estado correcto para recibir un resultado
+    const expectedStatuses = [
+      'applicant_document_received', 
+        'inspection_completed_pending_result', // Para inspecciones iniciales
+        'final_payment_notified_to_inspector'  // Para inspecciones finales
+    ];
+    if (!expectedStatuses.includes(inspection.processStatus)) {
+        return res.status(400).json({ 
+            error: true, 
+            message: `Estado de proceso de inspección inválido (${inspection.processStatus}). Se esperaba uno de: ${expectedStatuses.join(', ')}.` 
+        });
+    }
+
+
+
     const work = inspection.Work;
     if (!work) {
         return res.status(404).json({ error: true, message: 'Obra asociada a la inspección no encontrada.' });
     }
 
-    // ... (lógica de subida de archivos a Cloudinary - sin cambios)
+  
     const uploadedFilesInfo = [];
-    for (const file of req.files) {
-      const resourceType = file.mimetype && file.mimetype.startsWith('image/') ? 'image' : 'raw';
-      const originalNameWithoutExt = file.originalname.split('.').slice(0, -1).join('.');
-      const publicIdSuffix = originalNameWithoutExt || `file_${Date.now()}`;
+    let fileNotes = '';
 
-      const cloudinaryResult = await uploadBufferToCloudinary(file.buffer, {
-        folder: `inspections/${inspection.workId}/${inspection.idInspection}/results`,
-        resource_type: resourceType, 
-        public_id: `result_${finalStatus}_${publicIdSuffix}_${Date.now()}`
-      });
-      uploadedFilesInfo.push({
-        url: cloudinaryResult.secure_url,
-        publicId: cloudinaryResult.public_id,
-        originalName: file.originalname,
-        mimetype: file.mimetype
-      });
-    }
-    let primaryFile = uploadedFilesInfo.find(f => f.mimetype === 'application/pdf');
-    if (!primaryFile && uploadedFilesInfo.length > 0) primaryFile = uploadedFilesInfo[0];
-    if (primaryFile) {
-      inspection.resultDocumentUrl = primaryFile.url;
-      inspection.resultDocumentPublicId = primaryFile.publicId;
-    }
-    let fileNotes = 'Archivos de resultado adjuntos:\n';
-    uploadedFilesInfo.forEach(f => { fileNotes += `- ${f.originalName} (${f.url})\n`; });
-    // ... (fin lógica de subida de archivos)
+    if (req.files && req.files.length > 0) {
+        for (const file of req.files) {
+          const resourceType = file.mimetype && file.mimetype.startsWith('image/') ? 'image' : 'raw';
+          const originalNameWithoutExt = file.originalname.split('.').slice(0, -1).join('.');
+          const publicIdSuffix = originalNameWithoutExt || `file_${Date.now()}`;
 
-    inspection.dateInspectionPerformed = dateInspectionPerformed || new Date();
+          const cloudinaryResult = await uploadBufferToCloudinary(file.buffer, {
+            folder: `inspections/${inspection.workId}/${inspection.idInspection}/results`,
+            resource_type: resourceType, 
+            public_id: `result_${finalStatus}_${publicIdSuffix}_${Date.now()}`
+          });
+          uploadedFilesInfo.push({
+            url: cloudinaryResult.secure_url,
+            publicId: cloudinaryResult.public_id,
+            originalName: file.originalname,
+            mimetype: file.mimetype
+          });
+        }
+        let primaryFile = uploadedFilesInfo.find(f => f.mimetype === 'application/pdf');
+        if (!primaryFile && uploadedFilesInfo.length > 0) primaryFile = uploadedFilesInfo[0];
+        if (primaryFile) {
+          inspection.resultDocumentUrl = primaryFile.url;
+          inspection.resultDocumentPublicId = primaryFile.publicId;
+        }
+        fileNotes = 'Archivos de resultado adjuntos:\n';
+        uploadedFilesInfo.forEach(f => { fileNotes += `- ${f.originalName} (${f.url})\n`; });
+    }
+    
+
+   inspection.dateInspectionPerformed = dateInspectionPerformed || new Date();
     inspection.dateResultReceived = new Date();
     inspection.finalStatus = finalStatus; // 'approved' o 'rejected'
-    inspection.processStatus = finalStatus === 'approved' ? 'result_approved' : 'result_rejected';
+    
+    // Determinar processStatus basado en el tipo y resultado
+    if (inspection.type === 'initial') {
+        inspection.processStatus = finalStatus === 'approved' ? 'result_approved' : 'result_rejected';
+    } else if (inspection.type === 'final') {
+        // Usar los nuevos estados finales específicos si los creaste, o los genéricos
+        inspection.processStatus = finalStatus === 'approved' ? 'result_approved' : 'result_rejected'; 
+        // O por ejemplo: 'final_result_approved', 'final_result_rejected' si los definiste en el ENUM
+    }
+    
     inspection.notes = `${notes || ''}\n${fileNotes}`.trim();
     
     if (finalStatus === 'rejected') {
-        inspection.workerHasCorrected = false; // Resetear en cada rechazo
+        inspection.workerHasCorrected = false; 
         inspection.dateWorkerCorrected = null;
     }
     await inspection.save();
 
-    // Actualizar Work.status
+
+     // Actualizar Work.status
+  // Actualizar Work.status
     if (finalStatus === 'approved') {
       if (inspection.type === 'initial') {
-        work.status = 'approvedInspection'; // O 'coverPending' si es el siguiente paso directo
-        await sendNotifications('initial_inspection_approved', work, req.app.get('io'), { inspectionId: inspection.idInspection });
+        work.status = 'approvedInspection'; 
+        // ... (notificaciones) ...
       } else if (inspection.type === 'final') {
-        work.status = 'finalApproved';
-        await sendNotifications('final_inspection_approved', work, req.app.get('io'), { inspectionId: inspection.idInspection });
+        const oldWorkStatus = work.status; // Asegúrate que esto esté antes de cambiar work.status
+        work.status = 'maintenance'; 
+        
+        if (oldWorkStatus !== 'maintenance') { 
+            work.maintenanceStartDate = new Date();
+            console.log(`[InspectionController - registerResult] Work ${work.idWork} status will be 'maintenance'. SETTING MaintenanceStartDate TO: ${work.maintenanceStartDate}`);
+        } else if (!work.maintenanceStartDate) { 
+            work.maintenanceStartDate = new Date();
+            console.log(`[InspectionController - registerResult] Work ${work.idWork} IS 'maintenance' and maintenanceStartDate was NULL. SETTING MaintenanceStartDate TO: ${work.maintenanceStartDate}`);
+        }
+        
+        // --- GUARDAR WORK ANTES DE PROGRAMAR VISITAS ---
+        await work.save(); 
+        console.log(`[InspectionController - registerResult] Work ${work.idWork} saved with status: ${work.status} and maintenanceStartDate: ${work.maintenanceStartDate}`);
+        // --- FIN GUARDAR WORK ---
+
+        // Ahora llamar a programar visitas, si es necesario
+        if (oldWorkStatus !== 'maintenance') { // Usar oldWorkStatus para decidir si programar
+            try {
+                console.log(`[InspectionController - registerResult] ATTEMPTING to call scheduleInitialMaintenanceVisits for work ${work.idWork}`);
+                await scheduleInitialMaintenanceVisits(work.idWork); // Ahora leerá los datos actualizados de la BD
+                console.log(`[InspectionController - registerResult] SUCCESSFULLY CALLED scheduleInitialMaintenanceVisits for work ${work.idWork}`);
+            } catch (scheduleError) {
+                console.error(`[InspectionController - registerResult] ERROR CALLING scheduleInitialMaintenanceVisits for work ${work.idWork}:`, scheduleError);
+            }
+        }
+        // <--- CAMBIO IMPORTANTE AQUÍ
+        await sendNotifications('final_inspection_approved_maintenance', work, req.app.get('io'), { inspectionId: inspection.idInspection });
       }
     } else if (finalStatus === 'rejected') {
       if (inspection.type === 'initial') {
         work.status = 'rejectedInspection';
         await sendNotifications('initial_inspection_rejected', work, req.app.get('io'), { inspectionId: inspection.idInspection, notes: inspection.notes });
       } else if (inspection.type === 'final') {
-        work.status = 'finalRejected';
+        work.status = 'finalRejected'; // Esto ya lo tenías
         await sendNotifications('final_inspection_rejected', work, req.app.get('io'), { inspectionId: inspection.idInspection, notes: inspection.notes });
       }
     }
@@ -438,8 +494,15 @@ const requestReinspection = async (req, res, next) => {
   try {
     const { workId } = req.params;
     const { inspectorEmail, notes, originalInspectionId, workImageId } = req.body; // workImageId es opcional para reinspección
-    const reinspectionFile = req.file; 
-
+    //const reinspectionFile = req.file; 
+  const filesUploaded = req.files; // req.files es un array cuando usas upload.array()
+    let reinspectionFile = null; // Tomaremos el primer archivo de 'attachments' para este ejemplo
+    if (filesUploaded && filesUploaded.length > 0) {
+        // Si el fieldname es 'attachments', toma el primer archivo de ese campo.
+        // Si tienes múltiples campos de archivo en el mismo form, necesitarías filtrar por fieldname.
+        // Asumiendo que 'attachments' es el único campo de archivo para esta acción.
+        reinspectionFile = filesUploaded[0]; 
+    }
     if (!inspectorEmail) {
       return res.status(400).json({ error: true, message: 'Falta el email del inspector.' });
     }
@@ -469,13 +532,12 @@ const requestReinspection = async (req, res, next) => {
       return res.status(400).json({ error: true, message: `La obra no está en un estado que permita reinspección ('rejectedInspection' o 'finalRejected'). Estado actual: ${work.status}` });
     }
     
-    if (originalInspectionId) {
+    if (originalInspectionId && newInspectionType === 'initial') { // Solo verificar para reinspección inicial
         const originalInsp = await Inspection.findByPk(originalInspectionId);
         if (originalInsp && !originalInsp.workerHasCorrected) {
-            return res.status(400).json({ error: true, message: 'Las correcciones para la inspección original rechazada no han sido marcadas por el empleado.' });
+            return res.status(400).json({ error: true, message: 'Para reinspecciones iniciales, las correcciones para la inspección original rechazada deben ser marcadas por el empleado.' });
         }
     }
-
     // 1. Crear el NUEVO registro de Inspección para la reinspección
     const reinspection = await Inspection.create({ // <--- Creación de la reinspección
       workId,
@@ -496,9 +558,9 @@ const requestReinspection = async (req, res, next) => {
     // Asegúrate de que emailHtml se inicialice aquí con 'let'
     let emailHtml = `<p>${emailText.replace(/\n/g, '<br>')}</p>`; 
 
-    const attachments = [];
+     const attachmentsForEmail = []; // Renombrado para evitar confusión con el fieldname 'attachments'
     if (work.Permit && work.Permit.pdfData) {
-        attachments.push({
+        attachmentsForEmail.push({
             filename: `Permit_${work.Permit.permitNumber || workId}.pdf`,
             content: Buffer.isBuffer(work.Permit.pdfData) ? work.Permit.pdfData : Buffer.from(work.Permit.pdfData, 'base64'),
             contentType: 'application/pdf'
@@ -516,80 +578,63 @@ const requestReinspection = async (req, res, next) => {
         }
     }
 
-      if (reinspectionFile) {
+       if (reinspectionFile) { // Ahora reinspectionFile se refiere al archivo de req.files[0]
         try {
-          console.log("API_INFO: Procesando reinspectionFile para subida:", {
+          console.log("API_INFO: Procesando archivo de reinspección para subida:", {
             originalname: reinspectionFile.originalname,
             mimetype: reinspectionFile.mimetype,
             size: reinspectionFile.size
           });
 
-          // --- INICIO: PRUEBA DE SIMPLIFICACIÓN DE SUBIDA A CLOUDINARY ---
+          const resourceType = reinspectionFile.mimetype.startsWith('video/') ? 'video' : (reinspectionFile.mimetype.startsWith('image/') ? 'image' : 'raw');
           const originalNameBase = reinspectionFile.originalname.substring(0, reinspectionFile.originalname.lastIndexOf('.')) || reinspectionFile.originalname;
-          const originalExtension = reinspectionFile.originalname.substring(reinspectionFile.originalname.lastIndexOf('.')); // .pdf
           
-          // Construir el public_id para que la extensión .pdf quede al final
-          const testPublicId = `reinspection_test/${workId}/${reinspection.idInspection}/${originalNameBase}_${Date.now()}${originalExtension}`;
-          // Ejemplo: reinspection_test/workId/inspectionId/certificado_1747426542727.pdf
-
-          console.log("API_INFO: Intentando subir a Cloudinary con public_id modificado:", testPublicId);
+          const publicId = `reinspections/${workId}/${reinspection.idInspection}/${originalNameBase}_${Date.now()}`;
 
           const cloudinaryResult = await uploadBufferToCloudinary(
             reinspectionFile.buffer,
             {
-              folder: `reinspections_test_folder/${workId}/${reinspection.idInspection}`, // La carpeta se antepone al public_id si este no es una ruta completa
-              public_id: testPublicId, // Cloudinary usará esto como la parte final de la ruta del archivo
-              resource_type: 'raw',
-              original_filename: reinspectionFile.originalname,
-              
+              folder: `reinspections/${workId}/${reinspection.idInspection}`, // Cloudinary antepone esto si public_id no es una ruta completa
+              public_id: `${originalNameBase}_${Date.now()}`, // Solo el nombre del archivo, Cloudinary lo pone en la carpeta
+              resource_type: resourceType,
+              // original_filename: reinspectionFile.originalname, // Opcional, Cloudinary lo puede inferir
             }
           );
-          // --- FIN: PRUEBA DE SIMPLIFICACIÓN DE SUBIDA A CLOUDINARY ---
-
-          console.log("API_INFO: Cloudinary upload result (prueba simplificada):", { 
-            secure_url: cloudinaryResult.secure_url, 
-            public_id: cloudinaryResult.public_id,
-            format: cloudinaryResult.format, // Ver qué formato detecta Cloudinary
-            resource_type: cloudinaryResult.resource_type, // Confirmar que es 'raw'
-            bytes: cloudinaryResult.bytes, // Comparar con reinspectionFile.size
-            original_filename: cloudinaryResult.original_filename // Ver qué nombre original guarda Cloudinary
-          });
-
-          // Comprobar si el tamaño del archivo subido coincide con el original
-          if (reinspectionFile.size !== cloudinaryResult.bytes) {
-            console.warn("API_WARN: El tamaño del archivo original (", reinspectionFile.size, ") no coincide con el tamaño del archivo en Cloudinary (", cloudinaryResult.bytes, "). Esto podría indicar un problema en la subida.");
-          }
-
-          reinspection.reinspectionExtraDocumentUrl = cloudinaryResult.secure_url;
-          reinspection.reinspectionExtraDocumentPublicId = cloudinaryResult.public_id; // El public_id devuelto por Cloudinary
-          reinspection.reinspectionExtraDocumentOriginalName = reinspectionFile.originalname;
-
-            const suggestedDownloadFileName = reinspectionFile.originalname.replace(/^~\$/, '');
           
-          attachments.push({
-            filename: suggestedDownloadFileName, // Usar el nombre original o uno limpio
-            path: cloudinaryResult.secure_url, // Nodemailer descargará desde esta URL para adjuntar
-            // contentType: reinspectionFile.mimetype // Opcional, Nodemailer usualmente lo infiere
+          console.log("API_INFO: Cloudinary upload result:", cloudinaryResult);
+
+          // Guardar la info en el registro de la reinspección
+          reinspection.reinspectionExtraDocumentUrl = cloudinaryResult.secure_url;
+          reinspection.reinspectionExtraDocumentPublicId = cloudinaryResult.public_id;
+          reinspection.reinspectionExtraDocumentOriginalName = reinspectionFile.originalname;
+          // await reinspection.save(); // Guardar estos campos en la BD
+
+          const suggestedDownloadFileName = reinspectionFile.originalname.replace(/^~\$/, '');
+          
+          attachmentsForEmail.push({ // Añadir al array de adjuntos del correo
+            filename: suggestedDownloadFileName,
+            path: cloudinaryResult.secure_url, 
           });
-          const extraDocLinkText = `\n\nDocumento adicional para reinspección: Ver Documento (${reinspectionFile.originalname})`;
-          const extraDocLinkHtml = `<p>Documento adicional para reinspección: <a href="${cloudinaryResult.secure_url}" target="_blank" download="${suggestedDownloadFileName}">Ver Documento (${reinspectionFile.originalname})</a></p>`;
+
+          const extraDocLinkText = `\n\nArchivo adjunto a esta solicitud de reinspección: Ver Documento (${reinspectionFile.originalname})`;
+          const extraDocLinkHtml = `<p>Archivo adjunto a esta solicitud de reinspección: <a href="${cloudinaryResult.secure_url}" target="_blank" download="${suggestedDownloadFileName}">${reinspectionFile.originalname}</a></p>`;
           emailText += extraDocLinkText;
           emailHtml += extraDocLinkHtml;
-          console.log("API_INFO: Enlace a documento extra añadido al correo. URL:", cloudinaryResult.secure_url, "Download Filename:", suggestedDownloadFileName);
+          console.log("API_INFO: Enlace y adjunto para documento extra añadido al correo. URL:", cloudinaryResult.secure_url);
 
         } catch (uploadError) {
           console.error('Error al subir documento de reinspección a Cloudinary:', uploadError);
-          // Considera cómo manejar este error
+          // Considera cómo manejar este error, ¿debería fallar toda la solicitud?
+          // Por ahora, solo se loguea y el correo se envía sin este adjunto.
         }
-      }
-
+    }
 
     await sendEmail({
       to: inspectorEmail,
       subject: emailSubject,
       text: emailText,
       html: emailHtml, // Usar el HTML con el enlace
-      attachments,
+      attachments: attachmentsForEmail,
     });
 
     // 3. Actualizar estado de la obra (la inspección ya se creó con el processStatus correcto)
@@ -675,26 +720,378 @@ const getInspectionById = async (req, res) => {
   }
 };
 
+const requestFinalInspection = async (req, res) => {
+  try {
+    const { workId } = req.params;
+    // inspectorEmail puede venir del body o podrías tenerlo configurado de otra forma
+    const { inspectorEmail, notes, applicantEmail, applicantName } = req.body; 
+    const files = req.files; // Para múltiples archivos: req.files (configura multer para 'any' o campos específicos)
+                               // Para un solo archivo: req.file
 
-// NOTA: Las funciones genéricas createInspection y updateInspection originales
-// podrían eliminarse o adaptarse si este nuevo flujo más detallado las reemplaza.
-// Por ahora las comento para evitar conflictos si decides mantenerlas para otros usos.
+    if (!inspectorEmail) {
+      return res.status(400).json({ error: true, message: 'Falta el email del inspector.' });
+    }
+    if (!applicantEmail || !applicantName) {
+        return res.status(400).json({ error: true, message: 'Faltan datos del aplicante (email, nombre) para notificaciones.' });
+    }
+
+    const work = await Work.findByPk(workId, {
+        include: [{ model: Permit, attributes: ['permitNumber'] }]
+    });
+    if (!work) {
+      return res.status(404).json({ error: true, message: 'Obra no encontrada.' });
+    }
+    // Validar que la obra esté en un estado apropiado para solicitar inspección final
+    // Por ejemplo, después de 'approvedInspection' (inspección inicial aprobada) o 'coverApproved'
+    // Ajusta esta lógica según tus estados de obra exactos
+    if (!['approvedInspection', 'finalRejected', 'paymentReceived', 'covered'].includes(work.status) ) { // Añade otros estados si aplica
+         return res.status(400).json({ error: true, message: `La obra no está en un estado válido para solicitar inspección final. Estado actual: ${work.status}` });
+    }
+
+
+    // 1. Crear el registro de Inspección Final
+    const inspection = await Inspection.create({
+      workId,
+      type: 'final',
+      processStatus: 'pending_final_request',
+      notes: `Solicitud de Inspección Final para ${work.propertyAddress}. Inspector: ${inspectorEmail}. ${notes ? `Notas: ${notes}` : ''}`,
+    });
+
+    // 2. Subir archivos adjuntos a Cloudinary (si los hay)
+    const uploadedAttachmentsInfo = [];
+    const emailAttachments = [];
+
+    if (files && files.length > 0) {
+        for (const file of files) {
+            const resourceType = file.mimetype.startsWith('image/') ? 'image' : (file.mimetype.startsWith('video/') ? 'video' : 'raw');
+            const uploadResult = await uploadBufferToCloudinary(file.buffer, {
+                folder: `inspections/${workId}/${inspection.idInspection}/final_request_attachments`,
+                resource_type: resourceType,
+                public_id: `${file.originalname.split('.')[0]}_${Date.now()}`
+            });
+            uploadedAttachmentsInfo.push({
+                url: uploadResult.secure_url,
+                publicId: uploadResult.public_id,
+                originalName: file.originalname,
+                mimetype: file.mimetype
+            });
+            emailAttachments.push({
+                filename: file.originalname,
+                path: uploadResult.secure_url, // Nodemailer puede usar la URL para adjuntar
+            });
+        }
+        inspection.notes += `\nArchivos adjuntos a la solicitud: ${uploadedAttachmentsInfo.map(f => `${f.originalName} (${f.url})`).join(', ')}`;
+    }
+
+
+    // 3. Preparar y enviar correo a inspectores
+    const emailSubject = `Solicitud de Inspección Final - Obra: ${work.propertyAddress}`;
+    let emailText = `Estimado Inspector,\n\nSe solicita la Inspección Final para la obra ubicada en ${work.propertyAddress} (Permit N°: ${work.Permit?.permitNumber || 'N/A'}).`;
+    if (notes) emailText += `\n\nNotas adicionales:\n${notes}`;
+    emailText += `\n\nPor favor, envíenos el invoice correspondiente para proceder con el pago.\n\nSaludos cordiales.`;
+    
+    let emailHtml = `<p>${emailText.replace(/\n/g, '<br>')}</p>`;
+    if (uploadedAttachmentsInfo.length > 0) {
+        emailHtml += `<p><strong>Archivos Adjuntos:</strong></p><ul>`;
+        uploadedAttachmentsInfo.forEach(att => {
+            emailHtml += `<li><a href="${att.url}" target="_blank">${att.originalName}</a></li>`;
+        });
+        emailHtml += `</ul>`;
+    }
+
+    await sendEmail({
+      to: inspectorEmail,
+      subject: emailSubject,
+      text: emailText,
+      html: emailHtml,
+      attachments: emailAttachments, // Nodemailer puede tomar 'path' como URL
+    });
+
+    // 4. Actualizar estados
+    inspection.processStatus = 'final_requested_to_inspector';
+    inspection.dateRequestedToInspectors = new Date(); // Reutilizamos este campo
+    await inspection.save();
+
+    work.status = 'finalInspectionPending'; // Nuevo estado de obra
+    await work.save();
+    
+    await sendNotifications('final_inspection_requested', work, req.app.get('io'), { inspectionId: inspection.idInspection, applicantEmail });
+
+    res.status(201).json({ 
+        message: 'Solicitud de inspección final enviada y registrada. Esperando invoice del inspector.', 
+        inspection,
+        workStatus: work.status 
+    });
+
+  } catch (error) {
+    console.error('Error en requestFinalInspection:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor al solicitar inspección final.' });
+  }
+};
+
+/**
+ * @description Inspectores responden con el invoice. Se registra y se guarda el invoice.
+ */
+const registerInspectorInvoiceForFinal = async (req, res) => {
+
+  try {
+    const { inspectionId } = req.params;
+    const { notes } = req.body;
+    
+    if (!req.file) {
+      return res.status(400).json({ error: true, message: 'No se proporcionó el archivo del invoice.' });
+    }
+
+    const inspection = await Inspection.findByPk(inspectionId, { include: [Work] });
+    if (!inspection) {
+      return res.status(404).json({ error: true, message: 'Registro de inspección no encontrado.' });
+    }
+    if (inspection.type !== 'final' || inspection.processStatus !== 'final_requested_to_inspector') {
+        return res.status(400).json({ error: true, message: `Estado de proceso de inspección inválido (${inspection.processStatus}). Se esperaba 'final_requested_to_inspector'.` });
+    }
+
+    const cloudinaryResult = await uploadBufferToCloudinary(req.file.buffer, {
+      folder: `inspections/${inspection.workId}/${inspection.idInspection}/final_invoices`,
+      resource_type: 'raw', // Para PDFs o documentos
+      public_id: `invoice_${req.file.originalname.split('.')[0]}_${Date.now()}`
+    });
+
+    inspection.invoiceFromInspectorUrl = cloudinaryResult.secure_url;
+    inspection.invoiceFromInspectorPublicId = cloudinaryResult.public_id;
+    inspection.processStatus = 'final_invoice_received';
+    if (notes) inspection.notes = `${inspection.notes || ''}\nInvoice Recibido: ${notes}`.trim();
+    await inspection.save();
+    
+    // Notificar internamente que el invoice está listo para ser enviado al cliente
+    await sendNotifications('final_invoice_received', inspection.Work, req.app.get('io'), { inspectionId: inspection.idInspection, invoiceUrl: inspection.invoiceFromInspectorUrl });
+
+
+    res.status(200).json({ message: 'Invoice del inspector registrado. Listo para enviar al cliente.', inspection });
+
+  } catch (error) {
+    console.error('Error en registerInspectorInvoiceForFinal:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor al registrar invoice.' });
+  }
+};
+
+/**
+ * @description Se reenvía el invoice (recibido de inspectores) al cliente.
+ */
+const sendInvoiceToClientForFinal = async (req, res) => {
+  try {
+    const { inspectionId } = req.params;
+    // El email del cliente podría venir del body, o mejor, obtenerlo de la Obra o Permiso asociado.
+    const { clientEmail, clientName } // Asumimos que estos datos se obtienen de alguna manera (e.g., req.body o consulta)
+                         = req.body; // O buscar en Work.Permit.applicantEmail / Work.Budget.applicantName
+
+    if (!clientEmail) { // Validar clientName también si es mandatorio
+      return res.status(400).json({ error: true, message: 'Falta el email del cliente.' });
+    }
+
+    const inspection = await Inspection.findByPk(inspectionId, { 
+        include: [{ 
+            model: Work, 
+            attributes: ['propertyAddress', 'idWork'],
+            include: [
+                { model: Permit, attributes: ['applicantEmail', 'applicantName'] }, // Para obtener email/nombre si no viene en body
+            ]
+        }] 
+    });
+
+    if (!inspection) {
+      return res.status(404).json({ error: true, message: 'Registro de inspección no encontrado.' });
+    }
+    if (inspection.type !== 'final' || inspection.processStatus !== 'final_invoice_received' || !inspection.invoiceFromInspectorUrl) {
+      return res.status(400).json({ error: true, message: 'La inspección no está en estado "final_invoice_received" o falta el invoice del inspector.' });
+    }
+    
+    const finalClientEmail = clientEmail || inspection.Work?.Permit?.applicantEmail;
+    const finalClientName = clientName || inspection.Work?.Permit?.applicantName || inspection.Work?.Budget?.applicantName || 'Cliente';
+
+    if (!finalClientEmail) {
+        return res.status(400).json({ error: true, message: 'No se pudo determinar el email del cliente.' });
+    }
+
+    const emailSubject = `Invoice para Inspección Final - Obra: ${inspection.Work.propertyAddress}`;
+    const emailText = `Estimado/a ${finalClientName},\n\nAdjunto encontrará el invoice correspondiente a la Inspección Final para la obra en ${inspection.Work.propertyAddress}.\n\nPor favor, realice el abono y notifíquenos para proceder.\n\nSaludos cordiales.`;
+    
+    await sendEmail({
+      to: finalClientEmail,
+      subject: emailSubject,
+      text: emailText,
+      html: `<p>${emailText.replace(/\n/g, '<br>')}</p>`,
+      attachments: [{
+        filename: `Invoice_Inspeccion_Final_${inspection.Work.propertyAddress.replace(/\s+/g, '_')}.pdf`, // Asume PDF
+        path: inspection.invoiceFromInspectorUrl, 
+      }],
+    });
+
+    inspection.processStatus = 'final_invoice_sent_to_client';
+    inspection.dateInvoiceSentToClient = new Date();
+    await inspection.save();
+
+    await sendNotifications('final_invoice_sent_to_client', inspection.Work, req.app.get('io'), { inspectionId: inspection.idInspection, clientEmail: finalClientEmail });
+
+    res.status(200).json({ message: 'Invoice enviado al cliente. Esperando confirmación de pago.', inspection });
+
+  } catch (error) {
+    console.error('Error en sendInvoiceToClientForFinal:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor al enviar invoice al cliente.' });
+  }
+};
+
+/**
+ * @description Cliente avisa que abonó el invoice. Se registra la confirmación.
+ */
+const confirmClientPaymentForFinal = async (req, res) => {
+  try {
+    const { inspectionId } = req.params;
+    const { paymentNotes } = req.body;
+    const paymentProofFile = req.file; // Opcional: comprobante de pago
+
+    const inspection = await Inspection.findByPk(inspectionId, { include: [Work] });
+    if (!inspection) {
+      return res.status(404).json({ error: true, message: 'Registro de inspección no encontrado.' });
+    }
+    if (inspection.type !== 'final' || inspection.processStatus !== 'final_invoice_sent_to_client') {
+      return res.status(400).json({ error: true, message: `Estado de proceso de inspección inválido (${inspection.processStatus}). Se esperaba 'final_invoice_sent_to_client'.` });
+    }
+
+    if (paymentProofFile) {
+      const cloudinaryResult = await uploadBufferToCloudinary(paymentProofFile.buffer, {
+        folder: `inspections/${inspection.workId}/${inspection.idInspection}/final_payment_proofs`,
+        resource_type: 'raw', // o 'image' si es una imagen
+        public_id: `payment_proof_${paymentProofFile.originalname.split('.')[0]}_${Date.now()}`
+      });
+      inspection.clientPaymentProofUrl = cloudinaryResult.secure_url;
+      inspection.clientPaymentProofPublicId = cloudinaryResult.public_id;
+    }
+
+    inspection.processStatus = 'final_payment_confirmed';
+    inspection.datePaymentConfirmedByClient = new Date();
+    if (paymentNotes) inspection.notes = `${inspection.notes || ''}\nConfirmación Pago Cliente: ${paymentNotes}`.trim();
+    await inspection.save();
+
+    // Notificar internamente que el pago está confirmado y listo para notificar al inspector
+     await sendNotifications('final_payment_confirmed_by_client', inspection.Work, req.app.get('io'), { inspectionId: inspection.idInspection });
+
+
+    res.status(200).json({ message: 'Pago del cliente confirmado. Listo para notificar al inspector.', inspection });
+
+  } catch (error) {
+    console.error('Error en confirmClientPaymentForFinal:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor al confirmar pago del cliente.' });
+  }
+};
+
+/**
+ * @description Se envía confirmación de pago al inspector para que termine la inspección.
+ */
+const notifyInspectorPaymentForFinal = async (req, res) => {
+  try {
+    const { inspectionId } = req.params;
+    // El email del inspector debería estar en la inspección o ser pasado en el body
+    const { inspectorEmail } = req.body; // O buscar en inspection.notes si se guardó allí
+
+    const inspection = await Inspection.findByPk(inspectionId, { 
+        include: [{ model: Work, attributes: ['propertyAddress', 'idWork'], include: [{model: Permit, attributes: ['permitNumber']}] }] 
+    });
+
+    if (!inspection) {
+      return res.status(404).json({ error: true, message: 'Registro de inspección no encontrado.' });
+    }
+    if (inspection.type !== 'final' || inspection.processStatus !== 'final_payment_confirmed') {
+      return res.status(400).json({ error: true, message: `Estado de proceso de inspección inválido (${inspection.processStatus}). Se esperaba 'final_payment_confirmed'.` });
+    }
+
+    let finalInspectorEmail = inspectorEmail;
+    if (!finalInspectorEmail && inspection.notes) {
+        const emailMatch = inspection.notes.match(/(?:Inspector:|Email inspector:)\s*([\w@.-]+)/i);
+        if (emailMatch && emailMatch[1]) finalInspectorEmail = emailMatch[1];
+    }
+    if (!finalInspectorEmail) {
+        return res.status(400).json({ error: true, message: 'No se pudo determinar el email del inspector para la notificación.' });
+    }
+
+
+    const emailSubject = `Confirmación de Pago y Solicitud para Finalizar Inspección - Obra: ${inspection.Work.propertyAddress}`;
+    let emailText = `Estimado Inspector,\n\nLe informamos que el cliente ha realizado el pago del invoice para la Inspección Final de la obra ubicada en ${inspection.Work.propertyAddress} (Permit N°: ${inspection.Work.Permit?.permitNumber || 'N/A'}).`;
+    if (inspection.clientPaymentProofUrl) {
+      emailText += `\n\nPuede ver el comprobante de pago aquí: ${inspection.clientPaymentProofUrl}`;
+    }
+    emailText += `\n\nPor favor, proceda con la inspección y envíenos el resultado.\n\nSaludos cordiales.`;
+    
+    let emailHtml = `<p>${emailText.replace(/\n/g, '<br>')}</p>`;
+    const attachments = [];
+    if (inspection.clientPaymentProofUrl) {
+        attachments.push({
+            filename: `Comprobante_Pago_${inspection.Work.propertyAddress.replace(/\s+/g, '_')}.pdf`, // Asume PDF o ajusta
+            path: inspection.clientPaymentProofUrl,
+        });
+    }
+
+    await sendEmail({
+      to: finalInspectorEmail,
+      subject: emailSubject,
+      text: emailText,
+      html: emailHtml,
+      attachments,
+    });
+
+    inspection.processStatus = 'final_payment_notified_to_inspector';
+    inspection.datePaymentNotifiedToInspector = new Date();
+    await inspection.save();
+
+    // El siguiente estado de la obra podría ser el mismo 'finalInspectionPending' o uno más específico
+    // await inspection.Work.save(); // Si cambia el estado de la obra aquí
+
+    await sendNotifications('final_payment_notified_to_inspector', inspection.Work, req.app.get('io'), { inspectionId: inspection.idInspection });
+
+    res.status(200).json({ message: 'Notificación de pago enviada al inspector. Esperando resultado de la inspección.', inspection });
+
+  } catch (error) {
+    console.error('Error en notifyInspectorPaymentForFinal:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor al notificar pago al inspector.' });
+  }
+};
+
+
+// --- FIN: FUNCIONES PARA EL FLUJO DE INSPECCIÓN FINAL ---
+
+// ... (resto de tus funciones existentes como registerInspectionResult, getInspectionsByWork, etc.)
+// Asegúrate de que registerInspectionResult maneje el caso de type: 'final' y status: 'approved'
+// para cambiar Work.status a 'maintenance' o el estado que corresponda.
 
 /*
-const createInspection = async (req, res) => { ... } // Tu createInspection original
-const updateInspection = async (req, res) => { ... } // Tu updateInspection original
+  En `registerInspectionResult`, cuando `inspection.type === 'final'` y `finalStatus === 'approved'`:
+  work.status = 'maintenance'; // O el estado que defina "mantenimiento"
+  await sendNotifications('final_inspection_approved_maintenance', work, req.app.get('io'), { inspectionId: inspection.idInspection });
+
+  Y si `inspection.type === 'final'` y `finalStatus === 'rejected'`:
+  work.status = 'finalRejected'; // Esto ya lo manejas
+  await sendNotifications('final_inspection_rejected', work, req.app.get('io'), { inspectionId: inspection.idInspection, notes: inspection.notes });
 */
+
+
+
+
 
 module.exports = {
   requestInitialInspection,
   registerInspectorResponse,
   sendDocumentToApplicant,
   registerSignedApplicantDocument,
-  registerInspectionResult,
+  registerInspectionResult, // Asegúrate que este maneje el caso 'final' para 'maintenance'
   getInspectionsByWork,
   getInspectionById,
-  requestReinspection,
+  requestReinspection, // Ya debería manejar 'finalRejected'
   markCorrectionByWorker,
-  // createInspection, // Descomenta si aún necesitas la versión genérica
-  // updateInspection, // Descomenta si aún necesitas la versión genérica
+
+  // Nuevas funciones para inspección final
+  requestFinalInspection,
+  registerInspectorInvoiceForFinal,
+  sendInvoiceToClientForFinal,
+  confirmClientPaymentForFinal,
+  notifyInspectorPaymentForFinal,
+ 
 };

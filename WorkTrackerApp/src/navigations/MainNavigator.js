@@ -19,6 +19,8 @@ import WorkBalanceDetail from '../screens/WorkBalanceDetail';
 import BalanceUploadScreen from '../screens/BalanceUploadScreen'; // Asegúrate que esté descomentado si lo usas
 import GeneralExpenseScreen from '../screens/GeneralExpenseScreen';
 import AllMyWorksScreen from '../screens/AllMyWorksScreen';
+import MaintenanceOverviewScreen from '../screens/MaintenanceOverviewScreen';
+import MaintenanceWorkDetailScreen from '../screens/MaintenanceWorkDetailScreen';
 // --- Context & Actions ---
 import { NotificationContext } from '../utils/notificationContext';
 import { logout } from '../Redux/features/authSlice';
@@ -109,6 +111,20 @@ const AppDrawerNavigator = () => {
             name="PendingWorks" // Nombre único
             component={PendingWorks}
             options={{ title: 'Trabajos Pendientes' }}
+          />
+          <Drawer.Screen // <--- AÑADIR NUEVA PANTALLA AL DRAWER
+            name="MaintenanceOverview"
+            component={MaintenanceOverviewScreen}
+            options={{
+              title: 'Obras en Mantenimiento',
+              drawerIcon: ({ focused, size, color }) => (
+                <Ionicons
+                  name={focused ? 'build' : 'build-outline'}
+                  size={size}
+                  color={color}
+                />
+              ),
+            }}
           />
           {/* GeneralExpense se añade abajo como común */}
         </>
@@ -204,7 +220,11 @@ const MainNavigator = () => {
             {/* GeneralExpense está en el Drawer, no es necesario repetirla aquí a menos que navegues
                 a ella desde una pantalla que NO sea del Drawer. */}
             {/* <Stack.Screen name="GeneralExpense" component={GeneralExpenseScreen} options={{ title: 'Registrar Gasto General' }}/> */}
-
+               <Stack.Screen // <--- AÑADIR PANTALLA DE DETALLE AL STACK
+              name="MaintenanceWorkDetail"
+              component={MaintenanceWorkDetailScreen}
+              options={({ route }) => ({ title: route.params?.title || 'Detalle Mantenimiento' })}
+            />
           </Stack.Group>
         )}
       </Stack.Navigator>

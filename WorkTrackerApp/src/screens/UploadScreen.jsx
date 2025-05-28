@@ -617,9 +617,9 @@ const UploadScreen = () => {
       // fetchWorkById should be dispatched by the updateWork thunk or a listener,
       // which will update currentWork.status and hide this block.
       Alert.alert('Éxito', 'Trabajo marcado como "Cubierto". La oficina será notificada.');
-      // if (navigation.canGoBack()) { // Opcional: navegar atrás si se desea
-      //   navigation.goBack();
-      // }
+      if (navigation.canGoBack()) { // Opcional: navegar atrás si se desea
+        navigation.goBack();
+      }
     } catch (error) {
       console.error('Error al marcar el trabajo como cubierto:', error);
       Alert.alert('Error', `No se pudo marcar el trabajo como cubierto: ${error.message || 'Error desconocido'}`);
@@ -628,24 +628,24 @@ const UploadScreen = () => {
     }
   };
 
-  const handleRequestFinalInspection = async () => {
-    if (isFinalInspectionRequested || isRequestingFinalInspection) return; // Evitar múltiples envíos
-    setIsRequestingFinalInspection(true);
-    try {
-      await dispatch(updateWork(idWork, { status: 'coverPending' }));
-      // await dispatch(fetchAssignedWorks()); // <--- NECESARIO AQUÍ para actualizar la lista
-      setIsFinalInspectionRequested(true);
-      Alert.alert('Éxito', 'Se solicitó la inspección final.');
-      if (navigation.canGoBack()) {
-        navigation.goBack(); // Esto te llevará de vuelta a WorksListScreen
-      }
-    } catch (error) {
-      console.error('Error al solicitar la inspección final:', error);
-      Alert.alert('Error', 'No se pudo solicitar la inspección final.');
-    } finally {
-      setIsRequestingFinalInspection(false); // Finalizar carga
-    }
-  };
+  // const handleRequestFinalInspection = async () => {
+  //   if (isFinalInspectionRequested || isRequestingFinalInspection) return; // Evitar múltiples envíos
+  //   setIsRequestingFinalInspection(true);
+  //   try {
+  //     await dispatch(updateWork(idWork, { status: 'coverPending' }));
+  //     // await dispatch(fetchAssignedWorks()); // <--- NECESARIO AQUÍ para actualizar la lista
+  //     setIsFinalInspectionRequested(true);
+  //     Alert.alert('Éxito', 'Se solicitó la inspección final.');
+  //     if (navigation.canGoBack()) {
+  //       navigation.goBack(); // Esto te llevará de vuelta a WorksListScreen
+  //     }
+  //   } catch (error) {
+  //     console.error('Error al solicitar la inspección final:', error);
+  //     Alert.alert('Error', 'No se pudo solicitar la inspección final.');
+  //   } finally {
+  //     setIsRequestingFinalInspection(false); // Finalizar carga
+  //   }
+  // };
 
   const handleOpenLargeImage = (uri) => {
     console.log('handleOpenLargeImage called with URI:', uri);
@@ -883,9 +883,9 @@ const UploadScreen = () => {
             <Text className="text-sm text-green-600 text-center">
               Ya se envió el aviso a administración.
             </Text>
-            <Text className="text-sm text-green-600 text-center mt-1">
+            {/* <Text className="text-sm text-green-600 text-center mt-1">
               Si todo está listo, puedes proceder a <Text className="font-semibold">solicitar la inspección final</Text> usando el botón de abajo (si está habilitado).
-            </Text>
+            </Text> */}
           </View>
         )}
         {/* --- BLOQUE DE BOTONES PDF MODIFICADO --- */}
@@ -973,7 +973,7 @@ const UploadScreen = () => {
                 </Pressable>
                 )}
             
-                {/* Botón REQUEST FINAL INSPECTION */}
+                {/* Botón REQUEST FINAL INSPECTION
                 {showRequestFinalInspectionButton && ( // <--- USAR LA NUEVA VARIABLE DE CONDICIÓN
                 <Pressable
                     onPress={handleRequestFinalInspection}
@@ -995,7 +995,7 @@ const UploadScreen = () => {
                         : 'PEDIR INSPECCION FINAL'}
                     </Text>
                 </Pressable>
-                )}
+                )} */}
             </>
         )}
       </ScrollView>

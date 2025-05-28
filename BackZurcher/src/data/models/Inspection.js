@@ -31,7 +31,15 @@ module.exports = (sequelize) => {
         'inspection_completed_pending_result', // Inspección física realizada, esperando resultado oficial
         'result_approved',      // Resultado final: Aprobada
         'result_rejected',       // Resultado final: Rechazada
-        'reinspection'
+        'reinspection',
+        // --- Estados para Inspección Final ---
+        'pending_final_request', // Cliente solicitó inspección final, pendiente de enviar a inspector
+        'final_requested_to_inspector', // Solicitud de insp. final enviada a inspector, esperando invoice
+        'final_invoice_received', // Inspector envió invoice, pendiente de enviar a cliente
+        'final_invoice_sent_to_client', // Invoice enviado a cliente, esperando confirmación de pago
+        'final_payment_confirmed', // Cliente confirmó pago, pendiente de notificar a inspector
+        'final_payment_notified_to_inspector' // Pago notificado a inspector, esperando resultado de inspección
+        // --- Fin Estados para Inspección Final ---
       ),
       allowNull: false,
       defaultValue: 'pending_request',
@@ -86,6 +94,35 @@ module.exports = (sequelize) => {
       allowNull: true,
     },
     dateResultReceived: { // Fecha en que se recibió el resultado final
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+     // --- Campos para Inspección Final ---
+    invoiceFromInspectorUrl: { // URL del invoice enviado por el inspector
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    invoiceFromInspectorPublicId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    dateInvoiceSentToClient: { // Fecha en que se envió el invoice al cliente
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    clientPaymentProofUrl: { // URL del comprobante de pago del cliente
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    clientPaymentProofPublicId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    datePaymentConfirmedByClient: { // Fecha en que el cliente confirmó el pago
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    datePaymentNotifiedToInspector: { // Fecha en que se notificó el pago al inspector
       type: DataTypes.DATE,
       allowNull: true,
     },

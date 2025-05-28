@@ -8,7 +8,12 @@ const { upload } = require('../middleware/multer'); // Asegúrate de que esta ru
 const router = express.Router();
 
 
-
+router.get(
+  '/maintenance-overview', // O la ruta que prefieras, ej. '/status/maintenance/overview'
+  verifyToken, // Tu middleware de autenticación
+  allowRoles(['admin', 'owner', 'worker']), // Ajusta los roles según quién puede ver esta lista
+  WorkController.getMaintenanceOverviewWorks
+);
 // Crear una obra (solo administradores)
 router.post('/', verifyToken, allowRoles(['admin', 'recept', 'owner']), WorkController.createWork);
 router.get('/assigned', verifyToken, allowRoles(['owner', 'worker']), WorkController.getAssignedWorks);
@@ -38,6 +43,7 @@ router.post('/:idWork/images',
   );
 
 router.delete('/:idWork/images/:imageId', verifyToken, allowRoles(['owner', 'worker']), WorkController.deleteImagesFromWork);
+
 
 
 

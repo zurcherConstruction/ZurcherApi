@@ -183,3 +183,115 @@ export const requestReinspection = (workId, formData) => async (dispatch) => {
     throw error;
   }
 };
+
+// --- INICIO: ACCIONES PARA EL FLUJO DE INSPECCIÓN FINAL ---
+
+// 6. Solicitar Inspección Final (puede incluir adjuntos)
+export const requestFinalInspection = (workId, formData) => async (dispatch) => {
+  // formData: { inspectorEmail, notes (opcional), applicantEmail, applicantName, attachments (array de files, opcional) }
+  // El backend espera 'attachments' como el campo para los archivos.
+  dispatch(inspectionRequest());
+  try {
+    const response = await api.post(`/inspection/${workId}/request-final`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data', // Necesario para FormData con archivos
+      },
+    });
+    // response.data = { message, inspection, workStatus }
+    dispatch(upsertInspectionSuccess(response.data));
+    if (response.data.workStatus && workId) {
+      dispatch(fetchWorkById(workId));
+    }
+    toast.success(response.data.message || "Solicitud de inspección final enviada.");
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || 'Error al solicitar la inspección final.';
+    dispatch(inspectionFailure(errorMessage));
+    toast.error(errorMessage);
+    throw error;
+  }
+};
+
+// 7. Registrar Invoice del Inspector para Inspección Final
+export const registerInspectorInvoiceForFinal = (inspectionId, formData) => async (dispatch) => {
+  // formData: { invoiceFile (file), notes (opcional) }
+  // El backend espera 'invoiceFile' como el campo para el archivo.
+  dispatch(inspectionRequest());
+  try {
+    const response = await api.put(`/inspection/${inspectionId}/register-final-invoice`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    // response.data = { message, inspection }
+    dispatch(upsertInspectionSuccess(response.data));
+    toast.success(response.data.message || "Invoice del inspector registrado.");
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || 'Error al registrar el invoice del inspector.';
+    dispatch(inspectionFailure(errorMessage));
+    toast.error(errorMessage);
+    throw error;
+  }
+};
+
+// 8. Enviar Invoice al Cliente para Inspección Final
+export const sendInvoiceToClientForFinal = (inspectionId, clientData) => async (dispatch) => {
+  // clientData: { clientEmail, clientName (opcional) }
+  dispatch(inspectionRequest());
+  try {
+    const response = await api.post(`/inspection/${inspectionId}/send-final-invoice-to-client`, clientData);
+    // response.data = { message, inspection }
+    dispatch(upsertInspectionSuccess(response.data));
+    toast.success(response.data.message || "Invoice enviado al cliente.");
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || 'Error al enviar el invoice al cliente.';
+    dispatch(inspectionFailure(errorMessage));
+    toast.error(errorMessage);
+    throw error;
+  }
+};
+
+// 9. Confirmar Pago del Cliente para Inspección Final
+export const confirmClientPaymentForFinal = (inspectionId, formData) => async (dispatch) => {
+  // formData: { paymentNotes (opcional), paymentProofFile (file, opcional) }
+  // El backend espera 'paymentProofFile' como el campo para el archivo.
+  dispatch(inspectionRequest());
+  try {
+    const response = await api.put(`/inspection/${inspectionId}/confirm-client-payment`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data', // Si hay archivo
+      },
+    });
+    // response.data = { message, inspection }
+    dispatch(upsertInspectionSuccess(response.data));
+    toast.success(response.data.message || "Pago del cliente confirmado.");
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || 'Error al confirmar el pago del cliente.';
+    dispatch(inspectionFailure(errorMessage));
+    toast.error(errorMessage);
+    throw error;
+  }
+};
+
+// 10. Notificar Pago al Inspector para Inspección Final
+export const notifyInspectorPaymentForFinal = (inspectionId, inspectorData) => async (dispatch) => {
+  // inspectorData: { inspectorEmail (opcional, si no se puede obtener de otro lado) }
+  dispatch(inspectionRequest());
+  try {
+    const response = await api.post(`/inspection/${inspectionId}/notify-inspector-payment`, inspectorData);
+    // response.data = { message, inspection }
+    dispatch(upsertInspectionSuccess(response.data));
+    toast.success(response.data.message || "Notificación de pago enviada al inspector.");
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || 'Error al notificar el pago al inspector.';
+    dispatch(inspectionFailure(errorMessage));
+    toast.error(errorMessage);
+    throw error;
+  }
+};
+
+// --- FIN: ACCIONES PARA EL FLUJO DE INSPECCIÓN FINAL ---

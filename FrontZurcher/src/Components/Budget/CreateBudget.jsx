@@ -830,7 +830,7 @@ const CreateBudget = () => {
 
       alert(`Presupuesto #${newBudget.idBudget} creado exitosamente.`);
       // Opcional: No navegar inmediatamente, permitir descargar primero
-      // navigate('/budgets');
+       navigate('/budgets');
 
     } catch (error) {
       console.error("Error al crear el presupuesto:", error);

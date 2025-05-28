@@ -8,7 +8,7 @@ module.exports = (sequelize) => {
       defaultValue: DataTypes.UUIDV4,
       allowNull: false,
     },
-    
+
     propertyAddress: {
       type: DataTypes.TEXT,
       allowNull: false, // Aseguramos que este campo sea obligatorio
@@ -20,13 +20,13 @@ module.exports = (sequelize) => {
         'inProgress',
         'installed',
         'firstInspectionPending',
-        'approvedInspection',  
+        'approvedInspection',
         'rejectedInspection',
-        'coverPending', 
+        'coverPending',
         'covered',
         'invoiceFinal',
         'paymentReceived',
-        'finalInspectionPending', 
+        'finalInspectionPending',
         'finalApproved',
         'finalRejected',
         'maintenance'
@@ -40,7 +40,7 @@ module.exports = (sequelize) => {
     },
     endDate: {
       type: DataTypes.DATEONLY,
-      allowNull: true,                                                                                                                                                                                                                                                         
+      allowNull: true,
     },
     notes: {
       type: DataTypes.TEXT,
@@ -62,11 +62,15 @@ module.exports = (sequelize) => {
         key: 'idBudget',
       },
     },
-       stoneExtractionCONeeded: { // NUEVO CAMPO
+    stoneExtractionCONeeded: { // NUEVO CAMPO
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
     },
-    
+    maintenanceStartDate: {
+      type: DataTypes.DATE,
+      allowNull: true, // Permite nulo si la obra no está o nunca ha estado en mantenimiento
+    },
+
   });
 };

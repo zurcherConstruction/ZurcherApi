@@ -5,8 +5,10 @@ import { setLoading } from '../Redux/Reducer/uiReducer'; // You'll need to creat
 
 const api = axios.create({
 
+
   baseURL: 'https://zurcherapi.onrender.com/',
-  timeout: 15000,
+  timeout: 80000,
+
 
 });
 
