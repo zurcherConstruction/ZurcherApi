@@ -32,7 +32,7 @@ module.exports = (sequelize) => {
       allowNull: false,
     },
     status: {
-      type: DataTypes.ENUM("created","send", "approved", "notResponded", "rejected"),
+      type: DataTypes.ENUM("created","send", "approved", "notResponded", "rejected", "sent_for_signature", "signed"),
       allowNull: false,
     },
     paymentProofAmount:{
@@ -94,6 +94,15 @@ module.exports = (sequelize) => {
     type: DataTypes.STRING,
     allowNull: true, // Puede ser null si no se ha subido un PDF
 },
+  signedPdfPath: { // Para guardar la ruta al PDF firmado por el cliente
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
+  adobeAgreementId: { // ID del acuerdo de Adobe Sign
+    type: DataTypes.STRING, // Los IDs de Adobe Sign suelen ser strings
+    allowNull: true, // Será null hasta que se envíe a Adobe Sign
+    unique: true, // Cada acuerdo de Adobe debe ser único
+  },
   PermitIdPermit: {
     type: DataTypes.UUID, // Debe coincidir con el tipo de Permit.idPermit
     allowNull: false, // O true si un Budget puede existir sin Permit
