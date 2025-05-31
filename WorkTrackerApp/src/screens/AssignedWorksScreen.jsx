@@ -5,7 +5,7 @@ import { View, Text, FlatList, TouchableOpacity, TextInput, ActivityIndicator } 
 import UploadScreen from "./UploadScreen";
 import { createStackNavigator } from "@react-navigation/stack";
 import Ionicons from 'react-native-vector-icons/Ionicons';
-
+import {useAutoRefresh} from '../utils/useAutoRefresh'; // Importa el hook de auto-refresh
 // --- 1. Mover la creación del Stack fuera del componente ---
 const Stack = createStackNavigator();
 
@@ -33,7 +33,9 @@ const WorksListScreen = ({ navigation }) => { // Recibe navigation como prop
   const staffId = staff?.idStaff;
 
   const [searchQuery, setSearchQuery] = useState('');
-  const { works, loading: reduxLoading, error } = useSelector((state) => state.work);
+   const { works, loading: reduxLoading, error, lastUpdate } = useSelector((state) => state.work);
+ const { forceRefresh } = useAutoRefresh(60000); // 60 segundos
+  
   console.log("WorksListScreen works", works);
   useEffect(() => {
     if (staffId) {
@@ -101,9 +103,9 @@ const WorksListScreen = ({ navigation }) => { // Recibe navigation como prop
     );
   }
 
-  return (
-    <View className="flex-1 bg-gray-100">
-      <View className="p-4 bg-white border-b border-gray-200 flex-row items-center">
+const renderHeader = () => (
+    <View className="p-4 bg-white border-b border-gray-200">
+      <View className="flex-row items-center mb-2">
         <Ionicons name="search" size={20} color="gray" style={{ marginRight: 8 }} />
         <TextInput
           placeholder="Buscar por dirección..."
@@ -112,7 +114,24 @@ const WorksListScreen = ({ navigation }) => { // Recibe navigation como prop
           className="flex-1 h-10 text-base"
           clearButtonMode="while-editing"
         />
+        <TouchableOpacity 
+          onPress={forceRefresh}
+          className="ml-2 p-2 bg-blue-100 rounded-lg"
+        >
+          <Ionicons name="refresh" size={20} color="#1e3a8a" />
+        </TouchableOpacity>
       </View>
+      {lastUpdate && (
+        <Text className="text-xs text-gray-500 text-center">
+          Última actualización: {new Date(lastUpdate).toLocaleTimeString()}
+        </Text>
+      )}
+    </View>
+  );
+
+  return (
+    <View className="flex-1 bg-gray-100">
+      {renderHeader()}
       <FlatList
         data={filteredWorks}
         keyExtractor={(item) => item.idWork.toString()}

@@ -10,6 +10,15 @@ const WorksScreen = () => {
   const { staff } = useSelector((state) => state.auth);
   const [selectedWorkId, setSelectedWorkId] = useState("");
   
+useEffect(() => {
+  console.log('🔍 WorksListScreen - Estado actual:', { 
+    works, 
+    loading, 
+    error,
+    staffId: staff?.id 
+  });
+}, [works, loading, error, staff]);
+
   useEffect(() => {
     if (staff) {
       dispatch(fetchWorks(staff.idStaff)); // recuerda que en login guardas staff.idStaff o staff.id según corresponda  
