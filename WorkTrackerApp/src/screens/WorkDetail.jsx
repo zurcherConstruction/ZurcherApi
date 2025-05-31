@@ -17,6 +17,8 @@ import * as FileSystem from "expo-file-system";
 import * as IntentLauncher from "expo-intent-launcher";
 import * as Sharing from "expo-sharing";
 import * as ImageManipulator from "expo-image-manipulator";
+import Ionicons from 'react-native-vector-icons/Ionicons'; // Agregar esto
+import PdfViewer from '../utils/PdfViewer'; 
 
 const WorkDetail = () => {
   const { idWork } = useRoute().params;
@@ -26,10 +28,66 @@ const WorkDetail = () => {
   const [imagesWithDataURLs, setImagesWithDataURLs] = useState({});
   const [selectedImage, setSelectedImage] = useState(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [pdfViewerVisible, setPdfViewerVisible] = useState(false);
+  const [selectedPdfUri, setSelectedPdfUri] = useState(null);
 
   useEffect(() => {
     dispatch(fetchWorkById(idWork));
   }, [dispatch, idWork]);
+
+
+
+  const handleOpenPdf = async (pdfSource) => {
+  try {
+    let fileUri;
+    let isDownloadedTempFile = false;
+
+    // Verificar si pdfSource es una URL
+    if (typeof pdfSource === 'string' && (pdfSource.startsWith('http://') || pdfSource.startsWith('https://'))) {
+      const tempFileName = `temp_download_${Date.now()}.pdf`;
+      fileUri = `${FileSystem.cacheDirectory}${tempFileName}`;
+      console.log(`Intentando descargar PDF desde: ${pdfSource} a ${fileUri}`);
+      
+      const downloadResult = await FileSystem.downloadAsync(pdfSource, fileUri);
+      
+      if (downloadResult.status !== 200) {
+        throw new Error(`Error al descargar PDF (status ${downloadResult.status}).`);
+      }
+      console.log('PDF descargado exitosamente:', downloadResult.uri);
+      isDownloadedTempFile = true; 
+    } else {
+      // Lógica existente para base64
+      const base64Pdf =
+        pdfSource?.data
+          ? Buffer.from(pdfSource.data).toString("base64")
+          : typeof pdfSource === 'string' && pdfSource.startsWith("data:application/pdf;base64,")
+            ? pdfSource.split(",")[1]
+            : typeof pdfSource === 'string'
+              ? pdfSource 
+              : null;
+
+      if (!base64Pdf) {
+        throw new Error("El PDF no está en un formato válido (base64) o no se encontró.");
+      }
+      const tempFileNameBase64 = `temp_base64_${Date.now()}.pdf`;
+      fileUri = `${FileSystem.cacheDirectory}${tempFileNameBase64}`;
+      await FileSystem.writeAsStringAsync(fileUri, base64Pdf, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+      isDownloadedTempFile = true;
+    }
+
+    setSelectedPdfUri(fileUri);
+    setPdfViewerVisible(true);
+
+  } catch (error) {
+    console.error("Error en handleOpenPdf:", error);
+    Alert.alert("Error al abrir PDF", `${error.message}. Asegúrate de que la URL sea accesible y el archivo sea un PDF válido.`);
+    if (fileUri && isDownloadedTempFile) {
+      FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(delError => console.error("Error al limpiar archivo temporal tras fallo en handleOpenPdf:", delError));
+    }
+  }
+};
 
 
 
@@ -166,55 +224,55 @@ const WorkDetail = () => {
     setIsModalVisible(false);
   };
 
-  const handleOpenPdf = async (pdfData) => {
-    try {
+  // const handleOpenPdf = async (pdfData) => {
+  //   try {
 
-      const base64Pdf =
-        pdfData?.data
-          ? Buffer.from(pdfData.data).toString("base64")
-          : pdfData.startsWith("data:application/pdf;base64,")
-            ? pdfData.split(",")[1]
-            : null;
+  //     const base64Pdf =
+  //       pdfData?.data
+  //         ? Buffer.from(pdfData.data).toString("base64")
+  //         : pdfData.startsWith("data:application/pdf;base64,")
+  //           ? pdfData.split(",")[1]
+  //           : null;
 
-      if (!base64Pdf) {
-        throw new Error("El PDF no está en un formato válido.");
-      }
+  //     if (!base64Pdf) {
+  //       throw new Error("El PDF no está en un formato válido.");
+  //     }
 
-      const fileUri = `${FileSystem.cacheDirectory}temp.pdf`;
+  //     const fileUri = `${FileSystem.cacheDirectory}temp.pdf`;
 
 
-      await FileSystem.writeAsStringAsync(fileUri, base64Pdf, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
+  //     await FileSystem.writeAsStringAsync(fileUri, base64Pdf, {
+  //       encoding: FileSystem.EncodingType.Base64,
+  //     });
 
-      console.log("PDF guardado en:", fileUri);
+  //     console.log("PDF guardado en:", fileUri);
 
      
-      if (Platform.OS === "android") {
-        const contentUri = await FileSystem.getContentUriAsync(fileUri);
+  //     if (Platform.OS === "android") {
+  //       const contentUri = await FileSystem.getContentUriAsync(fileUri);
 
-        const intent = {
-          action: "android.intent.action.VIEW",
-          data: contentUri,
-          flags: 1,
-          type: "application/pdf",
-        };
+  //       const intent = {
+  //         action: "android.intent.action.VIEW",
+  //         data: contentUri,
+  //         flags: 1,
+  //         type: "application/pdf",
+  //       };
 
-        await IntentLauncher.startActivityAsync(
-          "android.intent.action.VIEW",
-          intent
-        );
-      } else if (Platform.OS === "ios") {
-        await Sharing.shareAsync(fileUri, {
-          mimeType: "application/pdf",
-          dialogTitle: "Compartir PDF",
-          UTI: "com.adobe.pdf",
-        });
-      }
-    } catch (error) {
-      console.error("Error al abrir el PDF:", error);
-    }
-  };
+  //       await IntentLauncher.startActivityAsync(
+  //         "android.intent.action.VIEW",
+  //         intent
+  //       );
+  //     } else if (Platform.OS === "ios") {
+  //       await Sharing.shareAsync(fileUri, {
+  //         mimeType: "application/pdf",
+  //         dialogTitle: "Compartir PDF",
+  //         UTI: "com.adobe.pdf",
+  //       });
+  //     }
+  //   } catch (error) {
+  //     console.error("Error al abrir el PDF:", error);
+  //   }
+  // };
 
   if (loading) {
     return (
@@ -242,72 +300,70 @@ const WorkDetail = () => {
 
  
   return (
-    <ScrollView className="flex-1 bg-gray-100 p-4">
+     <ScrollView className="flex-1 bg-gray-100 p-4">
+    <View className="bg-white p-4 rounded-lg shadow-md mb-4 items-center">
+      <Text className="text-xl uppercase font-semibold text-gray-800 text-center mb-1">
+        {work.propertyAddress || "Dirección no disponible"}
+      </Text>
+      <Text className="text-lg text-gray-700 text-center">
+        <Text className="font-semibold">Status:</Text> {work.status || "Sin estado"}
+      </Text>
+    </View>
 
-      <View className="bg-white p-4 rounded-lg shadow-md mb-4 items-center">
-
-        <Text className="text-xl uppercase font-semibold text-gray-800 text-center mb-1">
-          {work.propertyAddress || "Dirección no disponible"}
-        </Text>
-
-        <Text className="text-lg text-gray-700 text-center">
-          <Text className="font-semibold">Status:</Text> {work.status || "Sin estado"}
-        </Text>
-      </View>
-      <View className="bg-white p-4 rounded-lg shadow-md mb-4">
-        <View className="flex-row items-stretch">
-          {/* Botón Permit */}
-          {work.Permit?.pdfData ? (
+    {/* Nueva sección reorganizada con PDFs arriba y botones BALANCE/GASTOS abajo */}
+    <View className="bg-white p-4 rounded-lg shadow-md mb-4">
+      {/* Fila de botones PDF */}
+      {(work.Permit?.pdfData || work.Permit?.optionalDocs) && (
+        <View className="flex-row justify-center items-center mb-4 space-x-4">
+          {work.Permit?.pdfData && (
             <TouchableOpacity
               onPress={() => handleOpenPdf(work.Permit.pdfData)}
-              className="flex-1 bg-blue-600 py-2 px-3 rounded-lg shadow-md mx-1 h-12 justify-center"
+              className="items-center"
             >
-
-              <Text className="text-white font-bold text-center text-xs">Permit</Text>
+              <View className="w-20 h-20 bg-gray-200 border border-gray-300 rounded-md justify-center items-center mb-1 shadow">
+                <Ionicons name="document-text-outline" size={40} color="#4B5563" />
+              </View>
+              <Text className="text-xs text-center font-medium text-gray-600">PDF Permit</Text>
             </TouchableOpacity>
-          ) : (
-            <View className="flex-1 mx-1 h-12" />
           )}
 
-
-          {work.Permit?.optionalDocs ? (
+          {work.Permit?.optionalDocs && (
             <TouchableOpacity
               onPress={() => handleOpenPdf(work.Permit.optionalDocs)}
-              className="flex-1 bg-green-600 py-2 px-3 rounded-lg shadow-md mx-1 h-12 justify-center"
+              className="items-center ml-6"
             >
-
-              <Text className="text-white font-bold text-center text-xs">Permit Flat</Text>
+              <View className="w-20 h-20 bg-gray-200 border border-gray-300 rounded-md justify-center items-center mb-1 shadow">
+                <Ionicons name="document-attach-outline" size={40} color="#4B5563" />
+              </View>
+              <Text className="text-xs text-center font-medium text-gray-600">PDF Site Plan</Text>
             </TouchableOpacity>
-          ) : (
-            <View className="flex-1 mx-1 h-12" />
           )}
-
-
-          <TouchableOpacity
-            onPress={() => navigation.navigate('WorkBalanceDetail', {
-              idWork: work.idWork,
-              propertyAddress: work.propertyAddress
-            })}
-            className="flex-1 bg-purple-600 py-2 px-3 rounded-lg shadow-md mx-1 h-12 justify-center"
-          >
-
-            <Text className="text-white font-bold text-center text-xs">BALANCE</Text>
-          </TouchableOpacity>
-
-
-          <TouchableOpacity
-            onPress={() => navigation.navigate('BalanceUpload', {
-              idWork: work.idWork,
-              propertyAddress: work.propertyAddress
-            })}
-            className="flex-1 bg-yellow-500 py-2 px-3 rounded-lg shadow-md mx-1 h-12 justify-center"
-          >
-
-            <Text className="text-white font-bold text-center text-xs">GASTOS.</Text>
-          </TouchableOpacity>
         </View>
-      </View>
+      )}
 
+      {/* Columna de botones BALANCE y GASTOS */}
+      <View className="space-y-3">
+        <TouchableOpacity
+          onPress={() => navigation.navigate('WorkBalanceDetail', {
+            idWork: work.idWork,
+            propertyAddress: work.propertyAddress
+          })}
+          className="bg-purple-600 py-3 px-4 rounded-lg shadow-md"
+        >
+          <Text className="text-white font-bold text-center text-sm">BALANCE</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => navigation.navigate('BalanceUpload', {
+            idWork: work.idWork,
+            propertyAddress: work.propertyAddress
+          })}
+          className="bg-yellow-500 py-3 px-4 rounded-lg shadow-md"
+        >
+          <Text className="text-white font-bold text-center text-sm">GASTOS</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
 
       {work.Permit && (
         <View className="bg-white p-4 rounded-lg shadow-md mb-4">
@@ -380,6 +436,18 @@ const WorkDetail = () => {
           );
         })}
       </View>
+          <PdfViewer
+      visible={pdfViewerVisible}
+      fileUri={selectedPdfUri}
+      onClose={() => {
+        setPdfViewerVisible(false);
+        setSelectedPdfUri(null);
+        if (selectedPdfUri) {
+          FileSystem.deleteAsync(selectedPdfUri, { idempotent: true })
+            .catch(err => console.error("Error al eliminar PDF temporal:", err));
+        }
+      }}
+    />
 
       <Modal
         visible={isModalVisible}
