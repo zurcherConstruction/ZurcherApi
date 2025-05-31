@@ -82,7 +82,7 @@ app.use((req, res, next) => {
 
 // Routes
 app.use('/', routes);
-app.use('/auth', authRoutes);
+//app.use('/auth', authRoutes);
 
 // Not Found Middleware
 app.use('*', (req, res) => {
