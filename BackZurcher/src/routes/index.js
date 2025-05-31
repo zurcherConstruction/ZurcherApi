@@ -19,11 +19,14 @@ const budgetItemRoutes = require('./BudgetItemRoutes'); // Asegúrate de que la 
 const finalInvoiceRoutes = require('./finalInvoiceRutes'); // Asegúrate de que la ruta sea correcta
 const changeOrdersRoutes = require('./changeOrderRoutes'); // Asegúrate de que la ruta sea correcta
 const maintenanceRoutes = require('./maintenanceRoutes'); // Asegúrate de que la ruta sea correcta
-const adobeWebhookRoutes = require('./adobeWebhookRoutes'); // Asegúrate de que la ruta sea correcta
+//const adobeWebhookRoutes = require('./adobeWebhookRoutes'); // Asegúrate de que la ruta sea correcta
+const adobeRoutes = require('./adobeRoutes'); // Asegúrate de que la ruta sea correcta
+
 
 router.use('/auth', authRoutes); // Registro y login no requieren token
 router.use('/change-orders',changeOrdersRoutes); // Ruta para comprobantes
-router.use('/webhooks-adobe-sign', adobeWebhookRoutes); 
+router.use('/adobe-oauth', adobeRoutes); // Rutas para Adobe OAuth
+//router.use('/webhooks-adobe-sign', adobeWebhookRoutes); 
 
 // Rutas protegidas (requieren token)
 const { verifyToken } = require('../middleware/isAuth');
