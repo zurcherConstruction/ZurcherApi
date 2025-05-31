@@ -5,6 +5,7 @@ const router = express.Router();
 const AdobeOAuthController = require('../controllers/AdobeSign/AdobeOAuthController');
 
 // Rutas para OAuth de Adobe Sign
+router.get('/debug', AdobeOAuthController.debug);
 router.get('/authorize', AdobeOAuthController.authorize);
 router.get('/callback', AdobeOAuthController.handleCallback);
 router.get('/status', AdobeOAuthController.checkAuthStatus);

@@ -1,12 +1,47 @@
 const AdobeOAuthService = require('./AdobeOAuthService');
 
 const AdobeOAuthController = {
+  // Método de debug para verificar configuración
+  debug: async (req, res) => {
+    try {
+      const oauthService = new AdobeOAuthService();
+      
+      res.json({
+        success: true,
+        configuration: {
+          clientId: process.env.ADOBE_CLIENT_ID ? process.env.ADOBE_CLIENT_ID.substring(0, 10) + '...' : 'NO_SET',
+          clientSecret: process.env.ADOBE_CLIENT_SECRET ? 'SET (' + process.env.ADOBE_CLIENT_SECRET.length + ' chars)' : 'NOT_SET',
+          redirectUri: process.env.ADOBE_REDIRECT_URI || 'NOT_SET',
+          baseURL: oauthService.baseURL,
+          scope: oauthService.scope
+        },
+        generatedAuthUrl: oauthService.getAuthorizationUrl()
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  },
+
   // Iniciar flujo de autorización
   authorize: async (req, res) => {
     try {
       console.log('Ejecutando authorize function');
+      
+      // Verificar que las variables de entorno estén configuradas
+      if (!process.env.ADOBE_CLIENT_ID || !process.env.ADOBE_CLIENT_SECRET) {
+        return res.status(500).json({
+          success: false,
+          message: 'Adobe Sign credentials not properly configured'
+        });
+      }
+
       const oauthService = new AdobeOAuthService();
       const authUrl = oauthService.getAuthorizationUrl();
+      
+      console.log('Generated Auth URL:', authUrl);
       
       res.json({
         success: true,
