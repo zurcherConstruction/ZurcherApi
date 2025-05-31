@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, Image, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, TextInput, Pressable, Image, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView , ActivityIndicator} from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { login } from '../Redux/Actions/authActions';
 import Ionicons from 'react-native-vector-icons/Ionicons';
@@ -9,21 +9,32 @@ const LoginScreen = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const dispatch = useDispatch();
-  const { loading, error, isAuthenticated, staff } = useSelector((state) => state.auth);
+  const { loading, error, isAuthenticated, staff, isLoading } = useSelector((state) => state.auth);
 
   // Manejar redirección basada en el rol
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !isLoading) {
       console.log(`Login exitoso. Staff ID: ${staff?.id}, Rol: ${staff?.role}`);
       if (staff?.role === 'owner') {
-        navigation.replace('OwnerDrawer'); // Redirige al Home del Owner
+        navigation.replace('OwnerDrawer');
       } else if (staff?.role === 'worker') {
-        navigation.replace('PendingWorks'); // Redirige a los Pending Works
+        navigation.replace('PendingWorks');
       } else {
         console.log('Rol desconocido, no se realiza redirección');
       }
     }
-  }, [isAuthenticated, staff, navigation]);
+  }, [isAuthenticated, staff, navigation, isLoading]);
+
+  // Si está cargando la verificación inicial, mostrar indicador
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0000ff" />
+        <Text style={styles.loadingText}>Verificando sesión...</Text>
+      </View>
+    );
+  }
+
 
   const handleLogin = async () => {
     await dispatch(login(email, password));
@@ -108,6 +119,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     backgroundColor: '#f9f9f9',
+  },
+    loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
   },
   logo: {
     width: 150,

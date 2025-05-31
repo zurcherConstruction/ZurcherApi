@@ -8,6 +8,8 @@ const initialState = {
   errorMarkCorrection: null,
   loading: false, // Estado de carga
   error: null,
+  lastUpdate: null,
+  isRefreshing: false,
 };
 
 const workSlice = createSlice({
@@ -21,12 +23,18 @@ const workSlice = createSlice({
     },
     fetchWorksSuccess: (state, action) => {
       state.loading = false;
-      state.works = action.payload; // Guardar la lista de obras
+      state.isRefreshing = false;
+      state.works = action.payload;
+      state.lastUpdate = Date.now();
       state.error = null;
     },
-    fetchWorksFailure: (state, action) => {
+      fetchWorksFailure: (state, action) => {
       state.loading = false;
-      state.error = action.payload; // Guardar el mensaje de error
+      state.isRefreshing = false;
+      state.error = action.payload;
+    },
+    setRefreshing: (state, action) => {
+      state.isRefreshing = action.payload;
     },
 
     // Obtener una obra por ID
@@ -273,6 +281,7 @@ export const {
   fetchWorksRequest,
   fetchWorksSuccess,
   fetchWorksFailure,
+  setRefreshing,
   markInspectionCorrectedRequest,
   markInspectionCorrectedSuccess,
   markInspectionCorrectedFailure,
