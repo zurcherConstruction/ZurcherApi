@@ -34,7 +34,7 @@ import {
 import { Alert } from 'react-native'; // Importar Alert para mostrar errores
 
 // Obtener todas las obras
-export const fetchWorks = (staffId = null) => async (dispatch) => {
+export const fetchWorks = (staffId = null, skipLoading = false) => async (dispatch) => {
   dispatch(fetchWorksRequest());
   try {
     const response = await api.get('/work'); // Ruta del backend
@@ -46,11 +46,33 @@ export const fetchWorks = (staffId = null) => async (dispatch) => {
     }
 
     dispatch(fetchWorksSuccess(works));
+      // Solo loggear cuando es background refresh
+    if (skipLoading) {
+      console.log('🔄 Background refresh completado:', works?.length || 0, 'trabajos');
+    }
+    
+    return works;
   } catch (error) {
     const errorMessage =
       error.response?.data?.message || 'Error al obtener las obras';
     dispatch(fetchWorksFailure(errorMessage));
-    Alert.alert('Error', errorMessage); // Mostrar error en una alerta
+
+    // Solo mostrar alert si no es background refresh
+    if (!skipLoading) {
+      Alert.alert('Error', errorMessage);
+    } else {
+      console.log('❌ Error en background refresh:', errorMessage);
+    }
+    throw error;
+  }
+};
+
+export const refreshWorksInBackground = (staffId) => async (dispatch, getState) => {
+  try {
+    console.log('🔄 Actualizando trabajos en segundo plano...');
+    await dispatch(fetchWorks(staffId, true));
+  } catch (error) {
+    console.log('❌ Error en actualización en background:', error);
   }
 };
 
