@@ -10,6 +10,24 @@ const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const { Op, literal} = require('sequelize');
 const {scheduleInitialMaintenanceVisits} = require('./MaintenanceController'); // Asegúrate de importar la función de programación de mantenimientos iniciales
+const { sequelize } = require('../data'); 
+
+const { 
+  STATUS_ORDER,
+  STATE_DEPENDENCIES,
+  isStatusBackward,
+  isStatusForward,
+  validateStatusChange,
+  checkStatusConflicts,
+  rollbackToStatus,
+  rollbackSpecificStatus,
+  deleteImagesByStage,
+  advanceToStatus,
+  logStatusChange,
+  deleteReceiptsByWorkAndType,
+} = require('../utils/statusManager'); 
+
+
 
 const createWork = async (req, res) => {
   try {
@@ -865,6 +883,165 @@ const getMaintenanceOverviewWorks = async (req, res) => {
   }
 };
 
+// Nueva función para cambiar estados
+const changeWorkStatus = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    const { idWork } = req.params;
+    const { targetStatus, reason, force = false } = req.body;
+
+    // Validar que targetStatus sea válido
+    const validStatuses = [
+      'pending', 'assigned', 'inProgress', 'installed', 
+      'firstInspectionPending', 'approvedInspection', 'rejectedInspection',
+      'coverPending', 'covered', 'finalInspectionPending', 
+      'finalApproved', 'finalRejected', 'invoiceFinal', 
+      'paymentReceived', 'maintenance'
+    ];
+
+    if (!validStatuses.includes(targetStatus)) {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        error: true, 
+        message: 'Estado objetivo no válido',
+        validStatuses 
+      });
+    }
+
+    // Obtener el trabajo con todas sus asociaciones
+    const work = await Work.findByPk(idWork, {
+      include: [
+        { model: Inspection, as: 'inspections' },
+        { model: InstallationDetail, as: 'installationDetails' },
+        { model: Image, as: 'images' },
+        { model: FinalInvoice, as: 'finalInvoice' },
+        { model: MaintenanceVisit, as: 'maintenanceVisits' }
+      ],
+      transaction
+    });
+
+    if (!work) {
+      await transaction.rollback();
+      return res.status(404).json({ error: true, message: 'Obra no encontrada' });
+    }
+
+    const currentStatus = work.status;
+
+    // Si el estado es el mismo, no hacer nada
+    if (currentStatus === targetStatus) {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        error: true, 
+        message: `La obra ya está en estado '${targetStatus}'` 
+      });
+    }
+
+    const isMovingBackward = isStatusBackward(currentStatus, targetStatus);
+    const isMovingForward = isStatusForward(currentStatus, targetStatus);
+
+    // Validar el cambio
+    const validation = await validateStatusChange(work, targetStatus, isMovingBackward, force);
+    if (!validation.valid) {
+      await transaction.rollback();
+      return res.status(400).json({ 
+        error: true, 
+        message: validation.message,
+        conflicts: validation.conflicts,
+        suggestion: "Use 'force: true' para forzar el cambio ignorando los conflictos"
+      });
+    }
+
+    // Ejecutar el cambio de estado
+    if (isMovingBackward) {
+      await rollbackToStatus(work, targetStatus, transaction, reason);
+    } else if (isMovingForward) {
+      await advanceToStatus(work, targetStatus, transaction);
+    }
+
+    // Actualizar el trabajo
+    work.status = targetStatus;
+    await work.save({ transaction });
+
+    // Log del cambio
+    await logStatusChange(idWork, currentStatus, targetStatus, reason, req.staff?.id, transaction);
+
+    await transaction.commit();
+
+    // Recargar trabajo con asociaciones
+    const updatedWork = await Work.findByPk(idWork, {
+      include: [
+        { model: Budget, as: 'budget' },
+        { model: Permit },
+        { model: Inspection, as: 'inspections' },
+        { model: InstallationDetail, as: 'installationDetails' },
+        { model: Image, as: 'images' },
+        { model: FinalInvoice, as: 'finalInvoice' },
+        { model: MaintenanceVisit, as: 'maintenanceVisits' }
+      ]
+    });
+
+    console.log(`✅ Estado cambiado exitosamente: ${currentStatus} → ${targetStatus} para work ${idWork}`);
+
+    res.status(200).json({
+      message: `Estado cambiado de '${currentStatus}' a '${targetStatus}'`,
+      work: updatedWork,
+      changedBy: req.staff?.id,
+      reason,
+      direction: isMovingBackward ? 'backward' : isMovingForward ? 'forward' : 'same'
+    });
+
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Error al cambiar estado:', error);
+    res.status(500).json({ 
+      error: true, 
+      message: 'Error interno del servidor',
+      details: error.message 
+    });
+  }
+};
+
+const validateStatusChangeOnly = async (req, res) => {
+  try {
+    const { idWork } = req.params;
+    const { targetStatus } = req.body;
+
+    const work = await Work.findByPk(idWork, {
+      include: [
+        { model: Inspection, as: 'inspections' },
+        { model: InstallationDetail, as: 'installationDetails' },
+        { model: Image, as: 'images' },
+        { model: FinalInvoice, as: 'finalInvoice' },
+        { model: MaintenanceVisit, as: 'maintenanceVisits' }
+      ]
+    });
+
+    if (!work) {
+      return res.status(404).json({ error: true, message: 'Obra no encontrada' });
+    }
+
+    const currentStatus = work.status;
+    const isMovingBackward = isStatusBackward(currentStatus, targetStatus);
+    
+    // Solo validar, no ejecutar
+    const validation = await validateStatusChange(work, targetStatus, isMovingBackward, false);
+    
+    res.status(200).json({
+      currentStatus,
+      targetStatus,
+      isValid: validation.valid,
+      conflicts: validation.conflicts || [],
+      message: validation.message || 'Validación completada',
+      direction: isMovingBackward ? 'backward' : 'forward'
+    });
+
+  } catch (error) {
+    console.error('Error en validación de estado:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor' });
+  }
+};
+
 
 
 
@@ -882,5 +1059,7 @@ module.exports = {
   addImagesToWork,
   deleteImagesFromWork,
   getMaintenanceOverviewWorks,
+  changeWorkStatus,
+  validateStatusChangeOnly,
  
 };

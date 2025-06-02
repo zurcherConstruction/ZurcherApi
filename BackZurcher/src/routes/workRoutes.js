@@ -44,6 +44,8 @@ router.post('/:idWork/images',
 
 router.delete('/:idWork/images/:imageId', verifyToken, allowRoles(['owner', 'worker']), WorkController.deleteImagesFromWork);
 
+router.post('/:idWork/validate-status-change',verifyToken, allowRoles(['admin', 'owner']), WorkController.validateStatusChangeOnly);
+router.post('/:idWork/change-status', verifyToken, allowRoles(['admin', 'owner',]), WorkController.changeWorkStatus);
 
 
 

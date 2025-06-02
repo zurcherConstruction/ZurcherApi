@@ -341,15 +341,15 @@ console.log("selectedAddress:", selectedAddress, "work:", work);
       toast.error("Por favor, ingrese un monto válido para el gasto.");
       return;
     }
-    if (work.status !== 'pending' && work.status !== 'assigned') {
-      toast.warn(`La obra con dirección ${work.propertyAddress} ya tiene estado '${work.status}'.`);
-      setInitialReceiptFile(null);
-      setInitialMaterialsAmount("");
-      if(document.getElementById('initialReceiptFile')) {
-        document.getElementById('initialReceiptFile').value = null;
-      }
-      return;
+    if (!['pending', 'assigned', 'inProgress'].includes(work.status)) {
+    toast.warn(`La obra con dirección ${work.propertyAddress} ya tiene estado '${work.status}' y no permite carga de materiales iniciales.`);
+    setInitialReceiptFile(null);
+    setInitialMaterialsAmount("");
+    if(document.getElementById('initialReceiptFile')) {
+      document.getElementById('initialReceiptFile').value = null;
     }
+    return;
+  }
 
     setIsUploadingReceipt(true);
     let createdExpenseId = null;
@@ -391,14 +391,18 @@ console.log("selectedAddress:", selectedAddress, "work:", work);
       toast.success('Comprobante de materiales iniciales subido y asociado al gasto.');
       console.log('Comprobante de materiales iniciales subido.');
 
-      // --- Paso 3: Actualizar el estado del Work ---
+       // --- Paso 3: Actualizar el estado SOLO si no está ya en inProgress ---
+    if (work.status !== 'inProgress') {
       const workUpdateData = {
         status: 'inProgress',
         startDate: work.startDate || new Date().toISOString(), 
       };
       await dispatch(updateWork(work.idWork, workUpdateData));
       toast.success(`Estado de la obra para "${work.propertyAddress}" actualizado a "En Progreso".`);
-      console.log('Estado de la obra actualizado a inProgress.');
+    } else {
+      toast.info('La obra ya estaba en progreso. Comprobante registrado exitosamente.');
+    }
+
 
       // --- Limpieza del formulario ---
       setInitialReceiptFile(null);
@@ -448,7 +452,7 @@ console.log("selectedAddress:", selectedAddress, "work:", work);
               >
                 <option value="">Seleccione una dirección</option>
                 {works
-                  .filter((work) => work.status === "pending" || work.status === "assigned")
+                  .filter((work) => work.status === "pending" || work.status === "assigned" || work.status === "inProgress")
                   .map((work) => (
                     <option key={work.idWork} value={work.propertyAddress}>
                       {work.propertyAddress}
@@ -663,14 +667,14 @@ console.log("selectedAddress:", selectedAddress, "work:", work);
             Generar PDF de Materiales
           </button>
 
-            {/* Nueva sección para subir comprobante de materiales iniciales */}
-            {work && (work.status === 'pending' || work.status === 'assigned') && selectedAddress && (
-            <div className="mt-6 p-4 border-2 border-dashed border-blue-500 rounded-lg shadow-md">
-              <h3 className="text-lg font-semibold mb-3 text-blue-700">Confirmar Compra de Materiales Iniciales</h3>
-              <p className="text-sm text-gray-600 mb-3">
-                Sube el comprobante y registra el gasto de los materiales iniciales para la obra en <span className="font-semibold">{work.propertyAddress}</span>.
-                Esto cambiará el estado de la obra a "En Progreso".
-              </p>
+          
+{work && ['pending', 'assigned', 'inProgress'].includes(work.status) && selectedAddress && (
+  <div className="mt-6 p-4 border-2 border-dashed border-blue-500 rounded-lg shadow-md">
+    <h3 className="text-lg font-semibold mb-3 text-blue-700">Confirmar Compra de Materiales Iniciales</h3>
+    <p className="text-sm text-gray-600 mb-3">
+      Sube el comprobante y registra el gasto de los materiales iniciales para la obra en <span className="font-semibold">{work.propertyAddress}</span>.
+      {work.status !== 'inProgress' && " Esto cambiará el estado de la obra a 'En Progreso'."}
+    </p>
               {/* Campo para el Monto */}
               <div className="mb-3">
                 <label htmlFor="initialMaterialsAmount" className="block text-gray-700 text-sm font-bold mb-1">
@@ -710,12 +714,13 @@ console.log("selectedAddress:", selectedAddress, "work:", work);
             </div>
           )}
            {/* Mensaje si la obra ya no está pendiente o asignada */}
-           {work && work.status !== 'pending' && work.status !== 'assigned' && selectedAddress && (
-             <div className="mt-6 p-4 border-2 border-green-500 bg-green-50 rounded-lg shadow-md">
-                <p className="text-sm text-green-700">
-                    La obra en <span className="font-semibold">{work.propertyAddress}</span> ya tiene el estado: <span className="font-bold">{work.status}</span>.
-                </p>
-             </div>
+           {work && !['pending', 'assigned', 'inProgress'].includes(work.status) && selectedAddress && (
+  <div className="mt-6 p-4 border-2 border-green-500 bg-green-50 rounded-lg shadow-md">
+    <p className="text-sm text-green-700">
+      La obra en <span className="font-semibold">{work.propertyAddress}</span> ya tiene el estado: <span className="font-bold">{work.status}</span>.
+      Los materiales iniciales ya fueron procesados o la obra está en una etapa posterior.
+    </p>
+  </div>
            )}
         </div>
       

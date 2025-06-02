@@ -30,6 +30,14 @@ import {
   deleteImagesRequest,
   deleteImagesSuccess,
   deleteImagesFailure,
+    changeWorkStatusRequest,
+    changeWorkStatusSuccess,
+    changeWorkStatusFailure,
+    validateStatusChangeRequest,
+    validateStatusChangeSuccess,
+    validateStatusChangeFailure,
+    clearStatusChangeError,
+    clearStatusValidationError,
   
 } from '../Reducer/workReducer';
 
@@ -412,5 +420,67 @@ export const deleteImagesFromWork = (idWork, imageId) => async (dispatch) => { /
     dispatch(deleteImagesFailure(errorMessage)); // Acción para error
     Alert.alert('Error', errorMessage); // Mostrar error en una alerta
     throw error; // Lanzar el error para manejarlo en el componente
+  }
+};
+
+// Nueva action para cambiar estado de trabajo
+export const changeWorkStatus = (idWork, targetStatus, reason, force = false) => async (dispatch) => {
+  dispatch(changeWorkStatusRequest());
+  try {
+    const response = await api.post(`/work/${idWork}/change-status`, {
+      targetStatus,
+      reason,
+      force
+    });
+
+    console.log('Estado cambiado exitosamente:', response.data);
+    dispatch(changeWorkStatusSuccess(response.data));
+    
+    // Actualizar también la obra en el estado si está cargada
+    if (response.data.work) {
+      dispatch(updateWorkSuccess(response.data.work));
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error al cambiar estado:', error);
+    const errorMessage = error.response?.data?.message || 'Error al cambiar estado del trabajo';
+    
+    // Si hay conflictos, incluirlos en el error
+    const conflicts = error.response?.data?.conflicts || [];
+    const suggestion = error.response?.data?.suggestion || '';
+    
+    const errorPayload = {
+      message: errorMessage,
+      conflicts,
+      suggestion,
+      details: error.response?.data
+    };
+    
+    dispatch(changeWorkStatusFailure(errorPayload));
+    throw errorPayload; // Lanzar para manejo en componente
+  }
+};
+
+// Action para validar cambio de estado (preview)
+export const validateStatusChange = (idWork, targetStatus) => async (dispatch) => {
+  dispatch(validateStatusChangeRequest());
+  try {
+    const response = await api.post(`/work/${idWork}/validate-status-change`, {
+      targetStatus
+    });
+    
+    dispatch(validateStatusChangeSuccess(response.data));
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || 'Error al validar cambio de estado';
+    const errorPayload = {
+      message: errorMessage,
+      conflicts: error.response?.data?.conflicts || [],
+      details: error.response?.data
+    };
+    
+    dispatch(validateStatusChangeFailure(errorPayload));
+    throw errorPayload;
   }
 };
