@@ -9,6 +9,12 @@ const initialState = {
   error: null, // Mensaje de error
   loadingChangeOrder: false, // Estado de carga específico para CO
   errorChangeOrder: null,
+  loadingStatusChange: false,
+  errorStatusChange: null,
+  statusChangeConflicts: [],
+  loadingStatusValidation: false,
+  errorStatusValidation: null,
+  statusValidationResult: null,
 };
 
 const workSlice = createSlice({
@@ -261,6 +267,71 @@ deleteChangeOrderFailure: (state, action) => {
       console.error("Error en deleteImagesFailure:", action.payload); // Log del error
     },
 
+        // Cambiar estado de trabajo
+    changeWorkStatusRequest: (state) => {
+      state.loadingStatusChange = true;
+      state.errorStatusChange = null;
+      state.statusChangeConflicts = [];
+    },
+    changeWorkStatusSuccess: (state, action) => {
+      state.loadingStatusChange = false;
+      state.errorStatusChange = null;
+      state.statusChangeConflicts = [];
+      
+      // action.payload contiene: { message, work, changedBy, reason, direction }
+      const { work } = action.payload;
+      
+      if (work) {
+        // Actualizar en la lista de trabajos
+        const workIndex = state.works.findIndex(w => w.idWork === work.idWork);
+        if (workIndex !== -1) {
+          state.works[workIndex] = work;
+        }
+        
+        // Actualizar trabajo seleccionado si coincide
+        if (state.selectedWork?.idWork === work.idWork) {
+          state.selectedWork = work;
+        }
+        
+        // Actualizar trabajo detallado si coincide
+        if (state.work?.idWork === work.idWork) {
+          state.work = work;
+        }
+      }
+    },
+    changeWorkStatusFailure: (state, action) => {
+      state.loadingStatusChange = false;
+      state.errorStatusChange = action.payload.message;
+      state.statusChangeConflicts = action.payload.conflicts || [];
+    },
+
+    // Validar cambio de estado
+    validateStatusChangeRequest: (state) => {
+      state.loadingStatusValidation = true;
+      state.errorStatusValidation = null;
+      state.statusValidationResult = null;
+    },
+    validateStatusChangeSuccess: (state, action) => {
+      state.loadingStatusValidation = false;
+      state.errorStatusValidation = null;
+      state.statusValidationResult = action.payload;
+    },
+    validateStatusChangeFailure: (state, action) => {
+      state.loadingStatusValidation = false;
+      state.errorStatusValidation = action.payload.message;
+      state.statusValidationResult = null;
+    },
+
+    // Limpiar errores de cambio de estado
+    clearStatusChangeError: (state) => {
+      state.errorStatusChange = null;
+      state.statusChangeConflicts = [];
+    },
+    clearStatusValidationError: (state) => {
+      state.errorStatusValidation = null;
+      state.statusValidationResult = null;
+    },
+
     // Limpiar errores
     clearWorkError: (state) => {
       state.error = null;
@@ -304,6 +375,14 @@ export const {
   deleteImagesRequest,
   deleteImagesSuccess,
   deleteImagesFailure,
+  changeWorkStatusRequest,
+  changeWorkStatusSuccess,
+  changeWorkStatusFailure,
+  validateStatusChangeRequest,
+  validateStatusChangeSuccess,
+  validateStatusChangeFailure,
+  clearStatusChangeError,
+  clearStatusValidationError,
 } = workSlice.actions;
 
 export default workSlice.reducer;

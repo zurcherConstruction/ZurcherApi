@@ -18,14 +18,14 @@ const expenseTypes = [
   "Imprevistos",
   "Comprobante Gasto",
   "Materiales Iniciales"
-  
+
 ];
 
 const AttachReceipt = () => {
   const dispatch = useDispatch();
 
   // Obtener las obras desde el estado global
-  const { works, loading,  error: worksError } = useSelector((state) => state.work);
+  const { works, loading, error: worksError } = useSelector((state) => state.work);
   const staff = useSelector((state) => state.auth.currentStaff);
   // Estados locales
   const [selectedWork, setSelectedWork] = useState(""); // ID de la obra seleccionada
@@ -38,9 +38,9 @@ const AttachReceipt = () => {
   const [amountPaid, setAmountPaid] = useState(''); // Nuevo estado para el monto pagado
   const [finalInvoiceDetails, setFinalInvoiceDetails] = useState(null);
 
-  
-  
-   useEffect(() => {
+
+
+  useEffect(() => {
     dispatch(fetchWorks());
   }, [dispatch]);
 
@@ -50,7 +50,7 @@ const AttachReceipt = () => {
       if (workDetails && workDetails.finalInvoice) {
         setFinalInvoiceDetails(workDetails.finalInvoice);
         // Limpiar el monto de pago final si se cambia la obra o el tipo
-        setFinalPaymentAmount(''); 
+        setFinalPaymentAmount('');
       } else {
         setFinalInvoiceDetails(null);
       }
@@ -70,13 +70,13 @@ const AttachReceipt = () => {
 
     // Validación de archivo
     if (!file) {
-        toast.error("Por favor, adjunta un archivo de comprobante.");
-        return;
+      toast.error("Por favor, adjunta un archivo de comprobante.");
+      return;
     }
-    
+
     const formData = new FormData();
     if (file) { // Solo adjuntar si hay archivo (aunque ahora es siempre obligatorio)
-        formData.append("file", file);
+      formData.append("file", file);
     }
     formData.append("notes", notes);
     formData.append("type", type); // El backend usa este 'type' para la lógica especial
@@ -87,16 +87,23 @@ const AttachReceipt = () => {
           toast.error("No se encontraron detalles de la factura final para la obra seleccionada o la factura no tiene ID.");
           return;
         }
+
+        // ACTUALIZAR ESTA VALIDACIÓN - Permitir también 'paymentReceived'
         if (finalInvoiceDetails.status === 'paid') {
           toast.warn("La Factura Final para esta obra ya está marcada como pagada.");
           return;
         }
-        // Considera qué estados son válidos para pagar. 'pending' y 'partially_paid' son comunes.
-        // 'send' podría ser un estado intermedio antes de 'pending'.
-        if (!['pending', 'partially_paid', 'send'].includes(finalInvoiceDetails.status)) {
-           toast.error(`La Factura Final no está en un estado válido para registrar el pago (Estado actual: ${finalInvoiceDetails.status}).`);
-           return;
+
+        // Permitir carga de comprobante incluso si el trabajo ya está en 'paymentReceived'
+        const workDetails = works.find(w => w.idWork === selectedWork);
+        if (workDetails?.status === 'paymentReceived' && finalInvoiceDetails.status !== 'paid') {
+          // Caso especial: El trabajo está en paymentReceived pero la factura no está marcada como paid
+          toast.info("El trabajo está marcado como pago recibido. Procesando comprobante para completar el registro.");
+        } else if (!['pending', 'partially_paid', 'send'].includes(finalInvoiceDetails.status)) {
+          toast.error(`La Factura Final no está en un estado válido para registrar el pago (Estado actual: ${finalInvoiceDetails.status}).`);
+          return;
         }
+
         if (!finalPaymentAmount || isNaN(parseFloat(finalPaymentAmount)) || parseFloat(finalPaymentAmount) <= 0) {
           toast.error("Por favor, ingrese un monto pagado válido para la factura final.");
           return;
@@ -107,21 +114,28 @@ const AttachReceipt = () => {
         const numericTotalAmountPaidPreviously = parseFloat(finalInvoiceDetails.totalAmountPaid || 0);
         const currentRemainingBalance = numericFinalAmountDue - numericTotalAmountPaidPreviously;
 
-        if (numericAmountPaid > currentRemainingBalance + 0.001) { // Margen para errores de flotantes
+        if (numericAmountPaid > currentRemainingBalance + 0.001) {
           toast.error(`El monto pagado ($${numericAmountPaid.toFixed(2)}) no puede exceder el saldo pendiente ($${currentRemainingBalance.toFixed(2)}).`);
           return;
         }
 
         formData.append("relatedModel", "FinalInvoice");
         formData.append("relatedId", finalInvoiceDetails.id.toString());
-        formData.append("amountPaid", numericAmountPaid.toString()); // Enviar el monto pagado específico
-        formData.append("workId", selectedWork); // Para referencia en el backend si es necesario
+        formData.append("amountPaid", numericAmountPaid.toString());
+        formData.append("workId", selectedWork);
 
         console.log('Enviando FormData para Receipt (Pago Final Factura):', Object.fromEntries(formData));
-        await dispatch(createReceipt(formData)); // createReceipt debe manejar la lógica de FinalInvoice
-        toast.success("Comprobante de Pago Final de Factura adjuntado y procesado correctamente.");
+        await dispatch(createReceipt(formData));
 
-      } else { // Lógica para otros tipos de Income/Expense
+        // Mensaje específico según el contexto
+        if (workDetails?.status === 'paymentReceived') {
+          toast.success("Comprobante de Pago Final registrado. El trabajo ya estaba marcado como pago recibido.");
+        } else {
+          toast.success("Comprobante de Pago Final adjuntado y procesado correctamente.");
+        }
+
+      } else {
+        // Lógica existente para otros tipos...
         if (!generalAmount || isNaN(parseFloat(generalAmount)) || parseFloat(generalAmount) <= 0) {
           toast.error("Por favor, ingrese un monto válido para el ingreso/gasto.");
           return;
@@ -160,7 +174,7 @@ const AttachReceipt = () => {
         if (createdRecordId) { // Solo adjuntar recibo si el ingreso/gasto se creó
           formData.append("relatedModel", isIncome ? "Income" : "Expense");
           formData.append("relatedId", createdRecordId.toString());
-          
+
           console.log('Enviando FormData para Receipt (General):', Object.fromEntries(formData));
           await dispatch(createReceipt(formData));
           toast.success("Comprobante adjuntado correctamente.");
@@ -211,13 +225,108 @@ const AttachReceipt = () => {
             className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
           >
             <option value="">Seleccione una obra</option>
-            {works && works.map((work) => (
-              <option key={work.idWork} value={work.idWork}>
-                {work.propertyAddress}
-              </option>
-            ))}
+            {works && works.map((work) => {
+              // Mostrar obras que pueden necesitar comprobantes de pago
+              const canAttachPayment = ['invoiceFinal', 'paymentReceived'].includes(work.status);
+              const hasUnpaidInvoice = work.finalInvoice && work.finalInvoice.status !== 'paid';
+
+              // Mostrar todas las obras, pero destacar las relevantes para pagos
+              return (
+                <option key={work.idWork} value={work.idWork}>
+                  {work.propertyAddress}
+                  {canAttachPayment && hasUnpaidInvoice ? ' 💰' : ''}
+                  {work.status === 'paymentReceived' ? ' (Pago Recibido)' : ''}
+                </option>
+              );
+            })}
           </select>
         </div>
+
+        {selectedWork && currentWorkDetails && (
+  <div className="my-4 p-3 border border-gray-300 rounded bg-gray-50">
+    <h5 className="text-sm font-semibold text-gray-700 mb-2">📊 Estado de la Obra</h5>
+    <p className="text-xs"><strong>Obra:</strong> {currentWorkDetails.propertyAddress}</p>
+    <p className="text-xs"><strong>Estado:</strong> 
+      <span className={`ml-1 px-2 py-1 rounded text-xs ${
+        currentWorkDetails.status === 'paymentReceived' ? 'bg-green-100 text-green-800' :
+        currentWorkDetails.status === 'invoiceFinal' ? 'bg-blue-100 text-blue-800' :
+        'bg-gray-100 text-gray-800'
+      }`}>
+        {currentWorkDetails.status}
+      </span>
+    </p>
+    
+    {/* ALERTA PARA FACTURA FINAL FALTANTE */}
+    {type === "Factura Pago Final Budget" && !currentWorkDetails.finalInvoice && (
+      <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+        <div className="flex items-start">
+          <svg className="w-5 h-5 text-yellow-400 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+          <div>
+            <p className="text-sm font-medium text-yellow-800">
+              ⚠️ Factura Final no encontrada
+            </p>
+            <p className="text-xs text-yellow-700 mt-1">
+              Para poder registrar el pago final, primero debes <strong>generar la Factura Final</strong> de esta obra.
+            </p>
+            <p className="text-xs text-yellow-600 mt-2">
+              📋 <strong>Pasos a seguir:</strong>
+            </p>
+            <ol className="text-xs text-yellow-600 mt-1 ml-4 list-decimal">
+              <li>Ve al detalle de la obra</li>
+              <li>Busca la sección "Factura Final"</li>
+              <li>Haz clic en "Generar Factura Final"</li>
+              <li>Luego podrás registrar el comprobante de pago aquí</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ALERTA PARA ESTADO INCORRECTO */}
+    {type === "Factura Pago Final Budget" && currentWorkDetails.finalInvoice && 
+     !['invoiceFinal', 'paymentReceived'].includes(currentWorkDetails.status) && (
+      <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-md">
+        <div className="flex items-start">
+          <svg className="w-5 h-5 text-orange-400 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+          </svg>
+          <div>
+            <p className="text-sm font-medium text-orange-800">
+              ℹ️ Estado no óptimo para pago
+            </p>
+            <p className="text-xs text-orange-700 mt-1">
+              La obra debería estar en estado <strong>"Factura Final"</strong> o <strong>"Pago Recibido"</strong> para procesar pagos.
+            </p>
+            <p className="text-xs text-orange-600 mt-1">
+              Estado actual: <strong>{currentWorkDetails.status}</strong>
+            </p>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ALERTA DE FACTURA YA PAGADA */}
+    {type === "Factura Pago Final Budget" && currentWorkDetails.finalInvoice?.status === 'paid' && (
+      <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-md">
+        <div className="flex items-start">
+          <svg className="w-5 h-5 text-green-400 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+          <div>
+            <p className="text-sm font-medium text-green-800">
+              ✅ Factura completamente pagada
+            </p>
+            <p className="text-xs text-green-700 mt-1">
+              La Factura Final de esta obra ya está marcada como pagada completamente.
+            </p>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+)}
 
         <div>
           <label htmlFor="type" className="block text-gray-700 text-sm font-bold mb-2">
@@ -254,7 +363,7 @@ const AttachReceipt = () => {
               Detalles de Factura Final para: {currentWorkDetails.propertyAddress}
             </h5>
             <p className="text-sm">Monto Total Original: ${parseFloat(finalInvoiceDetails.originalBudgetTotal || 0).toFixed(2)}</p>
-            {parseFloat(finalInvoiceDetails.subtotalExtras || 0) > 0 && 
+            {parseFloat(finalInvoiceDetails.subtotalExtras || 0) > 0 &&
               <p className="text-sm">Subtotal Extras: ${parseFloat(finalInvoiceDetails.subtotalExtras).toFixed(2)}</p>
             }
             <p className="text-sm">Monto Total Adeudado (Incl. Extras): ${parseFloat(finalInvoiceDetails.finalAmountDue || 0).toFixed(2)}</p>
@@ -262,7 +371,7 @@ const AttachReceipt = () => {
             <p className="text-sm font-bold text-blue-600">
               Saldo Pendiente Actual: ${calculatedRemainingBalance}
             </p>
-            
+
             <div className="form-group mt-3">
               <label htmlFor="finalPaymentAmount" className="block text-gray-700 text-sm font-bold mb-2">Monto Pagado con este Comprobante:</label>
               <input

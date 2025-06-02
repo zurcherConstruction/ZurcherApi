@@ -74,7 +74,10 @@ const workRef = useRef(work);
   const [showUploadFinalInspectionImage, setShowUploadFinalInspectionImage] = useState(false);
   const [finalInspectionImageFile, setFinalInspectionImageFile] = useState(null);
   const [uploadingFinalImage, setUploadingFinalImage] = useState(false);
-
+  const [showUploadInstalledImage, setShowUploadInstalledImage] = useState(false);
+  const [installedImageFile, setInstalledImageFile] = useState(null);
+  const [uploadingInstalledImage, setUploadingInstalledImage] = useState(false);
+  const [installedImageComment, setInstalledImageComment] = useState('');
   // --- 1. CALCULAR TOTALES Y BALANCE ---
   const { totalIncome, totalExpense, balance } = useMemo(() => {
     const incomeSum = incomes?.reduce((sum, income) => sum + parseFloat(income.amount || 0), 0) || 0;
@@ -374,6 +377,44 @@ const workRef = useRef(work);
       [section]: !prev[section],
     }));
   };
+
+  const handleInstalledImageChange = (event) => {
+  if (event.target.files && event.target.files[0]) {
+    setInstalledImageFile(event.target.files[0]);
+  }
+};
+
+const handleUploadInstalledImage = async () => {
+  if (!installedImageFile || !work?.idWork) {
+    alert("Por favor, selecciona un archivo y asegúrate de que la obra esté cargada.");
+    return;
+  }
+
+  setUploadingInstalledImage(true);
+  const formData = new FormData();
+  formData.append("imageFile", installedImageFile);
+  formData.append("stage", "sistema instalado");
+  formData.append("comment", installedImageComment || "Imagen del sistema instalado subida manualmente desde administración");
+  formData.append("dateTime", new Date().toISOString());
+
+  try {
+    const result = await dispatch(addImagesToWork(work.idWork, formData));
+    if (result && !result.error) {
+      alert("Imagen del sistema instalado subida correctamente.");
+      setInstalledImageFile(null);
+      setInstalledImageComment('');
+      setShowUploadInstalledImage(false);
+      // Refrescar los datos de la obra para ver la nueva imagen
+      dispatch(fetchWorkById(work.idWork));
+    } else {
+      alert(`Error al subir la imagen: ${result?.message || 'Error desconocido'}`);
+    }
+  } catch (error) {
+    alert(`Error al subir la imagen: ${error.message}`);
+  } finally {
+    setUploadingInstalledImage(false);
+  }
+};
 
 
 
@@ -751,24 +792,142 @@ const workRef = useRef(work);
 
 
            {/* Tarjeta: Imágenes */}
-          <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-yellow-500">
-            <div className="flex justify-between items-center mb-4">
-              <h2
-                className="text-xl font-semibold cursor-pointer"
-                onClick={() => toggleSection("images")}
-              >
-                Imágenes de la Obra
-              </h2>
-              {/* Botón para mostrar/ocultar la subida de imagen de inspección final */}
-              {work?.status && (work.status === 'paymentReceived' || work.status === 'finalRejected' || work.status === 'finalInspectionPending' ) && ( // Mostrar solo en estados relevantes
-                <button
-                  onClick={() => setShowUploadFinalInspectionImage(!showUploadFinalInspectionImage)}
-                  className="text-sm bg-teal-500 hover:bg-teal-600 text-white font-semibold py-2 px-3 rounded shadow"
-                >
-                  {showUploadFinalInspectionImage ? 'Cancelar Subida' : 'Subir Img. Insp. Final'}
-                </button>
-              )}
-            </div>
+      <div className="bg-white shadow-md rounded-lg p-6 border-l-4 border-yellow-500">
+  <div className="flex justify-between items-center mb-4">
+    <h2
+      className="text-xl font-semibold cursor-pointer"
+      onClick={() => toggleSection("images")}
+    >
+      Imágenes de la Obra
+    </h2>
+    <div className="flex space-x-2">
+      {/* Botón para subir imagen de sistema instalado */}
+      {work?.status && ['inProgress', 'installed'].includes(work.status) && (
+        <button
+          onClick={() => setShowUploadInstalledImage(!showUploadInstalledImage)}
+          className="text-sm bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-3 rounded shadow"
+        >
+          {showUploadInstalledImage ? 'Cancelar' : 'Subir Img. Sistema'}
+        </button>
+      )}
+      
+      {/* Botón existente para inspección final */}
+      {work?.status && (work.status === 'paymentReceived' || work.status === 'finalRejected' || work.status === 'finalInspectionPending') && (
+        <button
+          onClick={() => setShowUploadFinalInspectionImage(!showUploadFinalInspectionImage)}
+          className="text-sm bg-teal-500 hover:bg-teal-600 text-white font-semibold py-2 px-3 rounded shadow"
+        >
+          {showUploadFinalInspectionImage ? 'Cancelar Subida' : 'Subir Img. Insp. Final'}
+        </button>
+      )}
+    </div>
+  </div>
+
+  {/* Sección para subir imagen del sistema instalado */}
+  {showUploadInstalledImage && (
+    <div className="my-4 p-4 border border-gray-300 rounded-md bg-blue-50">
+      <h3 className="text-md font-semibold text-gray-700 mb-2">
+        Subir Imagen del Sistema Instalado
+      </h3>
+      <p className="text-sm text-gray-600 mb-3">
+        Esta imagen será necesaria para solicitar la inspección inicial.
+      </p>
+      
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Seleccionar imagen:
+        </label>
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handleInstalledImageChange}
+          className="block w-full text-sm text-gray-500
+                     file:mr-4 file:py-2 file:px-4
+                     file:rounded-full file:border-0
+                     file:text-sm file:font-semibold
+                     file:bg-blue-50 file:text-blue-700
+                     hover:file:bg-blue-100"
+        />
+      </div>
+
+      <div className="mb-3">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Comentario (opcional):
+        </label>
+        <input
+          type="text"
+          value={installedImageComment}
+          onChange={(e) => setInstalledImageComment(e.target.value)}
+          placeholder="Describe la imagen del sistema instalado..."
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      {installedImageFile && (
+        <div className="mb-3">
+          <p className="text-xs text-gray-600 mb-2">
+            Archivo seleccionado: {installedImageFile.name}
+          </p>
+          <img 
+            src={URL.createObjectURL(installedImageFile)} 
+            alt="Previsualización" 
+            className="max-h-40 rounded border shadow-sm"
+          />
+        </div>
+      )}
+
+      <div className="flex space-x-2">
+        <button
+          onClick={handleUploadInstalledImage}
+          disabled={!installedImageFile || uploadingInstalledImage}
+          className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded disabled:bg-gray-400 disabled:cursor-not-allowed"
+        >
+          {uploadingInstalledImage ? (
+            <span className="flex items-center justify-center">
+              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Subiendo...
+            </span>
+          ) : (
+            'Subir Imagen del Sistema'
+          )}
+        </button>
+        
+        <button
+          onClick={() => {
+            setShowUploadInstalledImage(false);
+            setInstalledImageFile(null);
+            setInstalledImageComment('');
+          }}
+          className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  )}
+
+  {/* Mensaje informativo si no hay imágenes del sistema instalado */}
+  {work?.status === 'installed' && installedImages.length === 0 && (
+    <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+      <div className="flex items-center">
+        <svg className="w-5 h-5 text-yellow-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+        </svg>
+        <div>
+          <p className="text-sm font-medium text-yellow-800">
+            Atención: No hay imágenes del sistema instalado
+          </p>
+          <p className="text-xs text-yellow-700">
+            Necesitas subir al menos una imagen del sistema instalado para poder solicitar la inspección inicial.
+          </p>
+        </div>
+      </div>
+    </div>
+  )}
+
 
             {/* Sección para subir imagen de inspección final */}
             {showUploadFinalInspectionImage && (
