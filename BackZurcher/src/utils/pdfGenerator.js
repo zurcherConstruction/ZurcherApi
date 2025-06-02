@@ -1,18 +1,31 @@
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
-const { format, parseISO } = require('date-fns'); // Para formatear fechas
+const { format, parseISO } = require('date-fns');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
-// --- CONSTANTES DE DISEÑO (Compartidas y Estilo ChangeOrder) ---
+// --- CONSTANTES DE DISEÑO ---
 const pageMargin = 50;
-// Colores (similares a ChangeOrder)
-const primaryColor = '#003366'; // Azul oscuro
+const primaryColor = '#003366';
 const whiteColor = '#FFFFFF';
 const textColor = '#333333';
-const lightGrayColor = '#DDDDDD'; // Para líneas y bordes suaves
+const lightGrayColor = '#DDDDDD';
 
-// Helper para formatear fechas o devolver N/A
+// --- NUEVAS CONSTANTES PARA ESTILO V2 ---
+const NEW_PAGE_MARGIN = 40;
+const FONT_FAMILY_REGULAR = 'Helvetica';
+const FONT_FAMILY_BOLD = 'Helvetica-Bold';
+const FONT_FAMILY_OBLIQUE = 'Helvetica-Oblique';
+const FONT_FAMILY_MONO = 'Courier';
+const FONT_FAMILY_MONO_BOLD = 'Courier-Bold'; 
+const COLOR_TEXT_DARK = '#333333';
+const COLOR_TEXT_MEDIUM = '#555555';
+const COLOR_TEXT_LIGHT = '#777777';
+const COLOR_PRIMARY_ACCENT = '#007bff';
+const COLOR_BORDER_LIGHT = '#DDDDDD';
+const COLOR_BACKGROUND_TABLE_HEADER = '#f2f2f2';
+
+// Helper para formatear fechas
 const formatDateDDMMYYYY = (dateInput) => {
   if (!dateInput) return 'N/A';
   try {
@@ -31,744 +44,831 @@ const formatDateDDMMYYYY = (dateInput) => {
   }
 };
 
-// --- NUEVA FUNCIÓN DE ENCABEZADO DE PÁGINA (Estilo Change Order) ---
-function _addPageHeader(doc, budgetData, pageTitle, formattedDate, formattedExpirationDate) {
-  const { idBudget } = budgetData;
-  const logoPath = path.join(__dirname, '../assets/logo.png'); // Asegúrate que esta ruta es correcta
-  const headerHeight = 70; // Altura del banner azul
-
-  doc.save(); // Guardar estado para no afectar el resto del doc
-
-  // Banner azul superior
-  doc.rect(0, 0, doc.page.width, headerHeight).fill(primaryColor);
-
-  // Logo (dentro del banner)
-  if (fs.existsSync(logoPath)) {
-    doc.image(logoPath, pageMargin, 10, { height: headerHeight - 20 });
-  } else {
-    console.warn(`Logo no encontrado en header: ${logoPath}`);
-  }
-
-  // Título del Documento
-  doc.fontSize(14).fillColor(whiteColor).font('Helvetica-Bold')
-     .text(pageTitle, pageMargin + 150, headerHeight / 2 - 10, {
-       align: 'center',
-       width: doc.page.width - (pageMargin + 150) - pageMargin
-     });
-  
-  doc.restore(); // Restaurar estado
-
-  // Información del Presupuesto (debajo del banner)
-  const infoStartY = headerHeight + 15;
-  const budgetInfoX = doc.page.width - pageMargin - 200;
-
-  doc.fontSize(10).fillColor(textColor);
-  doc.font('Helvetica-Bold').text(`Budget #: ${idBudget}`, budgetInfoX, infoStartY, { width: 190, align: 'right' });
-  doc.font('Helvetica').text(`Date: ${formattedDate}`, budgetInfoX, doc.y, { width: 190, align: 'right' });
-  if (formattedExpirationDate && formattedExpirationDate !== 'N/A') {
-    doc.text(`Expiration Date: ${formattedExpirationDate}`, budgetInfoX, doc.y, { width: 190, align: 'right' });
-  }
-
-  // Información de la Empresa (izquierda, debajo del banner)
-  const companyInfoX = pageMargin;
-  doc.fontSize(10).font('Helvetica-Bold').text("Zurcher Construction", companyInfoX, infoStartY);
-  doc.font('Helvetica').fontSize(9);
-  doc.text("Septic Tank Division - CFC1433240", companyInfoX, doc.y);
-  doc.text("zurcherseptic@gmail.com", companyInfoX, doc.y);
-  doc.text("+1 (407) 419-4495", companyInfoX, doc.y);
-  
-  let maxYForHeader = doc.y; // Captura la Y después de la info de la empresa
-  
-  // Asegurar que la Y de la info del presupuesto no sobrepase la de la empresa para la línea
-  doc.y = Math.max(maxYForHeader, infoStartY + 3 * doc.currentLineHeight({fontSize:10}));
-
-
-  doc.moveDown(2); // Ajustar este valor según sea necesario
-  const lineY = doc.y;
-  doc.moveTo(pageMargin, lineY).lineTo(doc.page.width - pageMargin, lineY).strokeColor(lightGrayColor).stroke();
-  doc.moveDown(1);
-}
-
-
-// --- NUEVA FUNCIÓN PARA SECCIÓN DE FIRMA ---
-function _addClientSignatureSection(doc) {
-  const currentContentHeight = doc.y;
-  const availableSpace = doc.page.height - pageMargin - currentContentHeight;
-  const signatureSectionHeight = 80; 
-
-  if (availableSpace < signatureSectionHeight) {
-    console.warn("Poco espacio para la sección de firma, podría superponerse o cortarse.");
-    doc.y = doc.page.height - pageMargin - signatureSectionHeight - 10; 
-     if (doc.y < currentContentHeight) doc.y = currentContentHeight + 10; 
-  } else {
-     doc.y = doc.page.height - pageMargin - signatureSectionHeight - 20; 
-  }
-
-  const signatureStartY = doc.y;
-  const contentWidth = doc.page.width - pageMargin * 2;
-  const lineLength = (contentWidth / 2) - 30; 
- const signatureX = pageMargin;
-  const dateX = pageMargin + contentWidth / 2 + 10;
-
-  doc.fontSize(8).font('Helvetica-Bold').text('Client Acceptance & Signature:', pageMargin, signatureStartY, {width: contentWidth}); // Asumo que el tamaño de fuente es 10 como en mi última corrección, si es 8 como en tu selección, el efecto será similar.
-  doc.moveDown(2.5); // Aumentado de 2 a 3 para más espacio
-
-  const lineYPosition = doc.y + 5; // Position for the signature lines
-  
-  // Signature Line (Left)
-  doc.moveTo(signatureX, lineYPosition).lineTo(signatureX + lineLength, lineYPosition).strokeColor(textColor).stroke();
-  
-  // Date Line (Right)
-  doc.moveTo(dateX, lineYPosition).lineTo(dateX + lineLength, lineYPosition).strokeColor(textColor).stroke();
-
-  // Calculate Y for text below lines - a small gap below the line
-  const textY = lineYPosition + 5; 
-
-  doc.font('Helvetica').fontSize(9);
-  
-  // Text below Signature Line (Left)
-  doc.text('Accepted proposal signature.', signatureX, textY, { 
-    width: lineLength, 
-    align: 'center' 
-  });
-
-  // Text below Date Line (Right)
-  doc.text('Signature date.', dateX, textY, { // Use the same textY for horizontal alignment
-    width: lineLength, 
-    align: 'center' 
-  });
-  
-  // Ensure doc.y is below the text for subsequent content
-  // Use currentLineHeight with the active font size (9)
-  doc.y = textY + doc.currentLineHeight({fontSize: 9}) + 10; 
-}
-
-function _addStandardPageFooter(doc) {
-  const footerYPosition = doc.page.height - 35; // Posiciona el pie de página a 35 puntos del borde inferior absoluto
-  const contentWidth = doc.page.width - pageMargin * 2;
-  
-  // Guardar estado actual (color, fuente) para no afectar otras partes del documento
-  doc.save(); 
-  doc.fontSize(8).fillColor('grey').text('Thank you for your business! | Zurcher Construction', pageMargin, footerYPosition, {
-     align: 'center',
-     width: contentWidth
-  });
-  // Restaurar estado
-  doc.restore();
-}
-
-// --- PÁGINA 1: DETALLE DEL PRESUPUESTO (CONTRATO) ---
-function _buildBudgetContractPage(doc, budgetData, formattedDate, formattedExpirationDate) {
-  // Custom header for the FIRST page of Budget Proposal
-  const { idBudget, applicantName, propertyAddress, Permit, lineItems = [], subtotalPrice, discountDescription, discountAmount, totalPrice, initialPaymentPercentage, initialPayment, generalNotes } = budgetData;
-  const contentWidth = doc.page.width - pageMargin * 2;
-
-  const headerHeight = 70;
-  doc.save();
-  // Blue Banner
-  doc.rect(0, 0, doc.page.width, headerHeight).fill(primaryColor);
-
-  // Logo (left in banner)
+// --- FUNCIONES DE ENCABEZADO ---
+function _addPageHeader_v2(doc, budgetData, pageType, documentIdOrTitle, formattedDate, formattedExpirationDate) {
   const logoPath = path.join(__dirname, '../assets/logo.png');
-  if (fs.existsSync(logoPath)) {
-    doc.image(logoPath, pageMargin, 10, { height: headerHeight - 20 });
-  } else {
-    console.warn(`Logo no encontrado en header: ${logoPath}`);
-  }
-
-  // Budget #, Date, Expiration Date (right in banner)
-  const budgetInfoXInBanner = doc.page.width - pageMargin - 220; 
-  let budgetInfoYInBanner = 18; // Adjusted Y for better vertical centering in banner
-
-  doc.fillColor(whiteColor).font('Helvetica-Bold').fontSize(10);
-  doc.text(`Budget #: ${idBudget}`, budgetInfoXInBanner, budgetInfoYInBanner, { width: 210, align: 'right' });
-  budgetInfoYInBanner += doc.currentLineHeight() + 2;
-  doc.font('Helvetica').fontSize(9);
-  doc.text(`Date: ${formattedDate}`, budgetInfoXInBanner, budgetInfoYInBanner, { width: 210, align: 'right' });
-  budgetInfoYInBanner += doc.currentLineHeight() + 2;
-  if (formattedExpirationDate && formattedExpirationDate !== 'N/A') {
-    doc.text(`Expiration Date: ${formattedExpirationDate}`, budgetInfoXInBanner, budgetInfoYInBanner, { width: 210, align: 'right' });
-  }
-  doc.restore(); // After banner content
-
-  // --- Content Below Banner ---
-  const infoStartYBelowBanner = headerHeight + 15;
-
-  // Company Information (Zurcher - left, below banner)
-  const companyInfoX = pageMargin;
-  doc.fillColor(textColor).fontSize(10).font('Helvetica-Bold').text("Zurcher Construction", companyInfoX, infoStartYBelowBanner);
-  doc.font('Helvetica').fontSize(9);
-  doc.text("Septic Tank Division - CFC1433240", companyInfoX, doc.y);
-  doc.text("zurcherseptic@gmail.com", companyInfoX, doc.y);
-  doc.text("+1 (407) 419-4495", companyInfoX, doc.y);
-  let maxYLeft = doc.y;
-
-  // Customer Information (right, below banner)
-  const customerInfoX = doc.page.width - pageMargin - 220; // Align with budget info in banner
-  doc.fillColor(textColor).fontSize(10).font('Helvetica-Bold').text('Client:', customerInfoX, infoStartYBelowBanner, {width: 210, align: 'left'});
-  doc.font('Helvetica').fontSize(9);
-  doc.text(`Name: ${applicantName || 'N/A'}`, customerInfoX, doc.y, {width: 210, align: 'left'});
-  doc.text(`Property Address: ${propertyAddress || 'N/A'}`, customerInfoX, doc.y, {width: 210, align: 'left'});
-  if (Permit) {
-    doc.text(`Permit #: ${Permit.permitNumber || 'N/A'}`, customerInfoX, doc.y, {width: 210, align: 'left'});
-  }
-  let maxYRight = doc.y;
-
-  doc.y = Math.max(maxYLeft, maxYRight); // Ensure y is below the taller of the two columns
-
-  // Separator line
-  doc.moveDown(2);
-  const lineY = doc.y;
-  doc.moveTo(pageMargin, lineY).lineTo(doc.page.width - pageMargin, lineY).strokeColor(lightGrayColor).stroke();
-  doc.moveDown(1);
-
- // --- NEW: DYNAMIC INTRODUCTORY TEXT ---
-  let systemType = "Septic Tank System"; // Default
-  let systemBrand = "INFILTRATOR"; // Default
-  let sandLoads = 4; // Default
-  let systemCapacity = " gallons per day (GPD)"; // Default
-  let drainfieldSize = "500 sqft"; // Default
-
-  const systemItem = lineItems.find(item => item.category && item.category.toUpperCase().includes("SYSTEM"));
-  if (systemItem) {
-    systemType = systemItem.name || systemType;
-    systemBrand = systemItem.brand || systemBrand;
-  }
-  const sandItem = lineItems.find(item => item.name && item.name.toLowerCase().includes("sand") && item.quantity);
-  if (sandItem) {
-    sandLoads = parseFloat(sandItem.quantity) || sandLoads;
-  }
-  // You might need to adjust how systemCapacity and drainfieldSize are found if they are in lineItems
-
-doc.fontSize(10).font('Helvetica-Bold').text('The Following Proposal Includes:', pageMargin, doc.y, { underline: true, align: 'center' });
-  doc.moveDown(1);
-  doc.font('Helvetica').fontSize(9);
-  // Explicitly set x to pageMargin, y to undefined (current doc.y)
-  doc.text(`This proposal outlines the installation of a sewage system.`, pageMargin, undefined, { align: 'justify', width: contentWidth });
-  doc.moveDown(0.5);
-  doc.text(`The cost covers both labor and Maintenance service twice a year, for two years for the tank.`, pageMargin, undefined, { align: 'justify', width: contentWidth });
-  doc.moveDown(0.5);
-  doc.text(`The initial inspection will be carried out by a private provider as part of the agreed price. Once the installation stages have been completed, including lawn seeding, gutter installation, and well installation, we will be ready for the final inspection.`, pageMargin, undefined, { align: 'justify', width: contentWidth });
-  doc.moveDown(0.5);
-  doc.text(`In case you prefer a final inspection carried out by a private provider, an additional charge of $200 will apply. If you prefer to avoid this charge, you can notify the Health Department and request the final inspection to be conducted by the department.`, pageMargin, undefined, { align: 'justify', width: contentWidth });
-  doc.moveDown(1);
-
-  // --- NEW: ADDITIONAL COSTS SECTION ---
-  doc.font('Helvetica-Bold').fontSize(10).text('Pumping Station and Additional Costs:', pageMargin, undefined, { underline: true, width: contentWidth, align: 'left' });
-  doc.font('Helvetica').fontSize(9);
-  doc.moveDown(0.5);
-  doc.text("If gravity flow isn't achievable and a pumping station is needed for system installation, a pumping station, pump, and audiovisual alarm will be installed for a cost of $2,750. This cost does not cover lawn installation or any required electrical work to power the pumping station, if needed.", pageMargin, undefined, { align: 'justify', width: contentWidth });
-  doc.moveDown(1);
-
-  doc.font('Helvetica-Bold').fontSize(10).text('Price Changes and Notification:', pageMargin, undefined, { underline: true, width: contentWidth, align: 'left' });
-  doc.font('Helvetica').fontSize(9);
-  doc.moveDown(0.5);
-  doc.text("Due to price volatility and material availability, prices are subject to change. In the event of a price adjustment, a written notification will be sent before commencing any new work with the updated price.", pageMargin, undefined, { align: 'justify', width: contentWidth });
-  doc.moveDown(1);
-
-  doc.font('Helvetica-Bold').fontSize(10).text('Maintenance and Repairs:', pageMargin, undefined, { underline: true, width: contentWidth, align: 'left' });
-  doc.font('Helvetica').fontSize(9);
-  doc.moveDown(0.5);
-  doc.text("While maintenance will be conducted, repair of tank parts is not included and must be managed directly with the manufacturer.", pageMargin, undefined, { align: 'justify', width: contentWidth });
-  doc.moveDown(1);
-
-  doc.font('Helvetica-Bold').fontSize(10).text('Deep Excavation and Additional Charges:', pageMargin, undefined, { underline: true, width: contentWidth, align: 'left' });
-  doc.font('Helvetica').fontSize(9);
-  doc.moveDown(0.5);
-  doc.text("Please note that if deep excavation is required, more sand than included in this estimate may be needed. Additional charges will apply if a jackhammer is needed due to the presence of rocks or other hard material, as indicated below:", pageMargin, undefined, { align: 'justify', width: contentWidth });
-  // For lists, the x,y are the starting point of the list block.
-  doc.list([
-    "$350 for the first hour.",
-    "$250 for the second hour.",
-    "$200 for each additional hour (with a minimum of 2 hours)."
-  ], pageMargin, undefined, { indent: 20, bulletRadius: 1.5, width: contentWidth - 20 });
-  doc.moveDown(1);
-
-  doc.font('Helvetica-Bold').fontSize(10).text('Extra Sand and Other Materials Charges:', pageMargin, undefined, { underline: true, width: contentWidth, align: 'left' });
-  doc.font('Helvetica').fontSize(9);
-  doc.moveDown(0.5);
-  doc.text("Any extra sand loads will be billed immediately after system installation, starting at $370.00 per load. Additional billing will start from $290 if soil fill is required to cover the system. Additional charges will apply for transports:", pageMargin, undefined, { align: 'justify', width: contentWidth });
-  doc.list([
-    "$160 for fill material.",
-    "$220 for rocks."
-  ], pageMargin, undefined, { indent: 20, bulletRadius: 1.5, width: contentWidth - 20 });
-  doc.moveDown(1);
-
-  // --- NEW: PAYMENT SCHEDULE SECTION ---
-  const firstPaymentAmount = parseFloat(initialPayment);
-  const totalAmount = parseFloat(totalPrice);
-  const secondPaymentAmount = totalAmount - firstPaymentAmount;
-
-  doc.font('Helvetica-Bold').fontSize(10).text('PAYMENT SCHEDULE', pageMargin, undefined, { underline: true, align: 'left', width: contentWidth });
-  doc.moveDown(1);
-
-  doc.font('Helvetica-Bold').fontSize(10).text('1ST PAYMENT', pageMargin, undefined, {width: contentWidth, align: 'left'});
-  doc.font('Helvetica').fontSize(9);
-  doc.text(`The first money transfer will be ${initialPaymentPercentage || 60}% of the total agreed amount. The payment must be made at the time of signing the contract.`, pageMargin, undefined, { continued: false, align: 'justify', width: contentWidth });
-  doc.font('Helvetica-Bold').text(`Total: $${!isNaN(firstPaymentAmount) ? firstPaymentAmount.toFixed(2) : '0.00'}`, pageMargin, undefined, { underline: true, width: contentWidth, align: 'left' });
-  doc.moveDown(1);
-
-  doc.font('Helvetica-Bold').fontSize(10).text('2ND PAYMENT', pageMargin, undefined, {width: contentWidth, align: 'left'});
-  doc.font('Helvetica').fontSize(9);
-  doc.text(`The second money transfer will be ${100 - (initialPaymentPercentage || 60)}% of the total agreed amount. The payment must be made upon completion of the project.`, pageMargin, undefined, { continued: false, align: 'justify', width: contentWidth });
-  doc.font('Helvetica-Bold').text(`Total: $${!isNaN(secondPaymentAmount) ? secondPaymentAmount.toFixed(2) : '0.00'}`, pageMargin, undefined, { underline: true, width: contentWidth, align: 'left' });
-  doc.moveDown(1.5);
-
-
-
-
-//   // The rest of the page content (Scope of Work, Items, Totals, Notes, Signature)
-//   // Check if there's enough space for the table header, otherwise add a new page.
-//   if (doc.y + 50 > doc.page.height - pageMargin - 130) { // 50 for table header, 130 for signature/footer
-//     _addStandardPageFooter(doc);
-//     doc.addPage();
-//     _addPageHeader(doc, budgetData, "BUDGET PROPOSAL / CONTRACT (Cont.)", formattedDate, formattedExpirationDate);
-//   }
-
-//   doc.fontSize(12).font('Helvetica-Bold').text('Scope of Work / Budget Items', pageMargin, doc.y, { underline: true });
-//   doc.moveDown(0.5);
-//   const tableTop = doc.y;
-// // ... rest of the _buildBudgetContractPage function (item table, totals, signature, etc.) remains the same
-// // ...ensure the lineItems.forEach loop and totals section correctly use _addPageHeader for continuations.
-//   const itemX = pageMargin;
-//   const qtyX = pageMargin + contentWidth * 0.55;
-//   const unitPriceX = pageMargin + contentWidth * 0.70;
-//   const totalX = pageMargin + contentWidth * 0.85;
-//   const tableHeaderRightEdge = doc.page.width - pageMargin;
-
-//   doc.fontSize(10).font('Helvetica-Bold');
-//   doc.rect(itemX, tableTop - 5, contentWidth, 20).fillOpacity(0.1).fillAndStroke(primaryColor, lightGrayColor);
-//   doc.fillOpacity(1).fillColor(textColor);
-
-//   doc.text('Item / Description', itemX + 5, tableTop, { width: qtyX - itemX - 10 });
-//   doc.text('Qty', qtyX, tableTop, { width: unitPriceX - qtyX - 10, align: 'right' });
-//   doc.text('Unit Price', unitPriceX, tableTop, { width: totalX - unitPriceX - 10, align: 'right' });
-//   doc.text('Line Total', totalX, tableTop, { width: tableHeaderRightEdge - totalX - 5, align: 'right' });
-//   doc.font('Helvetica').fillColor(textColor);
-//   doc.y = tableTop + 15;
-//   doc.moveDown(0.5);
-
-//   lineItems.forEach((item) => {
-//     const yStartRow = doc.y;
-//     let estimatedRowHeight = 20; 
-//     const descText = ((item.category ? item.category.toUpperCase() + ' - ' : '') + (item.name || 'N/A').toUpperCase() + (item.brand ? ' - ' + item.brand.toUpperCase() : ''));
-//     estimatedRowHeight = Math.max(estimatedRowHeight, doc.heightOfString(descText, { width: qtyX - itemX - 15, fontSize: 9 }));
-//     const lowerCaseNotes = item.notes ? item.notes.toLowerCase() : "";
-//     const shouldShowNotes = item.notes && lowerCaseNotes !== 'item personalizado';
-//     if (shouldShowNotes) {
-//         estimatedRowHeight += doc.heightOfString(item.notes, {width: qtyX - itemX - 20, fontSize: 8}) + 5;
-//     }
-
-//     if (yStartRow + estimatedRowHeight > doc.page.height - pageMargin - 130) { 
-//         _addStandardPageFooter(doc);
-//         doc.addPage();
-//         _addPageHeader(doc, budgetData, "BUDGET PROPOSAL / CONTRACT (Cont.)", formattedDate, formattedExpirationDate);
-//         doc.fontSize(10).font('Helvetica-Bold');
-//         const newTableTop = doc.y;
-//         doc.rect(itemX, newTableTop - 5, contentWidth, 20).fillOpacity(0.1).fillAndStroke(primaryColor, lightGrayColor);
-//         doc.fillOpacity(1).fillColor(textColor);
-//         doc.text('Item / Description', itemX + 5, newTableTop, { width: qtyX - itemX - 10 });
-//         doc.text('Qty', qtyX, newTableTop, { width: unitPriceX - qtyX - 10, align: 'right' });
-//         doc.text('Unit Price', unitPriceX, newTableTop, { width: totalX - unitPriceX - 10, align: 'right' });
-//         doc.text('Line Total', totalX, newTableTop, { width: tableHeaderRightEdge - totalX - 5, align: 'right' });
-//         doc.font('Helvetica').fillColor(textColor);
-//         doc.y = newTableTop + 15;
-//         doc.moveDown(0.5);
-//     }
-    
-//     const yPos = doc.y;
-//     const quantityNum = parseFloat(item.quantity);
-//     const unitPriceNum = parseFloat(item.unitPrice);
-//     const lineTotalNum = parseFloat(item.lineTotal);
-
-//     let descriptionParts = [];
-//     if (item.category) descriptionParts.push(item.category.toUpperCase());
-//     descriptionParts.push((item.name || 'N/A').toUpperCase());
-//     if (item.brand) descriptionParts.push(item.brand.toUpperCase());
-//     const itemFullDescription = descriptionParts.join(' - ');
-
-//     doc.fontSize(9).text(itemFullDescription, itemX + 5, yPos + 2, { width: qtyX - itemX - 15 });
-//     let notesY = doc.y; 
-
-//     if (shouldShowNotes) {
-//       doc.fontSize(8).fillColor('grey').text(item.notes, itemX + 10, notesY, { width: qtyX - itemX - 20 }); 
-//       doc.fillColor(textColor);
-//       notesY = doc.y; 
-//     }
-    
-//     doc.fontSize(9).text(!isNaN(quantityNum) ? quantityNum.toFixed(2) : '0.00', qtyX, yPos + 2, { width: unitPriceX - qtyX - 10, align: 'right' });
-//     doc.text(`$${!isNaN(unitPriceNum) ? unitPriceNum.toFixed(2) : '0.00'}`, unitPriceX, yPos + 2, { width: totalX - unitPriceX - 10, align: 'right' });
-//     doc.text(`$${!isNaN(lineTotalNum) ? lineTotalNum.toFixed(2) : '0.00'}`, totalX, yPos + 2, { width: tableHeaderRightEdge - totalX - 5, align: 'right' });
-    
-//     doc.y = Math.max(yPos + doc.heightOfString(itemFullDescription, {width: qtyX - itemX - 15, fontSize: 9}), notesY);
-//     doc.moveDown(0.5);
-//     doc.moveTo(itemX, doc.y).lineTo(tableHeaderRightEdge, doc.y).strokeColor(lightGrayColor).stroke();
-//     doc.moveDown(0.5);
-//   });
-
-//   doc.moveDown(0.5);
-
-//   const totalsLabelStartX = pageMargin + contentWidth * 0.55; 
-//   const totalsValueStartX = pageMargin + contentWidth * 0.80;
-//   const totalsRightEdge = doc.page.width - pageMargin;
-//   const labelWidth = totalsValueStartX - totalsLabelStartX - 5;
-//   const valueWidth = totalsRightEdge - totalsValueStartX - 5;
-//   doc.fontSize(10);
-
-//   let currentYTotal = doc.y;
-//   if (currentYTotal + 80 > doc.page.height - pageMargin - 130) {
-//     _addStandardPageFooter(doc); doc.addPage();
-//     _addPageHeader(doc, budgetData, "BUDGET PROPOSAL / CONTRACT (Cont.)", formattedDate, formattedExpirationDate);
-//     currentYTotal = doc.y;
-//   }
-
-//   const subtotalNum = parseFloat(subtotalPrice);
-//   doc.text(`Subtotal:`, totalsLabelStartX, currentYTotal, { width: labelWidth, align: 'right' });
-//   doc.text(`$${!isNaN(subtotalNum) ? subtotalNum.toFixed(2) : '0.00'}`, totalsValueStartX, currentYTotal, { width: valueWidth, align: 'right' });
-//   doc.moveDown(0.65);
-
-//   const discountNum = parseFloat(discountAmount);
-//   if (discountNum > 0) {
-//     currentYTotal = doc.y;
-//     doc.text(`Discount (${discountDescription || ''}):`, totalsLabelStartX, currentYTotal, { width: labelWidth, align: 'right' });
-//     doc.text(`-$${discountNum.toFixed(2)}`, totalsValueStartX, currentYTotal, { width: valueWidth, align: 'right' });
-//     doc.moveDown(0.65);
-//   }
-
-//   currentYTotal = doc.y;
-//   const totalNum = parseFloat(totalPrice);
-//   doc.font('Helvetica-Bold');
-//   doc.text(`Total Contract Price:`, totalsLabelStartX, currentYTotal, { width: labelWidth, align: 'right' });
-//   doc.text(`$${!isNaN(totalNum) ? totalNum.toFixed(2) : '0.00'}`, totalsValueStartX, currentYTotal, { width: valueWidth, align: 'right' });
-//   doc.font('Helvetica');
-//   doc.moveDown(0.65);
-
-//   currentYTotal = doc.y;
-//   // const initialPaymentNum = parseFloat(initialPayment); // Already defined for Payment Schedule
-//   let paymentLabel = `Initial Payment (60%)`;
-//   if (initialPaymentPercentage === 100) {
-//     paymentLabel = `Payment in Full (100%)`;
-//   } else {
-//     const storedPercentage = parseFloat(initialPaymentPercentage);
-//     if (!isNaN(storedPercentage) && storedPercentage !== 100) {
-//         paymentLabel = `Initial Payment (${storedPercentage}%) Due Upon Acceptance:`;
-//     } else if (isNaN(storedPercentage)){ 
-//         paymentLabel = `Initial Payment (60%) Due Upon Acceptance:`;
-//     }
-//   }
-//   doc.font('Helvetica-Bold');
-//   doc.text(`${paymentLabel}`, totalsLabelStartX - 25, currentYTotal, { width: labelWidth + 25, align: 'right' });
-//   doc.text(`$${!isNaN(firstPaymentAmount) ? firstPaymentAmount.toFixed(2) : '0.00'}`, totalsValueStartX, currentYTotal, { width: valueWidth, align: 'right' });
-//   doc.font('Helvetica');
-//   doc.moveDown(1.5);
-
-//   if (generalNotes) {
-//     if (doc.y + 60 > doc.page.height - pageMargin - 130) {
-//         _addStandardPageFooter(doc); doc.addPage();
-//         _addPageHeader(doc, budgetData, "BUDGET PROPOSAL / CONTRACT (Cont.)", formattedDate, formattedExpirationDate);
-//     }
-//     doc.fontSize(10).font('Helvetica-Bold').text('General Notes & Scope Clarifications:', pageMargin, doc.y, { underline: true });
-//     doc.font('Helvetica').fontSize(9);
-//     doc.moveDown(0.5);
-//     doc.text(generalNotes, pageMargin, doc.y, { width: contentWidth, align: 'justify' });
-//     doc.moveDown(1.5);
-//   }
+  const headerStartY = NEW_PAGE_MARGIN;
+  const contentWidth = doc.page.width - NEW_PAGE_MARGIN * 2;
   
-  _addClientSignatureSection(doc);
- 
-}
+  const { applicantName, propertyAddress, Permit } = budgetData; // Destructure for T&C
 
-// --- PÁGINA 2: TÉRMINOS Y CONDICIONES ---
-function _buildTermsAndConditionsPage(doc, budgetData, formattedDate, formattedExpirationDate) {
-  _addPageHeader(doc, budgetData, "TERMS AND CONDITIONS", formattedDate, formattedExpirationDate);
-  const contentWidth = doc.page.width - pageMargin * 2;
+  if (pageType === "INVOICE") {
+    // --- INVOICE HEADER LOGIC (como se refinó anteriormente) ---
+    const companyInfoX = NEW_PAGE_MARGIN;
+    const companyInfoWidth = contentWidth * 0.55;
+    const invoiceInfoX = NEW_PAGE_MARGIN + companyInfoWidth + 10;
+    const invoiceInfoWidth = contentWidth - companyInfoWidth - 10;
 
-  doc.fontSize(12).font('Helvetica-Bold').text('Standard Terms and Conditions', pageMargin, doc.y, { underline: true, align: 'center' });
-  doc.moveDown(1);
-
-  // --- REPLACE WITH YOUR ACTUAL TERMS AND CONDITIONS TEXT ---
-  const termsText = `
-1.  Scope of Work: The scope of work is limited to the items explicitly listed in the Budget Proposal / Contract. Any additional work requested by the Client will be considered a Change Order and will be quoted and billed separately. Zurcher Construction reserves the right to refuse any additional work.
-
-2.  Payment Terms:
-    a.  An initial payment, as specified in the Budget Proposal, is due upon acceptance of this contract to schedule the work.
-    b.  Final payment is due immediately upon completion of the work, unless otherwise agreed in writing.
-    c.  Late payments may be subject to a late fee of 1.5% per month (18% annually) or the maximum rate permitted by law.
-    d.  All materials remain the property of Zurcher Construction until payment is received in full.
-
-3.  Changes and Change Orders: Any alterations or deviations from the agreed-upon scope of work will be executed only upon written agreement and will be subject to additional charges. Client will be notified of any such changes and associated costs before work proceeds.
-
-4.  Site Conditions:
-    a.  The Client is responsible for ensuring clear and safe access to the work site.
-    b.  The proposal is based on visible conditions and information provided by the Client. Unforeseen conditions (e.g., hidden utilities, rock, unsuitable soil, underground obstructions) may result in additional charges and/or delays. Zurcher Construction will notify the Client promptly if such conditions are encountered.
-    c.  Client is responsible for identifying and marking all private underground utilities. Zurcher Construction is not responsible for damage to unmarked private utilities.
-
-5.  Permits and Inspections: Zurcher Construction will obtain necessary permits as outlined in the proposal. Client agrees to cooperate with all required inspections. Any fees or delays caused by failed inspections due to Client-provided information or site conditions not caused by Zurcher Construction may result in additional charges.
-
-6.  Warranty: Zurcher Construction warrants its workmanship for a period of one (1) year from the date of completion. This warranty covers defects in workmanship only and does not cover materials (which are typically covered by manufacturer warranties), abuse, neglect, acts of God, or normal wear and tear. Warranty is void if outstanding payments exist.
-
-7.  Client Responsibilities:
-    a.  Provide accurate information regarding the property and project requirements.
-    b.  Ensure the work site is accessible and free of obstructions.
-    c.  Make timely payments as per the agreed schedule.
-
-8.  Cancellation: If the Client cancels this contract after acceptance, the Client may be liable for costs incurred by Zurcher Construction up to the date of cancellation, plus a cancellation fee.
-
-9.  Limitation of Liability: Zurcher Construction's liability for any claim arising out of this agreement shall not exceed the total contract price. Zurcher Construction shall not be liable for any indirect, incidental, or consequential damages.
-
-10. Dispute Resolution: Any disputes arising from this agreement shall first be attempted to be resolved through direct negotiation. If negotiation fails, parties agree to mediation before pursuing any other legal remedies.
-
-11. Entire Agreement: This document, along with the Budget Proposal / Contract, constitutes the entire agreement between Zurcher Construction and the Client and supersedes all prior discussions, negotiations, and agreements.
-
-12. Governing Law: This agreement shall be governed by the laws of the State of Florida.
-
-Acceptance of the Budget Proposal / Contract signifies understanding and agreement to these Terms and Conditions.
-  `; // --- END OF EXAMPLE TERMS TEXT ---
-
-  doc.font('Helvetica').fontSize(8.5); // Slightly smaller for dense text
-  const paragraphs = termsText.split('\n\n'); 
-
-  paragraphs.forEach(paragraph => {
-    const paragraphHeight = doc.heightOfString(paragraph, { width: contentWidth, align: 'justify' });
-    if (doc.y + paragraphHeight > doc.page.height - pageMargin - 130) { // 130 for signature and footer
-        // _addStandardPageFooter(doc);
-        doc.addPage();
-        _addPageHeader(doc, budgetData, "TERMS AND CONDITIONS (Cont.)", formattedDate, formattedExpirationDate);
-        doc.fontSize(12).font('Helvetica-Bold').text('Standard Terms and Conditions (Continued)', pageMargin, doc.y, { underline: true, align: 'center' });
-        doc.moveDown(1);
-        doc.font('Helvetica').fontSize(8.5);
+    let currentYLeft = headerStartY;
+    if (fs.existsSync(logoPath)) {
+      doc.image(logoPath, companyInfoX, currentYLeft, { width: 70 });
+      currentYLeft += 30 + 40; // Espacio ajustado para el logo
+    } else {
+      currentYLeft = headerStartY;
+      doc.font(FONT_FAMILY_MONO_BOLD ).fontSize(14).fillColor(COLOR_TEXT_DARK)
+         .text("ZURCHER CONSTRUCTION", companyInfoX, currentYLeft, { width: companyInfoWidth });
+      currentYLeft += doc.currentLineHeight() + 2;
     }
-    doc.text(paragraph.trim(), pageMargin, doc.y, {
-      width: contentWidth,
-      align: 'justify'
-    });
-    doc.moveDown(0.65);
-  });
-  
-  _addClientSignatureSection(doc);
-  // _addStandardPageFooter(doc);
+    
+    doc.font(FONT_FAMILY_MONO_BOLD ).fontSize(8).fillColor(COLOR_TEXT_DARK)
+       .text("ZURCHER CONSTRUCTION", companyInfoX, currentYLeft, { width: companyInfoWidth });
+    doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+    doc.text("SEPTIC TANK DIVISION - CFC1433240", companyInfoX, doc.y, { width: companyInfoWidth });
+    doc.text("zurcherseptic@gmail.com", companyInfoX, doc.y, { width: companyInfoWidth });
+    doc.text("+1 (407) 419-4495", companyInfoX, doc.y, { width: companyInfoWidth });
+    const finalYLeftTop = doc.y;
+
+    let currentYRight = headerStartY + 5;
+    doc.font(FONT_FAMILY_MONO_BOLD ).fontSize(16).fillColor('#063260') // Tamaño de INVOICE #
+       .text(`INVOICE #${documentIdOrTitle}`, invoiceInfoX, currentYRight, { width: invoiceInfoWidth, align: 'right' });
+    currentYRight = doc.y + 16; 
+    
+    doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
+    doc.text("DATE:", invoiceInfoX, currentYRight, { width: invoiceInfoWidth, align: 'right' });
+    doc.text(formattedDate, invoiceInfoX, doc.y, { width: invoiceInfoWidth, align: 'right' });
+    
+    if (formattedExpirationDate && formattedExpirationDate !== 'N/A') {
+      doc.moveDown(0.5);
+      doc.text("DUE DATE:", invoiceInfoX, doc.y, { width: invoiceInfoWidth, align: 'right' });
+      doc.text(formattedExpirationDate, invoiceInfoX, doc.y, { width: invoiceInfoWidth, align: 'right' });
+    }
+    const finalYRightTop = doc.y;
+    doc.y = Math.max(finalYLeftTop, finalYRightTop) + 15;
+
+    // --- Línea Divisora para INVOICE (antes de Customer/Work/Initial Payment) ---
+    doc.moveTo(NEW_PAGE_MARGIN, doc.y).lineTo(doc.page.width - NEW_PAGE_MARGIN, doc.y)
+       .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.7).stroke();
+    doc.moveDown(1);
+
+    // --- Parte Inferior del Encabezado para INVOICE (Info Cliente, Ubicación, Pago Inicial) ---
+    const { initialPaymentPercentage, initialPayment } = budgetData;
+    const subHeaderStartY_Invoice = doc.y;
+    const columnGap_Invoice = 15;
+    const columnWidth_Invoice = (contentWidth - (2 * columnGap_Invoice)) / 3;
+
+    const customerInfoX_Invoice = NEW_PAGE_MARGIN;
+    doc.font(FONT_FAMILY_MONO_BOLD ).fontSize(8).fillColor(COLOR_TEXT_DARK)
+       .text("CUSTOMER INFO:", customerInfoX_Invoice, subHeaderStartY_Invoice, { width: columnWidth_Invoice });
+    doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+    doc.text(applicantName || 'N/A', customerInfoX_Invoice, doc.y + 2, { width: columnWidth_Invoice });
+    if (Permit?.applicantEmail) {
+      doc.text(Permit.applicantEmail, customerInfoX_Invoice, doc.y, { width: columnWidth_Invoice });
+    }
+    const finalYCol1_Invoice = doc.y;
+
+    doc.y = subHeaderStartY_Invoice;
+    const workLocationX_Invoice = customerInfoX_Invoice + columnWidth_Invoice + columnGap_Invoice;
+    doc.font(FONT_FAMILY_MONO_BOLD ).fontSize(8).fillColor(COLOR_TEXT_DARK)
+       .text("WORK LOCATION:", workLocationX_Invoice, subHeaderStartY_Invoice, { width: columnWidth_Invoice });
+    doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+    doc.text(propertyAddress || 'N/A', workLocationX_Invoice, doc.y + 2, { width: columnWidth_Invoice });
+    if (Permit?.permitNumber) {
+      doc.text(`Permit #: ${Permit.permitNumber}`, workLocationX_Invoice, doc.y, { width: columnWidth_Invoice });
+    }
+    const finalYCol2_Invoice = doc.y;
+    
+    let finalYCol3_Invoice = subHeaderStartY_Invoice;
+    doc.y = subHeaderStartY_Invoice;
+    const initialPaymentX_Invoice = workLocationX_Invoice + columnWidth_Invoice + columnGap_Invoice;
+    if (initialPaymentPercentage !== undefined && initialPayment !== undefined) {
+      doc.font(FONT_FAMILY_MONO_BOLD ).fontSize(8).fillColor(COLOR_TEXT_DARK)
+         .text("INITIAL PAYMENT:", initialPaymentX_Invoice, subHeaderStartY_Invoice, { width: columnWidth_Invoice });
+      doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+      const percentageText = parseFloat(initialPaymentPercentage) === 100 ? "TOTAL" : `${parseFloat(initialPaymentPercentage)}% REQUIRE TO START`;
+      doc.text(percentageText, initialPaymentX_Invoice, doc.y + 2, { width: columnWidth_Invoice });
+      doc.text(`$${parseFloat(initialPayment).toFixed(2)}`, initialPaymentX_Invoice, doc.y, { width: columnWidth_Invoice });
+    }
+    finalYCol3_Invoice = doc.y;
+    
+    doc.y = Math.max(finalYCol1_Invoice, finalYCol2_Invoice, finalYCol3_Invoice);
+
+  } else if (pageType === "TERMS") {
+    // --- ENCABEZADO PARA TÉRMINOS Y CONDICIONES ---
+    const leftBlockWidth_Terms = contentWidth * 0.58; // Ancho para logo e info de empresa
+    const rightBlockX_Terms = NEW_PAGE_MARGIN + leftBlockWidth_Terms;
+    const rightBlockWidth_Terms = contentWidth - leftBlockWidth_Terms - 10; // Ancho para info de cliente y obra
+
+    // Izquierda: Logo e Info de Empresa
+    let currentYLeft_Terms = headerStartY;
+    if (fs.existsSync(logoPath)) {
+      doc.image(logoPath, NEW_PAGE_MARGIN, currentYLeft_Terms, { width: 70 }); // Mismo tamaño de logo
+      currentYLeft_Terms += 30 + 40; // Espacio para el logo (alto ~30-35) + margen
+    } else {
+      currentYLeft_Terms = headerStartY;
+      doc.font(FONT_FAMILY_BOLD).fontSize(14).fillColor(COLOR_TEXT_DARK)
+         .text("ZURCHER CONSTRUCTION", NEW_PAGE_MARGIN, currentYLeft_Terms, { width: leftBlockWidth_Terms });
+      currentYLeft_Terms += doc.currentLineHeight() + 2;
+    }
+    
+    doc.font(FONT_FAMILY_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK)
+       .text("ZURCHER CONSTRUCTION", NEW_PAGE_MARGIN, currentYLeft_Terms, { width: leftBlockWidth_Terms });
+    doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+    doc.text("SEPTIC TANK DIVISION - CFC1433240", NEW_PAGE_MARGIN, doc.y, { width: leftBlockWidth_Terms });
+    doc.text("zurcherseptic@gmail.com", NEW_PAGE_MARGIN, doc.y, { width: leftBlockWidth_Terms });
+    doc.text("+1 (407) 419-4495", NEW_PAGE_MARGIN, doc.y, { width: leftBlockWidth_Terms });
+    const finalYLeft_Terms = doc.y;
+
+    // Derecha: Info de Cliente y Ubicación de Obra (Apilados)
+    let currentYRight_Terms = headerStartY + 40; // Empezar un poco más abajo para alinear
+    doc.font(FONT_FAMILY_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK)
+       .text("CUSTOMER INFO:", rightBlockX_Terms, currentYRight_Terms, { width: rightBlockWidth_Terms });
+    doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+    doc.text(applicantName || 'N/A', rightBlockX_Terms, doc.y + 2, { width: rightBlockWidth_Terms });
+    // Opcional: añadir email del cliente si es diferente al nombre y existe
+    // if (Permit?.applicantEmail && applicantName !== Permit?.applicantEmail) {
+    //     doc.text(Permit.applicantEmail, rightBlockX_Terms, doc.y, { width: rightBlockWidth_Terms });
+    // }
+    doc.moveDown(0.8); // Espacio entre Customer Info y Work Location
+
+    doc.font(FONT_FAMILY_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK)
+       .text("WORK LOCATION:", rightBlockX_Terms, doc.y, { width: rightBlockWidth_Terms });
+    doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+    doc.text(propertyAddress || 'N/A', rightBlockX_Terms, doc.y + 2, { width: rightBlockWidth_Terms });
+    // Opcional: añadir número de permiso si existe
+    // if (Permit?.permitNumber) {
+    //   doc.text(`Permit #: ${Permit.permitNumber}`, rightBlockX_Terms, doc.y, { width: rightBlockWidth_Terms });
+    // }
+    const finalYRight_Terms = doc.y;
+    
+    doc.y = Math.max(finalYLeft_Terms, finalYRight_Terms) + 2; // Ajustar Y después de las dos columnas
+
+    // --- Línea Divisora para TERMS (antes del título "TERMS AND CONDITIONS...") ---
+    doc.moveTo(NEW_PAGE_MARGIN, doc.y).lineTo(doc.page.width - NEW_PAGE_MARGIN, doc.y)
+       .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.7).stroke();
+    doc.moveDown(1);
+
+    // --- Título Principal para TERMS ---
+    let termsPageTitle = "TERMS AND CONDITIONS ACCEPTANCE AGREEMENT FOR THE INSTALLATION OF A SEPTIC SYSTEM";
+    if (documentIdOrTitle && documentIdOrTitle.includes("(Cont.)")) {
+        termsPageTitle += " (Cont.)";
+    }
+    doc.font(FONT_FAMILY_BOLD).fontSize(9).fillColor(COLOR_TEXT_DARK)
+       .text(termsPageTitle, NEW_PAGE_MARGIN, doc.y, { 
+         width: contentWidth, 
+         align: 'left', 
+         underline: true 
+       });
+    // No se muestra fecha en esta parte del encabezado de T&C según la imagen
+  }
+  // Espacio común después del contenido del encabezado, antes de que comience el contenido principal de la página
+  doc.moveDown(2); 
 }
 
-// --- PÁGINA 3: INVOICE ---
-async function _buildInvoicePage(doc, budgetData, formattedDate, formattedExpirationDate, clientEmailFromPermit) {
-  _addPageHeader(doc, budgetData, "INVOICE", formattedDate, formattedExpirationDate);
-  const contentWidth = doc.page.width - pageMargin * 2;
+async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExpirationDate, clientEmailFromPermit) {
+  _addPageHeader_v2(doc, budgetData, "INVOICE", budgetData.idBudget, formattedDate, formattedExpirationDate);
+  const contentWidth = doc.page.width - NEW_PAGE_MARGIN * 2;
+   const { 
+    lineItems = [], 
+    totalPrice, 
+    initialPaymentPercentage, 
+    initialPayment, 
+    discountAmount, 
+    discountDescription 
+  } = budgetData;
 
-  const { idBudget, applicantName, propertyAddress, Permit, lineItems = [], subtotalPrice, discountDescription, discountAmount, totalPrice, initialPaymentPercentage, initialPayment } = budgetData;
-
-  doc.fontSize(11).font('Helvetica-Bold').text('Customer Information:', pageMargin, doc.y);
-  doc.font('Helvetica').fontSize(10);
-  doc.text(`Name: ${applicantName || 'N/A'}`);
-  doc.text(`Property Address: ${propertyAddress || 'N/A'}`);
-  if (Permit) {
-    doc.text(`Permit #: ${Permit.permitNumber || 'N/A'}`);
-  }
-  doc.moveDown(1.5);
-
-  doc.fontSize(12).font('Helvetica-Bold').text('Invoice Items', { underline: true });
-  doc.moveDown(0.5);
+  // --- Item Table ---
   const tableTop = doc.y;
-  const itemX = pageMargin;
-  const qtyX = pageMargin + contentWidth * 0.55;
-  const unitPriceX = pageMargin + contentWidth * 0.70;
-  const totalX = pageMargin + contentWidth * 0.85;
-  const tableHeaderRightEdge = doc.page.width - pageMargin;
+  const cellPadding = 5;
 
-  doc.fontSize(10).font('Helvetica-Bold');
-  doc.rect(itemX, tableTop - 5, contentWidth, 20).fillOpacity(0.1).fillAndStroke(primaryColor, lightGrayColor);
-  doc.fillOpacity(1).fillColor(textColor);
-  doc.text('Item / Description', itemX + 5, tableTop, { width: qtyX - itemX - 10 });
-  doc.text('Qty', qtyX, tableTop, { width: unitPriceX - qtyX - 10, align: 'right' });
-  doc.text('Unit Price', unitPriceX, tableTop, { width: totalX - unitPriceX - 10, align: 'right' });
-  doc.text('Line Total', totalX, tableTop, { width: tableHeaderRightEdge - totalX - 5, align: 'right' });
-  doc.font('Helvetica').fillColor(textColor);
-  doc.y = tableTop + 15;
-  doc.moveDown(0.5);
+  // Define column widths as percentages of contentWidth
+  const colIncludedW = contentWidth * 0.12; // Adjusted
+  const colDescW = contentWidth * 0.43;    // Adjusted
+  const colQtyW = contentWidth * 0.10;
+  const colRateW = contentWidth * 0.15;
+  const colAmountW = contentWidth * 0.20;
 
- lineItems.forEach((item) => {
-    const yStartRow = doc.y;
-    let estimatedRowHeight = 20; 
-    const descText = ((item.category ? item.category.toUpperCase() + ' - ' : '') + (item.name || 'N/A').toUpperCase() + (item.brand ? ' - ' + item.brand.toUpperCase() : ''));
-    estimatedRowHeight = Math.max(estimatedRowHeight, doc.heightOfString(descText, { width: qtyX - itemX - 15, fontSize: 9 }));
-    const lowerCaseNotes = item.notes ? item.notes.toLowerCase() : "";
-    const shouldShowNotes = item.notes && lowerCaseNotes !== 'item personalizado';
-    if (shouldShowNotes) {
-        estimatedRowHeight += doc.heightOfString(item.notes, {width: qtyX - itemX - 20, fontSize: 8}) + 5;
-    }
+  // Define X positions for the start of text in each column
+  const xIncludedText = NEW_PAGE_MARGIN + cellPadding;
+  const xDescText = NEW_PAGE_MARGIN + colIncludedW + cellPadding;
+  const xQtyText = NEW_PAGE_MARGIN + colIncludedW + colDescW + cellPadding;
+  const xRateText = NEW_PAGE_MARGIN + colIncludedW + colDescW + colQtyW + cellPadding;
+  const xAmountText = NEW_PAGE_MARGIN + colIncludedW + colDescW + colQtyW + colRateW + cellPadding;
 
-    if (yStartRow + estimatedRowHeight > doc.page.height - pageMargin - 90) { // 90 for payment info and footer
-        _addStandardPageFooter(doc);
-        doc.addPage();
-        _addPageHeader(doc, budgetData, "INVOICE (Cont.)", formattedDate, formattedExpirationDate);
-        doc.fontSize(10).font('Helvetica-Bold');
-        const newTableTop = doc.y;
-        doc.rect(itemX, newTableTop - 5, contentWidth, 20).fillOpacity(0.1).fillAndStroke(primaryColor, lightGrayColor);
-        doc.fillOpacity(1).fillColor(textColor);
-        doc.text('Item / Description', itemX + 5, newTableTop, { width: qtyX - itemX - 10 });
-        doc.text('Qty', qtyX, newTableTop, { width: unitPriceX - qtyX - 10, align: 'right' });
-        doc.text('Unit Price', unitPriceX, newTableTop, { width: totalX - unitPriceX - 10, align: 'right' });
-        doc.text('Line Total', totalX, newTableTop, { width: tableHeaderRightEdge - totalX - 5, align: 'right' });
-        doc.font('Helvetica').fillColor(textColor);
-        doc.y = newTableTop + 15;
-        doc.moveDown(0.5);
+  // Define usable text widths for each column
+  const wIncluded = colIncludedW - (2 * cellPadding);
+  const wDesc = colDescW - (2 * cellPadding);
+  const wQty = colQtyW - (2 * cellPadding);
+  const wRate = colRateW - (2 * cellPadding);
+  const wAmount = colAmountW - (2 * cellPadding);
+  const tableHeaderRightEdge = doc.page.width - NEW_PAGE_MARGIN;
+
+
+  // Table Header
+  doc.font(FONT_FAMILY_MONO_BOLD ).fontSize(8).fillColor(COLOR_TEXT_DARK);
+  const headerY = tableTop;
+  doc.rect(NEW_PAGE_MARGIN, headerY - 3, contentWidth, 18) // Increased header height
+     .fillColor(COLOR_BACKGROUND_TABLE_HEADER).strokeColor(COLOR_BORDER_LIGHT).fillAndStroke();
+  doc.fillColor(COLOR_TEXT_DARK);
+  doc.text('INCLUDED', xIncludedText, headerY + 2, { width: wIncluded });
+  doc.text('DESCRIPTION', xDescText, headerY + 2, { width: wDesc });
+  doc.text('QTY', xQtyText, headerY + 2, { width: wQty, align: 'right' });
+  doc.text('RATE', xRateText, headerY + 2, { width: wRate, align: 'right' });
+  doc.text('AMOUNT', xAmountText, headerY + 2, { width: wAmount, align: 'right' });
+  doc.y = headerY + 18; // Move below header background
+  doc.moveDown(0.5); // Space after header
+
+  doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+
+  // Main Item
+  const mainItemDesc = "COMPLETE INSTALLATION OF THE SYSTEM (LABOR AND MATERIALS)";
+  const mainItemQty = 1;
+  const mainItemRate = parseFloat(totalPrice);
+
+  let currentItemY = doc.y;
+  doc.text("", xIncludedText, currentItemY, { width: wIncluded }); 
+  doc.text(mainItemDesc, xDescText, currentItemY, { width: wDesc });
+  doc.text(mainItemQty.toFixed(0), xQtyText, currentItemY, { width: wQty, align: 'right' });
+  doc.text(`$${mainItemRate.toFixed(2)}`, xRateText, currentItemY, { width: wRate, align: 'right' });
+  doc.text(`$${mainItemRate.toFixed(2)}`, xAmountText, currentItemY, { width: wAmount, align: 'right' });
+  doc.moveDown(1.2); // Increased spacing
+
+  // Sub-Items (Dinámicos basados en lineItems)
+  const subItemsData = [];
+  
+  const tankItem = lineItems.find(i => i.name && i.name.toUpperCase().includes("TANK"));
+  if (tankItem) {
+    subItemsData.push({
+      desc: `TANK ATU 500GPD - ${tankItem.brand || "INFILTRATOR IM1530P/2 1500GAL DBL COMP SEPTIC TANK"}`,
+      qty: 1,
+      rate: 0.00
+    });
+  }
+
+  const infiltratorItem = lineItems.find(i => i.name && i.name.toUpperCase().includes("INFILTRATOR"));
+  if (infiltratorItem) {
+    subItemsData.push({
+      desc: `INFILTRATOR KIT - ${infiltratorItem.brand || "ECOPOD NX TM 1530 RESIDENTIAL WASTEWATER TREATMENT SYSTEM"}`,
+      qty: 1,
+      rate: 0.00
+    });
+  }
+
+  const chambersItem = lineItems.find(i => i.name && i.name.toUpperCase().includes("CHAMBERS"));
+  if (chambersItem) {
+    subItemsData.push({
+      desc: `CHAMBERS - ${chambersItem.brand || "INFILTRATOR QLKEQ36 LP QUICK4 PLUS EQLR 36 LOW PROFILE CHAMBER"}`,
+      qty: chambersItem.quantity || 34,
+      rate: 0.00
+    });
+  }
+
+  const standardItems = [
+    { desc: "SAND TRUCK - LOADS OF SAND INCLUDED", qty: "ALL", rate: 0.00 },
+    { desc: "DIRT TRUCK FOR COVER - LOADS OF DIRT INCLUDED", qty: "ALL", rate: 0.00 },
+    { desc: "ROCK REMOVAL - INCLUDED AT NO ADDITIONAL COST IF REQUIRED DURING INSTALLATION", qty: 1, rate: 0.00 },
+    { desc: "PRIVATE INSPECTION - FIRST INITIAL INSPECTION", qty: 1, rate: 0.00 },
+    { desc: "SERVICE MAINTENANCE CONTRACT - 2 YEAR CONTRACT WITH SERVICE EVERY 6 MONTHS", qty: 1, rate: 0.00 },
+    { desc: "SYSTEM PARTS & ELECTRICAL INSTALLATION - FULL INSTALLATION OF PIPES, ACCESSORIES, AND ELECTRICAL WORK FOR THE SEPTIC SYSTEM", qty: 1, rate: 0.00 },
+    { desc: "WARRANTY - 2 YEAR MANUFACTURER'S WARRANTY", qty: 1, rate: 0.00 }
+  ];
+  subItemsData.push(...standardItems);
+
+  const excavationItem = lineItems.find(i => i.name && i.name.toUpperCase().includes("EXCAVATION"));
+  if (excavationItem) {
+    subItemsData.push({
+      desc: `EXCAVATION - EXCAVATION DRAINFIELD ${excavationItem.details || "375 SF"}`,
+      qty: 1,
+      rate: 0.00
+    });
+  }
+
+
+  subItemsData.forEach(subItem => {
+    currentItemY = doc.y; 
+    
+    const estimatedRowHeight = doc.heightOfString(subItem.desc, { width: wDesc }) + 5; 
+    if (currentItemY + estimatedRowHeight > doc.page.height - NEW_PAGE_MARGIN - 150) { 
+      _addStandardPageFooter(doc);
+      doc.addPage();
+      _addPageHeader_v2(doc, budgetData, "INVOICE", budgetData.idBudget, formattedDate, formattedExpirationDate);
+      
+      doc.font(FONT_FAMILY_MONO_BOLD ).fontSize(8).fillColor(COLOR_TEXT_DARK);
+      const newPageHeaderY = doc.y;
+      doc.rect(NEW_PAGE_MARGIN, newPageHeaderY - 3, contentWidth, 18)
+         .fillColor(COLOR_BACKGROUND_TABLE_HEADER).strokeColor(COLOR_BORDER_LIGHT).fillAndStroke();
+      doc.fillColor(COLOR_TEXT_DARK);
+      doc.text('INCLUDED', xIncludedText, newPageHeaderY + 2, { width: wIncluded });
+      doc.text('DESCRIPTION', xDescText, newPageHeaderY + 2, { width: wDesc });
+      doc.text('QTY', xQtyText, newPageHeaderY + 2, { width: wQty, align: 'right' });
+      doc.text('RATE', xRateText, newPageHeaderY + 2, { width: wRate, align: 'right' });
+      doc.text('AMOUNT', xAmountText, newPageHeaderY + 2, { width: wAmount, align: 'right' });
+      doc.y = newPageHeaderY + 18;
+      doc.moveDown(0.5);
+      doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+      currentItemY = doc.y; 
     }
     
-    const yPos = doc.y;
-    const quantityNum = parseFloat(item.quantity);
-    const unitPriceNum = parseFloat(item.unitPrice);
-    const lineTotalNum = parseFloat(item.lineTotal);
+    doc.text("", xIncludedText, currentItemY, { width: wIncluded });
+    const yBeforeDesc = doc.y; 
+    doc.text(subItem.desc, xDescText, currentItemY, { width: wDesc });
+    const yAfterDesc = doc.y; 
 
-    let descriptionParts = [];
-    if (item.category) descriptionParts.push(item.category.toUpperCase());
-    descriptionParts.push((item.name || 'N/A').toUpperCase());
-    if (item.brand) descriptionParts.push(item.brand.toUpperCase());
-    const itemFullDescription = descriptionParts.join(' - ');
+    doc.text(typeof subItem.qty === 'number' ? subItem.qty.toFixed(0) : subItem.qty.toString(), 
+             xQtyText, currentItemY, { width: wQty, align: 'right' });
+    doc.text(`$${subItem.rate.toFixed(2)}`, xRateText, currentItemY, { width: wRate, align: 'right' });
+    doc.font(FONT_FAMILY_MONO_BOLD ).text("INCLUDED", xAmountText, currentItemY, { width: wAmount, align: 'right' });
+    doc.font(FONT_FAMILY_MONO);
 
-    doc.fontSize(9).text(itemFullDescription, itemX + 5, yPos + 2, { width: qtyX - itemX - 15 });
-    let notesY = doc.y;
-
-    if (shouldShowNotes) {
-      doc.fontSize(8).fillColor('grey').text(item.notes, itemX + 10, notesY, { width: qtyX - itemX - 20 });
-      doc.fillColor(textColor);
-      notesY = doc.y;
-    }
-    
-    doc.fontSize(9).text(!isNaN(quantityNum) ? quantityNum.toFixed(2) : '0.00', qtyX, yPos + 2, { width: unitPriceX - qtyX - 10, align: 'right' });
-    doc.text(`$${!isNaN(unitPriceNum) ? unitPriceNum.toFixed(2) : '0.00'}`, unitPriceX, yPos + 2, { width: totalX - unitPriceX - 10, align: 'right' });
-    doc.text(`$${!isNaN(lineTotalNum) ? lineTotalNum.toFixed(2) : '0.00'}`, totalX, yPos + 2, { width: tableHeaderRightEdge - totalX - 5, align: 'right' });
-    
-    doc.y = Math.max(yPos + doc.heightOfString(itemFullDescription, {width: qtyX - itemX - 15, fontSize: 9}), notesY);
-    doc.moveDown(0.5);
-    doc.moveTo(itemX, doc.y).lineTo(tableHeaderRightEdge, doc.y).strokeColor(lightGrayColor).stroke();
-    doc.moveDown(0.5);
+    doc.y = yAfterDesc; 
+    doc.moveDown(1); 
   });
-  doc.moveDown(0.5);
+  
+  doc.moveTo(NEW_PAGE_MARGIN, doc.y).lineTo(tableHeaderRightEdge, doc.y)
+     .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.5).stroke();
+  doc.moveDown(1.5); 
 
-  const totalsLabelStartX = pageMargin + contentWidth * 0.55;
-  const totalsValueStartX = pageMargin + contentWidth * 0.80;
-  const totalsRightEdge = doc.page.width - pageMargin;
-  const labelWidth = totalsValueStartX - totalsLabelStartX - 5;
-  const valueWidth = totalsRightEdge - totalsValueStartX - 5;
-  doc.fontSize(10);
+  const thankYouAndPaymentInfoY = doc.y;
+  const paymentInfoWidth = contentWidth * 0.55; 
 
-  let currentYTotalInv = doc.y;
-   if (currentYTotalInv + 150 > doc.page.height - pageMargin - 90) { 
-    // _addStandardPageFooter(doc); doc.addPage();
-    _addPageHeader(doc, budgetData, "INVOICE (Cont.)", formattedDate, formattedExpirationDate);
-    currentYTotalInv = doc.y;
+  if (doc.y + 80 > doc.page.height - NEW_PAGE_MARGIN - 100) { 
+    _addStandardPageFooter(doc);
+    doc.addPage();
+    _addPageHeader_v2(doc, budgetData, "INVOICE", budgetData.idBudget, formattedDate, formattedExpirationDate);
+    doc.y = NEW_PAGE_MARGIN + 150; 
   }
 
-  const subtotalNum = parseFloat(subtotalPrice);
-  doc.text(`Subtotal:`, totalsLabelStartX, currentYTotalInv, { width: labelWidth, align: 'right' });
-  doc.text(`$${!isNaN(subtotalNum) ? subtotalNum.toFixed(2) : '0.00'}`, totalsValueStartX, currentYTotalInv, { width: valueWidth, align: 'right' });
-  doc.moveDown(0.65);
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(8).fillColor(COLOR_TEXT_LIGHT)
+     .text("Thank you for your business!", NEW_PAGE_MARGIN, doc.y, {width: contentWidth, align: 'left'}); 
+  doc.moveDown(1.2);
 
-  const discountNum = parseFloat(discountAmount);
+  doc.font(FONT_FAMILY_MONO_BOLD ).fontSize(8).fillColor(COLOR_TEXT_DARK)
+     .text("PAYMENT INFORMATION", NEW_PAGE_MARGIN, doc.y, {width: paymentInfoWidth});
+  doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+  doc.text("BANK: Bank of America", NEW_PAGE_MARGIN, doc.y, {width: paymentInfoWidth});
+  doc.text("ACCOUNT NUMBER: 898138399808", NEW_PAGE_MARGIN, doc.y, {width: paymentInfoWidth});
+  doc.text("ROUTING NUMBER: 063100277", NEW_PAGE_MARGIN, doc.y, {width: paymentInfoWidth});
+  doc.text("EMAIL: zurcherconstruction.fl@gmail.com", NEW_PAGE_MARGIN, doc.y, {width: paymentInfoWidth});
+  
+  const yAfterPaymentInfo = doc.y;
+
+  doc.y = thankYouAndPaymentInfoY; 
+ 
+ // ...existing code...
+  const totalsLabelX = NEW_PAGE_MARGIN + contentWidth * 0.60;
+  const totalsValueX = NEW_PAGE_MARGIN + contentWidth * 0.80; 
+  const totalsRightEdge = doc.page.width - NEW_PAGE_MARGIN;
+  // const cellPadding = 5; // Ya debería estar definido arriba
+
+ let currentTotalY = doc.y;
+  
+  const discountNum = parseFloat(discountAmount || 0);
+  // totalPrice ya es el precio DESPUÉS del descuento.
+  const priceAfterDiscountAlreadyApplied = parseFloat(totalPrice || 0); 
+  // Calculamos el subtotal bruto sumando el descuento al precio ya descontado.
+  const subtotalBruto = priceAfterDiscountAlreadyApplied + discountNum; 
+
+  // SUBTOTAL (Bruto, antes del descuento)
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
+  doc.text("SUBTOTAL", totalsLabelX, currentTotalY, { width: totalsValueX - totalsLabelX - cellPadding, align: 'right' });
+  doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
+  doc.text(`$${subtotalBruto.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+  doc.moveDown(0.6);
+
+  // DISCOUNT (Solo se muestra si discountNum > 0)
   if (discountNum > 0) {
-    currentYTotalInv = doc.y;
-    doc.text(`Discount (${discountDescription || ''}):`, totalsLabelStartX, currentYTotalInv, { width: labelWidth, align: 'right' });
-    doc.text(`-$${discountNum.toFixed(2)}`, totalsValueStartX, currentYTotalInv, { width: valueWidth, align: 'right' });
-    doc.moveDown(0.65);
+    currentTotalY = doc.y;
+    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(9).fillColor(COLOR_TEXT_MEDIUM); // Discount Label
+    const discountLabel = discountDescription ? `${discountDescription}:` : "Discount:";
+    doc.text(discountLabel, totalsLabelX, currentTotalY, { width: totalsValueX - totalsLabelX - cellPadding, align: 'right' });
+    doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM); // Discount Value
+    doc.text(`-$${discountNum.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+    doc.moveDown(0.6);
   }
 
-  currentYTotalInv = doc.y;
-  const totalNum = parseFloat(totalPrice);
-  doc.font('Helvetica-Bold');
-  doc.text(`Invoice Total:`, totalsLabelStartX, currentYTotalInv, { width: labelWidth, align: 'right' });
-  doc.text(`$${!isNaN(totalNum) ? totalNum.toFixed(2) : '0.00'}`, totalsValueStartX, currentYTotalInv, { width: valueWidth, align: 'right' });
-  doc.font('Helvetica');
-  doc.moveDown(0.65);
+  // TAX
+  currentTotalY = doc.y;
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
+  doc.text("TAX", totalsLabelX, currentTotalY, { width: totalsValueX - totalsLabelX - cellPadding, align: 'right' });
+  doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
+  doc.text(`$0.00`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+  doc.moveDown(0.6);
 
-  currentYTotalInv = doc.y;
-  const initialPaymentNum = parseFloat(initialPayment);
-  let paymentDueLabel = `Initial Payment Due:`; 
-  if (initialPaymentPercentage === 100) {
-    paymentDueLabel = `Total Amount Due:`;
-  } else {
-    const storedPercentage = parseFloat(initialPaymentPercentage);
-    if (!isNaN(storedPercentage) && storedPercentage !== 100) {
-        paymentDueLabel = `Initial Payment (${storedPercentage}%) Due:`;
-    } else if (isNaN(storedPercentage)) {
-        paymentDueLabel = `Initial Payment (60%) Due:`;
-    }
-  }
-  doc.font('Helvetica-Bold');
-  doc.text(`${paymentDueLabel}`, totalsLabelStartX - 25, currentYTotalInv, { width: labelWidth + 25, align: 'right' });
-  doc.text(`$${!isNaN(initialPaymentNum) ? initialPaymentNum.toFixed(2) : '0.00'}`, totalsValueStartX, currentYTotalInv, { width: valueWidth, align: 'right' });
-  doc.font('Helvetica');
+  // TOTAL (Este es el totalPrice que ya venía con el descuento)
+  currentTotalY = doc.y;
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(9).fillColor(COLOR_TEXT_DARK);
+  doc.text("TOTAL", totalsLabelX, currentTotalY, { width: totalsValueX - totalsLabelX - cellPadding, align: 'right' });
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(9).fillColor(COLOR_TEXT_DARK);
+  doc.text(`$${priceAfterDiscountAlreadyApplied.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+  doc.moveDown(1.2);
+
+  // BALANCE DUE
+  currentTotalY = doc.y;
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(11).fillColor(COLOR_TEXT_DARK); 
+  doc.text("BALANCE DUE", totalsLabelX, currentTotalY, { width: totalsValueX - totalsLabelX - cellPadding, align: 'right' });
+  doc.text(`$${priceAfterDiscountAlreadyApplied.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+  
+  const yAfterTotals = doc.y;
+  doc.y = Math.max(yAfterPaymentInfo, yAfterTotals); 
   doc.moveDown(2);
 
-  if (doc.y + 70 > doc.page.height - pageMargin - 90) {
-    // _addStandardPageFooter(doc); doc.addPage();
-    _addPageHeader(doc, budgetData, "INVOICE (Cont.)", formattedDate, formattedExpirationDate);
-  }
-  doc.fontSize(10).font('Helvetica-Bold').text('Payment Information:', pageMargin, doc.y, { underline: true });
-  doc.font('Helvetica').fontSize(9);
-  doc.moveDown(0.5);
-  doc.text("Bank: Bank of America", pageMargin, doc.y);
-  doc.text("Routing #: 063100277", pageMargin, doc.y);
-  doc.text("Account #: 898138399808", pageMargin, doc.y);
-  doc.text("Zelle Email: zurcherconstruction.fl@gmail.com", pageMargin, doc.y);
-  doc.moveDown(1.5);
 
   let paymentLinkUrl = null;
   const paymentAmountForStripe = parseFloat(initialPayment); 
-
-  if (paymentAmountForStripe > 0) {
+  
+  if (paymentAmountForStripe > 0 && process.env.STRIPE_SECRET_KEY) {
     try {
-      const successUrl = process.env.STRIPE_SUCCESS_URL || 'https://example.com/success';
-      const cancelUrl = process.env.STRIPE_CANCEL_URL || 'https://example.com/cancel';
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: [{
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: `Payment for Invoice - Budget #${idBudget} - ${applicantName}`,
-              description: `Payment related to work at ${propertyAddress}`,
-            },
-            unit_amount: Math.round(paymentAmountForStripe * 100),
+          price_data: { 
+            currency: 'usd', 
+            product_data: { name: `Invoice #${budgetData.idBudget} - ${budgetData.applicantName}` }, 
+            unit_amount: Math.round(paymentAmountForStripe * 100) 
           },
           quantity: 1,
         }],
         mode: 'payment',
-        success_url: successUrl,
-        cancel_url: cancelUrl,
+        success_url: 'https://www.google.com', 
+        cancel_url: 'https://www.google.com',   
         ...(clientEmailFromPermit && { customer_email: clientEmailFromPermit }),
-        metadata: { internal_budget_id: idBudget, payment_type: 'invoice_payment' }
+        metadata: { internal_budget_id: budgetData.idBudget, payment_type: 'invoice_payment' }
       });
       paymentLinkUrl = session.url;
-    } catch (stripeError) {
-      console.error("Error al crear la sesión de Stripe Checkout para la factura:", stripeError);
+    } catch (stripeError) { 
+      console.error("Stripe session creation error for invoice:", stripeError); 
     }
   }
 
   if (paymentLinkUrl) {
-    if (doc.y + 60 > doc.page.height - pageMargin - 90) { 
-        // _addStandardPageFooter(doc); doc.addPage();
-        _addPageHeader(doc, budgetData, "INVOICE (Cont.)", formattedDate, formattedExpirationDate);
+    const buttonWidth = 200;
+// filepath: c:\Users\yaniz\Documents\ZurcherApi\BackZurcher\src\utils\pdfGenerator.js
+// ...existing code...
+    const buttonHeight = 28;
+    const buttonX = NEW_PAGE_MARGIN + (contentWidth - buttonWidth) / 2; // Centered
+    let buttonY = doc.y;
+    
+    // Ensure button doesn't overlap and fits before footer
+    if (buttonY + buttonHeight + 30 > doc.page.height - NEW_PAGE_MARGIN) {
+      _addStandardPageFooter(doc); // Add footer to current page if button won't fit
+      doc.addPage();
+      _addPageHeader_v2(doc, budgetData, "INVOICE", budgetData.idBudget, formattedDate, formattedExpirationDate);
+      buttonY = doc.y + 20; // Position button on new page
     }
-    doc.moveDown(1);
-    const buttonWidth = 220; // Wider button
-    const buttonHeight = 35;
-    const buttonX = pageMargin + (contentWidth - buttonWidth) / 2;
-    const buttonY = doc.y;
-    const buttonText = initialPaymentPercentage === 100 ? 'Click Here to Pay Total Amount Online' : 'Click Here to Pay Initial Amount Online';
+    doc.y = buttonY;
 
     doc.save();
-    doc.roundedRect(buttonX, buttonY, buttonWidth, buttonHeight, 5).fillColor(primaryColor).fill();
-    doc.fillColor(whiteColor).fontSize(10).font('Helvetica-Bold'); // Smaller font for longer text
-    doc.text(buttonText, buttonX, buttonY + (buttonHeight / 2) - (doc.currentLineHeight({fontSize: 10}) / 2.0), { // Adjusted vertical centering
-        width: buttonWidth,
-        align: 'center'
-    });
+    doc.roundedRect(buttonX, buttonY, buttonWidth, buttonHeight, 5).fillColor('#063260').fill();
+    doc.fillColor('#FFFFFF').fontSize(9).font(FONT_FAMILY_MONO_BOLD );
+    doc.text('Click Here to Pay Online', buttonX, buttonY + (buttonHeight / 2) - 4, { width: buttonWidth, align: 'center' });
     doc.restore();
     doc.link(buttonX, buttonY, buttonWidth, buttonHeight, paymentLinkUrl);
-    doc.moveDown(3);
+    doc.y = buttonY + buttonHeight + 10;
   }
-  _addStandardPageFooter(doc);
+
+ 
+}
+// --- PÁGINA DE TÉRMINOS Y CONDICIONES ---
+function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formattedExpirationDate) {
+  _addPageHeader_v2(doc, budgetData, "TERMS", "TERMS_AND_CONDITIONS", formattedDate, formattedExpirationDate);
+  const contentWidth = doc.page.width - NEW_PAGE_MARGIN * 2;
+
+  doc.font(FONT_FAMILY_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK).text('Considering that:', NEW_PAGE_MARGIN, doc.y);
+  doc.moveDown(0.5);
+  doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+  const consideringText = `The Provider specializes in the installation of septic systems and offers these services in compliance with all applicable technical and legal regulations. The Client is interested in contracting the Provider for the installation of a septic system on the property located at: ${budgetData.propertyAddress || '____________________________'}. Both parties wish to formalize the terms and conditions under which the service will be provided.`;
+  doc.text(consideringText, NEW_PAGE_MARGIN, doc.y, { width: contentWidth, align: 'justify' });
+  doc.moveDown(1);
+
+  doc.font(FONT_FAMILY_BOLD).fontSize(9).fillColor(COLOR_TEXT_DARK).text('The following is hereby agreed:', NEW_PAGE_MARGIN, doc.y);
+  doc.moveDown(0.5);
+
+  const termsText = `1. Acceptance of Terms and Conditions\nThe Client declares to have read, understood, and accepted the terms and conditions set forth in this agreement. Acceptance of these terms is mandatory for the provision of the septic system installation service.\n\n2. Scope of Work:\nThe Provider agrees to:\n  • Install the septic system according to the approved plans and local regulatory standards.\n  • Supply all labor, materials, and equipment necessary for the installation.\n  • Conduct functionality tests upon completion to ensure the system operates correctly.\nThe Provider does not include, unless expressly agreed in writing:\n  • Electrical work, landscaping, irrigation, fencing, or removal of trees/sod.\n  • Additional engineering tests (such as percolation or soil tests).\n  • Haul-off of debris beyond what is standard for the installation.\n  • Damage repairs to driveways, walkways, sprinklers, cables, or unmarked underground lines.\n\n3. Client's Obligations: The Client agrees to:\n  • Provide full access to the property and keep the area clear of debris or obstructions.\n  • Supply any required documents (e.g., site plan, floor plan) to facilitate permitting or inspection.\n  • Be responsible for any unmarked private underground lines.\n  • Obtain required permits, unless otherwise agreed in writing.\n  • Avoid parking or placing heavy loads on the system area after installation, as this may cause system failure and void the warranty.\n\nPayment Terms\n  • A 60% deposit is required prior to the start of work.\n  • The remaining 40% must be paid immediately after the initial inspection has been passed and the work has been covered by our team.\n  • Permit fees must be paid in advance and are non-refundable.\n\n4. Execution Timeline:\nWork will begin on the agreed-upon date, subject to weather conditions or delays beyond the Provider's control. In the event of encountering unsuitable soil or rock conditions, additional charges may apply and will be discussed with the Client before proceeding.\n\n5. Change Orders and Additional Work:\nAny changes to the scope of work requested by the Client must be agreed upon in writing through a Change Order. Additional work beyond the agreed scope will be billed at the Provider's standard rates.\n\n6. Warranty:\nThe installation of the drainfield is covered by a one (1) year limited warranty from the date of the initial inspection, provided the system is used in accordance with the conditions established in the health department permit. Component parts are subject to the manufacturer's warranty. Damage caused by misuse, neglect, or unauthorized modifications will void the warranty.\n\n7. Limitation of Liability:\nThe Provider is not responsible for:\n  • Any damage to landscaping, private utility lines, or other structures caused during standard installation work.\n  • Any direct, indirect, incidental, or consequential damages resulting from the use or misuse of the installed septic system.\n  • The system's performance if affected by external factors such as surface water, improper use, or lack of maintenance.\n\n8. Contract Termination: This agreement may be terminated:\n  • By mutual consent of both parties.\n  • By either party, in the event of material breach, with written notice.\n  • By the Client, at any time, with written notice; however, the Client shall be responsible for payment for all work completed and costs incurred up to the cancellation date.\n\nClient Acknowledgment:\nBy signing this agreement, the Client authorizes the Provider to proceed with the work and agrees to comply with all terms and conditions outlined herein.`;
+
+  doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+  const paragraphs = termsText.split('\n\n');
+  
+  paragraphs.forEach(paragraph => {
+    const lines = paragraph.split('\n');
+    lines.forEach((line, index) => {
+      const isListItem = line.trim().startsWith('•');
+      const indent = isListItem ? 15 : 0;
+      const textToDraw = isListItem ? line.trim().substring(1).trim() : line.trim();
+      
+      const paragraphHeight = doc.heightOfString(textToDraw, { width: contentWidth - indent, align: 'justify' });
+      if (doc.y + paragraphHeight > doc.page.height - NEW_PAGE_MARGIN - 100) {
+      
+        doc.addPage();
+        // _addPageHeader_v2(doc, budgetData, "TERMS", "TERMS_AND_CONDITIONS (Cont.)", formattedDate, formattedExpirationDate);
+        doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+      }
+      
+      if (isListItem) {
+        doc.text("•", NEW_PAGE_MARGIN, doc.y, {width: 10});
+        doc.text(textToDraw, NEW_PAGE_MARGIN + indent, doc.y, { width: contentWidth - indent, align: 'justify' });
+      } else {
+        doc.text(textToDraw, NEW_PAGE_MARGIN + indent, doc.y, { width: contentWidth - indent, align: 'justify' });
+      }
+      
+      if (index < lines.length - 1 && textToDraw.length > 0) doc.moveDown(0.2); 
+    });
+    if (paragraph.trim().length > 0) doc.moveDown(0.6);
+  });
+
+  // --- Signature Section ---
+  let signatureY = doc.y + 20;
+  if (signatureY + 80 > doc.page.height - NEW_PAGE_MARGIN) {
+    _addStandardPageFooter(doc);
+    doc.addPage();
+    _addPageHeader_v2(doc, budgetData, "TERMS", "TERMS_AND_CONDITIONS (Cont.)", formattedDate, formattedExpirationDate);
+    signatureY = doc.y + 20;
+  }
+  doc.y = signatureY;
+
+  const sigFieldWidth = (contentWidth / 2) - 10;
+  const sigLineFullWidth = sigFieldWidth - 80;
+  const dateLineFullWidth = sigFieldWidth - 110;
+
+  doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_DARK);
+
+  // Client Signature
+  let currentLineY = doc.y;
+  doc.text("Client Signature:", NEW_PAGE_MARGIN, currentLineY, { width: 75 });
+  doc.moveTo(NEW_PAGE_MARGIN + 75, currentLineY + 8).lineTo(NEW_PAGE_MARGIN + 75 + sigLineFullWidth, currentLineY + 8)
+     .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+  
+  doc.text("Date:", NEW_PAGE_MARGIN + sigFieldWidth + 10, currentLineY, { width: 30 });
+  doc.moveTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30, currentLineY + 8)
+     .lineTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30 + dateLineFullWidth, currentLineY + 8)
+     .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+  doc.moveDown(2.5);
+
+  // Provider Representative
+  currentLineY = doc.y;
+  doc.text("Provider Representative:", NEW_PAGE_MARGIN, currentLineY, { width: 110 });
+  doc.moveTo(NEW_PAGE_MARGIN + 110, currentLineY + 8)
+     .lineTo(NEW_PAGE_MARGIN + 110 + (sigLineFullWidth - 30), currentLineY + 8)
+     .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+
+  doc.text("Date:", NEW_PAGE_MARGIN + sigFieldWidth + 10, currentLineY, { width: 30 });
+  doc.moveTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30, currentLineY + 8)
+     .lineTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30 + dateLineFullWidth, currentLineY + 8)
+     .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+  doc.moveDown(1.5);
+
+ 
 }
 
+// --- Standard Page Footer ---
+function _addStandardPageFooter(doc) {
+  const footerYPosition = doc.page.height - NEW_PAGE_MARGIN + 15; 
+  const contentWidth = doc.page.width - NEW_PAGE_MARGIN * 2;
+  doc.fontSize(7).fillColor(COLOR_TEXT_LIGHT)
+     .text('Thank you for your business! | Zurcher Construction', NEW_PAGE_MARGIN, footerYPosition, {
+       align: 'center',
+       width: contentWidth
+     });
+}
+
+// --- FUNCIÓN PARA FIRMAS (Faltaba en tu código) ---
+function _addClientSignatureSection(doc) {
+  const currentY = doc.y;
+  const pageBottom = doc.page.height - pageMargin;
+  
+  // Check if we need a new page
+  if (currentY + 100 > pageBottom) {
+    doc.addPage();
+  }
+  
+  doc.fontSize(10).font('Helvetica-Bold').text('Client Acceptance:', pageMargin, doc.y);
+  doc.moveDown(1);
+  
+  const signatureLineY = doc.y + 20;
+  const signatureLineLength = 200;
+  
+  // Client signature line
+  doc.text('Client Signature:', pageMargin, signatureLineY);
+  doc.moveTo(pageMargin + 100, signatureLineY + 10)
+     .lineTo(pageMargin + 100 + signatureLineLength, signatureLineY + 10)
+     .strokeColor('#000000').stroke();
+  
+  // Date line
+  doc.text('Date:', pageMargin + 320, signatureLineY);
+  doc.moveTo(pageMargin + 350, signatureLineY + 10)
+     .lineTo(pageMargin + 450, signatureLineY + 10)
+     .strokeColor('#000000').stroke();
+  
+  doc.y = signatureLineY + 40;
+}
+
+
+
+// --- PÁGINA 2: TÉRMINOS Y CONDICIONES ---
+// ...existing code...
+function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formattedExpirationDate) {
+  _addPageHeader_v2(doc, budgetData, "TERMS", "TERMS_AND_CONDITIONS", formattedDate, formattedExpirationDate);
+  const contentWidth = doc.page.width - NEW_PAGE_MARGIN * 2;
+
+  // Texto inicial "Considering that:"
+  doc.font(FONT_FAMILY_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK).text('Considering that:', NEW_PAGE_MARGIN, doc.y);
+  doc.moveDown(0.5);
+  doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+  const consideringText = `The Provider specializes in the installation of septic systems and offers these services in compliance with all applicable technical and legal regulations. The Client is interested in contracting the Provider for the installation of a septic system on the property located at: ${budgetData.propertyAddress || '____________________________'}. Both parties wish to formalize the terms and conditions under which the service will be provided.`;
+  doc.text(consideringText, NEW_PAGE_MARGIN, doc.y, { width: contentWidth, align: 'justify' });
+  doc.moveDown(1);
+
+  // Texto "The following is hereby agreed:"
+  doc.font(FONT_FAMILY_BOLD).fontSize(9).fillColor(COLOR_TEXT_DARK).text('The following is hereby agreed:', NEW_PAGE_MARGIN, doc.y);
+  doc.moveDown(0.5);
+
+  const termsSections = [
+    {
+      number: "1.",
+      title: "Acceptance of Terms and Conditions",
+      content: "The Client declares to have read, understood, and accepted the terms and conditions set forth in this agreement. Acceptance of these terms is mandatory for the provision of the septic system installation service."
+    },
+    {
+      number: "2.",
+      title: "Scope of Work:",
+      subtitle: "The Provider agrees to:",
+      bulletPoints: [
+        "Install the septic system according to the approved plans and local regulatory standards.",
+        "Supply all labor, materials, and equipment necessary for the installation.",
+        "Conduct functionality tests upon completion to ensure the system operates correctly."
+      ],
+      subtitle2: "The Provider does not include, unless expressly agreed in writing:",
+      bulletPoints2: [
+        "Electrical work, landscaping, irrigation, fencing, or removal of trees/sod.",
+        "Additional engineering tests (such as percolation or soil tests).",
+        "Haul-off of debris beyond what is standard for the installation.",
+        "Damage repairs to driveways, walkways, sprinklers, cables, or unmarked underground lines."
+      ]
+    },
+    {
+      number: "3.",
+      title: "Client's Obligations:",
+      subtitle: "The Client agrees to:",
+      bulletPoints: [
+        "Provide full access to the property and keep the area clear of debris or obstructions.",
+        "Supply any required documents (e.g., site plan, floor plan) to facilitate permitting or inspection.",
+        "Be responsible for any unmarked private underground lines.",
+        "Obtain required permits, unless otherwise agreed in writing.",
+        "Avoid parking or placing heavy loads on the system area after installation, as this may cause system failure and void the warranty."
+      ]
+    },
+    {
+      number: "4.",
+      title: "Payment Terms:",
+      bulletPoints: [
+        "A 60% deposit is required prior to the start of work.",
+        "The remaining 40% must be paid immediately after the initial inspection has been passed and the work has been covered by our team.",
+        "Permit fees must be paid in advance and are non-refundable."
+      ]
+    },
+    {
+      number: "5.",
+      title: "Execution Timeline:",
+      content: "Work will begin on the agreed-upon date, subject to weather conditions or delays beyond the Provider's control. In the event of encountering unsuitable soil or rock conditions, additional charges may apply and will be discussed with the Client before proceeding."
+    },
+    {
+      number: "6.",
+      title: "Change Orders and Additional Work:",
+      content: "Any changes to the scope of work requested by the Client must be agreed upon in writing through a Change Order. Additional work beyond the agreed scope will be billed at the Provider's standard rates."
+    },
+    {
+      number: "7.",
+      title: "Warranty:",
+      content: "The installation of the drainfield is covered by a one (1) year limited warranty from the date of the initial inspection, provided the system is used in accordance with the conditions established in the health department permit. Component parts are subject to the manufacturer's warranty. Damage caused by misuse, neglect, or unauthorized modifications will void the warranty."
+    },
+    {
+      number: "8.",
+      title: "Limitation of Liability:",
+      subtitle: "The Provider is not responsible for:",
+      bulletPoints: [
+        "Any damage to landscaping, private utility lines, or other structures caused during standard installation work.",
+        "Any direct, indirect, incidental, or consequential damages resulting from the use or misuse of the installed septic system.",
+        "The system's performance if affected by external factors such as surface water, improper use, or lack of maintenance."
+      ]
+    },
+    {
+      number: "9.",
+      title: "Contract Termination:",
+      subtitle: "This agreement may be terminated:",
+      bulletPoints: [
+        "By mutual consent of both parties.",
+        "By either party, in the event of material breach, with written notice.",
+        "By the Client, at any time, with written notice; however, the Client shall be responsible for payment for all work completed and costs incurred up to the cancellation date."
+      ]
+    }
+  ];
+
+  const checkPageBreak = (estimatedHeight) => {
+    if (doc.y + estimatedHeight > doc.page.height - NEW_PAGE_MARGIN - 100) {
+      doc.addPage();
+      doc.y = NEW_PAGE_MARGIN;
+      return true;
+    }
+    return false;
+  };
+
+  termsSections.forEach((section, index) => {
+    let estimatedHeight = 40;
+    if (section.content) estimatedHeight += doc.heightOfString(section.content, { width: contentWidth });
+    if (section.bulletPoints) estimatedHeight += section.bulletPoints.length * 15; // Rough estimate
+    if (section.bulletPoints2) estimatedHeight += section.bulletPoints2.length * 15; // Rough estimate
+    
+    checkPageBreak(estimatedHeight);
+
+    doc.font(FONT_FAMILY_BOLD).fontSize(9).fillColor(COLOR_TEXT_DARK);
+    doc.text(`${section.number} ${section.title}`, NEW_PAGE_MARGIN, doc.y, { width: contentWidth });
+    doc.moveDown(0.3);
+
+    if (section.content) {
+      doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+      doc.text(section.content, NEW_PAGE_MARGIN, doc.y, { width: contentWidth, align: 'justify' });
+      doc.moveDown(0.8);
+    }
+
+    if (section.subtitle) {
+      doc.font(FONT_FAMILY_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK);
+      doc.text(section.subtitle, NEW_PAGE_MARGIN, doc.y, { width: contentWidth, underline: true });
+      doc.moveDown(0.3);
+    }
+
+    if (section.bulletPoints) {
+      doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+      section.bulletPoints.forEach(point => {
+        const pointTextHeight = doc.heightOfString(point, { width: contentWidth - 15 });
+        checkPageBreak(pointTextHeight + 5); // +5 for bullet and small margin
+        
+        const currentY = doc.y; // Guardar Y actual
+        doc.text("•", NEW_PAGE_MARGIN, currentY, { width: 10, continued: false }); // Dibujar bullet
+        doc.text(point, NEW_PAGE_MARGIN + 15, currentY, { width: contentWidth - 15, align: 'justify' }); // Dibujar texto en la misma Y
+        // doc.y se actualiza automáticamente a después del texto más largo (el punto)
+        doc.moveDown(0.4);
+      });
+      doc.moveDown(0.4);
+    }
+
+    if (section.subtitle2) {
+      doc.font(FONT_FAMILY_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK);
+      doc.text(section.subtitle2, NEW_PAGE_MARGIN, doc.y, { width: contentWidth, underline: true });
+      doc.moveDown(0.3);
+    }
+
+    if (section.bulletPoints2) {
+      doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+      section.bulletPoints2.forEach(point => {
+        const pointTextHeight = doc.heightOfString(point, { width: contentWidth - 15 });
+        checkPageBreak(pointTextHeight + 5);
+
+        const currentY = doc.y; // Guardar Y actual
+        doc.text("•", NEW_PAGE_MARGIN, currentY, { width: 10, continued: false }); // Dibujar bullet
+        doc.text(point, NEW_PAGE_MARGIN + 15, currentY, { width: contentWidth - 15, align: 'justify' }); // Dibujar texto en la misma Y
+        doc.moveDown(0.4);
+      });
+    }
+    doc.moveDown(0.8);
+  });
+
+  checkPageBreak(60);
+  doc.font(FONT_FAMILY_BOLD).fontSize(9).fillColor(COLOR_TEXT_DARK);
+  doc.text("Client Acknowledgment:", NEW_PAGE_MARGIN, doc.y, { width: contentWidth, underline: true });
+  doc.moveDown(0.3);
+  doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+  doc.text("By signing this agreement, the Client authorizes the Provider to proceed with the work and agrees to comply with all terms and conditions outlined herein.", NEW_PAGE_MARGIN, doc.y, { width: contentWidth, align: 'justify' });
+  doc.moveDown(1.5);
+
+  let signatureY = doc.y + 20;
+  if (signatureY + 80 > doc.page.height - NEW_PAGE_MARGIN) {
+    
+    doc.addPage();
+    doc.y = NEW_PAGE_MARGIN;
+    signatureY = doc.y + 20;
+  }
+  doc.y = signatureY;
+
+  const sigFieldWidth = (contentWidth / 2) - 10;
+  const sigLineFullWidth = sigFieldWidth - 80;
+  const dateLineFullWidth = sigFieldWidth - 110;
+
+  doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_DARK);
+
+  let currentLineY = doc.y;
+  doc.text("Client Signature:", NEW_PAGE_MARGIN, currentLineY, { width: 75 });
+  doc.moveTo(NEW_PAGE_MARGIN + 75, currentLineY + 8).lineTo(NEW_PAGE_MARGIN + 75 + sigLineFullWidth, currentLineY + 8)
+     .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+  
+  doc.text("Date:", NEW_PAGE_MARGIN + sigFieldWidth + 10, currentLineY, { width: 30 });
+  doc.moveTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30, currentLineY + 8)
+     .lineTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30 + dateLineFullWidth, currentLineY + 8)
+     .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+  doc.moveDown(2.5);
+
+  currentLineY = doc.y;
+  doc.text("Provider Representative:", NEW_PAGE_MARGIN, currentLineY, { width: 110 });
+  doc.moveTo(NEW_PAGE_MARGIN + 110, currentLineY + 8)
+     .lineTo(NEW_PAGE_MARGIN + 110 + (sigLineFullWidth - 30), currentLineY + 8)
+     .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+
+  doc.text("Date:", NEW_PAGE_MARGIN + sigFieldWidth + 10, currentLineY, { width: 30 });
+  doc.moveTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30, currentLineY + 8)
+     .lineTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30 + dateLineFullWidth, currentLineY + 8)
+     .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+  doc.moveDown(1.5);
+
+  
+}
+// ...existing code...
 
 async function generateAndSaveBudgetPDF(budgetData) {
   return new Promise(async(resolve, reject) => {
@@ -785,14 +885,18 @@ async function generateAndSaveBudgetPDF(budgetData) {
       const stream = fs.createWriteStream(pdfPath);
       doc.pipe(stream);
 
+       // --- PÁGINA 1: INVOICE ESTILIZADA ---
       doc.addPage();
-      _buildBudgetContractPage(doc, budgetData, formattedDate, formattedExpirationDate);
+      await _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExpirationDate, clientEmailFromPermit);
 
+      // --- PÁGINA 2: TÉRMINOS Y CONDICIONES ESTILIZADOS ---
+      // Aquí es donde se generan los Términos y Condiciones
       doc.addPage();
-      _buildTermsAndConditionsPage(doc, budgetData, formattedDate, formattedExpirationDate);
-
-      doc.addPage();
-      await _buildInvoicePage(doc, budgetData, formattedDate, formattedExpirationDate, clientEmailFromPermit);
+      _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formattedExpirationDate);
+      
+      // Si tenías una página de "Budget Contract" y también necesita este nuevo estilo,
+      // deberías crear una función _buildBudgetContractPage_v2 y llamarla aquí.
+      // Por ahora, el paquete es Invoice + T&C según los ejemplos visuales.
 
       doc.end();
 
@@ -813,47 +917,47 @@ async function generateAndSaveBudgetPDF(budgetData) {
 }
 
 
-async function generateAndSaveBudgetPDF(budgetData) {
-  return new Promise(async(resolve, reject) => {
-    try {
-      const { idBudget, date, expirationDate, Permit } = budgetData;
-      const clientEmailFromPermit = Permit?.applicantEmail;
-      const formattedDate = formatDateDDMMYYYY(date);
-      const formattedExpirationDate = formatDateDDMMYYYY(expirationDate);
+// async function generateAndSaveBudgetPDF(budgetData) {
+//   return new Promise(async(resolve, reject) => {
+//     try {
+//       const { idBudget, date, expirationDate, Permit } = budgetData;
+//       const clientEmailFromPermit = Permit?.applicantEmail;
+//       const formattedDate = formatDateDDMMYYYY(date);
+//       const formattedExpirationDate = formatDateDDMMYYYY(expirationDate);
 
-      const doc = new PDFDocument({ autoFirstPage: false, margin: pageMargin, size: 'A4' });
-      const uploadsDir = path.join(__dirname, '../uploads');
-      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-      const pdfPath = path.join(uploadsDir, `budget_package_${idBudget}.pdf`);
-      const stream = fs.createWriteStream(pdfPath);
-      doc.pipe(stream);
+//       const doc = new PDFDocument({ autoFirstPage: false, margin: pageMargin, size: 'A4' });
+//       const uploadsDir = path.join(__dirname, '../uploads');
+//       if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+//       const pdfPath = path.join(uploadsDir, `budget_package_${idBudget}.pdf`);
+//       const stream = fs.createWriteStream(pdfPath);
+//       doc.pipe(stream);
 
-      doc.addPage();
-      _buildBudgetContractPage(doc, budgetData, formattedDate, formattedExpirationDate);
+//       doc.addPage();
+//       _buildBudgetContractPage(doc, budgetData, formattedDate, formattedExpirationDate);
 
-      doc.addPage();
-      _buildTermsAndConditionsPage(doc, budgetData, formattedDate, formattedExpirationDate);
+//       doc.addPage();
+//       _buildTermsAndConditionsPage(doc, budgetData, formattedDate, formattedExpirationDate);
 
-      doc.addPage();
-      await _buildInvoicePage(doc, budgetData, formattedDate, formattedExpirationDate, clientEmailFromPermit);
+//       doc.addPage();
+//       await _buildInvoicePage(doc, budgetData, formattedDate, formattedExpirationDate, clientEmailFromPermit);
 
-      doc.end();
+//       doc.end();
 
-      stream.on('finish', () => {
-        console.log(`PDF de paquete de presupuesto generado: ${pdfPath}`);
-        resolve(pdfPath);
-      });
-      stream.on('error', (err) => {
-        console.error("Error al escribir el stream del PDF del paquete de presupuesto:", err);
-        reject(err);
-      });
+//       stream.on('finish', () => {
+//         console.log(`PDF de paquete de presupuesto generado: ${pdfPath}`);
+//         resolve(pdfPath);
+//       });
+//       stream.on('error', (err) => {
+//         console.error("Error al escribir el stream del PDF del paquete de presupuesto:", err);
+//         reject(err);
+//       });
 
-    } catch (error) {
-      console.error("Error dentro de generateAndSaveBudgetPDF (multi-página):", error);
-      reject(error);
-    }
-  });
-}
+//     } catch (error) {
+//       console.error("Error dentro de generateAndSaveBudgetPDF (multi-página):", error);
+//       reject(error);
+//     }
+//   });
+// }
 
 
 async function generateAndSaveFinalInvoicePDF(invoiceData) {
