@@ -50,6 +50,7 @@ const BarraLateral = () => {
         { name: "Budgets", path: "/budgets" },
         { name: "Items Budgets", path: "/itemBudget" },
         { name: "Edit Budgets", path: "/editBudget" },
+        {name : "Gestion Budgets", path: "/gestionBudgets"},
         { name: "BudgetsEnd", path: "/archive" },
       ],
     },
