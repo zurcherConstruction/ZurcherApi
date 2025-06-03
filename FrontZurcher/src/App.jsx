@@ -45,6 +45,7 @@ import PriceBudgetManagement from "./Components/Budget/PriceBudgetManagement";
 import ItemsBudgets from "./Components/Budget/ItemsBudgets";
 import EditBudget from "./Components/Budget/EditBudget";
 import Summary from "./Components/Summary";
+import GestionBudgets from "./Components/Budget/GestionBudgets";
 
 
 function App() {
@@ -87,6 +88,16 @@ function App() {
               element={
                 <PrivateRoute allowedRoles={["admin", "recept", "owner"]}>
                   <Dashboard />
+                </PrivateRoute>
+              }
+            />
+
+               {/* Rutas privadas */}
+            <Route
+              path="/gestionBudgets"
+              element={
+                <PrivateRoute allowedRoles={["admin", "recept", "owner"]}>
+                  <GestionBudgets />
                 </PrivateRoute>
               }
             />

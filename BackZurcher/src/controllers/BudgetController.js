@@ -269,7 +269,7 @@ console.log('DEBUG CONTROLLER - Datos FINALES pasados a PDF Gen:', budgetDataFor
         include: [
           {
             model: Permit,
-            attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'systemType', 'drainfieldDepth', 'excavationRequired', 'lot', 'block', 'pdfData', 'optionalDocs', 'expirationDate'],
+            attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'systemType', 'drainfieldDepth', 'excavationRequired', 'lot', 'block', 'pdfData', 'optionalDocs', 'expirationDate', 'applicantPhone'],
           },
           {
             model: BudgetLineItem,
@@ -326,7 +326,7 @@ async getBudgets(req, res) { // O como se llame tu función para obtener la list
         {
           model: Permit,
           // Asegúrate de incluir expirationDate y otros campos necesarios del Permit
-          attributes: ['idPermit', 'propertyAddress', 'systemType', 'expirationDate', 'applicantEmail', 'pdfData', 'optionalDocs'] 
+          attributes: ['idPermit', 'propertyAddress', 'systemType', 'expirationDate', 'applicantEmail', 'pdfData', 'optionalDocs', 'applicantPhone', 'applicantName', 'permitNumber', 'lot', 'block'] 
         }
       ],
       order: [['date', 'DESC']]
