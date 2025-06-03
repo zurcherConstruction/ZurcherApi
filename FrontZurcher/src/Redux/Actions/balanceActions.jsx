@@ -123,14 +123,73 @@ export const balanceActions = {
   },
  
 
-  getGeneralBalance: async (filters) => {
+  getGeneralBalance: async (filters = {}) => {
+  try {
+    console.log('Enviando solicitud con filtros:', filters);
+    
+    // AGREGAR: Validar y limpiar filtros vacíos
+    const cleanFilters = Object.entries(filters)
+      .filter(([key, value]) => value !== '' && value !== null && value !== undefined)
+      .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
+    
+    console.log('Filtros limpiados:', cleanFilters);
+    
+    const response = await api.get('/balance/generalBalance', { params: cleanFilters });
+    console.log('Respuesta recibida:', response.data);
+    return response.data;
+  } catch (error) {
+    return handleError(error, 'Error al obtener el balance general');
+  }
+},
+
+ getFinancialStats: async (period, customDateRange = null) => {
     try {
-      console.log('Enviando solicitud con filtros:', filters); // Log para depuración
-      const response = await api.get('/balance/generalBalance', { params: filters });
-      console.log('Respuesta recibida:', response.data); // Log para depuración
-      return response.data;
+      let filters = {};
+      
+      if (customDateRange) {
+        filters.startDate = customDateRange.start;
+        filters.endDate = customDateRange.end;
+      } else {
+        // Usar período predefinido
+        const now = new Date();
+        switch (period) {
+          case 'week':
+            filters.startDate = new Date(now.setDate(now.getDate() - 7)).toISOString().split('T')[0];
+            filters.endDate = new Date().toISOString().split('T')[0];
+            break;
+          case 'month':
+            filters.startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+            filters.endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+            break;
+          case 'year':
+            filters.startDate = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
+            filters.endDate = new Date(now.getFullYear(), 11, 31).toISOString().split('T')[0];
+            break;
+        }
+      }
+      
+      console.log('Obteniendo estadísticas financieras para:', { period, filters });
+      return await this.getGeneralBalance(filters);
     } catch (error) {
-      return handleError(error, 'Error al obtener el balance general');
+      return handleError(error, 'Error al obtener estadísticas financieras');
     }
   },
+
+  // AGREGAR: Action para obtener solo totales (más rápida)
+  getBalanceSummary: async (filters = {}) => {
+    try {
+      // Usar los mismos filtros pero solo obtener totales
+      const summaryFilters = { ...filters, summary: true };
+      
+      const response = await api.get('/balance/generalBalance', { params: summaryFilters });
+      return {
+        totalIncome: response.data.totalIncome || 0,
+        totalExpense: response.data.totalExpense || 0,
+        balance: response.data.balance || 0,
+        details: response.data.details || { incomes: [], expenses: [] }
+      };
+    } catch (error) {
+      return handleError(error, 'Error al obtener resumen del balance');
+    }
+  }
 };

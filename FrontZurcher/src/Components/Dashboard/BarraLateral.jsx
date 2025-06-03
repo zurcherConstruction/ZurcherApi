@@ -60,6 +60,7 @@ const BarraLateral = () => {
         { name: "Initial Pay", path: "/initialPay" },
         { name: "Upload Vouchers", path: "/attachInvoice" },
         { name: "Balance", path: "/balance" },
+        { name: "Income & Expenses", path: "/summary" },
       ],
     },
     {
