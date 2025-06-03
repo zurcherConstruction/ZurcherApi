@@ -109,20 +109,20 @@ Receipt.belongsTo(Work, { foreignKey: 'relatedId', constraints: false });
 
 //Relaciones Work, Income, Expense
 Work.hasMany(Income, {
-  foreignKey: 'idWork',
+  foreignKey: 'workId', // CAMBIO: 'idWork' -> 'workId'
   as: 'incomes',
 });
 Income.belongsTo(Work, {
-  foreignKey: 'idWork',
+  foreignKey: 'workId', // CAMBIO: 'idWork' -> 'workId'
   as: 'work',
 });
 
 Work.hasMany(Expense, {
-  foreignKey: 'idWork',
+  foreignKey: 'workId', // CAMBIO: 'idWork' -> 'workId'
   as: 'expenses',
 });
 Expense.belongsTo(Work, {
-  foreignKey: 'idWork',
+  foreignKey: 'workId', // CAMBIO: 'idWork' -> 'workId'
   as: 'work',
 });
 // Relación entre Staff y NotificationApp

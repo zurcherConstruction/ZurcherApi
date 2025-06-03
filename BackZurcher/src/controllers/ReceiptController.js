@@ -31,7 +31,7 @@ const createReceipt = async (req, res) => {
       {
         folder: 'zurcher_receipts',
         resource_type: req.file.mimetype === 'application/pdf' ? 'raw' : 'auto',
-        format: req.file.mimetype === 'application/pdf' ? undefined : 'jpg', // No forzar formato para PDF
+        format: req.file.mimetype === 'application/pdf' ? undefined : 'jpg',
         access_mode: 'public'
       },
       async (error, result) => {
@@ -46,6 +46,7 @@ const createReceipt = async (req, res) => {
         });
 
         const transaction = await conn.transaction(); 
+        let createdIncomeId = null; // Declarar al inicio para que esté disponible en todo el scope
 
         try {
           let finalInvoiceInstanceForUpdate; // Para usarla en la creación de Income y actualización de notas
@@ -56,7 +57,9 @@ const createReceipt = async (req, res) => {
             console.log(`[ReceiptController] Procesando recibo para FinalInvoice. ID: ${relatedId}`);
             if (!amountPaid || isNaN(parseFloat(amountPaid))) {
               await transaction.rollback();
-              cloudinary.uploader.destroy(result.public_id, (destroyError) => { /* ... */ });
+              cloudinary.uploader.destroy(result.public_id, (destroyError) => {
+                if (destroyError) console.error('[ReceiptController] Error al borrar archivo de Cloudinary tras error:', destroyError);
+              });
               return res.status(400).json({ error: true, message: 'Monto pagado no proporcionado o inválido para Factura Final.' });
             }
 
@@ -65,7 +68,9 @@ const createReceipt = async (req, res) => {
 
             if (!localFinalInvoiceInstance) {
               await transaction.rollback();
-              cloudinary.uploader.destroy(result.public_id, (destroyError) => { /* ... */ });
+              cloudinary.uploader.destroy(result.public_id, (destroyError) => {
+                if (destroyError) console.error('[ReceiptController] Error al borrar archivo de Cloudinary tras error:', destroyError);
+              });
               return res.status(404).json({ error: true, message: 'Factura Final no encontrada.' });
             }
             finalInvoiceInstanceForUpdate = localFinalInvoiceInstance; // Asignar para uso posterior
@@ -76,13 +81,17 @@ const createReceipt = async (req, res) => {
 
             if (numericAmountPaidForIncome <= 0) {
               await transaction.rollback();
-              cloudinary.uploader.destroy(result.public_id, (destroyError) => { /* ... */ });
+              cloudinary.uploader.destroy(result.public_id, (destroyError) => {
+                if (destroyError) console.error('[ReceiptController] Error al borrar archivo de Cloudinary tras error:', destroyError);
+              });
               return res.status(400).json({ error: true, message: 'El monto pagado debe ser mayor a cero.' });
             }
             
             if (numericAmountPaidForIncome > currentRemainingBalance + 0.001) { 
               await transaction.rollback();
-              cloudinary.uploader.destroy(result.public_id, (destroyError) => { /* ... */ });
+              cloudinary.uploader.destroy(result.public_id, (destroyError) => {
+                if (destroyError) console.error('[ReceiptController] Error al borrar archivo de Cloudinary tras error:', destroyError);
+              });
               return res.status(400).json({ 
                 error: true, 
                 message: `El monto pagado ($${numericAmountPaidForIncome.toFixed(2)}) excede el saldo pendiente ($${currentRemainingBalance.toFixed(2)}).` 
@@ -120,13 +129,34 @@ const createReceipt = async (req, res) => {
                     console.warn(`[ReceiptController] No se encontró Work con ID: ${localFinalInvoiceInstance.workId} para actualizar estado.`);
                 }
             }
+
+            // Crear Income para FinalInvoice ANTES de crear el Receipt
+            if (finalInvoiceInstanceForUpdate.workId && numericAmountPaidForIncome > 0) {
+              const incomeDataForFinalInvoice = {
+                amount: numericAmountPaidForIncome,
+                date: finalInvoiceInstanceForUpdate.paymentDate || new Date(),
+                workId: finalInvoiceInstanceForUpdate.workId,
+                typeIncome: 'Factura Pago Final Budget',
+                notes: `Pago para Factura Final ID: ${finalInvoiceInstanceForUpdate.id}.`,
+              };
+
+              const workForStaff = await Work.findByPk(finalInvoiceInstanceForUpdate.workId, { attributes: ['staffId'], transaction });
+              if (workForStaff && workForStaff.staffId) {
+                incomeDataForFinalInvoice.staffId = workForStaff.staffId;
+              }
+
+              console.log('[ReceiptController] Creando Income para pago de FinalInvoice:', incomeDataForFinalInvoice);
+              const createdIncome = await Income.create(incomeDataForFinalInvoice, { transaction });
+              createdIncomeId = createdIncome.idIncome;
+              console.log('[ReceiptController] Income para pago de FinalInvoice creado exitosamente.');
+            }
           }
           // --- FIN LÓGICA ESPECIAL PARA FinalInvoice (Actualizaciones) ---
 
-          // Crear el Receipt
+          // Crear el Receipt - SIEMPRE asociar al Income si se creó uno
           const newReceiptData = {
-            relatedModel,
-            relatedId,
+            relatedModel: createdIncomeId ? 'Income' : relatedModel, // Si creamos un Income, asociar el recibo al Income
+            relatedId: createdIncomeId ? createdIncomeId : relatedId, // Si creamos un Income, usar su ID
             type,
             notes,
             fileUrl: result.secure_url,
@@ -134,44 +164,26 @@ const createReceipt = async (req, res) => {
             mimeType: req.file.mimetype,
             originalName: req.file.originalname,
           };
+
           console.log('[ReceiptController] Datos para Receipt.create:', newReceiptData);
           const createdReceipt = await Receipt.create(newReceiptData, { transaction });
           console.log("[ReceiptController] Receipt creado exitosamente en BD:", createdReceipt.toJSON());
 
-          // --- LÓGICA ESPECIAL PARA FinalInvoice (Creación de Income y actualización de notas) ---
-          if (relatedModel === 'FinalInvoice' && finalInvoiceInstanceForUpdate) {
-            // Crear el registro de Income asociado a este pago de FinalInvoice
-            if (finalInvoiceInstanceForUpdate.workId && numericAmountPaidForIncome > 0) {
-              const incomeDataForFinalInvoice = {
-                amount: numericAmountPaidForIncome,
-                date: finalInvoiceInstanceForUpdate.paymentDate || new Date(),
-                workId: finalInvoiceInstanceForUpdate.workId,
-                typeIncome: 'Factura Pago Final Budget',
-                notes: `Pago para Factura Final ID: ${finalInvoiceInstanceForUpdate.id}. Recibo ID: ${createdReceipt.idReceipt}.`,
-              };
+          // Actualizar las notas de FinalInvoice con el ID real del recibo
+          if (relatedModel === 'FinalInvoice' && finalInvoiceInstanceForUpdate && createdIncomeId) {
+            // Actualizar las notas del Income creado para incluir el ID del recibo
+            await Income.update(
+              { notes: `Pago para Factura Final ID: ${finalInvoiceInstanceForUpdate.id}. Recibo ID: ${createdReceipt.idReceipt}.` },
+              { where: { idIncome: createdIncomeId }, transaction }
+            );
 
-              const workForStaff = await Work.findByPk(finalInvoiceInstanceForUpdate.workId, { attributes: ['staffId'], transaction });
-              if (workForStaff && workForStaff.staffId) {
-                incomeDataForFinalInvoice.staffId = workForStaff.staffId;
-              } else {
-                  console.warn(`[ReceiptController] No se pudo determinar staffId para Income de FinalInvoice ${finalInvoiceInstanceForUpdate.id}`);
-              }
-
-              console.log('[ReceiptController] Creando Income para pago de FinalInvoice:', incomeDataForFinalInvoice);
-              await Income.create(incomeDataForFinalInvoice, { transaction });
-              console.log('[ReceiptController] Income para pago de FinalInvoice creado exitosamente.');
-            } else {
-              console.warn(`[ReceiptController] No se creó Income para FinalInvoice ID: ${finalInvoiceInstanceForUpdate.id} porque workId no está definido o el monto es cero.`);
-            }
-            
-            // Actualizar la nota de FinalInvoice con el ID del recibo real
+            // Actualizar la nota de FinalInvoice
             if (finalInvoiceInstanceForUpdate.paymentNotes && finalInvoiceInstanceForUpdate.paymentNotes.includes('(ID Recibo a crear)')) {
-                finalInvoiceInstanceForUpdate.paymentNotes = finalInvoiceInstanceForUpdate.paymentNotes.replace('(ID Recibo a crear)', `ID Recibo: ${createdReceipt.idReceipt}`);
-                await finalInvoiceInstanceForUpdate.save({ transaction }); // Guardar la FinalInvoice con la nota actualizada
-                console.log(`[ReceiptController] Nota de FinalInvoice ${finalInvoiceInstanceForUpdate.id} actualizada con ID de Recibo.`);
+              finalInvoiceInstanceForUpdate.paymentNotes = finalInvoiceInstanceForUpdate.paymentNotes.replace('(ID Recibo a crear)', `ID Recibo: ${createdReceipt.idReceipt}`);
+              await finalInvoiceInstanceForUpdate.save({ transaction });
+              console.log(`[ReceiptController] Nota de FinalInvoice ${finalInvoiceInstanceForUpdate.id} actualizada con ID de Recibo.`);
             }
           }
-          // --- FIN LÓGICA ESPECIAL PARA FinalInvoice (Income y notas) ---
 
           await transaction.commit();
           console.log("[ReceiptController] Transacción completada (commit).");

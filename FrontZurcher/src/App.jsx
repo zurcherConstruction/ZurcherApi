@@ -38,7 +38,7 @@ import FileDetail from "./Components/Budget/FileDetail";
 import PendingWorks from "./Components/Works/PendingWorks";
 import AttachInvoice from "./Components/Seguimiento/AttachInvoice";
 import VerImagenes from "./Components/Works/VerImagenes";
-import BalanceStats from "./Components/BalanceStats";
+import BalanceStats from "./Components/Seguimiento/Balance";
 import LoadingSpinner from "./Components/LoadingSpinner";
 import UploadInitialPay from "./Components/Budget/UploadInitialPay";
 import PriceBudgetManagement from "./Components/Budget/PriceBudgetManagement";
