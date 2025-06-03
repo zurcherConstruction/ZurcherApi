@@ -85,73 +85,74 @@ const Summary = () => {
   };
 
   // Eliminar movimiento
-  const handleDelete = async (mov) => {
-    if (window.confirm("¿Seguro que deseas eliminar este movimiento?")) {
-      try {
-        if (mov.movimiento === "Ingreso") {
-          const isInvoicePayment = 
-            mov.typeIncome === "Factura Pago Final Budget" || 
-            mov.typeIncome === "Factura Pago Inicial Budget";
+const handleDelete = async (mov) => {
+  if (window.confirm("¿Seguro que deseas eliminar este movimiento?")) {
+    try {
+      if (mov.movimiento === "Ingreso") {
+        const isInitialPayment = mov.typeIncome === "Factura Pago Inicial Budget";
+        const isFinalPayment = mov.typeIncome === "Factura Pago Final Budget";
 
-          if (isInvoicePayment) {
-            // Es un ingreso de tipo factura
-            if (mov.Receipts && mov.Receipts.length > 0) {
-              const receiptToDelete = mov.Receipts[0]; 
-              if (receiptToDelete && receiptToDelete.idReceipt) {
-                console.log(`SUMMARY: Intentando llamar a deleteReceipt (de receiptActions) con ID de Recibo: ${receiptToDelete.idReceipt}`);
-                await deleteReceipt(receiptToDelete.idReceipt); 
-                toast.success("Comprobante y movimiento asociado eliminados correctamente.");
-              } else {
-                // Es un ingreso de factura, se esperaba un recibo con ID, pero no se encontró.
-                // Esto podría ser un estado de datos inconsistente.
-                // Decide si quieres borrar solo el income como fallback o mostrar un error más específico.
-                console.warn(`SUMMARY: Ingreso de factura (ID: ${mov.idIncome}, Tipo: ${mov.typeIncome}) no tiene un idReceipt válido en sus Receipts. Borrando solo el ingreso como fallback.`);
-                await incomeActions.delete(mov.idIncome);
-                toast.warn("Movimiento de ingreso eliminado, pero hubo un problema al procesar el comprobante asociado (ID de recibo no encontrado).");
-              }
-            } else {
-              // Es un ingreso de factura, pero no tiene `mov.Receipts`.
-              // Esto también podría ser un estado de datos inconsistente.
-              console.warn(`SUMMARY: Ingreso de factura (ID: ${mov.idIncome}, Tipo: ${mov.typeIncome}) no tiene Receipts adjuntos. Borrando solo el ingreso como fallback.`);
+        if (isInitialPayment || isFinalPayment) {
+          // Para pagos de facturas, verificar si tiene comprobantes
+          if (mov.Receipts && mov.Receipts.length > 0) {
+            const receiptToDelete = mov.Receipts[0];
+            
+            // Si el comprobante viene del Budget (pago inicial)
+            if (receiptToDelete.source === 'budget') {
+              console.log(`SUMMARY: Pago inicial con comprobante de Budget. Solo eliminando el Income ID: ${mov.idIncome}`);
               await incomeActions.delete(mov.idIncome);
-              toast.warn("Movimiento de ingreso eliminado, pero no se encontraron comprobantes asociados para una eliminación completa.");
+              toast.success("Movimiento de ingreso eliminado. El comprobante del budget se mantiene.");
+            } 
+            // Si el comprobante viene de FinalInvoice (pago final)
+            else if (receiptToDelete.source === 'finalInvoice') {
+              console.log(`SUMMARY: Pago final con comprobante de FinalInvoice. Solo eliminando el Income ID: ${mov.idIncome}`);
+              await incomeActions.delete(mov.idIncome);
+              toast.success("Movimiento de ingreso eliminado. El comprobante de la factura final se mantiene.");
+            }
+            // Si es un Receipt real (no vinculado a Budget o FinalInvoice)
+            else if (receiptToDelete.idReceipt && !receiptToDelete.idReceipt.toString().startsWith('budget-')) {
+              console.log(`SUMMARY: Eliminando Receipt ID: ${receiptToDelete.idReceipt}`);
+              await deleteReceipt(receiptToDelete.idReceipt);
+              toast.success("Comprobante y movimiento asociado eliminados correctamente.");
+            } else {
+              // Fallback para casos edge
+              await incomeActions.delete(mov.idIncome);
+              toast.success("Movimiento de ingreso eliminado.");
             }
           } else {
-            // No es un ingreso de tipo factura, borrar solo el income.
-            console.log(`SUMMARY: Llamando a incomeActions.delete para Ingreso (no factura) ID: ${mov.idIncome}, Tipo: ${mov.typeIncome}`);
+            // Sin comprobantes, eliminar solo el income
             await incomeActions.delete(mov.idIncome);
             toast.success("Movimiento de ingreso eliminado.");
           }
-        } else if (mov.movimiento === "Gasto") {
-          // Lógica para gastos
-          if (mov.Receipts && mov.Receipts.length > 0) {
-            const receiptToDelete = mov.Receipts[0];
-            if (receiptToDelete && receiptToDelete.idReceipt) {
-              console.log(`SUMMARY: Intentando llamar a deleteReceipt (de receiptActions) con ID de Recibo (Gasto): ${receiptToDelete.idReceipt}`);
-              await deleteReceipt(receiptToDelete.idReceipt);
-              toast.success("Comprobante y movimiento de gasto asociado eliminados correctamente.");
-            } else {
-              console.warn(`SUMMARY: Gasto (ID: ${mov.idExpense}) no tiene un idReceipt válido en sus Receipts. Borrando solo el gasto como fallback.`);
-              await expenseActions.delete(mov.idExpense);
-              toast.warn("Movimiento de gasto eliminado, pero hubo un problema al procesar el comprobante asociado (ID de recibo no encontrado).");
-            }
-          } else {
-            // Gasto sin recibos, borrar solo el gasto.
-            console.log(`SUMMARY: Llamando a expenseActions.delete para Gasto ID: ${mov.idExpense}`);
-            await expenseActions.delete(mov.idExpense);
-            toast.success("Movimiento de gasto eliminado.");
-          }
+        } else {
+          // No es un ingreso de factura
+          await incomeActions.delete(mov.idIncome);
+          toast.success("Movimiento de ingreso eliminado.");
         }
-        fetchMovements(); // Recargar movimientos después de la eliminación
-      } catch (error) {
-        console.error("Error al eliminar en Summary:", error);
-        // Asegúrate de que el error que se muestra sea útil.
-        // Si el error viene de la acción de Redux, ya debería estar formateado.
-        const displayError = error.response?.data?.message || error.message || "Error desconocido al eliminar.";
-        toast.error(displayError);
+      } else if (mov.movimiento === "Gasto") {
+        // Lógica para gastos (sin cambios)
+        if (mov.Receipts && mov.Receipts.length > 0) {
+          const receiptToDelete = mov.Receipts[0];
+          if (receiptToDelete && receiptToDelete.idReceipt) {
+            await deleteReceipt(receiptToDelete.idReceipt);
+            toast.success("Comprobante y movimiento de gasto asociado eliminados correctamente.");
+          } else {
+            await expenseActions.delete(mov.idExpense);
+            toast.warn("Movimiento de gasto eliminado, pero hubo un problema al procesar el comprobante asociado.");
+          }
+        } else {
+          await expenseActions.delete(mov.idExpense);
+          toast.success("Movimiento de gasto eliminado.");
+        }
       }
+      fetchMovements();
+    } catch (error) {
+      console.error("Error al eliminar en Summary:", error);
+      const displayError = error.response?.data?.message || error.message || "Error desconocido al eliminar.";
+      toast.error(displayError);
     }
-  };
+  }
+};
 
   // Abrir modal de edición
   const handleEdit = (mov) => {
@@ -326,23 +327,27 @@ const Summary = () => {
                     {mov.typeIncome || mov.typeExpense || "-"}
                   </td>
                   <td className="border px-2 py-1">{mov.notes}</td>
-                  <td className="border px-2 py-1">{mov.Staff?.name || "-"}</td>
+                <td className="border px-2 py-1">
+  {mov.Staff?.name || "-"}
+</td>
 
-                  <td className="border px-2 py-1">
-                    {mov.Receipts && mov.Receipts.length > 0 ? (
-                      <button
-                        className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-700"
-                        onClick={() => {
-                          console.log('Abriendo comprobante:', mov.Receipts[0]);
-                          setReceiptUrl(mov.Receipts[0]);
-                        }}
-                      >
-                        Ver
-                      </button>
-                    ) : (
-                      "Sin comprobante"
-                    )}
-                  </td>
+
+<td className="border px-2 py-1">
+  {mov.Receipts && mov.Receipts.length > 0 ? (
+    <button
+      className="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-700"
+      onClick={() => {
+        console.log('Movimiento completo:', mov);
+        console.log('Recibos encontrados:', mov.Receipts);
+        setReceiptUrl(mov.Receipts[0]);
+      }}
+    >
+      Ver Comprobante
+    </button>
+  ) : (
+    <span className="text-gray-500 text-sm">Sin comprobante</span>
+  )}
+</td>
                   <td className="border px-2 py-1 flex gap-2">
                     <button
                       className="bg-yellow-500 text-white px-2 py-1 rounded hover:bg-yellow-600"
