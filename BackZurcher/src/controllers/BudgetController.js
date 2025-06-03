@@ -47,8 +47,8 @@ const BudgetController = {
           throw new Error(`Item inválido: quantity (${incomingItem.quantity}) debe ser un número positivo.`);
         }
 
-        // *** 2. Inicializar itemData con datos básicos y quantity validada ***
-        let itemData = {
+        // *** 2. Inicializar itemDataForCreation con datos básicos y quantity validada ***
+        let itemDataForCreation = {
           quantity: quantityNum, // Usar el número parseado y validado
           notes: incomingItem.notes || null,
           marca: incomingItem.marca || null,
@@ -62,29 +62,29 @@ const BudgetController = {
           const budgetItemDetails = await BudgetItem.findByPk(incomingItem.budgetItemId, { transaction });
           if (!budgetItemDetails || !budgetItemDetails.isActive) throw new Error(`Item base ID ${incomingItem.budgetItemId} no encontrado o inactivo.`);
           priceAtTime = parseFloat(budgetItemDetails.unitPrice);
-          itemData.budgetItemId = incomingItem.budgetItemId;
-          itemData.name = incomingItem.name || budgetItemDetails.name; // Usar nombre del catálogo como base
-          itemData.category = incomingItem.category || budgetItemDetails.category; // Usar categoría del catálogo como base
+          itemDataForCreation.budgetItemId = incomingItem.budgetItemId;
+          itemDataForCreation.name = incomingItem.name || budgetItemDetails.name; // Usar nombre del catálogo como base
+          itemDataForCreation.category = incomingItem.category || budgetItemDetails.category; // Usar categoría del catálogo como base
         } else if (incomingItem.name && incomingItem.category && incomingItem.unitPrice !== undefined) { // Item manual
           const manualPrice = parseFloat(incomingItem.unitPrice);
           if (isNaN(manualPrice) || manualPrice < 0) throw new Error(`Item manual inválido (${incomingItem.name}): unitPrice debe ser un número no negativo.`);
           priceAtTime = manualPrice;
-          itemData.budgetItemId = null;
-          itemData.name = incomingItem.name; // Usar nombre manual
-          itemData.category = incomingItem.category; // Usar categoría manual
+          itemDataForCreation.budgetItemId = null;
+          itemDataForCreation.name = incomingItem.name; // Usar nombre manual
+          itemDataForCreation.category = incomingItem.category; // Usar categoría manual
         } else {
           console.error("Datos insuficientes para item:", incomingItem);
           throw new Error(`Item inválido: falta info (budgetItemId o name/category/unitPrice).`);
         }
 
         // *** 4. Asignar precios y calcular total de línea ***
-        itemData.unitPrice = priceAtTime;
-        itemData.priceAtTimeOfBudget = priceAtTime; // Guardar precio histórico
-        itemData.lineTotal = priceAtTime * itemData.quantity; // Calcular total de línea
+        itemDataForCreation.unitPrice = priceAtTime;
+        itemDataForCreation.priceAtTimeOfBudget = priceAtTime; // Guardar precio histórico
+        itemDataForCreation.lineTotal = priceAtTime * itemDataForCreation.quantity; // Calcular total de línea
 
         // *** 5. Acumular subtotal y guardar datos para creación ***
-        calculatedSubtotal += parseFloat(itemData.lineTotal || 0);
-        lineItemsDataForCreation.push(itemData); // Guardar datos completos para crear después
+        calculatedSubtotal += parseFloat(itemDataForCreation.lineTotal || 0);
+        lineItemsDataForCreation.push(itemDataForCreation); // Guardar datos completos para crear después
       }
       console.log(`${lineItemsDataForCreation.length} items procesados. Subtotal calculado: ${calculatedSubtotal}`);
       // --- Calcular Totales Finales ---
@@ -131,9 +131,9 @@ const BudgetController = {
 
       // --- Crear BudgetLineItems ---
       const createdLineItemsForPdf = []; // Guardar datos planos para PDF
-      for (const itemData of lineItemsDataForCreation) {
-        itemData.budgetId = newBudgetId;
-        const createdItem = await BudgetLineItem.create(itemData, { transaction });
+      for (const itemDataForCreation of lineItemsDataForCreation) {
+        itemDataForCreation.budgetId = newBudgetId;
+        const createdItem = await BudgetLineItem.create(itemDataForCreation, { transaction });
         createdLineItemsForPdf.push(createdItem.toJSON()); // Guardar para PDF
       }
       console.log(`${lineItemsDataForCreation.length} BudgetLineItems creados.`);
@@ -501,74 +501,86 @@ const BudgetController = {
       let calculatedSubtotal = 0;
       let finalLineItemsForPdf = []; // Array para guardar los items que irán al PDF
 
-      if (hasLineItemUpdates) { // Solo si el frontend envió un array 'lineItems'
-        console.log("Sincronizando Line Items (Eliminar y Recrear)...");
-        await BudgetLineItem.destroy({ where: { budgetId: idBudget }, transaction });
-        console.log(`Items existentes para Budget ID ${idBudget} eliminados.`);
+    if (hasLineItemUpdates) {
+  console.log("Sincronizando Line Items (Eliminar y Recrear)...");
+  await BudgetLineItem.destroy({ where: { budgetId: idBudget }, transaction });
+  console.log(`Items existentes para Budget ID ${idBudget} eliminados.`);
 
-        const createdLineItems = []; // Para guardar los objetos Sequelize creados
-        for (const incomingItem of lineItems) {
-          let priceAtTime = 0;
-          let itemDataForCreation = {
-            budgetId: idBudget,
-            quantity: parseFloat(incomingItem.quantity) || 0,
-            notes: incomingItem.notes || null,
-            marca: incomingItem.marca || null,
-            capacity: incomingItem.capacity || null,
-          };
+  const createdLineItems = [];
+  for (const incomingItem of lineItems) {
+    console.log("=== DEBUGGING INCOMING ITEM ===");
+    console.log("incomingItem:", incomingItem);
+    console.log("incomingItem.budgetItemId:", incomingItem.budgetItemId);
+    
+    let priceAtTime = 0;
+    let itemDataForCreation = {
+      budgetId: idBudget,
+      quantity: parseFloat(incomingItem.quantity) || 0,
+      notes: incomingItem.notes || null,
+      marca: incomingItem.marca || null,
+      capacity: incomingItem.capacity || null,
+    };
 
-          if (isNaN(itemDataForCreation.quantity) || itemDataForCreation.quantity <= 0) {
-            console.error("Error: Item inválido encontrado:", incomingItem);
-            throw new Error(`Item inválido: quantity debe ser un número positivo.`);
-          }
+    console.log("itemDataForCreation inicial:", itemDataForCreation);
 
-          if (incomingItem.budgetItemId) { // Item del catálogo
-            const budgetItemDetails = await BudgetItem.findByPk(incomingItem.budgetItemId, { transaction });
-            if (!budgetItemDetails || !budgetItemDetails.isActive) {
-              console.error("Error: Item base no encontrado o inactivo:", incomingItem.budgetItemId);
-              throw new Error(`El item base con ID ${incomingItem.budgetItemId} no se encontró o no está activo.`);
-            }
-            priceAtTime = parseFloat(budgetItemDetails.unitPrice);
-            itemDataForCreation.budgetItemId = incomingItem.budgetItemId;
-            itemDataForCreation.name = incomingItem.name || budgetItemDetails.name; // Usar nombre de BudgetItem como fallback
-            itemDataForCreation.category = incomingItem.category || budgetItemDetails.category; // Usar categoría de BudgetItem como fallback
-          } else if (incomingItem.name && incomingItem.category && incomingItem.unitPrice !== undefined) { // Item manual
-            const manualPrice = parseFloat(incomingItem.unitPrice);
-            if (isNaN(manualPrice) || manualPrice < 0) {
-              console.error("Error: Precio inválido para item manual:", incomingItem);
-              throw new Error(`Item manual inválido: unitPrice debe ser un número no negativo.`);
-            }
-            priceAtTime = manualPrice;
-            itemDataForCreation.budgetItemId = null;
-            itemDataForCreation.name = incomingItem.name;
-            itemDataForCreation.category = incomingItem.category;
-          } else { // Item inválido
-            console.error("Error: Item inválido, falta información:", incomingItem);
-            throw new Error(`Item inválido: debe tener 'budgetItemId' o ('name', 'category', 'unitPrice').`);
-          }
+    // Validar quantity
+    if (isNaN(itemDataForCreation.quantity) || itemDataForCreation.quantity <= 0) {
+      console.error("Error: Item inválido encontrado:", incomingItem);
+      throw new Error(`Item inválido: quantity debe ser un número positivo.`);
+    }
 
-          // Asignar precios y calcular total de línea
-          itemDataForCreation.unitPrice = priceAtTime;
-          itemDataForCreation.priceAtTimeOfBudget = priceAtTime; // Guardar precio histórico si es necesario
-          itemDataForCreation.lineTotal = priceAtTime * itemDataForCreation.quantity;
-
-          // Crear el nuevo item en la BD
-          const newItem = await BudgetLineItem.create(itemDataForCreation, { transaction });
-          calculatedSubtotal += parseFloat(newItem.lineTotal || 0); // Acumular subtotal
-          createdLineItems.push(newItem); // Guardar el objeto Sequelize
-        }
-        // Convertir los items recién creados a objetos planos para el PDF
-        finalLineItemsForPdf = createdLineItems.map(item => item.toJSON());
-        console.log(`${createdLineItems.length} items recreados para Budget ID ${idBudget}.`);
-
-      } else { // Si no se enviaron items, usar los existentes para calcular y para el PDF
-        console.log("No se recibieron items para actualizar, usando items existentes...");
-        // Los items ya están cargados en budget.lineItems por el include inicial
-        calculatedSubtotal = budget.lineItems.reduce((sum, item) => sum + parseFloat(item.lineTotal || 0), 0);
-        // Usar los items existentes (ya son objetos planos si se usó .toJSON() antes, o convertirlos)
-        finalLineItemsForPdf = budget.lineItems.map(item => item.toJSON ? item.toJSON() : item);
-        console.log("Subtotal calculado con items actuales:", calculatedSubtotal);
+    if (incomingItem.budgetItemId) {
+      // Item del catálogo
+      console.log("Procesando item del catálogo...");
+      const budgetItemDetails = await BudgetItem.findByPk(incomingItem.budgetItemId, { transaction });
+      console.log("budgetItemDetails encontrado:", budgetItemDetails);
+      
+      if (!budgetItemDetails || !budgetItemDetails.isActive) {
+        console.error("Error: Item base no encontrado o inactivo:", incomingItem.budgetItemId);
+        throw new Error(`El item base con ID ${incomingItem.budgetItemId} no se encontró o no está activo.`);
       }
+      
+      priceAtTime = parseFloat(budgetItemDetails.unitPrice);
+      itemDataForCreation.budgetItemId = incomingItem.budgetItemId;
+      itemDataForCreation.name = incomingItem.name || budgetItemDetails.name;
+      itemDataForCreation.category = incomingItem.category || budgetItemDetails.category;
+      
+      console.log("itemDataForCreation después de asignar budgetItemId:", itemDataForCreation);
+    } else if (incomingItem.name && incomingItem.category && incomingItem.unitPrice !== undefined) {
+      // Item manual
+      const manualPrice = parseFloat(incomingItem.unitPrice);
+      if (isNaN(manualPrice) || manualPrice < 0) {
+        console.error("Error: Precio inválido para item manual:", incomingItem);
+        throw new Error(`Item manual inválido: unitPrice debe ser un número no negativo.`);
+      }
+      priceAtTime = manualPrice;
+      itemDataForCreation.budgetItemId = null;
+      itemDataForCreation.name = incomingItem.name;
+      itemDataForCreation.category = incomingItem.category;
+    } else {
+      // Item inválido
+      console.error("Error: Item inválido, falta información:", incomingItem);
+      throw new Error(`Item inválido: debe tener 'budgetItemId' o ('name', 'category', 'unitPrice').`);
+    }
+
+    // Asignar precios y calcular total de línea
+    itemDataForCreation.unitPrice = priceAtTime;
+    itemDataForCreation.priceAtTimeOfBudget = priceAtTime;
+    itemDataForCreation.lineTotal = priceAtTime * itemDataForCreation.quantity;
+
+    // Antes de crear el item:
+    console.log("itemDataForCreation FINAL antes de crear:", itemDataForCreation);
+    const newItem = await BudgetLineItem.create(itemDataForCreation, { transaction });
+    console.log("newItem creado:", newItem.toJSON());
+    console.log("=== FIN DEBUG ITEM ===");
+    
+    calculatedSubtotal += parseFloat(newItem.lineTotal || 0);
+    createdLineItems.push(newItem);
+  }
+  
+  finalLineItemsForPdf = createdLineItems.map(item => item.toJSON());
+  console.log(`${createdLineItems.length} items recreados para Budget ID ${idBudget}.`);
+}
 
       // --- 6. Recalcular y Actualizar Totales Finales y Pago Inicial en el Budget ---
       console.log("Recalculando totales finales...");
