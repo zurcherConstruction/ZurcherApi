@@ -1,46 +1,88 @@
-items: [
-    //SYSTEM TYPE
-    { category: "System Type", name: "ATU", marac: "Fuji", capacidad: "500 gal", unitPrice: 1000, proveedorName: "", supplierLocation: "" },
-    { category: "System Type", name: "ATU", marac: "Fuji", capacidad: "700 gal", unitPrice: 2000, proveedorName: "", supplierLocation: "" },
-    { category: "System Type", name: "ATU", marac: "Fuji", capacidad: "1000 gal", unitPrice: 3000, proveedorName: "", supplierLocation: "" },
-    { category: "System Type", name: "ATU", marac: "Infiltrator", capacidad: "500 gal", unitPrice: 1500, proveedorName: "", supplierLocation: "" },
-    { category: "System Type", name: "ATU", marac: "Infiltrator", capacidad: "750 gal", unitPrice: 2500, proveedorName: "", supplierLocation: "" },
-    { category: "System Type", name: "ATU", marac: "Infiltrator", capacidad: "1000 gal", unitPrice: 3500, proveedorName: "", supplierLocation: "" },
-    { category: "System Type", name: "REGULAR", marac: "Infiltrator", capacidad: "1060 gal", unitPrice: 2800, proveedorName: "", supplierLocation: "" },
-    { category: "System Type", name: "REGULAR", marac: "Infiltrator", capacidad: "1250 gal", unitPrice: 3500, proveedorName: "", supplierLocation: "" },
-    { category: "System Type", name: "REGULAR", marac: "Infiltrator", capacidad: "1530 gal", unitPrice: 4500, proveedorName: "", supplierLocation: "" },
-   
+const { BudgetItem } = require('../data');
 
-    //DRAINFIELD SF
-    { category: "DRAINFIELD SF", name: "", marca: "", capacidad: "", unitPrice: 500, proveedorName: "", supplierLocation: "" },
-    //SISTEMA CHAMBERS
-    { category: "SISTEMA CHAMBERS", name: "", marca: "", capacidad: "ARC 24", unitPrice: 1000, proveedorName: "", supplierLocation: "" },
-    { category: "SISTEMA CHAMBERS", name: "", marca: "", capacidad: "LOW PROFILE", unitPrice: 2000, proveedorName: "", supplierLocation: "" },
-   
+const defaultItems = [
+  // SYSTEM TYPE
+  { category: "System Type", name: "ATU Fuji 500 gal", marca: "Fuji", capacity: "500 gal", description: "Incluye todo lo que ...", unitPrice: 1000, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "ATU Fuji 700 gal", marca: "Fuji", capacity: "700 gal", description: "Incluye todo lo que ...", unitPrice: 2000, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "ATU Fuji 1000 gal", marca: "Fuji", capacity: "1000 gal", description: "Incluye todo lo que ...", unitPrice: 3000, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "ATU Infiltrator 500 gal", marca: "Infiltrator", capacity: "500 gal", description: "Incluye todo lo que ...", unitPrice: 1500, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "ATU Infiltrator 750 gal", marca: "Infiltrator", capacity: "750 gal", description: "Incluye todo lo que ...", unitPrice: 2500, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "ATU Infiltrator 1000 gal", marca: "Infiltrator", capacity: "1000 gal", description: "Incluye todo lo que ...", unitPrice: 3500, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "REGULAR Infiltrator 1060 gal", marca: "Infiltrator", capacity: "1060 gal", description: "Incluye todo lo que ...", unitPrice: 2800, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "REGULAR Infiltrator 1250 gal", marca: "Infiltrator", capacity: "1250 gal", description: "Incluye todo lo que ...", unitPrice: 3500, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "REGULAR Infiltrator 1530 gal", marca: "Infiltrator", capacity: "1530 gal", description: "Incluye todo lo que ...", unitPrice: 4500, supplierName: "", supplierLocation: "" },
 
-    //PUMP
-    { category: "Pump", name: "Tanque", capacidad: "300 gal", unitPrice: 100, proveedorName: "", supplierLocation: "" },
-    { category: "Pump", name: "Tanque", capacidad: "500 gal", unitPrice: 50, proveedorName: "", supplierLocation: "" },
+  // DRAINFIELD SF
+  { category: "DRAINFIELD SF", name: "Drainfield Standard", marca: "", capacity: "", description: "Incluye todo lo que ...", unitPrice: 500, supplierName: "", supplierLocation: "" },
+
+  // SISTEMA CHAMBERS
+  { category: "SISTEMA CHAMBERS", name: "Chamber ARC 24", marca: "", capacity: "", description: "Incluye todo lo que ...", unitPrice: 1000, supplierName: "", supplierLocation: "" },
+  { category: "SISTEMA CHAMBERS", name: "Chamber Low Profile", marca: "", capacity: "", description: "Incluye todo lo que ...", unitPrice: 2000, supplierName: "", supplierLocation: "" },
+
+  // PUMP
+  { category: "Pump", name: "Tanque 300 gal", marca: "", capacity: "300 gal", description: "Incluye todo lo que ...", unitPrice: 100, supplierName: "", supplierLocation: "" },
+  { category: "Pump", name: "Tanque 500 gal", marca: "", capacity: "500 gal", description: "Incluye todo lo que ...", unitPrice: 50, supplierName: "", supplierLocation: "" },
+
+  // MATERIALES
+  { category: "Materiales", name: "Arena 4", marca: "", capacity: "4", description: "Incluye todo lo que ...", unitPrice: 100, supplierName: "", supplierLocation: "" },
+  { category: "Materiales", name: "Arena Standard", marca: "", capacity: "0", description: "Incluye todo lo que ...", unitPrice: 0, supplierName: "", supplierLocation: "" },
+  { category: "Materiales", name: "Arena All included 7", marca: "", capacity: "All included 7", description: "Incluye todo lo que ...", unitPrice: 1000, supplierName: "", supplierLocation: "" },
+
+  // INSPECTION
+  { category: "Inspection", name: "Inspection Inicial and fee healt department", marca: "Privada", capacity: "", description: "Incluye todo lo que ...", unitPrice: 200, supplierName: "", supplierLocation: "" },
+  { category: "Inspection", name: "Inspection Inicial and fee healt department", marca: "Health Department", capacity: "", description: "Incluye todo lo que ...", unitPrice: 200, supplierName: "", supplierLocation: "" },
+
+  // LABOR
+  { category: "Labor Fee", name: "ZURCHER CONSTRUCTION", marca: "", capacity: "", description: "Incluye todo lo que ...", unitPrice: 6000, supplierName: "", supplierLocation: "" },
+];
+
+const seedBudgetItems = async (verbose = true) => {
+  try {
+    if (verbose) console.log('🌱 Verificando BudgetItems...');
     
+    // Verificar si ya existen items (para evitar duplicados)
+    const existingItems = await BudgetItem.count();
+    
+    if (existingItems > 0) {
+      if (verbose) {
+        console.log(`⚠️  Ya existen ${existingItems} items en la base de datos.`);
+        console.log('💡 Si deseas recargar los items por defecto, ejecuta: npm run seed:reset');
+      }
+      return { message: 'Items ya existen', count: existingItems };
+    }
 
-    //MATERIALES
-    { category: "Materiales", name: "Arena", capacidad: "4", unitPrice: 100, proveedorName: "", supplierLocation: "" },
-    { category: "Materiales", name: "Arena", capacidad: "0", unitPrice: 50, proveedorName: "", supplierLocation: "" },
-    { category: "Materiales", name: "Arena", capacidad: "All included 7", unitPrice: 0, proveedorName: "", supplierLocation: "" },
-   
+    // Crear todos los items por defecto
+    const createdItems = await BudgetItem.bulkCreate(defaultItems);
+    console.log(`✅ Se crearon ${createdItems.length} items por defecto.`);
+    
+    return { message: 'Items creados', count: createdItems.length };
+  } catch (error) {
+    console.error('❌ Error al verificar/crear BudgetItems:', error);
+    throw error;
+  }
+};
 
-    //INSPECTION
-    { category: "Inspection Inicial and fee healt department", name: "Privada", unitPrice: 200 },
-    { category: "Inspection Inicial and fee healt department", name: "Healt department", unitPrice: 200 },
-   
+const resetAndSeedBudgetItems = async () => {
+  try {
+    console.log('🔄 Reseteando y recargando BudgetItems...');
+    
+    // Eliminar todos los items existentes
+    await BudgetItem.destroy({ where: {}, force: true });
+    console.log('🗑️  Items existentes eliminados.');
+    
+    // Crear los items por defecto
+    const createdItems = await BudgetItem.bulkCreate(defaultItems);
+    console.log(`✅ Se recrearon ${createdItems.length} items por defecto.`);
+    
+    return { message: 'Items reseteados y creados', count: createdItems.length };
+  } catch (error) {
+    console.error('❌ Error al resetear BudgetItems:', error);
+    throw error;
+  }
+};
 
-    //LABOR
-    { category: "Labor Fee", name: "ZURCHER CONSTRUCTION", unitPrice: 6000 },
-   
-
-
-
-
-
-
-]
+module.exports = {
+  seedBudgetItems,
+  resetAndSeedBudgetItems,
+  defaultItems
+};

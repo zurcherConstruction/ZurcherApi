@@ -25,6 +25,20 @@ router.get(
     // Opcional: podrías añadir ?active=false o ?active=all para ver inactivos/todos si tienes rol admin/owner
 );
 
+// GET /api/budget-items/categories - Obtener todas las categorías disponibles
+router.get(
+    '/categories',
+    verifyToken, // Cualquier usuario puede ver las categorías
+    budgetItemController.getCategories
+);
+
+// GET /api/budget-items/category/:category - Obtener items por categoría específica
+router.get(
+    '/category/:category',
+    verifyToken, // Cualquier usuario puede filtrar por categoría
+    budgetItemController.getBudgetItemsByCategory
+);
+
 // GET /api/budget-items/:id - Obtener un item específico por ID
 router.get(
     '/:id',
@@ -39,6 +53,23 @@ router.put(
     allowRoles(['admin', 'owner']), // Solo admin/owner pueden modificar items
     budgetItemController.updateBudgetItem
 );
+
+// PATCH /api/budget-items/:id/deactivate - Desactivar un item (soft delete)
+router.patch(
+    '/:id/deactivate',
+    verifyToken,
+    allowRoles(['admin', 'owner']),
+    budgetItemController.deactivateBudgetItem
+);
+
+// PATCH /api/budget-items/:id/activate - Reactivar un item
+router.patch(
+    '/:id/activate',
+    verifyToken,
+    allowRoles(['admin', 'owner']),
+    budgetItemController.activateBudgetItem
+);
+
 
 // DELETE /api/budget-items/:id - Desactivar (soft delete) un item
 router.delete(

@@ -50,20 +50,70 @@ const budgetItemController = {
   async getBudgetItems(req, res) {
     try {
       // Podrías añadir filtros por query params, ej: /budget-items?category=SystemType&active=true
-      const { active = 'true' } = req.query; // Por defecto solo activos
+      const { active = 'true', category } = req.query; // Por defecto solo activos
       const whereCondition = {};
 
       if (active === 'true') {
         whereCondition.isActive = true;
       } else if (active === 'false') {
          whereCondition.isActive = false;
-      } // Si active es diferente, trae todos
+      }
+      if (category) {
+        whereCondition.category = category;
+      }
 
-      const items = await BudgetItem.findAll({ where: whereCondition });
+      const items = await BudgetItem.findAll({ 
+        where: whereCondition,
+        order: [['category', 'ASC'], ['name', 'ASC']]
+      });
       res.status(200).json(items);
     } catch (error) {
       console.error("Error al obtener BudgetItems:", error);
       res.status(500).json({ error: 'Error interno del servidor al obtener los items.' });
+    }
+  },
+
+   // --- OBTENER BudgetItems por categoría ---
+  async getBudgetItemsByCategory(req, res) {
+    try {
+      const { category } = req.params;
+      const { active = 'true' } = req.query;
+      
+      const whereCondition = { category };
+      
+      if (active === 'true') {
+        whereCondition.isActive = true;
+      } else if (active === 'false') {
+        whereCondition.isActive = false;
+      }
+
+      const items = await BudgetItem.findAll({ 
+        where: whereCondition,
+        order: [['name', 'ASC']]
+      });
+      
+      res.status(200).json(items);
+    } catch (error) {
+      console.error("Error al obtener BudgetItems por categoría:", error);
+      res.status(500).json({ error: 'Error interno del servidor al obtener los items por categoría.' });
+    }
+  },
+
+  // --- OBTENER todas las categorías disponibles ---
+  async getCategories(req, res) {
+    try {
+      const categories = await BudgetItem.findAll({
+        attributes: ['category'],
+        where: { isActive: true },
+        group: ['category'],
+        order: [['category', 'ASC']]
+      });
+      
+      const categoryNames = categories.map(item => item.category);
+      res.status(200).json(categoryNames);
+    } catch (error) {
+      console.error("Error al obtener categorías:", error);
+      res.status(500).json({ error: 'Error interno del servidor al obtener las categorías.' });
     }
   },
 
@@ -118,23 +168,55 @@ const budgetItemController = {
     }
   },
 
+   // --- SOFT DELETE: Desactivar item ---
+  async deactivateBudgetItem(req, res) {
+    try {
+      const { id } = req.params;
+      
+      const [updated] = await BudgetItem.update(
+        { isActive: false }, 
+        { where: { id } }
+      );
+
+      if (!updated) {
+        return res.status(404).json({ error: 'BudgetItem no encontrado.' });
+      }
+
+      const deactivatedItem = await BudgetItem.findByPk(id);
+      res.status(200).json({ message: 'Item desactivado exitosamente', item: deactivatedItem });
+    } catch (error) {
+      console.error("Error al desactivar BudgetItem:", error);
+      res.status(500).json({ error: 'Error interno del servidor al desactivar el item.' });
+    }
+  },
+
+  // --- ACTIVAR item ---
+  async activateBudgetItem(req, res) {
+    try {
+      const { id } = req.params;
+      
+      const [updated] = await BudgetItem.update(
+        { isActive: true }, 
+        { where: { id } }
+      );
+
+      if (!updated) {
+        return res.status(404).json({ error: 'BudgetItem no encontrado.' });
+      }
+
+      const activatedItem = await BudgetItem.findByPk(id);
+      res.status(200).json({ message: 'Item activado exitosamente', item: activatedItem });
+    } catch (error) {
+      console.error("Error al activar BudgetItem:", error);
+      res.status(500).json({ error: 'Error interno del servidor al activar el item.' });
+    }
+  },
+
+
   // --- ELIMINAR un BudgetItem por ID (Soft Delete recomendado) ---
   async deleteBudgetItem(req, res) {
     try {
       const { id } = req.params;
-
-      // Opción 1: Soft Delete (Marcar como inactivo) - RECOMENDADO
-    //   const [updated] = await BudgetItem.update({ isActive: false }, {
-    //      where: { id }
-    //   });
-
-    //    if (!updated) {
-    //      return res.status(404).json({ error: 'BudgetItem no encontrado para desactivar.' });
-    //    }
-    //    res.status(200).json({ message: 'BudgetItem desactivado correctamente.' });
-
-
-      // Opción 2: Hard Delete (Eliminar permanentemente) - Usar con precaución
       
       const deleted = await BudgetItem.destroy({
         where: { id }
