@@ -6,3 +6,4 @@ const signNowController = require('../controllers/signNowController');
 router.get('/test-connection', signNowController.testConnection);
 
 module.exports = router;
+// Este archivo define las rutas para la integración con SignNow.
