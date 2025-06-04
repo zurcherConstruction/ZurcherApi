@@ -12,6 +12,7 @@ const { Server } = require('socket.io');
 const fs = require('fs');
 require('./tasks/cronJobs');
 const { errorHandler } = require('./middleware/error');
+const { seedBudgetItems } = require('./utils/items');
 
 const app = express();
 const server = http.createServer(app); // Crear el servidor HTTP
@@ -79,6 +80,21 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE', 'PATCH');
   next();
 });
+
+// **AQUÍ AGREGAR LA INICIALIZACIÓN DE LA BASE DE DATOS**
+const initializeDatabase = async () => {
+  try {
+    console.log('🔄 Inicializando items por defecto...');
+    await seedBudgetItems(false); // false para modo silencioso
+    console.log('✅ Inicialización completada');
+  } catch (error) {
+    console.error('❌ Error al inicializar items por defecto:', error);
+    // No detener el servidor
+  }
+};
+
+// Ejecutar la inicialización
+initializeDatabase();
 
 // Routes
 app.use('/', routes);
