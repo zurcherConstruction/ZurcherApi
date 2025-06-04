@@ -416,7 +416,7 @@ const processTimeSeriesData = () => {
   return (
     <div className="balance-dashboard">
       <div className="dashboard-header">
-        <h1>Dashboard Financiero</h1>
+       
         
         {/* Selector de período */}
         <div className="period-selector">
