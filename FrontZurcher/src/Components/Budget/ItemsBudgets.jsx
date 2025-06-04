@@ -16,6 +16,7 @@ const ItemsBudgets = () => {
     name: "",
     category: "", // Valor del select
     marca: "",
+    description:"",
     capacity: "",
     unitPrice: "",
     supplierName: "",
@@ -83,6 +84,7 @@ const ItemsBudgets = () => {
       name: formData.name?.trim().toUpperCase() || "",
       category: finalCategory, // Ya está en mayúsculas
       marca: formData.marca?.trim().toUpperCase() || "",
+      description: formData.description?.trim().toUpperCase() || "",
       capacity: formData.capacity?.trim().toUpperCase() || "",
       supplierName: formData.supplierName?.trim().toUpperCase() || "",
       supplierLocation: formData.supplierLocation?.trim().toUpperCase() || "",
@@ -119,6 +121,7 @@ const ItemsBudgets = () => {
       name: item.name || "",
       category: categoryExists ? currentCategoryValue : "__NEW__", // Usar valor en mayúsculas
       marca: item.marca || "",
+      description: item.description || "",
       capacity: item.capacity || "",
       unitPrice: item.unitPrice || "",
       supplierName: item.supplierName || "",
@@ -206,6 +209,10 @@ const ItemsBudgets = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700">Marca (Ej: Fuji, Infiltrator, arc24, low profile...) *</label>
               <input type="text" name="marca" value={formData.marca} onChange={handleInputChange} className="mt-1 block w-full input-style" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Descripción</label>
+              <input type="text" name="description" value={formData.description} onChange={handleInputChange} className="mt-1 block w-full input-style"/>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Capacidad / Especificación (Ej: 500 GPD)</label>

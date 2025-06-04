@@ -252,7 +252,6 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   const wAmount = colAmountW - (2 * cellPadding);
   const tableHeaderRightEdge = doc.page.width - NEW_PAGE_MARGIN;
 
-
   // Table Header
   doc.font(FONT_FAMILY_MONO_BOLD ).fontSize(8).fillColor(COLOR_TEXT_DARK);
   const headerY = tableTop;
@@ -269,79 +268,32 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
 
   doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
 
-  // Main Item
-  const mainItemDesc = "COMPLETE INSTALLATION OF THE SYSTEM (LABOR AND MATERIALS)";
+ // ✅ MAIN ITEM - COLUMNA INCLUDED AHORA DICE "SEPTIC SYSTEM INSTALLATION"
+  const mainItemName = "SEPTIC SYSTEM INSTALLATION"; // ✅ ESTO VA EN COLUMNA INCLUDED
+  const mainItemDesc = "COMPLETE INSTALLATION OF THE SYSTEM (LABOR AND MATERIALS)"; // ✅ ESTO VA EN COLUMNA DESCRIPTION
   const mainItemQty = 1;
   const mainItemRate = parseFloat(totalPrice);
 
   let currentItemY = doc.y;
-  doc.text("", xIncludedText, currentItemY, { width: wIncluded }); 
-  doc.text(mainItemDesc, xDescText, currentItemY, { width: wDesc });
+  doc.text(mainItemName, xIncludedText, currentItemY, { width: wIncluded }); // ✅ NAME EN COLUMNA INCLUDED
+  doc.text(mainItemDesc, xDescText, currentItemY, { width: wDesc }); // ✅ DESCRIPTION EN COLUMNA DESCRIPTION
   doc.text(mainItemQty.toFixed(0), xQtyText, currentItemY, { width: wQty, align: 'right' });
   doc.text(`$${mainItemRate.toFixed(2)}`, xRateText, currentItemY, { width: wRate, align: 'right' });
   doc.text(`$${mainItemRate.toFixed(2)}`, xAmountText, currentItemY, { width: wAmount, align: 'right' });
-  doc.moveDown(1.2); // Increased spacing
-
-  // Sub-Items (Dinámicos basados en lineItems)
-  const subItemsData = [];
-  
-  const tankItem = lineItems.find(i => i.name && i.name.toUpperCase().includes("TANK"));
-  if (tankItem) {
-    subItemsData.push({
-      desc: `TANK ATU 500GPD - ${tankItem.brand || "INFILTRATOR IM1530P/2 1500GAL DBL COMP SEPTIC TANK"}`,
-      qty: 1,
-      rate: 0.00
-    });
-  }
-
-  const infiltratorItem = lineItems.find(i => i.name && i.name.toUpperCase().includes("INFILTRATOR"));
-  if (infiltratorItem) {
-    subItemsData.push({
-      desc: `INFILTRATOR KIT - ${infiltratorItem.brand || "ECOPOD NX TM 1530 RESIDENTIAL WASTEWATER TREATMENT SYSTEM"}`,
-      qty: 1,
-      rate: 0.00
-    });
-  }
-
-  const chambersItem = lineItems.find(i => i.name && i.name.toUpperCase().includes("CHAMBERS"));
-  if (chambersItem) {
-    subItemsData.push({
-      desc: `CHAMBERS - ${chambersItem.brand || "INFILTRATOR QLKEQ36 LP QUICK4 PLUS EQLR 36 LOW PROFILE CHAMBER"}`,
-      qty: chambersItem.quantity || 34,
-      rate: 0.00
-    });
-  }
-
-  const standardItems = [
-    { desc: "SAND TRUCK - LOADS OF SAND INCLUDED", qty: "ALL", rate: 0.00 },
-    { desc: "DIRT TRUCK FOR COVER - LOADS OF DIRT INCLUDED", qty: "ALL", rate: 0.00 },
-    { desc: "ROCK REMOVAL - INCLUDED AT NO ADDITIONAL COST IF REQUIRED DURING INSTALLATION", qty: 1, rate: 0.00 },
-    { desc: "PRIVATE INSPECTION - FIRST INITIAL INSPECTION", qty: 1, rate: 0.00 },
-    { desc: "SERVICE MAINTENANCE CONTRACT - 2 YEAR CONTRACT WITH SERVICE EVERY 6 MONTHS", qty: 1, rate: 0.00 },
-    { desc: "SYSTEM PARTS & ELECTRICAL INSTALLATION - FULL INSTALLATION OF PIPES, ACCESSORIES, AND ELECTRICAL WORK FOR THE SEPTIC SYSTEM", qty: 1, rate: 0.00 },
-    { desc: "WARRANTY - 2 YEAR MANUFACTURER'S WARRANTY", qty: 1, rate: 0.00 }
-  ];
-  subItemsData.push(...standardItems);
-
-  const excavationItem = lineItems.find(i => i.name && i.name.toUpperCase().includes("EXCAVATION"));
-  if (excavationItem) {
-    subItemsData.push({
-      desc: `EXCAVATION - EXCAVATION DRAINFIELD ${excavationItem.details || "375 SF"}`,
-      qty: 1,
-      rate: 0.00
-    });
-  }
+  doc.moveDown(2.2); // ✅ AUMENTADO MÁS EL ESPACIO DESPUÉS DEL ITEM PRINCIPAL
 
 
-  subItemsData.forEach(subItem => {
-    currentItemY = doc.y; 
-    
-    const estimatedRowHeight = doc.heightOfString(subItem.desc, { width: wDesc }) + 5; 
-    if (currentItemY + estimatedRowHeight > doc.page.height - NEW_PAGE_MARGIN - 150) { 
+  // ✅ SUB-ITEMS DINÁMICOS BASADOS EN lineItems DE LA BASE DE DATOS
+  console.log("Procesando lineItems para PDF:", lineItems);
+
+  // Helper function para verificar si necesitamos nueva página
+  const checkPageBreak = (estimatedHeight = 40) => { // ✅ AUMENTADO DE 25 A 35
+    if (doc.y + estimatedHeight > doc.page.height - NEW_PAGE_MARGIN - 150) { 
       _addStandardPageFooter(doc);
       doc.addPage();
       _addPageHeader_v2(doc, budgetData, "INVOICE", budgetData.idBudget, formattedDate, formattedExpirationDate);
       
+      // Recrear header de tabla en nueva página
       doc.font(FONT_FAMILY_MONO_BOLD ).fontSize(8).fillColor(COLOR_TEXT_DARK);
       const newPageHeaderY = doc.y;
       doc.rect(NEW_PAGE_MARGIN, newPageHeaderY - 3, contentWidth, 18)
@@ -355,24 +307,91 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
       doc.y = newPageHeaderY + 18;
       doc.moveDown(0.5);
       doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
-      currentItemY = doc.y; 
     }
+  };
+
+  // Procesar cada lineItem de la base de datos
+  if (lineItems && lineItems.length > 0) {
+    lineItems.forEach((item, index) => {
+      // Preparar datos del item
+      const itemName = item.name || 'N/A';
+      const itemDescription = item.description || `${itemName}${item.marca ? ` - ${item.marca}` : ''}${item.capacity ? ` [${item.capacity}]` : ''}`;
+      const itemQty = parseInt(item.quantity) || 1;
+      const itemNotes = item.notes || '';
+
+      // Construir descripción completa
+      let fullDescription = itemDescription;
+      if (itemNotes && itemNotes.trim() !== '') {
+        fullDescription += ` - ${itemNotes}`;
+      }
+
+      // ✅ ESTIMACIÓN MÁS PRECISA DE ALTURA NECESARIA
+      const estimatedDescHeight = doc.heightOfString(fullDescription, { width: wDesc });
+      const estimatedItemHeight = Math.max(estimatedDescHeight + 15, 30); // Mínimo 25, pero más si la descripción es larga
+      checkPageBreak(estimatedItemHeight);
+
+      // Dibujar el item
+      currentItemY = doc.y;
+      
+      // Columna INCLUDED - mostrar el nombre del item
+      doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+      doc.text(itemName.toUpperCase(), xIncludedText, currentItemY, { width: wIncluded });
+      
+      // Guardar Y antes de escribir descripción (para alinear otras columnas)
+      const yBeforeDesc = doc.y;
+      
+      // Columna DESCRIPTION - mostrar descripción completa
+      doc.text(fullDescription, xDescText, currentItemY, { width: wDesc });
+      const yAfterDesc = doc.y;
+
+      // Columnas QTY, RATE, AMOUNT (alineadas con currentItemY)
+      doc.text(itemQty.toString(), xQtyText, currentItemY, { width: wQty, align: 'right' });
+      doc.text("$0.00", xRateText, currentItemY, { width: wRate, align: 'right' });
+      doc.font(FONT_FAMILY_MONO_BOLD).text("INCLUDED", xAmountText, currentItemY, { width: wAmount, align: 'right' });
+      doc.font(FONT_FAMILY_MONO); // Volver a fuente normal
+
+      // Mover Y al final de la descripción (que puede ser multi-línea)
+      doc.y = yAfterDesc;
+      doc.moveDown(2.0); // ✅ AUMENTADO DE 1 A 1.5 PARA MÁS ESPACIO ENTRE ITEMS
+    });
+  } else {
+    // ✅ FALLBACK: Si no hay lineItems, mostrar items estándar (como backup)
+    console.log("No se encontraron lineItems en budgetData, usando items estándar de fallback");
     
-    doc.text("", xIncludedText, currentItemY, { width: wIncluded });
-    const yBeforeDesc = doc.y; 
-    doc.text(subItem.desc, xDescText, currentItemY, { width: wDesc });
-    const yAfterDesc = doc.y; 
+    const standardItems = [
+      { desc: "SAND TRUCK - LOADS OF SAND INCLUDED", qty: "ALL", rate: 0.00 },
+      { desc: "DIRT TRUCK FOR COVER - LOADS OF DIRT INCLUDED", qty: "ALL", rate: 0.00 },
+      { desc: "ROCK REMOVAL - INCLUDED AT NO ADDITIONAL COST IF REQUIRED DURING INSTALLATION", qty: 1, rate: 0.00 },
+      { desc: "PRIVATE INSPECTION - FIRST INITIAL INSPECTION", qty: 1, rate: 0.00 },
+      { desc: "SERVICE MAINTENANCE CONTRACT - 2 YEAR CONTRACT WITH SERVICE EVERY 6 MONTHS", qty: 1, rate: 0.00 },
+      { desc: "SYSTEM PARTS & ELECTRICAL INSTALLATION - FULL INSTALLATION OF PIPES, ACCESSORIES, AND ELECTRICAL WORK FOR THE SEPTIC SYSTEM", qty: 1, rate: 0.00 },
+      { desc: "WARRANTY - 2 YEAR MANUFACTURER'S WARRANTY", qty: 1, rate: 0.00 }
+    ];
 
-    doc.text(typeof subItem.qty === 'number' ? subItem.qty.toFixed(0) : subItem.qty.toString(), 
-             xQtyText, currentItemY, { width: wQty, align: 'right' });
-    doc.text(`$${subItem.rate.toFixed(2)}`, xRateText, currentItemY, { width: wRate, align: 'right' });
-    doc.font(FONT_FAMILY_MONO_BOLD ).text("INCLUDED", xAmountText, currentItemY, { width: wAmount, align: 'right' });
-    doc.font(FONT_FAMILY_MONO);
+    standardItems.forEach(subItem => {
+      // ✅ ESTIMACIÓN MÁS PRECISA PARA ITEMS ESTÁNDAR TAMBIÉN
+      const estimatedDescHeight = doc.heightOfString(subItem.desc, { width: wDesc });
+      const estimatedRowHeight = Math.max(estimatedDescHeight + 15, 25);
+      checkPageBreak(estimatedRowHeight);
+      
+      currentItemY = doc.y; 
+      doc.text("", xIncludedText, currentItemY, { width: wIncluded });
+      const yBeforeDesc = doc.y; 
+      doc.text(subItem.desc, xDescText, currentItemY, { width: wDesc });
+      const yAfterDesc = doc.y; 
 
-    doc.y = yAfterDesc; 
-    doc.moveDown(1); 
-  });
+      doc.text(typeof subItem.qty === 'number' ? subItem.qty.toFixed(0) : subItem.qty.toString(), 
+               xQtyText, currentItemY, { width: wQty, align: 'right' });
+      doc.text(`$${subItem.rate.toFixed(2)}`, xRateText, currentItemY, { width: wRate, align: 'right' });
+      doc.font(FONT_FAMILY_MONO_BOLD).text("INCLUDED", xAmountText, currentItemY, { width: wAmount, align: 'right' });
+      doc.font(FONT_FAMILY_MONO);
+
+      doc.y = yAfterDesc; 
+      doc.moveDown(2.0); // ✅ AUMENTADO DE 1 A 1.5 PARA MÁS ESPACIO ENTRE ITEMS
+    });
+  }
   
+  // Línea final de la tabla
   doc.moveTo(NEW_PAGE_MARGIN, doc.y).lineTo(tableHeaderRightEdge, doc.y)
      .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.5).stroke();
   doc.moveDown(1.5); 
@@ -916,48 +935,6 @@ async function generateAndSaveBudgetPDF(budgetData) {
   });
 }
 
-
-// async function generateAndSaveBudgetPDF(budgetData) {
-//   return new Promise(async(resolve, reject) => {
-//     try {
-//       const { idBudget, date, expirationDate, Permit } = budgetData;
-//       const clientEmailFromPermit = Permit?.applicantEmail;
-//       const formattedDate = formatDateDDMMYYYY(date);
-//       const formattedExpirationDate = formatDateDDMMYYYY(expirationDate);
-
-//       const doc = new PDFDocument({ autoFirstPage: false, margin: pageMargin, size: 'A4' });
-//       const uploadsDir = path.join(__dirname, '../uploads');
-//       if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-//       const pdfPath = path.join(uploadsDir, `budget_package_${idBudget}.pdf`);
-//       const stream = fs.createWriteStream(pdfPath);
-//       doc.pipe(stream);
-
-//       doc.addPage();
-//       _buildBudgetContractPage(doc, budgetData, formattedDate, formattedExpirationDate);
-
-//       doc.addPage();
-//       _buildTermsAndConditionsPage(doc, budgetData, formattedDate, formattedExpirationDate);
-
-//       doc.addPage();
-//       await _buildInvoicePage(doc, budgetData, formattedDate, formattedExpirationDate, clientEmailFromPermit);
-
-//       doc.end();
-
-//       stream.on('finish', () => {
-//         console.log(`PDF de paquete de presupuesto generado: ${pdfPath}`);
-//         resolve(pdfPath);
-//       });
-//       stream.on('error', (err) => {
-//         console.error("Error al escribir el stream del PDF del paquete de presupuesto:", err);
-//         reject(err);
-//       });
-
-//     } catch (error) {
-//       console.error("Error dentro de generateAndSaveBudgetPDF (multi-página):", error);
-//       reject(error);
-//     }
-//   });
-// }
 
 
 async function generateAndSaveFinalInvoicePDF(invoiceData) {

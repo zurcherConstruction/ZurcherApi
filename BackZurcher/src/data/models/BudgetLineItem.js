@@ -58,7 +58,11 @@ module.exports = (sequelize) => {
     notes: { // Notas específicas para esta línea en este budget (opcional)
         type: DataTypes.TEXT,
         allowNull: true,
-    }
+    },
+ description: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   }, {
     timestamps: true,
   });

@@ -54,6 +54,7 @@ const BudgetController = {
           notes: incomingItem.notes || null,
           marca: incomingItem.marca || null,
           capacity: incomingItem.capacity || null,
+          description: null,
           // budgetId se añadirá después
         };
 
@@ -66,6 +67,7 @@ const BudgetController = {
           itemDataForCreation.budgetItemId = incomingItem.budgetItemId;
           itemDataForCreation.name = incomingItem.name || budgetItemDetails.name; // Usar nombre del catálogo como base
           itemDataForCreation.category = incomingItem.category || budgetItemDetails.category; // Usar categoría del catálogo como base
+          itemDataForCreation.description = incomingItem.description || budgetItemDetails.description || null;
         } else if (incomingItem.name && incomingItem.category && incomingItem.unitPrice !== undefined) { // Item manual
           const manualPrice = parseFloat(incomingItem.unitPrice);
           if (isNaN(manualPrice) || manualPrice < 0) throw new Error(`Item manual inválido (${incomingItem.name}): unitPrice debe ser un número no negativo.`);
@@ -73,6 +75,7 @@ const BudgetController = {
           itemDataForCreation.budgetItemId = null;
           itemDataForCreation.name = incomingItem.name; // Usar nombre manual
           itemDataForCreation.category = incomingItem.category; // Usar categoría manual
+          itemDataForCreation.description = incomingItem.description || null;
         } else {
           console.error("Datos insuficientes para item:", incomingItem);
           throw new Error(`Item inválido: falta info (budgetItemId o name/category/unitPrice).`);
@@ -301,6 +304,7 @@ const BudgetController = {
         marca: lineItem.marca || lineItem.itemDetails?.marca || null,
         capacity: lineItem.capacity || lineItem.itemDetails?.capacity || null,
         unitPrice: lineItem.unitPrice || lineItem.itemDetails?.unitPrice || null,
+        description: lineItem.description || lineItem.itemDetails?.description || null,
       }));
 
       // *** CAMBIO 2: Añadir URLs dinámicamente si el Permit existe ***
@@ -520,6 +524,7 @@ if (hasLineItemUpdates) {
       notes: incomingItem.notes || null,
       marca: incomingItem.marca || null,
       capacity: incomingItem.capacity || null,
+      description: null,
     };
 
     console.log("itemDataForCreation inicial:", itemDataForCreation);
@@ -545,7 +550,7 @@ if (hasLineItemUpdates) {
       itemDataForCreation.budgetItemId = incomingItem.budgetItemId;
       itemDataForCreation.name = incomingItem.name || budgetItemDetails.name;
       itemDataForCreation.category = incomingItem.category || budgetItemDetails.category;
-      
+      itemDataForCreation.description = incomingItem.description || budgetItemDetails.description || null;
       console.log("itemDataForCreation después de asignar budgetItemId:", itemDataForCreation);
     } else if (incomingItem.name && incomingItem.category && incomingItem.unitPrice !== undefined) {
       // Item manual
@@ -558,6 +563,7 @@ if (hasLineItemUpdates) {
       itemDataForCreation.budgetItemId = null;
       itemDataForCreation.name = incomingItem.name;
       itemDataForCreation.category = incomingItem.category;
+      itemDataForCreation.description = incomingItem.description || null;
     } else {
       // Item inválido
       console.error("Error: Item inválido, falta información:", incomingItem);
