@@ -22,16 +22,14 @@ const maintenanceRoutes = require('./maintenanceRoutes'); // Asegúrate de que l
 //const adobeWebhookRoutes = require('./adobeWebhookRoutes'); // Asegúrate de que la ruta sea correcta
 const adobeRoutes = require('./adobeRoutes'); // Asegúrate de que la ruta sea correcta
 
-const debugAdobeMiddleware = (req, res, next) => {
-  console.log('🔍 Adobe OAuth Route Hit:', req.method, req.originalUrl);
-  console.log('🔍 Authorization header:', req.headers.authorization ? 'Present' : 'Not present');
-  next();
-};
+const signNowRoutes = require('./signNowRoutes'); // Asegúrate de que la ruta sea correcta
+
 
 router.use('/auth', authRoutes); // Registro y login no requieren token
 router.use('/change-orders',changeOrdersRoutes); // Ruta para comprobantes
-router.use('/adobe-oauth', debugAdobeMiddleware, adobeRoutes); // Rutas para Adobe OAuth
+
 //router.use('/webhooks-adobe-sign', adobeWebhookRoutes); 
+router.use('/signnow', signNowRoutes);
 
 // Rutas protegidas (requieren token)
 const { verifyToken } = require('../middleware/isAuth');

@@ -41,7 +41,33 @@ router.get(
   isStaff,     // O el rol/roles adecuados (ej: allowRoles(['admin', 'recept', 'owner', 'staff']))
   BudgetController.viewBudgetPDF // Controlador para manejar la descarga
 );
-  
+  // ========== RUTAS DE SIGNNOW ==========
+
+// Enviar presupuesto a SignNow para firma
+router.post(
+  '/:idBudget/send-to-signnow',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner']),
+  BudgetController.sendBudgetToSignNow
+);
+
+// Verificar estado de firma del presupuesto
+router.get(
+  '/:idBudget/signature-status',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner', 'staff']), // Staff también puede consultar estado
+  BudgetController.checkSignatureStatus
+);
+
+// Descargar documento firmado
+router.get(
+  '/:idBudget/download-signed',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner', 'staff']), // Staff también puede descargar firmados
+  BudgetController.downloadSignedBudget
+);
+
+// ========== RUTAS EXISTENTES ==========
 
   router.put('/:idBudget', verifyToken, BudgetController.updateBudget); // Solo administradores pueden actualizar presupuestos
   router.get('/:idBudget', verifyToken, isStaff, BudgetController.getBudgetById); // Personal del hotel puede ver un presupuesto específico
