@@ -1,6 +1,6 @@
 const SignNowService = require('../services/ServiceSignNow')
 
-const SignNowController = {
+const signNowController = {
   // Test de conexión
   async testConnection(req, res) {
     try {
@@ -31,4 +31,4 @@ const SignNowController = {
   }
 };
 
-module.exports = SignNowController;
+module.exports = signNowController;
