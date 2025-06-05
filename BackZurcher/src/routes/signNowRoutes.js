@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const SignNowController = require('../controllers/signNowController');
+const signNowController = require('../controllers/signNowController');
 
 // Test de conexión con SignNow
-router.get('/test-connection', SignNowController.testConnection);
+router.get('/test-connection', signNowController.testConnection);
 
 module.exports = router;
