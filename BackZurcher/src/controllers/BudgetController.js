@@ -604,7 +604,7 @@ async checkSignatureStatus(req, res) {
               {
                 model: BudgetItem,
                 as: 'itemDetails',
-                attributes: ['id', 'name', 'category', 'marca', 'capacity', 'unitPrice'],
+                attributes: ['id', 'name', 'category', 'marca', 'capacity', 'unitPrice', 'description'],
               },
             ],
           },
@@ -991,8 +991,8 @@ if (hasLineItemUpdates) {
         generatedPdfPath = budget.pdfPath; // Usar la ruta existente
       }
 
-      // --- 7a. Lógica si el estado es 'send' (Genera PDF y envía correo) ---
-      if (req.body.status === 'send') {
+// --- 7a. Lógica si el estado es 'send' (Genera PDF y envía correo) ---
+if (req.body.status === 'send') {
   console.log("El estado es 'send'. Procesando envío de correo y SignNow...");
 
   // --- Enviar Correo (Usa generatedPdfPath o budget.pdfPath actualizado) ---
@@ -1007,7 +1007,7 @@ if (hasLineItemUpdates) {
     if (!budget.Permit?.applicantEmail || !budget.Permit.applicantEmail.includes('@')) {
       console.warn(`Advertencia: Cliente para Budget ID ${idBudget} sin correo válido. No se enviará email.`);
     } else {
-      // ✅ Email con información sobre SignNow (código existente)
+      // ✅ Email con información sobre SignNow
       const clientMailOptions = {
         to: budget.Permit.applicantEmail,
         subject: `Budget Proposal #${idBudget} for ${budget.propertyAddress}`,
@@ -1073,8 +1073,8 @@ if (hasLineItemUpdates) {
               <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #dee2e6; text-align: center;">
                 <div style="color: #6c757d; font-size: 14px;">
                   <strong style="color: #1a365d;">Zurcher Construction</strong><br>
-                  Professional Septic Services<br>
-                  📧 Contact: [Your Email] | 📞 [Your Phone]<br>
+                  SEPTIC TANK DIVISION - CFC1433240<br>
+                  📧 Contact: [zurcherseptic@gmail.com] | 📞 [+1 (407) 419-4495]<br>
                   🌐 Professional Septic Installation & Maintenance
                 </div>
               </div>

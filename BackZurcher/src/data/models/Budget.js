@@ -32,7 +32,7 @@ module.exports = (sequelize) => {
       allowNull: false,
     },
     status: {
-      type: DataTypes.ENUM("created","send", "approved", "notResponded", "rejected", "sent_for_signature", "signed"),
+      type: DataTypes.ENUM("created","send", "approved", "notResponded", "rejected", "sent_for_signature", "signed", "sent"),
       allowNull: false,
     },
     paymentProofAmount:{

@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { 
-  fetchBudgets, 
+import {
+  fetchBudgets,
   fetchBudgetById,
-  deleteBudget, 
-  updateBudget 
+  deleteBudget,
+  updateBudget
 } from '../../Redux/Actions/budgetActions';
-import { 
-  MagnifyingGlassIcon, 
-  PencilIcon, 
+import {
+  MagnifyingGlassIcon,
+  PencilIcon,
   TrashIcon,
   EyeIcon,
   FunnelIcon,
@@ -18,14 +18,14 @@ import {
 
 const GestionBudgets = () => {
   const dispatch = useDispatch();
-   const { 
-    budgets, 
-    loading, 
-    error, 
+  const {
+    budgets,
+    loading,
+    error,
     currentBudget  // Agregar este selector
   } = useSelector(state => state.budget);
-  
- 
+
+
   // Estados para filtros y búsqueda
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -69,26 +69,26 @@ const GestionBudgets = () => {
   // Filtrar budgets
   const filteredBudgets = useMemo(() => {
     if (!budgets) return [];
-    
+
     return budgets.filter(budget => {
       // Filtro por dirección
       const matchesSearch = budget.propertyAddress
         ?.toLowerCase()
-        .includes(searchTerm.toLowerCase()) || 
+        .includes(searchTerm.toLowerCase()) ||
         budget.applicantName
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase());
+          ?.toLowerCase()
+          .includes(searchTerm.toLowerCase());
 
       // Filtro por estado
       const matchesStatus = statusFilter === 'all' || budget.status === statusFilter;
 
       // Filtro por mes
       const budgetDate = new Date(budget.date);
-      const matchesMonth = monthFilter === 'all' || 
+      const matchesMonth = monthFilter === 'all' ||
         budgetDate.getMonth() === parseInt(monthFilter);
 
       // Filtro por año
-      const matchesYear = yearFilter === 'all' || 
+      const matchesYear = yearFilter === 'all' ||
         budgetDate.getFullYear() === parseInt(yearFilter);
 
       return matchesSearch && matchesStatus && matchesMonth && matchesYear;
@@ -98,52 +98,55 @@ const GestionBudgets = () => {
   // Estadísticas de budgets
   const budgetStats = useMemo(() => {
     if (!budgets) return {};
-    
+
     return {
       total: budgets.length,
       pending: budgets.filter(b => b.status === 'pending').length,
       approved: budgets.filter(b => b.status === 'approved').length,
       rejected: budgets.filter(b => b.status === 'rejected').length,
       created: budgets.filter(b => b.status === 'created').length,
-      send: budgets.filter(b => b.status === 'send').length,
+      send: budgets.filter(b => b.status === 'send').length, // ✅ Mantener "send" para emails enviados
+      sentForSignature: budgets.filter(b => b.status === 'sent_for_signature').length, // ✅ NUEVO
+      signed: budgets.filter(b => b.status === 'signed').length, // ✅ NUEVO
+      notResponded: budgets.filter(b => b.status === 'notResponded').length, // ✅ NUEVO
     };
   }, [budgets]);
 
- const handleEdit = (budget) => {
-  setSelectedBudget(budget);
-  
-  // Necesitamos cargar los datos completos del budget incluyendo lineItems
-  dispatch(fetchBudgetById(budget.idBudget)).then(() => {
-    // Los datos se cargarán en currentBudget y se procesarán en el useEffect
-  });
-  
-  setShowEditModal(true);
-};
-// Nuevo useEffect para manejar los datos del currentBudget en el modal de edición
-useEffect(() => {
-  if (currentBudget && selectedBudget && currentBudget.idBudget === selectedBudget.idBudget && showEditModal) {
-    setEditData({
-      date: currentBudget.date ? currentBudget.date.split('T')[0] : '',
-      expirationDate: currentBudget.expirationDate ? currentBudget.expirationDate.split('T')[0] : '',
-      status: currentBudget.status,
-      discountAmount: currentBudget.discountAmount || '',
-      discountDescription: currentBudget.discountDescription || '',
-      generalNotes: currentBudget.generalNotes || '',
-      initialPaymentPercentage: currentBudget.initialPaymentPercentage || 60,
-      lineItems: (currentBudget.lineItems || []).map(item => ({
-        id: item.id,
-        budgetItemId: item.budgetItemId,
-        quantity: parseInt(item.quantity) || 0,
-        notes: item.notes || '',
-        name: item.itemDetails?.name || item.name || 'N/A',
-        category: item.itemDetails?.category || item.category || 'N/A',
-        marca: item.itemDetails?.marca || item.marca || '',
-        capacity: item.itemDetails?.capacity || item.capacity || '',
-        unitPrice: parseFloat(item.priceAtTimeOfBudget || item.itemDetails?.unitPrice || item.unitPrice || 0),
-      }))
+  const handleEdit = (budget) => {
+    setSelectedBudget(budget);
+
+    // Necesitamos cargar los datos completos del budget incluyendo lineItems
+    dispatch(fetchBudgetById(budget.idBudget)).then(() => {
+      // Los datos se cargarán en currentBudget y se procesarán en el useEffect
     });
-  }
-}, [currentBudget, selectedBudget, showEditModal]);
+
+    setShowEditModal(true);
+  };
+  // Nuevo useEffect para manejar los datos del currentBudget en el modal de edición
+  useEffect(() => {
+    if (currentBudget && selectedBudget && currentBudget.idBudget === selectedBudget.idBudget && showEditModal) {
+      setEditData({
+        date: currentBudget.date ? currentBudget.date.split('T')[0] : '',
+        expirationDate: currentBudget.expirationDate ? currentBudget.expirationDate.split('T')[0] : '',
+        status: currentBudget.status,
+        discountAmount: currentBudget.discountAmount || '',
+        discountDescription: currentBudget.discountDescription || '',
+        generalNotes: currentBudget.generalNotes || '',
+        initialPaymentPercentage: currentBudget.initialPaymentPercentage || 60,
+        lineItems: (currentBudget.lineItems || []).map(item => ({
+          id: item.id,
+          budgetItemId: item.budgetItemId,
+          quantity: parseInt(item.quantity) || 0,
+          notes: item.notes || '',
+          name: item.itemDetails?.name || item.name || 'N/A',
+          category: item.itemDetails?.category || item.category || 'N/A',
+          marca: item.itemDetails?.marca || item.marca || '',
+          capacity: item.itemDetails?.capacity || item.capacity || '',
+          unitPrice: parseFloat(item.priceAtTimeOfBudget || item.itemDetails?.unitPrice || item.unitPrice || 0),
+        }))
+      });
+    }
+  }, [currentBudget, selectedBudget, showEditModal]);
 
   const handleEditInputChange = (e) => {
     const { name, value } = e.target;
@@ -227,39 +230,83 @@ useEffect(() => {
 
   const { subtotal, total, payment } = calculateTotals();
 
-  const handleSaveEdit = async () => {
-    if (!selectedBudget) return;
-    
-    try {
-      const dataToSend = {
-        date: editData.date,
-        expirationDate: editData.expirationDate || null,
-        status: editData.status,
-        discountDescription: editData.discountDescription,
-        discountAmount: parseFloat(editData.discountAmount) || 0,
-        generalNotes: editData.generalNotes,
-        initialPaymentPercentage: parseFloat(editData.initialPaymentPercentage) || 60,
-        lineItems: editData.lineItems.map(item => ({
-          id: item.id,
-          budgetItemId: item.budgetItemId,
-          category: item.category,
-          name: item.name,
-          unitPrice: item.unitPrice,
-          quantity: parseFloat(item.quantity) || 0,
-          notes: item.notes,
-          marca: item.marca,
-          capacity: item.capacity,
-        }))
-      };
+const handleSaveEdit = async () => {
+  if (!selectedBudget) return;
+  
+  try {
+    const dataToSend = {
+      date: editData.date,
+      expirationDate: editData.expirationDate || null,
+      status: editData.status,
+      discountDescription: editData.discountDescription,
+      discountAmount: parseFloat(editData.discountAmount) || 0,
+      generalNotes: editData.generalNotes,
+      initialPaymentPercentage: parseFloat(editData.initialPaymentPercentage) || 60,
+      lineItems: editData.lineItems.map(item => ({
+        id: item.id,
+        budgetItemId: item.budgetItemId,
+        category: item.category,
+        name: item.name,
+        unitPrice: item.unitPrice,
+        quantity: parseFloat(item.quantity) || 0,
+        notes: item.notes,
+        marca: item.marca,
+        capacity: item.capacity,
+      }))
+    };
 
-      await dispatch(updateBudget(selectedBudget.idBudget, dataToSend));
-      setShowEditModal(false);
-      setSelectedBudget(null);
-      dispatch(fetchBudgets());
-    } catch (error) {
-      console.error('Error al actualizar budget:', error);
+    // ✅ LÓGICA MEJORADA para presupuestos en SignNow
+    if (selectedBudget.status === 'sent_for_signature') {
+      // Verificar si hubo cambios significativos
+      const hasSignificantChanges = 
+        editData.status !== 'sent_for_signature' || // Cambio de estado
+        JSON.stringify(dataToSend.lineItems) !== JSON.stringify(selectedBudget.lineItems) || // Cambio en items
+        dataToSend.discountAmount !== selectedBudget.discountAmount || // Cambio en descuento
+        dataToSend.generalNotes !== selectedBudget.generalNotes; // Cambio en notas
+      
+      if (hasSignificantChanges) {
+        const userChoice = window.confirm(
+          '⚠️ ADVERTENCIA: Este presupuesto ya fue enviado a SignNow para firma.\n\n' +
+          'Se detectaron cambios significativos. ¿Qué deseas hacer?\n\n' +
+          '✅ OK = Reenviar automáticamente con los cambios\n' +
+          '❌ Cancelar = Solo guardar sin reenviar\n\n' +
+          'Si eliges reenviar:\n' +
+          '• Se cancelará el documento actual en SignNow\n' +
+          '• Se generará un nuevo PDF\n' +
+          '• Se enviará automáticamente por email y SignNow\n' +
+          '• El cliente recibirá nuevas notificaciones'
+        );
+        
+        if (userChoice) {
+          // ✅ Usuario eligió reenviar automáticamente
+          dataToSend.status = 'send'; // Cambiar a 'send' para que se procese automáticamente
+          console.log('🔄 Reenviando presupuesto automáticamente...');
+        }
+        // Si no eligió reenviar, mantener el estado actual y solo guardar cambios
+      }
     }
-  };
+
+    await dispatch(updateBudget(selectedBudget.idBudget, dataToSend));
+    setShowEditModal(false);
+    setSelectedBudget(null);
+    dispatch(fetchBudgets());
+    
+    // ✅ Mensajes de éxito más específicos
+    if (dataToSend.status === 'send') {
+      if (selectedBudget.status === 'sent_for_signature') {
+        alert('✅ Presupuesto actualizado y reenviado automáticamente al cliente por email y SignNow.');
+      } else {
+        alert('✅ Presupuesto actualizado y enviado al cliente por email.');
+      }
+    } else {
+      alert('✅ Presupuesto actualizado exitosamente.');
+    }
+    
+  } catch (error) {
+    console.error('Error al actualizar budget:', error);
+    alert('Error al actualizar el presupuesto: ' + (error.message || 'Error desconocido'));
+  }
+};
 
   const handleDelete = async (budgetId) => {
     if (window.confirm('¿Estás seguro de que quieres eliminar este presupuesto?')) {
@@ -276,12 +323,12 @@ useEffect(() => {
     const statusConfig = {
       'created': { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Creado' },
       'send': { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Enviado' },
+      'sent_for_signature': { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Para Firma' },
       'pending': { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pendiente' },
+      'signed': { bg: 'bg-indigo-100', text: 'text-indigo-800', label: 'Firmado' },
       'approved': { bg: 'bg-green-100', text: 'text-green-800', label: 'Aprobado' },
       'rejected': { bg: 'bg-red-100', text: 'text-red-800', label: 'Rechazado' },
-      'notResponded': { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Sin Respuesta' },
-      'sent_for_signature': { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Para Firma' },
-      'signed': { bg: 'bg-indigo-100', text: 'text-indigo-800', label: 'Firmado' }
+      'notResponded': { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Sin Respuesta' }
     };
 
     const config = statusConfig[status] || statusConfig['created'];
@@ -295,12 +342,12 @@ useEffect(() => {
   const canEdit = (budget) => {
     return !['approved', 'signed'].includes(budget.status);
   };
-    // Nueva función para verificar si se puede eliminar
+  // Nueva función para verificar si se puede eliminar
   const canDelete = (budget) => {
     return !['approved', 'signed'].includes(budget.status);
   };
 
-    // Nueva función para mostrar detalles
+  // Nueva función para mostrar detalles
   const handleViewDetails = (budget) => {
     setSelectedBudget(budget);
     setShowDetailModal(true);
@@ -324,14 +371,26 @@ useEffect(() => {
       </div>
 
       {/* Estadísticas */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-8 gap-4 mb-8">
         <div className="bg-white p-4 rounded-lg shadow">
           <div className="text-2xl font-bold text-gray-900">{budgetStats.total}</div>
           <div className="text-sm text-gray-600">Total</div>
         </div>
         <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-yellow-600">{budgetStats.pending}</div>
-          <div className="text-sm text-gray-600">Pendientes</div>
+          <div className="text-2xl font-bold text-gray-600">{budgetStats.created}</div>
+          <div className="text-sm text-gray-600">Creados</div>
+        </div>
+        <div className="bg-white p-4 rounded-lg shadow">
+          <div className="text-2xl font-bold text-blue-600">{budgetStats.send}</div>
+          <div className="text-sm text-gray-600">Enviados</div>
+        </div>
+        <div className="bg-white p-4 rounded-lg shadow">
+          <div className="text-2xl font-bold text-purple-600">{budgetStats.sentForSignature}</div>
+          <div className="text-sm text-gray-600">Para Firma</div>
+        </div>
+        <div className="bg-white p-4 rounded-lg shadow">
+          <div className="text-2xl font-bold text-indigo-600">{budgetStats.signed}</div>
+          <div className="text-sm text-gray-600">Firmados</div>
         </div>
         <div className="bg-white p-4 rounded-lg shadow">
           <div className="text-2xl font-bold text-green-600">{budgetStats.approved}</div>
@@ -342,12 +401,8 @@ useEffect(() => {
           <div className="text-sm text-gray-600">Rechazados</div>
         </div>
         <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-gray-600">{budgetStats.created}</div>
-          <div className="text-sm text-gray-600">Creados</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-blue-600">{budgetStats.send}</div>
-          <div className="text-sm text-gray-600">Enviados</div>
+          <div className="text-2xl font-bold text-orange-600">{budgetStats.notResponded}</div>
+          <div className="text-sm text-gray-600">Sin Respuesta</div>
         </div>
       </div>
 
@@ -523,7 +578,7 @@ useEffect(() => {
         )}
       </div>
 
-          {/* Modal de Detalles */}
+      {/* Modal de Detalles */}
       {showDetailModal && selectedBudget && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-10 mx-auto p-5 border max-w-2xl shadow-lg rounded-md bg-white">
@@ -541,7 +596,7 @@ useEffect(() => {
                   </svg>
                 </button>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Información del Cliente */}
                 <div className="bg-gray-50 p-4 rounded-lg">
@@ -587,8 +642,8 @@ useEffect(() => {
                     <div>
                       <span className="text-sm font-medium text-gray-600">Fecha de Expiración:</span>
                       <p className="text-sm text-gray-900">
-                        {selectedBudget.expirationDate 
-                          ? new Date(selectedBudget.expirationDate).toLocaleDateString() 
+                        {selectedBudget.expirationDate
+                          ? new Date(selectedBudget.expirationDate).toLocaleDateString()
                           : 'N/A'
                         }
                       </p>
@@ -614,7 +669,7 @@ useEffect(() => {
                     <div>
                       <span className="text-sm font-medium text-gray-600">Pago Inicial:</span>
                       <p className="text-sm text-gray-900">
-                        ${Number(selectedBudget.initialPayment || 0).toLocaleString()} 
+                        ${Number(selectedBudget.initialPayment || 0).toLocaleString()}
                         ({selectedBudget.initialPaymentPercentage || 60}%)
                       </p>
                     </div>
@@ -697,7 +752,7 @@ useEffect(() => {
                   </svg>
                 </button>
               </div>
-              
+
               <div className="space-y-6">
                 {/* Información del Permit (Solo lectura) */}
                 <div className="bg-gray-50 p-4 rounded-lg">
@@ -753,8 +808,11 @@ useEffect(() => {
                       className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="created">Creado</option>
-                      <option value="send">Enviado</option>
+                      <option value="send">Enviar por Email</option>
+                      <option value="sent_for_signature">Enviado para Firma</option>
                       <option value="pending">Pendiente</option>
+                      <option value="signed">Firmado</option>
+                      <option value="approved">Aprobado</option>
                       <option value="rejected">Rechazado</option>
                       <option value="notResponded">Sin Respuesta</option>
                     </select>
@@ -782,7 +840,7 @@ useEffect(() => {
                       <div key={item.id || index} className="border-b border-gray-100 pb-4 last:border-b-0">
                         <p className="font-medium text-gray-800">{item.name} ({item.category})</p>
                         <p className="text-sm text-gray-600">
-                          Marca: {item.marca || 'N/A'} | Capacidad: {item.capacity || 'N/A'} | 
+                          Marca: {item.marca || 'N/A'} | Capacidad: {item.capacity || 'N/A'} |
                           Precio Unitario: ${parseFloat(item.unitPrice || 0).toFixed(2)}
                         </p>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
@@ -807,9 +865,9 @@ useEffect(() => {
                             />
                           </div>
                         </div>
-                        <button 
-                          type="button" 
-                          onClick={() => handleRemoveLineItem(index)} 
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveLineItem(index)}
                           className="text-red-500 text-xs mt-1 hover:text-red-700"
                         >
                           Eliminar Item
@@ -825,61 +883,61 @@ useEffect(() => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="block text-xs font-medium text-gray-700">Categoría</label>
-                      <input 
-                        type="text" 
-                        name="category" 
-                        value={manualItemData.category} 
-                        onChange={handleManualItemChange} 
-                        className="mt-1 block w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" 
-                        placeholder="Ej: SYSTEM TYPE" 
+                      <input
+                        type="text"
+                        name="category"
+                        value={manualItemData.category}
+                        onChange={handleManualItemChange}
+                        className="mt-1 block w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Ej: SYSTEM TYPE"
                       />
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-xs font-medium text-gray-700">Nombre del Item</label>
-                      <input 
-                        type="text" 
-                        name="name" 
-                        value={manualItemData.name} 
-                        onChange={handleManualItemChange} 
-                        className="mt-1 block w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" 
-                        placeholder="Ej: NEW SYSTEM INSTALLATION" 
+                      <input
+                        type="text"
+                        name="name"
+                        value={manualItemData.name}
+                        onChange={handleManualItemChange}
+                        className="mt-1 block w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Ej: NEW SYSTEM INSTALLATION"
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-700">Precio Unitario ($)</label>
-                      <input 
-                        type="number" 
-                        name="unitPrice" 
-                        value={manualItemData.unitPrice} 
-                        onChange={handleManualItemChange} 
-                        className="mt-1 block w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" 
-                        placeholder="Ej: 150.00" 
-                        min="0" 
-                        step="0.01" 
+                      <input
+                        type="number"
+                        name="unitPrice"
+                        value={manualItemData.unitPrice}
+                        onChange={handleManualItemChange}
+                        className="mt-1 block w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Ej: 150.00"
+                        min="0"
+                        step="0.01"
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-700">Cantidad</label>
-                      <input 
-                        type="number" 
-                        name="quantity" 
-                        value={manualItemData.quantity} 
-                        onChange={handleManualItemChange} 
-                        className="mt-1 block w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" 
-                        placeholder="Ej: 1" 
-                        min="0.01" 
-                        step="0.01" 
+                      <input
+                        type="number"
+                        name="quantity"
+                        value={manualItemData.quantity}
+                        onChange={handleManualItemChange}
+                        className="mt-1 block w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Ej: 1"
+                        min="0.01"
+                        step="0.01"
                       />
                     </div>
                     <div className="md:col-span-3">
                       <label className="block text-xs font-medium text-gray-700">Notas (Opcional)</label>
-                      <input 
-                        type="text" 
-                        name="notes" 
-                        value={manualItemData.notes} 
-                        onChange={handleManualItemChange} 
-                        className="mt-1 block w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" 
-                        placeholder="Detalles adicionales..." 
+                      <input
+                        type="text"
+                        name="notes"
+                        value={manualItemData.notes}
+                        onChange={handleManualItemChange}
+                        className="mt-1 block w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Detalles adicionales..."
                       />
                     </div>
                   </div>

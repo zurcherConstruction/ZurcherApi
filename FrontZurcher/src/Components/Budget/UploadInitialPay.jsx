@@ -145,7 +145,7 @@ const UploadInitialPay = () => {
     }
   };
 
-  const sendBudgets = budgets.filter(b => b.status === 'send');
+  const sendBudgets = budgets.filter(b =>b.status === 'send' || b.status === 'sent_for_signature');
 
   if (budgetsLoading) {
     return <p className="text-blue-500 p-4">Cargando presupuestos...</p>;
