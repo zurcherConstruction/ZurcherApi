@@ -2,11 +2,14 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { fetchBudgets, fetchBudgetById, updateBudget, } from "../../Redux/Actions/budgetActions";
+// ✅ AGREGAR ESTAS IMPORTACIONES:
+import { fetchBudgetItems } from "../../Redux/Actions/budgetItemActions";
+import DynamicCategorySection from './DynamicCategorySection';
 import { parseISO, format } from 'date-fns';
 import { unwrapResult } from '@reduxjs/toolkit';
 import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
-// import { generatePDF } from "../../utils/pdfGenerator";
 import api from "../../utils/axios";
+
 // --- Helper para generar IDs temporales ---
 const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -26,6 +29,13 @@ const EditBudget = () => {
     errorCurrent: currentBudgetError,
   } = useSelector(state => state.budget);
 
+  // ✅ AGREGAR SELECTOR PARA BUDGET ITEMS:
+  const {
+    items: budgetItemsCatalog = [],
+    loading: loadingCatalog,
+    error: catalogError
+  } = useSelector(state => state.budgetItems);
+
   console.log('Value of currentBudget from useSelector:', currentBudget);
 
   // --- Estados Locales ---
@@ -42,28 +52,56 @@ const EditBudget = () => {
     unitPrice: "", // Usar string para el input
     quantity: "1", // Default a 1 como string
     notes: "",
-});
+  });
+
+  // ✅ AGREGAR ESTADOS PARA SISTEMA DINÁMICO:
+  const [dynamicSectionVisibility, setDynamicSectionVisibility] = useState({});
+
   // --- Cargar Lista de Budgets para Búsqueda ---
   useEffect(() => {
     dispatch(fetchBudgets());
   }, [dispatch]);
 
-   // *** NUEVO: Filtrar budgets por estado para la búsqueda ***
-   const editableBudgets = useMemo(() => {
+  // ✅ AGREGAR EFECTO PARA CARGAR CATÁLOGO:
+  useEffect(() => {
+    dispatch(fetchBudgetItems());
+  }, [dispatch]);
+
+  // *** NUEVO: Filtrar budgets por estado para la búsqueda ***
+  const editableBudgets = useMemo(() => {
     const allowedStatus = ["created", "send", "notResponded", "rejected"];
-    // Asegúrate que 'budgets' no sea undefined o null antes de filtrar
     return (budgets || []).filter(budget => allowedStatus.includes(budget.status));
-  }, [budgets]); // Depende de la lista completa de budgets
+  }, [budgets]);
 
+  // ✅ AGREGAR LÓGICA PARA NORMALIZAR CATÁLOGO:
+  const normalizedBudgetItemsCatalog = useMemo(() => {
+    return (budgetItemsCatalog || [])
+      .filter(item => item.isActive)
+      .map(item => ({
+        id: item.id,
+        name: item.name || '',
+        category: item.category || '',
+        marca: item.marca || '',
+        capacity: item.capacity || '',
+        unitPrice: parseFloat(item.unitPrice) || 0,
+        description: item.description || '', // ✅ Incluir description
+      }));
+  }, [budgetItemsCatalog]);
 
-   // --- Obtener Direcciones Únicas para Datalist (desde los editables) ---
-   const uniqueAddresses = useMemo(() => {
-    if (!editableBudgets || editableBudgets.length === 0) return []; // Usa editableBudgets
-    const addresses = editableBudgets // Usa editableBudgets
+  // ✅ AGREGAR CATEGORÍAS DISPONIBLES:
+  const availableCategories = useMemo(() => {
+    const categories = normalizedBudgetItemsCatalog.map(item => item.category).filter(Boolean);
+    return [...new Set(categories)].sort();
+  }, [normalizedBudgetItemsCatalog]);
+
+  // --- Obtener Direcciones Únicas para Datalist (desde los editables) ---
+  const uniqueAddresses = useMemo(() => {
+    if (!editableBudgets || editableBudgets.length === 0) return [];
+    const addresses = editableBudgets
       .map(budget => budget.propertyAddress?.trim())
       .filter(Boolean);
     return [...new Set(addresses)].sort();
-  }, [editableBudgets]); // Depende de la lista filtrada por estado
+  }, [editableBudgets]);
 
   // --- Filtrar Budgets basado en searchTerm (desde los editables) ---
   useEffect(() => {
@@ -72,14 +110,13 @@ const EditBudget = () => {
       return;
     }
     const lowerCaseSearchTerm = searchTerm.toLowerCase();
-    // *** MODIFICADO: Busca dentro de 'editableBudgets' ***
     const filtered = editableBudgets.filter(budget =>
       budget.propertyAddress?.toLowerCase().includes(lowerCaseSearchTerm) ||
       budget.Permit?.permitNumber?.toLowerCase().includes(lowerCaseSearchTerm) ||
       budget.applicantName?.toLowerCase().includes(lowerCaseSearchTerm)
     );
     setSearchResults(filtered);
-  }, [searchTerm, editableBudgets]); // Depende del término y la lista filtrada por estado
+  }, [searchTerm, editableBudgets]);
 
   // --- Cargar Datos del Budget Seleccionado (sin cambios) ---
   useEffect(() => {
@@ -119,16 +156,18 @@ const EditBudget = () => {
           generalNotes: currentBudget.generalNotes || "",
           initialPaymentPercentage: currentBudget.initialPaymentPercentage || '60',
           lineItems: (currentBudget.lineItems || []).map(item => ({
-            _tempId: generateTempId(), // Añadir ID temporal para la key en React si no hay 'id' real
-            id: item.id, // ID real de la base de datos si existe
+            _tempId: generateTempId(),
+            id: item.id,
             budgetItemId: item.budgetItemId,
             quantity: parseInt(item.quantity) || 0,
             notes: item.notes || '',
-            name: item.itemDetails?.name || item.name || 'N/A', // Priorizar itemDetails si existe
+            name: item.itemDetails?.name || item.name || 'N/A',
             category: item.itemDetails?.category || item.category || 'N/A',
             marca: item.itemDetails?.marca || item.marca || '',
             capacity: item.itemDetails?.capacity || item.capacity || '',
-            unitPrice: parseFloat(item.priceAtTimeOfBudget || item.itemDetails?.unitPrice || item.unitPrice || 0), // Mejorar obtención de precio
+            unitPrice: parseFloat(item.priceAtTimeOfBudget || item.itemDetails?.unitPrice || item.unitPrice || 0),
+            // ✅ AGREGAR DESCRIPTION:
+            description: item.itemDetails?.description || item.description || '',
           })),
           pdfDataUrl: permitData.pdfDataUrl || null,
           optionalDocsUrl: permitData.optionalDocsUrl || null,
@@ -154,6 +193,7 @@ const EditBudget = () => {
       else console.log('Condition not met: Unknown reason.');
     }
   }, [currentBudget, selectedBudgetId, formData]);
+
   // --- Recalcular Totales ---
   useEffect(() => {
     if (!formData) return;
@@ -202,9 +242,9 @@ const EditBudget = () => {
   const handleManualItemChange = (e) => {
     const { name, value } = e.target;
     setManualItemData(prev => ({ ...prev, [name]: value }));
-};
+  };
 
-const handleAddManualItem = () => {
+  const handleAddManualItem = () => {
     // Validaciones básicas
     const unitPriceNum = parseFloat(manualItemData.unitPrice);
     const quantityNum = parseFloat(manualItemData.quantity);
@@ -223,16 +263,17 @@ const handleAddManualItem = () => {
     }
 
     const newItem = {
-        // id: undefined, // El backend asignará ID
-        // budgetItemId: null, // No viene del catálogo
+        _tempId: generateTempId(), // ✅ AGREGAR TEMP ID
+        id: undefined,
+        budgetItemId: null,
         category: manualItemData.category.trim(),
         name: manualItemData.name.trim(),
         unitPrice: unitPriceNum,
         quantity: quantityNum,
         notes: manualItemData.notes.trim(),
-        // Puedes añadir marca/capacity si los pides en el form manual
         marca: '',
         capacity: '',
+        description: '', // ✅ AGREGAR DESCRIPTION VACÍA
     };
 
     setFormData(prev => {
@@ -245,8 +286,79 @@ const handleAddManualItem = () => {
 
     // Resetear formulario manual
     setManualItemData({ category: "", name: "", unitPrice: "", quantity: "1", notes: "" });
-};
+  };
 
+  // ✅ AGREGAR HANDLERS PARA SISTEMA DINÁMICO:
+  const toggleDynamicSection = (category) => {
+    setDynamicSectionVisibility(prev => ({
+      ...prev,
+      [category]: !prev[category]
+    }));
+  };
+
+  const addItemFromDynamicSection = (itemData) => {
+    console.log("Agregando item desde sección dinámica:", itemData);
+    
+    const foundItem = normalizedBudgetItemsCatalog.find(catalogItem => {
+      let match = catalogItem.name === itemData.name && catalogItem.category === itemData.category;
+      if (itemData.marca && itemData.marca !== '') {
+        match = match && catalogItem.marca === itemData.marca;
+      }
+      if (itemData.capacity && itemData.capacity !== '') {
+        match = match && catalogItem.capacity === itemData.capacity;
+      }
+      return match;
+    });
+
+    if (foundItem) {
+      const newItem = {
+        _tempId: itemData._tempId,
+        id: undefined, // Nuevo item, no tiene ID en BD todavía
+        budgetItemId: foundItem.id,
+        name: foundItem.name,
+        category: foundItem.category,
+        marca: foundItem.marca || '',
+        capacity: foundItem.capacity || '',
+        unitPrice: foundItem.unitPrice,
+        quantity: itemData.quantity,
+        notes: itemData.notes || '',
+        description: foundItem.description || '', // ✅ INCLUIR DESCRIPTION
+      };
+
+      setFormData(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          lineItems: [...prev.lineItems, newItem]
+        };
+      });
+    } else {
+      // Item personalizado
+      const newItem = {
+        _tempId: itemData._tempId,
+        id: undefined,
+        budgetItemId: null,
+        name: itemData.name,
+        category: itemData.category,
+        marca: itemData.marca || '',
+        capacity: itemData.capacity || '',
+        unitPrice: itemData.unitPrice,
+        quantity: itemData.quantity,
+        notes: itemData.notes || '',
+        description: '', // ✅ DESCRIPCIÓN VACÍA PARA ITEMS PERSONALIZADOS
+      };
+
+      setFormData(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          lineItems: [...prev.lineItems, newItem]
+        };
+      });
+    }
+  };
+
+  // --- Resto de handlers sin cambios ---
   const handleLineItemChange = (index, field, value) => {
     setFormData(prev => {
       if (!prev) return null;
@@ -300,7 +412,7 @@ const handleAddManualItem = () => {
     const dataToSend = {
       date: formData.date,
       expirationDate: formData.expirationDate || null,
-      status: formData.status, // Enviar el estado deseado directamente
+      status: formData.status,
       discountDescription: formData.discountDescription,
       discountAmount: parseFloat(formData.discountAmount) || 0,
       generalNotes: formData.generalNotes,
@@ -319,6 +431,8 @@ const handleAddManualItem = () => {
       notes: item.notes,
       marca: item.marca,
       capacity: item.capacity,
+      // ✅ INCLUIR DESCRIPTION EN PAYLOAD:
+      description: item.description,
     }));
 
     let payload;
@@ -345,71 +459,36 @@ const handleAddManualItem = () => {
       // --- 2. Ejecutar la Actualización (UNA SOLA LLAMADA) ---
       console.log(`Dispatching updateBudget for ID: ${selectedBudgetId}`);
       const resultAction = await dispatch(updateBudget(selectedBudgetId, payload));
-      const updatedBudget = unwrapResult(resultAction); // El backend hizo todo (incluido PDF si status='send')
+      const updatedBudget = unwrapResult(resultAction);
       console.log("✅ Actualización completada por el backend:", updatedBudget);
 
-      // --- 3. YA NO SE GENERA NI SUBE PDF DESDE AQUÍ ---
-
-      // --- 4. Finalización Exitosa ---
       alert("Presupuesto actualizado exitosamente!");
       handleSearchAgain();
 
     } catch (err) {
-      // --- 5. Manejo de Errores ---
       console.error("❌ Error durante el proceso de handleSubmit:", err);
       let errorMsg = "Ocurrió un error desconocido.";
-      if (err.response) { // Axios error
+      if (err.response) {
         errorMsg = err.response.data?.error || err.response.data?.message || `Error ${err.response.status}`;
       } else if (err.request) {
         errorMsg = "No se pudo conectar con el servidor.";
       } else {
-        errorMsg = err.message || errorMsg; // Error de Redux/unwrapResult o JS
+        errorMsg = err.message || errorMsg;
       }
       alert(`Error al actualizar el presupuesto: ${errorMsg}`);
     } finally {
-      // --- 6. Limpieza ---
       setIsSubmitting(false);
       console.log("--- Finalizando handleSubmit ---");
     }
   };
 
-  //  // *** NUEVA FUNCIÓN PARA VER ARCHIVOS DEL PERMIT ***
-  //  const handleViewPermitFile = async (fileUrl, fileType = 'application/pdf') => {
-  //   if (!fileUrl) return;
-  //   setViewingFile(true);
-  //   try {
-  //     // Extraer la ruta relativa de la URL completa si es necesario
-  //     // Asumiendo que fileUrl es algo como 'http://localhost:3001/permits/ID/view/pdf'
-  //     const url = new URL(fileUrl);
-  //     const relativePath = url.pathname; // Debería ser '/permits/ID/view/pdf'
-
-  //     const response = await api.get(relativePath, { // Usar la ruta relativa con Axios
-  //       responseType: 'blob',
-  //     });
-
-  //     const blob = new Blob([response.data], { type: fileType });
-  //     const blobUrl = window.URL.createObjectURL(blob);
-  //     window.open(blobUrl, '_blank'); // Abrir en nueva pestaña
-  //     // No necesitamos revocar inmediatamente si se abre en nueva pestaña
-  //     // window.URL.revokeObjectURL(blobUrl); // Podría cerrarse antes de cargar
-
-  //   } catch (error) {
-  //     console.error(`Error al obtener el archivo del permiso (${fileUrl}):`, error);
-  //     alert(`No se pudo cargar el archivo: ${error.response?.data?.message || error.message}`);
-  //   } finally {
-  //     setViewingFile(false);
-  //   }
-  // };
-
   // --- Renderizado ---
   return (
     <div className="container mx-auto p-4 max-w-4xl">
-     
-
       {/* --- Sección de Búsqueda --- */}
       {!selectedBudgetId && (
         <div className="mb-6 p-4 bg-gray-100 rounded-lg shadow-md">
-           <label htmlFor="searchAddress" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="searchAddress" className="block text-sm font-medium text-gray-700 mb-1">
             Buscar por Dirección, Permit # o Applicant
           </label>
           <input
@@ -431,7 +510,7 @@ const handleAddManualItem = () => {
           {loadingList && <p className="text-sm text-blue-500 mt-2">Buscando presupuestos...</p>}
           {listError && <p className="text-sm text-red-600 mt-2">Error al buscar: {listError}</p>}
           {searchResults.length > 0 && (
-             <ul className="mt-4 border border-gray-300 rounded max-h-60 overflow-y-auto bg-white shadow">
+            <ul className="mt-4 border border-gray-300 rounded max-h-60 overflow-y-auto bg-white shadow">
               {searchResults.map(budget => (
                 <li key={budget.idBudget} className="border-b border-gray-200 last:border-b-0">
                   <button
@@ -447,7 +526,7 @@ const handleAddManualItem = () => {
               ))}
             </ul>
           )}
-           {searchTerm && searchResults.length === 0 && !loadingList && (
+          {searchTerm && searchResults.length === 0 && !loadingList && (
             <p className="text-sm text-gray-500 mt-2">No se encontraron presupuestos que coincidan.</p>
           )}
         </div>
@@ -465,226 +544,213 @@ const handleAddManualItem = () => {
 
           {formData && (
             <form onSubmit={handleSubmit} className="space-y-6 bg-white shadow-lg rounded-lg p-6 border border-gray-200">
-               <h3 className="text-xl font-semibold border-b border-gray-300 pb-2 mb-4 text-gray-700">Editando Presupuesto #{selectedBudgetId}</h3>
+              <h3 className="text-xl font-semibold border-b border-gray-300 pb-2 mb-4 text-gray-700">Editando Presupuesto #{selectedBudgetId}</h3>
 
-               {/* --- Datos del Permit (No editables) --- */}
-               <fieldset className="border border-gray-200 p-4 rounded-md">
-                 <legend className="text-lg font-medium text-gray-600 px-2">Información del Permiso</legend>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   <div>
-                     <label className="block text-sm font-medium text-gray-500">Permit #</label>
-                     <p className="mt-1 text-sm text-gray-900">{formData.permitNumber || 'N/A'}</p>
-                   </div>
-                   <div>
-                     <label className="block text-sm font-medium text-gray-500">Dirección</label>
-                     <p className="mt-1 text-sm text-gray-900">{formData.propertyAddress || 'N/A'}</p>
-                   </div>
-                   <div>
-                     <label className="block text-sm font-medium text-gray-500">Applicant</label>
-                     <p className="mt-1 text-sm text-gray-900">{formData.applicantName || 'N/A'}</p>
-                   </div>
-                   <div>
-                     <label className="block text-sm font-medium text-gray-500">Lot / Block</label>
-                     <p className="mt-1 text-sm text-gray-900">{formData.lot || 'N/A'} / {formData.block || 'N/A'}</p>
-                   </div>
-                 </div>
-               </fieldset>
+              {/* --- Datos del Permit (No editables) --- */}
+              <fieldset className="border border-gray-200 p-4 rounded-md">
+                <legend className="text-lg font-medium text-gray-600 px-2">Información del Permiso</legend>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500">Permit #</label>
+                    <p className="mt-1 text-sm text-gray-900">{formData.permitNumber || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500">Dirección</label>
+                    <p className="mt-1 text-sm text-gray-900">{formData.propertyAddress || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500">Applicant</label>
+                    <p className="mt-1 text-sm text-gray-900">{formData.applicantName || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500">Lot / Block</label>
+                    <p className="mt-1 text-sm text-gray-900">{formData.lot || 'N/A'} / {formData.block || 'N/A'}</p>
+                  </div>
+                </div>
+              </fieldset>
 
-               {/* --- Datos Generales del Presupuesto (Editables) --- */}
-               <fieldset className="border border-gray-200 p-4 rounded-md">
-                 <legend className="text-lg font-medium text-gray-600 px-2">Detalles del Presupuesto</legend>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   <div>
-                     <label htmlFor="date" className="block text-sm font-medium text-gray-700">Fecha</label>
-                     <input type="date" id="date" name="date" value={formData.date} onChange={handleGeneralInputChange} className="input-style mt-1" />
-                   </div>
-                   <div>
-                     <label htmlFor="expirationDate" className="block text-sm font-medium text-gray-700">Fecha de Expiración</label>
-                     <input type="date" id="expirationDate" name="expirationDate" value={formData.expirationDate} onChange={handleGeneralInputChange} className="input-style mt-1" />
-                   </div>
-                   <div>
-                     <label htmlFor="status" className="block text-sm font-medium text-gray-700">Estado</label>
-                     <select id="status" name="status" value={formData.status} onChange={handleGeneralInputChange} className="input-style mt-1">
-                       <option value="created">Creado</option>
-                       <option value="sent">Enviado</option>
-                       <option value="approved">Aprobado</option>
-                       <option value="rejected">Rechazado</option>
-                       <option value="expired">Expirado</option>
-                     </select>
-                   </div>
-                   <div>
-                     <label htmlFor="initialPaymentPercentage" className="block text-sm font-medium text-gray-700">Pago Inicial (%)</label>
-                     <input type="number" id="initialPaymentPercentage" name="initialPaymentPercentage" value={formData.initialPaymentPercentage} onChange={handleGeneralInputChange} className="input-style mt-1" min="0" max="100" step="1" />
-                     {/* Podrías añadir opción 'total' si es necesario */}
-                   </div>
-                 </div>
-                 <div className="mt-4">
-                   <label htmlFor="generalNotes" className="block text-sm font-medium text-gray-700">Notas Generales</label>
-                   <textarea id="generalNotes" name="generalNotes" value={formData.generalNotes} onChange={handleGeneralInputChange} rows="3" className="input-style mt-1"></textarea>
-                 </div>
-               </fieldset>
+              {/* --- Datos Generales del Presupuesto (Editables) --- */}
+              <fieldset className="border border-gray-200 p-4 rounded-md">
+                <legend className="text-lg font-medium text-gray-600 px-2">Detalles del Presupuesto</legend>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="date" className="block text-sm font-medium text-gray-700">Fecha</label>
+                    <input type="date" id="date" name="date" value={formData.date} onChange={handleGeneralInputChange} className="input-style mt-1" />
+                  </div>
+                  <div>
+                    <label htmlFor="expirationDate" className="block text-sm font-medium text-gray-700">Fecha de Expiración</label>
+                    <input type="date" id="expirationDate" name="expirationDate" value={formData.expirationDate} onChange={handleGeneralInputChange} className="input-style mt-1" />
+                  </div>
+                  <div>
+                    <label htmlFor="status" className="block text-sm font-medium text-gray-700">Estado</label>
+                    <select id="status" name="status" value={formData.status} onChange={handleGeneralInputChange} className="input-style mt-1">
+                      <option value="created">Creado</option>
+                      <option value="sent">Enviado</option>
+                      <option value="approved">Aprobado</option>
+                      <option value="rejected">Rechazado</option>
+                      <option value="expired">Expirado</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="initialPaymentPercentage" className="block text-sm font-medium text-gray-700">Pago Inicial (%)</label>
+                    <input type="number" id="initialPaymentPercentage" name="initialPaymentPercentage" value={formData.initialPaymentPercentage} onChange={handleGeneralInputChange} className="input-style mt-1" min="0" max="100" step="1" />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <label htmlFor="generalNotes" className="block text-sm font-medium text-gray-700">Notas Generales</label>
+                  <textarea id="generalNotes" name="generalNotes" value={formData.generalNotes} onChange={handleGeneralInputChange} rows="3" className="input-style mt-1"></textarea>
+                </div>
+              </fieldset>
 
-               {/* --- Líneas de Items (Editables: Cantidad y Notas) --- */}
-               <fieldset className="border border-gray-200 p-4 rounded-md">
-                 <legend className="text-lg font-medium text-gray-600 px-2">Items del Presupuesto</legend>
-                 <div className="space-y-4">
-                   {formData.lineItems.map((item, index) => (
-                     <div key={item.id || index} className="border-b border-gray-100 pb-4 last:border-b-0">
-                       <p className="font-medium text-gray-800">{item.name} ({item.category})</p>
-                       <p className="text-sm text-gray-600">Marca: {item.marca || 'N/A'} | Capacidad: {item.capacity || 'N/A'} | Precio Unitario: ${item.unitPrice.toFixed(2)}</p>
-                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
-                         <div>
-                           <label htmlFor={`quantity-${index}`} className="block text-xs font-medium text-gray-700">Cantidad</label>
-                           <input
-                             type="number"
-                             id={`quantity-${index}`}
-                             value={item.quantity}
-                             onChange={(e) => handleLineItemChange(index, 'quantity', e.target.value)}
-                             className="input-style mt-1 text-sm"
-                             min="0"
-                             step="0.01"
-                           />
-                         </div>
-                         <div className="md:col-span-2">
-                           <label htmlFor={`notes-${index}`} className="block text-xs font-medium text-gray-700">Notas del Item</label>
-                           <input
-                             type="text"
-                             id={`notes-${index}`}
-                             value={item.notes}
-                             onChange={(e) => handleLineItemChange(index, 'notes', e.target.value)}
-                             className="input-style mt-1 text-sm"
-                           />
-                         </div>
-                       </div>
-                       {/* Botón para eliminar item (opcional) */}
-                       <button type="button" onClick={() => handleRemoveLineItem(index)} className="text-red-500 text-xs mt-1">Eliminar Item</button>
-                     </div>
-                     
-                   ))}
-                 </div>
-               </fieldset>
- {/* --- Añadir Item Manualmente --- */}
- <fieldset className="border border-gray-200 p-4 rounded-md">
-             <legend className="text-lg font-medium text-gray-600 px-2">Añadir Item Manualmente</legend>
-             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-               <div>
-                 <label htmlFor="manualCategory" className="block text-xs font-medium text-gray-700">Categoría</label>
-                 <input type="text" id="manualCategory" name="category" value={manualItemData.category} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Ej: SYSTEM TYPE" />
-               </div>
-               <div className="md:col-span-2">
-                 <label htmlFor="manualName" className="block text-xs font-medium text-gray-700">Nombre del Item</label>
-                 <input type="text" id="manualName" name="name" value={manualItemData.name} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Ej: NEW SYSTEM INSTALLATION" />
-               </div>
-               <div>
-                 <label htmlFor="manualUnitPrice" className="block text-xs font-medium text-gray-700">Precio Unitario ($)</label>
-                 <input type="number" id="manualUnitPrice" name="unitPrice" value={manualItemData.unitPrice} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Ej: 150.00" min="0" step="0.01" />
-               </div>
-               <div>
-                 <label htmlFor="manualQuantity" className="block text-xs font-medium text-gray-700">Cantidad</label>
-                 <input type="number" id="manualQuantity" name="quantity" value={manualItemData.quantity} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Ej: 1" min="0.01" step="0.01" />
-               </div>
-               <div className="md:col-span-3">
-                 <label htmlFor="manualNotes" className="block text-xs font-medium text-gray-700">Notas (Opcional)</label>
-                 <input type="text" id="manualNotes" name="notes" value={manualItemData.notes} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Detalles adicionales..." />
-               </div>
-             </div>
-             <div className="mt-4 text-right">
-               <button
-                 type="button"
-                 onClick={handleAddManualItem}
-                 className="px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-               >
-                 Añadir Item al Presupuesto
-               </button>
-             </div>
-           </fieldset>
-               {/* --- Descuento y Totales --- */}
-               <fieldset className="border border-gray-200 p-4 rounded-md">
-                 <legend className="text-lg font-medium text-gray-600 px-2">Resumen Financiero</legend>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   <div>
-                     <label htmlFor="discountDescription" className="block text-sm font-medium text-gray-700">Descripción Descuento</label>
-                     <input type="text" id="discountDescription" name="discountDescription" value={formData.discountDescription} onChange={handleGeneralInputChange} className="input-style mt-1" />
-                   </div>
-                   <div>
-                     <label htmlFor="discountAmount" className="block text-sm font-medium text-gray-700">Monto Descuento ($)</label>
-                     <input type="number" id="discountAmount" name="discountAmount" value={formData.discountAmount} onChange={handleGeneralInputChange} className="input-style mt-1" min="0" step="0.01" />
-                   </div>
-                 </div>
-                 <div className="mt-4 space-y-2 text-right">
-                   <p className="text-sm text-gray-600">Subtotal: <span className="font-medium text-gray-900">${formData.subtotalPrice.toFixed(2)}</span></p>
-                   {/* --- LÍNEA MODIFICADA --- */}
-                   <p className="text-sm text-gray-600">Descuento: <span className="font-medium text-red-600">-${(parseFloat(formData.discountAmount) || 0).toFixed(2)}</span></p>
-                   {/* --- FIN LÍNEA MODIFICADA --- */}
-                   <p className="text-lg font-semibold text-gray-900">Total: ${formData.totalPrice.toFixed(2)}</p>
-                   <p className="text-md font-medium text-blue-700">Pago Inicial Requerido: ${formData.initialPayment.toFixed(2)}</p>
-                 </div>
-               </fieldset>
+              {/* --- Líneas de Items (Editables: Cantidad y Notas) --- */}
+              <fieldset className="border border-gray-200 p-4 rounded-md">
+                <legend className="text-lg font-medium text-gray-600 px-2">Items del Presupuesto</legend>
+                <div className="space-y-4">
+                  {formData.lineItems.map((item, index) => (
+                    <div key={item._tempId || item.id || index} className="border-b border-gray-100 pb-4 last:border-b-0">
+                      <p className="font-medium text-gray-800">{item.name} ({item.category})</p>
+                      <p className="text-sm text-gray-600">Marca: {item.marca || 'N/A'} | Capacidad: {item.capacity || 'N/A'} | Precio Unitario: ${item.unitPrice.toFixed(2)}</p>
+                      {/* ✅ MOSTRAR DESCRIPTION SI EXISTE */}
+                      {item.description && (
+                        <p className="text-sm text-gray-500 italic">Descripción: {item.description}</p>
+                      )}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
+                        <div>
+                          <label htmlFor={`quantity-${index}`} className="block text-xs font-medium text-gray-700">Cantidad</label>
+                          <input
+                            type="number"
+                            id={`quantity-${index}`}
+                            value={item.quantity}
+                            onChange={(e) => handleLineItemChange(index, 'quantity', e.target.value)}
+                            className="input-style mt-1 text-sm"
+                            min="0"
+                            step="0.01"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label htmlFor={`notes-${index}`} className="block text-xs font-medium text-gray-700">Notas del Item</label>
+                          <input
+                            type="text"
+                            id={`notes-${index}`}
+                            value={item.notes}
+                            onChange={(e) => handleLineItemChange(index, 'notes', e.target.value)}
+                            className="input-style mt-1 text-sm"
+                          />
+                        </div>
+                      </div>
+                      <button type="button" onClick={() => handleRemoveLineItem(index)} className="text-red-500 text-xs mt-1">Eliminar Item</button>
+                    </div>
+                  ))}
+                </div>
+              </fieldset>
 
-               {/* --- Archivos Adjuntos ---
-               <fieldset className="border border-gray-200 p-4 rounded-md">
-            <legend className="text-lg font-medium text-gray-600 px-2">Archivos Adjuntos del Permiso</legend>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Permiso PDF</label>
-                {formData.pdfDataUrl ? (
-                  // *** BOTÓN EN LUGAR DE ENLACE ***
+              {/* ✅ NUEVA SECCIÓN: AGREGAR ITEMS DEL CATÁLOGO */}
+              <fieldset className="border border-gray-200 p-4 rounded-md">
+                <legend className="text-lg font-medium text-gray-600 px-2">Agregar Items del Catálogo</legend>
+                
+                {loadingCatalog && (
+                  <p className="text-sm text-blue-500 mb-4">Cargando catálogo de items...</p>
+                )}
+                
+                {catalogError && (
+                  <p className="text-sm text-red-600 mb-4">Error al cargar catálogo: {catalogError}</p>
+                )}
+
+                {!loadingCatalog && !catalogError && availableCategories.length > 0 && (
+                  <div className="space-y-3">
+                    {availableCategories.map(category => (
+                      <DynamicCategorySection
+                        key={category}
+                        category={category}
+                        normalizedCatalog={normalizedBudgetItemsCatalog}
+                        isVisible={dynamicSectionVisibility[category] || false}
+                        onToggle={() => toggleDynamicSection(category)}
+                        onAddItem={addItemFromDynamicSection}
+                        generateTempId={generateTempId}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {!loadingCatalog && !catalogError && availableCategories.length === 0 && (
+                  <p className="text-sm text-gray-500">No hay categorías disponibles en el catálogo.</p>
+                )}
+              </fieldset>
+
+              {/* --- Añadir Item Manualmente --- */}
+              <fieldset className="border border-gray-200 p-4 rounded-md">
+                <legend className="text-lg font-medium text-gray-600 px-2">Añadir Item Manualmente</legend>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label htmlFor="manualCategory" className="block text-xs font-medium text-gray-700">Categoría</label>
+                    <input type="text" id="manualCategory" name="category" value={manualItemData.category} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Ej: SYSTEM TYPE" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label htmlFor="manualName" className="block text-xs font-medium text-gray-700">Nombre del Item</label>
+                    <input type="text" id="manualName" name="name" value={manualItemData.name} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Ej: NEW SYSTEM INSTALLATION" />
+                  </div>
+                  <div>
+                    <label htmlFor="manualUnitPrice" className="block text-xs font-medium text-gray-700">Precio Unitario ($)</label>
+                    <input type="number" id="manualUnitPrice" name="unitPrice" value={manualItemData.unitPrice} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Ej: 150.00" min="0" step="0.01" />
+                  </div>
+                  <div>
+                    <label htmlFor="manualQuantity" className="block text-xs font-medium text-gray-700">Cantidad</label>
+                    <input type="number" id="manualQuantity" name="quantity" value={manualItemData.quantity} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Ej: 1" min="0.01" step="0.01" />
+                  </div>
+                  <div className="md:col-span-3">
+                    <label htmlFor="manualNotes" className="block text-xs font-medium text-gray-700">Notas (Opcional)</label>
+                    <input type="text" id="manualNotes" name="notes" value={manualItemData.notes} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Detalles adicionales..." />
+                  </div>
+                </div>
+                <div className="mt-4 text-right">
                   <button
                     type="button"
-                    onClick={() => handleViewPermitFile(formData.pdfDataUrl, 'application/pdf')}
-                    disabled={viewingFile}
-                    className="inline-flex items-center text-blue-600 hover:underline text-sm mt-1 disabled:opacity-50 disabled:cursor-wait"
+                    onClick={handleAddManualItem}
+                    className="px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                   >
-                    Ver PDF Actual
-                    <ArrowTopRightOnSquareIcon className="h-4 w-4 ml-1"/>
+                    Añadir Item Manual al Presupuesto
                   </button>
-                ) : (
-                  <p className="text-sm text-gray-500 mt-1">No disponible</p>
-                )}
-                <label htmlFor="pdfDataFile" className="block text-xs font-medium text-gray-500 mt-2">Reemplazar PDF:</label>
-                <input type="file" id="pdfDataFile" name="pdfDataFile" onChange={handleFileChange} accept=".pdf" className="input-style mt-1 text-sm" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Documentos Opcionales</label>
-                {formData.optionalDocsUrl ? (
-                  // *** BOTÓN EN LUGAR DE ENLACE ***
-                  <button
-                    type="button"
-                    onClick={() => handleViewPermitFile(formData.optionalDocsUrl)} // Asume PDF o tipo detectable por el navegador
-                    disabled={viewingFile}
-                    className="inline-flex items-center text-blue-600 hover:underline text-sm mt-1 disabled:opacity-50 disabled:cursor-wait"
-                  >
-                    Ver Documentos Actuales
-                    <ArrowTopRightOnSquareIcon className="h-4 w-4 ml-1"/>
-                  </button>
-                ) : (
-                  <p className="text-sm text-gray-500 mt-1">No disponible</p>
-                )}
-                <label htmlFor="optionalDocsFile" className="block text-xs font-medium text-gray-500 mt-2">Reemplazar Documentos:</label>
-                <input type="file" id="optionalDocsFile" name="optionalDocsFile" onChange={handleFileChange} accept=".pdf,.zip,.rar" className="input-style mt-1 text-sm" />
-              </div>
-            </div>
-          </fieldset> */}
+                </div>
+              </fieldset>
 
-               {/* --- Botón de Envío --- */}
-               <div className="flex justify-end pt-4">
-                 <button
-                   type="submit"
-                   disabled={isSubmitting}
-                   className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-                 >
-                   {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
-                 </button>
-               </div>
+              {/* --- Descuento y Totales --- */}
+              <fieldset className="border border-gray-200 p-4 rounded-md">
+                <legend className="text-lg font-medium text-gray-600 px-2">Resumen Financiero</legend>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="discountDescription" className="block text-sm font-medium text-gray-700">Descripción Descuento</label>
+                    <input type="text" id="discountDescription" name="discountDescription" value={formData.discountDescription} onChange={handleGeneralInputChange} className="input-style mt-1" />
+                  </div>
+                  <div>
+                    <label htmlFor="discountAmount" className="block text-sm font-medium text-gray-700">Monto Descuento ($)</label>
+                    <input type="number" id="discountAmount" name="discountAmount" value={formData.discountAmount} onChange={handleGeneralInputChange} className="input-style mt-1" min="0" step="0.01" />
+                  </div>
+                </div>
+                <div className="mt-4 space-y-2 text-right">
+                  <p className="text-sm text-gray-600">Subtotal: <span className="font-medium text-gray-900">${formData.subtotalPrice.toFixed(2)}</span></p>
+                  <p className="text-sm text-gray-600">Descuento: <span className="font-medium text-red-600">-${(parseFloat(formData.discountAmount) || 0).toFixed(2)}</span></p>
+                  <p className="text-lg font-semibold text-gray-900">Total: ${formData.totalPrice.toFixed(2)}</p>
+                  <p className="text-md font-medium text-blue-700">Pago Inicial Requerido: ${formData.initialPayment.toFixed(2)}</p>
+                </div>
+              </fieldset>
 
+              {/* --- Botón de Envío --- */}
+              <div className="flex justify-end pt-4">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+                >
+                  {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+              </div>
             </form>
           )}
           {!formData && !loadingCurrentBudget && !currentBudgetError && (
-             <div className="text-center p-4 text-orange-600">No se pudieron mostrar los datos del formulario. Verifique la consola.</div>
-           )}
+            <div className="text-center p-4 text-orange-600">No se pudieron mostrar los datos del formulario. Verifique la consola.</div>
+          )}
         </>
       )}
-      {/* Estilo base para inputs si no está global */}
       <style>{`.input-style { border: 1px solid #d1d5db; border-radius: 0.375rem; padding: 0.5rem 0.75rem; width: 100%; box-sizing: border-box; } .input-style:focus { outline: 2px solid transparent; outline-offset: 2px; border-color: #2563eb; box-shadow: 0 0 0 2px #bfdbfe; }`}</style>
     </div>
   );

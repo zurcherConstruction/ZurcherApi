@@ -268,7 +268,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
 
   doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
 
- // ✅ MAIN ITEM - COLUMNA INCLUDED AHORA DICE "SEPTIC SYSTEM INSTALLATION"
+  // ✅ MAIN ITEM - COLUMNA INCLUDED AHORA DICE "SEPTIC SYSTEM INSTALLATION"
   const mainItemName = "SEPTIC SYSTEM INSTALLATION"; // ✅ ESTO VA EN COLUMNA INCLUDED
   const mainItemDesc = "COMPLETE INSTALLATION OF THE SYSTEM (LABOR AND MATERIALS)"; // ✅ ESTO VA EN COLUMNA DESCRIPTION
   const mainItemQty = 1;
@@ -280,15 +280,15 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   doc.text(mainItemQty.toFixed(0), xQtyText, currentItemY, { width: wQty, align: 'right' });
   doc.text(`$${mainItemRate.toFixed(2)}`, xRateText, currentItemY, { width: wRate, align: 'right' });
   doc.text(`$${mainItemRate.toFixed(2)}`, xAmountText, currentItemY, { width: wAmount, align: 'right' });
-  doc.moveDown(2.2); // ✅ AUMENTADO MÁS EL ESPACIO DESPUÉS DEL ITEM PRINCIPAL
-
+  doc.moveDown(2.8); // ✅ AUMENTADO AÚN MÁS EL ESPACIO DESPUÉS DEL ITEM PRINCIPAL
 
   // ✅ SUB-ITEMS DINÁMICOS BASADOS EN lineItems DE LA BASE DE DATOS
   console.log("Procesando lineItems para PDF:", lineItems);
 
-  // Helper function para verificar si necesitamos nueva página
-  const checkPageBreak = (estimatedHeight = 40) => { // ✅ AUMENTADO DE 25 A 35
-    if (doc.y + estimatedHeight > doc.page.height - NEW_PAGE_MARGIN - 150) { 
+  // ✅ HELPER FUNCTION MEJORADA PARA VERIFICAR SI NECESITAMOS NUEVA PÁGINA
+  const checkPageBreak = (estimatedHeight = 50) => { // ✅ AUMENTADO DE 40 A 50
+    // ✅ AUMENTADO EL MARGEN DE SEGURIDAD PARA EVITAR CHOQUES CON SECCIÓN DE TOTALES
+    if (doc.y + estimatedHeight > doc.page.height - NEW_PAGE_MARGIN - 200) { // ✅ AUMENTADO DE 150 A 200
       _addStandardPageFooter(doc);
       doc.addPage();
       _addPageHeader_v2(doc, budgetData, "INVOICE", budgetData.idBudget, formattedDate, formattedExpirationDate);
@@ -313,34 +313,49 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   // Procesar cada lineItem de la base de datos
   if (lineItems && lineItems.length > 0) {
     lineItems.forEach((item, index) => {
-      // Preparar datos del item
+      // ✅ NUEVOS DATOS PARA COLUMNAS ACTUALIZADAS
+      const itemCategory = item.category || 'N/A'; // ✅ CATEGORY PARA COLUMNA INCLUDED
       const itemName = item.name || 'N/A';
-      const itemDescription = item.description || `${itemName}${item.marca ? ` - ${item.marca}` : ''}${item.capacity ? ` [${item.capacity}]` : ''}`;
+      const itemDescription = item.description || '';
       const itemQty = parseInt(item.quantity) || 1;
       const itemNotes = item.notes || '';
 
-      // Construir descripción completa
-      let fullDescription = itemDescription;
+      // ✅ CONSTRUIR DESCRIPCIÓN COMPLETA: NAME + DESCRIPTION + MARCA + CAPACITY + NOTES
+      let fullDescription = itemName; // Empezar con el nombre
+      
+      if (itemDescription && itemDescription.trim() !== '') {
+        fullDescription += ` - ${itemDescription}`;
+      }
+      
+      if (item.marca && item.marca.trim() !== '') {
+        fullDescription += ` [Marca: ${item.marca}]`;
+      }
+      
+      if (item.capacity && item.capacity.trim() !== '') {
+        fullDescription += ` [Capacidad: ${item.capacity}]`;
+      }
+      
       if (itemNotes && itemNotes.trim() !== '') {
         fullDescription += ` - ${itemNotes}`;
       }
 
       // ✅ ESTIMACIÓN MÁS PRECISA DE ALTURA NECESARIA
       const estimatedDescHeight = doc.heightOfString(fullDescription, { width: wDesc });
-      const estimatedItemHeight = Math.max(estimatedDescHeight + 15, 30); // Mínimo 25, pero más si la descripción es larga
+      const estimatedCategoryHeight = doc.heightOfString(itemCategory, { width: wIncluded });
+      const estimatedItemHeight = Math.max(estimatedDescHeight, estimatedCategoryHeight) + 25; // ✅ AUMENTADO PADDING
       checkPageBreak(estimatedItemHeight);
 
       // Dibujar el item
       currentItemY = doc.y;
       
-      // Columna INCLUDED - mostrar el nombre del item
+      // ✅ COLUMNA INCLUDED - MOSTRAR CATEGORY
       doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
-      doc.text(itemName.toUpperCase(), xIncludedText, currentItemY, { width: wIncluded });
+      doc.text(itemCategory.toUpperCase(), xIncludedText, currentItemY, { width: wIncluded });
       
       // Guardar Y antes de escribir descripción (para alinear otras columnas)
       const yBeforeDesc = doc.y;
       
-      // Columna DESCRIPTION - mostrar descripción completa
+      // ✅ COLUMNA DESCRIPTION - MOSTRAR NAME + DESCRIPTION + DETALLES
       doc.text(fullDescription, xDescText, currentItemY, { width: wDesc });
       const yAfterDesc = doc.y;
 
@@ -352,7 +367,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
 
       // Mover Y al final de la descripción (que puede ser multi-línea)
       doc.y = yAfterDesc;
-      doc.moveDown(2.0); // ✅ AUMENTADO DE 1 A 1.5 PARA MÁS ESPACIO ENTRE ITEMS
+      doc.moveDown(2.5); // ✅ AUMENTADO DE 2.0 A 2.5 PARA MÁS ESPACIO ENTRE ITEMS
     });
   } else {
     // ✅ FALLBACK: Si no hay lineItems, mostrar items estándar (como backup)
@@ -371,7 +386,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
     standardItems.forEach(subItem => {
       // ✅ ESTIMACIÓN MÁS PRECISA PARA ITEMS ESTÁNDAR TAMBIÉN
       const estimatedDescHeight = doc.heightOfString(subItem.desc, { width: wDesc });
-      const estimatedRowHeight = Math.max(estimatedDescHeight + 15, 25);
+      const estimatedRowHeight = Math.max(estimatedDescHeight + 20, 35); // ✅ AUMENTADO MÍNIMO DE 25 A 35
       checkPageBreak(estimatedRowHeight);
       
       currentItemY = doc.y; 
@@ -387,24 +402,26 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
       doc.font(FONT_FAMILY_MONO);
 
       doc.y = yAfterDesc; 
-      doc.moveDown(2.0); // ✅ AUMENTADO DE 1 A 1.5 PARA MÁS ESPACIO ENTRE ITEMS
+      doc.moveDown(2.5); // ✅ AUMENTADO DE 2.0 A 2.5 PARA MÁS ESPACIO ENTRE ITEMS
     });
   }
   
   // Línea final de la tabla
   doc.moveTo(NEW_PAGE_MARGIN, doc.y).lineTo(tableHeaderRightEdge, doc.y)
      .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.5).stroke();
-  doc.moveDown(1.5); 
+  doc.moveDown(1.8); // ✅ AUMENTADO EL ESPACIO DESPUÉS DE LA TABLA
 
-  const thankYouAndPaymentInfoY = doc.y;
-  const paymentInfoWidth = contentWidth * 0.55; 
-
-  if (doc.y + 80 > doc.page.height - NEW_PAGE_MARGIN - 100) { 
+  // ✅ VERIFICACIÓN ADICIONAL ANTES DE SECCIÓN DE TOTALES
+  const totalsSectionHeightEstimate = 250; // ✅ ESTIMACIÓN CONSERVADORA PARA PAYMENT INFO + TOTALES + BOTÓN
+  if (doc.y + totalsSectionHeightEstimate > doc.page.height - NEW_PAGE_MARGIN - 50) {
     _addStandardPageFooter(doc);
     doc.addPage();
     _addPageHeader_v2(doc, budgetData, "INVOICE", budgetData.idBudget, formattedDate, formattedExpirationDate);
-    doc.y = NEW_PAGE_MARGIN + 150; 
+    doc.y = NEW_PAGE_MARGIN + 150; // ✅ POSICIÓN ESTÁNDAR EN NUEVA PÁGINA
   }
+
+  const thankYouAndPaymentInfoY = doc.y;
+  const paymentInfoWidth = contentWidth * 0.55; 
 
   doc.font(FONT_FAMILY_MONO_BOLD).fontSize(8).fillColor(COLOR_TEXT_LIGHT)
      .text("Thank you for your business!", NEW_PAGE_MARGIN, doc.y, {width: contentWidth, align: 'left'}); 
@@ -422,18 +439,15 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
 
   doc.y = thankYouAndPaymentInfoY; 
  
- // ...existing code...
+  // ...resto del código de totales igual...
   const totalsLabelX = NEW_PAGE_MARGIN + contentWidth * 0.60;
   const totalsValueX = NEW_PAGE_MARGIN + contentWidth * 0.80; 
   const totalsRightEdge = doc.page.width - NEW_PAGE_MARGIN;
-  // const cellPadding = 5; // Ya debería estar definido arriba
 
- let currentTotalY = doc.y;
+  let currentTotalY = doc.y;
   
   const discountNum = parseFloat(discountAmount || 0);
-  // totalPrice ya es el precio DESPUÉS del descuento.
   const priceAfterDiscountAlreadyApplied = parseFloat(totalPrice || 0); 
-  // Calculamos el subtotal bruto sumando el descuento al precio ya descontado.
   const subtotalBruto = priceAfterDiscountAlreadyApplied + discountNum; 
 
   // SUBTOTAL (Bruto, antes del descuento)
@@ -446,10 +460,10 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   // DISCOUNT (Solo se muestra si discountNum > 0)
   if (discountNum > 0) {
     currentTotalY = doc.y;
-    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(9).fillColor(COLOR_TEXT_MEDIUM); // Discount Label
+    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
     const discountLabel = discountDescription ? `${discountDescription}:` : "Discount:";
     doc.text(discountLabel, totalsLabelX, currentTotalY, { width: totalsValueX - totalsLabelX - cellPadding, align: 'right' });
-    doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM); // Discount Value
+    doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
     doc.text(`-$${discountNum.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
     doc.moveDown(0.6);
   }
@@ -462,7 +476,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   doc.text(`$0.00`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
   doc.moveDown(0.6);
 
-  // TOTAL (Este es el totalPrice que ya venía con el descuento)
+  // TOTAL
   currentTotalY = doc.y;
   doc.font(FONT_FAMILY_MONO_BOLD).fontSize(9).fillColor(COLOR_TEXT_DARK);
   doc.text("TOTAL", totalsLabelX, currentTotalY, { width: totalsValueX - totalsLabelX - cellPadding, align: 'right' });
@@ -480,6 +494,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   doc.y = Math.max(yAfterPaymentInfo, yAfterTotals); 
   doc.moveDown(2);
 
+  // ✅ RESTO DEL CÓDIGO DE STRIPE PAYMENT IGUAL...
 
   let paymentLinkUrl = null;
   const paymentAmountForStripe = parseFloat(initialPayment); 
@@ -508,20 +523,18 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
     }
   }
 
-  if (paymentLinkUrl) {
+ if (paymentLinkUrl) {
     const buttonWidth = 200;
-// filepath: c:\Users\yaniz\Documents\ZurcherApi\BackZurcher\src\utils\pdfGenerator.js
-// ...existing code...
     const buttonHeight = 28;
-    const buttonX = NEW_PAGE_MARGIN + (contentWidth - buttonWidth) / 2; // Centered
+    const buttonX = NEW_PAGE_MARGIN + (contentWidth - buttonWidth) / 2;
     let buttonY = doc.y;
     
-    // Ensure button doesn't overlap and fits before footer
-    if (buttonY + buttonHeight + 30 > doc.page.height - NEW_PAGE_MARGIN) {
-      _addStandardPageFooter(doc); // Add footer to current page if button won't fit
+    // ✅ VERIFICACIÓN MEJORADA PARA EL BOTÓN
+    if (buttonY + buttonHeight + 40 > doc.page.height - NEW_PAGE_MARGIN) { // ✅ MARGEN MÁS CONSERVADOR
+      _addStandardPageFooter(doc);
       doc.addPage();
       _addPageHeader_v2(doc, budgetData, "INVOICE", budgetData.idBudget, formattedDate, formattedExpirationDate);
-      buttonY = doc.y + 20; // Position button on new page
+      buttonY = doc.y + 20;
     }
     doc.y = buttonY;
 
@@ -533,9 +546,10 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
     doc.link(buttonX, buttonY, buttonWidth, buttonHeight, paymentLinkUrl);
     doc.y = buttonY + buttonHeight + 10;
   }
+}
 
  
-}
+
 // --- PÁGINA DE TÉRMINOS Y CONDICIONES ---
 function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formattedExpirationDate) {
   _addPageHeader_v2(doc, budgetData, "TERMS", "TERMS_AND_CONDITIONS", formattedDate, formattedExpirationDate);

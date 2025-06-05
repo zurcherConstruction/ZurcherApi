@@ -12,12 +12,10 @@ const defaultItems = [
   { category: "System Type", name: "REGULAR Infiltrator 1250 gal", marca: "Infiltrator", capacity: "1250 gal", description: "Incluye todo lo que ...", unitPrice: 3500, supplierName: "", supplierLocation: "" },
   { category: "System Type", name: "REGULAR Infiltrator 1530 gal", marca: "Infiltrator", capacity: "1530 gal", description: "Incluye todo lo que ...", unitPrice: 4500, supplierName: "", supplierLocation: "" },
 
-  // DRAINFIELD SF
-  { category: "DRAINFIELD SF", name: "Drainfield Standard", marca: "", capacity: "", description: "Incluye todo lo que ...", unitPrice: 500, supplierName: "", supplierLocation: "" },
-
+ 
   // SISTEMA CHAMBERS
-  { category: "SISTEMA CHAMBERS", name: "Chamber ARC 24", marca: "", capacity: "", description: "Incluye todo lo que ...", unitPrice: 1000, supplierName: "", supplierLocation: "" },
-  { category: "SISTEMA CHAMBERS", name: "Chamber Low Profile", marca: "", capacity: "", description: "Incluye todo lo que ...", unitPrice: 2000, supplierName: "", supplierLocation: "" },
+  { category: "Sistema Chambers", name: "Chamber ARC 24", marca: "", capacity: "", description: "Incluye todo lo que ...", unitPrice: 1000, supplierName: "", supplierLocation: "" },
+  { category: "Sistema Chambers", name: "Chamber Low Profile", marca: "", capacity: "", description: "Incluye todo lo que ...", unitPrice: 2000, supplierName: "", supplierLocation: "" },
 
   // PUMP
   { category: "Pump", name: "Tanque 300 gal", marca: "", capacity: "300 gal", description: "Incluye todo lo que ...", unitPrice: 100, supplierName: "", supplierLocation: "" },

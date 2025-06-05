@@ -604,7 +604,7 @@ async checkSignatureStatus(req, res) {
               {
                 model: BudgetItem,
                 as: 'itemDetails',
-                attributes: ['id', 'name', 'category', 'marca', 'capacity', 'unitPrice'],
+                attributes: ['id', 'name', 'category', 'marca', 'capacity', 'unitPrice', 'description'],
               },
             ],
           },
@@ -1073,8 +1073,8 @@ if (hasLineItemUpdates) {
               <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #dee2e6; text-align: center;">
                 <div style="color: #6c757d; font-size: 14px;">
                   <strong style="color: #1a365d;">Zurcher Construction</strong><br>
-                  Professional Septic Services<br>
-                  📧 Contact: [Your Email] | 📞 [Your Phone]<br>
+                  SEPTIC TANK DIVISION - CFC1433240<br>
+                  📧 Contact: [zurcherseptic@gmail.com] | 📞 [+1 (407) 419-4495]<br>
                   🌐 Professional Septic Installation & Maintenance
                 </div>
               </div>
