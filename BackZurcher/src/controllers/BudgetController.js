@@ -991,8 +991,8 @@ if (hasLineItemUpdates) {
         generatedPdfPath = budget.pdfPath; // Usar la ruta existente
       }
 
-      // --- 7a. Lógica si el estado es 'send' (Genera PDF y envía correo) ---
-      if (req.body.status === 'send') {
+// --- 7a. Lógica si el estado es 'send' (Genera PDF y envía correo) ---
+if (req.body.status === 'send') {
   console.log("El estado es 'send'. Procesando envío de correo y SignNow...");
 
   // --- Enviar Correo (Usa generatedPdfPath o budget.pdfPath actualizado) ---
@@ -1007,7 +1007,7 @@ if (hasLineItemUpdates) {
     if (!budget.Permit?.applicantEmail || !budget.Permit.applicantEmail.includes('@')) {
       console.warn(`Advertencia: Cliente para Budget ID ${idBudget} sin correo válido. No se enviará email.`);
     } else {
-      // ✅ Email con información sobre SignNow (código existente)
+      // ✅ Email con información sobre SignNow
       const clientMailOptions = {
         to: budget.Permit.applicantEmail,
         subject: `Budget Proposal #${idBudget} for ${budget.propertyAddress}`,

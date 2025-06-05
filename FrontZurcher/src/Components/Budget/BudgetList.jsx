@@ -7,7 +7,7 @@ import {
 } from "../../Redux/Actions/budgetActions";
 import { DocumentArrowDownIcon, EyeIcon, PencilIcon, CheckIcon, XMarkIcon, ExclamationTriangleIcon, PaperClipIcon } from '@heroicons/react/24/outline'; // Icono para descarga
 //import BudgetPDF from "./BudgetPDF";
-import { parseISO,  format } from "date-fns";
+import { parseISO, format } from "date-fns";
 import api from "../../utils/axios";
 
 const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
@@ -44,23 +44,23 @@ const BudgetList = () => {
   const { budgets, loading, error } = useSelector((state) => state.budget);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-console.log("Presupuestos:", budgets); // Verifica si los presupuestos se están obteniendo correctamente
+  console.log("Presupuestos:", budgets); // Verifica si los presupuestos se están obteniendo correctamente
   // --- NUEVO ESTADO PARA EDICIÓN DE NOTAS ---
   const [editingBudgetId, setEditingBudgetId] = useState(null); // ID del budget en edición
   const [currentNote, setCurrentNote] = useState(''); // Valor actual de la nota en el editor
   const [isSavingNote, setIsSavingNote] = useState(false); // Para feedback visual al guardar
   // --- FIN NUEVO ESTADO ---
 
-const [downloadingPdfId, setDownloadingPdfId] = useState(null); // Estado para indicar descarga
-const [viewingPdfId, setViewingPdfId] = useState(null);
+  const [downloadingPdfId, setDownloadingPdfId] = useState(null); // Estado para indicar descarga
+  const [viewingPdfId, setViewingPdfId] = useState(null);
 
   // --- NUEVOS ESTADOS PARA EL MODAL DE PDF ---
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [pdfUrlForModal, setPdfUrlForModal] = useState('');
   const [pdfTitleForModal, setPdfTitleForModal] = useState('');
-    const [isLoadingPdfInModal, setIsLoadingPdfInModal] = useState(null);
+  const [isLoadingPdfInModal, setIsLoadingPdfInModal] = useState(null);
 
-useEffect(() => {
+  useEffect(() => {
     dispatch(fetchBudgets());
   }, [dispatch]);
 
@@ -90,7 +90,7 @@ useEffect(() => {
         return 0; // Mantener orden original si hay error de parseo
       }
     }) : [];
-     // --- 3. APLICAR PAGINACIÓN A LA LISTA COMPLETA Y ORDENADA ---
+  // --- 3. APLICAR PAGINACIÓN A LA LISTA COMPLETA Y ORDENADA ---
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   // Usar sortedBudgets (que ahora contiene todos los presupuestos ordenados)
@@ -100,8 +100,8 @@ useEffect(() => {
     setCurrentPage(pageNumber);
   };
 
-   // Función para manejar la descarga del PDF
-   const handleDownloadPdf = async (budgetId, filename) => {
+  // Función para manejar la descarga del PDF
+  const handleDownloadPdf = async (budgetId, filename) => {
     setDownloadingPdfId(budgetId); // Marcar como descargando
     try {
       // Usa tu instancia de Axios que ya incluye el token
@@ -131,8 +131,8 @@ useEffect(() => {
     }
   };
 
-   // *** NUEVA FUNCIÓN para manejar la vista previa del PDF ***
-   const handleViewPdf = async (budgetId) => {
+  // *** NUEVA FUNCIÓN para manejar la vista previa del PDF ***
+  const handleViewPdf = async (budgetId) => {
     setViewingPdfId(budgetId); // Indicar que se está cargando la vista previa
     let objectUrl = null; // Variable para guardar la URL temporal
 
@@ -154,16 +154,16 @@ useEffect(() => {
       // Esto es más complejo de manejar de forma fiable, pero ayuda a liberar memoria.
       // Una forma simple es revocarla después de un tiempo razonable.
       if (pdfWindow) {
-         setTimeout(() => {
-            if (objectUrl) {
-               console.log("Revocando Object URL (timeout):", objectUrl);
-               window.URL.revokeObjectURL(objectUrl);
-            }
-         }, 60000); // Revocar después de 1 minuto
+        setTimeout(() => {
+          if (objectUrl) {
+            console.log("Revocando Object URL (timeout):", objectUrl);
+            window.URL.revokeObjectURL(objectUrl);
+          }
+        }, 60000); // Revocar después de 1 minuto
       } else {
-         // Si window.open fue bloqueado por el navegador
-         alert("No se pudo abrir la ventana de vista previa. Revisa si tu navegador bloqueó las ventanas emergentes.");
-         if (objectUrl) window.URL.revokeObjectURL(objectUrl); // Limpiar si no se abrió
+        // Si window.open fue bloqueado por el navegador
+        alert("No se pudo abrir la ventana de vista previa. Revisa si tu navegador bloqueó las ventanas emergentes.");
+        if (objectUrl) window.URL.revokeObjectURL(objectUrl); // Limpiar si no se abrió
       }
 
 
@@ -171,53 +171,53 @@ useEffect(() => {
       console.error('Error fetching PDF for viewing:', error);
       alert('Error al obtener el PDF para visualizar. Verifique que exista y tenga permisos.');
       if (objectUrl) {
-         // Asegurarse de revocar si hubo error después de crear la URL
-         window.URL.revokeObjectURL(objectUrl);
+        // Asegurarse de revocar si hubo error después de crear la URL
+        window.URL.revokeObjectURL(objectUrl);
       }
     } finally {
       setViewingPdfId(null); // Dejar de indicar carga
     }
   };
 
-    // --- NUEVAS FUNCIONES PARA MANEJAR LA EDICIÓN DE NOTAS ---
+  // --- NUEVAS FUNCIONES PARA MANEJAR LA EDICIÓN DE NOTAS ---
 
-    const handleEditNoteClick = (budget) => {
-      setEditingBudgetId(budget.idBudget);
-      setCurrentNote(budget.generalNotes || ''); // Cargar nota actual o string vacío
-    };
-  
-    const handleNoteChange = (event) => {
-      setCurrentNote(event.target.value);
-    };
-  
-    const handleCancelEditNote = () => {
-      setEditingBudgetId(null);
-      setCurrentNote('');
-      setIsSavingNote(false);
-    };
-  
-    const handleSaveNote = async () => {
-      if (editingBudgetId === null) return;
-      setIsSavingNote(true); // Indicar que se está guardando
-  
-      try {
-        // Despachar la acción para actualizar solo las notas
-        await dispatch(updateBudget(editingBudgetId, { generalNotes: currentNote }));
-        console.log(`Notas actualizadas para Budget ID: ${editingBudgetId}`);
-        // Opcional: Refrescar la lista completa o confiar en que el estado se actualice
-        // dispatch(fetchBudgets()); // Descomentar si es necesario forzar refresco
-        handleCancelEditNote(); // Salir del modo edición
-      } catch (error) {
-        console.error("Error al guardar las notas:", error);
-        alert("Error al guardar las notas: " + (error.message || "Error desconocido"));
-        // Mantener en modo edición para que el usuario pueda reintentar o cancelar
-      } finally {
-        setIsSavingNote(false); // Terminar indicación de guardado
-      }
-    };
-  
-    // --- FIN NUEVAS FUNCIONES ---
-  
+  const handleEditNoteClick = (budget) => {
+    setEditingBudgetId(budget.idBudget);
+    setCurrentNote(budget.generalNotes || ''); // Cargar nota actual o string vacío
+  };
+
+  const handleNoteChange = (event) => {
+    setCurrentNote(event.target.value);
+  };
+
+  const handleCancelEditNote = () => {
+    setEditingBudgetId(null);
+    setCurrentNote('');
+    setIsSavingNote(false);
+  };
+
+  const handleSaveNote = async () => {
+    if (editingBudgetId === null) return;
+    setIsSavingNote(true); // Indicar que se está guardando
+
+    try {
+      // Despachar la acción para actualizar solo las notas
+      await dispatch(updateBudget(editingBudgetId, { generalNotes: currentNote }));
+      console.log(`Notas actualizadas para Budget ID: ${editingBudgetId}`);
+      // Opcional: Refrescar la lista completa o confiar en que el estado se actualice
+      // dispatch(fetchBudgets()); // Descomentar si es necesario forzar refresco
+      handleCancelEditNote(); // Salir del modo edición
+    } catch (error) {
+      console.error("Error al guardar las notas:", error);
+      alert("Error al guardar las notas: " + (error.message || "Error desconocido"));
+      // Mantener en modo edición para que el usuario pueda reintentar o cancelar
+    } finally {
+      setIsSavingNote(false); // Terminar indicación de guardado
+    }
+  };
+
+  // --- FIN NUEVAS FUNCIONES ---
+
 
 
   const formatDate = (dateString) => {
@@ -230,21 +230,21 @@ useEffect(() => {
   };
 
   const handleUpdateStatus = (idBudget, newStatus, budget) => {
-    // La transición a 'approved' ya no se inicia desde aquí
     const validTransitions = {
       created: ["send"],
-      send: ["rejected"], // Solo se puede rechazar desde aquí
-      approved: [],
-      rejected: [],
+      pending: ["send"],
+      send: ["rejected", "notResponded"], // Puede ser rechazado o sin respuesta
+      sent_for_signature: ["rejected", "signed"], // Desde SignNow puede ser rechazado o firmado
+      approved: [], // No se puede cambiar desde aquí
+      signed: [], // No se puede cambiar desde aquí
+      rejected: [], // Final
+      notResponded: ["rejected"], // Sin respuesta puede ser rechazado
     };
 
     if (!validTransitions[budget.status]?.includes(newStatus)) {
-      alert("Acción no permitida desde esta vista.");
+      alert(`No se puede cambiar de "${budget.status}" a "${newStatus}" desde esta vista.`);
       return;
     }
-
-    // Ya no se necesita esta validación aquí si no se puede aprobar
-    // if (newStatus === "approved" && !budget.paymentInvoice) { ... }
 
     const payload = { status: newStatus };
 
@@ -258,9 +258,6 @@ useEffect(() => {
         alert("Error al actualizar el estado: " + (error.message || "Unknown error"));
       });
   };
-
- // ...existing code...
-
   // --- MODIFICADA: FUNCIÓN PARA MOSTRAR PDF DE PERMISO/OPCIONAL EN MODAL ---
   const handleShowPermitPdfInModal = async (budget, pdfType) => {
     console.log(`handleShowPermitPdfInModal llamado con budget ID: ${budget.idBudget}, pdfType: ${pdfType}`); // DEBUG INICIAL
@@ -277,35 +274,35 @@ useEffect(() => {
     let title;
 
     if (pdfType === 'budgetSelf') { // Para el PDF del presupuesto mismo
-        try {
-            console.log(`Obteniendo PDF del presupuesto (budgetSelf) para ID: ${budget.idBudget}`); // DEBUG
-            const response = await api.get(`/budget/${budget.idBudget}/pdf`, {
-                responseType: 'blob',
-            });
-            pdfDataBlob = response.data;
-            title = `Presupuesto - ${budget.idBudget}`;
-            console.log("PDF del presupuesto (budgetSelf) obtenido, blob:", pdfDataBlob); // DEBUG
-        } catch (error) {
-            console.error(`Error al obtener PDF del presupuesto (${budget.idBudget}):`, error);
-            alert(`Error al obtener el PDF del presupuesto: ${error.response?.data?.message || error.message}`);
-            setIsLoadingPdfInModal(null);
-            return;
-        }
+      try {
+        console.log(`Obteniendo PDF del presupuesto (budgetSelf) para ID: ${budget.idBudget}`); // DEBUG
+        const response = await api.get(`/budget/${budget.idBudget}/pdf`, {
+          responseType: 'blob',
+        });
+        pdfDataBlob = response.data;
+        title = `Presupuesto - ${budget.idBudget}`;
+        console.log("PDF del presupuesto (budgetSelf) obtenido, blob:", pdfDataBlob); // DEBUG
+      } catch (error) {
+        console.error(`Error al obtener PDF del presupuesto (${budget.idBudget}):`, error);
+        alert(`Error al obtener el PDF del presupuesto: ${error.response?.data?.message || error.message}`);
+        setIsLoadingPdfInModal(null);
+        return;
+      }
     } else if (budget.Permit) {
-        console.log("Procesando PDF de Permiso. budget.Permit:", budget.Permit); // DEBUG
-        if (pdfType === 'pdfData' && budget.Permit.pdfData) {
-            pdfDataBlob = budget.Permit.pdfData; 
-            title = `Permiso Principal - Presupuesto ${budget.idBudget}`;
-            console.log("Usando budget.Permit.pdfData para 'pdfData', blob:", pdfDataBlob); // DEBUG
-        } else if (pdfType === 'optionalDocs' && budget.Permit.optionalDocs) {
-            pdfDataBlob = budget.Permit.optionalDocs; 
-            title = `Documentos Opcionales - Presupuesto ${budget.idBudget}`;
-            console.log("Usando budget.Permit.optionalDocs para 'optionalDocs', blob:", pdfDataBlob); // DEBUG
-        } else {
-            console.log(`Tipo de PDF de permiso '${pdfType}' no encontrado o sin datos en budget.Permit`); // DEBUG
-        }
+      console.log("Procesando PDF de Permiso. budget.Permit:", budget.Permit); // DEBUG
+      if (pdfType === 'pdfData' && budget.Permit.pdfData) {
+        pdfDataBlob = budget.Permit.pdfData;
+        title = `Permiso Principal - Presupuesto ${budget.idBudget}`;
+        console.log("Usando budget.Permit.pdfData para 'pdfData', blob:", pdfDataBlob); // DEBUG
+      } else if (pdfType === 'optionalDocs' && budget.Permit.optionalDocs) {
+        pdfDataBlob = budget.Permit.optionalDocs;
+        title = `Documentos Opcionales - Presupuesto ${budget.idBudget}`;
+        console.log("Usando budget.Permit.optionalDocs para 'optionalDocs', blob:", pdfDataBlob); // DEBUG
+      } else {
+        console.log(`Tipo de PDF de permiso '${pdfType}' no encontrado o sin datos en budget.Permit`); // DEBUG
+      }
     } else {
-        console.log("budget.Permit no existe, no se puede procesar PDF de permiso."); // DEBUG
+      console.log("budget.Permit no existe, no se puede procesar PDF de permiso."); // DEBUG
     }
 
     if (pdfDataBlob) {
@@ -313,32 +310,32 @@ useEffect(() => {
         console.log("Procesando pdfDataBlob:", pdfDataBlob, "para pdfType:", pdfType, "con título:", title); // DEBUG
         let finalBlob;
         if (pdfDataBlob instanceof Blob) {
-            finalBlob = pdfDataBlob;
-            console.log("pdfDataBlob ya es una instancia de Blob."); // DEBUG
+          finalBlob = pdfDataBlob;
+          console.log("pdfDataBlob ya es una instancia de Blob."); // DEBUG
         } else if (typeof pdfDataBlob === 'string') { // Asumir base64
-            console.log("pdfDataBlob es un string, intentando convertir desde base64."); // DEBUG
-            const byteCharacters = atob(pdfDataBlob);
-            const byteNumbers = new Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) {
-              byteNumbers[i] = byteCharacters.charCodeAt(i);
-            }
-            const byteArray = new Uint8Array(byteNumbers);
-            finalBlob = new Blob([byteArray], {type: 'application/pdf'});
-            console.log("finalBlob creado desde string base64:", finalBlob); // DEBUG
+          console.log("pdfDataBlob es un string, intentando convertir desde base64."); // DEBUG
+          const byteCharacters = atob(pdfDataBlob);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          finalBlob = new Blob([byteArray], { type: 'application/pdf' });
+          console.log("finalBlob creado desde string base64:", finalBlob); // DEBUG
         } else if (pdfDataBlob && pdfDataBlob.type === 'Buffer' && Array.isArray(pdfDataBlob.data)) { // Común desde Node.js
-            console.log("pdfDataBlob es un objeto Buffer, intentando convertir."); // DEBUG
-            finalBlob = new Blob([new Uint8Array(pdfDataBlob.data)], { type: 'application/pdf' });
-            console.log("finalBlob creado desde Buffer:", finalBlob); // DEBUG
+          console.log("pdfDataBlob es un objeto Buffer, intentando convertir."); // DEBUG
+          finalBlob = new Blob([new Uint8Array(pdfDataBlob.data)], { type: 'application/pdf' });
+          console.log("finalBlob creado desde Buffer:", finalBlob); // DEBUG
         } else {
-            console.error("Formato de pdfDataBlob no reconocido o es nulo:", pdfDataBlob);
-            alert("No se pudo procesar el archivo PDF. Formato no reconocido.");
-            setIsLoadingPdfInModal(null);
-            return;
+          console.error("Formato de pdfDataBlob no reconocido o es nulo:", pdfDataBlob);
+          alert("No se pudo procesar el archivo PDF. Formato no reconocido.");
+          setIsLoadingPdfInModal(null);
+          return;
         }
 
         if (!title) {
-            console.warn("El título del PDF es undefined. Usando título por defecto."); // DEBUG
-            // title = "Vista Previa del PDF"; // Opcional: poner un default si es crítico
+          console.warn("El título del PDF es undefined. Usando título por defecto."); // DEBUG
+          // title = "Vista Previa del PDF"; // Opcional: poner un default si es crítico
         }
 
         const objectUrl = URL.createObjectURL(finalBlob);
@@ -360,7 +357,7 @@ useEffect(() => {
     setIsLoadingPdfInModal(null);
   };
 
-// ...existing code...
+  // ...existing code...
 
   const closeModal = () => {
     setIsModalOpen(false);
@@ -371,7 +368,7 @@ useEffect(() => {
     setPdfTitleForModal('');
   };
 
-   useEffect(() => {
+  useEffect(() => {
     return () => {
       if (pdfUrlForModal) {
         URL.revokeObjectURL(pdfUrlForModal);
@@ -382,14 +379,24 @@ useEffect(() => {
 
 
   const getStatusColor = (status) => {
-    // ... (sin cambios) ...
     switch (status) {
-      case "created": return "bg-white";
-      case "send": return "bg-yellow-200";
-      case "approved": return "bg-green-200";
-      case "notResponded": return "bg-orange-200"; // Asumiendo que este estado existe
-      case "rejected": return "bg-red-200";
-      default: return "bg-gray-100"; // Un gris claro por defecto
+      case "created":
+      case "pending":
+        return "bg-white"; // Blanco para creado/pendiente
+      case "send":
+        return "bg-blue-200"; // Amarillo claro para enviado
+      case "sent_for_signature":
+        return "bg-yellow-100"; // Azul claro para enviado a SignNow
+      case "approved":
+        return "bg-green-100"; // Verde claro para aprobado
+      case "signed":
+        return "bg-green-200"; // Verde más intenso para firmado
+      case "notResponded":
+        return "bg-orange-100"; // Naranja para sin respuesta
+      case "rejected":
+        return "bg-red-100"; // Rojo claro para rechazado
+      default:
+        return "bg-gray-50"; // Gris muy claro por defecto
     }
   };
 
@@ -399,7 +406,7 @@ useEffect(() => {
     <div className="p-4">
       <h1 className="text-lg font-semibold mb-4 text-gray-800">Monthly Budgets</h1>
 
-      
+
 
       {loading && <p className="text-blue-500">Loading Budgets...</p>}
       {error && <p className="text-red-500">Error: {error}</p>}
@@ -429,16 +436,16 @@ useEffect(() => {
                   const permitExpStatus = budget.Permit?.expirationStatus || budget.permitExpirationStatus;
                   const permitExpMessage = budget.Permit?.expirationMessage || budget.permitExpirationMessage;
 
-                  
+
                   if (permitExpStatus === "expired" || permitExpStatus === "soon_to_expire") {
                     const isError = permitExpStatus === "expired";
                     const alertColorClass = isError ? "text-red-500" : "text-yellow-500";
                     const pingColorClass = isError ? "bg-red-400" : "bg-yellow-400";
                     const alertMessage = permitExpMessage || (isError ? "Permiso Vencido" : "Permiso Próximo a Vencer");
-                    
+
                     permitExpirationAlertIcon = (
-                      <span 
-                        title={alertMessage} 
+                      <span
+                        title={alertMessage}
                         className="relative ml-2 cursor-help inline-flex items-center justify-center h-5 w-5" // Explicit size for table icon container
                       >
                         <span className={`absolute inline-flex h-full w-full rounded-full ${pingColorClass} opacity-75 animate-ping`}></span>
@@ -447,7 +454,7 @@ useEffect(() => {
                     );
                   }
 
-                 const permitId = budget.Permit?.idPermit;
+                  const permitId = budget.Permit?.idPermit;
 
                   // --- CONDICIÓN DE RENDERIZADO DE BOTONES AJUSTADA ---
                   // Ahora verificamos si budget.Permit existe y si los campos pdfData/optionalDocs tienen contenido.
@@ -465,176 +472,237 @@ useEffect(() => {
                           {permitExpirationAlertIcon}
                         </div>
                       </td>
-                    <td className="border border-gray-300 px-4 py-2 text-xs">{formatDate(budget.date)}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-xs">{budget.expirationDate ? formatDate(budget.expirationDate) : "N/A"}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-xs text-right">${budget.totalPrice}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-xs text-right">${budget.initialPayment}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-xs text-center">{budget.status}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-xs">{budget.propertyAddress || "N/A"}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-xs"> {budget.Permit?.systemType || budget.systemType || "N/A"}</td>
-                    <td className="border border-gray-300 px-4 py-2 text-xs align-top">
-                      {editingBudgetId === budget.idBudget ? (
-                        <div className="flex flex-col">
-                          <textarea
-                            value={currentNote}
-                            onChange={handleNoteChange}
-                            className="w-full p-1 border rounded text-xs resize-y min-h-[50px]" // textarea en lugar de input
-                            rows={3} // Altura inicial
-                            disabled={isSavingNote} // Deshabilitar mientras guarda
-                          />
-                          <div className="flex justify-end space-x-1 mt-1">
+                      <td className="border border-gray-300 px-4 py-2 text-xs">{formatDate(budget.date)}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-xs">{budget.expirationDate ? formatDate(budget.expirationDate) : "N/A"}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-xs text-right">${budget.totalPrice}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-xs text-right">${budget.initialPayment}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-xs text-center">{budget.status}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-xs">{budget.propertyAddress || "N/A"}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-xs"> {budget.Permit?.systemType || budget.systemType || "N/A"}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-xs align-top">
+                        {editingBudgetId === budget.idBudget ? (
+                          <div className="flex flex-col">
+                            <textarea
+                              value={currentNote}
+                              onChange={handleNoteChange}
+                              className="w-full p-1 border rounded text-xs resize-y min-h-[50px]" // textarea en lugar de input
+                              rows={3} // Altura inicial
+                              disabled={isSavingNote} // Deshabilitar mientras guarda
+                            />
+                            <div className="flex justify-end space-x-1 mt-1">
+                              <button
+                                onClick={handleSaveNote}
+                                disabled={isSavingNote}
+                                className="p-1 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                                title="Save Notes"
+                              >
+                                {isSavingNote ? (
+                                  <svg className="animate-spin h-4 w-4 text-white" /* ... spinner ... */ ></svg>
+                                ) : (
+                                  <CheckIcon className="h-4 w-4" />
+                                )}
+                              </button>
+                              <button
+                                onClick={handleCancelEditNote}
+                                disabled={isSavingNote}
+                                className="p-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
+                                title="Cancel Edit"
+                              >
+                                <XMarkIcon className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          // Modo Visualización
+                          <div className="flex justify-between items-start">
+                            <span className="whitespace-pre-wrap break-words max-w-[200px]"> {/* Permitir saltos de línea y limitar ancho */}
+                              {budget.generalNotes || <span className="text-gray-400 italic">No notes</span>}
+                            </span>
                             <button
-                              onClick={handleSaveNote}
-                              disabled={isSavingNote}
-                              className="p-1 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
-                              title="Save Notes"
+                              onClick={() => handleEditNoteClick(budget)}
+                              className="ml-2 p-1 text-blue-600 hover:text-blue-800"
+                              title="Edit Notes"
                             >
-                              {isSavingNote ? (
-                                <svg className="animate-spin h-4 w-4 text-white" /* ... spinner ... */ ></svg>
+                              <PencilIcon className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                      {/* --- FIN CELDA DE NOTAS --- */}
+                      <td className="border border-gray-300 px-2 py-1">
+                        <div className="flex flex-row items-center justify-center space-x-1 min-w-[120px]"> {/* Cambio: flex-row y space-x-1 */}
+
+                          {/* ESTADO: CREATED - Botón Send */}
+                          {budget.status === "created" && (
+                            <button
+                              onClick={() => handleUpdateStatus(budget.idBudget, "send", budget)}
+                              className="inline-flex items-center justify-center bg-yellow-500 text-white px-2 py-0.5 rounded text-[10px] hover:bg-yellow-600 w-16 h-6"
+                              title="Send Budget"
+                            >
+                              Send
+                            </button>
+                          )}
+
+                          {/* ESTADO: SEND - Estado + botón reject horizontalmente */}
+                          {budget.status === "send" && (
+                            <>
+                              <div className="text-center">
+                                <p className="text-yellow-700 text-[10px] font-semibold bg-yellow-100 px-1 py-0.5 rounded leading-tight">
+                                  Sent
+                                </p>
+                                {budget.paymentInvoice ? (
+                                  <p className="text-green-600 text-[8px] font-semibold mt-0.5">✓ Invoice</p>
+                                ) : (
+                                  <p className="text-orange-600 text-[8px] font-semibold mt-0.5">⚠ Invoice</p>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => handleUpdateStatus(budget.idBudget, "rejected", budget)}
+                                className="inline-flex items-center justify-center bg-red-500 text-white px-1.5 py-0.5 rounded text-[10px] hover:bg-red-600 w-14 h-6"
+                                title="Reject Budget"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+
+                          {/* ESTADO: SENT_FOR_SIGNATURE - Estado + botón reject horizontalmente */}
+                          {budget.status === "sent_for_signature" && (
+                            <>
+                              <p className="text-blue-700 text-[10px] font-semibold bg-blue-100 px-1 py-0.5 rounded text-center leading-tight">
+                                To Sign
+                              </p>
+                              <button
+                                onClick={() => handleUpdateStatus(budget.idBudget, "rejected", budget)}
+                                className="inline-flex items-center justify-center bg-red-500 text-white px-1.5 py-0.5 rounded text-[10px] hover:bg-red-600 w-14 h-6"
+                                title="Reject Budget"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+
+                          {/* ESTADO: APPROVED */}
+                          {budget.status === "approved" && (
+                            <p className="text-green-700 text-[10px] font-semibold bg-green-100 px-1 py-0.5 rounded text-center w-16 leading-tight">
+                              Approved
+                            </p>
+                          )}
+
+                          {/* ESTADO: SIGNED */}
+                          {budget.status === "signed" && (
+                            <p className="text-green-800 text-[10px] font-semibold bg-green-200 px-1 py-0.5 rounded text-center w-16 leading-tight">
+                              Signed
+                            </p>
+                          )}
+
+                          {/* ESTADO: REJECTED */}
+                          {budget.status === "rejected" && (
+                            <p className="text-red-700 text-[10px] font-semibold bg-red-100 px-1 py-0.5 rounded text-center w-16 leading-tight">
+                              Rejected
+                            </p>
+                          )}
+
+                          {/* ESTADO: NOT RESPONDED - Estado + botón reject horizontalmente */}
+                          {budget.status === "notResponded" && (
+                            <>
+                              <p className="text-orange-700 text-[10px] font-semibold bg-orange-100 px-1 py-0.5 rounded text-center leading-tight">
+                                No Response
+                              </p>
+                              <button
+                                onClick={() => handleUpdateStatus(budget.idBudget, "rejected", budget)}
+                                className="inline-flex items-center justify-center bg-red-500 text-white px-1.5 py-0.5 rounded text-[10px] hover:bg-red-600 w-14 h-6"
+                                title="Reject Budget"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+
+                          {/* Separador visual si hay PDFs */}
+                          {hasBudgetPdfItself && (
+                            <div className="border-l border-gray-300 h-6 mx-1"></div>
+                          )}
+
+                          {/* Botones PDF horizontalmente */}
+                          {hasBudgetPdfItself && (
+                            <>
+                              <button
+                                onClick={() => handleShowPermitPdfInModal(budget, 'budgetSelf')}
+                                disabled={isLoadingPdfInModal === `${budget.idBudget}-budgetSelf`}
+                                className="inline-flex items-center justify-center bg-teal-600 text-white px-1 py-0.5 rounded text-[9px] hover:bg-teal-700 disabled:opacity-50 h-6 w-12"
+                                title="View Budget PDF"
+                              >
+                                {isLoadingPdfInModal === `${budget.idBudget}-budgetSelf` ? (
+                                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                ) : (
+                                  <EyeIcon className="h-4 w-4" />
+                                )}
+                              </button>
+
+                              <button
+                                onClick={() => handleDownloadPdf(budget.idBudget, `budget_${budget.idBudget}.pdf`)}
+                                disabled={downloadingPdfId === budget.idBudget}
+                                className="inline-flex items-center justify-center bg-blue-600 text-white px-1 py-0.5 rounded text-[9px] hover:bg-blue-700 disabled:opacity-50 h-6 w-12"
+                                title="Download Budget PDF"
+                              >
+                                {downloadingPdfId === budget.idBudget ? (
+                                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                ) : (
+                                  <DocumentArrowDownIcon className="h-4 w-4" />
+                                )}
+                              </button>
+                            </>
+                          )}
+
+                          {/* Botones de PDF de permisos horizontalmente */}
+                          {permitId && hasPermitPdfData && (
+                            <button
+                              onClick={() => handleShowPermitPdfInModal(budget, 'pdfData')}
+                              disabled={isLoadingPdfInModal === `${budget.idBudget}-pdfData`}
+                              className="inline-flex items-center justify-center bg-indigo-600 text-white px-1 py-0.5 rounded text-[9px] hover:bg-indigo-700 disabled:opacity-50 h-6 w-12"
+                              title="View Permit PDF"
+                            >
+                              {isLoadingPdfInModal === `${budget.idBudget}-pdfData` ? (
+                                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
                               ) : (
-                                <CheckIcon className="h-4 w-4" />
+                                <PaperClipIcon className="h-4 w-4" />
                               )}
                             </button>
+                          )}
+
+                          {permitId && hasPermitOptionalDocs && (
                             <button
-                              onClick={handleCancelEditNote}
-                              disabled={isSavingNote}
-                              className="p-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
-                              title="Cancel Edit"
+                              onClick={() => handleShowPermitPdfInModal(budget, 'optionalDocs')}
+                              disabled={isLoadingPdfInModal === `${budget.idBudget}-optionalDocs`}
+                              className="inline-flex items-center justify-center bg-purple-600 text-white px-1 py-0.5 rounded text-[9px] hover:bg-purple-700 disabled:opacity-50 h-6 w-12"
+                              title="View Optional Docs"
                             >
-                              <XMarkIcon className="h-4 w-4" />
+                              {isLoadingPdfInModal === `${budget.idBudget}-optionalDocs` ? (
+                                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                              ) : (
+                                <PaperClipIcon className="h-4 w-4" />
+                              )}
                             </button>
-                          </div>
+                          )}
+
                         </div>
-                      ) : (
-                        // Modo Visualización
-                        <div className="flex justify-between items-start">
-                          <span className="whitespace-pre-wrap break-words max-w-[200px]"> {/* Permitir saltos de línea y limitar ancho */}
-                            {budget.generalNotes || <span className="text-gray-400 italic">No notes</span>}
-                          </span>
-                          <button
-                            onClick={() => handleEditNoteClick(budget)}
-                            className="ml-2 p-1 text-blue-600 hover:text-blue-800"
-                            title="Edit Notes"
-                          >
-                            <PencilIcon className="h-4 w-4" />
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                    {/* --- FIN CELDA DE NOTAS --- */}
-                    <td className="border border-gray-300 px-4 py-2">
-                      <div className="flex items-center justify-center space-x-2"> 
-
-                        {budget.status === "created" && (
-                          <button
-                            onClick={() => handleUpdateStatus(budget.idBudget, "send", budget)}
-                            className="inline-flex items-center justify-center bg-yellow-500 text-white px-2 py-1 rounded text-xs hover:bg-yellow-600 w-16" // Añadido w-16 para ancho fijo
-                            title="Send Budget"
-                          >
-                            Send
-                          </button>
-                        )}
-
-                        {budget.status === "send" && (
-                          <div className="flex flex-col items-center space-y-1">
-                             {/* Botón "Sent" deshabilitado */}
-                             <button
-                               disabled
-                               className="inline-flex items-center justify-center bg-gray-400 text-white px-2 py-1 rounded text-xs cursor-not-allowed w-16" // Añadido w-16
-                               title="Budget Sent"
-                             >
-                               Sent
-                             </button>
-                             {/* Indicador de Invoice */}
-                             {budget.paymentInvoice ? (
-                               <p className="text-green-600 text-[10px] font-semibold mt-1">Invoice OK</p> // Más pequeño
-                             ) : (
-                               <p className="text-orange-600 text-[10px] font-semibold mt-1">Need Invoice</p> // Más pequeño
-                             )}
-                             {/* Botón Reject */}
-                             <button
-                               onClick={() => handleUpdateStatus(budget.idBudget, "rejected", budget)}
-                               className="inline-flex items-center justify-center bg-red-500 text-white px-2 py-1 rounded text-xs hover:bg-red-600 w-16 mt-1" // Añadido w-16 y margen
-                               title="Reject Budget"
-                             >
-                               Reject
-                             </button>
-                          </div>
-                        )}
-
-                        {budget.status === "approved" && (
-                          <p className="text-green-600 text-xs font-semibold px-2 py-1 w-16 text-center"> {/* Añadido w-16 y text-center */}
-                            Approved
-                          </p>
-                        )}
-
-                        {budget.status === "rejected" && (
-                          <p className="text-red-600 text-xs font-semibold px-2 py-1 w-16 text-center"> {/* Añadido w-16 y text-center */}
-                            Rejected
-                          </p>
-                        )}
-                      
-                        {/* Acciones para el PDF del Presupuesto mismo */}
-                        {hasBudgetPdfItself && ( // Si budget.pdfPath existe
-                        <>
-                            {/* Botón para VER el PDF del Presupuesto EN MODAL */}
-                            <button 
-                            onClick={() => handleShowPermitPdfInModal(budget, 'budgetSelf')} 
-                            disabled={isLoadingPdfInModal === `${budget.idBudget}-budgetSelf`} 
-                            className="inline-flex items-center justify-center bg-teal-600 text-white px-2 py-1 rounded text-xs hover:bg-teal-700 min-w-[70px] m-0.5 disabled:opacity-50" 
-                            title="View Budget PDF"
-                            >
-                            {isLoadingPdfInModal === `${budget.idBudget}-budgetSelf` ? <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <EyeIcon className="h-4 w-4" />}
-                            <span className="ml-1 text-[10px]">Budget</span>
-                            </button>
-
-                            {/* Botón para DESCARGAR el PDF del Presupuesto */}
-                            <button 
-                            onClick={() => handleDownloadPdf(budget.idBudget, `budget_${budget.idBudget}.pdf`)} 
-                            disabled={downloadingPdfId === budget.idBudget} 
-                            className="inline-flex items-center justify-center bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 min-w-[80px] m-0.5 disabled:opacity-50"  // Ajustado min-w para "Download"
-                            title="Download Budget PDF"
-                            >
-                            {downloadingPdfId === budget.idBudget ? <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <DocumentArrowDownIcon className="h-4 w-4" />}
-                            <span className="ml-1 text-[10px]">Download</span>
-                            </button>
-                        </>
-                        )}
-
-                        {/* Botón para ver PDF Principal del Permiso */}
-                        {permitId && hasPermitPdfData && (
-                            <button
-                            onClick={() => handleShowPermitPdfInModal(budget, 'pdfData')}
-                            disabled={isLoadingPdfInModal === `${budget.idBudget}-pdfData`}
-                            className="inline-flex items-center justify-center bg-indigo-600 text-white px-2 py-1 rounded text-xs hover:bg-indigo-700 min-w-[70px] m-0.5 disabled:opacity-50"
-                            title="View Permit PDF"
-                            >
-                            {isLoadingPdfInModal === `${budget.idBudget}-pdfData` ? <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <PaperClipIcon className="h-4 w-4" />}
-                            <span className="ml-1 text-[10px]">Permit</span>
-                            </button>
-                        )}
-
-                        {/* Botón para ver Documentos Opcionales del Permiso */}
-                        {permitId && hasPermitOptionalDocs && (
-                            <button
-                            onClick={() => handleShowPermitPdfInModal(budget, 'optionalDocs')}
-                            disabled={isLoadingPdfInModal === `${budget.idBudget}-optionalDocs`}
-                            className="inline-flex items-center justify-center bg-purple-600 text-white px-2 py-1 rounded text-xs hover:bg-purple-700 min-w-[70px] m-0.5 disabled:opacity-50"
-                            title="View Optional Docs"
-                            >
-                            {isLoadingPdfInModal === `${budget.idBudget}-optionalDocs` ? <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <PaperClipIcon className="h-4 w-4" />}
-                            <span className="ml-1 text-[10px]">Optional</span>
-                            </button>
-                        )}
-                        
-                        {/* Placeholder si no hay NINGÚN PDF (ni de budget, ni de permit, ni opcional) */}
-                        {!hasBudgetPdfItself && !(permitId && (hasPermitPdfData || hasPermitOptionalDocs)) && (
-                            <div className="w-px h-px m-0.5"></div> 
-                        )}
-                      </div> 
-                    </td>
-                  </tr>
-                )})}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -655,10 +723,10 @@ useEffect(() => {
                 const alertColorClass = isError ? "text-red-500" : "text-yellow-500";
                 const pingColorClass = isError ? "bg-red-400" : "bg-yellow-400";
                 const alertMessage = permitExpMessage || (isError ? "Permiso Vencido" : "Permiso Próximo a Vencer");
-                
+
                 permitExpirationAlertIconCard = (
-                  <span 
-                    title={alertMessage} 
+                  <span
+                    title={alertMessage}
                     className="relative ml-2 cursor-help inline-flex items-center justify-center h-6 w-6" // Explicit size for card icon container
                   >
                     <span className={`absolute inline-flex h-full w-full rounded-full ${pingColorClass} opacity-75 animate-ping`}></span>
@@ -666,13 +734,13 @@ useEffect(() => {
                   </span>
                 );
               }
-                // Variables para la lógica de los botones PDF (igual que en la tabla)
+              // Variables para la lógica de los botones PDF (igual que en la tabla)
               const permitId = budget.Permit?.idPermit;
               const hasPermitPdfData = !!(budget.Permit && budget.Permit.pdfData);
               const hasPermitOptionalDocs = !!(budget.Permit && budget.Permit.optionalDocs);
               const hasBudgetPdfItself = !!budget.pdfPath;
-              
-         return (
+
+              return (
                 <div
                   key={budget.idBudget}
                   className={`border border-gray-300 rounded-lg p-4 shadow-md ${getStatusColor(budget.status)}`}
@@ -684,7 +752,7 @@ useEffect(() => {
                     </p>
                     {/* Aquí puedes poner el botón de editar notas si lo deseas en la parte superior */}
                   </div>
-               
+
                   <p className="text-xs text-gray-600">Date: {formatDate(budget.date)}</p>
                   <p className="text-xs text-gray-600">End Date: {budget.expirationDate ? formatDate(budget.expirationDate) : "N/A"}</p>
                   <p className="text-xs text-gray-600">Price: ${budget.totalPrice}</p>
@@ -692,92 +760,154 @@ useEffect(() => {
                   <p className="text-xs text-gray-600">Status: <span className="font-medium">{budget.status}</span></p>
                   <p className="text-xs text-gray-600">Address: {budget.propertyAddress || "N/A"}</p>
                   <p className="text-xs text-gray-600">System Type: {budget.Permit?.systemType || budget.systemType || "N/A"}</p>
-                  
+
                   {/* Notas (similar a la tabla) */}
                   <div className="mt-2 pt-2 border-t">
                     <p className="text-xs font-semibold text-gray-700 mb-1">Notes:</p>
                     {editingBudgetId === budget.idBudget ? (
-                        <div className="flex flex-col">
-                          <textarea
-                            value={currentNote}
-                            onChange={handleNoteChange}
-                            className="w-full p-1 border rounded text-xs resize-y min-h-[40px]"
-                            rows={2}
-                            disabled={isSavingNote}
-                          />
-                          <div className="flex justify-end space-x-1 mt-1">
-                            <button onClick={handleSaveNote} disabled={isSavingNote} className="p-1 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50" title="Save Notes">
-                              {isSavingNote ? <svg className="animate-spin h-3 w-3 text-white" viewBox="0 0 24 24">...</svg> : <CheckIcon className="h-3 w-3" />}
-                            </button>
-                            <button onClick={handleCancelEditNote} disabled={isSavingNote} className="p-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50" title="Cancel Edit">
-                              <XMarkIcon className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex justify-between items-start">
-                          <span className="whitespace-pre-wrap break-words text-xs text-gray-600 max-w-[calc(100%-2rem)]">
-                            {budget.generalNotes || <span className="text-gray-400 italic">No notes</span>}
-                          </span>
-                          <button onClick={() => handleEditNoteClick(budget)} className="ml-2 p-0.5 text-blue-600 hover:text-blue-800" title="Edit Notes">
-                            <PencilIcon className="h-3 w-3" />
+                      <div className="flex flex-col">
+                        <textarea
+                          value={currentNote}
+                          onChange={handleNoteChange}
+                          className="w-full p-1 border rounded text-xs resize-y min-h-[40px]"
+                          rows={2}
+                          disabled={isSavingNote}
+                        />
+                        <div className="flex justify-end space-x-1 mt-1">
+                          <button onClick={handleSaveNote} disabled={isSavingNote} className="p-1 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50" title="Save Notes">
+                            {isSavingNote ? <svg className="animate-spin h-3 w-3 text-white" viewBox="0 0 24 24">...</svg> : <CheckIcon className="h-3 w-3" />}
+                          </button>
+                          <button onClick={handleCancelEditNote} disabled={isSavingNote} className="p-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50" title="Cancel Edit">
+                            <XMarkIcon className="h-3 w-3" />
                           </button>
                         </div>
-                      )}
+                      </div>
+                    ) : (
+                      <div className="flex justify-between items-start">
+                        <span className="whitespace-pre-wrap break-words text-xs text-gray-600 max-w-[calc(100%-2rem)]">
+                          {budget.generalNotes || <span className="text-gray-400 italic">No notes</span>}
+                        </span>
+                        <button onClick={() => handleEditNoteClick(budget)} className="ml-2 p-0.5 text-blue-600 hover:text-blue-800" title="Edit Notes">
+                          <PencilIcon className="h-3 w-3" />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Acciones (Botones de estado y PDF) */}
                   <div className="mt-3 border-t pt-3">
-                    <p className="text-xs font-semibold mb-1 text-gray-600">Actions:</p>
-                    <div className="space-y-2"> {/* Contenedor principal para acciones */}
-                        {/* Botones de Estado */}
-                        {budget.status === "created" && (
-                            <button onClick={() => handleUpdateStatus(budget.idBudget, "send", budget)} className="w-full text-center bg-yellow-500 text-white px-3 py-1.5 rounded text-xs hover:bg-yellow-600">Send Budget</button>
-                        )}
-                        {budget.status === "send" && (
-                            <div className="w-full text-center p-2 border rounded bg-gray-50">
-                                <p className="text-xs font-semibold text-gray-500">Sent</p>
-                                {budget.paymentInvoice ? <p className="text-green-600 text-[10px] font-semibold">Invoice OK</p> : <p className="text-orange-600 text-[10px] font-semibold">Need Invoice</p>}
-                                <button onClick={() => handleUpdateStatus(budget.idBudget, "rejected", budget)} className="mt-1 w-full bg-red-500 text-white px-3 py-1.5 rounded text-xs hover:bg-red-600">Reject</button>
-                            </div>
-                        )}
-                        {budget.status === "approved" && <p className="w-full text-center text-green-600 text-xs font-semibold p-2 border rounded bg-green-50">Approved</p>}
-                        {budget.status === "rejected" && <p className="w-full text-center text-red-600 text-xs font-semibold p-2 border rounded bg-red-50">Rejected</p>}
+                    <p className="text-xs font-semibold mb-2 text-gray-600">Actions:</p>
+                    <div className="space-y-2">
+                      {/* Botones de Estado */}
+                      {budget.status === "created" && (
+                        <button
+                          onClick={() => handleUpdateStatus(budget.idBudget, "send", budget)}
+                          className="w-full text-center bg-yellow-500 text-white px-3 py-1.5 rounded text-xs hover:bg-yellow-600"
+                        >
+                          Send Budget
+                        </button>
+                      )}
 
-                        {/* Botones de PDF (usando grid para mejor distribución si hay varios) */}
-                        {(hasBudgetPdfItself || (permitId && (hasPermitPdfData || hasPermitOptionalDocs))) && (
-                          <div className="grid grid-cols-2 gap-2 pt-2">
-                            {hasBudgetPdfItself && (
-                                <>
-                                    <button onClick={() => handleShowPermitPdfInModal(budget, 'budgetSelf')} disabled={isLoadingPdfInModal === `${budget.idBudget}-budgetSelf`} className="inline-flex items-center justify-center bg-teal-600 text-white px-2 py-1.5 rounded text-xs hover:bg-teal-700 disabled:opacity-50">
-                                        {isLoadingPdfInModal === `${budget.idBudget}-budgetSelf` ? <svg className="animate-spin h-3 w-3 mr-1" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <EyeIcon className="h-3 w-3 mr-1" />} Budget
-                                    </button>
-                                    <button onClick={() => handleDownloadPdf(budget.idBudget, `budget_${budget.idBudget}.pdf`)} disabled={downloadingPdfId === budget.idBudget} className="inline-flex items-center justify-center bg-blue-600 text-white px-2 py-1.5 rounded text-xs hover:bg-blue-700 disabled:opacity-50">
-                                        {downloadingPdfId === budget.idBudget ? <svg className="animate-spin h-3 w-3 mr-1" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <DocumentArrowDownIcon className="h-3 w-3 mr-1" />} Download
-                                    </button>
-                                </>
-                            )}
-                            {permitId && hasPermitPdfData && (
-                                <button onClick={() => handleShowPermitPdfInModal(budget, 'pdfData')} disabled={isLoadingPdfInModal === `${budget.idBudget}-pdfData`} className="inline-flex items-center justify-center bg-indigo-600 text-white px-2 py-1.5 rounded text-xs hover:bg-indigo-700 disabled:opacity-50">
-                                    {isLoadingPdfInModal === `${budget.idBudget}-pdfData` ? <svg className="animate-spin h-3 w-3 mr-1" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <PaperClipIcon className="h-3 w-3 mr-1" />} Permit
-                                </button>
-                            )}
-                            {permitId && hasPermitOptionalDocs && (
-                                <button onClick={() => handleShowPermitPdfInModal(budget, 'optionalDocs')} disabled={isLoadingPdfInModal === `${budget.idBudget}-optionalDocs`} className="inline-flex items-center justify-center bg-purple-600 text-white px-2 py-1.5 rounded text-xs hover:bg-purple-700 disabled:opacity-50">
-                                    {isLoadingPdfInModal === `${budget.idBudget}-optionalDocs` ? <svg className="animate-spin h-3 w-3 mr-1" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <PaperClipIcon className="h-3 w-3 mr-1" />} Optional
-                                </button>
+                      {budget.status === "send" && (
+                        <div className="w-full space-y-2">
+                          <div className="text-center p-2 border rounded bg-yellow-50">
+                            <p className="text-xs font-semibold text-yellow-700">Sent</p>
+                            {budget.paymentInvoice ? (
+                              <p className="text-green-600 text-[10px] font-semibold">✓ Invoice OK</p>
+                            ) : (
+                              <p className="text-orange-600 text-[10px] font-semibold">⚠ Need Invoice</p>
                             )}
                           </div>
-                        )}
-                        {/* Mensaje si no hay PDFs */}
-                        {!hasBudgetPdfItself && !(permitId && (hasPermitPdfData || hasPermitOptionalDocs)) && (
-                            <p className="text-xs text-gray-400 italic text-center pt-2">No PDF actions available</p> 
-                        )}
+                          <button
+                            onClick={() => handleUpdateStatus(budget.idBudget, "rejected", budget)}
+                            className="w-full bg-red-500 text-white px-3 py-1.5 rounded text-xs hover:bg-red-600"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
+
+                      {budget.status === "sent_for_signature" && (
+                        <div className="w-full space-y-2">
+                          <div className="text-center p-2 border rounded bg-blue-50">
+                            <p className="text-xs font-semibold text-blue-700">Sent to Sign</p>
+                          </div>
+                          <button
+                            onClick={() => handleUpdateStatus(budget.idBudget, "rejected", budget)}
+                            className="w-full bg-red-500 text-white px-3 py-1.5 rounded text-xs hover:bg-red-600"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
+
+                      {budget.status === "approved" && (
+                        <div className="w-full text-center text-green-700 text-xs font-semibold p-2 border rounded bg-green-50">
+                          Approved
+                        </div>
+                      )}
+
+                      {budget.status === "signed" && (
+                        <div className="w-full text-center text-green-800 text-xs font-semibold p-2 border rounded bg-green-100">
+                          Signed
+                        </div>
+                      )}
+
+                      {budget.status === "rejected" && (
+                        <div className="w-full text-center text-red-700 text-xs font-semibold p-2 border rounded bg-red-50">
+                          Rejected
+                        </div>
+                      )}
+
+                      {budget.status === "notResponded" && (
+                        <div className="w-full space-y-2">
+                          <div className="text-center p-2 border rounded bg-orange-50">
+                            <p className="text-xs font-semibold text-orange-700">No Response</p>
+                          </div>
+                          <button
+                            onClick={() => handleUpdateStatus(budget.idBudget, "rejected", budget)}
+                            className="w-full bg-red-500 text-white px-3 py-1.5 rounded text-xs hover:bg-red-600"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      )}
+
+
+                      {/* Botones de PDF (usando grid para mejor distribución si hay varios) */}
+                      {(hasBudgetPdfItself || (permitId && (hasPermitPdfData || hasPermitOptionalDocs))) && (
+                        <div className="grid grid-cols-2 gap-2 pt-2">
+                          {hasBudgetPdfItself && (
+                            <>
+                              <button onClick={() => handleShowPermitPdfInModal(budget, 'budgetSelf')} disabled={isLoadingPdfInModal === `${budget.idBudget}-budgetSelf`} className="inline-flex items-center justify-center bg-teal-600 text-white px-2 py-1.5 rounded text-xs hover:bg-teal-700 disabled:opacity-50">
+                                {isLoadingPdfInModal === `${budget.idBudget}-budgetSelf` ? <svg className="animate-spin h-3 w-3 mr-1" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <EyeIcon className="h-3 w-3 mr-1" />} Budget
+                              </button>
+                              <button onClick={() => handleDownloadPdf(budget.idBudget, `budget_${budget.idBudget}.pdf`)} disabled={downloadingPdfId === budget.idBudget} className="inline-flex items-center justify-center bg-blue-600 text-white px-2 py-1.5 rounded text-xs hover:bg-blue-700 disabled:opacity-50">
+                                {downloadingPdfId === budget.idBudget ? <svg className="animate-spin h-3 w-3 mr-1" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <DocumentArrowDownIcon className="h-3 w-3 mr-1" />} Download
+                              </button>
+                            </>
+                          )}
+                          {permitId && hasPermitPdfData && (
+                            <button onClick={() => handleShowPermitPdfInModal(budget, 'pdfData')} disabled={isLoadingPdfInModal === `${budget.idBudget}-pdfData`} className="inline-flex items-center justify-center bg-indigo-600 text-white px-2 py-1.5 rounded text-xs hover:bg-indigo-700 disabled:opacity-50">
+                              {isLoadingPdfInModal === `${budget.idBudget}-pdfData` ? <svg className="animate-spin h-3 w-3 mr-1" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <PaperClipIcon className="h-3 w-3 mr-1" />} Permit
+                            </button>
+                          )}
+                          {permitId && hasPermitOptionalDocs && (
+                            <button onClick={() => handleShowPermitPdfInModal(budget, 'optionalDocs')} disabled={isLoadingPdfInModal === `${budget.idBudget}-optionalDocs`} className="inline-flex items-center justify-center bg-purple-600 text-white px-2 py-1.5 rounded text-xs hover:bg-purple-700 disabled:opacity-50">
+                              {isLoadingPdfInModal === `${budget.idBudget}-optionalDocs` ? <svg className="animate-spin h-3 w-3 mr-1" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> : <PaperClipIcon className="h-3 w-3 mr-1" />} Optional
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      {/* Mensaje si no hay PDFs */}
+                      {!hasBudgetPdfItself && !(permitId && (hasPermitPdfData || hasPermitOptionalDocs)) && (
+                        <p className="text-xs text-gray-400 italic text-center pt-2">No PDF actions available</p>
+                      )}
                     </div>
                   </div>
                 </div>
-               );
-              })}
+              );
+            })}
           </div>
 
           {/* Paginado (sin cambios) */}
@@ -786,8 +916,7 @@ useEffect(() => {
               <button
                 key={`page-${index + 1}`} // <--- AÑADE UN PREFIJO A LA KEY
                 onClick={() => handlePageChange(index + 1)}
-                className={`mx-1 px-3 py-1 text-xs rounded ${
-                  currentPage === index + 1
+                className={`mx-1 px-3 py-1 text-xs rounded ${currentPage === index + 1
                     ? "bg-blue-950 text-white shadow"
                     : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                   }`}
@@ -796,7 +925,7 @@ useEffect(() => {
               </button>
             ))}
           </div>
-            <PdfModal
+          <PdfModal
             isOpen={isModalOpen}
             onClose={closeModal}
             pdfUrl={pdfUrlForModal}

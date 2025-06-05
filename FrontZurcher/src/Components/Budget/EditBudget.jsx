@@ -67,12 +67,12 @@ const EditBudget = () => {
     dispatch(fetchBudgetItems());
   }, [dispatch]);
 
-  // *** NUEVO: Filtrar budgets por estado para la búsqueda ***
-  const editableBudgets = useMemo(() => {
-    const allowedStatus = ["created", "send", "notResponded", "rejected"];
-    return (budgets || []).filter(budget => allowedStatus.includes(budget.status));
-  }, [budgets]);
-
+  // Actualiza el filtro en la línea ~45:
+const editableBudgets = useMemo(() => {
+  // ✅ CORREGIDO: Incluir más estados editables
+  const allowedStatus = ["created", "send","sent", "pending", "notResponded", "rejected", "sent_for_signature"];
+  return (budgets || []).filter(budget => allowedStatus.includes(budget.status));
+}, [budgets]);
   // ✅ AGREGAR LÓGICA PARA NORMALIZAR CATÁLOGO:
   const normalizedBudgetItemsCatalog = useMemo(() => {
     return (budgetItemsCatalog || [])
@@ -581,21 +581,22 @@ const EditBudget = () => {
                     <label htmlFor="expirationDate" className="block text-sm font-medium text-gray-700">Fecha de Expiración</label>
                     <input type="date" id="expirationDate" name="expirationDate" value={formData.expirationDate} onChange={handleGeneralInputChange} className="input-style mt-1" />
                   </div>
-                  <div>
-                    <label htmlFor="status" className="block text-sm font-medium text-gray-700">Estado</label>
-                    <select id="status" name="status" value={formData.status} onChange={handleGeneralInputChange} className="input-style mt-1">
-                      <option value="created">Creado</option>
-                      <option value="sent">Enviado</option>
-                      <option value="approved">Aprobado</option>
-                      <option value="rejected">Rechazado</option>
-                      <option value="expired">Expirado</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label htmlFor="initialPaymentPercentage" className="block text-sm font-medium text-gray-700">Pago Inicial (%)</label>
-                    <input type="number" id="initialPaymentPercentage" name="initialPaymentPercentage" value={formData.initialPaymentPercentage} onChange={handleGeneralInputChange} className="input-style mt-1" min="0" max="100" step="1" />
-                  </div>
-                </div>
+                 
+  <label htmlFor="status" className="block text-sm font-medium text-gray-700">Estado</label>
+  <select id="status" name="status" value={formData.status} onChange={handleGeneralInputChange} className="input-style mt-1">
+    <option value="created">Creado</option>
+    <option value="send">Enviar</option> {/* ✅ Corregido: era "sent" */}
+     <option value="sent">Enviado</option>
+    <option value="sent_for_signature">Enviado a Firma</option> {/* ✅ NUEVO */}
+    <option value="pending">Pendiente</option> {/* ✅ NUEVO */}
+    <option value="approved">Aprobado</option>
+    <option value="rejected">Rechazado</option>
+    <option value="notResponded">Sin Respuesta</option> {/* ✅ NUEVO */}
+    <option value="signed">Firmado</option> {/* ✅ NUEVO */}
+    {/* Removido "expired" ya que no está en el modelo */}
+  </select>
+</div>
+                
                 <div className="mt-4">
                   <label htmlFor="generalNotes" className="block text-sm font-medium text-gray-700">Notas Generales</label>
                   <textarea id="generalNotes" name="generalNotes" value={formData.generalNotes} onChange={handleGeneralInputChange} rows="3" className="input-style mt-1"></textarea>
