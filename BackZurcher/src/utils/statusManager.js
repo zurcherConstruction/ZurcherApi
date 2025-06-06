@@ -40,7 +40,7 @@ const STATE_DEPENDENCIES = {
     requires: ['Images (materiales, excavación, etc.)']
   },
   'firstInspectionPending': {
-    creates: ['Inspection (type: first)'],
+    creates: ['Inspection (type: initial)'],
     requires: ['InstallationDetail']
   },
   'approvedInspection': {
@@ -101,13 +101,13 @@ const validateStatusChange = async (work, targetStatus, isMovingBackward, force)
   const conflicts = [];
   
   if (isMovingBackward && !force) {
-    // Validar qué se perdería al retroceder
     const statusIndex = STATUS_ORDER.indexOf(work.status);
     const targetIndex = STATUS_ORDER.indexOf(targetStatus);
     
     for (let i = targetIndex + 1; i <= statusIndex; i++) {
       const statusToRollback = STATUS_ORDER[i];
-      const statusConflicts = await checkStatusConflicts(work, statusToRollback);
+      // ✅ PASAR targetStatus como parámetro adicional
+      const statusConflicts = await checkStatusConflicts(work, statusToRollback, targetStatus);
       conflicts.push(...statusConflicts);
     }
     
@@ -123,7 +123,7 @@ const validateStatusChange = async (work, targetStatus, isMovingBackward, force)
   return { valid: true };
 };
 
-const checkStatusConflicts = async (work, status) => {
+const checkStatusConflicts = async (work, status, targetStatus = null ) => {
   const conflicts = [];
   
   switch (status) {
@@ -182,7 +182,7 @@ const checkStatusConflicts = async (work, status) => {
       
     case 'firstInspectionPending':
     case 'finalInspectionPending':
-      const inspectionType = status === 'firstInspectionPending' ? 'first' : 'final';
+      const inspectionType = status === 'firstInspectionPending' ? 'initial' : 'final';
       const inspections = work.inspections?.filter(i => i.type === inspectionType);
       if (inspections?.length > 0) {
         conflicts.push({
@@ -192,6 +192,14 @@ const checkStatusConflicts = async (work, status) => {
         });
       }
       break;
+     case 'coverPending':
+  // Solo avisar que se perderá el estado "listo para cubrir"
+  conflicts.push({
+    type: 'StatusOnly',
+    message: 'Se revertirá el estado de "listo para cubrir" a "inspección aprobada" (la inspección inicial se mantiene)'
+  });
+  break;
+
       
     case 'covered':
       const coveredImages = work.images?.filter(img => img.stage === 'trabajo cubierto');
@@ -214,20 +222,91 @@ const checkStatusConflicts = async (work, status) => {
         });
       }
       break;
-       case 'approvedInspection':
-      // Verificar inspecciones iniciales aprobadas
-      const approvedInitialInspections = work.inspections?.filter(i => 
-        i.type === 'initial' && i.finalStatus === 'approved'
-      );
-      if (approvedInitialInspections?.length > 0) {
-        conflicts.push({
-          type: 'InitialInspection',
-          count: approvedInitialInspections.length,
-          message: 'Se revertirá la aprobación de la inspección inicial (volverá a estado pendiente de resultado)'
+  case 'approvedInspection':
+      if (targetStatus === 'installed') {
+        // ✅ Rollback hasta installed = ELIMINAR todas las inspecciones
+        const allInspections = await Inspection.findAll({
+          where: { workId: work.idWork }
         });
+        
+        if (allInspections?.length > 0) {
+          conflicts.push({
+            type: 'AllInspections',
+            count: allInspections.length,
+            message: `Se eliminarán TODAS las inspecciones (${allInspections.length}) para reinicio completo desde instalado`
+          });
+        }
+      } else {
+        // ✅ Rollback de un paso = CAMBIAR estado de la inspección
+        const approvedInspections = await Inspection.findAll({
+          where: { 
+            workId: work.idWork,
+            type: 'initial',
+            finalStatus: 'approved'
+          }
+        });
+        
+        if (approvedInspections?.length > 0) {
+          conflicts.push({
+            type: 'InspectionStatusChange',
+            count: approvedInspections.length,
+            message: `Se cambiará el estado de ${approvedInspections.length} inspección(es) inicial(es) de "aprobada" a "rechazada"`
+          });
+        }
       }
       break;
 
+    case 'rejectedInspection':
+      if (targetStatus === 'installed') {
+        // ✅ Rollback hasta installed = ELIMINAR todas las inspecciones
+        const allInspections = await Inspection.findAll({
+          where: { workId: work.idWork }
+        });
+        
+        if (allInspections?.length > 0) {
+          conflicts.push({
+            type: 'AllInspections',
+            count: allInspections.length,
+            message: `Se eliminarán TODAS las inspecciones (${allInspections.length}) para reinicio completo desde instalado`
+          });
+        }
+      } else {
+        // ✅ Rollback de un paso = CAMBIAR estado de la inspección
+        const rejectedInspections = await Inspection.findAll({
+          where: { 
+            workId: work.idWork,
+            type: 'initial',
+            finalStatus: 'rejected'
+          }
+        });
+        
+        if (rejectedInspections?.length > 0) {
+          conflicts.push({
+            type: 'InspectionStatusChange',
+            count: rejectedInspections.length,
+            message: `Se cambiará el estado de ${rejectedInspections.length} inspección(es) inicial(es) de "rechazada" a "pendiente de resultado"`
+          });
+        }
+      }
+      break;
+
+case 'firstInspectionPending':
+  // ✅ Rollback desde firstInspectionPending siempre elimina inspecciones
+  const inspectionsInitial = await Inspection.findAll({
+    where: { 
+      workId: work.idWork,
+      type: 'initial'
+    }
+  });
+  
+  if (inspectionsInitial?.length > 0) {
+    conflicts.push({
+      type: 'Inspection',
+      count: inspectionsInitial.length,
+      message: `Se eliminarán ${inspectionsInitial.length} inspección(es) inicial(es) pendientes`
+    });
+  }
+  break;
       
      case 'maintenance':
       if (work.maintenanceVisits?.length > 0) {
@@ -264,12 +343,13 @@ const rollbackToStatus = async (work, targetStatus, transaction, reason) => {
   // Rollback en orden inverso
   for (let i = currentStatusIndex; i > targetStatusIndex; i--) {
     const statusToRollback = STATUS_ORDER[i];
-    await rollbackSpecificStatus(work, statusToRollback, transaction, reason);
+    // ✅ PASAR targetStatus como parámetro adicional
+    await rollbackSpecificStatus(work, statusToRollback, transaction, reason, targetStatus);
   }
 };
 
-const rollbackSpecificStatus = async (work, status, transaction, reason) => {
-  console.log(`🔄 Rolling back status: ${status} for work ${work.idWork}`);
+const rollbackSpecificStatus = async (work, status, transaction, reason, targetStatus = null) => {
+  console.log(`🔄 Rolling back status: ${status} for work ${work.idWork} (destino: ${targetStatus || 'no especificado'})`);
   
   switch (status) {
     case 'installed':
@@ -284,7 +364,6 @@ const rollbackSpecificStatus = async (work, status, transaction, reason) => {
       await deleteImagesByStage(work.idWork, 'sistema instalado', transaction);
       break;
 
-       // NUEVO: Rollback desde inProgress
     case 'inProgress':
       // Limpiar fecha de inicio
       work.startDate = null;
@@ -329,92 +408,147 @@ const rollbackSpecificStatus = async (work, status, transaction, reason) => {
       });
       console.log(`✅ Eliminados ${deletedExpenses} gastos para work ${work.idWork}`);
       break;
-      
+
     case 'firstInspectionPending':
+      // ✅ ELIMINAR DUPLICADO - Solo este caso
+      if (targetStatus === 'installed') {
+        // Rollback hasta installed = eliminar TODAS las inspecciones
+        await Inspection.destroy({
+          where: { workId: work.idWork },
+          transaction
+        });
+        console.log(`✅ TODAS las inspecciones eliminadas para work ${work.idWork} (rollback hasta installed)`);
+      } else {
+        // Rollback normal = solo eliminar inspecciones initial
+        await Inspection.destroy({
+          where: { 
+            workId: work.idWork,
+            type: 'initial'
+          },
+          transaction
+        });
+        console.log(`✅ Eliminadas inspecciones iniciales para work ${work.idWork}`);
+      }
+      break;
+
     case 'finalInspectionPending':
-      const inspectionType = status === 'firstInspectionPending' ? 'first' : 'final';
       await Inspection.destroy({
         where: { 
           workId: work.idWork,
-          type: inspectionType 
+          type: 'final'
         },
         transaction
       });
-      console.log(`✅ Eliminadas inspecciones tipo ${inspectionType} para work ${work.idWork}`);
+      console.log(`✅ Eliminadas inspecciones finales para work ${work.idWork}`);
       break;
-      
+
+   case 'approvedInspection':
+  if (targetStatus === 'installed') {
+    // ✅ Rollback hasta installed = ELIMINAR todas las inspecciones
+    const allInspections = await Inspection.findAll({
+      where: { workId: work.idWork },
+      transaction
+    });
+    
+    console.log(`🔥 Rollback hasta 'installed': eliminando ${allInspections.length} inspección(es) completas`);
+    
+    await Inspection.destroy({
+      where: { workId: work.idWork },
+      transaction
+    });
+    
+    console.log(`✅ TODAS las inspecciones eliminadas para work ${work.idWork} - reinicio completo`);
+  } else if (targetStatus === 'firstInspectionPending') {
+    // ✅ Rollback a firstInspectionPending = CAMBIAR a estado pending (sin resultado)
+    await Inspection.update(
+      { 
+        finalStatus: null,  // ✅ CORRECTO - sin resultado final
+        processStatus: 'initial_scheduled',  // ✅ Vuelve a estado programada
+        notes: `${reason ? reason + ' - ' : ''}Estado revertido de aprobado a pendiente para re-evaluación`,
+        dateResultReceived: null  // ✅ Sin fecha de resultado
+      },
+      { 
+        where: { 
+          workId: work.idWork,
+          type: 'initial',
+          finalStatus: 'approved'
+        },
+        transaction 
+      }
+    );
+    console.log(`✅ Inspección inicial cambiada de approved → pending para work ${work.idWork}`);
+  } else {
+    // ✅ Para otros casos (ej: rollback a rejectedInspection) sí cambiar a rejected
+    await Inspection.update(
+      { 
+        finalStatus: 'rejected',
+        notes: `${reason ? reason + ' - ' : ''}Estado cambiado de aprobado a rechazado para corrección`,
+        dateResultReceived: new Date()
+      },
+      { 
+        where: { 
+          workId: work.idWork,
+          type: 'initial',
+          finalStatus: 'approved'
+        },
+        transaction 
+      }
+    );
+    console.log(`✅ Inspección inicial cambiada de approved → rejected para work ${work.idWork}`);
+  }
+  break;
+
+    case 'rejectedInspection':
+      if (targetStatus === 'installed') {
+        // ✅ Rollback hasta installed = ELIMINAR todas las inspecciones
+        const allInspections = await Inspection.findAll({
+          where: { workId: work.idWork },
+          transaction
+        });
+        
+        console.log(`🔥 Rollback hasta 'installed': eliminando ${allInspections.length} inspección(es) completas`);
+        
+        await Inspection.destroy({
+          where: { workId: work.idWork },
+          transaction
+        });
+        
+        console.log(`✅ TODAS las inspecciones eliminadas para work ${work.idWork} - reinicio completo`);
+      } else {
+        // ✅ Rollback de un paso = CAMBIAR estado de la inspección
+        await Inspection.update(
+          { 
+            finalStatus: null,
+            processStatus: 'initial_scheduled',
+            notes: `${reason ? reason + ' - ' : ''}Estado revertido a pendiente para re-evaluación`,
+            dateResultReceived: null
+          },
+          { 
+            where: { 
+              workId: work.idWork,
+              type: 'initial',
+              finalStatus: 'rejected'
+            },
+            transaction 
+          }
+        );
+        console.log(`✅ Inspección inicial cambiada de rejected → pending para work ${work.idWork}`);
+      }
+      break;
+
+    case 'coverPending':
+      // ✅ NO eliminar inspecciones - solo limpiar estado de "listo para cubrir"
+      // La inspección inicial aprobada se mantiene intacta
+      console.log(`🔄 Rollback desde coverPending: manteniendo inspección inicial aprobada`);
+      // No hay datos específicos que eliminar - el estado se maneja automáticamente
+      break;
+
     case 'covered':
       // Eliminar imágenes de trabajo cubierto
       await deleteImagesByStage(work.idWork, 'trabajo cubierto', transaction);
       break;
-      
-    case 'invoiceFinal':
-      // Eliminar factura final y sus extras
-      if (work.finalInvoice) {
-        await WorkExtraItem.destroy({
-          where: { finalInvoiceId: work.finalInvoice.id },
-          transaction
-        });
-        await FinalInvoice.destroy({
-          where: { id: work.finalInvoice.id },
-          transaction
-        });
-        console.log(`✅ Eliminada FinalInvoice para work ${work.idWork}`);
-      }
-      break;
 
-       case 'approvedInspection':
-      // Revertir inspección inicial aprobada a estado pendiente de resultado
-      const updatedInitialInspections = await Inspection.update(
-        { 
-          finalStatus: null, // Quitar la aprobación
-          processStatus: 'applicant_document_received', // Volver al estado donde espera resultado
-          dateResultReceived: null // Limpiar fecha de resultado
-        },
-        { 
-          where: { 
-            workId: work.idWork,
-            type: 'initial', // Usar 'initial' según tu modelo
-            finalStatus: 'approved'
-          },
-          transaction 
-        }
-      );
-      console.log(`✅ ${updatedInitialInspections[0]} inspección(es) inicial(es) revertida(s) a pendiente para work ${work.idWork}`);
-      break;
-
-      case 'finalApproved':
-  // Revertir inspección final aprobada a estado pendiente de resultado
-  const revertedFinalInspections = await Inspection.update(
-    { 
-      finalStatus: null,
-      processStatus: 'final_payment_notified_to_inspector',
-      dateResultReceived: null
-    },
-    { 
-      where: { 
-        workId: work.idWork,
-        type: 'final',
-        finalStatus: 'approved'
-      },
-      transaction 
-    }
-  );
-  console.log(`✅ ${revertedFinalInspections[0]} inspección(es) final(es) revertida(s) a pendiente para work ${work.idWork}`);
-  break;
-      
-     case 'maintenance':
-      // Eliminar visitas de mantenimiento
-      await MaintenanceVisit.destroy({
-        where: { workId: work.idWork },
-        transaction
-      });
-      console.log(`✅ Eliminadas MaintenanceVisits para work ${work.idWork}`);
-      
-      // Limpiar fecha de inicio de mantenimiento
-      work.maintenanceStartDate = null;
-      
-      // AGREGAR ESTA PARTE:
+    case 'finalApproved':
       // Revertir inspección final aprobada a estado pendiente
       await Inspection.update(
         { 
@@ -431,12 +565,93 @@ const rollbackSpecificStatus = async (work, status, transaction, reason) => {
           transaction 
         }
       );
-      console.log(`✅ Inspección final revertida a estado pendiente para work ${work.idWork}`);
+      console.log(`✅ Inspección final aprobada revertida a pendiente para work ${work.idWork}`);
       break;
+
+    case 'finalRejected':
+      // Revertir inspección final rechazada a estado pendiente
+      await Inspection.update(
+        { 
+          finalStatus: null,
+          processStatus: 'final_payment_notified_to_inspector',
+          dateResultReceived: null
+        },
+        { 
+          where: { 
+            workId: work.idWork,
+            type: 'final',
+            finalStatus: 'rejected'
+          },
+          transaction 
+        }
+      );
+      console.log(`✅ Inspección final rechazada revertida a pendiente para work ${work.idWork}`);
+      break;
+
+    case 'invoiceFinal':
+      // Eliminar factura final y sus extras
+      if (work.finalInvoice) {
+        await WorkExtraItem.destroy({
+          where: { finalInvoiceId: work.finalInvoice.id },
+          transaction
+        });
+        await FinalInvoice.destroy({
+          where: { id: work.finalInvoice.id },
+          transaction
+        });
+        console.log(`✅ Eliminada FinalInvoice para work ${work.idWork}`);
+      }
+      break;
+
+    case 'maintenance':
+      // Eliminar visitas de mantenimiento
+      const deletedVisits = await MaintenanceVisit.destroy({
+        where: { workId: work.idWork },
+        transaction
+      });
+      console.log(`✅ Eliminadas ${deletedVisits} MaintenanceVisits para work ${work.idWork}`);
       
+      // Limpiar fecha de inicio de mantenimiento
+      work.maintenanceStartDate = null;
+      
+      // ✅ CORREGIR: Solo revertir si existe inspección final aprobada
+      const finalInspections = await Inspection.findAll({
+        where: { 
+          workId: work.idWork,
+          type: 'final',
+          finalStatus: 'approved'
+        },
+        transaction
+      });
+      
+      if (finalInspections.length > 0) {
+        await Inspection.update(
+          { 
+            finalStatus: null,
+            processStatus: 'final_payment_notified_to_inspector',
+            dateResultReceived: null
+          },
+          { 
+            where: { 
+              workId: work.idWork,
+              type: 'final',
+              finalStatus: 'approved'
+            },
+            transaction 
+          }
+        );
+        console.log(`✅ ${finalInspections.length} inspección(es) final(es) revertida(s) a estado pendiente para work ${work.idWork}`);
+      }
+      break;
+
     case 'assigned':
       // Limpiar asignación de staff
       work.staffId = null;
+      console.log(`✅ Eliminada asignación de staff para work ${work.idWork}`);
+      break;
+
+    default:
+      console.log(`ℹ️ No hay rollback específico definido para status: ${status}`);
       break;
   }
 };

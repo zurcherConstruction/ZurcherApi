@@ -17,7 +17,7 @@ const FONT_FAMILY_REGULAR = 'Helvetica';
 const FONT_FAMILY_BOLD = 'Helvetica-Bold';
 const FONT_FAMILY_OBLIQUE = 'Helvetica-Oblique';
 const FONT_FAMILY_MONO = 'Courier';
-const FONT_FAMILY_MONO_BOLD = 'Courier-Bold'; 
+const FONT_FAMILY_MONO_BOLD = 'Courier-Bold';
 const COLOR_TEXT_DARK = '#333333';
 const COLOR_TEXT_MEDIUM = '#555555';
 const COLOR_TEXT_LIGHT = '#777777';
@@ -49,7 +49,7 @@ function _addPageHeader_v2(doc, budgetData, pageType, documentIdOrTitle, formatt
   const logoPath = path.join(__dirname, '../assets/logo.png');
   const headerStartY = NEW_PAGE_MARGIN;
   const contentWidth = doc.page.width - NEW_PAGE_MARGIN * 2;
-  
+
   const { applicantName, propertyAddress, Permit } = budgetData; // Destructure for T&C
 
   if (pageType === "INVOICE") {
@@ -65,13 +65,13 @@ function _addPageHeader_v2(doc, budgetData, pageType, documentIdOrTitle, formatt
       currentYLeft += 30 + 40; // Espacio ajustado para el logo
     } else {
       currentYLeft = headerStartY;
-      doc.font(FONT_FAMILY_MONO_BOLD ).fontSize(14).fillColor(COLOR_TEXT_DARK)
-         .text("ZURCHER CONSTRUCTION", companyInfoX, currentYLeft, { width: companyInfoWidth });
+      doc.font(FONT_FAMILY_MONO_BOLD).fontSize(14).fillColor(COLOR_TEXT_DARK)
+        .text("ZURCHER CONSTRUCTION", companyInfoX, currentYLeft, { width: companyInfoWidth });
       currentYLeft += doc.currentLineHeight() + 2;
     }
-    
-    doc.font(FONT_FAMILY_MONO_BOLD ).fontSize(8).fillColor(COLOR_TEXT_DARK)
-       .text("ZURCHER CONSTRUCTION", companyInfoX, currentYLeft, { width: companyInfoWidth });
+
+    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK)
+      .text("ZURCHER CONSTRUCTION", companyInfoX, currentYLeft, { width: companyInfoWidth });
     doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
     doc.text("SEPTIC TANK DIVISION - CFC1433240", companyInfoX, doc.y, { width: companyInfoWidth });
     doc.text("zurcherseptic@gmail.com", companyInfoX, doc.y, { width: companyInfoWidth });
@@ -79,14 +79,14 @@ function _addPageHeader_v2(doc, budgetData, pageType, documentIdOrTitle, formatt
     const finalYLeftTop = doc.y;
 
     let currentYRight = headerStartY + 5;
-    doc.font(FONT_FAMILY_MONO_BOLD ).fontSize(16).fillColor('#063260') // Tamaño de INVOICE #
-       .text(`INVOICE #${documentIdOrTitle}`, invoiceInfoX, currentYRight, { width: invoiceInfoWidth, align: 'right' });
-    currentYRight = doc.y + 16; 
-    
+    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(16).fillColor('#063260') // Tamaño de INVOICE #
+      .text(`INVOICE #${documentIdOrTitle}`, invoiceInfoX, currentYRight, { width: invoiceInfoWidth, align: 'right' });
+    currentYRight = doc.y + 16;
+
     doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
     doc.text("DATE:", invoiceInfoX, currentYRight, { width: invoiceInfoWidth, align: 'right' });
     doc.text(formattedDate, invoiceInfoX, doc.y, { width: invoiceInfoWidth, align: 'right' });
-    
+
     if (formattedExpirationDate && formattedExpirationDate !== 'N/A') {
       doc.moveDown(0.5);
       doc.text("DUE DATE:", invoiceInfoX, doc.y, { width: invoiceInfoWidth, align: 'right' });
@@ -97,7 +97,7 @@ function _addPageHeader_v2(doc, budgetData, pageType, documentIdOrTitle, formatt
 
     // --- Línea Divisora para INVOICE (antes de Customer/Work/Initial Payment) ---
     doc.moveTo(NEW_PAGE_MARGIN, doc.y).lineTo(doc.page.width - NEW_PAGE_MARGIN, doc.y)
-       .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.7).stroke();
+      .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.7).stroke();
     doc.moveDown(1);
 
     // --- Parte Inferior del Encabezado para INVOICE (Info Cliente, Ubicación, Pago Inicial) ---
@@ -107,8 +107,8 @@ function _addPageHeader_v2(doc, budgetData, pageType, documentIdOrTitle, formatt
     const columnWidth_Invoice = (contentWidth - (2 * columnGap_Invoice)) / 3;
 
     const customerInfoX_Invoice = NEW_PAGE_MARGIN;
-    doc.font(FONT_FAMILY_MONO_BOLD ).fontSize(8).fillColor(COLOR_TEXT_DARK)
-       .text("CUSTOMER INFO:", customerInfoX_Invoice, subHeaderStartY_Invoice, { width: columnWidth_Invoice });
+    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK)
+      .text("CUSTOMER INFO:", customerInfoX_Invoice, subHeaderStartY_Invoice, { width: columnWidth_Invoice });
     doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
     doc.text(applicantName || 'N/A', customerInfoX_Invoice, doc.y + 2, { width: columnWidth_Invoice });
     if (Permit?.applicantEmail) {
@@ -118,28 +118,28 @@ function _addPageHeader_v2(doc, budgetData, pageType, documentIdOrTitle, formatt
 
     doc.y = subHeaderStartY_Invoice;
     const workLocationX_Invoice = customerInfoX_Invoice + columnWidth_Invoice + columnGap_Invoice;
-    doc.font(FONT_FAMILY_MONO_BOLD ).fontSize(8).fillColor(COLOR_TEXT_DARK)
-       .text("WORK LOCATION:", workLocationX_Invoice, subHeaderStartY_Invoice, { width: columnWidth_Invoice });
+    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK)
+      .text("WORK LOCATION:", workLocationX_Invoice, subHeaderStartY_Invoice, { width: columnWidth_Invoice });
     doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
     doc.text(propertyAddress || 'N/A', workLocationX_Invoice, doc.y + 2, { width: columnWidth_Invoice });
     if (Permit?.permitNumber) {
       doc.text(`Permit #: ${Permit.permitNumber}`, workLocationX_Invoice, doc.y, { width: columnWidth_Invoice });
     }
     const finalYCol2_Invoice = doc.y;
-    
+
     let finalYCol3_Invoice = subHeaderStartY_Invoice;
     doc.y = subHeaderStartY_Invoice;
     const initialPaymentX_Invoice = workLocationX_Invoice + columnWidth_Invoice + columnGap_Invoice;
     if (initialPaymentPercentage !== undefined && initialPayment !== undefined) {
-      doc.font(FONT_FAMILY_MONO_BOLD ).fontSize(8).fillColor(COLOR_TEXT_DARK)
-         .text("INITIAL PAYMENT:", initialPaymentX_Invoice, subHeaderStartY_Invoice, { width: columnWidth_Invoice });
+      doc.font(FONT_FAMILY_MONO_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK)
+        .text("INITIAL PAYMENT:", initialPaymentX_Invoice, subHeaderStartY_Invoice, { width: columnWidth_Invoice });
       doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
       const percentageText = parseFloat(initialPaymentPercentage) === 100 ? "TOTAL" : `${parseFloat(initialPaymentPercentage)}% REQUIRE TO START`;
       doc.text(percentageText, initialPaymentX_Invoice, doc.y + 2, { width: columnWidth_Invoice });
       doc.text(`$${parseFloat(initialPayment).toFixed(2)}`, initialPaymentX_Invoice, doc.y, { width: columnWidth_Invoice });
     }
     finalYCol3_Invoice = doc.y;
-    
+
     doc.y = Math.max(finalYCol1_Invoice, finalYCol2_Invoice, finalYCol3_Invoice);
 
   } else if (pageType === "TERMS") {
@@ -156,12 +156,12 @@ function _addPageHeader_v2(doc, budgetData, pageType, documentIdOrTitle, formatt
     } else {
       currentYLeft_Terms = headerStartY;
       doc.font(FONT_FAMILY_BOLD).fontSize(14).fillColor(COLOR_TEXT_DARK)
-         .text("ZURCHER CONSTRUCTION", NEW_PAGE_MARGIN, currentYLeft_Terms, { width: leftBlockWidth_Terms });
+        .text("ZURCHER CONSTRUCTION", NEW_PAGE_MARGIN, currentYLeft_Terms, { width: leftBlockWidth_Terms });
       currentYLeft_Terms += doc.currentLineHeight() + 2;
     }
-    
+
     doc.font(FONT_FAMILY_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK)
-       .text("ZURCHER CONSTRUCTION", NEW_PAGE_MARGIN, currentYLeft_Terms, { width: leftBlockWidth_Terms });
+      .text("ZURCHER CONSTRUCTION", NEW_PAGE_MARGIN, currentYLeft_Terms, { width: leftBlockWidth_Terms });
     doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
     doc.text("SEPTIC TANK DIVISION - CFC1433240", NEW_PAGE_MARGIN, doc.y, { width: leftBlockWidth_Terms });
     doc.text("zurcherseptic@gmail.com", NEW_PAGE_MARGIN, doc.y, { width: leftBlockWidth_Terms });
@@ -171,7 +171,7 @@ function _addPageHeader_v2(doc, budgetData, pageType, documentIdOrTitle, formatt
     // Derecha: Info de Cliente y Ubicación de Obra (Apilados)
     let currentYRight_Terms = headerStartY + 40; // Empezar un poco más abajo para alinear
     doc.font(FONT_FAMILY_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK)
-       .text("CUSTOMER INFO:", rightBlockX_Terms, currentYRight_Terms, { width: rightBlockWidth_Terms });
+      .text("CUSTOMER INFO:", rightBlockX_Terms, currentYRight_Terms, { width: rightBlockWidth_Terms });
     doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
     doc.text(applicantName || 'N/A', rightBlockX_Terms, doc.y + 2, { width: rightBlockWidth_Terms });
     // Opcional: añadir email del cliente si es diferente al nombre y existe
@@ -181,7 +181,7 @@ function _addPageHeader_v2(doc, budgetData, pageType, documentIdOrTitle, formatt
     doc.moveDown(0.8); // Espacio entre Customer Info y Work Location
 
     doc.font(FONT_FAMILY_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK)
-       .text("WORK LOCATION:", rightBlockX_Terms, doc.y, { width: rightBlockWidth_Terms });
+      .text("WORK LOCATION:", rightBlockX_Terms, doc.y, { width: rightBlockWidth_Terms });
     doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
     doc.text(propertyAddress || 'N/A', rightBlockX_Terms, doc.y + 2, { width: rightBlockWidth_Terms });
     // Opcional: añadir número de permiso si existe
@@ -189,41 +189,41 @@ function _addPageHeader_v2(doc, budgetData, pageType, documentIdOrTitle, formatt
     //   doc.text(`Permit #: ${Permit.permitNumber}`, rightBlockX_Terms, doc.y, { width: rightBlockWidth_Terms });
     // }
     const finalYRight_Terms = doc.y;
-    
+
     doc.y = Math.max(finalYLeft_Terms, finalYRight_Terms) + 2; // Ajustar Y después de las dos columnas
 
     // --- Línea Divisora para TERMS (antes del título "TERMS AND CONDITIONS...") ---
     doc.moveTo(NEW_PAGE_MARGIN, doc.y).lineTo(doc.page.width - NEW_PAGE_MARGIN, doc.y)
-       .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.7).stroke();
+      .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.7).stroke();
     doc.moveDown(1);
 
     // --- Título Principal para TERMS ---
     let termsPageTitle = "TERMS AND CONDITIONS ACCEPTANCE AGREEMENT FOR THE INSTALLATION OF A SEPTIC SYSTEM";
     if (documentIdOrTitle && documentIdOrTitle.includes("(Cont.)")) {
-        termsPageTitle += " (Cont.)";
+      termsPageTitle += " (Cont.)";
     }
     doc.font(FONT_FAMILY_BOLD).fontSize(9).fillColor(COLOR_TEXT_DARK)
-       .text(termsPageTitle, NEW_PAGE_MARGIN, doc.y, { 
-         width: contentWidth, 
-         align: 'left', 
-         underline: true 
-       });
+      .text(termsPageTitle, NEW_PAGE_MARGIN, doc.y, {
+        width: contentWidth,
+        align: 'left',
+        underline: true
+      });
     // No se muestra fecha en esta parte del encabezado de T&C según la imagen
   }
   // Espacio común después del contenido del encabezado, antes de que comience el contenido principal de la página
-  doc.moveDown(2); 
+  doc.moveDown(2);
 }
 
 async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExpirationDate, clientEmailFromPermit) {
   _addPageHeader_v2(doc, budgetData, "INVOICE", budgetData.idBudget, formattedDate, formattedExpirationDate);
   const contentWidth = doc.page.width - NEW_PAGE_MARGIN * 2;
-   const { 
-    lineItems = [], 
-    totalPrice, 
-    initialPaymentPercentage, 
-    initialPayment, 
-    discountAmount, 
-    discountDescription 
+  const {
+    lineItems = [],
+    totalPrice,
+    initialPaymentPercentage,
+    initialPayment,
+    discountAmount,
+    discountDescription
   } = budgetData;
 
   // --- Item Table ---
@@ -253,10 +253,10 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   const tableHeaderRightEdge = doc.page.width - NEW_PAGE_MARGIN;
 
   // Table Header
-  doc.font(FONT_FAMILY_MONO_BOLD ).fontSize(8).fillColor(COLOR_TEXT_DARK);
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK);
   const headerY = tableTop;
   doc.rect(NEW_PAGE_MARGIN, headerY - 3, contentWidth, 18) // Increased header height
-     .fillColor(COLOR_BACKGROUND_TABLE_HEADER).strokeColor(COLOR_BORDER_LIGHT).fillAndStroke();
+    .fillColor(COLOR_BACKGROUND_TABLE_HEADER).strokeColor(COLOR_BORDER_LIGHT).fillAndStroke();
   doc.fillColor(COLOR_TEXT_DARK);
   doc.text('INCLUDED', xIncludedText, headerY + 2, { width: wIncluded });
   doc.text('DESCRIPTION', xDescText, headerY + 2, { width: wDesc });
@@ -292,12 +292,12 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
       _addStandardPageFooter(doc);
       doc.addPage();
       _addPageHeader_v2(doc, budgetData, "INVOICE", budgetData.idBudget, formattedDate, formattedExpirationDate);
-      
+
       // Recrear header de tabla en nueva página
-      doc.font(FONT_FAMILY_MONO_BOLD ).fontSize(8).fillColor(COLOR_TEXT_DARK);
+      doc.font(FONT_FAMILY_MONO_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK);
       const newPageHeaderY = doc.y;
       doc.rect(NEW_PAGE_MARGIN, newPageHeaderY - 3, contentWidth, 18)
-         .fillColor(COLOR_BACKGROUND_TABLE_HEADER).strokeColor(COLOR_BORDER_LIGHT).fillAndStroke();
+        .fillColor(COLOR_BACKGROUND_TABLE_HEADER).strokeColor(COLOR_BORDER_LIGHT).fillAndStroke();
       doc.fillColor(COLOR_TEXT_DARK);
       doc.text('INCLUDED', xIncludedText, newPageHeaderY + 2, { width: wIncluded });
       doc.text('DESCRIPTION', xDescText, newPageHeaderY + 2, { width: wDesc });
@@ -322,19 +322,19 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
 
       // ✅ CONSTRUIR DESCRIPCIÓN COMPLETA: NAME + DESCRIPTION + MARCA + CAPACITY + NOTES
       let fullDescription = itemName; // Empezar con el nombre
-      
+
       if (itemDescription && itemDescription.trim() !== '') {
         fullDescription += ` - ${itemDescription}`;
       }
-      
+
       if (item.marca && item.marca.trim() !== '') {
         fullDescription += ` [Marca: ${item.marca}]`;
       }
-      
+
       if (item.capacity && item.capacity.trim() !== '') {
         fullDescription += ` [Capacidad: ${item.capacity}]`;
       }
-      
+
       if (itemNotes && itemNotes.trim() !== '') {
         fullDescription += ` - ${itemNotes}`;
       }
@@ -347,14 +347,14 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
 
       // Dibujar el item
       currentItemY = doc.y;
-      
+
       // ✅ COLUMNA INCLUDED - MOSTRAR CATEGORY
       doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
       doc.text(itemCategory.toUpperCase(), xIncludedText, currentItemY, { width: wIncluded });
-      
+
       // Guardar Y antes de escribir descripción (para alinear otras columnas)
       const yBeforeDesc = doc.y;
-      
+
       // ✅ COLUMNA DESCRIPTION - MOSTRAR NAME + DESCRIPTION + DETALLES
       doc.text(fullDescription, xDescText, currentItemY, { width: wDesc });
       const yAfterDesc = doc.y;
@@ -372,7 +372,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   } else {
     // ✅ FALLBACK: Si no hay lineItems, mostrar items estándar (como backup)
     console.log("No se encontraron lineItems en budgetData, usando items estándar de fallback");
-    
+
     const standardItems = [
       { desc: "SAND TRUCK - LOADS OF SAND INCLUDED", qty: "ALL", rate: 0.00 },
       { desc: "DIRT TRUCK FOR COVER - LOADS OF DIRT INCLUDED", qty: "ALL", rate: 0.00 },
@@ -388,27 +388,27 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
       const estimatedDescHeight = doc.heightOfString(subItem.desc, { width: wDesc });
       const estimatedRowHeight = Math.max(estimatedDescHeight + 20, 35); // ✅ AUMENTADO MÍNIMO DE 25 A 35
       checkPageBreak(estimatedRowHeight);
-      
-      currentItemY = doc.y; 
-      doc.text("", xIncludedText, currentItemY, { width: wIncluded });
-      const yBeforeDesc = doc.y; 
-      doc.text(subItem.desc, xDescText, currentItemY, { width: wDesc });
-      const yAfterDesc = doc.y; 
 
-      doc.text(typeof subItem.qty === 'number' ? subItem.qty.toFixed(0) : subItem.qty.toString(), 
-               xQtyText, currentItemY, { width: wQty, align: 'right' });
+      currentItemY = doc.y;
+      doc.text("", xIncludedText, currentItemY, { width: wIncluded });
+      const yBeforeDesc = doc.y;
+      doc.text(subItem.desc, xDescText, currentItemY, { width: wDesc });
+      const yAfterDesc = doc.y;
+
+      doc.text(typeof subItem.qty === 'number' ? subItem.qty.toFixed(0) : subItem.qty.toString(),
+        xQtyText, currentItemY, { width: wQty, align: 'right' });
       doc.text(`$${subItem.rate.toFixed(2)}`, xRateText, currentItemY, { width: wRate, align: 'right' });
       doc.font(FONT_FAMILY_MONO_BOLD).text("INCLUDED", xAmountText, currentItemY, { width: wAmount, align: 'right' });
       doc.font(FONT_FAMILY_MONO);
 
-      doc.y = yAfterDesc; 
+      doc.y = yAfterDesc;
       doc.moveDown(2.5); // ✅ AUMENTADO DE 2.0 A 2.5 PARA MÁS ESPACIO ENTRE ITEMS
     });
   }
-  
+
   // Línea final de la tabla
   doc.moveTo(NEW_PAGE_MARGIN, doc.y).lineTo(tableHeaderRightEdge, doc.y)
-     .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.5).stroke();
+    .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.5).stroke();
   doc.moveDown(1.8); // ✅ AUMENTADO EL ESPACIO DESPUÉS DE LA TABLA
 
   // ✅ VERIFICACIÓN ADICIONAL ANTES DE SECCIÓN DE TOTALES
@@ -421,34 +421,34 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   }
 
   const thankYouAndPaymentInfoY = doc.y;
-  const paymentInfoWidth = contentWidth * 0.55; 
+  const paymentInfoWidth = contentWidth * 0.55;
 
   doc.font(FONT_FAMILY_MONO_BOLD).fontSize(8).fillColor(COLOR_TEXT_LIGHT)
-     .text("Thank you for your business!", NEW_PAGE_MARGIN, doc.y, {width: contentWidth, align: 'left'}); 
+    .text("Thank you for your business!", NEW_PAGE_MARGIN, doc.y, { width: contentWidth, align: 'left' });
   doc.moveDown(1.2);
 
-  doc.font(FONT_FAMILY_MONO_BOLD ).fontSize(8).fillColor(COLOR_TEXT_DARK)
-     .text("PAYMENT INFORMATION", NEW_PAGE_MARGIN, doc.y, {width: paymentInfoWidth});
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK)
+    .text("PAYMENT INFORMATION", NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
-  doc.text("BANK: Bank of America", NEW_PAGE_MARGIN, doc.y, {width: paymentInfoWidth});
-  doc.text("ACCOUNT NUMBER: 898138399808", NEW_PAGE_MARGIN, doc.y, {width: paymentInfoWidth});
-  doc.text("ROUTING NUMBER: 063100277", NEW_PAGE_MARGIN, doc.y, {width: paymentInfoWidth});
-  doc.text("EMAIL: zurcherconstruction.fl@gmail.com", NEW_PAGE_MARGIN, doc.y, {width: paymentInfoWidth});
-  
+  doc.text("BANK: Bank of America", NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.text("ACCOUNT NUMBER: 898138399808", NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.text("ROUTING NUMBER: 063100277", NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.text("EMAIL: zurcherconstruction.fl@gmail.com", NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+
   const yAfterPaymentInfo = doc.y;
 
-  doc.y = thankYouAndPaymentInfoY; 
- 
+  doc.y = thankYouAndPaymentInfoY;
+
   // ...resto del código de totales igual...
   const totalsLabelX = NEW_PAGE_MARGIN + contentWidth * 0.60;
-  const totalsValueX = NEW_PAGE_MARGIN + contentWidth * 0.80; 
+  const totalsValueX = NEW_PAGE_MARGIN + contentWidth * 0.80;
   const totalsRightEdge = doc.page.width - NEW_PAGE_MARGIN;
 
   let currentTotalY = doc.y;
-  
+
   const discountNum = parseFloat(discountAmount || 0);
-  const priceAfterDiscountAlreadyApplied = parseFloat(totalPrice || 0); 
-  const subtotalBruto = priceAfterDiscountAlreadyApplied + discountNum; 
+  const priceAfterDiscountAlreadyApplied = parseFloat(totalPrice || 0);
+  const subtotalBruto = priceAfterDiscountAlreadyApplied + discountNum;
 
   // SUBTOTAL (Bruto, antes del descuento)
   doc.font(FONT_FAMILY_MONO_BOLD).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
@@ -486,49 +486,49 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
 
   // BALANCE DUE
   currentTotalY = doc.y;
-  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(11).fillColor(COLOR_TEXT_DARK); 
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(11).fillColor(COLOR_TEXT_DARK);
   doc.text("BALANCE DUE", totalsLabelX, currentTotalY, { width: totalsValueX - totalsLabelX - cellPadding, align: 'right' });
   doc.text(`$${priceAfterDiscountAlreadyApplied.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
-  
+
   const yAfterTotals = doc.y;
-  doc.y = Math.max(yAfterPaymentInfo, yAfterTotals); 
+  doc.y = Math.max(yAfterPaymentInfo, yAfterTotals);
   doc.moveDown(2);
 
   // ✅ RESTO DEL CÓDIGO DE STRIPE PAYMENT IGUAL...
 
   let paymentLinkUrl = null;
-  const paymentAmountForStripe = parseFloat(initialPayment); 
-  
+  const paymentAmountForStripe = parseFloat(initialPayment);
+
   if (paymentAmountForStripe > 0 && process.env.STRIPE_SECRET_KEY) {
     try {
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: [{
-          price_data: { 
-            currency: 'usd', 
-            product_data: { name: `Invoice #${budgetData.idBudget} - ${budgetData.applicantName}` }, 
-            unit_amount: Math.round(paymentAmountForStripe * 100) 
+          price_data: {
+            currency: 'usd',
+            product_data: { name: `Invoice #${budgetData.idBudget} - ${budgetData.applicantName}` },
+            unit_amount: Math.round(paymentAmountForStripe * 100)
           },
           quantity: 1,
         }],
         mode: 'payment',
-        success_url: 'https://www.google.com', 
-        cancel_url: 'https://www.google.com',   
+        success_url: 'https://www.google.com',
+        cancel_url: 'https://www.google.com',
         ...(clientEmailFromPermit && { customer_email: clientEmailFromPermit }),
         metadata: { internal_budget_id: budgetData.idBudget, payment_type: 'invoice_payment' }
       });
       paymentLinkUrl = session.url;
-    } catch (stripeError) { 
-      console.error("Stripe session creation error for invoice:", stripeError); 
+    } catch (stripeError) {
+      console.error("Stripe session creation error for invoice:", stripeError);
     }
   }
 
- if (paymentLinkUrl) {
+  if (paymentLinkUrl) {
     const buttonWidth = 200;
     const buttonHeight = 28;
     const buttonX = NEW_PAGE_MARGIN + (contentWidth - buttonWidth) / 2;
     let buttonY = doc.y;
-    
+
     // ✅ VERIFICACIÓN MEJORADA PARA EL BOTÓN
     if (buttonY + buttonHeight + 40 > doc.page.height - NEW_PAGE_MARGIN) { // ✅ MARGEN MÁS CONSERVADOR
       _addStandardPageFooter(doc);
@@ -540,7 +540,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
 
     doc.save();
     doc.roundedRect(buttonX, buttonY, buttonWidth, buttonHeight, 5).fillColor('#063260').fill();
-    doc.fillColor('#FFFFFF').fontSize(9).font(FONT_FAMILY_MONO_BOLD );
+    doc.fillColor('#FFFFFF').fontSize(9).font(FONT_FAMILY_MONO_BOLD);
     doc.text('Click Here to Pay Online', buttonX, buttonY + (buttonHeight / 2) - 4, { width: buttonWidth, align: 'center' });
     doc.restore();
     doc.link(buttonX, buttonY, buttonWidth, buttonHeight, paymentLinkUrl);
@@ -548,7 +548,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   }
 }
 
- 
+
 
 // --- PÁGINA DE TÉRMINOS Y CONDICIONES ---
 function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formattedExpirationDate) {
@@ -569,30 +569,30 @@ function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formatt
 
   doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
   const paragraphs = termsText.split('\n\n');
-  
+
   paragraphs.forEach(paragraph => {
     const lines = paragraph.split('\n');
     lines.forEach((line, index) => {
       const isListItem = line.trim().startsWith('•');
       const indent = isListItem ? 15 : 0;
       const textToDraw = isListItem ? line.trim().substring(1).trim() : line.trim();
-      
+
       const paragraphHeight = doc.heightOfString(textToDraw, { width: contentWidth - indent, align: 'justify' });
       if (doc.y + paragraphHeight > doc.page.height - NEW_PAGE_MARGIN - 100) {
-      
+
         doc.addPage();
         // _addPageHeader_v2(doc, budgetData, "TERMS", "TERMS_AND_CONDITIONS (Cont.)", formattedDate, formattedExpirationDate);
         doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
       }
-      
+
       if (isListItem) {
-        doc.text("•", NEW_PAGE_MARGIN, doc.y, {width: 10});
+        doc.text("•", NEW_PAGE_MARGIN, doc.y, { width: 10 });
         doc.text(textToDraw, NEW_PAGE_MARGIN + indent, doc.y, { width: contentWidth - indent, align: 'justify' });
       } else {
         doc.text(textToDraw, NEW_PAGE_MARGIN + indent, doc.y, { width: contentWidth - indent, align: 'justify' });
       }
-      
-      if (index < lines.length - 1 && textToDraw.length > 0) doc.moveDown(0.2); 
+
+      if (index < lines.length - 1 && textToDraw.length > 0) doc.moveDown(0.2);
     });
     if (paragraph.trim().length > 0) doc.moveDown(0.6);
   });
@@ -617,69 +617,69 @@ function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formatt
   let currentLineY = doc.y;
   doc.text("Client Signature:", NEW_PAGE_MARGIN, currentLineY, { width: 75 });
   doc.moveTo(NEW_PAGE_MARGIN + 75, currentLineY + 8).lineTo(NEW_PAGE_MARGIN + 75 + sigLineFullWidth, currentLineY + 8)
-     .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
-  
+    .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+
   doc.text("Date:", NEW_PAGE_MARGIN + sigFieldWidth + 10, currentLineY, { width: 30 });
   doc.moveTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30, currentLineY + 8)
-     .lineTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30 + dateLineFullWidth, currentLineY + 8)
-     .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+    .lineTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30 + dateLineFullWidth, currentLineY + 8)
+    .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
   doc.moveDown(2.5);
 
   // Provider Representative
   currentLineY = doc.y;
   doc.text("Provider Representative:", NEW_PAGE_MARGIN, currentLineY, { width: 110 });
   doc.moveTo(NEW_PAGE_MARGIN + 110, currentLineY + 8)
-     .lineTo(NEW_PAGE_MARGIN + 110 + (sigLineFullWidth - 30), currentLineY + 8)
-     .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+    .lineTo(NEW_PAGE_MARGIN + 110 + (sigLineFullWidth - 30), currentLineY + 8)
+    .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
 
   doc.text("Date:", NEW_PAGE_MARGIN + sigFieldWidth + 10, currentLineY, { width: 30 });
   doc.moveTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30, currentLineY + 8)
-     .lineTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30 + dateLineFullWidth, currentLineY + 8)
-     .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+    .lineTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30 + dateLineFullWidth, currentLineY + 8)
+    .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
   doc.moveDown(1.5);
 
- 
+
 }
 
 // --- Standard Page Footer ---
 function _addStandardPageFooter(doc) {
-  const footerYPosition = doc.page.height - NEW_PAGE_MARGIN + 15; 
+  const footerYPosition = doc.page.height - NEW_PAGE_MARGIN + 15;
   const contentWidth = doc.page.width - NEW_PAGE_MARGIN * 2;
   doc.fontSize(7).fillColor(COLOR_TEXT_LIGHT)
-     .text('Thank you for your business! | Zurcher Construction', NEW_PAGE_MARGIN, footerYPosition, {
-       align: 'center',
-       width: contentWidth
-     });
+    .text('Thank you for your business! | Zurcher Construction', NEW_PAGE_MARGIN, footerYPosition, {
+      align: 'center',
+      width: contentWidth
+    });
 }
 
 // --- FUNCIÓN PARA FIRMAS (Faltaba en tu código) ---
 function _addClientSignatureSection(doc) {
   const currentY = doc.y;
   const pageBottom = doc.page.height - pageMargin;
-  
+
   // Check if we need a new page
   if (currentY + 100 > pageBottom) {
     doc.addPage();
   }
-  
+
   doc.fontSize(10).font('Helvetica-Bold').text('Client Acceptance:', pageMargin, doc.y);
   doc.moveDown(1);
-  
+
   const signatureLineY = doc.y + 20;
   const signatureLineLength = 200;
-  
+
   // Client signature line
   doc.text('Client Signature:', pageMargin, signatureLineY);
   doc.moveTo(pageMargin + 100, signatureLineY + 10)
-     .lineTo(pageMargin + 100 + signatureLineLength, signatureLineY + 10)
-     .strokeColor('#000000').stroke();
-  
+    .lineTo(pageMargin + 100 + signatureLineLength, signatureLineY + 10)
+    .strokeColor('#000000').stroke();
+
   // Date line
   doc.text('Date:', pageMargin + 320, signatureLineY);
   doc.moveTo(pageMargin + 350, signatureLineY + 10)
-     .lineTo(pageMargin + 450, signatureLineY + 10)
-     .strokeColor('#000000').stroke();
-  
+    .lineTo(pageMargin + 450, signatureLineY + 10)
+    .strokeColor('#000000').stroke();
+
   doc.y = signatureLineY + 40;
 }
 
@@ -798,7 +798,7 @@ function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formatt
     if (section.content) estimatedHeight += doc.heightOfString(section.content, { width: contentWidth });
     if (section.bulletPoints) estimatedHeight += section.bulletPoints.length * 15; // Rough estimate
     if (section.bulletPoints2) estimatedHeight += section.bulletPoints2.length * 15; // Rough estimate
-    
+
     checkPageBreak(estimatedHeight);
 
     doc.font(FONT_FAMILY_BOLD).fontSize(9).fillColor(COLOR_TEXT_DARK);
@@ -822,7 +822,7 @@ function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formatt
       section.bulletPoints.forEach(point => {
         const pointTextHeight = doc.heightOfString(point, { width: contentWidth - 15 });
         checkPageBreak(pointTextHeight + 5); // +5 for bullet and small margin
-        
+
         const currentY = doc.y; // Guardar Y actual
         doc.text("•", NEW_PAGE_MARGIN, currentY, { width: 10, continued: false }); // Dibujar bullet
         doc.text(point, NEW_PAGE_MARGIN + 15, currentY, { width: contentWidth - 15, align: 'justify' }); // Dibujar texto en la misma Y
@@ -863,7 +863,7 @@ function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formatt
 
   let signatureY = doc.y + 20;
   if (signatureY + 80 > doc.page.height - NEW_PAGE_MARGIN) {
-    
+
     doc.addPage();
     doc.y = NEW_PAGE_MARGIN;
     signatureY = doc.y + 20;
@@ -879,32 +879,32 @@ function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formatt
   let currentLineY = doc.y;
   doc.text("Client Signature:", NEW_PAGE_MARGIN, currentLineY, { width: 75 });
   doc.moveTo(NEW_PAGE_MARGIN + 75, currentLineY + 8).lineTo(NEW_PAGE_MARGIN + 75 + sigLineFullWidth, currentLineY + 8)
-     .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
-  
+    .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+
   doc.text("Date:", NEW_PAGE_MARGIN + sigFieldWidth + 10, currentLineY, { width: 30 });
   doc.moveTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30, currentLineY + 8)
-     .lineTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30 + dateLineFullWidth, currentLineY + 8)
-     .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+    .lineTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30 + dateLineFullWidth, currentLineY + 8)
+    .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
   doc.moveDown(2.5);
 
   currentLineY = doc.y;
   doc.text("Provider Representative:", NEW_PAGE_MARGIN, currentLineY, { width: 110 });
   doc.moveTo(NEW_PAGE_MARGIN + 110, currentLineY + 8)
-     .lineTo(NEW_PAGE_MARGIN + 110 + (sigLineFullWidth - 30), currentLineY + 8)
-     .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+    .lineTo(NEW_PAGE_MARGIN + 110 + (sigLineFullWidth - 30), currentLineY + 8)
+    .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
 
   doc.text("Date:", NEW_PAGE_MARGIN + sigFieldWidth + 10, currentLineY, { width: 30 });
   doc.moveTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30, currentLineY + 8)
-     .lineTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30 + dateLineFullWidth, currentLineY + 8)
-     .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+    .lineTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30 + dateLineFullWidth, currentLineY + 8)
+    .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
   doc.moveDown(1.5);
 
-  
+
 }
 // ...existing code...
 
 async function generateAndSaveBudgetPDF(budgetData) {
-  return new Promise(async(resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     try {
       const { idBudget, date, expirationDate, Permit } = budgetData;
       const clientEmailFromPermit = Permit?.applicantEmail;
@@ -912,13 +912,14 @@ async function generateAndSaveBudgetPDF(budgetData) {
       const formattedExpirationDate = formatDateDDMMYYYY(expirationDate);
 
       const doc = new PDFDocument({ autoFirstPage: false, margin: pageMargin, size: 'A4' });
-      const uploadsDir = path.join(__dirname, '../uploads');
+      // BUSCAR en generateAndSaveBudgetPDF (alrededor de la línea 913):
+      const uploadsDir = path.join(__dirname, '../uploads/budgets');
       if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-      const pdfPath = path.join(uploadsDir, `budget_package_${idBudget}.pdf`);
+      const pdfPath = path.join(uploadsDir, `budget_${idBudget}.pdf`);
       const stream = fs.createWriteStream(pdfPath);
       doc.pipe(stream);
 
-       // --- PÁGINA 1: INVOICE ESTILIZADA ---
+      // --- PÁGINA 1: INVOICE ESTILIZADA ---
       doc.addPage();
       await _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExpirationDate, clientEmailFromPermit);
 
@@ -926,7 +927,7 @@ async function generateAndSaveBudgetPDF(budgetData) {
       // Aquí es donde se generan los Términos y Condiciones
       doc.addPage();
       _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formattedExpirationDate);
-      
+
       // Si tenías una página de "Budget Contract" y también necesita este nuevo estilo,
       // deberías crear una función _buildBudgetContractPage_v2 y llamarla aquí.
       // Por ahora, el paquete es Invoice + T&C según los ejemplos visuales.
@@ -952,7 +953,7 @@ async function generateAndSaveBudgetPDF(budgetData) {
 
 
 async function generateAndSaveFinalInvoicePDF(invoiceData) {
-  return new Promise(async(resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     try {
       // --- 1. Preparar Datos ---
       const {
@@ -973,9 +974,9 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
 
       // --- 2. Configurar PDF ---
       const doc = new PDFDocument({ margin: 50, size: 'A4' });
-      const uploadsDir = path.join(__dirname, '../uploads'); // Asegúrate que esta ruta es correcta
+      const uploadsDir = path.join(__dirname, '../uploads/final_invoices');
       if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-      const pdfPath = path.join(uploadsDir, `final_invoice_${id}.pdf`); // Nombre de archivo diferente
+      const pdfPath = path.join(uploadsDir, `final_invoice_${id}.pdf`);
       const stream = fs.createWriteStream(pdfPath);
       doc.pipe(stream);
 
@@ -1054,7 +1055,7 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
         doc.moveDown(1);
       }
 
-       // Línea antes de totales
+      // Línea antes de totales
       const finalItemsYExtras = doc.y;
       // Ajustar la X inicial de la línea para que comience donde empiezan las etiquetas de los totales
       const totalsLabelStartXForLine = pageMargin + contentWidth * 0.55; // Un poco antes de las etiquetas
@@ -1076,14 +1077,14 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
         const labelColor = options.labelColor || 'black';
         const valueColor = options.valueColor || 'black';
         const font = isBold ? 'Helvetica-Bold' : 'Helvetica';
-        
-        doc.font(font).fillColor(labelColor).text(label, labelColumnX, yPos, { 
-            width: valueColumnX - labelColumnX - 10, // Ancho para la etiqueta
-            align: 'right' 
+
+        doc.font(font).fillColor(labelColor).text(label, labelColumnX, yPos, {
+          width: valueColumnX - labelColumnX - 10, // Ancho para la etiqueta
+          align: 'right'
         });
-        doc.font(font).fillColor(valueColor).text(value, valueColumnX, yPos, { 
-            width: (doc.page.width - pageMargin) - valueColumnX, // Ancho para el valor hasta el borde
-            align: 'right' 
+        doc.font(font).fillColor(valueColor).text(value, valueColumnX, yPos, {
+          width: (doc.page.width - pageMargin) - valueColumnX, // Ancho para el valor hasta el borde
+          align: 'right'
         });
         doc.fillColor('black'); // Reset color
         doc.moveDown(options.moveDownFactor !== undefined ? options.moveDownFactor : 0.65); // Espacio después de la fila
@@ -1092,7 +1093,7 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
       // --- Original Budget Total ---
       const originalTotalNum = parseFloat(originalBudgetTotal);
       drawTotalRow(
-        `Original Budget Total:`, 
+        `Original Budget Total:`,
         `$${!isNaN(originalTotalNum) ? originalTotalNum.toFixed(2) : '0.00'}`
       );
 
@@ -1100,26 +1101,26 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
       const extrasNum = parseFloat(subtotalExtras);
       if (!isNaN(extrasNum) && extrasNum !== 0) { // Solo mostrar si hay extras
         drawTotalRow(
-            `Additional Items Total:`, 
-            `$${extrasNum.toFixed(2)}`
+          `Additional Items Total:`,
+          `$${extrasNum.toFixed(2)}`
         );
       }
-      
+
       // --- Gran Total (Suma de Budget + Extras) ---
       const grandTotalNum = (originalTotalNum || 0) + (extrasNum || 0);
       drawTotalRow(
-        `Total Before Payments:`, 
+        `Total Before Payments:`,
         `$${grandTotalNum.toFixed(2)}`,
         { bold: false, moveDownFactor: 0.8 } // Un poco más de espacio antes del pago
       );
-      
+
       // Línea delgada antes de los pagos
       const lineBeforePaymentsY = doc.y;
       doc.moveTo(labelColumnX, lineBeforePaymentsY)
-         .lineTo(doc.page.width - pageMargin, lineBeforePaymentsY)
-         .lineWidth(0.5) // Línea más delgada
-         .strokeColor("#999999") // Gris más oscuro para esta línea
-         .stroke();
+        .lineTo(doc.page.width - pageMargin, lineBeforePaymentsY)
+        .lineWidth(0.5) // Línea más delgada
+        .strokeColor("#999999") // Gris más oscuro para esta línea
+        .stroke();
       doc.moveDown(0.8);
 
 
@@ -1127,9 +1128,9 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
       const initialPaymentNum = parseFloat(initialPaymentMade);
       if (!isNaN(initialPaymentNum) && initialPaymentNum !== 0) { // Solo mostrar si hubo pago inicial
         drawTotalRow(
-            `Initial Payment Received:`, 
-            `-$${initialPaymentNum.toFixed(2)}`,
-            { valueColor: 'green' } // Color verde para el pago recibido
+          `Initial Payment Received:`,
+          `-$${initialPaymentNum.toFixed(2)}`,
+          { valueColor: 'green' } // Color verde para el pago recibido
         );
       }
 
@@ -1138,12 +1139,12 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
       const finalAmountLabel = status === 'paid' ? `Final Amount Paid:` : `Final Amount Due:`;
       const finalAmountColor = status === 'paid' ? 'green' : 'black';
       drawTotalRow(
-        finalAmountLabel, 
+        finalAmountLabel,
         `$${!isNaN(finalAmountNum) ? finalAmountNum.toFixed(2) : '0.00'}`,
         { bold: true, valueColor: finalAmountColor, moveDownFactor: 2 } // Negrita y más espacio después
       );
 
-      doc.lineWidth(1); 
+      doc.lineWidth(1);
 
       // === SECCIÓN ESTADO ===
       doc.fontSize(12).font('Helvetica-Bold').text(`Status: ${status?.replace('_', ' ').toUpperCase() || 'N/A'}`, pageMargin, doc.y);
@@ -1212,8 +1213,8 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
         // 2. Escribir el texto del botón
         doc.fillColor('white').fontSize(10).font('Helvetica-Bold'); // Texto blanco y negrita
         doc.text(buttonText, buttonX, buttonY + (buttonHeight / 2) - (doc.currentLineHeight() / 2.5), { // Centrar texto verticalmente (aproximado)
-            width: buttonWidth,
-            align: 'center'
+          width: buttonWidth,
+          align: 'center'
         });
         doc.restore(); // Restaurar estado anterior (color negro, fuente normal, etc.)
 
@@ -1221,7 +1222,7 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
         doc.link(buttonX, buttonY, buttonWidth, buttonHeight, paymentLinkUrl);
         // --- FIN SIMULACIÓN DE BOTÓN ---
 
-        doc.moveDown(3); 
+        doc.moveDown(3);
         // doc.fontSize(10).font('Helvetica-Bold').text('Online Payment:', pageMargin, doc.y, { underline: true });
         // doc.font('Helvetica').fontSize(9);
         // doc.moveDown(0.5);
@@ -1249,8 +1250,8 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
       // === PIE DE PÁGINA === (Igual que en Budget)
       const pageBottom = doc.page.height - pageMargin + 10;
       doc.fontSize(8).fillColor('grey').text('Thank you for your business! | Zurcher Construction', pageMargin, pageBottom, {
-         align: 'center',
-         width: contentWidth
+        align: 'center',
+        width: contentWidth
       });
 
       // --- 4. Finalizar PDF ---
@@ -1294,7 +1295,7 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
         propertyAddress,
         // Podrías necesitar el nombre del cliente del Work o su Budget/Permit asociado
       } = workData;
-      
+
       // Datos de tu empresa (puedes pasarlos o tenerlos como constantes)
       const defaultCompanyData = {
         name: "ZURCHER CONSTRUCTION LLC.",
@@ -1314,16 +1315,16 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
       const formattedCODate = formatDateDDMMYYYY(coCreatedAt || new Date().toISOString()); // Fecha del CO
       const coNumber = changeOrderNumber || `CO-${changeOrderId.substring(0, 8)}`;
 
-// --- 2. Configurar PDF ---
+      // --- 2. Configurar PDF ---
       const doc = new PDFDocument({ margin: pageMargin, size: 'A4' }); // Use global pageMargin
-      const uploadsDir = path.join(__dirname, '../uploads/change_orders'); 
+      const uploadsDir = path.join(__dirname, '../uploads/change_orders');
       if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
       const pdfPath = path.join(uploadsDir, `change_order_${coNumber.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`);
       const stream = fs.createWriteStream(pdfPath);
       doc.pipe(stream);
 
       const contentWidth = doc.page.width - pageMargin * 2;
-      
+
       // Colores (ya definidos globalmente, pero pueden ser locales si se prefiere)
       // const primaryColor = '#003366'; 
       // const textColor = '#333333';
@@ -1332,7 +1333,7 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
 
       // --- 3. Contenido del PDF ---
 
-       // === ENCABEZADO ===
+      // === ENCABEZADO ===
       const headerHeight = 80;
       doc.save(); // Guardar el estado actual del documento (colores, fuentes, etc.)
       doc.rect(0, 0, doc.page.width, headerHeight).fill(primaryColor);
@@ -1340,9 +1341,9 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
         doc.image(currentCompany.logoPath, pageMargin, 15, { height: 50 });
       }
       doc.fontSize(12).fillColor(whiteColor).font('Helvetica-Bold')
-         .text('CHANGE ORDER', pageMargin + 200, 30, { align: 'right', width: contentWidth - 200 });
+        .text('CHANGE ORDER', pageMargin + 200, 30, { align: 'right', width: contentWidth - 200 });
       doc.restore(); // Restaurar el estado del documento a como estaba antes de doc.save()
-      
+
       doc.fillColor(textColor); // Establecer el color de texto para el contenido principal después del encabezado
 
       // === INFORMACIÓN DE LA EMPRESA Y DEL DOCUMENTO ===
@@ -1356,7 +1357,7 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
       doc.text(currentCompany.phone, pageMargin, currentY);
       const leftColumnEndY = currentY;
 
-      currentY = headerHeight + 20; 
+      currentY = headerHeight + 20;
       const rightInfoX = doc.page.width - pageMargin - 200;
       doc.fontSize(10).font('Helvetica-Bold').text(`NO: ${coNumber}`, rightInfoX, currentY, { width: 200, align: 'right' });
       currentY += doc.currentLineHeight();
@@ -1368,15 +1369,15 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
         doc.font('Helvetica-Bold').text(clientName.toUpperCase(), rightInfoX, currentY, { width: 200, align: 'right' });
       }
       const rightColumnEndY = currentY;
-      
-      currentY = Math.max(leftColumnEndY, rightColumnEndY) + 20; 
+
+      currentY = Math.max(leftColumnEndY, rightColumnEndY) + 20;
       doc.y = currentY;
 
       // === DIRECCIÓN DE LA OBRA ===
-      doc.fontSize(11).font('Helvetica-Bold').text(propertyAddress.toUpperCase(), pageMargin, currentY, {align: 'left'});
+      doc.fontSize(11).font('Helvetica-Bold').text(propertyAddress.toUpperCase(), pageMargin, currentY, { align: 'left' });
       currentY += doc.currentLineHeight() + 40;
       doc.y = currentY;
-       
+
 
       // === TABLA DE ÍTEMS DEL CHANGE ORDER ===
       const tableTop = currentY;
@@ -1392,12 +1393,12 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
       doc.text('Item Description', colDescX + 5, tableTop);
       doc.text('Unit Price', colUnitPriceX, tableTop, { width: colTotalX - colUnitPriceX - 10, align: 'right' });
       doc.text('Total', colTotalX, tableTop, { width: contentWidth - (colTotalX - pageMargin), align: 'right' });
-      doc.fillColor(textColor); 
+      doc.fillColor(textColor);
       currentY = tableTop + 25;
       doc.y = currentY;
 
       doc.fontSize(10).font('Helvetica');
-      const qtyText = hours ? `${parseFloat(hours).toFixed(1)} hours` : '1'; 
+      const qtyText = hours ? `${parseFloat(hours).toFixed(1)} hours` : '1';
       const itemDescText = itemDescription || coDescription || "Work as per Change Order";
       const unitPriceText = `$${parseFloat(unitCost || totalCost || 0).toFixed(2)}`;
       const totalText = `$${parseFloat(totalCost || 0).toFixed(2)}`;
@@ -1406,8 +1407,8 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
       doc.text(itemDescText, colDescX + 5, currentY, { width: colUnitPriceX - colDescX - 10 });
       doc.text(unitPriceText, colUnitPriceX, currentY, { width: colTotalX - colUnitPriceX - 10, align: 'right' });
       doc.text(totalText, colTotalX, currentY, { width: contentWidth - (colTotalX - pageMargin), align: 'right' });
-      
-      currentY = doc.y + doc.currentLineHeight() + 10; 
+
+      currentY = doc.y + doc.currentLineHeight() + 10;
       doc.moveTo(pageMargin, currentY).lineTo(doc.page.width - pageMargin, currentY).strokeColor(lightGrayColor).stroke();
       currentY += 15;
       doc.y = currentY;
@@ -1424,34 +1425,34 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
         doc.fontSize(10).font('Helvetica-Oblique').text("Note:", pageMargin, currentY);
         currentY += doc.currentLineHeight();
         doc.font('Helvetica').text(clientMessage, pageMargin, currentY, { width: contentWidth });
-        currentY = doc.y + 10; 
+        currentY = doc.y + 10;
         doc.y = currentY;
       }
-      
+
       // === SECCIÓN DE APROBACIÓN (SI EL ESTADO ES APROBADO) ===
       if (coStatus === 'approved') {
-        const approvedStampPath = path.join(__dirname, '../assets/approved_stamp.png'); 
+        const approvedStampPath = path.join(__dirname, '../assets/approved_stamp.png');
         let stampYPosition = doc.y + 10;
         const stampHeight = 70;
         const spaceNeededForStampAndFollowing = stampHeight + 150; // Stamp + Signature + Thankyou approx
 
-        if (stampYPosition + spaceNeededForStampAndFollowing > doc.page.height - pageMargin) { 
-            doc.addPage();
-            stampYPosition = pageMargin;
+        if (stampYPosition + spaceNeededForStampAndFollowing > doc.page.height - pageMargin) {
+          doc.addPage();
+          stampYPosition = pageMargin;
         }
         doc.y = stampYPosition;
 
         if (fs.existsSync(approvedStampPath)) {
-            doc.image(approvedStampPath, doc.page.width - pageMargin - 150, doc.y, { width: 120 });
-            doc.y += stampHeight; 
+          doc.image(approvedStampPath, doc.page.width - pageMargin - 150, doc.y, { width: 120 });
+          doc.y += stampHeight;
         } else {
-            doc.fontSize(18).fillColor('green').font('Helvetica-Bold')
-               .text('APPROVED', doc.page.width - pageMargin - 200, doc.y, { width: 180, align: 'center' });
-            doc.y += 30; 
+          doc.fontSize(18).fillColor('green').font('Helvetica-Bold')
+            .text('APPROVED', doc.page.width - pageMargin - 200, doc.y, { width: 180, align: 'center' });
+          doc.y += 30;
         }
-        doc.y += 10; 
+        doc.y += 10;
       }
-    currentY = doc.y; // Update currentY after potential stamp
+      currentY = doc.y; // Update currentY after potential stamp
 
       // --- START: RESTRUCTURED BOTTOM SECTIONS ---
       const signatureSectionHeightEst = 100; // Estimación de _addClientSignatureSection
@@ -1472,26 +1473,26 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
       // === INFORMACIÓN DE PAGO ===
       doc.fontSize(9).font('Helvetica-Bold').text('Payment Information:', pageMargin, doc.y);
       // doc.y se actualiza después del texto. Añadir un pequeño espacio antes de los detalles.
-      doc.y += 5; 
-      
+      doc.y += 5;
+
       doc.font('Helvetica');
       doc.text(`Bank: ${currentCompany.bankName || "Chase"}`, pageMargin, doc.y);
       doc.text(`Routing number: ${currentCompany.routingNumber || "267084131"}`, pageMargin, doc.y);
       doc.text(`Account number: ${currentCompany.accountNumber || "686125371"}`, pageMargin, doc.y);
       doc.text(`Email: ${currentCompany.paymentEmail || "zurcherseptic@gmail.com"}`, pageMargin, doc.y);
-      
+
       doc.moveDown(3); // Espacio después de la Información de Pago
 
       // === THANK YOU ===
       // Verificar si "Thank You!" y la sección de firma caben desde el doc.y actual
       // signatureSectionHeightEst ya considera los márgenes internos de esa función.
       if (doc.y + thankYouHeightEst + spacingAfterThankYou + signatureSectionHeightEst > doc.page.height - pageMargin) {
-          doc.addPage();
+        doc.addPage();
       }
       doc.fontSize(22).font('Helvetica-BoldOblique').fillColor(primaryColor)
-         .text('Thank You!', pageMargin, doc.y, { width: contentWidth, align: 'right' });
+        .text('Thank You!', pageMargin, doc.y, { width: contentWidth, align: 'right' });
       // doc.y se actualiza después de "Thank You!"
-      
+
       doc.moveDown(3); // Espacio después de "Thank You!"
 
       // === SIGNATURE SECTION ===
@@ -1521,4 +1522,4 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
   });
 }
 
-module.exports = { generateAndSaveBudgetPDF, generateAndSaveFinalInvoicePDF,generateAndSaveChangeOrderPDF };
+module.exports = { generateAndSaveBudgetPDF, generateAndSaveFinalInvoicePDF, generateAndSaveChangeOrderPDF };

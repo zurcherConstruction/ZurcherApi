@@ -8,8 +8,25 @@ const path = require('path');
 const { sendEmail } = require('../utils/notifications/emailService.js');
 const { generateAndSaveBudgetPDF } = require('../utils/pdfGenerator.js');
 const SignNowService = require('../services/ServiceSignNow');
-
-
+require('dotenv').config();
+// AGREGAR esta función auxiliar después de los imports:
+function getPublicPdfUrl(localPath, req) {
+  if (!localPath) return null;
+  
+  // 🧪 TEST: Verificar que API_URL se lee correctamente
+  console.log('🔍 DEBUG: process.env.API_URL =', process.env.API_URL);
+  
+  // Extraer la parte relativa de la ruta
+  const relativePath = localPath.replace(path.join(__dirname, '../'), '');
+  
+  // ✅ USAR API_URL en lugar de BACKEND_URL
+  const baseUrl = process.env.API_URL || `${req.protocol}://${req.get('host')}`;
+  const publicUrl = `${baseUrl}/${relativePath.replace(/\\/g, '/')}`;
+  
+  console.log('🔗 DEBUG: URL generada =', publicUrl);
+  
+  return publicUrl;
+}
 
 const BudgetController = {
   async createBudget(req, res) {
@@ -201,11 +218,16 @@ const BudgetController = {
         console.log('DEBUG CONTROLLER - Datos FINALES pasados a PDF Gen:', budgetDataForPdf);
         // --- FIN DEBUG ---
         generatedPdfPath = await generateAndSaveBudgetPDF(budgetDataForPdf);
-        console.log(`PDF generado en: ${generatedPdfPath}`);
 
-        // Actualizar el registro Budget con la ruta del PDF
-        await budgetForPdf.update({ pdfPath: generatedPdfPath });
-        console.log(`Ruta del PDF actualizada para Budget ID ${newBudgetId}.`);
+        // ✅ CONVERTIR RUTA LOCAL A URL PÚBLICA
+        const pdfPublicUrl = getPublicPdfUrl(generatedPdfPath, req);
+
+        console.log(`PDF generado en: ${generatedPdfPath}`);
+        console.log(`URL pública: ${pdfPublicUrl}`);
+
+        // Actualizar el registro Budget con la URL pública
+        await budgetForPdf.update({ pdfPath: pdfPublicUrl });
+        console.log("Ruta del PDF actualizada para Budget ID", budgetForPdf.idBudget);
 
       } catch (pdfError) {
         console.error(`Error al generar o guardar PDF para Budget ID ${newBudgetId} (post-creación):`, pdfError);
@@ -262,7 +284,7 @@ const BudgetController = {
     }
   },
 
-async sendBudgetToSignNow(req, res) {
+  async sendBudgetToSignNow(req, res) {
     const { idBudget } = req.params;
     const transaction = await conn.transaction();
 
@@ -271,7 +293,7 @@ async sendBudgetToSignNow(req, res) {
       console.log(`📋 ID Presupuesto: ${idBudget}`);
       console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
       console.log(`👤 Usuario solicitante: ${req.user?.email || 'No identificado'}`);
-      
+
       // Buscar el presupuesto con información del solicitante
       console.log('🔍 Buscando presupuesto en la base de datos...');
       const budget = await Budget.findByPk(idBudget, {
@@ -290,7 +312,7 @@ async sendBudgetToSignNow(req, res) {
           message: 'Presupuesto no encontrado'
         });
       }
-      
+
       console.log('✅ Presupuesto encontrado:');
       console.log(`   - ID: ${budget.idBudget}`);
       console.log(`   - PDF Path: ${budget.pdfPath}`);
@@ -316,7 +338,7 @@ async sendBudgetToSignNow(req, res) {
           message: 'El archivo PDF no existe en el servidor'
         });
       }
-      
+
       console.log(`✅ Archivo PDF existe, tamaño: ${fs.statSync(budget.pdfPath).size} bytes`);
 
       // Verificar que existe información del solicitante
@@ -339,11 +361,11 @@ async sendBudgetToSignNow(req, res) {
       console.log('🔧 Inicializando servicio SignNow...');
       const SignNowService = require('../services/ServiceSignNow');
       const signNowService = new SignNowService();
-      
+
       // Preparar información para el documento
       const propertyAddress = budget.Permit?.propertyAddress || budget.propertyAddress || 'Property';
       const fileName = `Budget_${budget.idBudget}_${propertyAddress.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-      
+
       console.log(`📁 Nombre del archivo para SignNow: ${fileName}`);
 
       // Enviar documento para firma
@@ -365,16 +387,16 @@ async sendBudgetToSignNow(req, res) {
         status: 'sent_for_signature',
         sentForSignatureAt: new Date()
       };
-      
+
       console.log('Datos a actualizar:', updateData);
-      
+
       await budget.update(updateData, { transaction });
       await transaction.commit();
       console.log('✅ Transacción confirmada');
 
       // Enviar notificación interna de que se envió a SignNow
       try {
-        const { sendNotifications } = require('../services/NotificationService');
+       
         await sendNotifications('budgetSentToSignNow', {
           propertyAddress: budget.Permit?.propertyAddress || budget.propertyAddress,
           applicantEmail: budget.Permit.applicantEmail,
@@ -402,7 +424,7 @@ async sendBudgetToSignNow(req, res) {
           sentAt: new Date().toISOString()
         }
       };
-      
+
       console.log('📤 Enviando respuesta exitosa:');
       console.log(JSON.stringify(responseData, null, 2));
       console.log('=== FIN EXITOSO DE ENVÍO A SIGNNOW ===\n');
@@ -415,7 +437,7 @@ async sendBudgetToSignNow(req, res) {
       console.error('Error completo:', error);
       console.error('Stack trace:', error.stack);
       console.log('================================\n');
-      
+
       res.status(500).json({
         error: true,
         message: 'Error interno del servidor',
@@ -425,13 +447,13 @@ async sendBudgetToSignNow(req, res) {
     }
   },
 
-// Verificar estado de firma del presupuesto
-async checkSignatureStatus(req, res) {
+  // Verificar estado de firma del presupuesto
+  async checkSignatureStatus(req, res) {
     const { idBudget } = req.params;
 
     try {
       console.log(`--- Verificando estado de firma para presupuesto ${idBudget} ---`);
-      
+
       // Buscar el presupuesto
       const budget = await Budget.findByPk(idBudget);
 
@@ -457,10 +479,10 @@ async checkSignatureStatus(req, res) {
       // Inicializar servicio de SignNow
       const SignNowService = require('../services/ServiceSignNow');
       const signNowService = new SignNowService();
-      
+
       // Verificar estado del documento
       const signatureStatus = await signNowService.isDocumentSigned(budget.adobeAgreementId);
-      
+
       console.log('📊 Estado de firma:', signatureStatus);
 
       // Actualizar estado en la base de datos si está firmado
@@ -487,7 +509,7 @@ async checkSignatureStatus(req, res) {
 
     } catch (error) {
       console.error('❌ Error verificando estado de firma:', error);
-      
+
       res.status(500).json({
         error: true,
         message: 'Error verificando estado de firma',
@@ -497,13 +519,13 @@ async checkSignatureStatus(req, res) {
   },
 
 
-// Descargar documento firmado
- async downloadSignedBudget(req, res) {
+  // Descargar documento firmado
+  async downloadSignedBudget(req, res) {
     const { idBudget } = req.params;
 
     try {
       console.log(`--- Descargando documento firmado para presupuesto ${idBudget} ---`);
-      
+
       // Buscar el presupuesto
       const budget = await Budget.findByPk(idBudget);
 
@@ -524,10 +546,10 @@ async checkSignatureStatus(req, res) {
       // Inicializar servicio de SignNow
       const SignNowService = require('../services/ServiceSignNow');
       const signNowService = new SignNowService();
-      
+
       // Verificar si está firmado
       const signatureStatus = await signNowService.isDocumentSigned(budget.adobeAgreementId);
-      
+
       if (!signatureStatus.isSigned) {
         return res.status(400).json({
           error: true,
@@ -543,7 +565,7 @@ async checkSignatureStatus(req, res) {
       // Crear path para el archivo firmado
       const path = require('path');
       const uploadsDir = path.join(__dirname, '..', '..', 'uploads', 'signed-budgets');
-      
+
       // Crear directorio si no existe
       if (!fs.existsSync(uploadsDir)) {
         fs.mkdirSync(uploadsDir, { recursive: true });
@@ -575,7 +597,7 @@ async checkSignatureStatus(req, res) {
 
     } catch (error) {
       console.error('❌ Error descargando documento firmado:', error);
-      
+
       res.status(500).json({
         error: true,
         message: 'Error descargando documento firmado',
@@ -824,106 +846,106 @@ async checkSignatureStatus(req, res) {
       await budget.update(generalUpdateData, { transaction });
       console.log(`Campos generales para Budget ID ${idBudget} actualizados en BD.`);
 
-// --- 5. Sincronizar BudgetLineItems (Eliminar y Recrear si se enviaron nuevos) ---
-let calculatedSubtotal = 0;
-let finalLineItemsForPdf = []; // Array para guardar los items que irán al PDF
+      // --- 5. Sincronizar BudgetLineItems (Eliminar y Recrear si se enviaron nuevos) ---
+      let calculatedSubtotal = 0;
+      let finalLineItemsForPdf = []; // Array para guardar los items que irán al PDF
 
-if (hasLineItemUpdates) {
-  console.log("Sincronizando Line Items (Eliminar y Recrear)...");
-  await BudgetLineItem.destroy({ where: { budgetId: idBudget }, transaction });
-  console.log(`Items existentes para Budget ID ${idBudget} eliminados.`);
+      if (hasLineItemUpdates) {
+        console.log("Sincronizando Line Items (Eliminar y Recrear)...");
+        await BudgetLineItem.destroy({ where: { budgetId: idBudget }, transaction });
+        console.log(`Items existentes para Budget ID ${idBudget} eliminados.`);
 
-  const createdLineItems = [];
-  for (const incomingItem of lineItems) {
-    console.log("=== DEBUGGING INCOMING ITEM ===");
-    console.log("incomingItem:", incomingItem);
-    console.log("incomingItem.budgetItemId:", incomingItem.budgetItemId);
-    
-    let priceAtTime = 0;
-    let itemDataForCreation = {
-      budgetId: idBudget,
-      quantity: parseFloat(incomingItem.quantity) || 0,
-      notes: incomingItem.notes || null,
-      marca: incomingItem.marca || null,
-      capacity: incomingItem.capacity || null,
-      description: null,
-    };
+        const createdLineItems = [];
+        for (const incomingItem of lineItems) {
+          console.log("=== DEBUGGING INCOMING ITEM ===");
+          console.log("incomingItem:", incomingItem);
+          console.log("incomingItem.budgetItemId:", incomingItem.budgetItemId);
 
-    console.log("itemDataForCreation inicial:", itemDataForCreation);
+          let priceAtTime = 0;
+          let itemDataForCreation = {
+            budgetId: idBudget,
+            quantity: parseFloat(incomingItem.quantity) || 0,
+            notes: incomingItem.notes || null,
+            marca: incomingItem.marca || null,
+            capacity: incomingItem.capacity || null,
+            description: null,
+          };
 
-    // Validar quantity
-    if (isNaN(itemDataForCreation.quantity) || itemDataForCreation.quantity <= 0) {
-      console.error("Error: Item inválido encontrado:", incomingItem);
-      throw new Error(`Item inválido: quantity debe ser un número positivo.`);
-    }
+          console.log("itemDataForCreation inicial:", itemDataForCreation);
 
-    if (incomingItem.budgetItemId) {
-      // Item del catálogo
-      console.log("Procesando item del catálogo...");
-      const budgetItemDetails = await BudgetItem.findByPk(incomingItem.budgetItemId, { transaction });
-      console.log("budgetItemDetails encontrado:", budgetItemDetails);
-      
-      if (!budgetItemDetails || !budgetItemDetails.isActive) {
-        console.error("Error: Item base no encontrado o inactivo:", incomingItem.budgetItemId);
-        throw new Error(`El item base con ID ${incomingItem.budgetItemId} no se encontró o no está activo.`);
+          // Validar quantity
+          if (isNaN(itemDataForCreation.quantity) || itemDataForCreation.quantity <= 0) {
+            console.error("Error: Item inválido encontrado:", incomingItem);
+            throw new Error(`Item inválido: quantity debe ser un número positivo.`);
+          }
+
+          if (incomingItem.budgetItemId) {
+            // Item del catálogo
+            console.log("Procesando item del catálogo...");
+            const budgetItemDetails = await BudgetItem.findByPk(incomingItem.budgetItemId, { transaction });
+            console.log("budgetItemDetails encontrado:", budgetItemDetails);
+
+            if (!budgetItemDetails || !budgetItemDetails.isActive) {
+              console.error("Error: Item base no encontrado o inactivo:", incomingItem.budgetItemId);
+              throw new Error(`El item base con ID ${incomingItem.budgetItemId} no se encontró o no está activo.`);
+            }
+
+            priceAtTime = parseFloat(budgetItemDetails.unitPrice);
+            itemDataForCreation.budgetItemId = incomingItem.budgetItemId;
+            itemDataForCreation.name = incomingItem.name || budgetItemDetails.name;
+            itemDataForCreation.category = incomingItem.category || budgetItemDetails.category;
+            itemDataForCreation.description = incomingItem.description || budgetItemDetails.description || null;
+            console.log("itemDataForCreation después de asignar budgetItemId:", itemDataForCreation);
+          } else if (incomingItem.name && incomingItem.category && incomingItem.unitPrice !== undefined) {
+            // Item manual
+            const manualPrice = parseFloat(incomingItem.unitPrice);
+            if (isNaN(manualPrice) || manualPrice < 0) {
+              console.error("Error: Precio inválido para item manual:", incomingItem);
+              throw new Error(`Item manual inválido: unitPrice debe ser un número no negativo.`);
+            }
+            priceAtTime = manualPrice;
+            itemDataForCreation.budgetItemId = null;
+            itemDataForCreation.name = incomingItem.name;
+            itemDataForCreation.category = incomingItem.category;
+            itemDataForCreation.description = incomingItem.description || null;
+          } else {
+            // Item inválido
+            console.error("Error: Item inválido, falta información:", incomingItem);
+            throw new Error(`Item inválido: debe tener 'budgetItemId' o ('name', 'category', 'unitPrice').`);
+          }
+
+          // Asignar precios y calcular total de línea
+          itemDataForCreation.unitPrice = priceAtTime;
+          itemDataForCreation.priceAtTimeOfBudget = priceAtTime;
+          itemDataForCreation.lineTotal = priceAtTime * itemDataForCreation.quantity;
+
+          // Antes de crear el item:
+          console.log("itemDataForCreation FINAL antes de crear:", itemDataForCreation);
+          const newItem = await BudgetLineItem.create(itemDataForCreation, { transaction });
+          console.log("newItem creado:", newItem.toJSON());
+          console.log("=== FIN DEBUG ITEM ===");
+
+          calculatedSubtotal += parseFloat(newItem.lineTotal || 0);
+          createdLineItems.push(newItem);
+        }
+
+        finalLineItemsForPdf = createdLineItems.map(item => item.toJSON());
+        console.log(`${createdLineItems.length} items recreados para Budget ID ${idBudget}.`);
+      } else {
+        // ✅ CORRECCIÓN: Si no hay cambios en items, calcular desde items existentes
+        console.log("No hay cambios en items, calculando subtotal desde items existentes...");
+        const existingLineItems = await BudgetLineItem.findAll({
+          where: { budgetId: idBudget },
+          transaction
+        });
+
+        calculatedSubtotal = existingLineItems.reduce((sum, item) => {
+          return sum + parseFloat(item.lineTotal || 0);
+        }, 0);
+
+        finalLineItemsForPdf = existingLineItems.map(item => item.toJSON());
+        console.log(`Subtotal calculado desde ${existingLineItems.length} items existentes: ${calculatedSubtotal}`);
       }
-      
-      priceAtTime = parseFloat(budgetItemDetails.unitPrice);
-      itemDataForCreation.budgetItemId = incomingItem.budgetItemId;
-      itemDataForCreation.name = incomingItem.name || budgetItemDetails.name;
-      itemDataForCreation.category = incomingItem.category || budgetItemDetails.category;
-      itemDataForCreation.description = incomingItem.description || budgetItemDetails.description || null;
-      console.log("itemDataForCreation después de asignar budgetItemId:", itemDataForCreation);
-    } else if (incomingItem.name && incomingItem.category && incomingItem.unitPrice !== undefined) {
-      // Item manual
-      const manualPrice = parseFloat(incomingItem.unitPrice);
-      if (isNaN(manualPrice) || manualPrice < 0) {
-        console.error("Error: Precio inválido para item manual:", incomingItem);
-        throw new Error(`Item manual inválido: unitPrice debe ser un número no negativo.`);
-      }
-      priceAtTime = manualPrice;
-      itemDataForCreation.budgetItemId = null;
-      itemDataForCreation.name = incomingItem.name;
-      itemDataForCreation.category = incomingItem.category;
-      itemDataForCreation.description = incomingItem.description || null;
-    } else {
-      // Item inválido
-      console.error("Error: Item inválido, falta información:", incomingItem);
-      throw new Error(`Item inválido: debe tener 'budgetItemId' o ('name', 'category', 'unitPrice').`);
-    }
-
-    // Asignar precios y calcular total de línea
-    itemDataForCreation.unitPrice = priceAtTime;
-    itemDataForCreation.priceAtTimeOfBudget = priceAtTime;
-    itemDataForCreation.lineTotal = priceAtTime * itemDataForCreation.quantity;
-
-    // Antes de crear el item:
-    console.log("itemDataForCreation FINAL antes de crear:", itemDataForCreation);
-    const newItem = await BudgetLineItem.create(itemDataForCreation, { transaction });
-    console.log("newItem creado:", newItem.toJSON());
-    console.log("=== FIN DEBUG ITEM ===");
-    
-    calculatedSubtotal += parseFloat(newItem.lineTotal || 0);
-    createdLineItems.push(newItem);
-  }
-  
-  finalLineItemsForPdf = createdLineItems.map(item => item.toJSON());
-  console.log(`${createdLineItems.length} items recreados para Budget ID ${idBudget}.`);
-} else {
-  // ✅ CORRECCIÓN: Si no hay cambios en items, calcular desde items existentes
-  console.log("No hay cambios en items, calculando subtotal desde items existentes...");
-  const existingLineItems = await BudgetLineItem.findAll({
-    where: { budgetId: idBudget },
-    transaction
-  });
-  
-  calculatedSubtotal = existingLineItems.reduce((sum, item) => {
-    return sum + parseFloat(item.lineTotal || 0);
-  }, 0);
-  
-  finalLineItemsForPdf = existingLineItems.map(item => item.toJSON());
-  console.log(`Subtotal calculado desde ${existingLineItems.length} items existentes: ${calculatedSubtotal}`);
-}
 
       // --- 6. Recalcular y Actualizar Totales Finales y Pago Inicial en el Budget ---
       console.log("Recalculando totales finales...");
@@ -970,10 +992,16 @@ if (hasLineItemUpdates) {
           };
 
           console.log("Datos para PDF:", JSON.stringify(budgetDataForPdf, null, 2));
-          generatedPdfPath = await generateAndSaveBudgetPDF(budgetDataForPdf); // Guardar en variable externa
+          generatedPdfPath = await generateAndSaveBudgetPDF(budgetDataForPdf);
+
+          // ✅ CONVERTIR RUTA LOCAL A URL PÚBLICA
+          const pdfPublicUrl = getPublicPdfUrl(generatedPdfPath, req);
+
+          console.log(`PDF regenerado en ruta local: ${generatedPdfPath}`);
+          console.log(`PDF regenerado y ruta actualizada en BD para Budget ID ${idBudget}: ${pdfPublicUrl}`);
 
           // Actualizar la ruta del PDF en la BD DENTRO de la transacción
-          await budget.update({ pdfPath: generatedPdfPath }, { transaction });
+          await budget.update({ pdfPath: pdfPublicUrl }, { transaction });
           console.log(`PDF regenerado y ruta actualizada en BD para Budget ID ${idBudget}: ${generatedPdfPath}`);
 
         } catch (pdfError) {
@@ -991,28 +1019,28 @@ if (hasLineItemUpdates) {
         generatedPdfPath = budget.pdfPath; // Usar la ruta existente
       }
 
-// --- 7a. Lógica si el estado es 'send' (Genera PDF y envía correo) ---
-if (req.body.status === 'send') {
-  console.log("El estado es 'send'. Procesando envío de correo y SignNow...");
+      // --- 7a. Lógica si el estado es 'send' (Genera PDF y envía correo) ---
+      if (req.body.status === 'send') {
+        console.log("El estado es 'send'. Procesando envío de correo y SignNow...");
 
-  // --- Enviar Correo (Usa generatedPdfPath o budget.pdfPath actualizado) ---
-  const pdfPathForEmail = generatedPdfPath; // Usar la ruta (nueva o existente)
+        // --- Enviar Correo (Usa generatedPdfPath o budget.pdfPath actualizado) ---
+        const pdfPathForEmail = generatedPdfPath; // Usar la ruta (nueva o existente)
 
-  if (!pdfPathForEmail || !fs.existsSync(pdfPathForEmail)) {
-    console.error(`Error: No se encontró el archivo PDF en ${pdfPathForEmail} para enviar por correo (Budget ID: ${idBudget}).`);
-    await transaction.rollback();
-    return res.status(500).json({ error: 'Error interno: No se pudo encontrar el PDF para enviar.' });
-  } else {
-    console.log(`Usando PDF en ${pdfPathForEmail} para enviar correo...`);
-    if (!budget.Permit?.applicantEmail || !budget.Permit.applicantEmail.includes('@')) {
-      console.warn(`Advertencia: Cliente para Budget ID ${idBudget} sin correo válido. No se enviará email.`);
-    } else {
-      // ✅ Email con información sobre SignNow
-      const clientMailOptions = {
-        to: budget.Permit.applicantEmail,
-        subject: `Budget Proposal #${idBudget} for ${budget.propertyAddress}`,
-        text: `Dear ${budget.applicantName || 'Customer'},\n\nPlease find attached the budget proposal #${idBudget} for the property located at ${budget.propertyAddress}.\n\nExpiration Date: ${budget.expirationDate ? new Date(budget.expirationDate).toLocaleDateString() : 'N/A'}\nTotal Amount: $${parseFloat(budget.totalPrice || 0).toFixed(2)}\nInitial Payment (${budget.initialPaymentPercentage || 60}%): $${parseFloat(budget.initialPayment || 0).toFixed(2)}\n\n${budget.generalNotes ? 'Notes:\n' + budget.generalNotes + '\n\n' : ''}NEXT STEPS:\n- Review the attached PDF carefully\n- You will receive a separate email from SignNow to digitally sign the document once approved\n- If you have any questions, please contact us\n\nBest regards,\nZurcher Construction`,
-        html: `
+        if (!pdfPathForEmail || !fs.existsSync(pdfPathForEmail)) {
+          console.error(`Error: No se encontró el archivo PDF en ${pdfPathForEmail} para enviar por correo (Budget ID: ${idBudget}).`);
+          await transaction.rollback();
+          return res.status(500).json({ error: 'Error interno: No se pudo encontrar el PDF para enviar.' });
+        } else {
+          console.log(`Usando PDF en ${pdfPathForEmail} para enviar correo...`);
+          if (!budget.Permit?.applicantEmail || !budget.Permit.applicantEmail.includes('@')) {
+            console.warn(`Advertencia: Cliente para Budget ID ${idBudget} sin correo válido. No se enviará email.`);
+          } else {
+            // ✅ Email con información sobre SignNow
+            const clientMailOptions = {
+              to: budget.Permit.applicantEmail,
+              subject: `Budget Proposal #${idBudget} for ${budget.propertyAddress}`,
+              text: `Dear ${budget.applicantName || 'Customer'},\n\nPlease find attached the budget proposal #${idBudget} for the property located at ${budget.propertyAddress}.\n\nExpiration Date: ${budget.expirationDate ? new Date(budget.expirationDate).toLocaleDateString() : 'N/A'}\nTotal Amount: $${parseFloat(budget.totalPrice || 0).toFixed(2)}\nInitial Payment (${budget.initialPaymentPercentage || 60}%): $${parseFloat(budget.initialPayment || 0).toFixed(2)}\n\n${budget.generalNotes ? 'Notes:\n' + budget.generalNotes + '\n\n' : ''}NEXT STEPS:\n- Review the attached PDF carefully\n- You will receive a separate email from SignNow to digitally sign the document once approved\n- If you have any questions, please contact us\n\nBest regards,\nZurcher Construction`,
+              html: `
           <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
             <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
               <h2 style="color: #1a365d; margin-bottom: 20px;">Budget Proposal Ready for Review</h2>
@@ -1081,114 +1109,126 @@ if (req.body.status === 'send') {
             </div>
           </div>
         `,
-        attachments: [{ 
-          filename: `budget_${idBudget}.pdf`, 
-          path: pdfPathForEmail, 
-          contentType: 'application/pdf' 
-        }],
-      };
-      
-      try {
-        console.log(`Intentando enviar correo con PDF e información de SignNow al cliente: ${budget.Permit.applicantEmail}`);
-        await sendEmail(clientMailOptions);
-        console.log(`Correo con PDF e información de SignNow enviado exitosamente al cliente.`);
-      } catch (clientEmailError) {
-        console.error(`Error al enviar correo con PDF al cliente ${budget.Permit.applicantEmail}:`, clientEmailError);
-      }
-    }
-  }
-  
-  // --- ✅ NUEVO: Enviar automáticamente a SignNow después del email ---
-  console.log('\n🔄 === INICIANDO ENVÍO AUTOMÁTICO A SIGNNOW ===');
-  
-  try {
-    // Verificar que existe información del solicitante para SignNow
-    if (!budget.Permit?.applicantEmail) {
-      console.error('❌ ERROR: No se encontró email del solicitante para SignNow');
-      // No hacer rollback aquí, el email ya se envió exitosamente
-      console.log('⚠️ Continuando sin envío a SignNow debido a falta de email');
-    } else {
-      console.log('✅ Información del firmante para SignNow:');
-      console.log(`   - Email: ${budget.Permit.applicantEmail}`);
-      console.log(`   - Nombre: ${budget.Permit.applicantName}`);
-      console.log(`   - Dirección: ${budget.Permit.propertyAddress}`);
+              attachments: [{
+                filename: `budget_${idBudget}.pdf`,
+                path: pdfPathForEmail,
+                contentType: 'application/pdf'
+              }],
+            };
 
-      // Inicializar servicio de SignNow
-      console.log('🔧 Inicializando servicio SignNow desde updateBudget...');
-   
-      const signNowService = new SignNowService();
-      
-      // Preparar información para el documento
-      const propertyAddress = budget.Permit?.propertyAddress || budget.propertyAddress || 'Property';
-      const fileName = `Budget_${budget.idBudget}_${propertyAddress.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-      
-      console.log(`📁 Nombre del archivo para SignNow: ${fileName}`);
+            try {
+              console.log(`Intentando enviar correo con PDF e información de SignNow al cliente: ${budget.Permit.applicantEmail}`);
+              await sendEmail(clientMailOptions);
+              console.log(`Correo con PDF e información de SignNow enviado exitosamente al cliente.`);
+            } catch (clientEmailError) {
+              console.error(`Error al enviar correo con PDF al cliente ${budget.Permit.applicantEmail}:`, clientEmailError);
+            }
+          }
+        }
 
-      // Enviar documento para firma
-      console.log('📤 Enviando documento a SignNow desde updateBudget...');
-      const signNowResult = await signNowService.sendBudgetForSignature(
-        pdfPathForEmail, // Usar el mismo PDF que se envió por email
-        fileName,
-        budget.Permit.applicantEmail,
-        budget.Permit.applicantName || 'Valued Client'
-      );
+ // --- ✅ NUEVO: Enviar automáticamente a SignNow después del email ---
+        console.log('\n🔄 === INICIANDO ENVÍO AUTOMÁTICO A SIGNNOW ===');
 
-      console.log('✅ Resultado exitoso de SignNow desde updateBudget:');
-      console.log(JSON.stringify(signNowResult, null, 2));
+        try {
+          // Verificar que existe información del solicitante para SignNow
+          if (!budget.Permit?.applicantEmail) {
+            console.error('❌ ERROR: No se encontró email del solicitante para SignNow');
+            // No hacer rollback aquí, el email ya se envió exitosamente
+            console.log('⚠️ Continuando sin envío a SignNow debido a falta de email');
+          } else {
+            console.log('✅ Información del firmante para SignNow:');
+            console.log(`   - Email: ${budget.Permit.applicantEmail}`);
+            console.log(`   - Nombre: ${budget.Permit.applicantName}`);
+            console.log(`   - Dirección: ${budget.Permit.propertyAddress}`);
 
-      // Actualizar presupuesto con información de SignNow
-      console.log('💾 Actualizando presupuesto con datos de SignNow...');
-      await budget.update({
-        adobeAgreementId: signNowResult.documentId,
-        status: 'sent_for_signature', // Cambiar status a 'sent_for_signature'
-        sentForSignatureAt: new Date()
-      }, { transaction });
+            // Inicializar servicio de SignNow
+            console.log('🔧 Inicializando servicio SignNow desde updateBudget...');
+            const signNowService = new SignNowService();
 
-      console.log('✅ Budget actualizado con datos de SignNow');
+            // Preparar información para el documento
+            const propertyAddress = budget.Permit?.propertyAddress || budget.propertyAddress || 'Property';
+            const fileName = `Budget_${budget.idBudget}_${propertyAddress.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
 
-      // Notificar al staff interno que se envió a SignNow
-      try {
-        const { sendNotifications } = require('../services/NotificationService');
-        await sendNotifications('budgetSentToSignNow', {
-          propertyAddress: budget.Permit?.propertyAddress || budget.propertyAddress,
-          applicantEmail: budget.Permit.applicantEmail,
-          applicantName: budget.Permit.applicantName,
+            console.log(`📁 Nombre del archivo para SignNow: ${fileName}`);
+
+            // Convertir URL pública a ruta local para SignNow
+            let localPdfPath = null;
+
+            if (pdfPathForEmail && (pdfPathForEmail.includes('/uploads/budgets/') || pdfPathForEmail.startsWith('http'))) {
+  // Extraer nombre del archivo de la URL
+  const pdfFileName = pdfPathForEmail.split('/').pop();
+  localPdfPath = path.join(__dirname, '../uploads/budgets', pdfFileName);
+              
+              // Verificar que el archivo existe
+              if (!fs.existsSync(localPdfPath)) {
+                console.error(`❌ PDF no encontrado en ruta local: ${localPdfPath}`);
+                localPdfPath = null;
+              } else {
+                console.log(`✅ PDF encontrado para SignNow: ${localPdfPath}`);
+              }
+            }
+
+            if (localPdfPath) {
+              // Enviar documento para firma
+              console.log('📤 Enviando documento a SignNow desde updateBudget...');
+              const signNowResult = await signNowService.sendBudgetForSignature(
+                localPdfPath, // ✅ Usar ruta local
+                fileName,
+                budget.Permit.applicantEmail,
+                budget.Permit.applicantName || 'Valued Client'
+              );
+
+              console.log('✅ Resultado exitoso de SignNow desde updateBudget:');
+              console.log(JSON.stringify(signNowResult, null, 2));
+
+              // Actualizar presupuesto con información de SignNow
+              console.log('💾 Actualizando presupuesto con datos de SignNow...');
+              await budget.update({
+                adobeAgreementId: signNowResult.documentId,
+                status: 'sent_for_signature', // Cambiar status a 'sent_for_signature'
+                sentForSignatureAt: new Date()
+              }, { transaction });
+
+              console.log('✅ Budget actualizado con datos de SignNow');
+
+              // Notificar al staff interno que se envió a SignNow
+              try {
+                await sendNotifications('budgetSentToSignNow', {
+                  propertyAddress: budget.Permit?.propertyAddress || budget.propertyAddress,
+                  applicantEmail: budget.Permit.applicantEmail,
+                  applicantName: budget.Permit.applicantName,
+                  idBudget: budget.idBudget,
+                  documentId: signNowResult.documentId
+                }, null, req.io);
+                console.log('📧 Notificaciones internas de SignNow enviadas');
+              } catch (notificationError) {
+                console.log('⚠️ Error enviando notificaciones internas de SignNow:', notificationError.message);
+                // No fallar la operación principal por esto
+              }
+
+              console.log('🎉 === ENVÍO AUTOMÁTICO A SIGNNOW COMPLETADO ===\n');
+            } else {
+              console.log('⚠️ No se pudo obtener ruta local del PDF para SignNow');
+            }
+          }
+        } catch (signNowError) {
+          console.error('❌ ERROR enviando a SignNow:', signNowError);
+          console.error('   - Mensaje:', signNowError.message);
+          console.error('   - Stack:', signNowError.stack);
+          
+          console.log('⚠️ Continuando sin envío a SignNow debido a error');
+          console.log('📧 El email fue enviado exitosamente, pero SignNow falló');
+        }
+
+        // Notificar al staff interno (siempre se notifica que se marcó como 'send')
+        await sendNotifications('budgetSent', {
+          propertyAddress: budget.propertyAddress,
+          applicantEmail: budget.Permit?.applicantEmail,
           idBudget: budget.idBudget,
-          documentId: signNowResult.documentId
         }, null, req.io);
-        console.log('📧 Notificaciones internas de SignNow enviadas');
-      } catch (notificationError) {
-        console.log('⚠️ Error enviando notificaciones internas de SignNow:', notificationError.message);
-        // No fallar la operación principal por esto
-      }
+        console.log(`Notificaciones internas 'budgetSent' enviadas.`);
 
-      console.log('🎉 === ENVÍO AUTOMÁTICO A SIGNNOW COMPLETADO ===\n');
-    }
-  } catch (signNowError) {
-    console.error('❌ ERROR enviando a SignNow desde updateBudget:', signNowError);
-    console.error('Stack trace:', signNowError.stack);
-    
-    // ⚠️ IMPORTANTE: No hacer rollback aquí porque:
-    // 1. El email ya se envió exitosamente
-    // 2. El presupuesto ya se actualizó correctamente
-    // 3. Solo falló el envío a SignNow
-    
-    console.log('⚠️ Continuando sin envío a SignNow debido a error');
-    console.log('📧 El email fue enviado exitosamente, pero SignNow falló');
-    
-    // Opcionalmente, puedes cambiar el status a algo como 'sent_email_only'
-    // para indicar que el email se envió pero SignNow falló
-    // await budget.update({ status: 'sent_email_only' }, { transaction });
-  }
-  
-  // Notificar al staff interno (siempre se notifica que se marcó como 'send')
-  await sendNotifications('budgetSent', {
-    propertyAddress: budget.propertyAddress,
-    applicantEmail: budget.Permit?.applicantEmail,
-    idBudget: budget.idBudget,
-  }, null, req.io);
-  console.log(`Notificaciones internas 'budgetSent' enviadas.`);
-} // --- Fin Lógica if (status === 'send') ---
+      } // --- Fin Lógica if (status === 'send') ---
 
       // --- 7b. Lógica si el estado es 'approved' ---
       if (budget.status === "approved") {
@@ -1334,9 +1374,9 @@ if (req.body.status === 'send') {
       // Devolver un error genérico o el mensaje específico si es seguro
       res.status(400).json({ error: error.message || 'Error interno al actualizar el presupuesto.' });
     }
-  }, // --- Fin de updateBudget ---
-
-  async uploadInvoice(req, res) { // Considera renombrar esta función a uploadPaymentProof para claridad
+  
+  },
+  async uploadInvoice(req, res) { 
     const transaction = await conn.transaction();
 
     try {
@@ -1353,15 +1393,15 @@ if (req.body.status === 'send') {
         return res.status(400).json({ error: 'No se recibió ningún archivo de comprobante' });
       }
 
-     let parsedUploadedAmount = null;
-    if (uploadedAmount !== undefined && uploadedAmount !== null && String(uploadedAmount).trim() !== '') {
-      parsedUploadedAmount = parseFloat(uploadedAmount);
-      if (isNaN(parsedUploadedAmount) || parsedUploadedAmount < 0) {
-        await transaction.rollback();
-        console.error("Monto del comprobante inválido:", uploadedAmount);
-        return res.status(400).json({ error: 'El monto del comprobante proporcionado no es un número válido o es negativo.' });
+      let parsedUploadedAmount = null;
+      if (uploadedAmount !== undefined && uploadedAmount !== null && String(uploadedAmount).trim() !== '') {
+        parsedUploadedAmount = parseFloat(uploadedAmount);
+        if (isNaN(parsedUploadedAmount) || parsedUploadedAmount < 0) {
+          await transaction.rollback();
+          console.error("Monto del comprobante inválido:", uploadedAmount);
+          return res.status(400).json({ error: 'El monto del comprobante proporcionado no es un número válido o es negativo.' });
+        }
       }
-    }
 
       // --- 1. Determinar el tipo de archivo ---
       let proofType;
@@ -1401,155 +1441,155 @@ if (req.body.status === 'send') {
         ).end(buffer);
       });
 
-         // Buscar presupuesto
-    console.log("Buscando presupuesto con ID:", idBudget);
-    const budget = await Budget.findByPk(idBudget, { transaction });
-    if (!budget) {
-      console.log("Presupuesto no encontrado. Eliminando archivo de Cloudinary...");
-      try {
-        await cloudinary.uploader.destroy(uploadResult.public_id, { 
-          resource_type: uploadResult.resource_type || (proofType === 'pdf' ? 'raw' : 'image') 
-        });
-      } catch (e) {
-        console.error("Error al eliminar archivo de Cloudinary:", e);
+      // Buscar presupuesto
+      console.log("Buscando presupuesto con ID:", idBudget);
+      const budget = await Budget.findByPk(idBudget, { transaction });
+      if (!budget) {
+        console.log("Presupuesto no encontrado. Eliminando archivo de Cloudinary...");
+        try {
+          await cloudinary.uploader.destroy(uploadResult.public_id, {
+            resource_type: uploadResult.resource_type || (proofType === 'pdf' ? 'raw' : 'image')
+          });
+        } catch (e) {
+          console.error("Error al eliminar archivo de Cloudinary:", e);
+        }
+        await transaction.rollback();
+        return res.status(404).json({ error: 'Presupuesto no encontrado' });
       }
-      await transaction.rollback();
-      return res.status(404).json({ error: 'Presupuesto no encontrado' });
-    }
 
-    // ✅ PERMITIR: Eliminar comprobante anterior de Cloudinary si existe
-    if (budget.paymentInvoice) {
-      console.log("Comprobante anterior encontrado, eliminando de Cloudinary...");
-      // Extraer public_id del URL anterior
-      const oldPublicId = budget.paymentInvoice.split('/').pop().split('.')[0];
-      try {
-        await cloudinary.uploader.destroy(`payment_proofs/${oldPublicId}`, {
-          resource_type: budget.paymentProofType === 'pdf' ? 'raw' : 'image'
-        });
-        console.log("Comprobante anterior eliminado de Cloudinary");
-      } catch (e) {
-        console.warn("Error al eliminar comprobante anterior de Cloudinary:", e);
+      // ✅ PERMITIR: Eliminar comprobante anterior de Cloudinary si existe
+      if (budget.paymentInvoice) {
+        console.log("Comprobante anterior encontrado, eliminando de Cloudinary...");
+        // Extraer public_id del URL anterior
+        const oldPublicId = budget.paymentInvoice.split('/').pop().split('.')[0];
+        try {
+          await cloudinary.uploader.destroy(`payment_proofs/${oldPublicId}`, {
+            resource_type: budget.paymentProofType === 'pdf' ? 'raw' : 'image'
+          });
+          console.log("Comprobante anterior eliminado de Cloudinary");
+        } catch (e) {
+          console.warn("Error al eliminar comprobante anterior de Cloudinary:", e);
+        }
       }
-    }
 
       // Guardar URL, TIPO y MONTO DEL COMPROBANTE
-    budget.paymentInvoice = uploadResult.secure_url;
-    budget.paymentProofType = proofType;
-    if (parsedUploadedAmount !== null) {
-      budget.paymentProofAmount = parsedUploadedAmount;
-      console.log("Monto del comprobante guardado:", parsedUploadedAmount);
-    }
-    await budget.save({ transaction });
-    console.log("Presupuesto actualizado con comprobante y monto (si aplica):", budget.toJSON());
+      budget.paymentInvoice = uploadResult.secure_url;
+      budget.paymentProofType = proofType;
+      if (parsedUploadedAmount !== null) {
+        budget.paymentProofAmount = parsedUploadedAmount;
+        console.log("Monto del comprobante guardado:", parsedUploadedAmount);
+      }
+      await budget.save({ transaction });
+      console.log("Presupuesto actualizado con comprobante y monto (si aplica):", budget.toJSON());
 
-    // ✅ MEJORAR: Manejo de Income y Receipt para presupuestos aprobados
-    if (budget.status === 'approved') {
-      const existingWork = await Work.findOne({
-        where: { idBudget: budget.idBudget },
-        transaction
-      });
-
-      if (existingWork) {
-        console.log(`Work encontrado: ${existingWork.idWork}`);
-        
-        // Buscar Income de pago inicial
-        let relatedIncome = await Income.findOne({
-          where: {
-            workId: existingWork.idWork,
-            typeIncome: 'Factura Pago Inicial Budget'
-          },
+      // ✅ MEJORAR: Manejo de Income y Receipt para presupuestos aprobados
+      if (budget.status === 'approved') {
+        const existingWork = await Work.findOne({
+          where: { idBudget: budget.idBudget },
           transaction
         });
 
-        // ✅ CREAR Income si no existe (caso cuando se eliminó)
-        if (!relatedIncome) {
-          console.log('No se encontró Income de pago inicial, creando uno nuevo...');
-          const amountForIncome = parsedUploadedAmount || budget.initialPayment;
-          
-          relatedIncome = await Income.create({
-            amount: amountForIncome,
-            date: new Date(),
-            typeIncome: 'Factura Pago Inicial Budget',
-            notes: `Pago inicial para Budget #${budget.idBudget}`,
-            workId: existingWork.idWork,
-            staffId: req.user?.id
-          }, { transaction });
-          
-          console.log(`Nuevo Income creado: ${relatedIncome.idIncome}`);
-        } else {
-          // ✅ ACTUALIZAR Income existente si el monto cambió
-          const newAmount = parsedUploadedAmount || relatedIncome.amount;
-          if (parseFloat(relatedIncome.amount) !== parseFloat(newAmount)) {
-            await relatedIncome.update({
-              amount: newAmount,
-              date: new Date(),
-              notes: `Pago inicial actualizado para Budget #${budget.idBudget}`,
-              staffId: req.user?.id
-            }, { transaction });
-            console.log(`Income actualizado con nuevo monto: ${newAmount}`);
-          }
-        }
+        if (existingWork) {
+          console.log(`Work encontrado: ${existingWork.idWork}`);
 
-        // ✅ MANEJAR Receipt
-        if (relatedIncome && uploadResult?.secure_url) {
-          let existingReceipt = await Receipt.findOne({
+          // Buscar Income de pago inicial
+          let relatedIncome = await Income.findOne({
             where: {
-              relatedModel: 'Income',
-              relatedId: relatedIncome.idIncome
+              workId: existingWork.idWork,
+              typeIncome: 'Factura Pago Inicial Budget'
             },
             transaction
           });
 
-          const receiptData = {
-            fileUrl: uploadResult.secure_url,
-            publicId: uploadResult.public_id,
-            mimeType: req.file?.mimetype || 'application/pdf',
-            originalName: req.file?.originalname || 'comprobante_pago_inicial.pdf',
-            staffId: req.user?.id
-          };
+          // ✅ CREAR Income si no existe (caso cuando se eliminó)
+          if (!relatedIncome) {
+            console.log('No se encontró Income de pago inicial, creando uno nuevo...');
+            const amountForIncome = parsedUploadedAmount || budget.initialPayment;
 
-          if (existingReceipt) {
-            // ✅ ACTUALIZAR Receipt existente
-            await existingReceipt.update({
-              ...receiptData,
-              notes: `Comprobante de pago inicial actualizado para Budget #${budget.idBudget}`
+            relatedIncome = await Income.create({
+              amount: amountForIncome,
+              date: new Date(),
+              typeIncome: 'Factura Pago Inicial Budget',
+              notes: `Pago inicial para Budget #${budget.idBudget}`,
+              workId: existingWork.idWork,
+              staffId: req.user?.id
             }, { transaction });
-            console.log(`Receipt actualizado para Income: ${relatedIncome.idIncome}`);
+
+            console.log(`Nuevo Income creado: ${relatedIncome.idIncome}`);
           } else {
-            // ✅ CREAR nuevo Receipt
-            await Receipt.create({
-              relatedModel: 'Income',
-              relatedId: relatedIncome.idIncome,
-              type: 'income',
-              notes: `Comprobante de pago inicial para Budget #${budget.idBudget}`,
-              ...receiptData
-            }, { transaction });
-            console.log(`Nuevo Receipt creado para Income: ${relatedIncome.idIncome}`);
+            // ✅ ACTUALIZAR Income existente si el monto cambió
+            const newAmount = parsedUploadedAmount || relatedIncome.amount;
+            if (parseFloat(relatedIncome.amount) !== parseFloat(newAmount)) {
+              await relatedIncome.update({
+                amount: newAmount,
+                date: new Date(),
+                notes: `Pago inicial actualizado para Budget #${budget.idBudget}`,
+                staffId: req.user?.id
+              }, { transaction });
+              console.log(`Income actualizado con nuevo monto: ${newAmount}`);
+            }
           }
+
+          // ✅ MANEJAR Receipt
+          if (relatedIncome && uploadResult?.secure_url) {
+            let existingReceipt = await Receipt.findOne({
+              where: {
+                relatedModel: 'Income',
+                relatedId: relatedIncome.idIncome
+              },
+              transaction
+            });
+
+            const receiptData = {
+              fileUrl: uploadResult.secure_url,
+              publicId: uploadResult.public_id,
+              mimeType: req.file?.mimetype || 'application/pdf',
+              originalName: req.file?.originalname || 'comprobante_pago_inicial.pdf',
+              staffId: req.user?.id
+            };
+
+            if (existingReceipt) {
+              // ✅ ACTUALIZAR Receipt existente
+              await existingReceipt.update({
+                ...receiptData,
+                notes: `Comprobante de pago inicial actualizado para Budget #${budget.idBudget}`
+              }, { transaction });
+              console.log(`Receipt actualizado para Income: ${relatedIncome.idIncome}`);
+            } else {
+              // ✅ CREAR nuevo Receipt
+              await Receipt.create({
+                relatedModel: 'Income',
+                relatedId: relatedIncome.idIncome,
+                type: 'income',
+                notes: `Comprobante de pago inicial para Budget #${budget.idBudget}`,
+                ...receiptData
+              }, { transaction });
+              console.log(`Nuevo Receipt creado para Income: ${relatedIncome.idIncome}`);
+            }
+          }
+        } else {
+          console.log('No se encontró Work asociado a este Budget');
         }
       } else {
-        console.log('No se encontró Work asociado a este Budget');
+        console.log('Budget no está aprobado, no se crean Income/Receipt');
       }
-    } else {
-      console.log('Budget no está aprobado, no se crean Income/Receipt');
+
+      await transaction.commit();
+
+      res.status(200).json({
+        message: 'Comprobante de pago cargado exitosamente',
+        cloudinaryUrl: uploadResult.secure_url,
+        proofType: proofType,
+        uploadedAmount: budget.paymentProofAmount,
+        reupload: !!budget.paymentInvoice // ✅ Indicar si fue una recarga
+      });
+
+    } catch (error) {
+      await transaction.rollback();
+      console.error('Error al subir el comprobante de pago:', error);
+      res.status(500).json({ error: error.message });
     }
-
-    await transaction.commit();
-
-    res.status(200).json({
-      message: 'Comprobante de pago cargado exitosamente',
-      cloudinaryUrl: uploadResult.secure_url,
-      proofType: proofType,
-      uploadedAmount: budget.paymentProofAmount,
-      reupload: !!budget.paymentInvoice // ✅ Indicar si fue una recarga
-    });
-
-  } catch (error) {
-    await transaction.rollback();
-    console.error('Error al subir el comprobante de pago:', error);
-    res.status(500).json({ error: error.message });
-  }
-},
+  },
 
 
 
@@ -1570,48 +1610,59 @@ if (req.body.status === 'send') {
     }
   },
 
-  async downloadBudgetPDF(req, res) {
-    try {
-      const { idBudget } = req.params;
-      console.log(`Solicitud para descargar PDF de Budget ID: ${idBudget}`);
+async downloadBudgetPDF(req, res) {
+  try {
+    const { idBudget } = req.params;
+    console.log(`Solicitud para descargar PDF de Budget ID: ${idBudget}`);
 
-      const budget = await Budget.findByPk(idBudget, { attributes: ['pdfPath'] });
+    const budget = await Budget.findByPk(idBudget, { attributes: ['pdfPath'] });
 
-      if (!budget || !budget.pdfPath) {
-        console.log(`PDF no encontrado en BD para Budget ID: ${idBudget}`);
-        return res.status(404).send('PDF no encontrado para este presupuesto.');
-      }
-
-      // Verificar si el archivo existe en el sistema de archivos
-      if (!fs.existsSync(budget.pdfPath)) {
-        console.error(`Error: Archivo PDF no encontrado en la ruta física: ${budget.pdfPath}`);
-        return res.status(404).send('Archivo PDF no encontrado en el servidor.');
-      }
-
-      // Usar res.download() para forzar la descarga con el nombre original
-      const filename = path.basename(budget.pdfPath); // Extrae 'budget_XX.pdf' de la ruta completa
-      console.log(`Intentando descargar archivo: ${budget.pdfPath} como ${filename}`);
-
-      res.download(budget.pdfPath, filename, (err) => {
-        if (err) {
-          // Manejar errores comunes, como problemas de permisos o archivo corrupto
-          console.error(`Error al enviar el archivo PDF (${filename}):`, err);
-          // Es importante no enviar otra respuesta si las cabeceras ya se enviaron
-          if (!res.headersSent) {
-            res.status(500).send('Error al descargar el archivo PDF.');
-          }
-        } else {
-          console.log(`PDF ${filename} descargado exitosamente.`);
-        }
-      });
-
-    } catch (error) {
-      console.error(`Error general en downloadBudgetPDF para ID ${req.params.idBudget}:`, error);
-      if (!res.headersSent) {
-        res.status(500).send('Error interno al procesar la solicitud del PDF.');
-      }
+    if (!budget || !budget.pdfPath) {
+      console.log(`PDF no encontrado en BD para Budget ID: ${idBudget}`);
+      return res.status(404).send('PDF no encontrado para este presupuesto.');
     }
-  },
+
+    // ✅ CONVERTIR URL PÚBLICA A RUTA LOCAL
+    let localPdfPath;
+    
+    if (budget.pdfPath.startsWith('http')) {
+      // Es una URL pública, convertir a ruta local
+      const fileName = budget.pdfPath.split('/').pop(); // Extraer 'budget_X.pdf'
+      localPdfPath = path.join(__dirname, '../uploads/budgets', fileName);
+      console.log(`Convertido URL pública a ruta local: ${budget.pdfPath} -> ${localPdfPath}`);
+    } else {
+      // Es una ruta local directa (para compatibility con PDFs antiguos)
+      localPdfPath = budget.pdfPath;
+    }
+
+    // Verificar si el archivo existe en el sistema de archivos
+    if (!fs.existsSync(localPdfPath)) {
+      console.error(`Error: Archivo PDF no encontrado en la ruta física: ${localPdfPath}`);
+      return res.status(404).send('Archivo PDF no encontrado en el servidor.');
+    }
+
+    // Usar res.download() para forzar la descarga con el nombre original
+    const filename = path.basename(localPdfPath); // Extrae 'budget_XX.pdf' de la ruta completa
+    console.log(`Intentando descargar archivo: ${localPdfPath} como ${filename}`);
+
+    res.download(localPdfPath, filename, (err) => {
+      if (err) {
+        console.error(`Error al enviar el archivo PDF (${filename}):`, err);
+        if (!res.headersSent) {
+          res.status(500).send('Error al descargar el archivo PDF.');
+        }
+      } else {
+        console.log(`PDF ${filename} descargado exitosamente.`);
+      }
+    });
+
+  } catch (error) {
+    console.error(`Error general en downloadBudgetPDF para ID ${req.params.idBudget}:`, error);
+    if (!res.headersSent) {
+      res.status(500).send('Error interno al procesar la solicitud del PDF.');
+    }
+  }
+},
 
   async uploadBudgetPDF(req, res) {
     try {
@@ -1648,50 +1699,60 @@ if (req.body.status === 'send') {
       res.status(500).json({ error: 'Error interno al subir el PDF' });
     }
   },
-  //vista previa pdf
-  async viewBudgetPDF(req, res) { // Nueva función para vista previa
-    try {
-      const { idBudget } = req.params;
-      console.log(`Solicitud para ver PDF de Budget ID: ${idBudget}`);
+ async viewBudgetPDF(req, res) {
+  try {
+    const { idBudget } = req.params;
+    console.log(`Solicitud para ver PDF de Budget ID: ${idBudget}`);
 
-      const budget = await Budget.findByPk(idBudget, { attributes: ['pdfPath'] });
+    const budget = await Budget.findByPk(idBudget, { attributes: ['pdfPath'] });
 
-      if (!budget || !budget.pdfPath) {
-        console.log(`PDF no encontrado en BD para Budget ID: ${idBudget}`);
-        return res.status(404).send('PDF no encontrado para este presupuesto.');
-      }
+    if (!budget || !budget.pdfPath) {
+      console.log(`PDF no encontrado en BD para Budget ID: ${idBudget}`);
+      return res.status(404).send('PDF no encontrado para este presupuesto.');
+    }
 
-      // Verificar si el archivo existe
-      if (!fs.existsSync(budget.pdfPath)) {
-        console.error(`Error: Archivo PDF no encontrado en la ruta física: ${budget.pdfPath}`);
-        return res.status(404).send('Archivo PDF no encontrado en el servidor.');
-      }
+    // ✅ CONVERTIR URL PÚBLICA A RUTA LOCAL
+    let localPdfPath;
+    
+    if (budget.pdfPath.startsWith('http')) {
+      // Es una URL pública, convertir a ruta local
+      const fileName = budget.pdfPath.split('/').pop(); // Extraer 'budget_X.pdf'
+      localPdfPath = path.join(__dirname, '../uploads/budgets', fileName);
+      console.log(`Convertido URL pública a ruta local para vista: ${budget.pdfPath} -> ${localPdfPath}`);
+    } else {
+      // Es una ruta local directa (para compatibility con PDFs antiguos)
+      localPdfPath = budget.pdfPath;
+    }
 
-      // *** Establecer cabeceras para visualización inline ***
-      res.setHeader('Content-Type', 'application/pdf');
-      // Opcional: 'inline' es el valor por defecto si no se especifica 'attachment'
-      res.setHeader('Content-Disposition', 'inline');
+    // Verificar si el archivo existe
+    if (!fs.existsSync(localPdfPath)) {
+      console.error(`Error: Archivo PDF no encontrado en la ruta física: ${localPdfPath}`);
+      return res.status(404).send('Archivo PDF no encontrado en el servidor.');
+    }
 
-      // Enviar el archivo
-      res.sendFile(budget.pdfPath, (err) => {
-        if (err) {
-          console.error(`Error al enviar el archivo PDF para visualización (ID ${idBudget}):`, err);
-          if (!res.headersSent) {
-            res.status(500).send('Error al enviar el archivo PDF.');
-          }
-        } else {
-          console.log(`PDF para Budget ID ${idBudget} enviado para visualización.`);
+    // *** Establecer cabeceras para visualización inline ***
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline');
+
+    // Enviar el archivo
+    res.sendFile(localPdfPath, (err) => {
+      if (err) {
+        console.error(`Error al enviar el archivo PDF para visualización (ID ${idBudget}):`, err);
+        if (!res.headersSent) {
+          res.status(500).send('Error al enviar el archivo PDF.');
         }
-      });
-
-    } catch (error) {
-      console.error(`Error general en viewBudgetPDF para ID ${req.params.idBudget}:`, error);
-      if (!res.headersSent) {
-        res.status(500).send('Error interno al procesar la solicitud del PDF.');
+      } else {
+        console.log(`PDF para Budget ID ${idBudget} enviado para visualización.`);
       }
+    });
+
+  } catch (error) {
+    console.error(`Error general en viewBudgetPDF para ID ${req.params.idBudget}:`, error);
+    if (!res.headersSent) {
+      res.status(500).send('Error interno al procesar la solicitud del PDF.');
     }
   }
-}
+}}
 module.exports = BudgetController;
 
 
