@@ -1,4 +1,4 @@
-const { Image, InstallationDetail, Inspection, FinalInvoice, WorkExtraItem, MaintenanceVisit, Receipt } = require('../data');
+const { Image, InstallationDetail, Inspection, FinalInvoice, WorkExtraItem, MaintenanceVisit, Receipt, Expense, Income } = require('../data');
 const { deleteFromCloudinary } = require('./cloudinaryUploader');
 const { Op } = require('sequelize');
 
