@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { format, parseISO } = require('date-fns');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-
+//const checkPageBreak let currentYRight_Terms
 // --- CONSTANTES DE DISEÑO ---
 const pageMargin = 50;
 const primaryColor = '#003366';
@@ -12,7 +12,7 @@ const textColor = '#333333';
 const lightGrayColor = '#DDDDDD';
 
 // --- NUEVAS CONSTANTES PARA ESTILO V2 ---
-const NEW_PAGE_MARGIN = 40;
+const NEW_PAGE_MARGIN = 20;                    // Margen mínimo
 const FONT_FAMILY_REGULAR = 'Helvetica';
 const FONT_FAMILY_BOLD = 'Helvetica-Bold';
 const FONT_FAMILY_OBLIQUE = 'Helvetica-Oblique';
@@ -70,31 +70,49 @@ function _addPageHeader_v2(doc, budgetData, pageType, documentIdOrTitle, formatt
       currentYLeft += doc.currentLineHeight() + 2;
     }
 
-    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK)
+    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(12).fillColor(COLOR_TEXT_DARK)
       .text("ZURCHER CONSTRUCTION", companyInfoX, currentYLeft, { width: companyInfoWidth });
-    doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+    doc.font(FONT_FAMILY_MONO).fontSize(12).fillColor(COLOR_TEXT_MEDIUM);
     doc.text("SEPTIC TANK DIVISION - CFC1433240", companyInfoX, doc.y, { width: companyInfoWidth });
     doc.text("zurcherseptic@gmail.com", companyInfoX, doc.y, { width: companyInfoWidth });
     doc.text("+1 (407) 419-4495", companyInfoX, doc.y, { width: companyInfoWidth });
     const finalYLeftTop = doc.y;
 
     let currentYRight = headerStartY + 5;
-    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(16).fillColor('#063260') // Tamaño de INVOICE #
+    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(20).fillColor('#063260') // Tamaño de INVOICE #
       .text(`INVOICE #${documentIdOrTitle}`, invoiceInfoX, currentYRight, { width: invoiceInfoWidth, align: 'right' });
-    currentYRight = doc.y + 16;
+    currentYRight = doc.y + 45;
 
-    doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
-    doc.text("DATE:", invoiceInfoX, currentYRight, { width: invoiceInfoWidth, align: 'right' });
-    doc.text(formattedDate, invoiceInfoX, doc.y, { width: invoiceInfoWidth, align: 'right' });
 
+    // ✅ ALINEACIÓN PERFECTA - TODOS LOS TEXTOS EMPIEZAN EN LA MISMA POSICIÓN X
+    doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
+
+    // ✅ DEFINIR POSICIÓN X FIJA PARA QUE TODOS LOS TEXTOS EMPIECEN IGUAL
+    const dateTextStartX = invoiceInfoX + 120; // ✅ POSICIÓN FIJA donde empiezan TODOS los textos
+    const dateTextWidth = invoiceInfoWidth - 50; // ✅ ANCHO restante desde esa posición
+
+    // ✅ LÍNEA 1: DATE: - empieza en dateTextStartX
+    doc.text("DATE:", dateTextStartX, currentYRight, { width: dateTextWidth, align: 'left' });
+    currentYRight += doc.currentLineHeight() + 2;
+
+    // ✅ LÍNEA 2: 06/03/2025 - empieza en dateTextStartX (misma posición que DATE:)
+    doc.text(formattedDate, dateTextStartX, currentYRight, { width: dateTextWidth, align: 'left' });
+    currentYRight += doc.currentLineHeight() + 4;
+
+    // ✅ LÍNEA 3: DUE DATE: - empieza en dateTextStartX (misma posición)
     if (formattedExpirationDate && formattedExpirationDate !== 'N/A') {
-      doc.moveDown(0.5);
-      doc.text("DUE DATE:", invoiceInfoX, doc.y, { width: invoiceInfoWidth, align: 'right' });
-      doc.text(formattedExpirationDate, invoiceInfoX, doc.y, { width: invoiceInfoWidth, align: 'right' });
+      doc.text("DUE DATE:", dateTextStartX, currentYRight, { width: dateTextWidth, align: 'left' });
+      currentYRight += doc.currentLineHeight() + 2;
+
+      // ✅ LÍNEA 4: 07/03/2025 - empieza en dateTextStartX (misma posición)
+      doc.text(formattedExpirationDate, dateTextStartX, currentYRight, { width: dateTextWidth, align: 'left' });
+      currentYRight += doc.currentLineHeight();
     }
+
+    // ✅ ACTUALIZAR doc.y para continuar desde aquí
+    doc.y = currentYRight;
     const finalYRightTop = doc.y;
     doc.y = Math.max(finalYLeftTop, finalYRightTop) + 15;
-
     // --- Línea Divisora para INVOICE (antes de Customer/Work/Initial Payment) ---
     doc.moveTo(NEW_PAGE_MARGIN, doc.y).lineTo(doc.page.width - NEW_PAGE_MARGIN, doc.y)
       .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.7).stroke();
@@ -107,33 +125,35 @@ function _addPageHeader_v2(doc, budgetData, pageType, documentIdOrTitle, formatt
     const columnWidth_Invoice = (contentWidth - (2 * columnGap_Invoice)) / 3;
 
     const customerInfoX_Invoice = NEW_PAGE_MARGIN;
-    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK)
-      .text("CUSTOMER INFO:", customerInfoX_Invoice, subHeaderStartY_Invoice, { width: columnWidth_Invoice });
-    doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
-    doc.text(applicantName || 'N/A', customerInfoX_Invoice, doc.y + 2, { width: columnWidth_Invoice });
+    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK)
+      .text("CUSTOMER INFO", customerInfoX_Invoice, subHeaderStartY_Invoice, { width: columnWidth_Invoice });
+    doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
+    doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
+    // ✅ CONVERTIR A MAYÚSCULAS
+    doc.text((applicantName || 'N/A').toUpperCase(), customerInfoX_Invoice, doc.y + 2, { width: columnWidth_Invoice });
     if (Permit?.applicantEmail) {
-      doc.text(Permit.applicantEmail, customerInfoX_Invoice, doc.y, { width: columnWidth_Invoice });
+      // ✅ CONVERTIR EMAIL A MAYÚSCULAS
+      doc.text(Permit.applicantEmail.toUpperCase(), customerInfoX_Invoice, doc.y, { width: columnWidth_Invoice });
     }
     const finalYCol1_Invoice = doc.y;
 
     doc.y = subHeaderStartY_Invoice;
     const workLocationX_Invoice = customerInfoX_Invoice + columnWidth_Invoice + columnGap_Invoice;
-    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK)
-      .text("WORK LOCATION:", workLocationX_Invoice, subHeaderStartY_Invoice, { width: columnWidth_Invoice });
-    doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
-    doc.text(propertyAddress || 'N/A', workLocationX_Invoice, doc.y + 2, { width: columnWidth_Invoice });
-    if (Permit?.permitNumber) {
-      doc.text(`Permit #: ${Permit.permitNumber}`, workLocationX_Invoice, doc.y, { width: columnWidth_Invoice });
-    }
+    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK)
+      .text("WORK LOCATION", workLocationX_Invoice, subHeaderStartY_Invoice, { width: columnWidth_Invoice });
+    doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
+    doc.text((propertyAddress || 'N/A').toUpperCase(), workLocationX_Invoice, doc.y + 2, { width: columnWidth_Invoice });
+
     const finalYCol2_Invoice = doc.y;
 
     let finalYCol3_Invoice = subHeaderStartY_Invoice;
     doc.y = subHeaderStartY_Invoice;
-    const initialPaymentX_Invoice = workLocationX_Invoice + columnWidth_Invoice + columnGap_Invoice;
+    const additionalOffset = 20; // Ajusta este valor según qué tanto quieras moverlo a la derecha
+    const initialPaymentX_Invoice = workLocationX_Invoice + columnWidth_Invoice + columnGap_Invoice + additionalOffset;
     if (initialPaymentPercentage !== undefined && initialPayment !== undefined) {
-      doc.font(FONT_FAMILY_MONO_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK)
-        .text("INITIAL PAYMENT:", initialPaymentX_Invoice, subHeaderStartY_Invoice, { width: columnWidth_Invoice });
-      doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+      doc.font(FONT_FAMILY_MONO_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK)
+        .text("INITIAL PAYMENT", initialPaymentX_Invoice, subHeaderStartY_Invoice, { width: columnWidth_Invoice });
+      doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
       const percentageText = parseFloat(initialPaymentPercentage) === 100 ? "TOTAL" : `${parseFloat(initialPaymentPercentage)}% REQUIRE TO START`;
       doc.text(percentageText, initialPaymentX_Invoice, doc.y + 2, { width: columnWidth_Invoice });
       doc.text(`$${parseFloat(initialPayment).toFixed(2)}`, initialPaymentX_Invoice, doc.y, { width: columnWidth_Invoice });
@@ -141,58 +161,79 @@ function _addPageHeader_v2(doc, budgetData, pageType, documentIdOrTitle, formatt
     finalYCol3_Invoice = doc.y;
 
     doc.y = Math.max(finalYCol1_Invoice, finalYCol2_Invoice, finalYCol3_Invoice);
+    //✅ AGREGAR LÍNEA DIVISORIA DEBAJO DE LAS TRES COLUMNAS
+    doc.moveDown(1); // Espacio antes de la línea
+    doc.moveTo(NEW_PAGE_MARGIN, doc.y).lineTo(doc.page.width - NEW_PAGE_MARGIN, doc.y)
+      .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.7).stroke();
+    doc.moveDown(1); // Espacio después de la línea antes de la tabla
 
   } else if (pageType === "TERMS") {
-    // --- ENCABEZADO PARA TÉRMINOS Y CONDICIONES ---
-    const leftBlockWidth_Terms = contentWidth * 0.58; // Ancho para logo e info de empresa
-    const rightBlockX_Terms = NEW_PAGE_MARGIN + leftBlockWidth_Terms;
-    const rightBlockWidth_Terms = contentWidth - leftBlockWidth_Terms - 10; // Ancho para info de cliente y obra
+    // ✅ AJUSTAR POSICIONES PARA ALINEACIÓN CORRECTA
+    const leftBlockWidth_Terms = contentWidth * 0.50;  // Columna izquierda (empresa)
+    const rightBlockX_Terms = NEW_PAGE_MARGIN + leftBlockWidth_Terms + 100; // ✅ ESPACIO CORRECTO
+    const rightBlockWidth_Terms = contentWidth * 0.45; // ✅ ANCHO FIJO para el cliente
 
-    // Izquierda: Logo e Info de Empresa
-    let currentYLeft_Terms = headerStartY;
+    // ✅ POSICIÓN ORIGINAL DE LA EMPRESA (MÁS ARRIBA)
+    let currentYLeft_Terms = headerStartY; // ✅ EMPEZAR DESDE headerStartY (posición original)
+    
     if (fs.existsSync(logoPath)) {
-      doc.image(logoPath, NEW_PAGE_MARGIN, currentYLeft_Terms, { width: 70 }); // Mismo tamaño de logo
-      currentYLeft_Terms += 30 + 40; // Espacio para el logo (alto ~30-35) + margen
+      doc.image(logoPath, NEW_PAGE_MARGIN, currentYLeft_Terms, { width: 70 });
+      currentYLeft_Terms += 80; // ✅ ESPACIO DESPUÉS DEL LOGO
     } else {
-      currentYLeft_Terms = headerStartY;
-      doc.font(FONT_FAMILY_BOLD).fontSize(14).fillColor(COLOR_TEXT_DARK)
-        .text("ZURCHER CONSTRUCTION", NEW_PAGE_MARGIN, currentYLeft_Terms, { width: leftBlockWidth_Terms });
-      currentYLeft_Terms += doc.currentLineHeight() + 2;
+      // Si no hay logo, empezar con el texto de la empresa
+      currentYLeft_Terms = headerStartY ;
     }
 
-    doc.font(FONT_FAMILY_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK)
+    // ✅ INFORMACIÓN DE LA EMPRESA (izquierda) - POSICIÓN ORIGINAL
+    doc.font(FONT_FAMILY_BOLD).fontSize(12).fillColor(COLOR_TEXT_DARK) // ✅ TAMAÑO ORIGINAL
       .text("ZURCHER CONSTRUCTION", NEW_PAGE_MARGIN, currentYLeft_Terms, { width: leftBlockWidth_Terms });
-    doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+    doc.font(FONT_FAMILY_REGULAR).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
     doc.text("SEPTIC TANK DIVISION - CFC1433240", NEW_PAGE_MARGIN, doc.y, { width: leftBlockWidth_Terms });
     doc.text("zurcherseptic@gmail.com", NEW_PAGE_MARGIN, doc.y, { width: leftBlockWidth_Terms });
     doc.text("+1 (407) 419-4495", NEW_PAGE_MARGIN, doc.y, { width: leftBlockWidth_Terms });
     const finalYLeft_Terms = doc.y;
 
-    // Derecha: Info de Cliente y Ubicación de Obra (Apilados)
-    let currentYRight_Terms = headerStartY + 40; // Empezar un poco más abajo para alinear
-    doc.font(FONT_FAMILY_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK)
-      .text("CUSTOMER INFO:", rightBlockX_Terms, currentYRight_Terms, { width: rightBlockWidth_Terms });
-    doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
-    doc.text(applicantName || 'N/A', rightBlockX_Terms, doc.y + 2, { width: rightBlockWidth_Terms });
-    // Opcional: añadir email del cliente si es diferente al nombre y existe
-    // if (Permit?.applicantEmail && applicantName !== Permit?.applicantEmail) {
-    //     doc.text(Permit.applicantEmail, rightBlockX_Terms, doc.y, { width: rightBlockWidth_Terms });
-    // }
+    // ✅ INFORMACIÓN DEL CLIENTE (derecha) - POSICIÓN ACTUAL CORRECTA
+    let currentYRight_Terms = headerStartY + 60; // ✅ MANTENER POSICIÓN ACTUAL
+    doc.font(FONT_FAMILY_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK)
+      .text("CUSTOMER INFO", rightBlockX_Terms, currentYRight_Terms, { width: rightBlockWidth_Terms });
+    doc.font(FONT_FAMILY_REGULAR).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
+    
+    // ✅ NOMBRE DEL CLIENTE
+    doc.text((applicantName || 'N/A').toUpperCase(), rightBlockX_Terms, doc.y + 2, { 
+      width: rightBlockWidth_Terms,
+      continued: false
+    });
+
+  
+    
     doc.moveDown(0.8); // Espacio entre Customer Info y Work Location
 
-    doc.font(FONT_FAMILY_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK)
-      .text("WORK LOCATION:", rightBlockX_Terms, doc.y, { width: rightBlockWidth_Terms });
-    doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
-    doc.text(propertyAddress || 'N/A', rightBlockX_Terms, doc.y + 2, { width: rightBlockWidth_Terms });
-    // Opcional: añadir número de permiso si existe
-    // if (Permit?.permitNumber) {
-    //   doc.text(`Permit #: ${Permit.permitNumber}`, rightBlockX_Terms, doc.y, { width: rightBlockWidth_Terms });
-    // }
+    // ✅ WORK LOCATION CON SALTO DE LÍNEA AUTOMÁTICO
+    doc.font(FONT_FAMILY_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK)
+      .text("WORK LOCATION", rightBlockX_Terms, doc.y, { width: rightBlockWidth_Terms });
+    doc.font(FONT_FAMILY_REGULAR).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
+    
+    // ✅ DIRECCIÓN CON SALTO DE LÍNEA EN COMAS Y PUNTOS
+    let formattedAddress = (propertyAddress || 'N/A').toUpperCase();
+    
+    // ✅ REEMPLAZAR COMAS Y PUNTOS CON SALTOS DE LÍNEA
+    formattedAddress = formattedAddress
+      .replace(/,\s*/g, '\n')  // Reemplazar comas (con o sin espacio) con salto de línea
+      .replace(/\.\s*/g, '\n'); // Reemplazar puntos (con o sin espacio) con salto de línea
+    
+    doc.text(formattedAddress, rightBlockX_Terms, doc.y + 2, { 
+      width: rightBlockWidth_Terms,
+      continued: false
+    });
+    
     const finalYRight_Terms = doc.y;
 
-    doc.y = Math.max(finalYLeft_Terms, finalYRight_Terms) + 2; // Ajustar Y después de las dos columnas
+    // ✅ USAR LA Y MÁS BAJA ENTRE LAS DOS COLUMNAS
+    doc.y = Math.max(finalYLeft_Terms, finalYRight_Terms) + 2;
 
-    // --- Línea Divisora para TERMS (antes del título "TERMS AND CONDITIONS...") ---
+    // --- Línea Divisora para TERMS ---
+    doc.moveDown(1);
     doc.moveTo(NEW_PAGE_MARGIN, doc.y).lineTo(doc.page.width - NEW_PAGE_MARGIN, doc.y)
       .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.7).stroke();
     doc.moveDown(1);
@@ -208,7 +249,6 @@ function _addPageHeader_v2(doc, budgetData, pageType, documentIdOrTitle, formatt
         align: 'left',
         underline: true
       });
-    // No se muestra fecha en esta parte del encabezado de T&C según la imagen
   }
   // Espacio común después del contenido del encabezado, antes de que comience el contenido principal de la página
   doc.moveDown(2);
@@ -230,21 +270,19 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   const tableTop = doc.y;
   const cellPadding = 5;
 
-  // Define column widths as percentages of contentWidth
-  const colIncludedW = contentWidth * 0.12; // Adjusted
-  const colDescW = contentWidth * 0.43;    // Adjusted
-  const colQtyW = contentWidth * 0.10;
-  const colRateW = contentWidth * 0.15;
-  const colAmountW = contentWidth * 0.20;
+  // ✅ AJUSTAR ANCHOS DE COLUMNAS PARA USAR MÁS ESPACIO
+  const colIncludedW = contentWidth * 0.15;
+  const colDescW = contentWidth * 0.50;
+  const colQtyW = contentWidth * 0.08;
+  const colRateW = contentWidth * 0.12;
+  const colAmountW = contentWidth * 0.15;
 
-  // Define X positions for the start of text in each column
   const xIncludedText = NEW_PAGE_MARGIN + cellPadding;
   const xDescText = NEW_PAGE_MARGIN + colIncludedW + cellPadding;
   const xQtyText = NEW_PAGE_MARGIN + colIncludedW + colDescW + cellPadding;
   const xRateText = NEW_PAGE_MARGIN + colIncludedW + colDescW + colQtyW + cellPadding;
   const xAmountText = NEW_PAGE_MARGIN + colIncludedW + colDescW + colQtyW + colRateW + cellPadding;
 
-  // Define usable text widths for each column
   const wIncluded = colIncludedW - (2 * cellPadding);
   const wDesc = colDescW - (2 * cellPadding);
   const wQty = colQtyW - (2 * cellPadding);
@@ -253,9 +291,9 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   const tableHeaderRightEdge = doc.page.width - NEW_PAGE_MARGIN;
 
   // Table Header
-  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK);
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK);
   const headerY = tableTop;
-  doc.rect(NEW_PAGE_MARGIN, headerY - 3, contentWidth, 18) // Increased header height
+  doc.rect(NEW_PAGE_MARGIN, headerY - 3, contentWidth, 18)
     .fillColor(COLOR_BACKGROUND_TABLE_HEADER).strokeColor(COLOR_BORDER_LIGHT).fillAndStroke();
   doc.fillColor(COLOR_TEXT_DARK);
   doc.text('INCLUDED', xIncludedText, headerY + 2, { width: wIncluded });
@@ -263,62 +301,47 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   doc.text('QTY', xQtyText, headerY + 2, { width: wQty, align: 'right' });
   doc.text('RATE', xRateText, headerY + 2, { width: wRate, align: 'right' });
   doc.text('AMOUNT', xAmountText, headerY + 2, { width: wAmount, align: 'right' });
-  doc.y = headerY + 18; // Move below header background
-  doc.moveDown(0.5); // Space after header
+  doc.y = headerY + 18;
+  doc.moveDown(0.5);
 
-  doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+  doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
 
-  // ✅ MAIN ITEM - COLUMNA INCLUDED AHORA DICE "SEPTIC SYSTEM INSTALLATION"
-  const mainItemName = "SEPTIC SYSTEM INSTALLATION"; // ✅ ESTO VA EN COLUMNA INCLUDED
-  const mainItemDesc = "COMPLETE INSTALLATION OF THE SYSTEM (LABOR AND MATERIALS)"; // ✅ ESTO VA EN COLUMNA DESCRIPTION
+  // MAIN ITEM
+  const mainItemName = "SEPTIC SYSTEM INSTALLATION";
+  const mainItemDesc = "COMPLETE INSTALLATION OF THE SYSTEM (LABOR AND MATERIALS)";
   const mainItemQty = 1;
   const mainItemRate = parseFloat(totalPrice);
 
   let currentItemY = doc.y;
-  doc.text(mainItemName, xIncludedText, currentItemY, { width: wIncluded }); // ✅ NAME EN COLUMNA INCLUDED
-  doc.text(mainItemDesc, xDescText, currentItemY, { width: wDesc }); // ✅ DESCRIPTION EN COLUMNA DESCRIPTION
+  doc.text(mainItemName, xIncludedText, currentItemY, { width: wIncluded });
+  doc.text(mainItemDesc, xDescText, currentItemY, { width: wDesc });
   doc.text(mainItemQty.toFixed(0), xQtyText, currentItemY, { width: wQty, align: 'right' });
   doc.text(`$${mainItemRate.toFixed(2)}`, xRateText, currentItemY, { width: wRate, align: 'right' });
   doc.text(`$${mainItemRate.toFixed(2)}`, xAmountText, currentItemY, { width: wAmount, align: 'right' });
-  doc.moveDown(2.8); // ✅ AUMENTADO AÚN MÁS EL ESPACIO DESPUÉS DEL ITEM PRINCIPAL
+  doc.moveDown(2.8);
 
-  // ✅ SUB-ITEMS DINÁMICOS BASADOS EN lineItems DE LA BASE DE DATOS
   console.log("Procesando lineItems para PDF:", lineItems);
 
-  // ✅ HELPER FUNCTION MEJORADA PARA VERIFICAR SI NECESITAMOS NUEVA PÁGINA
-  const checkPageBreak = (estimatedHeight = 50) => { // ✅ AUMENTADO DE 40 A 50
-    // ✅ AUMENTADO EL MARGEN DE SEGURIDAD PARA EVITAR CHOQUES CON SECCIÓN DE TOTALES
-    if (doc.y + estimatedHeight > doc.page.height - NEW_PAGE_MARGIN - 200) { // ✅ AUMENTADO DE 150 A 200
-      _addStandardPageFooter(doc);
-      doc.addPage();
-      _addPageHeader_v2(doc, budgetData, "INVOICE", budgetData.idBudget, formattedDate, formattedExpirationDate);
+  // ✅ FUNCIÓN CHECKPAGEBREAK OPTIMIZADA
+  const checkPageBreak = (estimatedHeight = 50) => {
+    const availableSpace = doc.page.height - NEW_PAGE_MARGIN - 25;
 
-      // Recrear header de tabla en nueva página
-      doc.font(FONT_FAMILY_MONO_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK);
-      const newPageHeaderY = doc.y;
-      doc.rect(NEW_PAGE_MARGIN, newPageHeaderY - 3, contentWidth, 18)
-        .fillColor(COLOR_BACKGROUND_TABLE_HEADER).strokeColor(COLOR_BORDER_LIGHT).fillAndStroke();
-      doc.fillColor(COLOR_TEXT_DARK);
-      doc.text('INCLUDED', xIncludedText, newPageHeaderY + 2, { width: wIncluded });
-      doc.text('DESCRIPTION', xDescText, newPageHeaderY + 2, { width: wDesc });
-      doc.text('QTY', xQtyText, newPageHeaderY + 2, { width: wQty, align: 'right' });
-      doc.text('RATE', xRateText, newPageHeaderY + 2, { width: wRate, align: 'right' });
-      doc.text('AMOUNT', xAmountText, newPageHeaderY + 2, { width: wAmount, align: 'right' });
-      doc.y = newPageHeaderY + 18;
-      doc.moveDown(0.5);
-      doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+    if (doc.y + estimatedHeight > availableSpace) {
+      doc.addPage();
+      doc.y = NEW_PAGE_MARGIN;
+      doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
     }
   };
 
-  // Procesar cada lineItem de la base de datos
+  // Procesar cada lineItem
   if (lineItems && lineItems.length > 0) {
     lineItems.forEach((item, index) => {
-      // ✅ NUEVOS DATOS PARA COLUMNAS ACTUALIZADAS
-      const itemCategory = item.category || 'N/A'; // ✅ CATEGORY PARA COLUMNA INCLUDED
+      const itemCategory = item.category || 'N/A';
       const itemName = item.name || 'N/A';
       const itemDescription = item.description || '';
       const itemQty = parseInt(item.quantity) || 1;
       const itemNotes = item.notes || '';
+
 
       // ✅ CONSTRUIR DESCRIPCIÓN COMPLETA: NAME + DESCRIPTION + MARCA + CAPACITY + NOTES
       let fullDescription = itemName; // Empezar con el nombre
@@ -348,15 +371,15 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
       // Dibujar el item
       currentItemY = doc.y;
 
-      // ✅ COLUMNA INCLUDED - MOSTRAR CATEGORY
-      doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
-      doc.text(itemCategory.toUpperCase(), xIncludedText, currentItemY, { width: wIncluded });
+      // ✅ COLUMNA INCLUDED - MOSTRAR CATEGORY cambie x name 06/06
+      doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
+      doc.text(itemName.toUpperCase(), xIncludedText, currentItemY, { width: wIncluded });
 
       // Guardar Y antes de escribir descripción (para alinear otras columnas)
       const yBeforeDesc = doc.y;
 
-      // ✅ COLUMNA DESCRIPTION - MOSTRAR NAME + DESCRIPTION + DETALLES
-      doc.text(fullDescription, xDescText, currentItemY, { width: wDesc });
+      // ✅ COLUMNA DESCRIPTION - MOSTRAR NAME + DESCRIPTION + DETALLES  cambie por description 06/06
+      doc.text(itemDescription, xDescText, currentItemY, { width: wDesc });
       const yAfterDesc = doc.y;
 
       // Columnas QTY, RATE, AMOUNT (alineadas con currentItemY)
@@ -409,39 +432,41 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   // Línea final de la tabla
   doc.moveTo(NEW_PAGE_MARGIN, doc.y).lineTo(tableHeaderRightEdge, doc.y)
     .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.5).stroke();
-  doc.moveDown(1.8); // ✅ AUMENTADO EL ESPACIO DESPUÉS DE LA TABLA
+  doc.moveDown(2.0);
 
-  // ✅ VERIFICACIÓN ADICIONAL ANTES DE SECCIÓN DE TOTALES
-  const totalsSectionHeightEstimate = 250; // ✅ ESTIMACIÓN CONSERVADORA PARA PAYMENT INFO + TOTALES + BOTÓN
-  if (doc.y + totalsSectionHeightEstimate > doc.page.height - NEW_PAGE_MARGIN - 50) {
-    _addStandardPageFooter(doc);
+  // ✅ VERIFICACIÓN ANTES DE SECCIÓN DE TOTALES
+  const totalsSectionHeightEstimate = 200;
+  if (doc.y + totalsSectionHeightEstimate > doc.page.height - NEW_PAGE_MARGIN - 30) {
     doc.addPage();
-    _addPageHeader_v2(doc, budgetData, "INVOICE", budgetData.idBudget, formattedDate, formattedExpirationDate);
-    doc.y = NEW_PAGE_MARGIN + 150; // ✅ POSICIÓN ESTÁNDAR EN NUEVA PÁGINA
+    doc.y = NEW_PAGE_MARGIN;
   }
 
   const thankYouAndPaymentInfoY = doc.y;
   const paymentInfoWidth = contentWidth * 0.55;
 
-  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(8).fillColor(COLOR_TEXT_LIGHT)
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(10).fillColor(COLOR_TEXT_LIGHT)
     .text("Thank you for your business!", NEW_PAGE_MARGIN, doc.y, { width: contentWidth, align: 'left' });
-  doc.moveDown(1.2);
+  doc.moveDown(1.8);
 
-  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(8).fillColor(COLOR_TEXT_DARK)
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK)
     .text("PAYMENT INFORMATION", NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-  doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
-  doc.text("BANK: Bank of America", NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-  doc.text("ACCOUNT NUMBER: 898138399808", NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-  doc.text("ROUTING NUMBER: 063100277", NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-  doc.text("EMAIL: zurcherconstruction.fl@gmail.com", NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.moveDown(0.3);
+  doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
+  doc.text("BANK: BANK OF AMERICA".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.moveDown(0.3);
+  doc.text("ACCOUNT NUMBER: 898138399808".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.moveDown(0.3);
+  doc.text("ROUTING NUMBER: 063100277".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.moveDown(0.3);
+  doc.text("EMAIL: ZURCHERCONSTRUCTION.FL@GMAIL.COM".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
 
   const yAfterPaymentInfo = doc.y;
 
   doc.y = thankYouAndPaymentInfoY;
 
-  // ...resto del código de totales igual...
-  const totalsLabelX = NEW_PAGE_MARGIN + contentWidth * 0.60;
-  const totalsValueX = NEW_PAGE_MARGIN + contentWidth * 0.80;
+  // SECCIÓN DE TOTALES - ALINEACIÓN PERFECTA
+  const totalsStartX = NEW_PAGE_MARGIN + contentWidth * 0.55; // ✅ POSICIÓN FIJA para TODAS las etiquetas
+  const totalsValueX = NEW_PAGE_MARGIN + contentWidth * 0.85; // ✅ POSICIÓN FIJA para TODOS los valores
   const totalsRightEdge = doc.page.width - NEW_PAGE_MARGIN;
 
   let currentTotalY = doc.y;
@@ -450,52 +475,60 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   const priceAfterDiscountAlreadyApplied = parseFloat(totalPrice || 0);
   const subtotalBruto = priceAfterDiscountAlreadyApplied + discountNum;
 
-  // SUBTOTAL (Bruto, antes del descuento)
-  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
-  doc.text("SUBTOTAL", totalsLabelX, currentTotalY, { width: totalsValueX - totalsLabelX - cellPadding, align: 'right' });
-  doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
+  // ✅ SUBTOTAL - empieza en totalsStartX
+  doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
+  doc.text("SUBTOTAL", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
+  doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
   doc.text(`$${subtotalBruto.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
   doc.moveDown(0.6);
 
-  // DISCOUNT (Solo se muestra si discountNum > 0)
+  // ✅ DISCOUNT (si existe) - empieza en totalsStartX
   if (discountNum > 0) {
     currentTotalY = doc.y;
-    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
-    const discountLabel = discountDescription ? `${discountDescription}:` : "Discount:";
-    doc.text(discountLabel, totalsLabelX, currentTotalY, { width: totalsValueX - totalsLabelX - cellPadding, align: 'right' });
-    doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
+    doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
+    const discountLabel = discountDescription ? `${discountDescription.toUpperCase()}` : "DISCOUNT";
+    doc.text(discountLabel, totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
+    doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
     doc.text(`-$${discountNum.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
     doc.moveDown(0.6);
   }
 
-  // TAX
+  // ✅ TAX - empieza en totalsStartX
   currentTotalY = doc.y;
-  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
-  doc.text("TAX", totalsLabelX, currentTotalY, { width: totalsValueX - totalsLabelX - cellPadding, align: 'right' });
+  doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
+  doc.text("TAX", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
   doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
   doc.text(`$0.00`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
   doc.moveDown(0.6);
 
-  // TOTAL
+  // ✅ TOTAL - empieza en totalsStartX
   currentTotalY = doc.y;
-  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(9).fillColor(COLOR_TEXT_DARK);
-  doc.text("TOTAL", totalsLabelX, currentTotalY, { width: totalsValueX - totalsLabelX - cellPadding, align: 'right' });
-  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(9).fillColor(COLOR_TEXT_DARK);
+  doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
+  doc.text("TOTAL", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
+  doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
   doc.text(`$${priceAfterDiscountAlreadyApplied.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
-  doc.moveDown(1.2);
+  doc.moveDown(0.8);
 
-  // BALANCE DUE
+  // ✅ LÍNEA DIVISORIA - empieza en totalsStartX y va hasta el borde derecho
+  const lineY = doc.y;
+  doc.moveTo(totalsStartX, lineY)
+    .lineTo(totalsRightEdge, lineY)
+    .strokeColor(COLOR_BORDER_LIGHT)
+    .lineWidth(0.8)
+    .stroke();
+  doc.moveDown(1.2); // ✅ ESPACIO DESPUÉS DE LA LÍNEA
+
+  // ✅ BALANCE DUE - empieza en totalsStartX
   currentTotalY = doc.y;
-  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(11).fillColor(COLOR_TEXT_DARK);
-  doc.text("BALANCE DUE", totalsLabelX, currentTotalY, { width: totalsValueX - totalsLabelX - cellPadding, align: 'right' });
+  doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_DARK);
+  doc.text("BALANCE DUE", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(14).fillColor(COLOR_TEXT_DARK);
   doc.text(`$${priceAfterDiscountAlreadyApplied.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
-
   const yAfterTotals = doc.y;
   doc.y = Math.max(yAfterPaymentInfo, yAfterTotals);
   doc.moveDown(2);
 
-  // ✅ RESTO DEL CÓDIGO DE STRIPE PAYMENT IGUAL...
-
+  // STRIPE PAYMENT BUTTON
   let paymentLinkUrl = null;
   const paymentAmountForStripe = parseFloat(initialPayment);
 
@@ -529,11 +562,8 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
     const buttonX = NEW_PAGE_MARGIN + (contentWidth - buttonWidth) / 2;
     let buttonY = doc.y;
 
-    // ✅ VERIFICACIÓN MEJORADA PARA EL BOTÓN
-    if (buttonY + buttonHeight + 40 > doc.page.height - NEW_PAGE_MARGIN) { // ✅ MARGEN MÁS CONSERVADOR
-      _addStandardPageFooter(doc);
+    if (buttonY + buttonHeight + 40 > doc.page.height - NEW_PAGE_MARGIN) {
       doc.addPage();
-      _addPageHeader_v2(doc, budgetData, "INVOICE", budgetData.idBudget, formattedDate, formattedExpirationDate);
       buttonY = doc.y + 20;
     }
     doc.y = buttonY;
@@ -547,6 +577,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
     doc.y = buttonY + buttonHeight + 10;
   }
 }
+
 
 
 
@@ -1348,7 +1379,7 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
 
       // === INFORMACIÓN DE LA EMPRESA Y DEL DOCUMENTO ===
       let currentY = headerHeight + 20;
-      doc.fontSize(9).font('Helvetica-Bold').text(currentCompany.name, pageMargin, currentY);
+      doc.fontSize(11).font('Helvetica-Bold').text(currentCompany.name, pageMargin, currentY);
       currentY += doc.currentLineHeight();
       doc.font('Helvetica').text(currentCompany.addressLine1, pageMargin, currentY);
       currentY += doc.currentLineHeight();
@@ -1359,7 +1390,7 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
 
       currentY = headerHeight + 20;
       const rightInfoX = doc.page.width - pageMargin - 200;
-      doc.fontSize(10).font('Helvetica-Bold').text(`NO: ${coNumber}`, rightInfoX, currentY, { width: 200, align: 'right' });
+      doc.fontSize(11).font('Helvetica-Bold').text(`NO: ${coNumber}`, rightInfoX, currentY, { width: 200, align: 'right' });
       currentY += doc.currentLineHeight();
       doc.font('Helvetica').text(`Date: ${formattedCODate}`, rightInfoX, currentY, { width: 200, align: 'right' });
       currentY += doc.currentLineHeight();
@@ -1386,7 +1417,7 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
       const colUnitPriceX = pageMargin + contentWidth - 180;
       const colTotalX = pageMargin + contentWidth - 90;
 
-      doc.fontSize(10).font('Helvetica-Bold');
+      doc.fontSize(12).font('Helvetica-Bold');
       doc.rect(pageMargin, tableTop - 5, contentWidth, 20).fill(primaryColor);
       doc.fillColor(whiteColor);
       doc.text('Qty', colQtyX + 5, tableTop, { width: colDescX - colQtyX - 10 });
@@ -1397,7 +1428,7 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
       currentY = tableTop + 25;
       doc.y = currentY;
 
-      doc.fontSize(10).font('Helvetica');
+      doc.fontSize(12).font('Helvetica');
       const qtyText = hours ? `${parseFloat(hours).toFixed(1)} hours` : '1';
       const itemDescText = itemDescription || coDescription || "Work as per Change Order";
       const unitPriceText = `$${parseFloat(unitCost || totalCost || 0).toFixed(2)}`;
