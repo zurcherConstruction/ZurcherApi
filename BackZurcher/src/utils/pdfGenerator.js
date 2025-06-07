@@ -271,8 +271,8 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   const cellPadding = 5;
 
   // ✅ AJUSTAR ANCHOS DE COLUMNAS PARA USAR MÁS ESPACIO
-  const colIncludedW = contentWidth * 0.15;
-  const colDescW = contentWidth * 0.50;
+  const colIncludedW = contentWidth * 0.20;
+  const colDescW = contentWidth * 0.40;
   const colQtyW = contentWidth * 0.08;
   const colRateW = contentWidth * 0.12;
   const colAmountW = contentWidth * 0.15;
@@ -318,7 +318,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   doc.text(mainItemQty.toFixed(0), xQtyText, currentItemY, { width: wQty, align: 'right' });
   doc.text(`$${mainItemRate.toFixed(2)}`, xRateText, currentItemY, { width: wRate, align: 'right' });
   doc.text(`$${mainItemRate.toFixed(2)}`, xAmountText, currentItemY, { width: wAmount, align: 'right' });
-  doc.moveDown(2.8);
+  doc.moveDown(3.5);
 
   console.log("Procesando lineItems para PDF:", lineItems);
 
@@ -390,7 +390,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
 
       // Mover Y al final de la descripción (que puede ser multi-línea)
       doc.y = yAfterDesc;
-      doc.moveDown(2.5); // ✅ AUMENTADO DE 2.0 A 2.5 PARA MÁS ESPACIO ENTRE ITEMS
+      doc.moveDown(3.0); // ✅ AUMENTADO DE 2.0 A 2.5 PARA MÁS ESPACIO ENTRE ITEMS
     });
   } else {
     // ✅ FALLBACK: Si no hay lineItems, mostrar items estándar (como backup)
@@ -425,7 +425,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
       doc.font(FONT_FAMILY_MONO);
 
       doc.y = yAfterDesc;
-      doc.moveDown(2.5); // ✅ AUMENTADO DE 2.0 A 2.5 PARA MÁS ESPACIO ENTRE ITEMS
+      doc.moveDown(3.0); // ✅ AUMENTADO DE 2.0 A 2.5 PARA MÁS ESPACIO ENTRE ITEMS
     });
   }
 
