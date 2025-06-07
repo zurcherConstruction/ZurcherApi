@@ -2,36 +2,45 @@ const { BudgetItem } = require('../data');
 
 const defaultItems = [
   // SYSTEM TYPE
-  { category: "System Type", name: "ATU Fuji 500 gal", marca: "Fuji", capacity: "500 gal", description: "Incluye todo lo que ...", unitPrice: 1000, supplierName: "", supplierLocation: "" },
-  { category: "System Type", name: "ATU Fuji 700 gal", marca: "Fuji", capacity: "700 gal", description: "Incluye todo lo que ...", unitPrice: 2000, supplierName: "", supplierLocation: "" },
-  { category: "System Type", name: "ATU Fuji 1000 gal", marca: "Fuji", capacity: "1000 gal", description: "Incluye todo lo que ...", unitPrice: 3000, supplierName: "", supplierLocation: "" },
-  { category: "System Type", name: "ATU Infiltrator 500 gal", marca: "Infiltrator", capacity: "500 gal", description: "Incluye todo lo que ...", unitPrice: 1500, supplierName: "", supplierLocation: "" },
-  { category: "System Type", name: "ATU Infiltrator 750 gal", marca: "Infiltrator", capacity: "750 gal", description: "Incluye todo lo que ...", unitPrice: 2500, supplierName: "", supplierLocation: "" },
-  { category: "System Type", name: "ATU Infiltrator 1000 gal", marca: "Infiltrator", capacity: "1000 gal", description: "Incluye todo lo que ...", unitPrice: 3500, supplierName: "", supplierLocation: "" },
-  { category: "System Type", name: "REGULAR Infiltrator 1060 gal", marca: "Infiltrator", capacity: "1060 gal", description: "Incluye todo lo que ...", unitPrice: 2800, supplierName: "", supplierLocation: "" },
-  { category: "System Type", name: "REGULAR Infiltrator 1250 gal", marca: "Infiltrator", capacity: "1250 gal", description: "Incluye todo lo que ...", unitPrice: 3500, supplierName: "", supplierLocation: "" },
-  { category: "System Type", name: "REGULAR Infiltrator 1530 gal", marca: "Infiltrator", capacity: "1530 gal", description: "Incluye todo lo que ...", unitPrice: 4500, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "TANK ATU 500 GDP", marca: "Fuji", capacity: "500 gal", description: "FUJI IM1530P/2, 500GAL DBL COMP,  SEPTIC TANK", unitPrice: 1000, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "TANK ATU 700 GDP", marca: "Fuji", capacity: "700 gal", description: "FUJI IM1530P/2, 700GAL DBL COMP,  SEPTIC TANK", unitPrice: 2000, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "TANK ATU 1000 GDP", marca: "Fuji", capacity: "1000 gal", description: "FUJI IM1530P/2, 1000GAL DBL COMP,  SEPTIC TANK", unitPrice: 3000, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "TANK ATU 500 GDP", marca: "Infiltrator", capacity: "500 gal", description: "INFILTRATOR IM1530P/2, 500GAL DBL COMP,  SEPTIC TANK", unitPrice: 1500, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "TANK ATU 750 GDP", marca: "Infiltrator", capacity: "750 gal", description: "INFILTRATOR IM1530P/2, 750GAL DBL COMP,  SEPTIC TANK", unitPrice: 2500, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "TANK ATU 1000 GDP", marca: "Infiltrator", capacity: "1000 gal", description: "INFILTRATOR IM1530P/2, 1000GAL DBL COMP,  SEPTIC TANK", unitPrice: 3500, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "TANK REGULAR 1060 GDP", marca: "Infiltrator", capacity: "1060 gal", description: "INFILTRATOR IM1530P/2, 1060GAL DBL COMP,  SEPTIC TANK", unitPrice: 2800, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "TANK REGULAR 1250 GDP", marca: "Infiltrator", capacity: "1250 gal", description: "INFILTRATOR IM1530P/2, 1250GAL DBL COMP,  SEPTIC TANK", unitPrice: 3500, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "TANK REGULAR 1530 GDP", marca: "Infiltrator", capacity: "1530 gal", description: "INFILTRATOR IM1530P/2, 1530GAL DBL COMP,  SEPTIC TANK", unitPrice: 4500, supplierName: "", supplierLocation: "" },
 
  
   // SISTEMA CHAMBERS
-  { category: "Sistema Chambers", name: "Chamber ARC 24", marca: "", capacity: "", description: "Incluye todo lo que ...", unitPrice: 1000, supplierName: "", supplierLocation: "" },
-  { category: "Sistema Chambers", name: "Chamber Low Profile", marca: "", capacity: "", description: "Incluye todo lo que ...", unitPrice: 2000, supplierName: "", supplierLocation: "" },
+  { category: "Sistema Chambers", name: "CHAMBERS", marca: "", capacity: "", description: "INFILTRATOR Q4+EQ36 LP QUICK4 PLUS EQLZR 36 LOW PROFILE CHAMBER", unitPrice: 1000, supplierName: "", supplierLocation: "" },
+  { category: "Sistema Chambers", name: "CHAMBERS", marca: "", capacity: "", description: "INFILTRATOR Q4+EQ36 LP QUICK4 PLUS EQLZR 36 ARC 24 CHAMBER", unitPrice: 2000, supplierName: "", supplierLocation: "" },
 
   // PUMP
-  { category: "Pump", name: "Tanque 300 gal", marca: "", capacity: "300 gal", description: "Incluye todo lo que ...", unitPrice: 100, supplierName: "", supplierLocation: "" },
-  { category: "Pump", name: "Tanque 500 gal", marca: "", capacity: "500 gal", description: "Incluye todo lo que ...", unitPrice: 50, supplierName: "", supplierLocation: "" },
+  { category: "Pump", name: "PUMP TANQUE", marca: "", capacity: "300 gal", description: "TANQUE 300 GAL", unitPrice: 100, supplierName: "", supplierLocation: "" },
+  { category: "Pump", name: "PUMP TANQUE", marca: "", capacity: "500 gal", description: "TANQUE 500 GAL", unitPrice: 50, supplierName: "", supplierLocation: "" },
 
   // MATERIALES
-  { category: "Materiales", name: "Arena 4", marca: "", capacity: "4", description: "Incluye todo lo que ...", unitPrice: 100, supplierName: "", supplierLocation: "" },
-  { category: "Materiales", name: "Arena Standard", marca: "", capacity: "0", description: "Incluye todo lo que ...", unitPrice: 0, supplierName: "", supplierLocation: "" },
-  { category: "Materiales", name: "Arena All included 7", marca: "", capacity: "All included 7", description: "Incluye todo lo que ...", unitPrice: 1000, supplierName: "", supplierLocation: "" },
+  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "7 ALL INCLUDED", description: "LOADS SAND INCLUDED", unitPrice: 1500, supplierName: "", supplierLocation: "" },
+  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "0", description: "", unitPrice: 0, supplierName: "", supplierLocation: "" },
+  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "4", description: "4 SAND INCLUDED", unitPrice: 1000, supplierName: "", supplierLocation: "" },
 
   // INSPECTION
-  { category: "Inspection", name: "Inspection Inicial and fee healt department", marca: "Privada", capacity: "", description: "Incluye todo lo que ...", unitPrice: 200, supplierName: "", supplierLocation: "" },
-  { category: "Inspection", name: "Inspection Inicial and fee healt department", marca: "Health Department", capacity: "", description: "Incluye todo lo que ...", unitPrice: 200, supplierName: "", supplierLocation: "" },
+  { category: "Inspection", name: "PRIVATE INSPECTION", marca: "Privada", capacity: "", description: "FIRST & FINAL INSPECTION", unitPrice: 500, supplierName: "", supplierLocation: "" },
+  { category: "Inspection", name: "PRIVATE INSPECTION", marca: "Privada", capacity: "", description: "FIRST INSPECTION", unitPrice: 200, supplierName: "", supplierLocation: "" },
+  { category: "Inspection", name: "PRIVATE INSPECTION", marca: "Privada", capacity: "", description: "FINAL INSPECTION", unitPrice: 300, supplierName: "", supplierLocation: "" },
+  { category: "Inspection", name: "HEALTH DEPARTMENT INSPECTION", marca: "HEALTH DEPARTMENT", capacity: "", description: "FIRST INSPECTION", unitPrice: 200, supplierName: "", supplierLocation: "" },
+  { category: "Inspection", name: "HEALTH DEPARTMENT INSPECTION", marca: "HEALTH DEPARTMENT", capacity: "", description: "FINAL INSPECTION", unitPrice: 200, supplierName: "", supplierLocation: "" },
 
   // LABOR
-  { category: "Labor Fee", name: "ZURCHER CONSTRUCTION", marca: "", capacity: "", description: "Incluye todo lo que ...", unitPrice: 6000, supplierName: "", supplierLocation: "" },
+  { category: "Labor Fee", name: "LABOR FEE", marca: "", capacity: "", description: "ZURCHER CONSTRUCTION", unitPrice: 6000, supplierName: "", supplierLocation: "" },
+  { category: "Services", name: "SERVICE MAINTENANCE CONTRACT", marca: "", capacity: "", description: "2 YEAR CONTRACT WITH SERVICE EVERY 6 MONTHS", unitPrice: 0, supplierName: "", supplierLocation: "" },
+  { category: "Electrical Instalations", name: "SYSTEM PARTS & ELECTRICAL INSTALLATION", marca: "", capacity: "", description: "FULL INSTALLATION OF PIPES, ACCESORIES, AND ELECTRICAL WORK FOR THE SEPTIC SYSTEM", unitPrice: 0, supplierName: "", supplierLocation: "" },
+  { category: "Rock", name: "ROCK REMOVAL", marca: "", capacity: "", description: "INCLUDED AT NO ADDITIONALCOST IF REQUIRED DURING INSTALLATION", unitPrice: 0, supplierName: "", supplierLocation: "" },
+   { category: "Cover", name: "DIR TRUCK FOR COVER", marca: "", capacity: "", description: "LOADS OF DIRT INCLUDED", unitPrice: 0, supplierName: "", supplierLocation: "" }, { category: "Warranty", name: "WARRANTY", marca: "", capacity: "", description: "1 YEAR MANUFACTURES´S WARRANTY", unitPrice: 0, supplierName: "", supplierLocation: "" },
+ { category: "Excavation", name: "EXCAVATION", marca: "", capacity: "", description: "EXCAVATION DRAINFIELD", unitPrice: 0, supplierName: "", supplierLocation: "" },
+ { category: "Kit", name: "INFILTRATOR KIT", marca: "", capacity: "", description: "ECOPOD-NX IM 1530 RESIDENTIAL WASTEWATER TREATMENT SYSTEM", unitPrice: 0, supplierName: "", supplierLocation: "" },
 ];
 
 const seedBudgetItems = async (verbose = true) => {

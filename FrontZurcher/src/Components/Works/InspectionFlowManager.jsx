@@ -52,25 +52,67 @@ const InspectionFlowManager = ({ work, selectedWorkImageId, isVisible }) => {
             let headers = { 'Content-Type': 'application/json' };
             console.log('[handleActionSubmit] formDataObject recibido:', formDataObject);
 
+            // ✅ VALIDACIÓN específica para requestInitialInspection
+            if (actionCreator === requestInitialInspection) {
+                if (!dataToSend.inspectorEmail || !dataToSend.inspectorEmail.trim()) {
+                    alert('Error: El email del inspector es requerido.');
+                    return;
+                }
+                if (!selectedWorkImageId) {
+                    alert('Error: Debe seleccionar una imagen de la obra antes de continuar.');
+                    return;
+                }
+                // ✅ ASEGURAR que workImageId está presente para inspección inicial
+                dataToSend.workImageId = selectedWorkImageId;
+            }
+
+            // ✅ AGREGAR validación específica para requestReinspection
+            if (actionCreator === requestReinspection) {
+                if (!dataToSend.inspectorEmail || !dataToSend.inspectorEmail.trim()) {
+                    alert('Error: El email del inspector es requerido para la reinspección.');
+                    return;
+                }
+                if (!selectedWorkImageId) {
+                    alert('Error: Debe seleccionar una imagen de la obra antes de continuar.');
+                    return;
+                }
+                if (!dataToSend.originalInspectionId) {
+                    alert('Error: No se pudo determinar la inspección original para la reinspección.');
+                    return;
+                }
+                // ✅ ASEGURAR que workImageId está presente para reinspección
+                dataToSend.workImageId = selectedWorkImageId;
+            }
+
             const actionInvolvesFiles = [
                 registerInspectorResponse,
                 registerSignedApplicantDocument,
                 registerInspectionResult,
-                 requestReinspection, // Descomentar si requestReinspection maneja archivos directamente aquí
+                requestReinspection,
             ].includes(actionCreator);
 
             if (actionInvolvesFiles) {
                 console.log('[handleActionSubmit] La acción SÍ involucra archivos.');
                 const fd = new FormData();
-                const fileFieldKeys = ['documentForApplicantFile', 'signedDocumentFile', 'resultDocumentFiles', 'reinspectionFiles']; // Añadido reinspectionFiles
+                const fileFieldKeys = [
+                    'documentForApplicantFile',
+                    'signedDocumentFile',
+                    'resultDocumentFiles',
+                    'reinspectionFiles',
+                    'attachments'
+                ];
+
+                let hasFilesForValidation = false;
 
                 Object.keys(dataToSend).forEach(key => {
                     const value = dataToSend[key];
                     if (fileFieldKeys.includes(key) && Array.isArray(value)) {
                         if (value.length > 0) {
+                            hasFilesForValidation = true;
                             for (let i = 0; i < value.length; i++) {
                                 if (value[i] instanceof File) {
                                     fd.append(key, value[i]);
+                                    console.log(`🐛 DEBUG: Agregando archivo ${value[i].name} al FormData con key ${key}`);
                                 }
                             }
                         }
@@ -78,54 +120,70 @@ const InspectionFlowManager = ({ work, selectedWorkImageId, isVisible }) => {
                         fd.append(key, String(value));
                     }
                 });
+
+                // ✅ VALIDACIÓN específica para registerInspectorResponse
+                if (actionCreator === registerInspectorResponse) {
+                    if (!hasFilesForValidation) {
+                        console.log('🐛 DEBUG: Validación falló - no hay archivos en FormData');
+                        alert('Error: Debe cargar un documento para el aplicante antes de continuar.');
+                        return;
+                    }
+                    console.log('🐛 DEBUG: Validación exitosa - archivos encontrados en FormData');
+                }
+
                 dataToSend = fd;
                 headers = {};
+
+                console.log('🐛 DEBUG FormData keys:', Array.from(fd.keys()));
+                console.log('🐛 DEBUG FormData entries:', Array.from(fd.entries()).map(([key, value]) => [key, value instanceof File ? `File: ${value.name}` : value]));
+
             } else {
                 console.log('[handleActionSubmit] La acción NO involucra archivos.');
+
+                // ✅ LÓGICA SIMPLIFICADA para acciones sin archivos
                 if (actionCreator === requestInitialInspection) {
                     // Para la inspección inicial, selectedWorkImageId es crucial
-                    if (selectedWorkImageId && !dataToSend.workImageId) {
-                        dataToSend.workImageId = selectedWorkImageId;
-                    } else if (selectedWorkImageId && dataToSend.workImageId !== selectedWorkImageId) {
-                        // Asegurar que se usa el más reciente si hubo un cambio
+                    if (selectedWorkImageId && dataToSend.workImageId !== selectedWorkImageId) {
+                        console.log(`[handleActionSubmit] Inspección inicial: Actualizando workImageId de ${dataToSend.workImageId} a ${selectedWorkImageId}`);
                         dataToSend.workImageId = selectedWorkImageId;
                     }
                 }
-                
+
                 if (actionCreator === requestReinspection) {
-                    // Para la reinspección, siempre usar el selectedWorkImageId más reciente del prop
-                    if (selectedWorkImageId) {
-                        if (dataToSend.workImageId !== selectedWorkImageId) {
-                            console.log(`[handleActionSubmit] Reinspección: Actualizando workImageId. Anterior en form: ${dataToSend.workImageId}, Nuevo del prop: ${selectedWorkImageId}`);
-                            dataToSend.workImageId = selectedWorkImageId;
-                        }
-                    } else {
-                        // Si no hay selectedWorkImageId en el prop (usuario deseleccionó),
-                        // asegurarse que no se envíe uno obsoleto del formulario.
-                        if (dataToSend.workImageId) {
-                            console.log(`[handleActionSubmit] Reinspección: Eliminando workImageId obsoleto del form. Valor anterior: ${dataToSend.workImageId}`);
-                            dataToSend.workImageId = null; // O undefined para que no se envíe si el backend lo prefiere
-                        }
+                    // Para la reinspección, usar el selectedWorkImageId más reciente
+                    if (selectedWorkImageId && dataToSend.workImageId !== selectedWorkImageId) {
+                        console.log(`[handleActionSubmit] Reinspección: Actualizando workImageId de ${dataToSend.workImageId} a ${selectedWorkImageId}`);
+                        dataToSend.workImageId = selectedWorkImageId;
                     }
 
-                    // originalInspectionId viene del estado del formulario (reinspectionInitialData), lo cual es correcto.
+                    // ✅ ASEGURAR que originalInspectionId está presente
                     if (formDataObject.originalInspectionId) {
                         dataToSend.originalInspectionId = formDataObject.originalInspectionId;
                     }
                 }
             }
-            // Asegúrate de que la acción requestReinspection se llame con los argumentos correctos
-            // Si requestReinspection espera (workId, data, headers)
-            await dispatch(actionCreator(itemId, dataToSend, headers));
-            
+
+            // ✅ ENVIAR la acción
+            const result = await dispatch(actionCreator(itemId, dataToSend, headers));
+
+            // ✅ VERIFICAR si la acción falló
+            if (result.error) {
+                console.error('[handleActionSubmit] Error en la acción:', result.error);
+                alert(`Error: ${result.error.message || 'No se pudo completar la operación'}`);
+                return;
+            }
+
+            // ✅ Solo continuar si fue exitoso
             dispatch(fetchWorkById(work.idWork));
             if (work?.idWork) {
-                // Comentado temporalmente para evitar sobrescribir el estado de la reinspección
-                 dispatch(fetchInspectionsByWork(work.idWork));
+                dispatch(fetchInspectionsByWork(work.idWork));
             }
             setActiveForm(null);
+
         } catch (err) {
             console.error(errorMsgContext, err);
+            const errorMessage = err.response?.data?.message || err.message || 'Error desconocido';
+            alert(`${errorMsgContext}: ${errorMessage}`);
         }
     };
 
@@ -268,11 +326,16 @@ const InspectionFlowManager = ({ work, selectedWorkImageId, isVisible }) => {
     };
     // --- FIN NUEVO ---
 
-    const reinspectionInitialData = useMemo(() => ({
-        workImageId: selectedWorkImageId, // Se puede sobreescribir si el usuario selecciona una nueva imagen
-        inspectorEmail: currentInitialInspection?.notes?.match(/Inspector: ([\w@.]+)/)?.[1] || '',
-        originalInspectionId: currentInitialInspection?.idInspection || null,
-    }), [selectedWorkImageId, currentInitialInspection]);
+    const reinspectionInitialData = useMemo(() => {
+        if (!currentInitialInspection) return {};
+
+        return {
+            inspectorEmail: currentInitialInspection.inspectorEmail || '',
+            originalInspectionId: currentInitialInspection.idInspection,
+            workImageId: selectedWorkImageId || '', // ✅ AGREGAR esto
+            notes: `Reinspección de la inspección inicial rechazada (ID: ${currentInitialInspection.idInspection.substring(0, 8)}...)`
+        };
+    }, [currentInitialInspection, selectedWorkImageId]);
 
     const renderActions = () => {
         console.log("[FlowManager] renderActions - INICIO. Work Status:", work?.status, "currentInitialInspection:", currentInitialInspection);
@@ -290,21 +353,52 @@ const InspectionFlowManager = ({ work, selectedWorkImageId, isVisible }) => {
             if (currentInitialInspection.workerHasCorrected) {
                 return (
                     <div>
-                        <p className="mb-2 text-orange-600 font-semibold">
-                            Inspección anterior rechazada. El empleado ha marcado las correcciones como listas.
+                        <p className="mb-2 text-orange-700 font-semibold">
+                            ✅ El empleado ha marcado las correcciones como completadas.
                         </p>
+                        <p className="text-sm text-gray-600 mb-4">
+                            Ahora puedes solicitar una reinspección para verificar las correcciones.
+                        </p>
+
                         <button
                             onClick={() => setActiveForm('requestReinspection')}
-                            className={`font-bold py-2 px-4 rounded mb-2 bg-orange-500 hover:bg-orange-600 text-white`}
+                            disabled={!selectedWorkImageId} // ✅ AGREGAR validación de imagen
+                            className={`font-bold py-2 px-4 rounded mb-2 ${!selectedWorkImageId
+                                    ? 'bg-gray-400 cursor-not-allowed'
+                                    : 'bg-orange-500 hover:bg-orange-600 text-white'
+                                }`}
                         >
                             Solicitar Reinspección
                         </button>
-                        {activeForm === 'requestReinspection' && (
+
+                        {/* ✅ AGREGAR mensaje de requisito cuando no hay imagen seleccionada */}
+                        {!selectedWorkImageId && (
+                            <div className="mb-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                                <p className="text-sm text-red-600 font-medium">⚠️ Requisito faltante:</p>
+                                <p className="text-xs text-red-600">
+                                    Debes seleccionar una imagen de "sistema instalado" en la sección de imágenes antes de solicitar la reinspección.
+                                </p>
+                            </div>
+                        )}
+
+                        {/* ✅ AGREGAR && selectedWorkImageId a la condición */}
+                        {activeForm === 'requestReinspection' && selectedWorkImageId && (
                             <InspectionActionForm
                                 actionType="requestReinspection"
                                 initialData={reinspectionInitialData}
                                 onSubmit={(formDataObject) => {
                                     console.log("[FlowManager] SUBMITTING requestReinspection con datos:", formDataObject);
+
+                                    // ✅ AGREGAR validaciones antes del envío
+                                    if (!formDataObject.inspectorEmail) {
+                                        alert('Por favor, ingrese el email del inspector.');
+                                        return;
+                                    }
+                                    if (!selectedWorkImageId) {
+                                        alert('Por favor, seleccione una imagen de la obra antes de continuar.');
+                                        return;
+                                    }
+
                                     handleActionSubmit(work.idWork, requestReinspection, formDataObject, 'Error al solicitar reinspección');
                                 }}
                                 isLoading={loading}
@@ -342,12 +436,28 @@ const InspectionFlowManager = ({ work, selectedWorkImageId, isVisible }) => {
                         >
                             Solicitar Inspección Inicial
                         </button>
-                        {!selectedWorkImageId && <p className="text-xs text-red-600 mb-2">Debes seleccionar una imagen de "sistema instalado" para continuar.</p>}
+                        {!selectedWorkImageId && (
+                            <div className="mb-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                                <p className="text-sm text-red-600 font-medium">⚠️ Requisito faltante:</p>
+                                <p className="text-xs text-red-600">Debes seleccionar una imagen de "sistema instalado" en la sección de imágenes antes de solicitar la inspección.</p>
+                            </div>
+                        )}
                         {activeForm === 'requestInitial' && selectedWorkImageId && (
                             <InspectionActionForm
                                 actionType="requestInitial"
                                 initialData={initialRequestData}
-                                onSubmit={(formDataObject) => handleActionSubmit(work.idWork, requestInitialInspection, formDataObject, 'Error al solicitar inspección inicial')}
+                                onSubmit={(formDataObject) => {
+                                    // ✅ VALIDACIÓN adicional antes del envío
+                                    if (!formDataObject.inspectorEmail) {
+                                        alert('Por favor, ingrese el email del inspector.');
+                                        return;
+                                    }
+                                    if (!selectedWorkImageId) {
+                                        alert('Por favor, seleccione una imagen de la obra antes de continuar.');
+                                        return;
+                                    }
+                                    handleActionSubmit(work.idWork, requestInitialInspection, formDataObject, 'Error al solicitar inspección inicial')
+                                }}
                                 isLoading={loading}
                             />
                         )}
@@ -355,10 +465,27 @@ const InspectionFlowManager = ({ work, selectedWorkImageId, isVisible }) => {
                 );
             }
         }
-
         if (currentInitialInspection && !currentInitialInspection.finalStatus) {
             const inspectionForForm = currentInitialInspection;
             switch (inspectionForForm.processStatus) {
+                case 'pending_request':
+                    return (
+                        <div>
+                            <p className="mb-2 text-blue-700">Solicitud de inspección creada. Esperando respuesta de inspectores...</p>
+                            <button onClick={() => setActiveForm('scheduleReceived')} className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+                                Registrar Respuesta de Inspector
+                            </button>
+                            {activeForm === 'scheduleReceived' && (
+                                <InspectionActionForm
+                                    inspection={inspectionForForm}
+                                    actionType="scheduleReceived"
+                                    initialData={defaultInitialDataForForms}
+                                    onSubmit={(formData) => handleActionSubmit(inspectionForForm.idInspection, registerInspectorResponse, formData, 'Error al registrar respuesta del inspector')}
+                                    isLoading={loading}
+                                />
+                            )}
+                        </div>
+                    );
                 case 'requested_to_inspectors':
                     return (
                         <div>
@@ -380,31 +507,11 @@ const InspectionFlowManager = ({ work, selectedWorkImageId, isVisible }) => {
                 case 'schedule_received':
                     return (
                         <div>
-                            <p className="mb-2 text-green-700">Fecha de inspección programada. Documento listo para enviar al aplicante.</p>
+                            <p className="mb-2 text-green-700">Documento listo para enviar al aplicante.</p>
                             {inspectionForForm.documentForApplicantUrl ? (
                                 <div className="my-3 p-3 border rounded-md bg-gray-100">
                                     <h4 className="text-md font-semibold mb-2">Documento a Enviar:</h4>
-                                    <div className="mb-2 p-2 border border-dashed border-gray-300 rounded-md bg-white min-h-[100px] flex justify-center items-center">
-                                        {inspectionForForm.documentForApplicantUrl.toLowerCase().endsWith('.pdf') ? (
-                                            <iframe
-                                                src={inspectionForForm.documentForApplicantUrl}
-                                                width="100%"
-                                                height="300px"
-                                                title="Vista previa del PDF para aplicante"
-                                                className="rounded border"
-                                            >
-                                                <p>Tu navegador no soporta iframes para PDF. <a href={inspectionForForm.documentForApplicantUrl} target="_blank" rel="noopener noreferrer">Descarga el PDF aquí.</a></p>
-                                            </iframe>
-                                        ) : (/\.(jpeg|jpg|gif|png|svg)$/i).test(inspectionForForm.documentForApplicantUrl.toLowerCase()) ? (
-                                            <img
-                                                src={inspectionForForm.documentForApplicantUrl}
-                                                alt="Vista previa del documento para aplicante"
-                                                className="max-w-full h-auto max-h-80 object-contain rounded border"
-                                            />
-                                        ) : (
-                                            <p className="text-sm text-gray-500">Vista previa no disponible para este tipo de archivo. Utiliza el enlace de descarga.</p>
-                                        )}
-                                    </div>
+
                                     <a
                                         href={inspectionForForm.documentForApplicantUrl}
                                         target="_blank"
@@ -515,271 +622,5 @@ const InspectionFlowManager = ({ work, selectedWorkImageId, isVisible }) => {
     );
 };
 
-// const InspectionActionForm = ({ inspection, actionType, onSubmit, isLoading, initialData = {} }) => {
-//     const memoizedInitialFormData = useMemo(() => {
-//         let baseData = { ...initialData };
-//         if (actionType === 'sendToApplicant' && inspection?.Work) {
-//             baseData.applicantEmail = inspection.Work.Permit?.applicantEmail || initialData.applicantEmail || '';
-//             baseData.applicantName = inspection.Work.budget?.applicantName || initialData.applicantName || '';
-//         }
-//         // Pre-rellenar campos comunes o específicos del actionType
-//         baseData.inspectorEmail = baseData.inspectorEmail || (actionType === 'requestReinspection' && inspection?.notes?.match(/Inspector: ([\w@.]+)/)?.[1]) || '';
-//         baseData.inspectorScheduledDate = baseData.inspectorScheduledDate || '';
-//         baseData.finalStatus = baseData.finalStatus || '';
-//         baseData.dateInspectionPerformed = baseData.dateInspectionPerformed || '';
-//         baseData.notes = baseData.notes || '';
-//         if (actionType === 'requestReinspection') {
-//             baseData.originalInspectionId = inspection?.idInspection || initialData.originalInspectionId || null;
-//         }
-//         return baseData;
-//     }, [inspection, actionType, initialData]);
-
-//     const [formData, setFormData] = useState(memoizedInitialFormData);
-//     const [files, setFiles] = useState({});
-
-//     useEffect(() => {
-//         setFormData(memoizedInitialFormData);
-//     }, [memoizedInitialFormData]);
-
-//     const handleInputChange = (e) => {
-//         setFormData({ ...formData, [e.target.name]: e.target.value });
-//     };
-
-//     const handleFileChange = (e) => {
-//         const { name, files: filesFromEvent } = e.target;
-//         let newFilesArray = [];
-//         if (filesFromEvent && filesFromEvent.length > 0) {
-//             for (let i = 0; i < filesFromEvent.length; i++) {
-//                 newFilesArray.push(filesFromEvent[i]);
-//             }
-//         }
-//         setFiles(prevFilesState => {
-//             const existingFilesForField = prevFilesState[name] ? Array.from(prevFilesState[name]) : [];
-//             const combinedFiles = [...existingFilesForField];
-//             newFilesArray.forEach(newFile => {
-//                 if (!combinedFiles.some(existingFile => existingFile.name === newFile.name && existingFile.size === newFile.size)) {
-//                     combinedFiles.push(newFile);
-//                 }
-//             });
-//             return { ...prevFilesState, [name]: combinedFiles };
-//         });
-//         e.target.value = null;
-//     };
-
-//     const handleRemoveFile = (fieldName, fileNameToRemove) => {
-//         setFiles(prevFilesState => {
-//             const existingFiles = prevFilesState[fieldName] ? Array.from(prevFilesState[fieldName]) : [];
-//             const updatedFiles = existingFiles.filter(file => file.name !== fileNameToRemove);
-//             return { ...prevFilesState, [fieldName]: updatedFiles };
-//         });
-//     };
-
-//     const handleSubmit = (e) => {
-//         e.preventDefault();
-//         const dataToSubmit = { ...formData };
-//         Object.keys(files).forEach(key => {
-//             if (files[key] && Array.isArray(files[key]) && files[key].length > 0) {
-//                 dataToSubmit[key] = files[key];
-//             }
-//         });
-//         // No es necesario forzar selectedWorkImageId aquí, handleActionSubmit lo hará
-//         // basado en el prop más reciente.
-//         console.log('[InspectionActionForm] handleSubmit - dataToSubmit (antes de que handleActionSubmit ajuste workImageId):', dataToSubmit);
-//         onSubmit(dataToSubmit);
-//     };
-
-//     const renderSelectedFiles = (fieldName) => {
-//         if (files[fieldName] && files[fieldName].length > 0) {
-//             return (
-//                 <div className="mt-2 text-xs text-gray-600">
-//                     <p>Archivos seleccionados ({files[fieldName].length}):</p>
-//                     <ul className="list-disc pl-5">
-//                         {Array.from(files[fieldName]).map((file, index) => (
-//                             <li key={`${fieldName}-${index}-${file.name}`} className="flex justify-between items-center">
-//                                 <span>- {file.name} ({(file.size / 1024).toFixed(2)} KB)</span>
-//                                 <button
-//                                     type="button"
-//                                     onClick={() => handleRemoveFile(fieldName, file.name)}
-//                                     className="ml-2 text-red-500 hover:text-red-700 text-xs"
-//                                     title="Eliminar archivo"
-//                                 >
-//                                     &times;
-//                                 </button>
-//                             </li>
-//                         ))}
-//                     </ul>
-//                 </div>
-//             );
-//         }
-//         return null;
-//     };
-
-//     const renderFields = () => {
-//         switch (actionType) {
-//             case 'requestInitial':
-//                 return (
-//                     <>
-//                         <div className="mb-4">
-//                             <label htmlFor="inspectorEmail" className="block text-sm font-medium text-gray-700">Email del Inspector</label>
-//                             <input type="email" name="inspectorEmail" id="inspectorEmail" required onChange={handleInputChange} value={formData.inspectorEmail || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
-//                         </div>
-//                         {formData.workImageId && <p className="text-sm text-gray-600">ID de Imagen de Referencia: {formData.workImageId}</p>}
-//                     </>
-//                 );
-//             case 'scheduleReceived':
-//                 return (
-//                     <>
-                       
-//                         <div className="mb-4">
-//                             <label htmlFor="documentForApplicantFile" className="block text-sm font-medium text-gray-700">Documento(s) para Aplicante (PDF/Imagen)</label>
-//                             <input
-//                                 type="file"
-//                                 name="documentForApplicantFile"
-//                                 id="documentForApplicantFile"
-//                                 onChange={handleFileChange}
-//                                 multiple
-//                                 className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-//                             />
-//                             {renderSelectedFiles('documentForApplicantFile')}
-//                         </div>
-//                     </>
-//                 );
-//             case 'sendToApplicant':
-//                 return (
-//                     <>
-//                         <div className="mb-4">
-//                             <label htmlFor="applicantEmail" className="block text-sm font-medium text-gray-700">Email del Aplicante</label>
-//                             <input
-//                                 type="email"
-//                                 name="applicantEmail"
-//                                 id="applicantEmail"
-//                                 required
-//                                 onChange={handleInputChange}
-//                                 value={formData.applicantEmail || ''}
-//                                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-//                             />
-//                         </div>
-//                         <div className="mb-4">
-//                             <label htmlFor="applicantName" className="block text-sm font-medium text-gray-700">Nombre del Aplicante</label>
-//                             <input
-//                                 type="text"
-//                                 name="applicantName"
-//                                 id="applicantName"
-//                                 required
-//                                 onChange={handleInputChange}
-//                                 value={formData.applicantName || ''}
-//                                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-//                             />
-//                         </div>
-//                     </>
-//                 );
-//             case 'applicantDocumentReceived':
-//                 return (
-//                     <div className="mb-4">
-//                         <label htmlFor="signedDocumentFile" className="block text-sm font-medium text-gray-700">Documento(s) Firmado(s) por Aplicante</label>
-//                         <input
-//                             type="file"
-//                             name="signedDocumentFile"
-//                             id="signedDocumentFile"
-//                             onChange={handleFileChange}
-//                             multiple
-//                             className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-//                         />
-//                         {renderSelectedFiles('signedDocumentFile')}
-//                     </div>
-//                 );
-//             case 'registerResult':
-//                 return (
-//                     <>
-//                         <div className="mb-4">
-//                             <label htmlFor="finalStatus" className="block text-sm font-medium text-gray-700">Resultado Final</label>
-//                             <select name="finalStatus" id="finalStatus" required onChange={handleInputChange} value={formData.finalStatus || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-//                                 <option value="">Seleccionar...</option>
-//                                 <option value="approved">Aprobado</option>
-//                                 <option value="rejected">Rechazado</option>
-//                             </select>
-//                         </div>
-//                         <div className="mb-4">
-//                             <label htmlFor="dateInspectionPerformed" className="block text-sm font-medium text-gray-700">Fecha de Inspección Realizada (YYYY-MM-DD)</label>
-//                             <input type="date" name="dateInspectionPerformed" id="dateInspectionPerformed" onChange={handleInputChange} value={formData.dateInspectionPerformed || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
-//                         </div>
-//                         <div className="mb-4">
-//                             <label htmlFor="resultDocumentFiles" className="block text-sm font-medium text-gray-700">
-//                                 Documento(s) de Resultado
-//                             </label>
-//                             <input
-//                                 type="file"
-//                                 name="resultDocumentFiles"
-//                                 id="resultDocumentFiles"
-//                                 multiple
-//                                 onChange={handleFileChange}
-//                                 className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-//                             />
-//                             {renderSelectedFiles('resultDocumentFiles')}
-//                         </div>
-//                     </>
-//                 );
-//               case 'requestReinspection':
-//                 return (
-//                     <>
-//                         <p className="text-sm text-orange-600 mb-3">Solicitando reinspección. Asegúrate de que los problemas anteriores hayan sido corregidos.</p>
-//                         {formData.originalInspectionId && <p className="text-xs text-gray-500 mb-2">Esto es una reinspección de la inspección ID: {formData.originalInspectionId}</p>}
-                        
-//                         <div className="mb-4">
-//                             <label htmlFor="inspectorEmail" className="block text-sm font-medium text-gray-700">Email del Inspector (puede ser el mismo o uno nuevo)</label>
-//                             <input type="email" name="inspectorEmail" id="inspectorEmail" onChange={handleInputChange} value={formData.inspectorEmail || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
-//                         </div>
-
-//                         {/* Mensaje sobre la imagen de referencia */}
-//                         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-//                             {initialData.workImageId ? ( // Usamos initialData.workImageId que viene de selectedWorkImageId del prop
-//                                 <p className="text-sm text-blue-700">
-//                                     Se utilizará la imagen de referencia seleccionada actualmente (ID: {initialData.workImageId}).
-//                                     <br />
-//                                     Si deseas cambiarla, selecciona otra imagen en la sección "Imágenes de la Obra" antes de enviar.
-//                                 </p>
-//                             ) : (
-//                                 <p className="text-sm text-yellow-700">
-//                                     No se ha seleccionado una nueva imagen de referencia para esta reinspección.
-//                                     <br />
-//                                     Si deseas adjuntar una, selecciónala en la sección "Imágenes de la Obra" antes de enviar.
-//                                 </p>
-//                             )}
-//                         </div>
-                        
-//                         {/* <div className="mb-4">
-//                             <label htmlFor="reinspectionFiles" className="block text-sm font-medium text-gray-700">
-//                                 Adjuntar Nuevos Documentos/Imágenes Adicionales para Reinspección (Opcional)
-//                             </label>
-//                             <input
-//                                 type="file"
-//                                 name="reinspectionFiles"
-//                                 id="reinspectionFiles"
-//                                 multiple
-//                                 onChange={handleFileChange}
-//                                 className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
-//                             />
-//                             {renderSelectedFiles('reinspectionFiles')}
-//                         </div> */}
-//                     </>
-//                 );
-//             default:
-//                 return null;
-//         }
-//     };
-
-//     return (
-//         <form onSubmit={handleSubmit} className="space-y-4 my-4 p-4 border rounded-md bg-gray-50">
-//             {renderFields()}
-//             <div className="mb-4">
-//                 <label htmlFor="notes" className="block text-sm font-medium text-gray-700">Notas Adicionales</label>
-//                 <textarea name="notes" id="notes" rows="2" onChange={handleInputChange} value={formData.notes || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"></textarea>
-//             </div>
-//             <button type="submit" disabled={isLoading} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-300">
-//                 {isLoading ? 'Procesando...' : 'Enviar'}
-//             </button>
-//         </form>
-//     );
-// };
 
 export default InspectionFlowManager;

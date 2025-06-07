@@ -23,11 +23,25 @@ const io = new Server(server, {
   },
 });
 
-// Crear la carpeta "uploads" si no existe
-const uploadsPath = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadsPath)) {
-  fs.mkdirSync(uploadsPath, { recursive: true });
-}
+const createUploadDirectories = () => {
+  const directories = [
+    path.join(__dirname, '../uploads'),
+    path.join(__dirname, '../uploads/budgets'),
+    path.join(__dirname, '../uploads/change_orders'),
+    path.join(__dirname, '../uploads/final_invoices'),
+    path.join(__dirname, '../uploads/temp')
+  ];
+
+  directories.forEach(dir => {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+      console.log(`📁 Directorio creado: ${dir}`);
+    }
+  });
+};
+
+// Ejecutar la creación de directorios
+createUploadDirectories();
 // Middleware para compartir `io` en toda la aplicación
 app.set('io', io);
 
@@ -60,6 +74,13 @@ app.use(express.json({ limit: "10mb" })); // Cambia "10mb" según tus necesidade
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 app.use('/images', express.static(path.join(__dirname, 'images')));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/uploads/budgets', (req, res, next) => {
+  if (req.path.endsWith('.pdf')) {
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline'); // Para vista previa en navegador
+  }
+  next();
+}, express.static(path.join(__dirname, '../uploads/budgets')));
 app.use(morgan('dev'));
 app.use(passport.initialize());
 

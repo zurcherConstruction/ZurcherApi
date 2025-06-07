@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { toast } from 'react-toastify'; 
+import { toast } from 'react-toastify';
 
-const InspectionActionForm = ({ 
-    inspection, 
-    actionType, 
-    onSubmit, 
-    isLoading, 
-    initialData = {}, 
+const InspectionActionForm = ({
+    inspection,
+    actionType,
+    onSubmit,
+    isLoading,
+    initialData = {},
     itemId,
     onCancel,
     work,
@@ -14,7 +14,7 @@ const InspectionActionForm = ({
     const memoizedInitialFormData = useMemo(() => {
         // console.log('[InspectionActionForm] Recalculating memoizedInitialFormData. actionType:', actionType, 'initialData:', initialData, 'inspection:', inspection, 'work:', work);
         let baseData = { ...initialData };
-        
+
         if (actionType === 'sendToApplicant' && inspection?.Work) {
             baseData.applicantEmail = inspection.Work.Permit?.applicantEmail || initialData.applicantEmail || '';
             baseData.applicantName = inspection.Work.budget?.applicantName || initialData.applicantName || '';
@@ -33,7 +33,7 @@ const InspectionActionForm = ({
             baseData.clientName = initialData.clientName || work?.Budget?.applicantName || work?.Permit?.applicantName || '';
         }
         if (actionType === 'notifyInspectorPayment') {
-             baseData.inspectorEmail = initialData.inspectorEmail || inspection?.notes?.match(/Inspector:\s*([\w@.-]+)/i)?.[1] || '';
+            baseData.inspectorEmail = initialData.inspectorEmail || inspection?.notes?.match(/Inspector:\s*([\w@.-]+)/i)?.[1] || '';
         }
         if (actionType === 'registerInspectionResult' && initialData.finalStatus === undefined) {
             baseData.finalStatus = 'approved';
@@ -49,7 +49,7 @@ const InspectionActionForm = ({
 
     const [formData, setFormData] = useState(() => memoizedInitialFormData); // Inicializar con una función para que solo se ejecute una vez
     const [files, setFiles] = useState({});
-    
+
     // Ref para comparar el valor anterior de memoizedInitialFormData
     const prevMemoizedInitialFormDataRef = useRef(memoizedInitialFormData);
 
@@ -67,17 +67,17 @@ const InspectionActionForm = ({
     };
 
 
-     const handleFileChange = (e) => {
+    const handleFileChange = (e) => {
         const { name, files: filesFromEvent } = e.target; // 'name' es el atributo name del input
-        
+
         if (filesFromEvent && filesFromEvent.length > 0) {
-            const newFile = filesFromEvent[0]; // Tomamos el primer archivo para campos de un solo archivo
+            const newFile = filesFromEvent[0];
 
             // Para campos que esperan un solo archivo (como invoiceFile)
             if (name === 'invoiceFile' || name === 'paymentProofFile') {
                 setFiles(prevFilesState => ({
                     ...prevFilesState,
-                    [name]: [newFile] // Almacena como un array con un solo archivo
+                    [name]: [newFile]
                 }));
             } else { // Para campos que pueden aceptar múltiples archivos (como attachments)
                 const newFilesArray = Array.from(filesFromEvent);
@@ -96,7 +96,7 @@ const InspectionActionForm = ({
             // Si el usuario cancela la selección de archivos, limpia el campo correspondiente
             setFiles(prevFilesState => ({
                 ...prevFilesState,
-                [name]: [] 
+                [name]: []
             }));
         }
         e.target.value = null; // Permite re-seleccionar el mismo archivo
@@ -110,18 +110,69 @@ const InspectionActionForm = ({
         });
     };
 
-  const handleSubmit = (e) => {
+    const handleSubmit = (e) => {
         e.preventDefault();
+
+
+        if (actionType === 'scheduleReceived') {
+            if (!files.documentForApplicantFile || files.documentForApplicantFile.length === 0) {
+                toast.error('Error: Debe cargar un documento para el aplicante antes de continuar.');
+                return; // ✅ PREVENIR envío sin archivo
+            }
+        }
+        if (actionType === 'applicantDocumentReceived') {
+            if (!files.signedDocumentFile || files.signedDocumentFile.length === 0) {
+                toast.error('Error: Debe cargar el documento firmado por el aplicante antes de continuar.');
+                return;
+            }
+        }
+        if (actionType === 'registerResult') {
+            if (!files.resultDocumentFiles || files.resultDocumentFiles.length === 0) {
+                toast.error('Error: Debe cargar el documento de resultado de la inspección antes de continuar.');
+                return;
+            }
+        }
 
         if (actionType === 'registerFinalInvoice') {
             if (!files.invoiceFile || files.invoiceFile.length === 0) {
                 toast.error("Por favor, selecciona el archivo PDF del invoice del inspector.");
-                return; 
+                return;
             }
         }
-        
+        if (actionType === 'requestReinspection') {
+            const isFinalReinspection = inspection?.type === 'final';
+            const isInitialReinspection = inspection?.type === 'initial';
+
+            // ✅ VALIDAR email del inspector para ambos tipos
+            if (!formData.inspectorEmail || !formData.inspectorEmail.trim()) {
+                toast.error('Error: El email del inspector es requerido para la reinspección.');
+                return;
+            }
+
+            // ✅ VALIDAR imagen solo para reinspección inicial
+            if (isInitialReinspection) {
+                const workImageId = formData.workImageId;
+                const isValidImageId = workImageId && (
+                    (typeof workImageId === 'number' && workImageId > 0) ||
+                    (typeof workImageId === 'string' && workImageId.trim().length > 0)
+                );
+
+                if (!isValidImageId) {
+                    toast.error('Error: Debe seleccionar una imagen de referencia para la reinspección inicial.');
+                    return;
+                }
+            }
+
+            // ✅ VALIDAR archivos solo para reinspección final
+            if (isFinalReinspection && (!files.attachments || files.attachments.length === 0)) {
+                toast.error('Error: Para reinspecciones finales debe adjuntar evidencia (video/imágenes) de la corrección.');
+                return;
+            }
+        }
+
+
         const dataPayload = { ...formData }; // formData es el estado con los valores de los inputs (ej. notes)
-        
+
         // Añadir archivos al dataPayload
         Object.keys(files).forEach(fieldName => {
             if (files[fieldName] && files[fieldName].length > 0) {
@@ -132,14 +183,14 @@ const InspectionActionForm = ({
                 }
             }
         });
-        
+
         // No pases itemId desde aquí si el padre ya lo tiene y lo usa para llamar a handleActionSubmit
         onSubmit(dataPayload); // <--- SOLO PASAR EL OBJETO DE DATOS/ARCHIVOS
     };
 
     const renderSelectedFiles = (fieldName, isMultiple = true) => {
         const currentFiles = files[fieldName];
-        if (currentFiles && ( (Array.isArray(currentFiles) && currentFiles.length > 0) || currentFiles instanceof File) ) {
+        if (currentFiles && ((Array.isArray(currentFiles) && currentFiles.length > 0) || currentFiles instanceof File)) {
             const filesArray = Array.isArray(currentFiles) ? currentFiles : [currentFiles];
             return (
                 <div className="mt-2 text-xs text-gray-600">
@@ -180,7 +231,7 @@ const InspectionActionForm = ({
             case 'scheduleReceived':
                 return (
                     <>
-                       
+
                         <div className="mb-4">
                             <label htmlFor="documentForApplicantFile" className="block text-sm font-medium text-gray-700">Documento(s) para Aplicante (PDF/Imagen)</label>
                             <input
@@ -270,55 +321,52 @@ const InspectionActionForm = ({
                         </div>
                     </>
                 );
-              case 'requestReinspection':
-                // Determinar si es una reinspección de tipo 'final'
-                // 'inspection' es la inspección original que fue rechazada
-                const isFinalReinspection = inspection?.type === 'final'; 
+            case 'requestReinspection':
+                const isFinalReinspection = inspection?.type === 'final';
+                const isInitialReinspection = inspection?.type === 'initial'; // ✅ AGREGAR para claridad
 
                 return (
                     <>
                         <p className="text-sm text-orange-600 mb-3">
-                            Solicitando reinspección {isFinalReinspection ? 'final' : 'inicial'}. 
+                            Solicitando reinspección {isFinalReinspection ? 'final' : 'inicial'}.
                             Asegúrate de que los problemas anteriores hayan sido corregidos.
                         </p>
+
                         {formData.originalInspectionId && (
                             <p className="text-xs text-gray-500 mb-2">
-                                Esto es una reinspección de la inspección ID: {formData.originalInspectionId.substring(0,8)}... 
+                                Esto es una reinspección de la inspección ID: {formData.originalInspectionId.substring(0, 8)}...
                                 (Tipo Original: {inspection?.type || 'N/A'})
                             </p>
                         )}
-                        
+
                         <div className="mb-4">
                             <label htmlFor="inspectorEmail" className="block text-sm font-medium text-gray-700">
                                 Email del Inspector (puede ser el mismo o uno nuevo)
                             </label>
-                            <input 
-                                type="email" 
-                                name="inspectorEmail" 
-                                id="inspectorEmail" 
-                                onChange={handleInputChange} 
-                                value={formData.inspectorEmail || ''} 
-                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
-                                required // El email del inspector es crucial para la notificación
+                            <input
+                                type="email"
+                                name="inspectorEmail"
+                                id="inspectorEmail"
+                                onChange={handleInputChange}
+                                value={formData.inspectorEmail || ''}
+                                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                required
                             />
                         </div>
 
-                        {/* --- CAMPO DE ARCHIVOS, ESPECIALMENTE PARA REINSPECCIÓN FINAL --- */}
-                        {isFinalReinspection && ( // Mostrar siempre para reinspección final
+                        {/* ✅ MEJORAR: Hacer la carga de archivos opcional para reinspección inicial */}
+                        {isFinalReinspection && (
                             <div className="mb-4">
                                 <label htmlFor="attachments" className="block text-sm font-medium text-gray-700 mb-1">
                                     Adjuntar Archivos para Reinspección Final (ej. video, imágenes) <span className="text-red-500">*</span>
                                 </label>
                                 <input
                                     type="file"
-                                    name="attachments" // Nombre del campo que espera el backend (Multer)
+                                    name="attachments"
                                     id="attachments"
                                     multiple
-                                    accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.avi" // Tipos de archivo permitidos
-                                    onChange={handleFileChange} // Tu manejador de cambio de archivos
-                                    // Podrías hacerlo 'required' aquí si para la reinspección final siempre se necesita un archivo.
-                                    // O manejar la validación en handleSubmit o en el backend.
-                                    // required 
+                                    accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.mp4,.mov,.avi"
+                                    onChange={handleFileChange}
                                     className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-l-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
                                 />
                                 {renderSelectedFiles('attachments')}
@@ -327,22 +375,50 @@ const InspectionActionForm = ({
                                 </p>
                             </div>
                         )}
-                        
-                        {/* Mensaje sobre la imagen de referencia, ajustar según el tipo */}
+
+                        {/* ✅ AGREGAR: Campo opcional de archivos para reinspección inicial */}
+                        {isInitialReinspection && (
+                            <div className="mb-4">
+                                <label htmlFor="attachments" className="block text-sm font-medium text-gray-700 mb-1">
+                                    Adjuntar Archivos Adicionales (opcional)
+                                </label>
+                                <input
+                                    type="file"
+                                    name="attachments"
+                                    id="attachments"
+                                    multiple
+                                    accept=".pdf,.jpg,.jpeg,.png,.gif,.webp"
+                                    onChange={handleFileChange}
+                                    className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-l-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                                />
+                                {renderSelectedFiles('attachments')}
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Opcionalmente, puedes adjuntar documentación adicional sobre las correcciones realizadas.
+                                </p>
+                            </div>
+                        )}
+
+                        {/* Mensaje sobre la imagen de referencia, mejorado para inicial */}
                         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-                            {(initialData.workImageId && typeof initialData.workImageId === 'string') ? (
+                            {(formData.workImageId && (typeof formData.workImageId === 'number' || typeof formData.workImageId === 'string')) ? (
                                 <p className="text-sm text-blue-700">
-                                    Se utilizará la imagen de referencia de la obra seleccionada actualmente (ID: {initialData.workImageId.substring(0,8)}...).
-                                    {!isFinalReinspection && (
+                                    ✅ <strong>Imagen de referencia seleccionada:</strong> Se utilizará la imagen ID: {
+                                        typeof formData.workImageId === 'string'
+                                            ? formData.workImageId.substring(0, 8) + '...'
+                                            : formData.workImageId
+                                    } para esta reinspección {isFinalReinspection ? 'final' : 'inicial'}.
+                                    {isInitialReinspection && (
                                         <span className="block mt-1">Si deseas cambiarla, selecciona otra imagen en la sección "Imágenes de la Obra" antes de enviar.</span>
                                     )}
                                 </p>
                             ) : (
-                                <p className={`text-sm ${isFinalReinspection ? 'text-gray-600' : 'text-yellow-700'}`}>
-                                    {!isFinalReinspection ? 'Advertencia: ' : ''}
-                                    No se ha seleccionado una imagen de referencia para esta reinspección.
-                                    {!isFinalReinspection && (
-                                         <span className="block mt-1">Si deseas adjuntar una, selecciónala en la sección "Imágenes de la Obra" antes de enviar.</span>
+                                <p className={`text-sm ${isFinalReinspection ? 'text-gray-600' : 'text-red-600'}`}>
+                                    {isInitialReinspection ? '⚠️ Advertencia: ' : ''}
+                                    No se ha seleccionado una imagen de referencia para esta reinspección {isFinalReinspection ? 'final' : 'inicial'}.
+                                    {isInitialReinspection && (
+                                        <span className="block mt-1 font-medium">
+                                            <strong>Para reinspección inicial, debes seleccionar una imagen en la sección "Imágenes de la Obra" antes de continuar.</strong>
+                                        </span>
                                     )}
                                     {isFinalReinspection && (
                                         <span className="block mt-1">Para reinspecciones finales, el archivo adjunto principal (video/imagen) es más importante que la imagen de referencia general de la obra.</span>
@@ -350,8 +426,6 @@ const InspectionActionForm = ({
                                 </p>
                             )}
                         </div>
-                        
-                        {/* El campo de notas genérico se renderizará fuera de este switch */}
                     </>
                 );
             case 'requestFinalInspection':
@@ -369,7 +443,7 @@ const InspectionActionForm = ({
                             <label htmlFor="applicantName" className="block text-sm font-medium text-gray-700">Nombre del Aplicante</label>
                             <input type="text" name="applicantName" id="applicantName" required onChange={handleInputChange} value={formData.applicantName || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
                         </div>
-                       <div className="mb-4">
+                        <div className="mb-4">
                             <label htmlFor="attachments" className="block text-sm font-medium text-gray-700 mb-1">
                                 Adjuntos (opcional)
                             </label>
@@ -395,10 +469,10 @@ const InspectionActionForm = ({
                                 </div>
                             )}
                         </div>
-                       
+
                     </>
                 );
-          case 'registerFinalInvoice': // Acción para cargar el invoice del inspector
+            case 'registerFinalInvoice': // Acción para cargar el invoice del inspector
                 return (
                     <>
                         <div className="mb-4">
@@ -421,9 +495,9 @@ const InspectionActionForm = ({
                                     <ul>
                                         {files.invoiceFile.map((file, index) => (
                                             <li key={index} className="flex justify-between items-center py-1">
-                                                <span>- {file.name} ({ (file.size / 1024).toFixed(2) } KB)</span>
-                                                <button 
-                                                    type="button" 
+                                                <span>- {file.name} ({(file.size / 1024).toFixed(2)} KB)</span>
+                                                <button
+                                                    type="button"
                                                     onClick={() => handleRemoveFile('invoiceFile', file.name)}
                                                     className="ml-2 text-red-500 hover:text-red-700 font-semibold"
                                                     title="Eliminar archivo"
@@ -436,10 +510,10 @@ const InspectionActionForm = ({
                                 </div>
                             )}
                         </div>
-                       
+
                     </>
                 );
-                
+
             case 'sendInvoiceToClient': // Este no tiene campos de formulario editables por el usuario, solo confirma la acción
                 return (
                     <>
@@ -464,12 +538,12 @@ const InspectionActionForm = ({
                     </div>
                 );
             case 'notifyInspectorPayment': // Similar a sendInvoiceToClient, más una confirmación
-                 return (
+                return (
                     <>
                         <p className="text-sm text-gray-700 mb-2">Se notificará el pago al siguiente inspector:</p>
                         <div className="mb-4">
-                             <label htmlFor="inspectorEmail" className="block text-sm font-medium text-gray-700">Email del Inspector</label>
-                             <input type="email" name="inspectorEmail" id="inspectorEmail" required onChange={handleInputChange} value={formData.inspectorEmail || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Confirmar o ingresar email del inspector"/>
+                            <label htmlFor="inspectorEmail" className="block text-sm font-medium text-gray-700">Email del Inspector</label>
+                            <input type="email" name="inspectorEmail" id="inspectorEmail" required onChange={handleInputChange} value={formData.inspectorEmail || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Confirmar o ingresar email del inspector" />
                         </div>
                         {inspection?.clientPaymentProofUrl && (
                             <p className="text-xs text-gray-500 mt-1">Se adjuntará el comprobante de pago del cliente si está disponible.</p>
@@ -481,26 +555,23 @@ const InspectionActionForm = ({
         }
     };
 
-     return (
+    return (
         <form onSubmit={handleSubmit} className="space-y-4 my-4 p-6 border border-gray-200 rounded-lg bg-white shadow">
             {renderFields()}
-            <div className="mb-4">
-                <label htmlFor="notes" className="block text-sm font-medium text-gray-700">Notas Adicionales (para esta acción)</label>
-                <textarea name="notes" id="notes" rows="3" onChange={handleInputChange} value={formData.notes || ''} className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"></textarea>
-            </div>
+
             <div className="flex items-center justify-end space-x-3">
                 {typeof onCancel === 'function' && (
-                    <button 
-                        type="button" 
+                    <button
+                        type="button"
                         onClick={onCancel}
                         className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                     >
                         Cancelar
                     </button>
                 )}
-                <button 
-                    type="submit" 
-                    disabled={isLoading} 
+                <button
+                    type="submit"
+                    disabled={isLoading}
                     className="inline-flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400 disabled:cursor-not-allowed"
                 >
                     {isLoading ? (

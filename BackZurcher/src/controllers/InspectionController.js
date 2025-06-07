@@ -12,30 +12,74 @@ const { scheduleInitialMaintenanceVisits } = require('./MaintenanceController');
 const requestInitialInspection = async (req, res) => {
   try {
     const { workId } = req.params;
-    const { inspectorEmail, workImageId } = req.body; // Email de inspectores, ID de la imagen de obra a enviar
+    const { inspectorEmail, workImageId } = req.body;
 
-    if (!inspectorEmail || !workImageId) {
-      return res.status(400).json({ error: true, message: 'Faltan datos: inspectorEmail o workImageId.' });
+    // ✅ VALIDACIONES mejoradas
+    if (!inspectorEmail || !inspectorEmail.trim()) {
+      return res.status(400).json({ 
+        error: true, 
+        message: 'El email del inspector es requerido y no puede estar vacío.' 
+      });
+    }
+
+    if (!workImageId) {
+      return res.status(400).json({ 
+        error: true, 
+        message: 'Debe seleccionar una imagen de la obra (workImageId es requerido).' 
+      });
+    }
+
+    // ✅ CONVERTIR a string de forma segura
+    const workImageIdString = String(workImageId).trim();
+    if (!workImageIdString) {
+      return res.status(400).json({ 
+        error: true, 
+        message: 'Debe seleccionar una imagen de la obra (workImageId no puede estar vacío).' 
+      });
+    }
+
+    // ✅ VALIDAR formato de email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(inspectorEmail)) {
+      return res.status(400).json({ 
+        error: true, 
+        message: 'El formato del email del inspector no es válido.' 
+      });
     }
 
     const work = await Work.findByPk(workId, {
       include: [
-        { model: Permit, attributes: ['idPermit', 'pdfData', 'permitNumber','applicantEmail', 'applicantName'] }, // Necesitamos el Permit
-        { model: Image, as: 'images', where: { id: workImageId }, limit: 1 } // Obtener la imagen específica
+        { model: Permit, attributes: ['idPermit', 'pdfData', 'permitNumber','applicantEmail', 'applicantName'] },
+        { model: Image, as: 'images', where: { id: workImageId }, limit: 1, required: false } // ✅ required: false para mejor manejo
       ]
     });
 
     if (!work) {
-      return res.status(404).json({ error: true, message: 'Obra no encontrada.' });
+      return res.status(404).json({ 
+        error: true, 
+        message: 'Obra no encontrada. Verifique el ID de la obra.' 
+      });
     }
+
     if (work.status !== 'installed') {
-      return res.status(400).json({ error: true, message: `La obra debe estar en estado "installed" para solicitar inspección. Estado actual: ${work.status}` });
+      return res.status(400).json({ 
+        error: true, 
+        message: `La obra debe estar en estado "installed" para solicitar inspección. Estado actual: "${work.status}"` 
+      });
     }
+
     if (!work.Permit || !work.Permit.pdfData) {
-      return res.status(400).json({ error: true, message: 'La obra no tiene un Permit con PDF asociado.' });
+      return res.status(400).json({ 
+        error: true, 
+        message: 'La obra no tiene un Permiso con PDF asociado. Es necesario para enviar a los inspectores.' 
+      });
     }
+
     if (!work.images || work.images.length === 0) {
-        return res.status(400).json({ error: true, message: 'Imagen de obra especificada no encontrada.' });
+      return res.status(400).json({ 
+        error: true, 
+        message: `La imagen de obra especificada (ID: ${workImageId}) no fue encontrada. Seleccione una imagen válida.` 
+      });
     }
     const workImage = work.images[0];
 
