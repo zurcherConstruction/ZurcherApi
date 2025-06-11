@@ -269,26 +269,26 @@ const DynamicCategorySection = ({
       {isVisible && (
         <div className="p-4 border-t">
           {/* ✅ INFORMACIÓN DE DEBUG MEJORADA */}
-          <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+          {/* <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
             <p className="text-sm font-medium text-blue-800 mb-1">
-              📋 {category} - {categoryItems.length} items disponibles
+              {category} - {categoryItems.length} items disponibles
             </p>
             <div className="flex flex-wrap gap-2 text-xs">
               {fieldAnalysis.hasNames && (
-                <span className="px-2 py-1 bg-green-100 text-green-700 rounded">✓ Nombres</span>
+                <span className="px-2 py-1 bg-green-100 text-green-700 rounded">Nombres</span>
               )}
               {fieldAnalysis.hasDescriptions && (
-                <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded">✓ Descripciones</span>
+                <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded">Descripciones</span>
               )}
               {fieldAnalysis.hasMarcas && (
-                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded">✓ Marcas/Tipos</span>
+                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded">Marcas/Tipos</span>
               )}
               {fieldAnalysis.hasCapacities && (
-                <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded">✓ Capacidades</span>
+                <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded">Capacidades</span>
               )}
-              <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded">✓ Cantidad</span>
+              <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded">Cantidad</span>
             </div>
-          </div>
+          </div> */}
 
           {/* ✅ GRID DINÁMICO CON MEJOR ESPACIADO */}
           <div className={`grid ${gridCols} gap-4`}>
@@ -297,7 +297,7 @@ const DynamicCategorySection = ({
             {fieldAnalysis.hasNames && (
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-700">
-                  📝 Nombre del Item
+                  Nombre del Item
                   <span className="text-red-500">*</span>
                 </label>
                 <select
@@ -311,7 +311,7 @@ const DynamicCategorySection = ({
                     <option key={name} value={name}>{name}</option>
                   )}
                   <option value="OTROS" className="bg-yellow-50 font-medium">
-                    ✏️ PERSONALIZADO (Escribir manualmente)
+                    PERSONALIZADO (Escribir manualmente)
                   </option>
                 </select>
                 {selection.name && (
@@ -326,7 +326,7 @@ const DynamicCategorySection = ({
             {fieldAnalysis.hasMarcas && (
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-700">
-                  🏷️ Marca/Tipo
+                  Marca/Tipo
                   {uniqueMarcas.length > 0 && <span className="text-red-500">*</span>}
                 </label>
                 {uniqueMarcas.length > 0 ? (
@@ -342,7 +342,7 @@ const DynamicCategorySection = ({
                         <option key={marca} value={marca}>{marca}</option>
                       )}
                       <option value="OTROS" className="bg-yellow-50 font-medium">
-                        ✏️ PERSONALIZADO
+                        PERSONALIZADO
                       </option>
                     </select>
                     {selection.marca && (
@@ -354,8 +354,8 @@ const DynamicCategorySection = ({
                 ) : (
                   <div className="px-3 py-2 bg-gray-100 rounded-md text-sm text-gray-600">
                     {selection.name ?
-                      '⚠️ Primero selecciona un nombre' :
-                      '❌ No hay marcas disponibles'
+                      'Primero selecciona un nombre' :
+                      'No hay marcas disponibles'
                     }
                   </div>
                 )}
@@ -366,7 +366,7 @@ const DynamicCategorySection = ({
             {fieldAnalysis.hasCapacities && (
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-700">
-                  📏 Capacidad/Tamaño
+                  Capacidad/Tamaño
                   {uniqueCapacities.length > 0 && <span className="text-red-500">*</span>}
                 </label>
                 {uniqueCapacities.length > 0 ? (
@@ -382,7 +382,7 @@ const DynamicCategorySection = ({
                         <option key={capacity} value={capacity}>{capacity}</option>
                       )}
                       <option value="OTROS" className="bg-yellow-50 font-medium">
-                        ✏️ PERSONALIZADO
+                        PERSONALIZADO
                       </option>
                     </select>
                     {selection.capacity && (
@@ -394,10 +394,10 @@ const DynamicCategorySection = ({
                 ) : (
                   <div className="px-3 py-2 bg-gray-100 rounded-md text-sm text-gray-600">
                     {!selection.name ?
-                      '⚠️ Primero selecciona un nombre' :
+                      'Primero selecciona un nombre' :
                       !selection.marca && fieldAnalysis.hasMarcas ?
-                        '⚠️ Primero selecciona una marca' :
-                        '❌ No hay capacidades disponibles'
+                        'Primero selecciona una marca' :
+                        'No hay capacidades disponibles'
                     }
                   </div>
                 )}
@@ -406,7 +406,7 @@ const DynamicCategorySection = ({
               {fieldAnalysis.hasDescriptions && (
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-700">
-                  📄 Descripción
+                  Descripción
                   {uniqueDescriptions.length > 0 && <span className="text-red-500">*</span>}
                 </label>
                 {uniqueDescriptions.length > 0 ? (
@@ -422,7 +422,7 @@ const DynamicCategorySection = ({
                         <option key={description} value={description}>{description}</option>
                       )}
                       <option value="OTROS" className="bg-yellow-50 font-medium">
-                        ✏️ PERSONALIZADO
+                        PERSONALIZADO
                       </option>
                     </select>
                     {selection.description && (
@@ -434,12 +434,12 @@ const DynamicCategorySection = ({
                 ) : (
                   <div className="px-3 py-2 bg-gray-100 rounded-md text-sm text-gray-600">
                     {!selection.name ? 
-                      '⚠️ Primero selecciona un nombre' :
+                      'Primero selecciona un nombre' :
                       !selection.marca && fieldAnalysis.hasMarcas ? 
-                      '⚠️ Primero selecciona una marca' :
+                      'Primero selecciona una marca' :
                       !selection.capacity && fieldAnalysis.hasCapacities ? 
-                      '⚠️ Primero selecciona una capacidad' :
-                      '❌ No hay descripciones disponibles'
+                      'Primero selecciona una capacidad' :
+                      'No hay descripciones disponibles'
                     }
                   </div>
                 )}
@@ -449,7 +449,7 @@ const DynamicCategorySection = ({
             {/* ✅ CAMPO CANTIDAD (siempre presente) */}
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">
-                🔢 Cantidad
+                Cantidad
                 <span className="text-red-500">*</span>
               </label>
               <input
@@ -475,7 +475,6 @@ const DynamicCategorySection = ({
   (fieldAnalysis.hasDescriptions && selection.description === 'OTROS')) && (
               <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <div className="flex items-center gap-2 mb-4">
-                  <span className="text-lg">✏️</span>
                   <h3 className="text-sm font-semibold text-yellow-800">
                     Detalles Personalizados para {category}
                   </h3>
@@ -571,9 +570,8 @@ const DynamicCategorySection = ({
             <button
               type="button"
               onClick={handleAddItem}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md flex items-center gap-2"
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md"
             >
-              <span className="text-lg">➕</span>
               Agregar {category}
             </button>
           </div>

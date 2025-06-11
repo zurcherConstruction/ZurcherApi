@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate, useLocation } from "react-router-dom"; // Removed useParams
+import { useNavigate, useLocation } from "react-router-dom";
 import { Viewer, Worker } from "@react-pdf-viewer/core";
 import { defaultLayoutPlugin } from "@react-pdf-viewer/default-layout";
 import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/solid';
 import { unwrapResult } from '@reduxjs/toolkit';
 import { fetchBudgetItems } from "../../Redux/Actions/budgetItemActions";
 import { fetchPermitById } from "../../Redux/Actions/permitActions";
-import { createBudget } from "../../Redux/Actions/budgetActions"; // Removed fetchBudgetById, updateBudget
-// import { generatePDF } from "../../utils/pdfGenerator";
+import { createBudget } from "../../Redux/Actions/budgetActions";
 import "@react-pdf-viewer/core/lib/styles/index.css";
 import "@react-pdf-viewer/default-layout/lib/styles/index.css";
 import Swal from 'sweetalert2';
@@ -43,7 +42,6 @@ function useQuery() {
 }
 
 const CreateBudget = () => {
-  // Removed paramBudgetId and isEditing logic
   const query = useQuery();
   const permitIdFromQuery = query.get("permitId");
 
@@ -65,6 +63,9 @@ const CreateBudget = () => {
   const [isSubmitting, setIsSubmitting] = useState(false); // Estado para deshabilitar botón
   const [createdBudgetInfo, setCreatedBudgetInfo] = useState(null); // Para guardar info del budget creado
  
+  // Define standard input classes for reuse
+  const standardInputClasses = "mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm";
+  const readOnlyInputClasses = "mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm sm:text-sm cursor-default";
 
   //estados items manual 
   const [manualItem, setManualItem] = useState({
@@ -72,6 +73,7 @@ const CreateBudget = () => {
     name: "",
     unitPrice: 0,
     quantity: 1,
+    description: "", // Added description field
   });
   const [normalizedBudgetItemsCatalog, setNormalizedBudgetItemsCatalog] = useState([]);
 
@@ -91,20 +93,12 @@ const CreateBudget = () => {
 
   // --- Estado para visibilidad de secciones de items ---
   const [sectionVisibility, setSectionVisibility] = useState({
-    systemType: false,
-    drainfield: false,
-    pump: false, // Pump is simpler, maybe doesn't need collapse? Keeping for consistency.
-    sand: false,
-    inspection: false,
-    labor: false,
     manualItem: false, 
   });
+  
   const toggleSection = (sectionName) => {
     setSectionVisibility(prev => ({ ...prev, [sectionName]: !prev[sectionName] }));
   };
-
-  // --- Helper para generar IDs temporales ---
-  const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
   // --- Estado del Formulario (Inicializado para creación) ---
   const [formData, setFormData] = useState({
@@ -390,12 +384,13 @@ const CreateBudget = () => {
         name: manualItem.name.toUpperCase(),
         unitPrice: manualItem.unitPrice,
         quantity: manualItem.quantity,
-        notes: "Item Manual",
+        description: manualItem.description, // Added description
+        notes: "Item Manual", // You might want to adjust notes or use description for this
       }],
     }));
 
     // Resetear el formulario del item manual
-    setManualItem({ category: "", name: "", unitPrice: 0, quantity: 1 });
+    setManualItem({ category: "", name: "", unitPrice: 0, quantity: 1, description: "" }); // Reset description
   };
 
 
@@ -420,7 +415,7 @@ const CreateBudget = () => {
     if (Object.keys(newVisibility).length > 0) {
       setDynamicSectionVisibility(prev => ({ ...prev, ...newVisibility }));
     }
-  }, [availableCategories]);
+  }, [availableCategories, dynamicSectionVisibility]);
 
   const toggleDynamicSection = (category) => {
     setDynamicSectionVisibility(prev => ({ 
@@ -498,6 +493,7 @@ const CreateBudget = () => {
           category: item.category,
           name: item.name,
           unitPrice: item.unitPrice, // El backend usará este
+          description: item.description || null, // Added description field
         }),
         // Enviar otros campos si el backend los espera
         marca: item.marca || null,
@@ -540,72 +536,71 @@ const CreateBudget = () => {
   const isLoading = loadingCatalog || loadingPermit; // Solo depende de catálogo y permit
   const hasError = errorCatalog || errorPermit; // Solo depende de catálogo y permit
 
-  if (isLoading && !hasError) return <div className="container mx-auto p-4">Cargando datos...</div>;
+  if (isLoading && !hasError) return <div className="container mx-auto p-6 lg:p-8">Cargando datos...</div>;
   // Mostrar error específico si es posible
-  if (errorPermit) return <div className="container mx-auto p-4 text-red-600">Error cargando datos del permiso: {errorPermit}</div>;
-  if (errorCatalog) return <div className="container mx-auto p-4 text-red-600">Error cargando catálogo de items: {errorCatalog}</div>;
+  if (errorPermit) return <div className="container mx-auto p-6 lg:p-8 text-red-600">Error cargando datos del permiso: {errorPermit}</div>;
+  if (errorCatalog) return <div className="container mx-auto p-6 lg:p-8 text-red-600">Error cargando catálogo de items: {errorCatalog}</div>;
   // Si no hay permitId, mostrar mensaje
-  if (!permitIdFromQuery && !isLoading) return <div className="container mx-auto p-4 text-orange-600">No se especificó un permiso para crear el presupuesto. Verifique la URL.</div>;
+  if (!permitIdFromQuery && !isLoading) return <div className="container mx-auto p-6 lg:p-8 text-orange-600">No se especificó un permiso para crear el presupuesto. Verifique la URL.</div>;
   // Si el permit cargó pero no se encontró (error 404 simulado por selectedPermit null tras carga)
-  if (!selectedPermit && !loadingPermit && permitIdFromQuery && !errorPermit) return <div className="container mx-auto p-4 text-red-600">No se encontró el permiso con ID: {permitIdFromQuery}</div>;
+  if (!selectedPermit && !loadingPermit && permitIdFromQuery && !errorPermit) return <div className="container mx-auto p-6 lg:p-8 text-red-600">No se encontró el permiso con ID: {permitIdFromQuery}</div>;
 
 
   return (
-    <div className="container mx-auto p-4 space-y-8">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Columna izquierda: Vista previa de los PDFs */}
-        <div className="bg-white shadow-md rounded-lg p-4 md:col-span-2"> {/* Ajustado a 2 columnas */}
-          <h2 className="text-xl font-bold mb-4">Vista previa de los PDFs del Permiso</h2>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-[1400px] mx-auto p-6 lg:p-8 space-y-10">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 lg:gap-8">
+          {/* Columna izquierda: Vista previa de los PDFs */}
+          <div className="bg-white shadow-lg rounded-xl p-6 md:col-span-3"> {/* PDF viewer takes 3/5 of width on xl screens */}
+            <h2 className="text-2xl font-semibold text-gray-800 mb-6">Vista previa de los PDFs del Permiso</h2>
 
-          <div className="flex justify-center space-x-4 mb-4"> {/* Centrado y con espacio */}
-            <button
-              onClick={() => setCurrentPage(1)}
+            <div className="flex justify-center space-x-4 mb-6"> {/* Centrado y con espacio */}
+              <button
+                onClick={() => setCurrentPage(1)}
+                className={`py-2 px-4 rounded-md text-sm font-medium transition-colors ${currentPage === 1 ? "bg-indigo-600 text-white shadow-sm" : "bg-gray-100 text-gray-700 hover:bg-gray-200"} disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                Ver PDF Principal
+              </button>
+              <button
+                onClick={() => setCurrentPage(2)}
+                className={`py-2 px-4 rounded-md text-sm font-medium transition-colors ${currentPage === 2 ? "bg-indigo-600 text-white shadow-sm" : "bg-gray-100 text-gray-700 hover:bg-gray-200"} disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                Ver Documento Opcional
+              </button>
+            </div>
 
-              className={`py-1 px-3 rounded-md text-sm ${currentPage === 1 ? "bg-blue-950 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"} disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              Ver PDF Principal
-            </button>
-            <button
-              onClick={() => setCurrentPage(2)}
-
-              className={`py-1 px-3 rounded-md text-sm ${currentPage === 2 ? "bg-blue-950 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"} disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              Ver Documento Opcional
-            </button>
+            {/* Vista previa del PDF */}
+            {currentPage === 1 && pdfPreview ? (
+              <div className="overflow-y-auto max-h-[750px] border border-gray-200 rounded-lg shadow-inner bg-gray-50">
+                <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+                  <Viewer
+                    fileUrl={pdfPreview}
+                    plugins={[defaultLayoutPluginInstance]}
+                  />
+                </Worker>
+              </div>
+            ) : currentPage === 2 && optionalDocPreview ? (
+              <div className="overflow-y-auto max-h-[750px] border border-gray-200 rounded-lg shadow-inner bg-gray-50">
+                <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+                  <Viewer
+                    fileUrl={optionalDocPreview}
+                    plugins={[defaultLayoutPluginInstance]}
+                  />
+                </Worker>
+              </div>
+            ) : (
+              <p className="text-gray-500 py-10 text-center">
+                {currentPage === 1
+                  ? "No se ha cargado ningún PDF principal."
+                  : "No se ha cargado ningún documento opcional."}
+              </p>
+            )}
           </div>
 
-          {/* Vista previa del PDF */}
-          {currentPage === 1 && pdfPreview ? (
-            <div className="overflow-y-auto max-h-[700px] border border-gray-300 rounded-md">
-              <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
-                <Viewer
-                  fileUrl={pdfPreview}
-                  plugins={[defaultLayoutPluginInstance]}
-                />
-              </Worker>
-            </div>
-          ) : currentPage === 2 && optionalDocPreview ? (
-            <div className="overflow-y-auto max-h-[700px] border border-gray-300 rounded-md">
-              <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
-                <Viewer
-                  fileUrl={optionalDocPreview}
-                  plugins={[defaultLayoutPluginInstance]}
-                />
-              </Worker>
-            </div>
-          ) : (
-            <p className="text-gray-500">
-              {currentPage === 1
-                ? "No se ha cargado ningún PDF principal."
-                : "No se ha cargado ningún documento opcional."}
-            </p>
-          )}
-        </div>
-
-        {/* --- Formulario (Columna Derecha) --- */}
-        <div className="bg-white shadow-md rounded-lg p-4 md:col-span-1">
-          <h2 className="text-xl font-bold mb-4">Crear Nuevo Presupuesto</h2>
-          <form onSubmit={handleSubmit} className="space-y-4"> {/* Changed from grid to space-y */}
+          {/* --- Formulario (Columna Derecha) --- */}
+          <div className="bg-white shadow-lg rounded-xl p-6 md:col-span-2 space-y-6 max-h-[calc(100vh-8rem)] overflow-y-auto">
+            <h2 className="text-2xl font-semibold text-gray-800 mb-2 text-center md:text-left sticky top-0 bg-white py-2 z-10">Crear Nuevo Presupuesto</h2> {/* Made title sticky */}
+            <form onSubmit={handleSubmit} className="space-y-6">
 
             {/* --- Sección Información General (Grid within Space-y) --- */}
             <div className="grid grid-cols-4 gap-4 border-b pb-4">
@@ -677,7 +672,7 @@ const CreateBudget = () => {
 
              
           {/* --- Sección Items Presupuestables (Dinámicas) --- */}
-      <div className="border p-3 rounded space-y-2 bg-gray-50">
+      <div className="space-y-3"> {/* Removed redundant border and padding, parent has it */}
        
         {/* Generar secciones dinámicamente para cada categoría */}
         {availableCategories.map(category => (
@@ -689,27 +684,29 @@ const CreateBudget = () => {
             onToggle={() => toggleDynamicSection(category)}
             onAddItem={addItemFromDynamicSection}
             generateTempId={generateTempId}
+            // Pass standardInputClasses for consistent styling within DynamicCategorySection if it uses inputs
+            // standardInputClasses={standardInputClasses} 
           />
         ))}
 
         {/* --- Item Manual (mantener como opción adicional) --- */}
-        <div className="border rounded bg-white">
+        <div className="border border-gray-200 rounded-lg bg-white shadow-sm">
           <button 
             type="button" 
             onClick={() => toggleSection('manualItem')} 
-            className="w-full flex justify-between items-center p-2 bg-gray-100 hover:bg-gray-200 rounded-t"
+            className="w-full flex justify-between items-center p-3 bg-gray-50 hover:bg-gray-100 rounded-t-lg transition-colors"
           >
-            <span className="font-medium text-sm">➕ Agregar Item </span>
+            <span className="font-medium text-sm text-gray-700">Añadir Item Manual</span> {/* Removed ➕ emoji */}
             {sectionVisibility.manualItem ? 
-              <ChevronUpIcon className="h-5 w-5 text-gray-600" /> : 
-              <ChevronDownIcon className="h-5 w-5 text-gray-600" />
+              <ChevronUpIcon className="h-5 w-5 text-gray-500" /> : 
+              <ChevronDownIcon className="h-5 w-5 text-gray-500" />
             }
           </button>
           {sectionVisibility.manualItem && (
-            <fieldset className="p-2 border-t">
-              <div className="grid grid-cols-2 gap-2 items-end">
-                <div>
-                  <label htmlFor="manual_category" className="block text-xs font-medium text-gray-600">
+            <fieldset className="p-4 border-t border-gray-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"> {/* Made manual item form more responsive */}
+                <div className="sm:col-span-1">
+                  <label htmlFor="manual_category" className="block text-sm font-medium text-gray-700 mb-1">
                     Categoría
                   </label>
                   <input 
@@ -719,11 +716,11 @@ const CreateBudget = () => {
                     value={manualItem.category} 
                     onChange={handleManualItemChange} 
                     placeholder="Ej: NUEVA CATEGORIA" 
-                    className="input-style" 
+                    className={standardInputClasses} 
                   />
                 </div>
-                <div>
-                  <label htmlFor="manual_name" className="block text-xs font-medium text-gray-600">
+                <div className="sm:col-span-1">
+                  <label htmlFor="manual_name" className="block text-sm font-medium text-gray-700 mb-1">
                     Nombre
                   </label>
                   <input 
@@ -733,11 +730,11 @@ const CreateBudget = () => {
                     value={manualItem.name} 
                     onChange={handleManualItemChange} 
                     placeholder="Ej: Item Especial" 
-                    className="input-style" 
+                    className={standardInputClasses} 
                   />
                 </div>
-                <div>
-                  <label htmlFor="manual_price" className="block text-xs font-medium text-gray-600">
+                <div className="sm:col-span-1">
+                  <label htmlFor="manual_price" className="block text-sm font-medium text-gray-700 mb-1">
                     Precio Unitario
                   </label>
                   <input 
@@ -749,11 +746,11 @@ const CreateBudget = () => {
                     min="0" 
                     step="0.01" 
                     placeholder="0.00" 
-                    className="input-style" 
+                    className={standardInputClasses} 
                   />
                 </div>
-                <div>
-                  <label htmlFor="manual_quantity" className="block text-xs font-medium text-gray-600">
+                <div className="sm:col-span-1">
+                  <label htmlFor="manual_quantity" className="block text-sm font-medium text-gray-700 mb-1">
                     Cantidad
                   </label>
                   <input 
@@ -764,13 +761,27 @@ const CreateBudget = () => {
                     onChange={handleManualItemChange} 
                     min="1" 
                     placeholder="1" 
-                    className="input-style" 
+                    className={standardInputClasses} 
+                  />
+                </div>
+                <div className="col-span-full"> {/* Description field spans full width */}
+                  <label htmlFor="manual_description" className="block text-sm font-medium text-gray-700 mb-1">
+                    Descripción (Opcional)
+                  </label>
+                  <textarea
+                    id="manual_description"
+                    name="description"
+                    value={manualItem.description}
+                    onChange={handleManualItemChange}
+                    placeholder="Detalles adicionales del item manual"
+                    rows="3"
+                    className={`${standardInputClasses} w-full`}
                   />
                 </div>
                 <button 
                   type="button" 
                   onClick={addManualItem} 
-                  className="button-add-item col-span-2 mt-2"
+                  className="col-span-full mt-3 w-full bg-indigo-500 hover:bg-indigo-600 text-white font-medium py-2 px-4 rounded-md shadow-sm transition-colors text-sm"
                 >
                   Agregar Item Manual
                 </button>
@@ -783,22 +794,22 @@ const CreateBudget = () => {
               
 
               {/* --- Lista de Items Añadidos --- */}
-              <div className="mt-6 border-t pt-4 bg-white p-3 rounded shadow-sm">
-                <h4 className="text-md font-medium mb-2 text-gray-800">Items Añadidos:</h4>
+              <div className="mt-6 border-t border-gray-200 pt-5 bg-white p-4 rounded-lg shadow">
+                <h4 className="text-md font-semibold mb-3 text-gray-700">Items Añadidos:</h4>
                 {formData.lineItems.length === 0 ? (
-                  <p className="text-gray-500 text-sm">Aún no se han añadido items.</p>
+                  <p className="text-gray-500 text-sm py-3 text-center">Aún no se han añadido items.</p>
                 ) : (
-                  <ul className="space-y-2 max-h-60 overflow-y-auto pr-2">
+                  <ul className="space-y-3 max-h-72 overflow-y-auto pr-2 -mr-2"> {/* Negative margin to offset scrollbar */}
                     {formData.lineItems.map(item => (
-                      <li key={item._tempId} className="flex justify-between items-start text-sm border-b pb-1 hover:bg-gray-50">
-                        <div className="flex-grow mr-2">
-                          <span className="font-medium text-gray-700">{item.name}</span>
-                          {item.marca && <span className="text-gray-600"> ({item.marca})</span>}
-                          {item.capacity && <span className="text-gray-600"> [{item.capacity}]</span>}
-                          <span className="text-gray-800"> x {item.quantity} @ ${parseFloat(item.unitPrice).toFixed(2)}</span>
-                          {item.notes && <span className="block text-xs text-gray-500 italic ml-2">- {item.notes}</span>}
+                      <li key={item._tempId} className="flex justify-between items-start text-sm py-3 border-b border-gray-200 last:border-b-0 hover:bg-gray-50 transition-colors rounded-md px-2">
+                        <div className="flex-grow mr-3">
+                          <span className="font-medium text-gray-800">{item.name}</span>
+                          {item.marca && <span className="text-gray-600 text-xs"> ({item.marca})</span>}
+                          {item.capacity && <span className="text-gray-600 text-xs"> [{item.capacity}]</span>}
+                          <span className="block text-gray-700 text-xs">Cant: {item.quantity} @ ${parseFloat(item.unitPrice).toFixed(2)} c/u</span>
+                          {item.notes && <span className="block text-xs text-gray-500 italic mt-1 ml-2">- {item.notes}</span>}
                         </div>
-                        <button type="button" onClick={() => handleRemoveItem(item._tempId)} className="text-red-500 hover:text-red-700 text-xs font-semibold ml-2 flex-shrink-0">Eliminar</button>
+                        <button type="button" onClick={() => handleRemoveItem(item._tempId)} className="text-gray-500 hover:text-red-500 text-xs font-medium ml-2 flex-shrink-0 transition-colors py-1">Eliminar</button>
                       </li>
                     ))}
                   </ul>
@@ -806,60 +817,60 @@ const CreateBudget = () => {
               </div>
             </div>
             {/* --- Descuento --- */}
-            <fieldset className="border p-3 rounded bg-white">
-              <legend className="text-lg font-medium px-1">Descuento</legend>
-              <div className="grid grid-cols-4 gap-4 items-center pt-1">
-                <div className="col-span-3">
+            <fieldset className="border border-gray-200 p-4 rounded-lg bg-white shadow">
+              <legend className="text-md font-semibold px-2 text-gray-700">Descuento</legend>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-center pt-2"> {/* Made discount section responsive */}
+                <div className="sm:col-span-3">
                   <label htmlFor="discount_desc" className="block text-sm font-medium text-gray-700">Descripción</label>
-                  <input id="discount_desc" type="text" name="discountDescription" value={formData.discountDescription} onChange={handleGeneralInputChange} className="input-style" />
+                  <input id="discount_desc" type="text" name="discountDescription" value={formData.discountDescription} onChange={handleGeneralInputChange} className={standardInputClasses} />
                 </div>
-                <div className="col-span-1">
+                <div className="sm:col-span-1">
                   <label htmlFor="discount_amount" className="block text-sm font-medium text-gray-700">Monto ($)</label>
-                  <input id="discount_amount" type="number" name="discountAmount" value={formData.discountAmount} onChange={handleGeneralInputChange} min="0" step="0.01" className="input-style" />
+                  <input id="discount_amount" type="number" name="discountAmount" value={formData.discountAmount} onChange={handleGeneralInputChange} min="0" step="0.01" className={standardInputClasses} />
                 </div>
               </div>
             </fieldset>
 
             {/* --- Totales y Pago Inicial --- */}
-            <div className="text-right space-y-1 border-t pt-4">
-              {/* ... (Totals display remains the same) ... */}
-              <p className="text-lg">Subtotal: <span className="font-semibold">${formData.subtotalPrice.toFixed(2)}</span></p>
+            <div className="text-right space-y-2 border-t border-gray-200 pt-6 mt-6">
+              <p className="text-gray-700">Subtotal: <span className="font-semibold text-gray-900">${formData.subtotalPrice.toFixed(2)}</span></p>
               {formData.discountAmount > 0 && (
-                <p className="text-lg text-red-600">Descuento ({formData.discountDescription || 'General'}): <span className="font-semibold">-${formData.discountAmount.toFixed(2)}</span></p>
+                <p className="text-red-600">Descuento ({formData.discountDescription || 'General'}): <span className="font-semibold">-${formData.discountAmount.toFixed(2)}</span></p>
               )}
-              <p className="text-xl font-bold">Total: <span className="font-semibold">${formData.totalPrice.toFixed(2)}</span></p>
-              <div className="flex justify-end items-center space-x-2 mt-2">
-                <label htmlFor="payment_perc" className="text-sm font-medium">Pago Inicial:</label>
-                <select id="payment_perc" name="initialPaymentPercentage" value={formData.initialPaymentPercentage} onChange={handlePaymentPercentageChange} className="input-style w-auto">
+              <p className="text-lg font-bold text-gray-800">Total: <span className="font-semibold text-gray-900">${formData.totalPrice.toFixed(2)}</span></p>
+              <div className="flex flex-col sm:flex-row justify-end items-center space-y-2 sm:space-y-0 sm:space-x-3 mt-3 pt-2"> {/* Made payment section responsive */}
+                <label htmlFor="payment_perc" className="text-sm font-medium text-gray-700">Pago Inicial:</label>
+                <select id="payment_perc" name="initialPaymentPercentage" value={formData.initialPaymentPercentage} onChange={handlePaymentPercentageChange} className={`${standardInputClasses} !mt-0 w-auto min-w-[120px]`}>
                   <option value="60">60%</option>
                   <option value="total">Total (100%)</option>
                 </select>
-                <span className="text-lg font-semibold">(${formData.initialPayment.toFixed(2)})</span>
+                <span className="text-lg font-semibold text-gray-900">(${formData.initialPayment.toFixed(2)})</span>
               </div>
             </div>
 
             {/* --- Notas Generales --- */}
-            <div>
+            <div className="pt-2">
               <label htmlFor="general_notes" className="block text-sm font-medium text-gray-700">Notas Generales</label>
-              <textarea id="general_notes" name="generalNotes" value={formData.generalNotes} onChange={handleGeneralInputChange} rows="3" className="input-style w-full"></textarea>
+              <textarea id="general_notes" name="generalNotes" value={formData.generalNotes} onChange={handleGeneralInputChange} rows="4" className={`${standardInputClasses} w-full`}></textarea>
             </div>
 
             {/* --- Botón Submit --- */}
       
-       <div className="mt-6 border-t pt-4">
+       <div className="mt-8 border-t border-gray-200 pt-6">
               {!createdBudgetInfo ? (
                 <button
                   type="submit"
-                  className="w-full bg-blue-950 text-white py-2 px-4 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-indigo-600 text-white py-2.5 px-4 rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed transition-colors font-medium"
                   disabled={isSubmitting || isLoading || formData.lineItems.length === 0 || !selectedPermit}
                 >
-                  {isSubmitting ? 'Creando...' : "Crear Presupuesto"}
+                  {isSubmitting ? 'Creando Presupuesto...' : "Crear Presupuesto"}
                 </button>
               ) : (
-                <div className="text-center">
-                  <p className="text-green-600 font-semibold">Presupuesto creado exitosamente!</p>
-                  <p className="text-gray-500">ID: {createdBudgetInfo.id}</p>
-                  <p className="text-gray-500">Fecha: {new Date(createdBudgetInfo.createdAt).toLocaleDateString()}</p>
+                <div className="text-center p-4 bg-green-50 border border-green-300 rounded-md">
+                  <p className="text-lg font-semibold text-green-700">¡Presupuesto creado exitosamente!</p>
+                  <p className="text-sm text-gray-600 mt-1">ID del Presupuesto: {createdBudgetInfo.idBudget}</p> {/* Assuming idBudget from your previous code */}
+                  <p className="text-sm text-gray-600">Fecha de Creación: {new Date(createdBudgetInfo.createdAt).toLocaleDateString()}</p>
+                  {/* You might want to add a button to view the budget or navigate away */}
                 </div>
                
               )}
@@ -868,7 +879,7 @@ const CreateBudget = () => {
         </div>
       </div>
 
-
+</div>
     </div>
   );
 };
