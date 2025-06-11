@@ -52,6 +52,7 @@ const EditBudget = () => {
     unitPrice: "", // Usar string para el input
     quantity: "1", // Default a 1 como string
     notes: "",
+    description: "", // ✅ AGREGAR DESCRIPTION
   });
 
   // ✅ AGREGAR ESTADOS PARA SISTEMA DINÁMICO:
@@ -273,7 +274,7 @@ const editableBudgets = useMemo(() => {
         notes: manualItemData.notes.trim(),
         marca: '',
         capacity: '',
-        description: '', // ✅ AGREGAR DESCRIPTION VACÍA
+        description: manualItemData.description.trim(), // ✅ INCLUIR DESCRIPTION DEL FORMULARIO
     };
 
     setFormData(prev => {
@@ -285,7 +286,7 @@ const editableBudgets = useMemo(() => {
     });
 
     // Resetear formulario manual
-    setManualItemData({ category: "", name: "", unitPrice: "", quantity: "1", notes: "" });
+    setManualItemData({ category: "", name: "", unitPrice: "", quantity: "1", notes: "", description: "" }); // ✅ RESETEAR DESCRIPTION
   };
 
   // ✅ AGREGAR HANDLERS PARA SISTEMA DINÁMICO:
@@ -697,6 +698,18 @@ const editableBudgets = useMemo(() => {
                   <div>
                     <label htmlFor="manualQuantity" className="block text-xs font-medium text-gray-700">Cantidad</label>
                     <input type="number" id="manualQuantity" name="quantity" value={manualItemData.quantity} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Ej: 1" min="0.01" step="0.01" />
+                  </div>
+                  <div className="md:col-span-3"> {/* ✅ AGREGAR CAMPO DESCRIPTION */}
+                    <label htmlFor="manualDescription" className="block text-xs font-medium text-gray-700">Descripción (Opcional)</label>
+                    <textarea
+                      id="manualDescription"
+                      name="description"
+                      value={manualItemData.description}
+                      onChange={handleManualItemChange}
+                      className="input-style mt-1 text-sm"
+                      placeholder="Descripción detallada del item..."
+                      rows="3"
+                    />
                   </div>
                   <div className="md:col-span-3">
                     <label htmlFor="manualNotes" className="block text-xs font-medium text-gray-700">Notas (Opcional)</label>
