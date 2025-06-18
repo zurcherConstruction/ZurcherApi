@@ -378,25 +378,28 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   doc.text(`$${mainItemRate.toFixed(2)}`, xAmountText, currentItemY, { width: wAmount, align: 'right' });
   doc.moveDown(3.5);
 
-  // ✅ 2. MOSTRAR LOS lineItems QUE VIENEN DEL PRESUPUESTO (COMO "INCLUDED")
+   // ✅ 2. MOSTRAR LOS lineItems QUE VIENEN DEL PRESUPUESTO (COMO "INCLUDED")
   if (lineItems && lineItems.length > 0) {
-    lineItems.forEach((item) => {
-      const itemQty = parseInt(item.quantity) || 1;
-      
-      let fullDescription = item.name || 'N/A';
-      if (item.description && item.description.trim() !== '') {
-        fullDescription += ` - ${item.description}`;
-      }
-      if (item.marca && item.marca.trim() !== '') {
-        fullDescription += ` [Marca: ${item.marca}]`;
-      }
-      if (item.capacity && item.capacity.trim() !== '') {
-        fullDescription += ` [Capacidad: ${item.capacity}]`;
-      }
+    // ✅ ÚNICO CAMBIO: Se filtra el array antes de recorrerlo para no mostrar "LABOR FEE"
+    lineItems
+      .filter(item => item.name?.toUpperCase() !== 'LABOR FEE')
+      .forEach((item) => {
+        const itemQty = parseInt(item.quantity) || 1;
+        
+        let fullDescription = item.name || 'N/A';
+        if (item.description && item.description.trim() !== '') {
+          fullDescription += ` - ${item.description}`;
+        }
+        if (item.marca && item.marca.trim() !== '') {
+          fullDescription += ` [Marca: ${item.marca}]`;
+        }
+        if (item.capacity && item.capacity.trim() !== '') {
+          fullDescription += ` [Capacidad: ${item.capacity}]`;
+        }
 
-      const estimatedItemHeight = Math.max(doc.heightOfString(fullDescription, { width: wDesc }), 25);
-      checkPageBreak(estimatedItemHeight);
-
+        const estimatedItemHeight = Math.max(doc.heightOfString(fullDescription, { width: wDesc }), 25);
+        checkPageBreak(estimatedItemHeight);
+        
       currentItemY = doc.y;
       doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
       doc.text((item.name || 'Component').toUpperCase(), xIncludedText, currentItemY, { width: wIncluded });
