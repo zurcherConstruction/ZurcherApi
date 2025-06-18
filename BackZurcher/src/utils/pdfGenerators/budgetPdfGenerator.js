@@ -25,6 +25,68 @@ const {
 } = require('./shared/constants');
 
 const { formatDateDDMMYYYY } = require('./shared/helpers');
+// === CONFIGURACIÓN DE ITEMS INCLUIDOS ===
+
+// 1. Items que aparecen SIEMPRE en todos los presupuestos
+const DEFAULT_INCLUDED_ITEMS = [
+  {
+    name: "WARRANTY",
+    description: "1 YEAR MANUFACTURER'S WARRANTY",
+    qty: "1",
+    rate: 0.00,
+    amount: "INCLUDED"
+  }
+];
+
+// 2. Items que aparecen SÓLO si se cumple una condición
+const CONDITIONAL_INCLUDED_ITEMS = {
+  // La clave (ej: "ATU") es lo que buscaremos en el nombre del item "System Type"
+  "ATU": [
+    {
+      name: "SYSTEM PARTS & ELECTRICAL INSTALLATION",
+      description: "FULL INSTALLATION OF PIPES, ACCESORIES, AND ELECTRICAL WORK FOR THE SEPTIC SYSTEM",
+      qty: "1",
+      rate: 0.00,
+      amount: "INCLUDED"
+    },
+    {
+      name: "SERVICE MAINTENANCE CONTRACT",
+      description: "2 YEAR CONTRACT WITH SERVICE EVERY 6 MONTHS",
+      qty: "1",
+      rate: 0.00,
+      amount: "INCLUDED"
+    }
+  ],
+  // Puedes agregar más reglas aquí, por ejemplo:
+  // "REGULAR TANK": [ { ... otro item ... } ]
+};
+
+
+/**
+ * Genera la lista final de items "incluidos" para el PDF.
+ * @param {Array} lineItems - Los items principales del presupuesto.
+ * @returns {Array} - Una lista combinada de items por defecto y condicionales.
+ */
+function _generateIncludedItems(lineItems = []) {
+  // Empezamos con los items que siempre deben estar
+  let finalItems = [...DEFAULT_INCLUDED_ITEMS];
+
+  // Revisamos los items del presupuesto para ver si activan alguna condición
+  lineItems.forEach(lineItem => {
+    // Condición: El item es de categoría "System Type"
+    if (lineItem.category === 'System Type' && lineItem.name) {
+      // Buscamos si el nombre del item (ej: "ATU 1500 GPD") contiene alguna de nuestras claves (ej: "ATU")
+      for (const key in CONDITIONAL_INCLUDED_ITEMS) {
+        if (lineItem.name.toUpperCase().includes(key.toUpperCase())) {
+          // Si la clave "ATU" se encuentra, agregamos todos sus items a la lista final
+          finalItems.push(...CONDITIONAL_INCLUDED_ITEMS[key]);
+        }
+      }
+    }
+  });
+
+  return finalItems;
+}
 
 // === FUNCIONES INTERNAS EXACTAS DEL ORIGINAL ===
 
@@ -250,7 +312,6 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   const tableTop = doc.y;
   const cellPadding = 5;
 
-  // ✅ AJUSTAR ANCHOS DE COLUMNAS PARA USAR MÁS ESPACIO
   const colIncludedW = contentWidth * 0.20;
   const colDescW = contentWidth * 0.40;
   const colQtyW = contentWidth * 0.08;
@@ -287,26 +348,9 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
 
   doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
 
-  // MAIN ITEM
-  const mainItemName = "SEPTIC SYSTEM INSTALLATION";
-  const mainItemDesc = "COMPLETE INSTALLATION OF THE SYSTEM (LABOR AND MATERIALS)";
-  const mainItemQty = 1;
-  const mainItemRate = parseFloat(totalPrice);
-
-  let currentItemY = doc.y;
-  doc.text(mainItemName, xIncludedText, currentItemY, { width: wIncluded });
-  doc.text(mainItemDesc, xDescText, currentItemY, { width: wDesc });
-  doc.text(mainItemQty.toFixed(0), xQtyText, currentItemY, { width: wQty, align: 'right' });
-  doc.text(`$${mainItemRate.toFixed(2)}`, xRateText, currentItemY, { width: wRate, align: 'right' });
-  doc.text(`$${mainItemRate.toFixed(2)}`, xAmountText, currentItemY, { width: wAmount, align: 'right' });
-  doc.moveDown(3.5);
-
-  console.log("Procesando lineItems para PDF:", lineItems);
-
-  // ✅ FUNCIÓN CHECKPAGEBREAK OPTIMIZADA
+  // FUNCIÓN CHECKPAGEBREAK OPTIMIZADA
   const checkPageBreak = (estimatedHeight = 50) => {
     const availableSpace = doc.page.height - NEW_PAGE_MARGIN - 25;
-
     if (doc.y + estimatedHeight > availableSpace) {
       doc.addPage();
       doc.y = NEW_PAGE_MARGIN;
@@ -314,105 +358,100 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
     }
   };
 
-  // Procesar cada lineItem
+  let currentItemY;
+
+  // ======================================================================
+  // ▼▼▼ LÓGICA CORREGIDA ▼▼▼
+  // ======================================================================
+
+  // ✅ 1. MOSTRAR EL ITEM PRINCIPAL CON EL PRECIO TOTAL
+  const mainItemName = "SEPTIC SYSTEM INSTALLATION";
+  const mainItemDesc = "COMPLETE INSTALLATION OF THE SYSTEM (LABOR AND MATERIALS)";
+  const mainItemQty = 1;
+  const mainItemRate = parseFloat(totalPrice);
+
+  currentItemY = doc.y;
+  doc.text(mainItemName, xIncludedText, currentItemY, { width: wIncluded });
+  doc.text(mainItemDesc, xDescText, currentItemY, { width: wDesc });
+  doc.text(mainItemQty.toFixed(0), xQtyText, currentItemY, { width: wQty, align: 'right' });
+  doc.text(`$${mainItemRate.toFixed(2)}`, xRateText, currentItemY, { width: wRate, align: 'right' });
+  doc.text(`$${mainItemRate.toFixed(2)}`, xAmountText, currentItemY, { width: wAmount, align: 'right' });
+  doc.moveDown(3.5);
+
+  // ✅ 2. MOSTRAR LOS lineItems QUE VIENEN DEL PRESUPUESTO (COMO "INCLUDED")
   if (lineItems && lineItems.length > 0) {
-    lineItems.forEach((item, index) => {
-      const itemCategory = item.category || 'N/A';
-      const itemName = item.name || 'N/A';
-      const itemDescription = item.description || '';
+    lineItems.forEach((item) => {
       const itemQty = parseInt(item.quantity) || 1;
-      const itemNotes = item.notes || '';
-
-      // ✅ CONSTRUIR DESCRIPCIÓN COMPLETA: NAME + DESCRIPTION + MARCA + CAPACITY + NOTES
-      let fullDescription = itemName; // Empezar con el nombre
-
-      if (itemDescription && itemDescription.trim() !== '') {
-        fullDescription += ` - ${itemDescription}`;
+      
+      let fullDescription = item.name || 'N/A';
+      if (item.description && item.description.trim() !== '') {
+        fullDescription += ` - ${item.description}`;
       }
-
       if (item.marca && item.marca.trim() !== '') {
         fullDescription += ` [Marca: ${item.marca}]`;
       }
-
       if (item.capacity && item.capacity.trim() !== '') {
         fullDescription += ` [Capacidad: ${item.capacity}]`;
       }
 
-      if (itemNotes && itemNotes.trim() !== '') {
-        fullDescription += ` - ${itemNotes}`;
-      }
-
-      // ✅ ESTIMACIÓN MÁS PRECISA DE ALTURA NECESARIA
-      const estimatedDescHeight = doc.heightOfString(fullDescription, { width: wDesc });
-      const estimatedCategoryHeight = doc.heightOfString(itemCategory, { width: wIncluded });
-      const estimatedItemHeight = Math.max(estimatedDescHeight, estimatedCategoryHeight) + 25; // ✅ AUMENTADO PADDING
+      const estimatedItemHeight = Math.max(doc.heightOfString(fullDescription, { width: wDesc }), 25);
       checkPageBreak(estimatedItemHeight);
 
-      // Dibujar el item
       currentItemY = doc.y;
-
-      // ✅ COLUMNA INCLUDED - MOSTRAR CATEGORY (cambié por NAME)
       doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
-      doc.text(itemName.toUpperCase(), xIncludedText, currentItemY, { width: wIncluded });
-
-      // Guardar Y antes de escribir descripción (para alinear otras columnas)
+      doc.text((item.name || 'Component').toUpperCase(), xIncludedText, currentItemY, { width: wIncluded });
+      
       const yBeforeDesc = doc.y;
-
-      // ✅ COLUMNA DESCRIPTION - MOSTRAR NAME + DESCRIPTION + DETALLES (cambié por DESCRIPTION)
-      doc.text(itemDescription, xDescText, currentItemY, { width: wDesc });
+      doc.text(item.description, xDescText, currentItemY, { width: wDesc });
       const yAfterDesc = doc.y;
 
-      // Columnas QTY, RATE, AMOUNT (alineadas con currentItemY)
+      // LÓGICA ORIGINAL RESTAURADA: Se muestra como incluido, sin precio individual.
       doc.text(itemQty.toString(), xQtyText, currentItemY, { width: wQty, align: 'right' });
       doc.text("$0.00", xRateText, currentItemY, { width: wRate, align: 'right' });
-      doc.font(FONT_FAMILY_MONO_BOLD).text("INCLUDED", xAmountText, currentItemY, { width: wAmount, align: 'right' });
-      doc.font(FONT_FAMILY_MONO); // Volver a fuente normal
-
-      // Mover Y al final de la descripción (que puede ser multi-línea)
-      doc.y = yAfterDesc;
-      doc.moveDown(3.0); // ✅ AUMENTADO DE 2.0 A 3.0 PARA MÁS ESPACIO ENTRE ITEMS
-    });
-  } else {
-    // ✅ FALLBACK: Si no hay lineItems, mostrar items estándar (como backup)
-    console.log("No se encontraron lineItems en budgetData, usando items estándar de fallback");
-
-    const standardItems = [
-      { desc: "SAND TRUCK - LOADS OF SAND INCLUDED", qty: "ALL", rate: 0.00 },
-      { desc: "DIRT TRUCK FOR COVER - LOADS OF DIRT INCLUDED", qty: "ALL", rate: 0.00 },
-      { desc: "ROCK REMOVAL - INCLUDED AT NO ADDITIONAL COST IF REQUIRED DURING INSTALLATION", qty: 1, rate: 0.00 },
-      { desc: "PRIVATE INSPECTION - FIRST INITIAL INSPECTION", qty: 1, rate: 0.00 },
-      { desc: "SERVICE MAINTENANCE CONTRACT - 2 YEAR CONTRACT WITH SERVICE EVERY 6 MONTHS", qty: 1, rate: 0.00 },
-      { desc: "SYSTEM PARTS & ELECTRICAL INSTALLATION - FULL INSTALLATION OF PIPES, ACCESSORIES, AND ELECTRICAL WORK FOR THE SEPTIC SYSTEM", qty: 1, rate: 0.00 },
-      { desc: "WARRANTY - 2 YEAR MANUFACTURER'S WARRANTY", qty: 1, rate: 0.00 }
-    ];
-
-    standardItems.forEach(subItem => {
-      // ✅ ESTIMACIÓN MÁS PRECISA PARA ITEMS ESTÁNDAR TAMBIÉN
-      const estimatedDescHeight = doc.heightOfString(subItem.desc, { width: wDesc });
-      const estimatedRowHeight = Math.max(estimatedDescHeight + 20, 35); // ✅ AUMENTADO MÍNIMO DE 25 A 35
-      checkPageBreak(estimatedRowHeight);
-
-      currentItemY = doc.y;
-      doc.text("", xIncludedText, currentItemY, { width: wIncluded });
-      const yBeforeDesc = doc.y;
-      doc.text(subItem.desc, xDescText, currentItemY, { width: wDesc });
-      const yAfterDesc = doc.y;
-
-      doc.text(typeof subItem.qty === 'number' ? subItem.qty.toFixed(0) : subItem.qty.toString(),
-        xQtyText, currentItemY, { width: wQty, align: 'right' });
-      doc.text(`$${subItem.rate.toFixed(2)}`, xRateText, currentItemY, { width: wRate, align: 'right' });
       doc.font(FONT_FAMILY_MONO_BOLD).text("INCLUDED", xAmountText, currentItemY, { width: wAmount, align: 'right' });
       doc.font(FONT_FAMILY_MONO);
 
       doc.y = yAfterDesc;
-      doc.moveDown(3.0); // ✅ AUMENTADO DE 2.0 A 3.0 PARA MÁS ESPACIO ENTRE ITEMS
+      doc.moveDown(3.0);
     });
   }
+
+  // ✅ 3. GENERAR Y MOSTRAR ITEMS INCLUIDOS ADICIONALES (Warranty, etc.)
+  const includedItems = _generateIncludedItems(budgetData.lineItems);
+
+  if (includedItems && includedItems.length > 0) {
+    includedItems.forEach(item => {
+      const estimatedDescHeight = doc.heightOfString(item.description, { width: wDesc });
+      const estimatedRowHeight = Math.max(estimatedDescHeight + 20, 35);
+      checkPageBreak(estimatedRowHeight);
+
+      currentItemY = doc.y;
+      doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
+      doc.text(item.name.toUpperCase(), xIncludedText, currentItemY, { width: wIncluded });
+      
+      const yBeforeDesc = doc.y;
+      doc.text(item.description, xDescText, currentItemY, { width: wDesc });
+      const yAfterDesc = doc.y;
+
+      doc.text(item.qty.toString(), xQtyText, currentItemY, { width: wQty, align: 'right' });
+      doc.text(`$${item.rate.toFixed(2)}`, xRateText, currentItemY, { width: wRate, align: 'right' });
+      doc.font(FONT_FAMILY_MONO_BOLD).text(item.amount, xAmountText, currentItemY, { width: wAmount, align: 'right' });
+      doc.font(FONT_FAMILY_MONO);
+
+      doc.y = yAfterDesc;
+      doc.moveDown(3.0);
+    });
+  }
+
+  // ======================================================================
+  // ▲▲▲ FIN DE LA LÓGICA CORREGIDA ▲▲▲
+  // ======================================================================
 
   // Línea final de la tabla
   doc.moveTo(NEW_PAGE_MARGIN, doc.y).lineTo(tableHeaderRightEdge, doc.y)
     .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.5).stroke();
   doc.moveDown(2.0);
+
 
   // ✅ VERIFICACIÓN ANTES DE SECCIÓN DE TOTALES
   const totalsSectionHeightEstimate = 200;
