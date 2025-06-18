@@ -3,34 +3,12 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
 
 const BarraLateral = () => {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Estado para controlar el menú móvil
-  const navigate = useNavigate(); // Hook para manejar la navegación
-  const location = useLocation(); // Hook para detectar cambios en la URL
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
   const { currentStaff: staff } = useSelector((state) => state.auth);
 
- 
- 
-  // const menuItems = [
-  //   { name: "Upload Permits", path: "/pdf" },
-  //   { name: "Budgets", path: "/budgets" },
-  //   { name: "Works", path: "/works" },
-  //   { name: "Tracking Work", path: "/check" },
-  //   { name: "Materials", path: "/materiales" },
-  //   { name: "Initial Pay", path: "/initialPay" },
-  //   { name: "Progress", path: "/progress-tracker" },
-  //   { name: "Send Message", path: "/send-notifications" },
-  //   { name: "Staff", path: "/register" },
-  //   { name: "Calendar", path: "/workCalendar" },
-  //   { name: "BudgetsEnd", path: "/archive" },
-  //   { name: "Upload Vouchers", path: "/attachInvoice" },
-  //   { name: "Dashboard", path: "/dashboard" },
-  //   { name: "Balance", path: "/balance" },
-  //   { name: "Items Budgets", path: "/itemBudget" },
-  //   { name: "Edit Budgets", path: "/editBudget" }, // Ruta para configuración
-
-
-  // ];
-  // New state to manage open sections. Key is section name, value is boolean.
+  // New state to manage open sections
   const [openSections, setOpenSections] = useState({});
 
   const menuSections = [
@@ -74,11 +52,11 @@ const BarraLateral = () => {
     },
   ];
 
-
   const handleNavigation = (path) => {
-    navigate(path); // Navega a la ruta seleccionada
-    setIsMobileMenuOpen(false); // Cierra el menú móvil
+    navigate(path);
+    setIsMobileMenuOpen(false);
   };
+  
   const toggleSection = (sectionName) => {
     setOpenSections(prevOpenSections => ({
       ...prevOpenSections,
@@ -88,30 +66,30 @@ const BarraLateral = () => {
   
   const handleMobileNavigation = (path) => {
     navigate(path);
-    setIsMobileMenuOpen(false); // Close mobile menu after navigation
+    setIsMobileMenuOpen(false);
   };
 
   if (staff?.role !== "owner") {
-    return null; // No renderizar la barra lateral si no es "owner"
+    return null;
   }
+
   const renderMenuItems = (isMobile) => (
     menuSections.map((section) => (
       <div key={section.name} className="w-full">
         <button
           onClick={() => toggleSection(section.name)}
-          className="flex items-center justify-between w-full py-3 px-4 text-base font-normal transition-all duration-300 text-left hover:bg-gray-700 hover:text-blue-300 focus:outline-none"
+          className="flex items-center justify-between w-full py-3 px-4 text-sm md:text-base font-medium transition-all duration-300 text-left hover:bg-gray-700 hover:text-blue-300 focus:outline-none"
         >
-          {section.name}
-          {/* Example Icon - replace with actual icons or text like +/- */}
-          <span>{openSections[section.name] ? "−" : "+"}</span>
+          <span className="truncate">{section.name}</span>
+          <span className="text-lg ml-2 flex-shrink-0">{openSections[section.name] ? "−" : "+"}</span>
         </button>
         {openSections[section.name] && (
-          <ul className="pl-4"> {/* Indent sub-items */}
+          <ul className="pl-6 bg-gray-900">
             {section.items.map((item) => (
               <li key={item.name} className="w-full">
                 <button
                   onClick={() => isMobile ? handleMobileNavigation(item.path) : handleNavigation(item.path)}
-                  className={`block py-2 px-4 text-xs font-medium transition-all duration-300 w-full text-left hover:bg-gray-600 hover:text-blue-200 ${
+                  className={`block py-2 px-3 text-xs md:text-sm font-medium transition-all duration-300 w-full text-left hover:bg-gray-600 hover:text-blue-200 rounded-md mx-1 my-1 ${
                     location.pathname === item.path ? "bg-gray-600 text-blue-200" : ""
                   }`}
                 >
@@ -127,44 +105,52 @@ const BarraLateral = () => {
 
   return (
     <div className="flex">
-      {/* Menú para pantallas grandes */}
-      <div className="hidden lg:flex flex-col bg-gray-800 text-white w-48 h-screen fixed"> {/* Increased width for section names */}
-        <ul className="flex flex-col mt-4 flex-1 overflow-y-auto min-h-0">
+      {/* Desktop/Tablet Sidebar */}
+      <div className="hidden md:flex flex-col bg-gray-800 text-white w-56 lg:w-64 h-screen fixed z-30 shadow-lg">
+        <div className="p-4 border-b border-gray-700">
+          <h2 className="text-lg font-semibold text-center">Navigation</h2>
+        </div>
+        <ul className="flex flex-col mt-2 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
           {renderMenuItems(false)}
         </ul>
       </div>
 
-      {/* Menú para pantallas pequeñas */}
-      <div className="lg:hidden">
+      {/* Mobile Menu Button */}
+      <div className="md:hidden">
         <button
-          className="fixed top-4 left-4 z-50 text-white p-2 rounded-md focus:outline-none"
+          className="fixed top-20 left-4 z-50 bg-gray-800 text-white p-2 rounded-lg shadow-lg focus:outline-none transition-transform duration-200 hover:scale-105"
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
         >
-          {isMobileMenuOpen ? "✖" : "☰"}
+          <div className="w-4 h-4 flex flex-col justify-around">
+            <span className={`block h-0.5 w-4 bg-white transition-all duration-300 ${isMobileMenuOpen ? 'rotate-45 translate-y-2.5' : ''}`}></span>
+            <span className={`block h-0.5 w-4 bg-white transition-all duration-300 ${isMobileMenuOpen ? 'opacity-0' : ''}`}></span>
+            <span className={`block h-0.5 w-4 bg-white transition-all duration-300 ${isMobileMenuOpen ? '-rotate-45 -translate-y-2.5' : ''}`}></span>
+          </div>
         </button>
 
-        {isMobileMenuOpen && (
-          <div className="fixed top-0 left-0 w-3/4 h-screen bg-gray-800 text-white z-40 flex flex-col">
-            <ul className="flex flex-col mt-16 flex-1 overflow-y-auto min-h-0">
-              {renderMenuItems(true)}
-            </ul>
+        {/* Mobile Sidebar */}
+        <div className={`fixed top-0 left-0 w-80 h-screen bg-gray-800 text-white z-40 transform transition-transform duration-300 ease-in-out ${
+          isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+        } shadow-2xl`}>
+          <div className="p-4 pt-20 border-b border-gray-700">
+            <h2 className="text-lg font-semibold text-center">Menu</h2>
           </div>
-        )}
+          <ul className="flex flex-col mt-2 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
+            {renderMenuItems(true)}
+          </ul>
+        </div>
 
+        {/* Mobile Overlay */}
         {isMobileMenuOpen && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-30"
+            className="fixed inset-0 bg-black bg-opacity-50 z-30 transition-opacity duration-300"
             onClick={() => setIsMobileMenuOpen(false)}
           ></div>
         )}
       </div>
 
-
-      {/* Contenido principal */}
-      <div className="flex-1 lg:ml-48 "> {/* Ajuste para que el contenido principal no quede debajo de la barra lateral */}
-        {/* Aquí va el contenido principal de la página */}
-
-      </div>
+      {/* Content Spacer for Desktop */}
+      <div className="hidden md:block w-56 lg:w-64 flex-shrink-0"></div>
     </div>
   );
 };
