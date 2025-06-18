@@ -6,7 +6,7 @@ const multer = require('multer');
 const upload = multer();
 const path = require('path');
 const { sendEmail } = require('../utils/notifications/emailService.js');
-const { generateAndSaveBudgetPDF } = require('../utils/pdfGenerator.js');
+const { generateAndSaveBudgetPDF } = require('../utils/pdfGenerators');
 const SignNowService = require('../services/ServiceSignNow');
 require('dotenv').config();
 // AGREGAR esta función auxiliar después de los imports:

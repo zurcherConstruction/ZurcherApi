@@ -1,6 +1,6 @@
 const { FinalInvoice, WorkExtraItem, Work, Budget, Permit, ChangeOrder, conn } = require('../data'); // Asegúrate que los modelos se exportan correctamente desde data/index.js
 const { Op } = require('sequelize');
- const { generateAndSaveFinalInvoicePDF } = require('../utils/pdfGenerator'); // Necesitarás crear esta función
+ const { generateAndSaveFinalInvoicePDF } = require('../utils/pdfGenerators'); // Necesitarás crear esta función
  const fs = require('fs'); // <-- AÑADIR ESTA LÍNEA
  const path = require('path'); //
 const { sendEmail } = require('../utils/notifications/emailService'); // Asegúrate de tener esta función para enviar correos electrónicos

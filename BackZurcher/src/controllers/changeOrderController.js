@@ -1,7 +1,7 @@
 const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, ChangeOrder } = require('../data');
 const { sendEmail } = require('../utils/notifications/emailService');
 const path = require('path');
-const { generateAndSaveChangeOrderPDF } = require('../utils/pdfGenerator');
+const { generateAndSaveChangeOrderPDF } = require('../utils/pdfGenerators');
 const fs = require('fs'); 
 const { v4: uuidv4 } = require('uuid');
 const { Op } = require('sequelize');
