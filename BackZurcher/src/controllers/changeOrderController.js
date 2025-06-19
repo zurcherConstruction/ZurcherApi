@@ -143,7 +143,11 @@ const sendChangeOrderToClient = async (req, res) => {
           model: Work,
           as: 'work',
            include: [
-            { model: Budget, as: 'budget'}, 
+            { 
+              model: Budget, 
+              as: 'budget',
+              attributes: ['initialPaymentPercentage']
+            }, 
             { model: Permit, as: 'Permit', attributes: ['applicantEmail', 'applicantName'] } 
           ]
         }
@@ -441,7 +445,11 @@ const previewChangeOrderPDF = async (req, res) => {
         model: Work, 
         as: 'work', 
         include: [
-          { model: Budget, as: 'budget'},
+          { 
+            model: Budget, 
+            as: 'budget',
+            attributes: ['initialPaymentPercentage']
+          },
           { model: Permit, as: 'Permit' } // Agregar Permit si es necesario
         ] 
       }]

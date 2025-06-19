@@ -4,21 +4,12 @@ const path = require('path');
 
 // Importar desde archivos compartidos
 const {
-  pageMargin,
-  primaryColor,
-  whiteColor,
-  textColor,
-  lightGrayColor,
+
   NEW_PAGE_MARGIN,
-  FONT_FAMILY_REGULAR,
-  FONT_FAMILY_BOLD,
-  FONT_FAMILY_OBLIQUE,
   FONT_FAMILY_MONO,
   FONT_FAMILY_MONO_BOLD,
   COLOR_TEXT_DARK,
   COLOR_TEXT_MEDIUM,
-  COLOR_TEXT_LIGHT,
-  COLOR_PRIMARY_ACCENT,
   COLOR_BORDER_LIGHT,
   COLOR_BACKGROUND_TABLE_HEADER
 } = require('./shared/constants');
@@ -57,7 +48,7 @@ function _addChangeOrderHeader(doc, changeOrderData, workData, formattedDate, co
 
   let currentYRight = headerStartY + 5;
   doc.font(FONT_FAMILY_MONO_BOLD).fontSize(20).fillColor('#063260')
-    .text(`CHANGE ORDER #${coNumber}`, coInfoX, currentYRight, { width: coInfoWidth, align: 'right' });
+    .text(`CHANGE ORDER`, coInfoX, currentYRight, { width: coInfoWidth, align: 'right' });
   currentYRight = doc.y + 45;
 
   // ✅ ALINEACIÓN PERFECTA - TODOS LOS TEXTOS EMPIEZAN EN LA MISMA POSICIÓN X
@@ -72,15 +63,17 @@ function _addChangeOrderHeader(doc, changeOrderData, workData, formattedDate, co
   doc.text(formattedDate, dateTextStartX, currentYRight, { width: dateTextWidth, align: 'left' });
   currentYRight += doc.currentLineHeight() + 4;
 
-  // Status del Change Order
-  doc.text("STATUS:", dateTextStartX, currentYRight, { width: dateTextWidth, align: 'left' });
+  doc.text("DUE DATE:", dateTextStartX, currentYRight, { width: dateTextWidth, align: 'left' });
   currentYRight += doc.currentLineHeight() + 2;
+
+  const dueDate = new Date();
+  dueDate.setDate(dueDate.getDate() + 30); // Vencimiento en 30 días
+  const formattedDueDate = formatDateDDMMYYYY(dueDate.toISOString());
+
+   doc.text(formattedDueDate, dateTextStartX, currentYRight, { width: dateTextWidth, align: 'left' });
+  currentYRight += doc.currentLineHeight();
   
-  const status = changeOrderData.status?.toUpperCase() || 'PENDING';
-  const statusColor = status === 'APPROVED' ? 'green' : status === 'REJECTED' ? 'red' : COLOR_TEXT_MEDIUM;
-  doc.fillColor(statusColor);
-  doc.text(status, dateTextStartX, currentYRight, { width: dateTextWidth, align: 'left' });
-  doc.fillColor(COLOR_TEXT_MEDIUM);
+ 
   currentYRight += doc.currentLineHeight();
 
   doc.y = currentYRight;
@@ -94,8 +87,8 @@ function _addChangeOrderHeader(doc, changeOrderData, workData, formattedDate, co
 
   // --- Información Cliente y Trabajo ---
   const { propertyAddress } = workData;
-  const clientName = workData.Budget?.applicantName || workData.Permit?.applicantName || "Valued Customer";
-  const clientEmail = workData.Budget?.Permit?.applicantEmail || workData.Budget?.applicantEmail;
+  const clientName = workData.budget?.applicantName || workData.Permit?.applicantName || "Valued Customer";
+  const clientEmail = workData.budget?.Permit?.applicantEmail || workData.budget?.applicantEmail;
 
   const subHeaderStartY = doc.y;
   const columnGap = 15;
@@ -119,13 +112,19 @@ function _addChangeOrderHeader(doc, changeOrderData, workData, formattedDate, co
   doc.text((propertyAddress || 'N/A').toUpperCase(), workLocationX, doc.y + 2, { width: columnWidth });
   const finalYCol2 = doc.y;
 
-  doc.y = subHeaderStartY;
-  const additionalOffset = 20;
-  const requestInfoX = workLocationX + columnWidth + columnGap + additionalOffset;
+doc.y = subHeaderStartY;
+  // ✅ LÓGICA MODIFICADA PARA LA TERCERA COLUMNA
+  const paymentInfoX = workLocationX + columnWidth + columnGap;
+  
+  // Calcular el porcentaje restante del presupuesto original
+  const initialPercentage = parseFloat(workData.budget?.initialPaymentPercentage || 0);
+  const finalPercentage = 100 - initialPercentage;
+  const paymentText = `PAYMENT WILL BE MADE ALONG WITH THE FINAL ${finalPercentage}% BALANCE OF THE PROJECT.`;
+
   doc.font(FONT_FAMILY_MONO_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK)
-    .text("REQUEST TYPE", requestInfoX, subHeaderStartY, { width: columnWidth });
+    .text("PAYMENT", paymentInfoX, subHeaderStartY, { width: columnWidth });
   doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
-  doc.text("ADDITIONAL WORK", requestInfoX, doc.y + 2, { width: columnWidth });
+  doc.text(paymentText.toUpperCase(), paymentInfoX, doc.y + 2, { width: columnWidth });
   const finalYCol3 = doc.y;
 
   doc.y = Math.max(finalYCol1, finalYCol2, finalYCol3);
@@ -148,11 +147,11 @@ function _addChangeOrderSignatureSection(doc) {
   doc.moveDown(2);
   
   doc.font(FONT_FAMILY_MONO_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK);
-  doc.text("CUSTOMER ACKNOWLEDGMENT:", NEW_PAGE_MARGIN, doc.y, { width: contentWidth, underline: true });
+  doc.text('', NEW_PAGE_MARGIN, doc.y, { width: contentWidth, underline: true });
   doc.moveDown(0.5);
   
-  doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
-  doc.text("By signing below, the customer approves this change order and authorizes the additional work to proceed.", 
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(12).fillColor(COLOR_TEXT_MEDIUM);
+  doc.text("Please sign below to confirm acceptance of this change order.", 
     NEW_PAGE_MARGIN, doc.y, { width: contentWidth, align: 'justify' });
   doc.moveDown(1.5);
 
@@ -163,7 +162,7 @@ function _addChangeOrderSignatureSection(doc) {
   doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_DARK);
 
   let currentLineY = doc.y;
-  doc.text("Customer Signature:", NEW_PAGE_MARGIN, currentLineY, { width: 85 });
+  doc.text("Client Signature:", NEW_PAGE_MARGIN, currentLineY, { width: 85 });
   doc.moveTo(NEW_PAGE_MARGIN + 85, currentLineY + 8).lineTo(NEW_PAGE_MARGIN + 85 + sigLineFullWidth, currentLineY + 8)
     .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
 
@@ -174,7 +173,7 @@ function _addChangeOrderSignatureSection(doc) {
   doc.moveDown(2.5);
 
   currentLineY = doc.y;
-  doc.text("Contractor Representative:", NEW_PAGE_MARGIN, currentLineY, { width: 120 });
+  doc.text("Provider Representative:", NEW_PAGE_MARGIN, currentLineY, { width: 120 });
   doc.moveTo(NEW_PAGE_MARGIN + 120, currentLineY + 8)
     .lineTo(NEW_PAGE_MARGIN + 120 + (sigLineFullWidth - 35), currentLineY + 8)
     .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
@@ -190,7 +189,7 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
   return new Promise(async (resolve, reject) => {
     try {
       // --- 1. Preparar Datos ---
-      const {
+       const {
         id: changeOrderId,
         changeOrderNumber,
         description: coDescription,
@@ -204,10 +203,10 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
       } = changeOrderData;
 
       const { propertyAddress } = workData;
-      const clientName = workData.Budget?.applicantName || workData.Permit?.applicantName || "Valued Customer";
+      const clientName = workData.budget?.applicantName || workData.Permit?.applicantName || "Valued Customer";
 
       const formattedCODate = formatDateDDMMYYYY(coCreatedAt || new Date().toISOString());
-      const coNumber = changeOrderNumber || changeOrderId.substring(0, 8);
+      const coNumber = changeOrderNumber || changeOrderId.toString().substring(0, 8);
 
       // --- 2. Configurar PDF ---
       const doc = new PDFDocument({ autoFirstPage: false, margin: NEW_PAGE_MARGIN, size: 'A4' });
@@ -229,11 +228,10 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
       const tableTop = doc.y;
       const cellPadding = 5;
 
-      // ✅ USAR LOS MISMOS ANCHOS DEL BUDGET
-      const colTypeW = contentWidth * 0.20;
-      const colDescW = contentWidth * 0.40;
-      const colQtyW = contentWidth * 0.08;
-      const colRateW = contentWidth * 0.12;
+    const colTypeW = contentWidth * 0.20;   // 20%
+      const colDescW = contentWidth * 0.35;   // 35% (reducido)
+      const colQtyW = contentWidth * 0.15;    // 15% (aumentado)
+      const colRateW = contentWidth * 0.15;   // 15% (aumentado)
       const colAmountW = contentWidth * 0.15;
 
       const xTypeText = NEW_PAGE_MARGIN + cellPadding;
@@ -254,10 +252,10 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
       doc.rect(NEW_PAGE_MARGIN, headerY - 3, contentWidth, 18)
         .fillColor(COLOR_BACKGROUND_TABLE_HEADER).strokeColor(COLOR_BORDER_LIGHT).fillAndStroke();
       doc.fillColor(COLOR_TEXT_DARK);
-      doc.text('WORK TYPE', xTypeText, headerY + 2, { width: wType });
+      doc.text('INCLUDED', xTypeText, headerY + 2, { width: wType });
       doc.text('DESCRIPTION', xDescText, headerY + 2, { width: wDesc });
-      doc.text('HOURS', xQtyText, headerY + 2, { width: wQty, align: 'right' });
-      doc.text('RATE', xRateText, headerY + 2, { width: wRate, align: 'right' });
+      doc.text('QTY/HOURS', xQtyText, headerY + 2, { width: wQty, align: 'right' });
+      doc.text('UNIT PRICE', xRateText, headerY + 2, { width: wRate, align: 'right' });
       doc.text('AMOUNT', xAmountText, headerY + 2, { width: wAmount, align: 'right' });
       doc.font(FONT_FAMILY_MONO);
       doc.y = headerY + 18;
@@ -265,15 +263,19 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
 
       doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
 
-      // ITEM DEL CHANGE ORDER
-      const workType = "ADDITIONAL WORK";
-      const workDesc = itemDescription || coDescription || "Work as per Change Order";
-      const workHours = parseFloat(hours || 1);
-      const workRate = parseFloat(unitCost || totalCost || 0);
-      const workAmount = parseFloat(totalCost || 0);
+     // ✅ PARSEO ROBUSTO DE NÚMEROS PARA EVITAR NaN
+      const workType = coDescription || "ADDITIONAL WORK";
+      const workDesc = itemDescription || "";
+      const parsedHours = parseFloat(hours);
+      const parsedUnitCost = parseFloat(unitCost);
+      const parsedTotalCost = parseFloat(totalCost);
+
+      const workHours = !isNaN(parsedHours) ? parsedHours : 0;
+      const workRate = !isNaN(parsedUnitCost) ? parsedUnitCost : 0;
+      const workAmount = !isNaN(parsedTotalCost) ? parsedTotalCost : 0;
 
       let currentItemY = doc.y;
-      doc.text(workType, xTypeText, currentItemY, { width: wType });
+      doc.text(workType.toUpperCase().replace(/_/g, ' '), xTypeText, currentItemY, { width: wType });
       doc.text(workDesc.toUpperCase(), xDescText, currentItemY, { width: wDesc });
       doc.text(workHours.toFixed(1), xQtyText, currentItemY, { width: wQty, align: 'right' });
       doc.text(`$${workRate.toFixed(2)}`, xRateText, currentItemY, { width: wRate, align: 'right' });
@@ -295,30 +297,8 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
         doc.moveDown(2);
       }
 
-      // === SECCIÓN DE TOTALES Y PAGO - ESTILO BUDGET ===
-      const thankYouAndPaymentInfoY = doc.y;
-      const paymentInfoWidth = contentWidth * 0.55;
-
-      doc.font(FONT_FAMILY_MONO_BOLD).fontSize(10).fillColor(COLOR_TEXT_LIGHT)
-        .text("Thank you for your business!", NEW_PAGE_MARGIN, doc.y, { width: contentWidth, align: 'left' });
-      doc.moveDown(1.8);
-
-      doc.font(FONT_FAMILY_MONO_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK)
-        .text("PAYMENT INFORMATION", NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-      doc.moveDown(0.3);
-      doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
-      doc.text("BANK: BANK OF AMERICA".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-      doc.moveDown(0.3);
-      doc.text("ACCOUNT NUMBER: 898138399808".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-      doc.moveDown(0.3);
-      doc.text("ROUTING NUMBER: 063100277".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-      doc.moveDown(0.3);
-      doc.text("EMAIL: ZURCHERCONSTRUCTION.FL@GMAIL.COM".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-
-      const yAfterPaymentInfo = doc.y;
-      doc.y = thankYouAndPaymentInfoY;
-
-      // SECCIÓN DE TOTALES - ALINEACIÓN PERFECTA DEL BUDGET
+      // ✅ SECCIÓN DE TOTALES (LÓGICA MODIFICADA)
+      // Se elimina la información de pago y se usa el estilo del presupuesto.
       const totalsStartX = NEW_PAGE_MARGIN + contentWidth * 0.55;
       const totalsValueX = NEW_PAGE_MARGIN + contentWidth * 0.85;
       const totalsRightEdge = doc.page.width - NEW_PAGE_MARGIN;
@@ -336,6 +316,14 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
       doc.text("TAX", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
       doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
       doc.text(`$0.00`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+      doc.moveDown(0.6);
+
+      // TOTAL
+      currentTotalY = doc.y;
+      doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
+      doc.text("TOTAL", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
+      doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
+      doc.text(`$${workAmount.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
       doc.moveDown(0.8);
 
       // LÍNEA DIVISORIA
@@ -347,15 +335,13 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
         .stroke();
       doc.moveDown(1.2);
 
-      // TOTAL DEL CHANGE ORDER
+      // BALANCE DUE
       currentTotalY = doc.y;
       doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_DARK);
-      doc.text("TOTAL CHANGE ORDER", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
+      doc.text("BALANCE DUE", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
       doc.font(FONT_FAMILY_MONO_BOLD).fontSize(14).fillColor(COLOR_TEXT_DARK);
       doc.text(`$${workAmount.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
 
-      const yAfterTotals = doc.y;
-      doc.y = Math.max(yAfterPaymentInfo, yAfterTotals);
       doc.moveDown(2);
 
       // === SECCIÓN DE FIRMA ===
@@ -379,6 +365,6 @@ async function generateAndSaveChangeOrderPDF(changeOrderData, workData, companyD
       reject(error);
     }
   });
-}
+};
 
 module.exports = { generateAndSaveChangeOrderPDF };

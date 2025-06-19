@@ -399,7 +399,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
 
         const estimatedItemHeight = Math.max(doc.heightOfString(fullDescription, { width: wDesc }), 25);
         checkPageBreak(estimatedItemHeight);
-        
+
       currentItemY = doc.y;
       doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
       doc.text((item.name || 'Component').toUpperCase(), xIncludedText, currentItemY, { width: wIncluded });
@@ -694,7 +694,26 @@ function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formatt
         "By either party, in the event of material breach, with written notice.",
         "By the Client, at any time, with written notice; however, the Client shall be responsible for payment for all work completed and costs incurred up to the cancellation date."
       ]
+    },
+    {
+      number: "10.",
+      title: "Additional Material Costs (if not included)",
+      subtitle: " In the event that soil and sand are not included in this invoice, the Client understands and accepts that additional materials may be required to complete the work after the inspection.",
+      bulletPoints: [
+        "The estimated cost per truckload is as follows:",
+        "Soil: between $250 and $300, depending on the location of the project.",
+        "Sand: between $370 and $450, depending on the location of the project."
+
+      ],
+      
+     
+    },
+    { 
+      
+      title: "Client Acknowledgment:",
+      content: "By signing this agreement, the Client authorizes the Provider to proceed with the work and agrees to comply with all terms and conditions outlined herein."
     }
+    
   ];
 
   const checkPageBreak = (estimatedHeight) => {
