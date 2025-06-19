@@ -263,7 +263,7 @@ const BudgetList = () => {
     if (pdfType === 'budgetSelf') { // Para el PDF del presupuesto mismo
       try {
         console.log(`Obteniendo PDF del presupuesto (budgetSelf) para ID: ${budget.idBudget}`); // DEBUG
-        const response = await api.get(`/budget/${budget.idBudget}/pdf`, {
+        const response = await api.get(`/budget/${budget.idBudget}/preview`, {
           responseType: 'blob',
         });
         pdfDataBlob = response.data;

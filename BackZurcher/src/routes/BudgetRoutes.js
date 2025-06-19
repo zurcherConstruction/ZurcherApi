@@ -41,6 +41,8 @@ router.get(
   isStaff,     // O el rol/roles adecuados (ej: allowRoles(['admin', 'recept', 'owner', 'staff']))
   BudgetController.viewBudgetPDF // Controlador para manejar la descarga
 );
+
+router.get('/:idBudget/preview',verifyToken, isStaff, BudgetController.previewBudgetPDF);
   // ========== RUTAS DE SIGNNOW ==========
 
 // Enviar presupuesto a SignNow para firma
