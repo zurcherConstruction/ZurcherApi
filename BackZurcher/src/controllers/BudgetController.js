@@ -6,7 +6,7 @@ const multer = require('multer');
 const upload = multer();
 const path = require('path');
 const { sendEmail } = require('../utils/notifications/emailService.js');
-const { generateAndSaveBudgetPDF } = require('../utils/pdfGenerator.js');
+const { generateAndSaveBudgetPDF } = require('../utils/pdfGenerators');
 const SignNowService = require('../services/ServiceSignNow');
 require('dotenv').config();
 // AGREGAR esta función auxiliar después de los imports:
@@ -1752,7 +1752,70 @@ async downloadBudgetPDF(req, res) {
       res.status(500).send('Error interno al procesar la solicitud del PDF.');
     }
   }
-}}
+},
+
+
+
+  async previewBudgetPDF(req, res) {
+    const { idBudget } = req.params;
+    let tempPdfPath = null; // Para rastrear la ruta del archivo temporal
+
+    try {
+      // 1. Buscar el presupuesto con TODOS los datos necesarios para el PDF
+      const budget = await Budget.findByPk(idBudget, {
+        include: [
+          { model: Permit, as: 'Permit' },
+          { model: BudgetLineItem, as: 'lineItems' }
+        ]
+      });
+
+      if (!budget) {
+        return res.status(404).json({ error: true, message: 'Presupuesto no encontrado.' });
+      }
+
+      // 2. Generar el PDF al momento. La función lo guarda en disco y obtenemos su ruta.
+      tempPdfPath = await generateAndSaveBudgetPDF(budget.toJSON());
+
+      // 3. Enviar el archivo al navegador para visualización inline
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="preview_budget_${idBudget}.pdf"`);
+      
+      const fileStream = fs.createReadStream(tempPdfPath);
+      fileStream.pipe(res);
+
+      // 4. Cuando el envío termine, borrar el archivo temporal.
+      fileStream.on('close', () => {
+        fs.unlink(tempPdfPath, (err) => {
+          if (err) {
+            console.error(`Error al borrar el PDF temporal de previsualización ${tempPdfPath}:`, err);
+          } else {
+            console.log(`PDF temporal de previsualización ${tempPdfPath} borrado.`);
+          }
+        });
+      });
+
+      fileStream.on('error', (err) => {
+        console.error('Error en el stream del PDF de previsualización del presupuesto:', err);
+        if (fs.existsSync(tempPdfPath)) {
+          fs.unlinkSync(tempPdfPath);
+        }
+      });
+
+    } catch (error) {
+      console.error('Error al generar la vista previa del PDF del Presupuesto:', error);
+      if (tempPdfPath && fs.existsSync(tempPdfPath)) {
+        fs.unlinkSync(tempPdfPath);
+      }
+      if (!res.headersSent) {
+        res.status(500).json({ error: true, message: 'Error interno al generar la vista previa del PDF.' });
+      }
+    }
+  },
+
+}
+  
+
+
 module.exports = BudgetController;
 
 

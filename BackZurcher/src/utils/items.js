@@ -18,8 +18,8 @@ const defaultItems = [
   { category: "Sistema Chambers", name: "CHAMBERS", marca: "", capacity: "", description: "INFILTRATOR Q4+EQ36 LP QUICK4 PLUS EQLZR 36 ARC 24 CHAMBER", unitPrice: 2000, supplierName: "", supplierLocation: "" },
 
   // PUMP
-  { category: "Pump", name: "PUMP TANQUE", marca: "", capacity: "300 gal", description: "TANQUE 300 GAL", unitPrice: 100, supplierName: "", supplierLocation: "" },
-  { category: "Pump", name: "PUMP TANQUE", marca: "", capacity: "500 gal", description: "TANQUE 500 GAL", unitPrice: 50, supplierName: "", supplierLocation: "" },
+  { category: "Pump", name: "PUMP TANK LIFT STATION", marca: "", capacity: "300 gal", description: "TANK 300 GAL", unitPrice: 100, supplierName: "", supplierLocation: "" },
+  { category: "Pump", name: "PUMP TANK LIFT STATION", marca: "", capacity: "500 gal", description: "TANK 500 GAL", unitPrice: 50, supplierName: "", supplierLocation: "" },
 
   // MATERIALES
   { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "7 ALL INCLUDED", description: "LOADS SAND INCLUDED", unitPrice: 1500, supplierName: "", supplierLocation: "" },
@@ -27,20 +27,19 @@ const defaultItems = [
   { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "4", description: "4 SAND INCLUDED", unitPrice: 1000, supplierName: "", supplierLocation: "" },
 
   // INSPECTION
-  { category: "Inspection", name: "PRIVATE INSPECTION", marca: "Privada", capacity: "", description: "FIRST & FINAL INSPECTION", unitPrice: 500, supplierName: "", supplierLocation: "" },
-  { category: "Inspection", name: "PRIVATE INSPECTION", marca: "Privada", capacity: "", description: "FIRST INSPECTION", unitPrice: 200, supplierName: "", supplierLocation: "" },
-  { category: "Inspection", name: "PRIVATE INSPECTION", marca: "Privada", capacity: "", description: "FINAL INSPECTION", unitPrice: 300, supplierName: "", supplierLocation: "" },
-  { category: "Inspection", name: "HEALTH DEPARTMENT INSPECTION", marca: "HEALTH DEPARTMENT", capacity: "", description: "FIRST INSPECTION", unitPrice: 200, supplierName: "", supplierLocation: "" },
-  { category: "Inspection", name: "HEALTH DEPARTMENT INSPECTION", marca: "HEALTH DEPARTMENT", capacity: "", description: "FINAL INSPECTION", unitPrice: 200, supplierName: "", supplierLocation: "" },
+  { category: "Inspection", name: "PRIVATE INSPECTION", marca: "", capacity: "", description: "FIRST & FINAL INSPECTION", unitPrice: 500, supplierName: "", supplierLocation: "" },
+  { category: "Inspection", name: "PRIVATE INSPECTION", marca: "", capacity: "", description: "FIRST INSPECTION", unitPrice: 200, supplierName: "", supplierLocation: "" },
+  { category: "Inspection", name: "PRIVATE INSPECTION", marca: "", capacity: "", description: "FINAL INSPECTION", unitPrice: 300, supplierName: "", supplierLocation: "" },
+  { category: "Inspection", name: "HEALTH DEPARTMENT INSPECTION", marca: "", capacity: "", description: "FIRST INSPECTION", unitPrice: 200, supplierName: "", supplierLocation: "" },
+  { category: "Inspection", name: "HEALTH DEPARTMENT INSPECTION", marca: "", capacity: "", description: "FINAL INSPECTION", unitPrice: 200, supplierName: "", supplierLocation: "" },
 
   // LABOR
   { category: "Labor Fee", name: "LABOR FEE", marca: "", capacity: "", description: "ZURCHER CONSTRUCTION", unitPrice: 6000, supplierName: "", supplierLocation: "" },
-  { category: "Services", name: "SERVICE MAINTENANCE CONTRACT", marca: "", capacity: "", description: "2 YEAR CONTRACT WITH SERVICE EVERY 6 MONTHS", unitPrice: 0, supplierName: "", supplierLocation: "" },
-  { category: "Electrical Instalations", name: "SYSTEM PARTS & ELECTRICAL INSTALLATION", marca: "", capacity: "", description: "FULL INSTALLATION OF PIPES, ACCESORIES, AND ELECTRICAL WORK FOR THE SEPTIC SYSTEM", unitPrice: 0, supplierName: "", supplierLocation: "" },
+ 
   { category: "Rock", name: "ROCK REMOVAL", marca: "", capacity: "", description: "INCLUDED AT NO ADDITIONALCOST IF REQUIRED DURING INSTALLATION", unitPrice: 0, supplierName: "", supplierLocation: "" },
-   { category: "Cover", name: "DIR TRUCK FOR COVER", marca: "", capacity: "", description: "LOADS OF DIRT INCLUDED", unitPrice: 0, supplierName: "", supplierLocation: "" }, { category: "Warranty", name: "WARRANTY", marca: "", capacity: "", description: "1 YEAR MANUFACTURES´S WARRANTY", unitPrice: 0, supplierName: "", supplierLocation: "" },
- { category: "Excavation", name: "EXCAVATION", marca: "", capacity: "", description: "EXCAVATION DRAINFIELD", unitPrice: 0, supplierName: "", supplierLocation: "" },
- { category: "Kit", name: "INFILTRATOR KIT", marca: "", capacity: "", description: "ECOPOD-NX IM 1530 RESIDENTIAL WASTEWATER TREATMENT SYSTEM", unitPrice: 0, supplierName: "", supplierLocation: "" },
+  { category: "Cover", name: "DIR TRUCK FOR COVER", marca: "", capacity: "", description: "LOADS OF DIRT INCLUDED", unitPrice: 0, supplierName: "", supplierLocation: "" }, { category: "Warranty", name: "WARRANTY", marca: "", capacity: "", description: "1 YEAR MANUFACTURES´S WARRANTY", unitPrice: 0, supplierName: "", supplierLocation: "" },
+  { category: "Excavation", name: "EXCAVATION", marca: "", capacity: "", description: "EXCAVATION DRAINFIELD", unitPrice: 0, supplierName: "", supplierLocation: "" },
+  { category: "Kit", name: "INFILTRATOR KIT", marca: "", capacity: "", description: "ECOPOD-NX IM 1530 RESIDENTIAL WASTEWATER TREATMENT SYSTEM", unitPrice: 0, supplierName: "", supplierLocation: "" },
 ];
 
 const seedBudgetItems = async (verbose = true) => {

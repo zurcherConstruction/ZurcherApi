@@ -26,6 +26,8 @@ router.patch('/:finalInvoiceId/status', FinalInvoiceController.updateFinalInvoic
 router.get('/:finalInvoiceId/pdf', FinalInvoiceController.generateFinalInvoicePDF);
 
 router.get('/:finalInvoiceId/pdf/view', FinalInvoiceController.viewFinalInvoicePDF); // NUEVO
+router.get('/:finalInvoiceId/preview-pdf', FinalInvoiceController.previewFinalInvoicePDF); // NUEVO
+
 // Descargar PDF
 router.get('/:finalInvoiceId/pdf/download', FinalInvoiceController.downloadFinalInvoicePDF); // NUEVO
 

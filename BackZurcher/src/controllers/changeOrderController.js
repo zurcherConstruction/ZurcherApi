@@ -1,7 +1,7 @@
 const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, ChangeOrder } = require('../data');
 const { sendEmail } = require('../utils/notifications/emailService');
 const path = require('path');
-const {generateAndSaveChangeOrderPDF} = require('../utils/pdfGenerator')
+const { generateAndSaveChangeOrderPDF } = require('../utils/pdfGenerators');
 const fs = require('fs'); 
 const { v4: uuidv4 } = require('uuid');
 const { Op } = require('sequelize');
@@ -144,7 +144,11 @@ const sendChangeOrderToClient = async (req, res) => {
           model: Work,
           as: 'work',
            include: [
-            { model: Budget, as: 'budget'}, 
+            { 
+              model: Budget, 
+              as: 'budget',
+              attributes: ['initialPaymentPercentage']
+            }, 
             { model: Permit, as: 'Permit', attributes: ['applicantEmail', 'applicantName'] } 
           ]
         }
@@ -434,11 +438,22 @@ const handleClientChangeOrderResponse = async (req, res) => {
 };
 
 const previewChangeOrderPDF = async (req, res) => {
-  let tempPdfPath = null; // Para guardar la ruta del PDF temporalmente
+  let pdfPath; // Declarar pdfPath aquí para que esté disponible en todo el bloque try-catch
   try {
     const { changeOrderId } = req.params;
     const changeOrder = await ChangeOrder.findByPk(changeOrderId, {
-      include: [{ model: Work, as: 'work', include: [{ model: Budget, as: 'budget'}] }] // Incluir lo necesario para el PDF
+      include: [{ 
+        model: Work, 
+        as: 'work', 
+        include: [
+          { 
+            model: Budget, 
+            as: 'budget',
+            attributes: ['initialPaymentPercentage']
+          },
+          { model: Permit, as: 'Permit' } // Agregar Permit si es necesario
+        ] 
+      }]
     });
 
     if (!changeOrder) {
@@ -448,8 +463,8 @@ const previewChangeOrderPDF = async (req, res) => {
       return res.status(500).json({ error: true, message: 'No se pudo cargar la información del trabajo asociado.' });
     }
 
-    // No es necesario verificar el estado aquí, ya que es solo una previsualización
-    // a menos que quieras restringirlo a ciertos estados.
+    // Extraer work del changeOrder
+    const work = changeOrder.work;
 
     const companyData = {
       name: "ZURCHER CONSTRUCTION LLC.",
@@ -461,55 +476,57 @@ const previewChangeOrderPDF = async (req, res) => {
     };
 
     // Usar generateAndSaveChangeOrderPDF para crear el archivo PDF
-    // La función guarda el archivo, así que necesitamos su ruta.
-    tempPdfPath = await generateAndSaveChangeOrderPDF(changeOrder.get({ plain: true }), changeOrder.work.get({ plain: true }), companyData, true /* isPreview */);
-    // El 'true' como último argumento es un ejemplo si modificas generateAndSaveChangeOrderPDF
-    // para que no use un nombre de archivo basado en UUID para previews, o para que lo guarde en una carpeta 'temp'.
-    // Si no, simplemente generará el archivo como siempre.
+    // Pasar los datos correctos: changeOrder (plain object), work (plain object), companyData
+    pdfPath = await generateAndSaveChangeOrderPDF(
+      changeOrder.get({ plain: true }), 
+      work.get({ plain: true }), 
+      companyData
+    );
 
-    if (!fs.existsSync(tempPdfPath)) {
-        console.error(`[previewChangeOrderPDF] El archivo PDF no se generó o no se encontró en: ${tempPdfPath}`);
-        return res.status(500).json({ error: true, message: 'Error al generar la vista previa del PDF.' });
+    if (!fs.existsSync(pdfPath)) {
+      console.error(`[previewChangeOrderPDF] El archivo PDF no se generó o no se encontró en: ${pdfPath}`);
+      return res.status(500).json({ error: true, message: 'Error al generar la vista previa del PDF.' });
     }
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="preview_co_${changeOrder.id.substring(0,8)}.pdf"`); // 'inline' para mostrar en navegador
+    res.setHeader('Content-Disposition', `inline; filename="preview_co_${changeOrder.id.substring(0,8)}.pdf"`);
 
-    const fileStream = fs.createReadStream(tempPdfPath);
+    const fileStream = fs.createReadStream(pdfPath);
     fileStream.pipe(res);
 
     // Limpiar el archivo temporal después de enviarlo
     fileStream.on('close', () => {
-      if (tempPdfPath && fs.existsSync(tempPdfPath)) {
-        fs.unlink(tempPdfPath, (err) => {
-          if (err) console.error(`Error al borrar el PDF temporal de previsualización ${tempPdfPath}:`, err);
-          else console.log(`PDF temporal de previsualización ${tempPdfPath} borrado.`);
+      if (pdfPath && fs.existsSync(pdfPath)) {
+        fs.unlink(pdfPath, (err) => {
+          if (err) console.error(`Error al borrar el PDF temporal de previsualización ${pdfPath}:`, err);
+          else console.log(`PDF temporal de previsualización ${pdfPath} borrado.`);
         });
       }
     });
+
     fileStream.on('error', (err) => {
-        console.error(`Error en el stream del archivo PDF de previsualización ${tempPdfPath}:`, err);
-        // Asegurarse de borrar el archivo si aún existe y no se envió
-        if (tempPdfPath && fs.existsSync(tempPdfPath)) {
-            fs.unlinkSync(tempPdfPath);
-        }
-        if (!res.headersSent) {
-            res.status(500).send('Error al transmitir el PDF.');
-        }
+      console.error(`Error en el stream del archivo PDF de previsualización ${pdfPath}:`, err);
+      // Asegurarse de borrar el archivo si aún existe y no se envió
+      if (pdfPath && fs.existsSync(pdfPath)) {
+        fs.unlinkSync(pdfPath);
+      }
+      if (!res.headersSent) {
+        res.status(500).send('Error al transmitir el PDF.');
+      }
     });
 
   } catch (error) {
     console.error('Error al generar la vista previa del PDF del Change Order:', error);
     // Intentar borrar el PDF si se creó y hubo un error
-    if (tempPdfPath && fs.existsSync(tempPdfPath)) {
+    if (pdfPath && fs.existsSync(pdfPath)) {
       try {
-        fs.unlinkSync(tempPdfPath);
+        fs.unlinkSync(pdfPath);
       } catch (unlinkErr) {
-        console.error(`Error al intentar borrar PDF temporal ${tempPdfPath} después de un error:`, unlinkErr);
+        console.error(`Error al intentar borrar PDF temporal ${pdfPath} después de un error:`, unlinkErr);
       }
     }
     if (!res.headersSent) {
-        res.status(500).json({ error: true, message: 'Error interno del servidor al generar la vista previa del PDF.', details: error.message });
+      res.status(500).json({ error: true, message: 'Error interno del servidor al generar la vista previa del PDF.', details: error.message });
     }
   }
 };

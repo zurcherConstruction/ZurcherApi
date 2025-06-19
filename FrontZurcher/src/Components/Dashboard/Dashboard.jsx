@@ -134,27 +134,35 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="container mx-auto py-4 px-2 sm:px-4 md:px-6 h-screen overflow-y-auto"> {/* Added overflow-y-auto */}
-    {/* Adjusted grid columns for responsiveness */}
-    <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-2 sm:p-4">
-      {filteredOptions.map((option) => (
-        <div
-          key={option.path}
-          // Adjusted card width and height for responsiveness
-          className={`${option.color} w-full h-44 sm:h-48 flex flex-col justify-center items-center border border-gray-300 rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300 cursor-pointer p-2`}
-          onClick={() => navigateTo(option.path)}
-        >
-          {option.icon && (
-            <div className="mb-2 sm:mb-4">{option.icon}</div> // Adjusted margin
-          )}
-          {/* Adjusted text size for responsiveness */}
-          <h2 className="text-base sm:text-lg md:text-xl text-blue-950 text-center font-varela">
-            {option.title}
-          </h2>
+    <div className="w-full min-h-screen bg-gray-50 p-4 md:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto">
+       
+        
+        {/* Grid responsive optimizado para iPad */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 md:gap-6">
+          {filteredOptions.map((option) => (
+            <div
+              key={option.path}
+              className={`${option.color} w-full aspect-square flex flex-col justify-center items-center border border-gray-300 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer p-3 md:p-4 hover:scale-105 transform`}
+              onClick={() => navigateTo(option.path)}
+            >
+              {option.icon && (
+                <div className="mb-2 md:mb-4 flex items-center justify-center">
+                  {/* Clonamos el elemento icon para asegurar tamaños consistentes */}
+                  {React.cloneElement(option.icon, {
+                    className: "w-12 h-12 md:w-16 md:h-16 lg:w-20 lg:h-20 object-contain"
+                  })}
+                </div>
+              )}
+              <h2 className="text-xs sm:text-sm md:text-base lg:text-lg text-blue-950 text-center font-varela font-semibold leading-tight">
+                {option.title}
+              </h2>
+            </div>
+          ))}
         </div>
-      ))}
+      </div>
     </div>
-  </div>
-);
+  );
 };
+
 export default Dashboard;

@@ -68,17 +68,20 @@ function App() {
   }, [isAuthenticated, location.pathname, navigate]);
 
   if (!isSessionRestored) {
-    return <div>Cargando...</div>; // Indicador de carga
+    return <div className="flex items-center justify-center min-h-screen">
+      <div className="text-lg">Cargando...</div>
+    </div>;
   }
 
   return (
     <>
       {isAuthenticated && <Header />}
       <LoadingSpinner />
-      <div className={`flex ${isAuthenticated ? "pt-20" : ""}`}>
+      <div className={`flex ${isAuthenticated ? "pt-16 md:pt-20" : ""} min-h-screen bg-gray-50`}>
         {isAuthenticated && <BarraLateral />}
-        <div className="flex-1">
-          <Routes>
+        <div className="flex-1 w-full overflow-x-hidden">
+          <div className="w-full max-w-none px-2 sm:px-4 md:px-6 lg:px-8 py-4 md:py-6">
+            <Routes>
             {/* Ruta pública */}
             <Route path="/" element={<Landing />} />
            
@@ -299,9 +302,14 @@ function App() {
             {/* Ruta por defecto para 404 */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </div>
         </div>
       </div>
-      <ToastContainer />
+      <ToastContainer 
+        position="top-right"
+        className="mt-16 md:mt-20"
+        toastClassName="text-sm"
+      />
     </>
   );
 }
