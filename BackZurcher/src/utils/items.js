@@ -37,7 +37,7 @@ const defaultItems = [
   { category: "Labor Fee", name: "LABOR FEE", marca: "", capacity: "", description: "ZURCHER CONSTRUCTION", unitPrice: 6000, supplierName: "", supplierLocation: "" },
  
   { category: "Rock", name: "ROCK REMOVAL", marca: "", capacity: "", description: "INCLUDED AT NO ADDITIONALCOST IF REQUIRED DURING INSTALLATION", unitPrice: 0, supplierName: "", supplierLocation: "" },
-  { category: "Cover", name: "DIR TRUCK FOR COVER", marca: "", capacity: "", description: "LOADS OF DIRT INCLUDED", unitPrice: 0, supplierName: "", supplierLocation: "" }, { category: "Warranty", name: "WARRANTY", marca: "", capacity: "", description: "1 YEAR MANUFACTURES´S WARRANTY", unitPrice: 0, supplierName: "", supplierLocation: "" },
+  { category: "Cover", name: "DIR TRUCK FOR COVER", marca: "", capacity: "", description: "LOADS OF DIRT INCLUDED", unitPrice: 0, supplierName: "", supplierLocation: "" },
   { category: "Excavation", name: "EXCAVATION", marca: "", capacity: "", description: "EXCAVATION DRAINFIELD", unitPrice: 0, supplierName: "", supplierLocation: "" },
   { category: "Kit", name: "INFILTRATOR KIT", marca: "", capacity: "", description: "ECOPOD-NX IM 1530 RESIDENTIAL WASTEWATER TREATMENT SYSTEM", unitPrice: 0, supplierName: "", supplierLocation: "" },
 ];
