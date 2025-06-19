@@ -6,7 +6,7 @@ import { setLoading } from '../Redux/Reducer/uiReducer'; // You'll need to creat
 const api = axios.create({
 
 
-  baseURL: 'http://localhost:3001/', // Change to your API base URL
+  baseURL: 'https://zurcherapi.onrender.com/', // Change to your API base URL
   timeout: 80000,
 
 
