@@ -6,20 +6,14 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 // Importar desde archivos compartidos
 const {
   pageMargin,
-  primaryColor,
-  whiteColor,
-  textColor,
-  lightGrayColor,
   NEW_PAGE_MARGIN,
   FONT_FAMILY_REGULAR,
   FONT_FAMILY_BOLD,
-  FONT_FAMILY_OBLIQUE,
   FONT_FAMILY_MONO,
   FONT_FAMILY_MONO_BOLD,
   COLOR_TEXT_DARK,
   COLOR_TEXT_MEDIUM,
   COLOR_TEXT_LIGHT,
-  COLOR_PRIMARY_ACCENT,
   COLOR_BORDER_LIGHT,
   COLOR_BACKGROUND_TABLE_HEADER
 } = require('./shared/constants');
@@ -695,25 +689,20 @@ function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formatt
         "By the Client, at any time, with written notice; however, the Client shall be responsible for payment for all work completed and costs incurred up to the cancellation date."
       ]
     },
-    {
+     {
       number: "10.",
       title: "Additional Material Costs (if not included)",
-      subtitle: " In the event that soil and sand are not included in this invoice, the Client understands and accepts that additional materials may be required to complete the work after the inspection.",
+      content: "In the event that soil and sand are not included in this invoice, the Client understands and accepts that additional materials may be required to complete the work after the inspection. The estimated cost per truckload is as follows:",
       bulletPoints: [
-        "The estimated cost per truckload is as follows:",
         "Soil: between $250 and $300, depending on the location of the project.",
         "Sand: between $370 and $450, depending on the location of the project."
-
-      ],
-      
-     
+      ]
     },
     { 
-      
+      // Este no tiene número, solo título y contenido.
       title: "Client Acknowledgment:",
       content: "By signing this agreement, the Client authorizes the Provider to proceed with the work and agrees to comply with all terms and conditions outlined herein."
     }
-    
   ];
 
   const checkPageBreak = (estimatedHeight) => {
@@ -731,10 +720,12 @@ function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formatt
     if (section.bulletPoints) estimatedHeight += section.bulletPoints.length * 15; // Rough estimate
     if (section.bulletPoints2) estimatedHeight += section.bulletPoints2.length * 15; // Rough estimate
 
-    checkPageBreak(estimatedHeight);
+     checkPageBreak(estimatedHeight);
 
     doc.font(FONT_FAMILY_BOLD).fontSize(9).fillColor(COLOR_TEXT_DARK);
-    doc.text(`${section.number} ${section.title}`, NEW_PAGE_MARGIN, doc.y, { width: contentWidth });
+    // Imprime el número solo si existe en el objeto
+    const titleText = section.number ? `${section.number} ${section.title}` : section.title;
+    doc.text(titleText, NEW_PAGE_MARGIN, doc.y, { width: contentWidth });
     doc.moveDown(0.3);
 
     if (section.content) {
@@ -785,13 +776,7 @@ function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formatt
     doc.moveDown(0.8);
   });
 
-  checkPageBreak(60);
-  doc.font(FONT_FAMILY_BOLD).fontSize(9).fillColor(COLOR_TEXT_DARK);
-  doc.text("Client Acknowledgment:", NEW_PAGE_MARGIN, doc.y, { width: contentWidth, underline: true });
-  doc.moveDown(0.3);
-  doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
-  doc.text("By signing this agreement, the Client authorizes the Provider to proceed with the work and agrees to comply with all terms and conditions outlined herein.", NEW_PAGE_MARGIN, doc.y, { width: contentWidth, align: 'justify' });
-  doc.moveDown(1.5);
+  // ✅ CÓDIGO REDUNDANTE ELIMINADO DE AQUÍ. El "Client Acknowledgment" ya se imprime con el bucle de arriba.
 
   let signatureY = doc.y + 20;
   if (signatureY + 80 > doc.page.height - NEW_PAGE_MARGIN) {
