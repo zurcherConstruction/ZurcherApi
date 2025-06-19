@@ -1,7 +1,7 @@
 
 
 const cloudinaryConfig = {
-  cloudName: 'dfetjsfgl',
+  cloudName: 'dt4ah1jmy',
   uploadPreset: 'Zurcher',
 };
 
