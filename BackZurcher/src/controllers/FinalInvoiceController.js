@@ -430,6 +430,71 @@ const FinalInvoiceController = {
     }
  },
 
+ async previewFinalInvoicePDF(req, res){
+    const { finalInvoiceId } = req.params;
+    let tempPdfPath = null; // Para rastrear la ruta del archivo temporal
+
+    try {
+      const finalInvoice = await FinalInvoice.findByPk(finalInvoiceId, {
+        include: [
+          { model: WorkExtraItem, as: 'extraItems' },
+          {
+            model: Work,
+            as: 'Work',
+            include: [
+              { model: Budget, as: 'budget', include: [{ model: Permit, as: 'Permit' }] },
+              { model: ChangeOrder, as: 'changeOrders' }
+            ]
+          }
+        ]
+      });
+
+      if (!finalInvoice) {
+        return res.status(404).json({ error: true, message: 'Factura final no encontrada.' });
+      }
+
+      // Generamos el PDF. La función lo guarda en disco, y obtenemos su ruta.
+      tempPdfPath = await generateAndSaveFinalInvoicePDF(finalInvoice.toJSON());
+
+      // Enviamos el archivo al navegador
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="preview_invoice_${finalInvoiceId}.pdf"`);
+      
+      const fileStream = fs.createReadStream(tempPdfPath);
+      fileStream.pipe(res);
+
+      // Cuando el envío termine, borramos el archivo temporal.
+      fileStream.on('close', () => {
+        fs.unlink(tempPdfPath, (err) => {
+          if (err) {
+            console.error(`Error al borrar el PDF temporal de previsualización ${tempPdfPath}:`, err);
+          } else {
+            console.log(`PDF temporal de previsualización ${tempPdfPath} borrado.`);
+          }
+        });
+      });
+
+      fileStream.on('error', (err) => {
+        console.error('Error en el stream del PDF de previsualización:', err);
+        // Si hay un error en el stream, intentamos borrar el archivo igualmente
+        if (fs.existsSync(tempPdfPath)) {
+          fs.unlinkSync(tempPdfPath);
+        }
+      });
+
+    } catch (error) {
+      console.error('Error al generar la vista previa del PDF de la Factura Final:', error);
+      // Si ocurre un error general, también intentamos borrar el archivo si se creó
+      if (tempPdfPath && fs.existsSync(tempPdfPath)) {
+        fs.unlinkSync(tempPdfPath);
+      }
+      if (!res.headersSent) {
+        res.status(500).json({ error: true, message: 'Error interno al generar la vista previa del PDF.' });
+      }
+    }
+  },
+
+
  // --- NUEVO: viewFinalInvoicePDF ---
 async viewFinalInvoicePDF(req, res) {
     try {
@@ -478,17 +543,23 @@ async viewFinalInvoicePDF(req, res) {
   },
 
  // --- NUEVO: emailFinalInvoicePDF ---
- async emailFinalInvoicePDF(req, res) {
+async emailFinalInvoicePDF(req, res) {
    const { finalInvoiceId } = req.params;
    const { recipientEmail } = req.body;
 
    try {
-       let finalInvoice = await FinalInvoice.findByPk(finalInvoiceId, {
+       // 1. Buscar la factura con TODOS los datos necesarios para el PDF, igual que en la vista previa.
+       const finalInvoice = await FinalInvoice.findByPk(finalInvoiceId, {
            include: [
-               {
-                   model: Work,
-                   include: [ { model: Budget, as: 'budget', include: [ { model: Permit } ] } ]
-               }
+             { model: WorkExtraItem, as: 'extraItems' },
+             {
+               model: Work,
+               as: 'Work',
+               include: [
+                 { model: Budget, as: 'budget', include: [{ model: Permit, as: 'Permit' }] },
+                 { model: ChangeOrder, as: 'changeOrders' }
+               ]
+             }
            ]
        });
 
@@ -496,58 +567,51 @@ async viewFinalInvoicePDF(req, res) {
            return res.status(404).json({ error: true, message: 'Factura final no encontrada.' });
        }
 
-       // Verificar si el PDF existe y está actualizado. Si no, intentar generarlo.
-       let pdfPathToUse = finalInvoice.pdfPath;
-       if (!pdfPathToUse || !fs.existsSync(pdfPathToUse)) {
-           console.log(`PDF no encontrado o ruta no válida para finalInvoiceId ${finalInvoiceId}. Intentando generar/regenerar...`);
-           try {
-               // Reutilizar la lógica de generación de PDF.
-               // Es importante que generateAndSaveFinalInvoicePDF no dependa de 'req' y 'res'
-               // y que devuelva la ruta del archivo generado.
-               // Asumimos que finalInvoice ya tiene los datos necesarios cargados.
-               const generatedPath = await generateAndSaveFinalInvoicePDF(finalInvoice.toJSON());
-               await finalInvoice.update({ pdfPath: generatedPath }); // Actualizar en BD
-               pdfPathToUse = generatedPath;
-               console.log(`PDF regenerado y guardado en: ${pdfPathToUse}`);
-           } catch (generationError) {
-               console.error(`Error al intentar regenerar PDF para finalInvoiceId ${finalInvoiceId} antes de enviar email:`, generationError);
-               return res.status(500).json({ error: true, message: 'Error al generar el PDF necesario para el envío. Por favor, intente generar el PDF manualmente primero y luego envíelo.' });
-           }
-       }
+       // 2. Siempre generar un PDF nuevo para asegurar que esté actualizado.
+       console.log(`Generando PDF actualizado para finalInvoiceId ${finalInvoiceId} antes de enviar email...`);
+       const pdfPathToUse = await generateAndSaveFinalInvoicePDF(finalInvoice.toJSON());
        
-       // Doble chequeo por si la regeneración falló silenciosamente o la ruta sigue siendo inválida
-       if (!pdfPathToUse || !fs.existsSync(pdfPathToUse)) {
-            return res.status(400).json({ error: true, message: 'El PDF de la factura final no existe o no se pudo generar. Por favor, genere el PDF primero.' });
-       }
+       // 3. Actualizar la ruta del PDF en la base de datos.
+       await finalInvoice.update({ pdfPath: pdfPathToUse });
+       console.log(`PDF regenerado y guardado en: ${pdfPathToUse}`);
 
-
+       // 4. Preparar y enviar el correo con el PDF recién generado.
        const budget = finalInvoice.Work?.budget;
        const permit = budget?.Permit;
        const clientEmail = recipientEmail || permit?.applicantEmail || budget?.applicantEmail;
-       const clientName = budget?.applicantName || permit?.applicantName || 'Customer';
+        const clientName = budget?.applicantName || permit?.applicantName || 'Customer';
        const propertyAddress = finalInvoice.Work?.propertyAddress || budget?.propertyAddress || 'N/A';
 
        if (!clientEmail || !clientEmail.includes('@')) {
            return res.status(400).json({ error: true, message: 'No se pudo determinar un correo electrónico válido para el cliente.' });
        }
-
       
+       const invoiceNumber = finalInvoice.id.toString().substring(0, 8);
+
+       // ✅ INICIO: Recalcular el total para que coincida con el PDF
+       const { originalBudgetTotal, initialPaymentMade, extraItems } = finalInvoice;
+       const remainingBudgetAmount = parseFloat(originalBudgetTotal || 0) - parseFloat(initialPaymentMade || 0);
+       const totalExtras = extraItems.reduce((acc, item) => acc + parseFloat(item.lineTotal || 0), 0);
+       const correctTotalAmount = remainingBudgetAmount + totalExtras;
+       
+       // Opcional pero recomendado: Actualizar el valor en la BD para consistencia
+       await finalInvoice.update({ finalAmountDue: correctTotalAmount });
+       // ✅ FIN: Recálculo
+
        const mailOptions = {
            to: clientEmail,
-           subject: `Final Invoice #${finalInvoice.id} for ${propertyAddress}`,
-           text: `Dear ${clientName},\n\nPlease find attached the final invoice #${finalInvoice.id} for the work completed at ${propertyAddress}.\n\nTotal Amount Due: $${parseFloat(finalInvoice.finalAmountDue || 0).toFixed(2)}\nStatus: ${finalInvoice.status?.replace('_', ' ').toUpperCase() || 'N/A'}\n\nBest regards,\nZurcher Construction`,
+           subject: `Final Invoice #${invoiceNumber} for ${propertyAddress}`,
+           // Usar la variable 'correctTotalAmount' para el texto del email
+           text: `Dear ${clientName},\n\nPlease find attached the final invoice #${invoiceNumber} for the work completed at ${propertyAddress}.\n\nTotal Amount Due: $${correctTotalAmount.toFixed(2)}\nStatus: ${finalInvoice.status?.replace('_', ' ').toUpperCase() || 'N/A'}\n\nBest regards,\nZurcher Construction`,
            attachments: [
                {
-                   filename: `final_invoice_${finalInvoice.id}.pdf`,
-                   path: pdfPathToUse, // Usar la ruta verificada/regenerada
+                   filename: `final_invoice_${invoiceNumber}.pdf`,
+                   path: pdfPathToUse, // Usar la ruta del PDF recién generado
                    contentType: 'application/pdf'
                }
            ]
        };
-
        await sendEmail(mailOptions);
-       // Marcar la factura como enviada (opcional)
-       // await finalInvoice.update({ lastEmailedAt: new Date(), emailSentCount: (finalInvoice.emailSentCount || 0) + 1 });
        
        res.status(200).json({ message: `Factura final enviada exitosamente a ${clientEmail}.` });
 

@@ -69,6 +69,7 @@ const FinalInvoiceComponent = ({ workId }) => {
   // Estado para la carga y error de la descarga del PDF
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [downloadPdfError, setDownloadPdfError] = useState(null);
+ const [isPreviewing, setIsPreviewing] = useState(false);
   const [selectedChangeOrderIds, setSelectedChangeOrderIds] = useState([]);
   
   useEffect(() => {
@@ -192,6 +193,26 @@ const FinalInvoiceComponent = ({ workId }) => {
 const handleGeneratePdf = () => {
     if (currentInvoice) {
       dispatch(generateFinalInvoicePdf(currentInvoice.id));
+    }
+  };
+
+   const handlePreviewPdf = async () => {
+    if (!currentInvoice?.id) return;
+
+    setIsPreviewing(true);
+    const previewUrl = `/final-invoice/${currentInvoice.id}/preview-pdf`;
+
+    try {
+      const response = await api.get(previewUrl, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const objectUrl = window.URL.createObjectURL(blob);
+      window.open(objectUrl, '_blank');
+      window.URL.revokeObjectURL(objectUrl); // Limpia la URL del objeto después de abrirla
+    } catch (err) {
+      console.error("Error al generar la vista previa del PDF:", err);
+      alert("No se pudo generar la vista previa del PDF. Por favor, inténtalo de nuevo.");
+    } finally {
+      setIsPreviewing(false);
     }
   };
 
@@ -453,16 +474,28 @@ const handleGeneratePdf = () => {
          <div className="space-y-3">
 
             {/* Generar/Actualizar PDF */}
-            <div>
+            <div className="flex items-center space-x-2">
               <button
                 onClick={handleGeneratePdf}
                 className="button-standard bg-blue-600 hover:bg-blue-700 text-white text-sm py-1 px-3 rounded disabled:opacity-50"
-                disabled={loadingPdf || !currentInvoice || isDownloadingPdf}
+                disabled={loadingPdf || isDownloadingPdf || isPreviewing}
               >
-                {loadingPdf ? 'Procesando PDF...' : (currentInvoice?.pdfPath ? 'Actualizar PDF' : 'Generar PDF')}
+                {loadingPdf ? 'Procesando...' : (currentInvoice?.pdfPath ? 'Actualizar Invoice PDF' : 'Generar Invoice PDF')}
               </button>
-              {errorPdf && <p className="text-red-500 text-xs mt-1 ml-2">{errorPdf}</p>}
+              
+              {/* ✅ PASO 3: AÑADE EL NUEVO BOTÓN DE VISTA PREVIA */}
+              {currentInvoice?.id && (
+                <button
+                  onClick={handlePreviewPdf}
+                  className="button-standard bg-gray-500 hover:bg-gray-600 text-white text-sm py-1 px-3 rounded disabled:opacity-50"
+                  disabled={loadingPdf || isDownloadingPdf || isPreviewing}
+                >
+                  {isPreviewing ? 'Cargando...' : 'Vista Previa'}
+                </button>
+              )}
             </div>
+            {errorPdf && <p className="text-red-500 text-xs mt-1 ml-2">{errorPdf}</p>}
+
 
             {/* Ver y Descargar PDF (si existe) */}
             {currentInvoice?.pdfPath && currentInvoice.id && (
@@ -482,7 +515,7 @@ const handleGeneratePdf = () => {
                   className="text-sm text-purple-600 hover:text-purple-800 underline disabled:opacity-50"
                   disabled={isDownloadingPdf || loadingPdf} // Deshabilitar si se está descargando o generando PDF
                 >
-                  {isDownloadingPdf ? 'Descargando...' : 'Descargar PDF'}
+                  {isDownloadingPdf ? 'Descargando...' : 'Descargar Invoice PDF'}
                 </button>
               </div>
             )}

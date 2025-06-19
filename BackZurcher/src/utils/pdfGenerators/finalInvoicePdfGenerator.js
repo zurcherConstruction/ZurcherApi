@@ -5,21 +5,13 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 // Importar desde archivos compartidos
 const {
-  pageMargin,
-  primaryColor,
-  whiteColor,
-  textColor,
-  lightGrayColor,
+ 
   NEW_PAGE_MARGIN,
-  FONT_FAMILY_REGULAR,
-  FONT_FAMILY_BOLD,
-  FONT_FAMILY_OBLIQUE,
   FONT_FAMILY_MONO,
   FONT_FAMILY_MONO_BOLD,
   COLOR_TEXT_DARK,
   COLOR_TEXT_MEDIUM,
   COLOR_TEXT_LIGHT,
-  COLOR_PRIMARY_ACCENT,
   COLOR_BORDER_LIGHT,
   COLOR_BACKGROUND_TABLE_HEADER
 } = require('./shared/constants');
@@ -48,7 +40,7 @@ function _addFinalInvoiceHeader(doc, invoiceData, workData, budgetData, formatte
     currentYLeft += doc.currentLineHeight() + 2;
   }
 
-  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(12).fillColor(COLOR_TEXT_DARK)
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(11).fillColor(COLOR_TEXT_DARK)
     .text("ZURCHER CONSTRUCTION", companyInfoX, currentYLeft, { width: companyInfoWidth });
   doc.font(FONT_FAMILY_MONO).fontSize(12).fillColor(COLOR_TEXT_MEDIUM);
   doc.text("SEPTIC TANK DIVISION - CFC1433240", companyInfoX, doc.y, { width: companyInfoWidth });
@@ -58,10 +50,9 @@ function _addFinalInvoiceHeader(doc, invoiceData, workData, budgetData, formatte
 
   let currentYRight = headerStartY + 5;
   doc.font(FONT_FAMILY_MONO_BOLD).fontSize(20).fillColor('#063260')
-    .text(`FINAL INVOICE #${invoiceNumber}`, invoiceInfoX, currentYRight, { width: invoiceInfoWidth, align: 'right' });
+    .text(`FINAL INVOICE`, invoiceInfoX, currentYRight, { width: invoiceInfoWidth, align: 'right' });
   currentYRight = doc.y + 45;
 
-  // ✅ ALINEACIÓN PERFECTA - TODOS LOS TEXTOS EMPIEZAN EN LA MISMA POSICIÓN X
   doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
 
   const dateTextStartX = invoiceInfoX + 120;
@@ -73,7 +64,6 @@ function _addFinalInvoiceHeader(doc, invoiceData, workData, budgetData, formatte
   doc.text(formattedDate, dateTextStartX, currentYRight, { width: dateTextWidth, align: 'left' });
   currentYRight += doc.currentLineHeight() + 4;
 
-  // Status si está pagado
   if (invoiceData.status === 'paid' && invoiceData.paymentDate) {
     doc.text("PAID ON:", dateTextStartX, currentYRight, { width: dateTextWidth, align: 'left' });
     currentYRight += doc.currentLineHeight() + 2;
@@ -85,12 +75,10 @@ function _addFinalInvoiceHeader(doc, invoiceData, workData, budgetData, formatte
   const finalYRightTop = doc.y;
   doc.y = Math.max(finalYLeftTop, finalYRightTop) + 15;
   
-  // --- Línea Divisora ---
   doc.moveTo(NEW_PAGE_MARGIN, doc.y).lineTo(doc.page.width - NEW_PAGE_MARGIN, doc.y)
     .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.7).stroke();
   doc.moveDown(1);
 
-  // --- Información Cliente y Trabajo ---
   const { propertyAddress } = workData;
   const clientName = budgetData?.applicantName || "Valued Customer";
   const clientEmail = budgetData?.Permit?.applicantEmail || budgetData?.applicantEmail;
@@ -119,11 +107,17 @@ function _addFinalInvoiceHeader(doc, invoiceData, workData, budgetData, formatte
 
   doc.y = subHeaderStartY;
   const additionalOffset = 20;
-  const statusInfoX = workLocationX + columnWidth + columnGap + additionalOffset;
+  const paymentInfoX = workLocationX + columnWidth + columnGap + additionalOffset;
+  
   doc.font(FONT_FAMILY_MONO_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK)
-    .text("INVOICE STATUS", statusInfoX, subHeaderStartY, { width: columnWidth });
-  doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(invoiceData.status === 'paid' ? 'green' : COLOR_TEXT_MEDIUM);
-  doc.text(invoiceData.status?.toUpperCase() || 'PENDING', statusInfoX, doc.y + 2, { width: columnWidth });
+    .text("PAYMENT", paymentInfoX, subHeaderStartY, { width: columnWidth });
+  
+  const initialPercentage = parseFloat(budgetData?.initialPaymentPercentage || 0);
+  const finalPercentage = 100 - initialPercentage;
+  const paymentText = `FINAL ${finalPercentage}% BALANCE DUE UPON RECEIPT OF THIS INVOICE.`;
+  
+  doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
+  doc.text(paymentText.toUpperCase(), paymentInfoX, doc.y + 2, { width: columnWidth });
   const finalYCol3 = doc.y;
 
   doc.y = Math.max(finalYCol1, finalYCol2, finalYCol3);
@@ -136,37 +130,20 @@ function _addFinalInvoiceHeader(doc, invoiceData, workData, budgetData, formatte
 async function generateAndSaveFinalInvoicePDF(invoiceData) {
   return new Promise(async (resolve, reject) => {
     try {
-      // --- 1. Preparar Datos ---
       const {
-        id: invoiceId,
-        invoiceDate,
-        originalBudgetTotal,
-        initialPaymentMade,
-        subtotalExtras,
-        finalAmountDue,
-        status: invoiceStatus,
-        paymentDate,
-        Work: workData,
+        id: invoiceId, invoiceDate, originalBudgetTotal, initialPaymentMade,
+        subtotalExtras, finalAmountDue, status: invoiceStatus, Work: workData,
         extraItems = []
       } = invoiceData;
 
-      if (!workData) {
-        throw new Error('No se encontraron datos de trabajo (Work) en la factura');
-      }
-
-      const {
-        propertyAddress,
-        budget: budgetData,
-        changeOrders = []
-      } = workData;
-
+      if (!workData) throw new Error('No se encontraron datos de trabajo (Work) en la factura');
+      
+      const { budget: budgetData } = workData;
+      const formattedInvoiceDate = formatDateDDMMYYYY(invoiceDate);
+      const invoiceNumber = invoiceId?.toString().substring(0, 8) || 'UNKNOWN';
       const clientName = budgetData?.applicantName || "Valued Customer";
       const clientEmail = budgetData?.Permit?.applicantEmail || budgetData?.applicantEmail;
 
-      const formattedInvoiceDate = formatDateDDMMYYYY(invoiceDate);
-      const invoiceNumber = invoiceId?.toString().substring(0, 8) || 'UNKNOWN';
-
-      // --- 2. Configurar PDF ---
       const doc = new PDFDocument({ autoFirstPage: false, margin: NEW_PAGE_MARGIN, size: 'A4' });
       const uploadsDir = path.join(__dirname, '../../uploads/final_invoices');
       if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
@@ -176,89 +153,94 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
       doc.pipe(stream);
 
       doc.addPage();
-
-      // --- 3. Construir PDF con estilo Budget ---
       _addFinalInvoiceHeader(doc, invoiceData, workData, budgetData, formattedInvoiceDate, invoiceNumber);
 
       const contentWidth = doc.page.width - NEW_PAGE_MARGIN * 2;
-
-      // === TABLA DE ÍTEMS ===
       const tableTop = doc.y;
       const cellPadding = 5;
 
-      // ✅ USAR LOS MISMOS ANCHOS DEL BUDGET
-      const colIncludedW = contentWidth * 0.20;
-      const colDescW = contentWidth * 0.40;
-      const colQtyW = contentWidth * 0.08;
-      const colRateW = contentWidth * 0.12;
-      const colAmountW = contentWidth * 0.15;
+      const colIncludedW = contentWidth * 0.35;
+      const colDescW = contentWidth * 0.45;
+      const colAmountW = contentWidth * 0.20;
 
       const xIncludedText = NEW_PAGE_MARGIN + cellPadding;
       const xDescText = NEW_PAGE_MARGIN + colIncludedW + cellPadding;
-      const xQtyText = NEW_PAGE_MARGIN + colIncludedW + colDescW + cellPadding;
-      const xRateText = NEW_PAGE_MARGIN + colIncludedW + colDescW + colQtyW + cellPadding;
-      const xAmountText = NEW_PAGE_MARGIN + colIncludedW + colDescW + colQtyW + colRateW + cellPadding;
+      const xAmountText = NEW_PAGE_MARGIN + colIncludedW + colDescW + cellPadding;
 
       const wIncluded = colIncludedW - (2 * cellPadding);
       const wDesc = colDescW - (2 * cellPadding);
-      const wQty = colQtyW - (2 * cellPadding);
-      const wRate = colRateW - (2 * cellPadding);
       const wAmount = colAmountW - (2 * cellPadding);
 
-      // Table Header - ESTILO EXACTO DEL BUDGET
+      // Table Header
       doc.font(FONT_FAMILY_MONO_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK);
       const headerY = tableTop;
       doc.rect(NEW_PAGE_MARGIN, headerY - 3, contentWidth, 18)
         .fillColor(COLOR_BACKGROUND_TABLE_HEADER).strokeColor(COLOR_BORDER_LIGHT).fillAndStroke();
       doc.fillColor(COLOR_TEXT_DARK);
-      doc.text('ITEM TYPE', xIncludedText, headerY + 2, { width: wIncluded });
+      
+      doc.text('INCLUDED', xIncludedText, headerY + 2, { width: wIncluded });
       doc.text('DESCRIPTION', xDescText, headerY + 2, { width: wDesc });
-      doc.text('QTY', xQtyText, headerY + 2, { width: wQty, align: 'right' });
-      doc.text('RATE', xRateText, headerY + 2, { width: wRate, align: 'right' });
       doc.text('AMOUNT', xAmountText, headerY + 2, { width: wAmount, align: 'right' });
+      
       doc.font(FONT_FAMILY_MONO);
       doc.y = headerY + 18;
-      doc.moveDown(0.5);
-
+      doc.moveDown(1);
       doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
 
-      // ITEM PRINCIPAL - SEPTIC SYSTEM
-      const mainItemName = "SEPTIC SYSTEM";
-      const mainItemDesc = "COMPLETE INSTALLATION OF THE SYSTEM (LABOR AND MATERIALS)";
-      const mainItemQty = 1;
-      const mainItemRate = parseFloat(originalBudgetTotal || 0);
+      // --- Fila del Saldo del Presupuesto ---
+      const initialPercentage = parseFloat(budgetData?.initialPaymentPercentage || 0);
+      const finalPercentage = 100 - initialPercentage;
+      const remainingBudgetAmount = parseFloat(originalBudgetTotal || 0) - parseFloat(initialPaymentMade || 0);
+      
+      const budgetIncludedText = `FINAL ${finalPercentage}% COMPLETE INSTALLATION OF SEPTIC TANK SYSTEM`;
+      const budgetDescriptionText = `LABOR, EQUIPMENT, AND MATERIALS FOR THE COMPLETE INSTALLATION OF A CONVENTIONAL SEPTIC TANK AND DRAINFIELD SYSTEM, INCLUDING EXCAVATION, TANK PLACEMENT, PIPE INSTALLATION, AND SYSTEM BACKFILL, IN COMPLIANCE WITH COUNTY HEALTH DEPARTMENT REQUIREMENTS.`;
 
-      let currentItemY = doc.y;
-      doc.text(mainItemName, xIncludedText, currentItemY, { width: wIncluded });
-      doc.text(mainItemDesc, xDescText, currentItemY, { width: wDesc });
-      doc.text(mainItemQty.toFixed(0), xQtyText, currentItemY, { width: wQty, align: 'right' });
-      doc.text(`$${mainItemRate.toFixed(2)}`, xRateText, currentItemY, { width: wRate, align: 'right' });
-      doc.text(`$${mainItemRate.toFixed(2)}`, xAmountText, currentItemY, { width: wAmount, align: 'right' });
-      doc.moveDown(3.5);
+      const budgetRowY = doc.y;
+      doc.text(budgetIncludedText.toUpperCase(), xIncludedText, budgetRowY, { width: wIncluded });
+      doc.text(budgetDescriptionText.toUpperCase(), xDescText, budgetRowY, { width: wDesc });
+      doc.text(`$${remainingBudgetAmount.toFixed(2)}`, xAmountText, budgetRowY, { width: wAmount, align: 'right' });
 
-      // ITEMS ADICIONALES (EXTRA ITEMS)
+      const budgetDescHeight = doc.heightOfString(budgetDescriptionText.toUpperCase(), { width: wDesc });
+      doc.y = budgetRowY + budgetDescHeight + doc.currentLineHeight() * 1.5;
+
+      // --- Filas de los Change Orders ---
       if (extraItems && extraItems.length > 0) {
         extraItems.forEach(item => {
-          const itemQty = parseFloat(item.quantity || 1);
-          const itemRate = parseFloat(item.unitPrice || 0);
           const itemAmount = parseFloat(item.lineTotal || 0);
+          const changeOrderRowY = doc.y;
+          const includedText = "CHANGE ORDER";
+          
+          let dynamicDescription = '';
+          const originalDescription = (item.description || '').toUpperCase();
+          const quantity = parseFloat(item.quantity || 0).toFixed(2);
 
-          currentItemY = doc.y;
-          doc.text("EXTRA ITEM", xIncludedText, currentItemY, { width: wIncluded });
-          doc.text(item.description || 'Additional Work', xDescText, currentItemY, { width: wDesc });
-          doc.text(itemQty.toFixed(0), xQtyText, currentItemY, { width: wQty, align: 'right' });
-          doc.text(`$${itemRate.toFixed(2)}`, xRateText, currentItemY, { width: wRate, align: 'right' });
-          doc.text(`$${itemAmount.toFixed(2)}`, xAmountText, currentItemY, { width: wAmount, align: 'right' });
-          doc.moveDown(3.0);
+          if (originalDescription.includes('SAND')) {
+            dynamicDescription = `SAND ${quantity} TRUCKS`;
+          } else if (originalDescription.includes('DIRT')) {
+            dynamicDescription = `DIRT ${quantity} TRUCKS`;
+          } else if (originalDescription.includes('ROCK REMOVAL')) {
+            dynamicDescription = `ROCK REMOVAL ${quantity} HOURS`;
+          } else {
+            dynamicDescription = item.description || 'Additional Work';
+          }
+
+          doc.text(includedText, xIncludedText, changeOrderRowY, { width: wIncluded });
+          doc.text(dynamicDescription.toUpperCase(), xDescText, changeOrderRowY, { width: wDesc });
+          doc.text(`$${itemAmount.toFixed(2)}`, xAmountText, changeOrderRowY, { width: wAmount, align: 'right' });
+
+          const includedHeight = doc.heightOfString(includedText, { width: wIncluded });
+          const descriptionHeight = doc.heightOfString(dynamicDescription.toUpperCase(), { width: wDesc });
+          const rowHeight = Math.max(includedHeight, descriptionHeight);
+          
+          doc.y = changeOrderRowY + rowHeight + doc.currentLineHeight() * 1.5;
         });
       }
-
-      // Línea final de la tabla
+      
       doc.moveTo(NEW_PAGE_MARGIN, doc.y).lineTo(doc.page.width - NEW_PAGE_MARGIN, doc.y)
         .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.5).stroke();
       doc.moveDown(2.0);
 
-      // === SECCIÓN DE TOTALES Y PAGO - ESTILO BUDGET ===
+      // === SECCIÓN DE TOTALES Y PAGO ===
       const thankYouAndPaymentInfoY = doc.y;
       const paymentInfoWidth = contentWidth * 0.55;
 
@@ -281,43 +263,31 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
       const yAfterPaymentInfo = doc.y;
       doc.y = thankYouAndPaymentInfoY;
 
-      // SECCIÓN DE TOTALES - ALINEACIÓN PERFECTA DEL BUDGET
       const totalsStartX = NEW_PAGE_MARGIN + contentWidth * 0.55;
       const totalsValueX = NEW_PAGE_MARGIN + contentWidth * 0.85;
       const totalsRightEdge = doc.page.width - NEW_PAGE_MARGIN;
-
       let currentTotalY = doc.y;
 
-      // ORIGINAL BUDGET
+      const totalExtras = extraItems.reduce((acc, item) => acc + parseFloat(item.lineTotal || 0), 0);
+      const subtotal = remainingBudgetAmount + totalExtras;
+      const tax = 0.00;
+      const total = subtotal + tax;
+
       doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
-      doc.text("ORIGINAL BUDGET", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
-      doc.text(`$${parseFloat(originalBudgetTotal || 0).toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+      doc.text("SUBTOTAL", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
+      doc.text(`$${subtotal.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
       doc.moveDown(0.6);
 
-      // ADDITIONAL ITEMS (si existen)
-      if (subtotalExtras && parseFloat(subtotalExtras) > 0) {
-        currentTotalY = doc.y;
-        doc.text("ADDITIONAL ITEMS", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
-        doc.text(`$${parseFloat(subtotalExtras).toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
-        doc.moveDown(0.6);
-      }
-
-      // INITIAL PAYMENT (si existe)
-      if (initialPaymentMade && parseFloat(initialPaymentMade) > 0) {
-        currentTotalY = doc.y;
-        doc.text("INITIAL PAYMENT", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
-        doc.text(`-$${parseFloat(initialPaymentMade).toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
-        doc.moveDown(0.6);
-      }
-
-      // TAX
       currentTotalY = doc.y;
       doc.text("TAX", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
-      doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
-      doc.text(`$0.00`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+      doc.text(`$${tax.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+      doc.moveDown(0.6);
+
+      currentTotalY = doc.y;
+      doc.text("TOTAL", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
+      doc.text(`$${total.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
       doc.moveDown(0.8);
 
-      // LÍNEA DIVISORIA
       const lineY = doc.y;
       doc.moveTo(totalsStartX, lineY)
         .lineTo(totalsRightEdge, lineY)
@@ -326,7 +296,6 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
         .stroke();
       doc.moveDown(1.2);
 
-      // BALANCE DUE / PAID IN FULL
       currentTotalY = doc.y;
       if (invoiceStatus === 'paid') {
         doc.font(FONT_FAMILY_MONO_BOLD).fontSize(14).fillColor('green');
@@ -335,17 +304,68 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
         doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_DARK);
         doc.text("BALANCE DUE", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
         doc.font(FONT_FAMILY_MONO_BOLD).fontSize(14).fillColor(COLOR_TEXT_DARK);
-        doc.text(`$${parseFloat(finalAmountDue || 0).toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+        doc.text(`$${total.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
       }
 
       const yAfterTotals = doc.y;
       doc.y = Math.max(yAfterPaymentInfo, yAfterTotals);
       doc.moveDown(2);
 
-      // --- 4. Finalizar PDF ---
+      // ✅ INICIO: Lógica del botón de pago de Stripe
+      let paymentLinkUrl = null;
+      const paymentAmountForStripe = total;
+
+      if (invoiceStatus !== 'paid' && paymentAmountForStripe > 0 && process.env.STRIPE_SECRET_KEY) {
+        try {
+          const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            line_items: [{
+              price_data: {
+                currency: 'usd',
+                product_data: { name: `Final Invoice #${invoiceNumber} - ${clientName}` },
+                unit_amount: Math.round(paymentAmountForStripe * 100)
+              },
+              quantity: 1,
+            }],
+            mode: 'payment',
+            success_url: 'https://zurcher-api-fvus.vercel.app/', // Cambiar por tu URL de éxito
+            cancel_url: 'https://zurcher-api-fvus.vercel.app/',  // Cambiar por tu URL de cancelación
+            ...(clientEmail && { customer_email: clientEmail }),
+            metadata: { 
+              internal_invoice_id: invoiceId, 
+              payment_type: 'final_invoice_payment' 
+            }
+          });
+          paymentLinkUrl = session.url;
+        } catch (stripeError) {
+          console.error("Stripe session creation error for final invoice:", stripeError);
+        }
+      }
+
+      if (paymentLinkUrl) {
+        const buttonWidth = 200;
+        const buttonHeight = 28;
+        let buttonY = doc.y;
+        const buttonX = NEW_PAGE_MARGIN + (contentWidth - buttonWidth) / 2;
+
+        if (buttonY + buttonHeight + 20 > doc.page.height - NEW_PAGE_MARGIN) {
+          doc.addPage();
+          buttonY = doc.y + 20;
+        }
+        doc.y = buttonY;
+
+        doc.save();
+        doc.roundedRect(buttonX, buttonY, buttonWidth, buttonHeight, 5).fillColor('#063260').fill();
+        doc.fillColor('#FFFFFF').fontSize(9).font(FONT_FAMILY_MONO_BOLD);
+        doc.text('Click Here to Pay Online', buttonX, buttonY + (buttonHeight / 2) - 4, { width: buttonWidth, align: 'center' });
+        doc.restore();
+        doc.link(buttonX, buttonY, buttonWidth, buttonHeight, paymentLinkUrl);
+        doc.y = buttonY + buttonHeight + 10;
+      }
+      // ✅ FIN: Lógica del botón de pago de Stripe
+
       doc.end();
 
-      // --- 5. Resolver Promesa ---
       stream.on('finish', () => {
         console.log(`Final Invoice PDF generado: ${pdfPath}`);
         resolve(pdfPath);
