@@ -16,7 +16,7 @@ const transporter = nodemailer.createTransport({
 const sendEmail = async (staff, message) => {
   try {
     const mailOptions = {
-      from: 'guatapenocountry@gmail.com', // Dirección de correo del remitente
+      from: 'constructionzurcher@gmail.com', // Dirección de correo del remitente
       to: Array.isArray(staff.email) ? staff.email.join(",") : staff.email, // Correo del empleado, imagen traer de cloudinary
       subject: 'Notificación de cambio de estado de trabajo',
       html: `
