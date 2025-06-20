@@ -184,16 +184,7 @@ async createSigningInvite(documentId, signerEmail, signerName, fromEmail = null)
       console.log('📥 Estado del documento obtenido:');
       console.log(JSON.stringify(response.data, null, 2));
 
-      return {
-        id: response.data.id,
-        document_name: response.data.document_name,
-        page_count: response.data.page_count,
-        created: response.data.created,
-        updated: response.data.updated,
-        status: response.data.status,
-        signatures: response.data.signatures || [],
-        invites: response.data.invites || []
-      };
+      return response.data;
     } catch (error) {
       console.error('Error obteniendo estado del documento:', error.response?.data || error.message);
       throw error;
@@ -203,19 +194,42 @@ async createSigningInvite(documentId, signerEmail, signerName, fromEmail = null)
   // Verificar si el documento está firmado
   async isDocumentSigned(documentId) {
     try {
-      const documentStatus = await this.getDocumentStatus(documentId);
-      
-      const allSignaturesComplete = documentStatus.signatures.every(signature => 
-        signature.status === 'signed'
+      console.log(`[SignNowService] Verificando estado detallado del documento: ${documentId}`);
+      const documentDetails = await this.getDocumentStatus(documentId);
+
+      if (!documentDetails) {
+        console.log(`[SignNowService] No se pudieron obtener detalles para el documento ${documentId}.`);
+        return { isSigned: false, status: 'not_found', signatures: [], invites: [] };
+      }
+
+      // La lógica clave:
+      // 1. ¿Hay invitaciones (requests)?
+      const hasInvites = Array.isArray(documentDetails.requests) && documentDetails.requests.length > 0;
+      if (!hasInvites) {
+        console.log(`[SignNowService] El documento ${documentId} no tiene invitaciones. No se puede considerar firmado.`);
+        return { isSigned: false, status: 'no_invites', signatures: [], invites: [] };
+      }
+
+      // 2. ¿TODAS las invitaciones tienen una firma?
+      const allInvitesAreSigned = documentDetails.requests.every(
+        (req) => req.signature_id !== null && req.signature_id !== undefined
       );
-      
+
+      if (allInvitesAreSigned) {
+        console.log(`[SignNowService] ¡Éxito! Todas las ${documentDetails.requests.length} invitaciones para el documento ${documentId} están firmadas.`);
+      } else {
+        console.log(`[SignNowService] Aún pendiente. No todas las invitaciones para el documento ${documentId} están firmadas.`);
+      }
+
       return {
-        isSigned: allSignaturesComplete,
-        status: documentStatus.status,
-        signatures: documentStatus.signatures
+        isSigned: allInvitesAreSigned,
+        status: allInvitesAreSigned ? 'signed' : 'pending',
+        signatures: documentDetails.signatures || [],
+        invites: documentDetails.requests || []
       };
+
     } catch (error) {
-      console.error('Error verificando firma del documento:', error);
+      console.error(`[SignNowService] Error en isDocumentSigned para ${documentId}:`, error.message);
       throw error;
     }
   }
