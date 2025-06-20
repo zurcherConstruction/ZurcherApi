@@ -49,12 +49,12 @@ app.set('io', io);
 const connectedUsers = {}; // Objeto para almacenar los usuarios conectados
 
 io.on("connection", (socket) => {
-  console.log("Usuario conectado:", socket.id);
+  //console.log("Usuario conectado:", socket.id);
 
   // Escuchar el evento "join" para asociar el staffId con el socket.id
   socket.on("join", (staffId) => {
     connectedUsers[staffId] = socket.id; // Asociar el staffId con el socket.id
-    console.log(`Usuario con staffId ${staffId} conectado con socket.id ${socket.id}`);
+    //console.log(`Usuario con staffId ${staffId} conectado con socket.id ${socket.id}`);
   });
 
   // Eliminar al usuario del objeto cuando se desconecta
@@ -64,7 +64,7 @@ io.on("connection", (socket) => {
     );
     if (staffId) {
       delete connectedUsers[staffId];
-      console.log(`Usuario con staffId ${staffId} desconectado`);
+      //console.log(`Usuario con staffId ${staffId} desconectado`);
     }
   });
 });
