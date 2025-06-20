@@ -329,6 +329,17 @@ const BudgetController = {
         });
       }
 
+       let localPdfPath;
+      if (budget.pdfPath.startsWith('http')) {
+        const pdfFileName = budget.pdfPath.split('/').pop();
+        // Asumiendo que los PDFs de presupuestos se guardan en 'uploads/budgets'
+        localPdfPath = path.join(__dirname, '..', 'uploads', 'budgets', pdfFileName);
+        console.log(`ℹ️  URL de PDF convertida a ruta local: ${localPdfPath}`);
+      } else {
+        localPdfPath = budget.pdfPath; // Ya es una ruta local
+        console.log(`ℹ️  Usando ruta de PDF local existente: ${localPdfPath}`);
+      }
+
       // Verificar que el archivo PDF existe físicamente
       if (!fs.existsSync(budget.pdfPath)) {
         console.error(`❌ ERROR: Archivo PDF no existe en la ruta: ${budget.pdfPath}`);
@@ -383,7 +394,7 @@ const BudgetController = {
       // Actualizar presupuesto con información de SignNow
       console.log('💾 Actualizando presupuesto en la base de datos...');
       const updateData = {
-        adobeAgreementId: signNowResult.documentId, // Reutilizar este campo para SignNow
+       signNowDocumentId: signNowResult.documentId, // Reutilizar este campo para SignNow
         status: 'sent_for_signature',
         sentForSignatureAt: new Date()
       };
