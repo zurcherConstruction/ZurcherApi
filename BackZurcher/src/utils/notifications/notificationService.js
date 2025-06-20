@@ -106,6 +106,10 @@ const stateNotificationMap = {
     roles: ['admin', 'owner'],
     message: (work) => `El presupuesto para la dirección ${work.propertyAddress} ha sido enviado al cliente.`,
   },
+   budgetSentToSignNow: {
+    roles: ['admin', 'owner', 'recept'],
+    message: (data) => `El presupuesto #${data.idBudget} para la dirección ${data.propertyAddress} ha sido enviado a ${data.applicantName} (${data.applicantEmail}) para su firma digital a través de SignNow.`
+  },
   incomeCreated: {
     roles: ['admin', 'owner'],
     // 'income' ahora tiene las propiedades extra añadidas
