@@ -475,7 +475,7 @@ const BudgetController = {
         });
       }
 
-      if (!budget.adobeAgreementId) {
+      if (!budget.signNowDocumentId) {
         return res.status(400).json({
           error: true,
           message: 'Este presupuesto no ha sido enviado para firma',
@@ -492,7 +492,7 @@ const BudgetController = {
       const signNowService = new SignNowService();
 
       // Verificar estado del documento
-      const signatureStatus = await signNowService.isDocumentSigned(budget.adobeAgreementId);
+      const signatureStatus = await signNowService.isDocumentSigned(budget.signNowDocumentId);
 
       console.log('📊 Estado de firma:', signatureStatus);
 
@@ -509,7 +509,7 @@ const BudgetController = {
         message: 'Estado de firma obtenido exitosamente',
         data: {
           budgetId: budget.idBudget,
-          documentId: budget.adobeAgreementId,
+          documentId: budget.signNowDocumentId,
           isSigned: signatureStatus.isSigned,
           status: signatureStatus.status,
           signatures: signatureStatus.signatures,
@@ -547,7 +547,7 @@ const BudgetController = {
         });
       }
 
-      if (!budget.adobeAgreementId) {
+      if (!budget.signNowDocumentId) {
         return res.status(400).json({
           error: true,
           message: 'Este presupuesto no ha sido enviado para firma'
@@ -559,7 +559,7 @@ const BudgetController = {
       const signNowService = new SignNowService();
 
       // Verificar si está firmado
-      const signatureStatus = await signNowService.isDocumentSigned(budget.adobeAgreementId);
+      const signatureStatus = await signNowService.isDocumentSigned(budget.signNowDocumentId);
 
       if (!signatureStatus.isSigned) {
         return res.status(400).json({
@@ -586,7 +586,7 @@ const BudgetController = {
       const signedFilePath = path.join(uploadsDir, signedFileName);
 
       // Descargar documento firmado
-      await signNowService.downloadSignedDocument(budget.adobeAgreementId, signedFilePath);
+      await signNowService.downloadSignedDocument(budget.signNowDocumentId, signedFilePath);
 
       // Actualizar presupuesto con path del archivo firmado
       await budget.update({
@@ -1195,7 +1195,7 @@ const BudgetController = {
               // Actualizar presupuesto con información de SignNow
               console.log('💾 Actualizando presupuesto con datos de SignNow...');
               await budget.update({
-                adobeAgreementId: signNowResult.documentId,
+                signNowDocumentId: signNowResult.documentId,
                 status: 'sent_for_signature', // Cambiar status a 'sent_for_signature'
                 sentForSignatureAt: new Date()
               }, { transaction });
