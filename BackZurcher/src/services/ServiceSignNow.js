@@ -99,7 +99,7 @@ async createSigningInvite(documentId, signerEmail, signerName, fromEmail = null)
     console.log(`📧 Email del firmante: ${signerEmail}`);
     console.log(`👤 Nombre del firmante: ${signerName}`);
     console.log(`📄 Document ID: ${documentId}`);
-    console.log(`📧 From Email: ${fromEmail || "mercedeslobeto@gmail.com"}`);
+    console.log(`📧 From Email: ${fromEmail || "constructionzurcher@gmail.com"}`);
     console.log(`📡 URL: ${this.baseURL}/document/${documentId}/invite`); // ✅ CORRECTO: /invite
 
     // Validar inputs
@@ -117,7 +117,7 @@ async createSigningInvite(documentId, signerEmail, signerName, fromEmail = null)
     const inviteData = {
       document_id: documentId, // ✅ CLAVE: Esto indica que es freeform invite
       to: signerEmail, // ✅ Solo email (string), no array
-      from: fromEmail || "mercedeslobeto@gmail.com", // ✅ Debe ser tu email de SignNow
+      from: fromEmail || "constructionzurcher@gmail.com", // ✅ Debe ser tu email de SignNow
       subject: `Please sign: Budget Document - Zurcher Construction`,
       message: `Hi ${signerName || 'there'}, please review and sign this budget document from Zurcher Construction. Thank you!`,
       language: "en",
@@ -273,7 +273,7 @@ async createSigningInvite(documentId, signerEmail, signerName, fromEmail = null)
       console.log('📨 PASO 2: Creando invitación de firma...');
       
       // ✅ IMPORTANTE: Usar el email de tu cuenta SignNow como remitente
-      const signNowAccountEmail = 'mercedeslobeto@gmail.com'; // Tu email de SignNow
+      const signNowAccountEmail = 'constructionzurcher@gmail.com'; // Tu email de SignNow
       const inviteResult = await this.createSigningInvite(documentId, signerEmail, signerName, signNowAccountEmail);
       
       const result = {
