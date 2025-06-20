@@ -184,16 +184,7 @@ async createSigningInvite(documentId, signerEmail, signerName, fromEmail = null)
       console.log('📥 Estado del documento obtenido:');
       console.log(JSON.stringify(response.data, null, 2));
 
-      return {
-        id: response.data.id,
-        document_name: response.data.document_name,
-        page_count: response.data.page_count,
-        created: response.data.created,
-        updated: response.data.updated,
-        status: response.data.status,
-        signatures: response.data.signatures || [],
-        invites: response.data.invites || []
-      };
+      return response.data;
     } catch (error) {
       console.error('Error obteniendo estado del documento:', error.response?.data || error.message);
       throw error;
