@@ -98,10 +98,10 @@ module.exports = (sequelize) => {
     type: DataTypes.STRING,
     allowNull: true,
   },
-  adobeAgreementId: { // ID del acuerdo de Adobe Sign
-    type: DataTypes.STRING, // Los IDs de Adobe Sign suelen ser strings
-    allowNull: true, // Será null hasta que se envíe a Adobe Sign
-    unique: true, // Cada acuerdo de Adobe debe ser único
+  signNowDocumentId: { // ID del documento de SignNow
+    type: DataTypes.STRING,
+    allowNull: true,
+    unique: true,
   },
   PermitIdPermit: {
     type: DataTypes.UUID, // Debe coincidir con el tipo de Permit.idPermit
