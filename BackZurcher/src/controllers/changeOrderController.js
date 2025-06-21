@@ -295,11 +295,22 @@ const handleClientChangeOrderResponse = async (req, res) => {
   try {
     const { token, decision, coId } = req.query;
 
-    // 1. Validar parámetros de entrada
+    // ✅ LOGS DETALLADOS
+    console.log('🔍 === DEBUGGING CHANGE ORDER RESPONSE (PRODUCTION) ===');
+    console.log('📍 Environment:', process.env.NODE_ENV || 'development');
+    console.log('📧 Query params:', req.query);
+    console.log('📊 Headers:', {
+      'user-agent': req.get('user-agent')?.substring(0, 50),
+      'referer': req.get('referer'),
+      'host': req.get('host')
+    });
+
+    // 1. Validar parámetros
     if (!token || !decision || !coId) {
       return res.status(400).json({
         success: false,
-        message: 'Información incompleta. Faltan parámetros necesarios (token, decision, coId) para procesar su respuesta.',
+        message: 'Información incompleta. Faltan parámetros necesarios.',
+        debug: { received: req.query }
       });
     }
 
@@ -310,58 +321,230 @@ const handleClientChangeOrderResponse = async (req, res) => {
       });
     }
 
-   let changeOrder;
+    // ✅ VALIDAR ID
+    const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(coId);
+    if (!isValidUUID) {
+      console.error('❌ ID inválido:', coId);
+      return res.status(400).json({
+        success: false,
+        message: 'ID de orden de cambio inválido.',
+        debug: { receivedCoId: coId, type: typeof coId }
+      });
+    }
+
+    console.log('✅ Parámetros validados. Buscando Change Order:', coId);
+
+    // ✅ BÚSQUEDA SÚPER ROBUSTA
+    let changeOrder;
+    let searchAttempts = [];
+
     try {
-      changeOrder = await ChangeOrder.findByPk(coId, {
+      // INTENTO 1: Búsqueda completa con todos los includes
+      console.log('🔎 Intento 1: Búsqueda completa...');
+      changeOrder = await ChangeOrder.findOne({
+        where: { id: coId },
         include: [{ 
           model: Work, 
           as: 'work',
           include: [
-            { model: Budget, as: 'budget' },
-            { model: Permit, as: 'Permit', attributes: ['applicantEmail', 'applicantName'] }
+            { 
+              model: Budget, 
+              as: 'budget',
+              required: false // ✅ IMPORTANTE: No requerir Budget
+            },
+            { 
+              model: Permit, 
+              as: 'Permit', 
+              attributes: ['applicantEmail', 'applicantName'],
+              required: false // ✅ IMPORTANTE: No requerir Permit
+            }
           ]
         }]
       });
+      
+      searchAttempts.push({
+        attempt: 1,
+        method: 'findOne with full includes',
+        found: !!changeOrder,
+        details: changeOrder ? {
+          id: changeOrder.id,
+          status: changeOrder.status,
+          workId: changeOrder.workId,
+          hasWork: !!changeOrder.work,
+          hasBudget: !!changeOrder.work?.budget,
+          hasPermit: !!changeOrder.work?.Permit
+        } : null
+      });
+
     } catch (includeError) {
-      console.log('❌ Error con includes, intentando búsqueda simple:', includeError.message);
-      // Fallback: búsqueda simple sin includes
-      changeOrder = await ChangeOrder.findByPk(coId);
-      if (changeOrder) {
-        // Cargar work por separado
-        changeOrder.work = await Work.findByPk(changeOrder.workId, {
-          include: [
-            { model: Budget, as: 'budget' },
-            { model: Permit, as: 'Permit', attributes: ['applicantEmail', 'applicantName'] }
-          ]
+      console.log('❌ Error en intento 1:', includeError.message);
+      searchAttempts.push({
+        attempt: 1,
+        method: 'findOne with full includes',
+        error: includeError.message
+      });
+    }
+
+    if (!changeOrder) {
+      try {
+        // INTENTO 2: Búsqueda simple sin includes
+        console.log('🔎 Intento 2: Búsqueda simple...');
+        changeOrder = await ChangeOrder.findByPk(coId);
+        
+        if (changeOrder) {
+          console.log('✅ Change Order encontrado sin includes. Cargando Work...');
+          
+          try {
+            changeOrder.work = await Work.findByPk(changeOrder.workId);
+            
+            if (changeOrder.work) {
+              // Cargar Budget y Permit por separado
+              try {
+                changeOrder.work.budget = await Budget.findOne({
+                  where: { PermitIdPermit: { [Op.ne]: null } },
+                  include: [{ model: Permit, where: { idPermit: changeOrder.work.idWork } }]
+                });
+              } catch (budgetError) {
+                console.log('⚠️ No se pudo cargar Budget:', budgetError.message);
+                changeOrder.work.budget = null;
+              }
+
+              try {
+                changeOrder.work.Permit = await Permit.findOne({
+                  where: { 
+                    [Op.or]: [
+                      { idPermit: changeOrder.work.idWork },
+                      { propertyAddress: changeOrder.work.propertyAddress }
+                    ]
+                  },
+                  attributes: ['applicantEmail', 'applicantName']
+                });
+              } catch (permitError) {
+                console.log('⚠️ No se pudo cargar Permit:', permitError.message);
+                changeOrder.work.Permit = null;
+              }
+            }
+          } catch (workError) {
+            console.log('❌ Error cargando Work:', workError.message);
+          }
+        }
+
+        searchAttempts.push({
+          attempt: 2,
+          method: 'findByPk + manual loading',
+          found: !!changeOrder,
+          hasWork: !!changeOrder?.work
+        });
+
+      } catch (simpleError) {
+        console.log('❌ Error en intento 2:', simpleError.message);
+        searchAttempts.push({
+          attempt: 2,
+          method: 'findByPk + manual loading',
+          error: simpleError.message
         });
       }
     }
 
-    console.log('📊 Resultado de búsqueda:', {
+    if (!changeOrder) {
+      try {
+        // INTENTO 3: Búsqueda por tokens
+        console.log('🔎 Intento 3: Búsqueda por tokens...');
+        changeOrder = await ChangeOrder.findOne({
+          where: {
+            [Op.or]: [
+              { approvalToken: token },
+              { rejectionToken: token }
+            ]
+          }
+        });
+
+        if (changeOrder) {
+          console.log('✅ Change Order encontrado por token');
+          try {
+            changeOrder.work = await Work.findByPk(changeOrder.workId);
+          } catch (workError) {
+            console.log('❌ Error cargando Work por token:', workError.message);
+          }
+        }
+
+        searchAttempts.push({
+          attempt: 3,
+          method: 'findOne by tokens',
+          found: !!changeOrder
+        });
+
+      } catch (tokenError) {
+        console.log('❌ Error en intento 3:', tokenError.message);
+        searchAttempts.push({
+          attempt: 3,
+          method: 'findOne by tokens',
+          error: tokenError.message
+        });
+      }
+    }
+
+    // ✅ LOGS DETALLADOS DEL RESULTADO
+    console.log('📊 Resultado detallado de búsqueda:', {
       found: !!changeOrder,
-      coId: coId,
-      changeOrderId: changeOrder?.id,
-      status: changeOrder?.status,
-      workId: changeOrder?.workId,
-      hasWork: !!changeOrder?.work
+      searchAttempts,
+      finalData: changeOrder ? {
+        id: changeOrder.id,
+        status: changeOrder.status,
+        workId: changeOrder.workId,
+        hasWork: !!changeOrder.work,
+        workDetails: changeOrder.work ? {
+          idWork: changeOrder.work.idWork,
+          propertyAddress: changeOrder.work.propertyAddress,
+          hasBudget: !!changeOrder.work.budget,
+          hasPermit: !!changeOrder.work.Permit,
+          budgetEmail: changeOrder.work.budget?.applicantEmail,
+          permitEmail: changeOrder.work.Permit?.applicantEmail
+        } : null,
+        approvalToken: changeOrder.approvalToken ? 'SET' : 'NULL',
+        rejectionToken: changeOrder.rejectionToken ? 'SET' : 'NULL'
+      } : null
     });
 
     if (!changeOrder) {
+      console.error('❌ Change Order definitivamente no encontrado');
       return res.status(404).json({
         success: false,
         message: 'Orden de Cambio no encontrada. El enlace puede ser incorrecto o la orden ya no existe.',
+        debug: {
+          searchedId: coId,
+          environment: process.env.NODE_ENV,
+          searchAttempts: searchAttempts,
+          timestamp: new Date().toISOString()
+        }
       });
     }
+
+    // ✅ VALIDAR WORK (más flexible)
     if (!changeOrder.work) {
-      return res.status(500).json({ success: false, message: 'Error interno: No se pudo cargar la información del trabajo asociado.' });
+      console.log('⚠️ Work no encontrado, pero continuando...');
+      // En lugar de fallar, crear un objeto work vacío
+      changeOrder.work = {
+        idWork: changeOrder.workId,
+        propertyAddress: 'Dirección no disponible',
+        budget: null,
+        Permit: null
+      };
     }
 
-    // 3. Verificar el estado actual del Change Order
+    // 3. Verificar estado
     if (changeOrder.status !== 'pendingClientApproval') {
       let userMessage = `Esta orden de cambio ya ha sido procesada anteriormente. Su estado actual es: ${changeOrder.status}.`;
       if (changeOrder.status === decision) {
         userMessage = `Su decisión de '${decision}' para esta orden de cambio ya fue registrada.`;
       }
+      
+      console.log('⚠️ Estado incorrecto:', {
+        currentStatus: changeOrder.status,
+        expectedStatus: 'pendingClientApproval',
+        decision: decision
+      });
+      
       return res.status(409).json({
         success: false,
         message: userMessage,
@@ -369,35 +552,36 @@ const handleClientChangeOrderResponse = async (req, res) => {
       });
     }
 
-    // --- LOGS DE DEPURACIÓN ---
-    console.log('--- DEBUGGING TOKEN VALIDATION ---');
-    console.log('Token desde URL (req.query.token):', token);
-    console.log('Decisión desde URL (req.query.decision):', decision);
-    console.log('ChangeOrder ID (coId):', coId);
-    console.log('ChangeOrder.approvalToken desde BD:', changeOrder.approvalToken);
-    console.log('ChangeOrder.rejectionToken desde BD:', changeOrder.rejectionToken);
-    console.log('ChangeOrder.status desde BD:', changeOrder.status);
-    // --- FIN LOGS DE DEPURACIÓN ---
+    // 4. Validar tokens
+    console.log('🔐 Validando tokens...');
+    console.log('Token recibido:', token?.substring(0, 8) + '...');
+    console.log('Approval token BD:', changeOrder.approvalToken?.substring(0, 8) + '...');
+    console.log('Rejection token BD:', changeOrder.rejectionToken?.substring(0, 8) + '...');
 
-    // 4. Validar el token
     let isValidToken = false;
     if (decision === 'approved' && token === changeOrder.approvalToken) {
       isValidToken = true;
-      console.log('DEBUG: Token coincide con approvalToken.');
+      console.log('✅ Token de aprobación válido');
     } else if (decision === 'rejected' && token === changeOrder.rejectionToken) {
       isValidToken = true;
-      console.log('DEBUG: Token coincide con rejectionToken.');
+      console.log('✅ Token de rechazo válido');
     } else {
-      console.log('DEBUG: Token NO coincide con el token esperado para la decisión.');
+      console.error('❌ Token inválido:', {
+        decision,
+        receivedToken: token?.substring(0, 8) + '...',
+        approvalTokenMatch: token === changeOrder.approvalToken,
+        rejectionTokenMatch: token === changeOrder.rejectionToken
+      });
     }
 
     if (!isValidToken) {
-      console.log('DEBUG: isValidToken es false. Devolviendo 403.');
       return res.status(403).json({
         success: false,
         message: 'Enlace inválido o expirado. Este enlace de decisión no es válido o ya ha sido utilizado.',
       });
     }
+
+    console.log('🎉 Procesando decisión:', decision);
 
     // ============= CASO 1: CLIENTE RECHAZA =============
     if (decision === 'rejected') {
@@ -409,10 +593,11 @@ const handleClientChangeOrderResponse = async (req, res) => {
       await changeOrder.save();
 
       // Enviar notificaciones de rechazo (código original)
-      const clientName = changeOrder.work?.budget?.applicantName || changeOrder.work?.Permit?.applicantName || 'El cliente';
+     const clientName = changeOrder.work?.budget?.applicantName || 
+                        changeOrder.work?.Permit?.applicantName || 
+                        'El cliente';
       const propertyAddress = changeOrder.work?.propertyAddress || 'Dirección desconocida';
       const coNumber = changeOrder.changeOrderNumber || changeOrder.id.substring(0,8);
-
       const adminOwnerSubject = `Respuesta de Cliente: Orden de Cambio #${coNumber} ha sido RECHAZADA`;
       const adminOwnerHtml = `
         <p>Hola,</p>
@@ -482,7 +667,7 @@ const handleClientChangeOrderResponse = async (req, res) => {
 
       // Paso 3: Intentar enviar para firma electrónica (NUEVA LÓGICA HÍBRIDA)
       try {
-              if (!changeOrder.pdfUrl) throw new Error('Falta el PDF del Change Order.');
+        if (!changeOrder.pdfUrl) throw new Error('Falta el PDF del Change Order.');
         
         // CORREGIR: Buscar email en ambos lugares (como en sendChangeOrderToClient)
         let clientEmail = null;
@@ -579,6 +764,7 @@ const handleClientChangeOrderResponse = async (req, res) => {
           }, 10 * 60 * 1000); // 10 minutos
         }
 
+        // ✅ AQUÍ VA EL RETURN DE ÉXITO COMPLETO
         return res.status(200).json({
           success: true,
           message: '¡Gracias! Su aprobación ha sido registrada. Le hemos enviado un correo electrónico por separado para que firme formalmente el documento.',
@@ -596,6 +782,7 @@ const handleClientChangeOrderResponse = async (req, res) => {
         changeOrder.signatureStatus = 'not_sent';
         await changeOrder.save();
         
+        // ✅ AQUÍ VA EL RETURN DE ÉXITO PARCIAL (CUANDO SIGNNOW FALLA)
         return res.status(200).json({
           success: true,
           message: 'Su aprobación ha sido registrada, pero hubo un problema al enviar el documento para la firma electrónica. Nuestro equipo lo revisará manualmente.',
@@ -603,12 +790,25 @@ const handleClientChangeOrderResponse = async (req, res) => {
       }
     }
 
+    // ✅ ESTE RETURN NUNCA DEBERÍA EJECUTARSE (POR SEGURIDAD)
+    return res.status(400).json({
+      success: false,
+      message: 'Decisión no procesada correctamente.',
+    });
+
   } catch (error) {
-    console.error('Error al procesar la respuesta del cliente para el Change Order:', error);
+    // ✅ AQUÍ VA EL CATCH GENERAL DEL CONTROLADOR COMPLETO
+    console.error('💥 Error completo en handleClientChangeOrderResponse:', {
+      message: error.message,
+      stack: error.stack,
+      query: req.query,
+      timestamp: new Date().toISOString()
+    });
+    
     return res.status(500).json({
       success: false,
-      message: 'Ocurrió un error del servidor al procesar su solicitud. Por favor, inténtelo más tarde.',
-      details: error.message
+      message: 'Ocurrió un error del servidor al procesar su solicitud.',
+      debug: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
