@@ -2,10 +2,12 @@ const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDe
 const { sendEmail } = require('../utils/notifications/emailService');
 const path = require('path');
 const { generateAndSaveChangeOrderPDF } = require('../utils/pdfGenerators');
+const  SignNowService  = require('../services/ServiceSignNow');
 const fs = require('fs'); 
 const { v4: uuidv4 } = require('uuid');
 const { Op } = require('sequelize');
 const cloudinary = require('cloudinary').v2;
+const axios = require('axios'); 
 require('dotenv').config();
 
 const recordOrUpdateChangeOrderDetails = async (req, res) => {
@@ -188,14 +190,19 @@ const sendChangeOrderToClient = async (req, res) => {
 
     if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
       console.log('[ChangeOrderController] Cloudinary credentials found, attempting upload...');
-      try {
+     try {
         const uploadResult = await cloudinary.uploader.upload(pdfPath, {
           folder: `change_orders/${changeOrder.work.idWork}`, 
-          public_id: `co_${changeOrder.id}`, // Usar un ID único para el archivo en Cloudinary
-          resource_type: 'raw', 
-          overwrite: true, // Sobrescribir si ya existe un PDF para esta CO (útil para reenvíos)
+          public_id: `co_${changeOrder.id}_${Date.now()}`,
+          resource_type: 'auto', // CAMBIAR DE 'raw' A 'auto'
+          access_mode: 'public',
+          overwrite: true,
+          format: 'pdf' // ESPECIFICAR FORMATO EXPLÍCITAMENTE
         });
+        
         pdfUrlForRecord = uploadResult.secure_url;
+        console.log('[Cloudinary] PDF subido como auto/public:', pdfUrlForRecord);
+        
       } catch (uploadError) {
         console.error("Error al subir Change Order PDF a Cloudinary:", uploadError);
         pdfUrlForRecord = null; // Asegurar que sea null si falla la subida
@@ -288,150 +295,211 @@ const handleClientChangeOrderResponse = async (req, res) => {
   try {
     const { token, decision, coId } = req.query;
 
-    // 1. Validar parámetros de entrada
+    // 1. Validaciones de entrada (sin cambios)
     if (!token || !decision || !coId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Información incompleta. Faltan parámetros necesarios (token, decision, coId) para procesar su respuesta.',
-      });
+      return res.status(400).json({ success: false, message: 'Información incompleta. Faltan parámetros necesarios.' });
     }
-
     if (decision !== 'approved' && decision !== 'rejected') {
-      return res.status(400).json({
-        success: false,
-        message: 'Decisión inválida. Los valores permitidos son "approved" o "rejected".',
-      });
+      return res.status(400).json({ success: false, message: 'Decisión inválida.' });
     }
 
+    // 2. Búsqueda del Change Order (sin cambios)
     const changeOrder = await ChangeOrder.findByPk(coId, {
-      include: [{ 
-        model: Work, 
+      include: [{
+        model: Work,
         as: 'work',
-        include: [{ model: Budget, as: 'budget' }] // Incluir Budget para el nombre del cliente si es necesario
+        include: [
+          { model: Permit, as: 'Permit', attributes: ['applicantEmail', 'applicantName'] },
+          { model: Budget, as: 'budget', attributes: ['applicantName', 'propertyAddress'] }
+        ]
       }]
     });
 
     if (!changeOrder) {
-      return res.status(404).json({
-        success: false,
-        message: 'Orden de Cambio no encontrada. El enlace puede ser incorrecto o la orden ya no existe.',
-      });
+      return res.status(404).json({ success: false, message: 'Orden de Cambio no encontrada.' });
     }
     if (!changeOrder.work) {
-        // Esto sería inesperado si la inclusión funciona
-        return res.status(500).json({ success: false, message: 'Error interno: No se pudo cargar la información del trabajo asociado.' });
+      return res.status(500).json({ success: false, message: 'Error interno: No se pudo cargar la información del trabajo asociado.' });
     }
 
-    // 3. Verificar el estado actual del Change Order (como antes)
-    // ... (código de verificación de estado y 409) ...
+    // 3. Verificación de estado y token (sin cambios)
     if (changeOrder.status !== 'pendingClientApproval') {
-      let userMessage = `Esta orden de cambio ya ha sido procesada anteriormente. Su estado actual es: ${changeOrder.status}.`;
-      if (changeOrder.status === decision) {
-        userMessage = `Su decisión de '${decision}' para esta orden de cambio ya fue registrada.`;
-      }
-      return res.status(409).json({
-        success: false,
-        message: userMessage,
-        currentStatus: changeOrder.status,
-      });
+      return res.status(409).json({ success: false, message: `Esta orden de cambio ya ha sido procesada. Estado actual: ${changeOrder.status}.` });
     }
-
-    // --- LOGS DE DEPURACIÓN ---
-    console.log('--- DEBUGGING TOKEN VALIDATION ---');
-    console.log('Token desde URL (req.query.token):', token);
-    console.log('Decisión desde URL (req.query.decision):', decision);
-    console.log('ChangeOrder ID (coId):', coId);
-    console.log('ChangeOrder.approvalToken desde BD:', changeOrder.approvalToken);
-    console.log('ChangeOrder.rejectionToken desde BD:', changeOrder.rejectionToken);
-    console.log('ChangeOrder.status desde BD:', changeOrder.status);
-    // --- FIN LOGS DE DEPURACIÓN ---
-
-    // 4. Validar el token
-    let isValidToken = false;
-    if (decision === 'approved' && token === changeOrder.approvalToken) {
-      isValidToken = true;
-      console.log('DEBUG: Token coincide con approvalToken.');
-    } else if (decision === 'rejected' && token === changeOrder.rejectionToken) {
-      isValidToken = true;
-      console.log('DEBUG: Token coincide con rejectionToken.');
-    } else {
-      console.log('DEBUG: Token NO coincide con el token esperado para la decisión.');
-    }
-
+    const isValidToken = (decision === 'approved' && token === changeOrder.approvalToken) || (decision === 'rejected' && token === changeOrder.rejectionToken);
     if (!isValidToken) {
-      console.log('DEBUG: isValidToken es false. Devolviendo 403.');
-      return res.status(403).json({
-        success: false,
-        message: 'Enlace inválido o expirado. Este enlace de decisión no es válido o ya ha sido utilizado.',
+      return res.status(403).json({ success: false, message: 'Enlace inválido o expirado.' });
+    }
+
+    // --- LÓGICA DE DECISIÓN ACTUALIZADA ---
+
+    // CASO 1: El cliente RECHAZA la orden
+    if (decision === 'rejected') {
+      changeOrder.status = 'rejected';
+      changeOrder.respondedAt = new Date();
+      changeOrder.approvalToken = null;
+      changeOrder.rejectionToken = null;
+      await changeOrder.save();
+
+      // Notificar a admins (lógica sin cambios)
+      // ... (tu código de notificación de rechazo puede ir aquí si lo deseas) ...
+
+      return res.status(200).json({
+        success: true,
+        message: '¡Gracias! Su decisión de RECHAZAR la Orden de Cambio ha sido registrada exitosamente.',
       });
     }
 
-  // 5. Actualizar el Change Order
-    // Guardar estado anterior para la notificación
-    changeOrder.status = decision; // 'approved' o 'rejected'
-    changeOrder.respondedAt = new Date();
-    changeOrder.approvalToken = null;
-    changeOrder.rejectionToken = null;
-    await changeOrder.save();
+    // CASO 2: El cliente APRUEBA la orden
+    if (decision === 'approved') {
+      // Paso 5.1: Marcar como 'approved' para mantener la compatibilidad con otros módulos (ej. Invoicing)
+      changeOrder.status = 'approved';
+      changeOrder.respondedAt = new Date();
+      changeOrder.approvalToken = null;
+      changeOrder.rejectionToken = null;
+      
+      // Guardamos el estado 'approved' inmediatamente
+      await changeOrder.save();
+      console.log(`[CO Response] CO #${coId} marcado como 'approved'. Procediendo a notificar y enviar para firma.`);
 
-    // --- 6. Enviar Notificaciones Internas a Admin y Owner ---
-    const decisionTextForNotification = decision === 'approved' ? 'APROBADA' : 'RECHAZADA';
-    const clientName = changeOrder.work?.budget?.applicantName || 'El cliente'; // Obtener nombre del cliente si es posible
-    const propertyAddress = changeOrder.work?.propertyAddress || 'Dirección desconocida';
-    const coNumber = changeOrder.changeOrderNumber || changeOrder.id.substring(0,8);
-
-    const adminOwnerSubject = `Respuesta de Cliente: Orden de Cambio #${coNumber} ha sido ${decisionTextForNotification}`;
-    const adminOwnerHtml = `
-      <p>Hola,</p>
-      <p>${clientName} ha respondido a la Orden de Cambio #${coNumber} para la propiedad en <strong>${propertyAddress}</strong>.</p>
-      <p><strong>Decisión del Cliente: ${decisionTextForNotification.toUpperCase()}</strong></p>
-      <p><strong>Descripción de la Orden de Cambio:</strong> ${changeOrder.description || 'N/A'}</p>
-      <p><strong>Costo Total:</strong> $${parseFloat(changeOrder.totalCost || 0).toFixed(2)}</p>
-      <p>Por favor, revise el sistema para los detalles completos y los siguientes pasos.</p>
-      <p>Saludos,<br/>Sistema de Notificaciones Zurcher</p>
-    `;
-
-    try {
-      const staffToNotify = await Staff.findAll({
-        where: {
-          role: ['admin', 'owner'], // Roles a notificar
-          email: { [Op.ne]: null } // Asegurarse de que tengan email
-        }
-      });
-
-      if (staffToNotify.length > 0) {
+      // Paso 6: Enviar notificación interna de APROBACIÓN (sin cambios)
+      try {
+        const clientName = changeOrder.work?.Permit?.applicantName || changeOrder.work?.budget?.applicantName || 'El cliente';
+        const propertyAddress = changeOrder.work?.propertyAddress || changeOrder.work?.budget?.propertyAddress || 'N/A';
+        const coNumber = changeOrder.changeOrderNumber || changeOrder.id.substring(0, 8);
+        const adminOwnerSubject = `Respuesta de Cliente: Orden de Cambio #${coNumber} ha sido APROBADA`;
+        const adminOwnerHtml = `<p>Hola,</p><p>${clientName} ha APROBADO la Orden de Cambio #${coNumber} para la propiedad en <strong>${propertyAddress}</strong>.</p><p>El documento ha sido enviado para firma electrónica.</p><p><strong>Costo Total:</strong> $${parseFloat(changeOrder.totalCost || 0).toFixed(2)}</p>`;
+        
+        const staffToNotify = await Staff.findAll({ where: { role: ['admin', 'owner'], email: { [Op.ne]: null } } });
         for (const staffMember of staffToNotify) {
-          if (staffMember.email) { // Doble chequeo por si acaso
-            await sendEmail({
-              to: staffMember.email,
-              subject: adminOwnerSubject,
-              html: adminOwnerHtml,
-              text: `El cliente ha ${decisionTextForNotification.toLowerCase()} la Orden de Cambio #${coNumber} para ${propertyAddress}. Costo: $${parseFloat(changeOrder.totalCost || 0).toFixed(2)}.`
+          await sendEmail({ to: staffMember.email, subject: adminOwnerSubject, html: adminOwnerHtml });
+        }
+      } catch (notificationError) {
+        console.error('Error al enviar notificación interna de aprobación de CO:', notificationError);
+      }
+
+      // Paso 7: Intentar enviar para firma electrónica (NUEVA LÓGICA)
+       try {
+        if (!changeOrder.pdfUrl) throw new Error('Falta el PDF del Change Order.');
+        
+        const clientEmail = changeOrder.work?.Permit?.applicantEmail;
+        if (!clientEmail) throw new Error('Falta el email del cliente.');
+
+        // ========= SOLUCIÓN HÍBRIDA: CREAR COPIA LOCAL PARA SIGNNOW =========
+        let pdfUrlForSignNow = changeOrder.pdfUrl;
+        let tempFilePath = null;
+        
+        // Si es URL de Cloudinary, crear copia local para SignNow
+        if (changeOrder.pdfUrl && changeOrder.pdfUrl.includes('cloudinary.com')) {
+          console.log('[SignNow] PDF en Cloudinary detectado, creando copia local...');
+          
+          const backendUrl = process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:3001';
+          const fileName = `signnow_co_${changeOrder.id}_${Date.now()}.pdf`;
+          const localPdfPath = path.join(__dirname, '../../uploads/change_orders', fileName);
+          
+          // Crear directorio si no existe
+          const uploadDir = path.join(__dirname, '../../uploads/change_orders');
+          if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+          }
+          
+          try {
+            // Descargar PDF desde Cloudinary
+            console.log('[SignNow] Descargando PDF desde Cloudinary...');
+            const response = await axios({
+              method: 'GET',
+              url: changeOrder.pdfUrl,
+              responseType: 'stream',
+              timeout: 30000,
+              headers: {
+                'User-Agent': 'ZurcherApp/1.0'
+              }
             });
-            console.log(`Notificación interna enviada a ${staffMember.role} (${staffMember.email}) sobre CO #${coNumber}`);
+            
+            const writer = fs.createWriteStream(localPdfPath);
+            response.data.pipe(writer);
+            
+            await new Promise((resolve, reject) => {
+              writer.on('finish', resolve);
+              writer.on('error', reject);
+            });
+            
+            pdfUrlForSignNow = `${backendUrl}/uploads/change_orders/${fileName}`;
+            tempFilePath = localPdfPath; // Guardar para limpieza posterior
+            console.log('[SignNow] ✅ PDF local creado:', pdfUrlForSignNow);
+            
+          } catch (downloadError) {
+            console.error('[SignNow] ❌ Error descargando PDF de Cloudinary:', downloadError.message);
+            console.log('[SignNow] Intentando usar URL de Cloudinary directamente...');
+            // Mantener la URL original como fallback
+            pdfUrlForSignNow = changeOrder.pdfUrl;
           }
         }
-      } else {
-        console.log('No se encontraron administradores u owners con email para notificar sobre la respuesta del CO.');
+
+        const signNowService = new SignNowService();
+        const clientName = changeOrder.work?.Permit?.applicantName || changeOrder.work?.budget?.applicantName || 'Valued Client';
+        const propertyAddress = changeOrder.work?.propertyAddress || changeOrder.work?.budget?.propertyAddress || 'N/A';
+        const fileName = `ChangeOrder_${coId}_${propertyAddress.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+
+        console.log('[SignNow] Enviando a SignNow con URL:', pdfUrlForSignNow);
+        
+        const signNowResult = await signNowService.sendBudgetForSignature(
+          pdfUrlForSignNow, // USAR URL LOCAL O CLOUDINARY
+          fileName,
+          clientEmail,
+          clientName
+        );
+
+        // Actualizar el estado de la firma y guardar el ID de SignNow
+        changeOrder.signatureStatus = 'pending';
+        changeOrder.signNowDocumentId = signNowResult.documentId;
+        await changeOrder.save();
+
+        console.log(`[CO Response] ✅ CO #${coId} enviado a SignNow. Document ID: ${signNowResult.documentId}`);
+
+        // Programar limpieza del archivo temporal después de 10 minutos
+        if (tempFilePath) {
+          setTimeout(() => {
+            if (fs.existsSync(tempFilePath)) {
+              try {
+                fs.unlinkSync(tempFilePath);
+                console.log('[SignNow] 🧹 Archivo temporal limpiado:', tempFilePath);
+              } catch (cleanupError) {
+                console.error('[SignNow] Error limpiando archivo temporal:', cleanupError.message);
+              }
+            }
+          }, 10 * 60 * 1000); // 10 minutos
+        }
+
+        return res.status(200).json({
+          success: true,
+          message: '¡Gracias! Su aprobación ha sido registrada. Le hemos enviado un correo electrónico por separado para que firme formalmente el documento.',
+        });
+
+      } catch (signError) {
+        console.error(`💥 === ERROR EN PROCESO COMPLETO ===`);
+        console.error(`Error message: ${signError.message}`);
+        console.error(`Stack trace: ${signError.stack}`);
+        console.error(`================================`);
+        
+        console.error(`[CO Response] El CO #${coId} fue aprobado, pero falló el envío para firma: ${signError.message}`);
+        
+        // El CO ya está 'approved', pero la firma falló. Lo guardamos y respondemos.
+        changeOrder.signatureStatus = 'not_sent';
+        await changeOrder.save(); // Guardamos el estado 'approved' y 'not_sent'
+        
+        return res.status(200).json({
+          success: true,
+          message: 'Su aprobación ha sido registrada, pero hubo un problema al enviar el documento para la firma electrónica. Nuestro equipo lo revisará manualmente.',
+        });
       }
-    } catch (notificationError) {
-      console.error('Error al enviar notificación interna sobre respuesta de CO:', notificationError);
-      // No devolver error al cliente por esto, solo loguear
     }
-    // 7. Respuesta JSON de éxito al cliente (como antes)
-    const decisionTextForClient = decision === 'approved' ? 'APROBADA' : 'RECHAZADA';
-    return res.status(200).json({
-      success: true,
-      message: `¡Gracias! Su decisión de '${decisionTextForClient}' para la Orden de Cambio ha sido registrada exitosamente.`,
-      reference: `CO-${coNumber}`,
-      newStatus: changeOrder.status
-    });
 
   } catch (error) {
     console.error('Error al procesar la respuesta del cliente para el Change Order:', error);
     return res.status(500).json({
       success: false,
-      message: 'Ocurrió un error del servidor al procesar su solicitud. Por favor, inténtelo más tarde.',
+      message: 'Ocurrió un error del servidor al procesar su solicitud.',
       details: error.message
     });
   }

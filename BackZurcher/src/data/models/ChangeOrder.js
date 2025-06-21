@@ -73,7 +73,7 @@ module.exports = (sequelize) => {
       allowNull: true,
     },
     pdfUrl: { // URL al PDF generado para este Change Order (si lo guardas en la nube)
-      type: DataTypes.STRING,
+      type: DataTypes.STRING(500),
       allowNull: true,
     },
     // Podrías añadir tokens si usas un sistema de aprobación por enlace único más seguro
@@ -83,6 +83,20 @@ module.exports = (sequelize) => {
     },
     rejectionToken: {
       type: DataTypes.STRING,
+      allowNull: true,
+    },
+    signNowDocumentId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      unique: true,
+    },
+    signatureStatus: {
+      type: DataTypes.ENUM('not_sent', 'pending', 'completed'),
+      allowNull: false,
+      defaultValue: 'not_sent',
+    },
+    signedAt: {
+      type: DataTypes.DATE,
       allowNull: true,
     }
   }, {
