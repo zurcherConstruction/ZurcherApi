@@ -295,74 +295,151 @@ const handleClientChangeOrderResponse = async (req, res) => {
   try {
     const { token, decision, coId } = req.query;
 
-    // 1. Validaciones de entrada (sin cambios)
+    // 1. Validar parámetros de entrada
     if (!token || !decision || !coId) {
-      return res.status(400).json({ success: false, message: 'Información incompleta. Faltan parámetros necesarios.' });
-    }
-    if (decision !== 'approved' && decision !== 'rejected') {
-      return res.status(400).json({ success: false, message: 'Decisión inválida.' });
+      return res.status(400).json({
+        success: false,
+        message: 'Información incompleta. Faltan parámetros necesarios (token, decision, coId) para procesar su respuesta.',
+      });
     }
 
-    // 2. Búsqueda del Change Order (sin cambios)
+    if (decision !== 'approved' && decision !== 'rejected') {
+      return res.status(400).json({
+        success: false,
+        message: 'Decisión inválida. Los valores permitidos son "approved" o "rejected".',
+      });
+    }
+
     const changeOrder = await ChangeOrder.findByPk(coId, {
-      include: [{
-        model: Work,
+      include: [{ 
+        model: Work, 
         as: 'work',
         include: [
-          { model: Permit, as: 'Permit', attributes: ['applicantEmail', 'applicantName'] },
-          { model: Budget, as: 'budget', attributes: ['applicantName', 'propertyAddress'] }
+          { model: Budget, as: 'budget' },
+          { model: Permit, as: 'Permit', attributes: ['applicantEmail', 'applicantName'] }
         ]
       }]
     });
 
     if (!changeOrder) {
-      return res.status(404).json({ success: false, message: 'Orden de Cambio no encontrada.' });
+      return res.status(404).json({
+        success: false,
+        message: 'Orden de Cambio no encontrada. El enlace puede ser incorrecto o la orden ya no existe.',
+      });
     }
     if (!changeOrder.work) {
       return res.status(500).json({ success: false, message: 'Error interno: No se pudo cargar la información del trabajo asociado.' });
     }
 
-    // 3. Verificación de estado y token (sin cambios)
+    // 3. Verificar el estado actual del Change Order
     if (changeOrder.status !== 'pendingClientApproval') {
-      return res.status(409).json({ success: false, message: `Esta orden de cambio ya ha sido procesada. Estado actual: ${changeOrder.status}.` });
+      let userMessage = `Esta orden de cambio ya ha sido procesada anteriormente. Su estado actual es: ${changeOrder.status}.`;
+      if (changeOrder.status === decision) {
+        userMessage = `Su decisión de '${decision}' para esta orden de cambio ya fue registrada.`;
+      }
+      return res.status(409).json({
+        success: false,
+        message: userMessage,
+        currentStatus: changeOrder.status,
+      });
     }
-    const isValidToken = (decision === 'approved' && token === changeOrder.approvalToken) || (decision === 'rejected' && token === changeOrder.rejectionToken);
+
+    // --- LOGS DE DEPURACIÓN ---
+    console.log('--- DEBUGGING TOKEN VALIDATION ---');
+    console.log('Token desde URL (req.query.token):', token);
+    console.log('Decisión desde URL (req.query.decision):', decision);
+    console.log('ChangeOrder ID (coId):', coId);
+    console.log('ChangeOrder.approvalToken desde BD:', changeOrder.approvalToken);
+    console.log('ChangeOrder.rejectionToken desde BD:', changeOrder.rejectionToken);
+    console.log('ChangeOrder.status desde BD:', changeOrder.status);
+    // --- FIN LOGS DE DEPURACIÓN ---
+
+    // 4. Validar el token
+    let isValidToken = false;
+    if (decision === 'approved' && token === changeOrder.approvalToken) {
+      isValidToken = true;
+      console.log('DEBUG: Token coincide con approvalToken.');
+    } else if (decision === 'rejected' && token === changeOrder.rejectionToken) {
+      isValidToken = true;
+      console.log('DEBUG: Token coincide con rejectionToken.');
+    } else {
+      console.log('DEBUG: Token NO coincide con el token esperado para la decisión.');
+    }
+
     if (!isValidToken) {
-      return res.status(403).json({ success: false, message: 'Enlace inválido o expirado.' });
+      console.log('DEBUG: isValidToken es false. Devolviendo 403.');
+      return res.status(403).json({
+        success: false,
+        message: 'Enlace inválido o expirado. Este enlace de decisión no es válido o ya ha sido utilizado.',
+      });
     }
 
-    // --- LÓGICA DE DECISIÓN ACTUALIZADA ---
-
-    // CASO 1: El cliente RECHAZA la orden
+    // ============= CASO 1: CLIENTE RECHAZA =============
     if (decision === 'rejected') {
+      // Guardar estado anterior para la notificación
       changeOrder.status = 'rejected';
       changeOrder.respondedAt = new Date();
       changeOrder.approvalToken = null;
       changeOrder.rejectionToken = null;
       await changeOrder.save();
 
-      // Notificar a admins (lógica sin cambios)
-      // ... (tu código de notificación de rechazo puede ir aquí si lo deseas) ...
+      // Enviar notificaciones de rechazo (código original)
+      const clientName = changeOrder.work?.budget?.applicantName || changeOrder.work?.Permit?.applicantName || 'El cliente';
+      const propertyAddress = changeOrder.work?.propertyAddress || 'Dirección desconocida';
+      const coNumber = changeOrder.changeOrderNumber || changeOrder.id.substring(0,8);
+
+      const adminOwnerSubject = `Respuesta de Cliente: Orden de Cambio #${coNumber} ha sido RECHAZADA`;
+      const adminOwnerHtml = `
+        <p>Hola,</p>
+        <p>${clientName} ha RECHAZADO la Orden de Cambio #${coNumber} para la propiedad en <strong>${propertyAddress}</strong>.</p>
+        <p><strong>Descripción de la Orden de Cambio:</strong> ${changeOrder.description || 'N/A'}</p>
+        <p><strong>Costo Total:</strong> $${parseFloat(changeOrder.totalCost || 0).toFixed(2)}</p>
+        <p>Por favor, revise el sistema para los detalles completos y los siguientes pasos.</p>
+        <p>Saludos,<br/>Sistema de Notificaciones Zurcher</p>
+      `;
+
+      try {
+        const staffToNotify = await Staff.findAll({
+          where: {
+            role: ['admin', 'owner'],
+            email: { [Op.ne]: null }
+          }
+        });
+
+        for (const staffMember of staffToNotify) {
+          if (staffMember.email) {
+            await sendEmail({
+              to: staffMember.email,
+              subject: adminOwnerSubject,
+              html: adminOwnerHtml,
+            });
+            console.log(`Notificación interna enviada a ${staffMember.role} (${staffMember.email}) sobre CO #${coNumber}`);
+          }
+        }
+      } catch (notificationError) {
+        console.error('Error al enviar notificación interna sobre rechazo de CO:', notificationError);
+      }
 
       return res.status(200).json({
         success: true,
         message: '¡Gracias! Su decisión de RECHAZAR la Orden de Cambio ha sido registrada exitosamente.',
+        reference: `CO-${coNumber}`,
+        newStatus: changeOrder.status
       });
     }
 
-    // CASO 2: El cliente APRUEBA la orden
+    // ============= CASO 2: CLIENTE APRUEBA =============
     if (decision === 'approved') {
-      // Paso 5.1: Marcar como 'approved' para mantener la compatibilidad con otros módulos (ej. Invoicing)
+      // Paso 1: Marcar como 'approved'
       changeOrder.status = 'approved';
       changeOrder.respondedAt = new Date();
       changeOrder.approvalToken = null;
       changeOrder.rejectionToken = null;
-      
-      // Guardamos el estado 'approved' inmediatamente
       await changeOrder.save();
+
       console.log(`[CO Response] CO #${coId} marcado como 'approved'. Procediendo a notificar y enviar para firma.`);
 
-      // Paso 6: Enviar notificación interna de APROBACIÓN (sin cambios)
+      // Paso 2: Enviar notificación interna de APROBACIÓN
       try {
         const clientName = changeOrder.work?.Permit?.applicantName || changeOrder.work?.budget?.applicantName || 'El cliente';
         const propertyAddress = changeOrder.work?.propertyAddress || changeOrder.work?.budget?.propertyAddress || 'N/A';
@@ -378,8 +455,8 @@ const handleClientChangeOrderResponse = async (req, res) => {
         console.error('Error al enviar notificación interna de aprobación de CO:', notificationError);
       }
 
-      // Paso 7: Intentar enviar para firma electrónica (NUEVA LÓGICA)
-  try {
+      // Paso 3: Intentar enviar para firma electrónica (NUEVA LÓGICA HÍBRIDA)
+      try {
         if (!changeOrder.pdfUrl) throw new Error('Falta el PDF del Change Order.');
         
         const clientEmail = changeOrder.work?.Permit?.applicantEmail;
@@ -425,13 +502,12 @@ const handleClientChangeOrderResponse = async (req, res) => {
             });
             
             pdfUrlForSignNow = `${backendUrl}/uploads/change_orders/${fileName}`;
-            tempFilePath = localPdfPath; // Guardar para limpieza posterior
+            tempFilePath = localPdfPath;
             console.log('[SignNow] ✅ PDF local creado:', pdfUrlForSignNow);
             
           } catch (downloadError) {
             console.error('[SignNow] ❌ Error descargando PDF de Cloudinary:', downloadError.message);
             console.log('[SignNow] Intentando usar URL de Cloudinary directamente...');
-            // Mantener la URL original como fallback
             pdfUrlForSignNow = changeOrder.pdfUrl;
           }
         }
@@ -444,7 +520,7 @@ const handleClientChangeOrderResponse = async (req, res) => {
         console.log('[SignNow] Enviando a SignNow con URL:', pdfUrlForSignNow);
         
         const signNowResult = await signNowService.sendBudgetForSignature(
-          pdfUrlForSignNow, // USAR URL LOCAL O CLOUDINARY
+          pdfUrlForSignNow,
           fileName,
           clientEmail,
           clientName
@@ -484,26 +560,26 @@ const handleClientChangeOrderResponse = async (req, res) => {
         
         console.error(`[CO Response] El CO #${coId} fue aprobado, pero falló el envío para firma: ${signError.message}`);
         
-        // El CO ya está 'approved', pero la firma falló. Lo guardamos y respondemos.
+        // El CO ya está 'approved', pero la firma falló
         changeOrder.signatureStatus = 'not_sent';
-        await changeOrder.save(); // Guardamos el estado 'approved' y 'not_sent'
+        await changeOrder.save();
         
         return res.status(200).json({
           success: true,
           message: 'Su aprobación ha sido registrada, pero hubo un problema al enviar el documento para la firma electrónica. Nuestro equipo lo revisará manualmente.',
         });
       }
-    } 
+    }
 
   } catch (error) {
     console.error('Error al procesar la respuesta del cliente para el Change Order:', error);
     return res.status(500).json({
       success: false,
-      message: 'Ocurrió un error del servidor al procesar su solicitud.',
+      message: 'Ocurrió un error del servidor al procesar su solicitud. Por favor, inténtelo más tarde.',
       details: error.message
     });
   }
-}; 
+};
 
 const previewChangeOrderPDF = async (req, res) => {
   let pdfPath; // Declarar pdfPath aquí para que esté disponible en todo el bloque try-catch
