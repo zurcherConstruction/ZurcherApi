@@ -379,7 +379,7 @@ const handleClientChangeOrderResponse = async (req, res) => {
       }
 
       // Paso 7: Intentar enviar para firma electrónica (NUEVA LÓGICA)
-       try {
+  try {
         if (!changeOrder.pdfUrl) throw new Error('Falta el PDF del Change Order.');
         
         const clientEmail = changeOrder.work?.Permit?.applicantEmail;
@@ -493,7 +493,7 @@ const handleClientChangeOrderResponse = async (req, res) => {
           message: 'Su aprobación ha sido registrada, pero hubo un problema al enviar el documento para la firma electrónica. Nuestro equipo lo revisará manualmente.',
         });
       }
-    }
+    } 
 
   } catch (error) {
     console.error('Error al procesar la respuesta del cliente para el Change Order:', error);
@@ -503,7 +503,7 @@ const handleClientChangeOrderResponse = async (req, res) => {
       details: error.message
     });
   }
-};
+}; 
 
 const previewChangeOrderPDF = async (req, res) => {
   let pdfPath; // Declarar pdfPath aquí para que esté disponible en todo el bloque try-catch
