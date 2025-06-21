@@ -64,7 +64,7 @@ class SignNowService {
           method: 'GET',
           url: filePath,
           responseType: 'stream',
-          timeout: 30000
+          timeout: 60000
         });
         fileStream = response.data;
         fileSize = response.headers['content-length'] || 'desconocido';
@@ -95,7 +95,7 @@ class SignNowService {
               method: 'GET',
               url: filePath,
               responseType: 'stream',
-              timeout: 30000
+              timeout: 60000
             });
             formData.append('file', response.data, fileName);
           } else {
@@ -110,7 +110,9 @@ class SignNowService {
               'Authorization': method.getAuth(),
               ...formData.getHeaders()
             },
-            timeout: 30000
+            timeout: 60000, // CAMBIAR DE 30000 A 60000 (60 segundos)
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity
           });
 
           console.log(`✅ ${method.type} Auth FUNCIONÓ!`);
@@ -206,7 +208,7 @@ class SignNowService {
             inviteData, 
             { 
               headers: method.headers(),
-              timeout: 30000
+              timeout: 60000
             }
           );
 
@@ -267,7 +269,7 @@ class SignNowService {
         try {
           const response = await axios.get(`${this.baseURL}/document/${documentId}`, {
             headers: method.headers(),
-            timeout: 30000
+            timeout: 60000
           });
 
           console.log(`✅ ${method.type} Auth FUNCIONÓ para estado!`);

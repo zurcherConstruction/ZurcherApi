@@ -519,7 +519,7 @@ const handleClientChangeOrderResponse = async (req, res) => {
               method: 'GET',
               url: changeOrder.pdfUrl,
               responseType: 'stream',
-              timeout: 30000,
+              timeout: 60000,
               headers: {
                 'User-Agent': 'ZurcherApp/1.0'
               }
