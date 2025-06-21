@@ -6,7 +6,7 @@ const { startSignatureCheckCron } = require("./src/services/checkPendingSignatur
 require("dotenv").config();
 
 // Sincronizar todos los modelos
-conn.sync({ force: true }).then(async () => {
+conn.sync({ alter: true }).then(async () => {
   server.listen(PORT, () => { // Usar server.listen en lugar de app.listen
     console.log(`🚀 Servidor escuchando en el puerto: ${PORT} 🚀`);
     startSignatureCheckCron(); // Iniciar el cron para verificar firmas pendientes
