@@ -649,6 +649,11 @@ const handleClientChangeOrderResponse = async (req, res) => {
 
       console.log(`[CO Response] CO #${coId} marcado como 'approved'. Procediendo a notificar y enviar para firma.`);
 
+      // Detectar si estamos en producción para ajustar timeouts
+      const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+      const timeoutMs = isProduction ? 25000 : 60000; // 25s en producción, 60s en local
+      console.log(`🔧 Modo: ${isProduction ? 'PRODUCCIÓN' : 'LOCAL'} - Timeout: ${timeoutMs}ms`);
+
       // Paso 2: Enviar notificación interna de APROBACIÓN
       try {
         const clientName = changeOrder.work?.Permit?.applicantName || changeOrder.work?.budget?.applicantName || 'El cliente';
@@ -665,11 +670,11 @@ const handleClientChangeOrderResponse = async (req, res) => {
         console.error('Error al enviar notificación interna de aprobación de CO:', notificationError);
       }
 
-      // Paso 3: Intentar enviar para firma electrónica (NUEVA LÓGICA HÍBRIDA)
+      // Paso 3: Intentar enviar para firma electrónica (CON TIMEOUT OPTIMIZADO)
       try {
         if (!changeOrder.pdfUrl) throw new Error('Falta el PDF del Change Order.');
         
-        // CORREGIR: Buscar email en ambos lugares (como en sendChangeOrderToClient)
+        // Buscar email en ambos lugares
         let clientEmail = null;
         if (changeOrder.work?.budget?.applicantEmail) {
           clientEmail = changeOrder.work.budget.applicantEmail;
@@ -679,7 +684,7 @@ const handleClientChangeOrderResponse = async (req, res) => {
         
         if (!clientEmail) throw new Error('Falta el email del cliente.');
 
-        // ========= SOLUCIÓN HÍBRIDA: CREAR COPIA LOCAL PARA SIGNNOW =========
+        // ========= SOLUCIÓN HÍBRIDA OPTIMIZADA =========
         let pdfUrlForSignNow = changeOrder.pdfUrl;
         let tempFilePath = null;
         
@@ -687,7 +692,6 @@ const handleClientChangeOrderResponse = async (req, res) => {
         if (changeOrder.pdfUrl && changeOrder.pdfUrl.includes('cloudinary.com')) {
           console.log('[SignNow] PDF en Cloudinary detectado, creando copia local...');
           
-          const backendUrl = process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:3001';
           const fileName = `signnow_co_${changeOrder.id}_${Date.now()}.pdf`;
           const localPdfPath = path.join(__dirname, '../../uploads/change_orders', fileName);
           
@@ -698,33 +702,42 @@ const handleClientChangeOrderResponse = async (req, res) => {
           }
           
           try {
-            // Descargar PDF desde Cloudinary
-            console.log('[SignNow] Descargando PDF desde Cloudinary...');
-            const response = await axios({
-              method: 'GET',
-              url: changeOrder.pdfUrl,
-              responseType: 'stream',
-              timeout: 60000,
-              headers: {
-                'User-Agent': 'ZurcherApp/1.0'
-              }
-            });
+            // Descargar PDF desde Cloudinary CON TIMEOUT DINÁMICO
+            console.log(`[SignNow] Descargando PDF (timeout: ${timeoutMs}ms)...`);
+            const response = await Promise.race([
+              axios({
+                method: 'GET',
+                url: changeOrder.pdfUrl,
+                responseType: 'stream',
+                timeout: timeoutMs, // Usar timeout dinámico
+                headers: { 'User-Agent': 'ZurcherApp/1.0' }
+              }),
+              new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('Timeout descargando PDF')), timeoutMs);
+              })
+            ]);
             
             const writer = fs.createWriteStream(localPdfPath);
             response.data.pipe(writer);
             
-            await new Promise((resolve, reject) => {
-              writer.on('finish', resolve);
-              writer.on('error', reject);
-            });
+            // Timeout también para la escritura
+            await Promise.race([
+              new Promise((resolve, reject) => {
+                writer.on('finish', resolve);
+                writer.on('error', reject);
+              }),
+              new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('Timeout escribiendo archivo')), timeoutMs);
+              })
+            ]);
             
-            pdfUrlForSignNow = `${backendUrl}/uploads/change_orders/${fileName}`;
+            pdfUrlForSignNow = localPdfPath; // Usar ruta local directamente
             tempFilePath = localPdfPath;
             console.log('[SignNow] ✅ PDF local creado:', pdfUrlForSignNow);
             
           } catch (downloadError) {
-            console.error('[SignNow] ❌ Error descargando PDF de Cloudinary:', downloadError.message);
-            console.log('[SignNow] Intentando usar URL de Cloudinary directamente...');
+            console.error('[SignNow] ❌ Error descargando PDF:', downloadError.message);
+            console.log('[SignNow] Usando URL de Cloudinary directamente...');
             pdfUrlForSignNow = changeOrder.pdfUrl;
           }
         }
@@ -734,14 +747,20 @@ const handleClientChangeOrderResponse = async (req, res) => {
         const propertyAddress = changeOrder.work?.propertyAddress || changeOrder.work?.budget?.propertyAddress || 'N/A';
         const fileName = `ChangeOrder_${coId}_${propertyAddress.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
 
-        console.log('[SignNow] Enviando a SignNow con URL:', pdfUrlForSignNow);
+        console.log(`[SignNow] Enviando a SignNow (timeout: ${timeoutMs}ms)...`);
         
-        const signNowResult = await signNowService.sendBudgetForSignature(
-          pdfUrlForSignNow,
-          fileName,
-          clientEmail,
-          clientName
-        );
+        // ✅ ENVÍO A SIGNNOW CON TIMEOUT DINÁMICO
+        const signNowResult = await Promise.race([
+          signNowService.sendBudgetForSignature(
+            pdfUrlForSignNow,
+            fileName,
+            clientEmail,
+            clientName
+          ),
+          new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Timeout en SignNow')), timeoutMs);
+          })
+        ]);
 
         // Actualizar el estado de la firma y guardar el ID de SignNow
         changeOrder.signatureStatus = 'pending';
@@ -750,8 +769,9 @@ const handleClientChangeOrderResponse = async (req, res) => {
 
         console.log(`[CO Response] ✅ CO #${coId} enviado a SignNow. Document ID: ${signNowResult.documentId}`);
 
-        // Programar limpieza del archivo temporal después de 10 minutos
+        // Programar limpieza del archivo temporal después de 5 minutos (reducido para producción)
         if (tempFilePath) {
+          const cleanupTime = isProduction ? 5 * 60 * 1000 : 10 * 60 * 1000; // 5min prod, 10min local
           setTimeout(() => {
             if (fs.existsSync(tempFilePath)) {
               try {
@@ -761,28 +781,27 @@ const handleClientChangeOrderResponse = async (req, res) => {
                 console.error('[SignNow] Error limpiando archivo temporal:', cleanupError.message);
               }
             }
-          }, 10 * 60 * 1000); // 10 minutos
+          }, cleanupTime);
         }
 
-        // ✅ AQUÍ VA EL RETURN DE ÉXITO COMPLETO
+        // ✅ RETURN DE ÉXITO COMPLETO
         return res.status(200).json({
           success: true,
           message: '¡Gracias! Su aprobación ha sido registrada. Le hemos enviado un correo electrónico por separado para que firme formalmente el documento.',
         });
 
       } catch (signError) {
-        console.error(`💥 === ERROR EN PROCESO COMPLETO ===`);
-        console.error(`Error message: ${signError.message}`);
-        console.error(`Stack trace: ${signError.stack}`);
-        console.error(`================================`);
+        console.error(`💥 === ERROR EN SIGNNOW ===`);
+        console.error(`Error: ${signError.message}`);
+        console.error(`========================`);
         
-        console.error(`[CO Response] El CO #${coId} fue aprobado, pero falló el envío para firma: ${signError.message}`);
+        console.error(`[CO Response] CO #${coId} aprobado, pero SignNow falló: ${signError.message}`);
         
         // El CO ya está 'approved', pero la firma falló
         changeOrder.signatureStatus = 'not_sent';
         await changeOrder.save();
         
-        // ✅ AQUÍ VA EL RETURN DE ÉXITO PARCIAL (CUANDO SIGNNOW FALLA)
+        // ✅ RETURN DE ÉXITO PARCIAL (CUANDO SIGNNOW FALLA)
         return res.status(200).json({
           success: true,
           message: 'Su aprobación ha sido registrada, pero hubo un problema al enviar el documento para la firma electrónica. Nuestro equipo lo revisará manualmente.',
@@ -790,14 +809,14 @@ const handleClientChangeOrderResponse = async (req, res) => {
       }
     }
 
-    // ✅ ESTE RETURN NUNCA DEBERÍA EJECUTARSE (POR SEGURIDAD)
+    // ✅ RETURN DE SEGURIDAD
     return res.status(400).json({
       success: false,
       message: 'Decisión no procesada correctamente.',
     });
 
   } catch (error) {
-    // ✅ AQUÍ VA EL CATCH GENERAL DEL CONTROLADOR COMPLETO
+    // ✅ CATCH GENERAL
     console.error('💥 Error completo en handleClientChangeOrderResponse:', {
       message: error.message,
       stack: error.stack,
