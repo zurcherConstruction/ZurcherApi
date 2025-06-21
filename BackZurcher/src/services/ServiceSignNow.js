@@ -245,7 +245,12 @@ class SignNowService {
   }
 
   // Obtener estado del documento
-  async getDocumentStatus(documentId) {
+ async getDocumentStatus(documentId) {
+    const authMethods = [
+      { type: 'Basic', headers: () => this.getHeaders('application/json', true) },
+      { type: 'Bearer', headers: () => this.getHeaders('application/json', false) }
+    ];
+
     try {
       if (!this.apiKey) {
         throw new Error('API Key no configurada');
@@ -254,15 +259,33 @@ class SignNowService {
       console.log(`🔄 Obteniendo estado del documento: ${documentId}`);
       console.log(`📡 URL: ${this.baseURL}/document/${documentId}`);
 
-      const response = await axios.get(
-        `${this.baseURL}/document/${documentId}`, 
-        { headers: this.getHeaders() }
-      );
+      // Probar cada método de autenticación
+      for (let i = 0; i < authMethods.length; i++) {
+        const method = authMethods[i];
+        console.log(`🔄 Probando método ${i + 1}/2: ${method.type} Auth para estado...`);
 
-      console.log('📥 Estado del documento obtenido:');
-      console.log(JSON.stringify(response.data, null, 2));
+        try {
+          const response = await axios.get(`${this.baseURL}/document/${documentId}`, {
+            headers: method.headers(),
+            timeout: 30000
+          });
 
-      return response.data;
+          console.log(`✅ ${method.type} Auth FUNCIONÓ para estado!`);
+          console.log('📥 Estado del documento obtenido:');
+          console.log(JSON.stringify(response.data, null, 2));
+          
+          return response.data;
+
+        } catch (error) {
+          console.log(`❌ ${method.type} Auth FALLÓ para estado:`, error.response?.data?.error || error.message);
+          
+          if (i === authMethods.length - 1) {
+            console.log('❌ Todos los métodos fallaron para obtener estado');
+            throw error;
+          }
+        }
+      }
+
     } catch (error) {
       console.error('Error obteniendo estado del documento:', error.response?.data || error.message);
       throw error;
