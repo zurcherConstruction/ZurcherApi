@@ -310,15 +310,40 @@ const handleClientChangeOrderResponse = async (req, res) => {
       });
     }
 
-    const changeOrder = await ChangeOrder.findByPk(coId, {
-      include: [{ 
-        model: Work, 
-        as: 'work',
-        include: [
-          { model: Budget, as: 'budget' },
-          { model: Permit, as: 'Permit', attributes: ['applicantEmail', 'applicantName'] }
-        ]
-      }]
+   let changeOrder;
+    try {
+      changeOrder = await ChangeOrder.findByPk(coId, {
+        include: [{ 
+          model: Work, 
+          as: 'work',
+          include: [
+            { model: Budget, as: 'budget' },
+            { model: Permit, as: 'Permit', attributes: ['applicantEmail', 'applicantName'] }
+          ]
+        }]
+      });
+    } catch (includeError) {
+      console.log('❌ Error con includes, intentando búsqueda simple:', includeError.message);
+      // Fallback: búsqueda simple sin includes
+      changeOrder = await ChangeOrder.findByPk(coId);
+      if (changeOrder) {
+        // Cargar work por separado
+        changeOrder.work = await Work.findByPk(changeOrder.workId, {
+          include: [
+            { model: Budget, as: 'budget' },
+            { model: Permit, as: 'Permit', attributes: ['applicantEmail', 'applicantName'] }
+          ]
+        });
+      }
+    }
+
+    console.log('📊 Resultado de búsqueda:', {
+      found: !!changeOrder,
+      coId: coId,
+      changeOrderId: changeOrder?.id,
+      status: changeOrder?.status,
+      workId: changeOrder?.workId,
+      hasWork: !!changeOrder?.work
     });
 
     if (!changeOrder) {
@@ -457,9 +482,16 @@ const handleClientChangeOrderResponse = async (req, res) => {
 
       // Paso 3: Intentar enviar para firma electrónica (NUEVA LÓGICA HÍBRIDA)
       try {
-        if (!changeOrder.pdfUrl) throw new Error('Falta el PDF del Change Order.');
+              if (!changeOrder.pdfUrl) throw new Error('Falta el PDF del Change Order.');
         
-        const clientEmail = changeOrder.work?.Permit?.applicantEmail;
+        // CORREGIR: Buscar email en ambos lugares (como en sendChangeOrderToClient)
+        let clientEmail = null;
+        if (changeOrder.work?.budget?.applicantEmail) {
+          clientEmail = changeOrder.work.budget.applicantEmail;
+        } else if (changeOrder.work?.Permit?.applicantEmail) {
+          clientEmail = changeOrder.work.Permit.applicantEmail;
+        }
+        
         if (!clientEmail) throw new Error('Falta el email del cliente.');
 
         // ========= SOLUCIÓN HÍBRIDA: CREAR COPIA LOCAL PARA SIGNNOW =========
