@@ -21,16 +21,28 @@ class SignNowService {
   }
 
   // Obtener headers con API Key directa (no OAuth necesario)
-  getHeaders(contentType = 'application/json') {
+ getHeaders(contentType = 'application/json', useBasic = true) {
+    const basicAuth = `Basic ${Buffer.from(this.apiKey + ':').toString('base64')}`;
+    const bearerAuth = `Bearer ${this.apiKey}`;
+    
+    const authMethod = useBasic ? basicAuth : bearerAuth;
+    console.log(`🔍 Usando ${useBasic ? 'Basic' : 'Bearer'} Auth:`, authMethod.substring(0, 30) + '...');
+    
     return {
       'Accept': 'application/json',
-      'Authorization': `Bearer ${this.apiKey}`,
+      'Authorization': authMethod,
       'Content-Type': contentType
     };
   }
 
-  // Subir documento usando API Key directamente
- async uploadDocument(filePath, fileName) {
+  // Subir documento usando DUAL METHOD con fallback automático
+  async uploadDocument(filePath, fileName) {
+    // Definir los métodos de autenticación a probar
+    const authMethods = [
+      { type: 'Basic', getAuth: () => `Basic ${Buffer.from(this.apiKey + ':').toString('base64')}` },
+      { type: 'Bearer', getAuth: () => `Bearer ${this.apiKey}` }
+    ];
+
     try {
       if (!this.apiKey) {
         throw new Error('API Key no configurada');
@@ -38,133 +50,199 @@ class SignNowService {
 
       console.log('\n🔄 === INICIANDO UPLOAD DE DOCUMENTO ===');
       console.log(`📄 Archivo: ${fileName}`);
-      console.log(`📁 Ruta: ${filePath}`);
-      console.log(`📡 URL: ${this.baseURL}/document`);
-      
-      // Verificar que el archivo existe
-      if (!fs.existsSync(filePath)) {
-        console.error(`❌ ERROR: Archivo no encontrado en ${filePath}`);
-        throw new Error(`Archivo no encontrado: ${filePath}`);
+      console.log(`📁 Origen: ${filePath}`);
+      console.log(`📡 URL de destino: ${this.baseURL}/document`);
+
+      let fileStream;
+      let fileSize;
+
+      // Manejar tanto archivos locales como URLs
+      if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+        console.log('   -> Origen es una URL. Descargando archivo en memoria...');
+        const axios = require('axios');
+        const response = await axios({
+          method: 'GET',
+          url: filePath,
+          responseType: 'stream',
+          timeout: 30000
+        });
+        fileStream = response.data;
+        fileSize = response.headers['content-length'] || 'desconocido';
+      } else {
+        console.log('   -> Origen es archivo local. Verificando existencia...');
+        if (!fs.existsSync(filePath)) {
+          console.error(`❌ ERROR: Archivo no encontrado en ${filePath}`);
+          throw new Error(`Archivo no encontrado: ${filePath}`);
+        }
+        fileStream = fs.createReadStream(filePath);
+        fileSize = fs.statSync(filePath).size;
       }
-      
-      console.log(`✅ Archivo existe, tamaño: ${fs.statSync(filePath).size} bytes`);
-      
-      const formData = new FormData();
-      formData.append('file', fs.createReadStream(filePath), fileName);
 
-      console.log('📤 Headers que se enviarán:');
-      console.log({
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${this.apiKey.substring(0, 20)}...`,
-        ...formData.getHeaders()
-      });
+      console.log(`✅ Archivo accesible, tamaño: ${fileSize} bytes`);
 
-      const response = await axios.post(`${this.baseURL}/document`, formData, {
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
-          ...formData.getHeaders()
-        },
-        timeout: 30000 // 30 segundos timeout
-      });
+      // Probar cada método de autenticación
+      for (let i = 0; i < authMethods.length; i++) {
+        const method = authMethods[i];
+        console.log(`\n🔄 Probando método ${i + 1}/2: ${method.type} Auth...`);
 
-      console.log('📥 Respuesta de upload:');
-      console.log(`Status: ${response.status}`);
-      console.log(`Data:`, JSON.stringify(response.data, null, 2));
-      console.log(`✅ Documento subido exitosamente: ${fileName} (ID: ${response.data.id})`);
-      console.log('=== FIN UPLOAD DE DOCUMENTO ===\n');
-      
-      return response.data.id;
+        try {
+          const formData = new FormData();
+          
+          // Recrear el stream para cada intento
+          if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+            const axios = require('axios');
+            const response = await axios({
+              method: 'GET',
+              url: filePath,
+              responseType: 'stream',
+              timeout: 30000
+            });
+            formData.append('file', response.data, fileName);
+          } else {
+            formData.append('file', fs.createReadStream(filePath), fileName);
+          }
+
+          console.log('📤 Subiendo a la API de SignNow...');
+
+          const response = await axios.post(`${this.baseURL}/document`, formData, {
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': method.getAuth(),
+              ...formData.getHeaders()
+            },
+            timeout: 30000
+          });
+
+          console.log(`✅ ${method.type} Auth FUNCIONÓ!`);
+          console.log('📥 Respuesta de upload:');
+          console.log(`Status: ${response.status}`);
+          console.log(`Document ID: ${response.data.id}`);
+          console.log(`✅ Documento subido exitosamente: ${fileName}`);
+          console.log('=== FIN UPLOAD DE DOCUMENTO ===\n');
+          
+          return response.data.id;
+
+        } catch (error) {
+          console.log(`❌ ${method.type} Auth FALLÓ:`, error.response?.data?.error || error.message);
+          
+          // Si es el último método, lanzar el error
+          if (i === authMethods.length - 1) {
+            console.log('\n❌ === TODOS LOS MÉTODOS DE AUTH FALLARON ===');
+            console.log('Error final:', error.message);
+            console.log('Status:', error.response?.status);
+            console.log('Response Data:', JSON.stringify(error.response?.data, null, 2));
+            console.log('================================\n');
+            throw error;
+          }
+          
+          // Continuar con el siguiente método
+          console.log(`🔄 Intentando con ${authMethods[i + 1].type} Auth...`);
+        }
+      }
+
     } catch (error) {
       console.log('\n❌ === ERROR EN UPLOAD DE DOCUMENTO ===');
       console.log('Error message:', error.message);
       console.log('Status:', error.response?.status);
       console.log('Status Text:', error.response?.statusText);
       console.log('Response Data:', JSON.stringify(error.response?.data, null, 2));
-      console.log('Request URL:', error.config?.url);
-      console.log('Request Headers:', error.config?.headers);
       console.log('================================\n');
       throw error;
     }
   }
 
   // Crear invitación para firma usando API Key directamente
-async createSigningInvite(documentId, signerEmail, signerName, fromEmail = null) {
-  try {
-    if (!this.apiKey) {
-      throw new Error('API Key no configurada');
-    }
+ async createSigningInvite(documentId, signerEmail, signerName, fromEmail = null) {
+    const authMethods = [
+      { type: 'Basic', headers: () => this.getHeaders('application/json', true) },
+      { type: 'Bearer', headers: () => this.getHeaders('application/json', false) }
+    ];
 
-    console.log('\n🔄 === CREANDO FREEFORM INVITE (DOCUMENTACIÓN OFICIAL) ===');
-    console.log(`📧 Email del firmante: ${signerEmail}`);
-    console.log(`👤 Nombre del firmante: ${signerName}`);
-    console.log(`📄 Document ID: ${documentId}`);
-    console.log(`📧 From Email: ${fromEmail || "zurcherseptic@gmail.com"}`);
-    console.log(`📡 URL: ${this.baseURL}/document/${documentId}/invite`); // ✅ CORRECTO: /invite
-
-    // Validar inputs
-    if (!documentId) {
-      console.error('❌ ERROR: documentId es requerido');
-      throw new Error('documentId es requerido');
-    }
-    
-    if (!signerEmail || !signerEmail.includes('@')) {
-      console.error(`❌ ERROR: Email inválido: ${signerEmail}`);
-      throw new Error(`Email inválido: ${signerEmail}`);
-    }
-
-    // ✅ FORMATO FREEFORM SEGÚN DOCUMENTACIÓN OFICIAL
-    const inviteData = {
-      document_id: documentId, // ✅ CLAVE: Esto indica que es freeform invite
-      to: signerEmail, // ✅ Solo email (string), no array
-      from: fromEmail || "zurcherseptic@gmail.com", // ✅ Debe ser tu email de SignNow
-      subject: `Please sign: Budget Document - Zurcher Construction`,
-      message: `Hi ${signerName || 'there'}, please review and sign this budget document from Zurcher Construction. Thank you!`,
-      language: "en",
-      redirect_target: "blank",
-      redirect_uri: process.env.FRONTEND_URL2 || "https://zurcher-api-fvus.vercel.app/"
-    };
-
-    console.log('📤 Datos de FREEFORM INVITE (formato oficial):');
-    console.log(JSON.stringify(inviteData, null, 2));
-    
-    console.log('📤 Headers que se enviarán:');
-    console.log({
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${this.apiKey.substring(0, 20)}...`,
-      'Content-Type': 'application/json'
-    });
-
-    // ✅ ENDPOINT CORRECTO: /invite (no /freeforminvite)
-    const response = await axios.post(
-      `${this.baseURL}/document/${documentId}/invite`, 
-      inviteData, 
-      { 
-        headers: this.getHeaders(),
-        timeout: 30000
+    try {
+      if (!this.apiKey) {
+        throw new Error('API Key no configurada');
       }
-    );
 
-    console.log('📥 Respuesta de FREEFORM INVITE:');
-    console.log(`Status: ${response.status}`);
-    console.log(`Data:`, JSON.stringify(response.data, null, 2));
-    console.log(`✅ FREEFORM INVITE creado exitosamente para ${signerEmail}`);
-    console.log('=== FIN CREACIÓN DE FREEFORM INVITE ===\n');
-    
-    return response.data;
-  } catch (error) {
-    console.log('\n❌ === ERROR EN CREACIÓN DE FREEFORM INVITE ===');
-    console.log('Error message:', error.message);
-    console.log('Status:', error.response?.status);
-    console.log('Status Text:', error.response?.statusText);
-    console.log('Response Data:', JSON.stringify(error.response?.data, null, 2));
-    console.log('Request URL:', error.config?.url);
-    console.log('Request Headers:', error.config?.headers);
-    console.log('Request Data:', error.config?.data);
-    console.log('================================\n');
-    throw error;
+      console.log('\n🔄 === CREANDO FREEFORM INVITE (DOCUMENTACIÓN OFICIAL) ===');
+      console.log(`📧 Email del firmante: ${signerEmail}`);
+      console.log(`👤 Nombre del firmante: ${signerName}`);
+      console.log(`📄 Document ID: ${documentId}`);
+      console.log(`📧 From Email: ${fromEmail || "zurcherseptic@gmail.com"}`);
+      console.log(`📡 URL: ${this.baseURL}/document/${documentId}/invite`);
+
+      // Validar inputs
+      if (!documentId) {
+        console.error('❌ ERROR: documentId es requerido');
+        throw new Error('documentId es requerido');
+      }
+      
+      if (!signerEmail || !signerEmail.includes('@')) {
+        console.error(`❌ ERROR: Email inválido: ${signerEmail}`);
+        throw new Error(`Email inválido: ${signerEmail}`);
+      }
+
+      const inviteData = {
+        document_id: documentId,
+        to: signerEmail,
+        from: fromEmail || "zurcherseptic@gmail.com",
+        subject: `Please sign: Budget Document - Zurcher Construction`,
+        message: `Hi ${signerName || 'there'}, please review and sign this budget document from Zurcher Construction. Thank you!`,
+        language: "en",
+        redirect_target: "blank",
+        redirect_uri: process.env.FRONTEND_URL2 || "https://zurcher-api-fvus.vercel.app/"
+      };
+
+      console.log('📤 Datos de FREEFORM INVITE (formato oficial):');
+      console.log(JSON.stringify(inviteData, null, 2));
+
+      // Probar cada método de autenticación
+      for (let i = 0; i < authMethods.length; i++) {
+        const method = authMethods[i];
+        console.log(`\n🔄 Probando método ${i + 1}/2: ${method.type} Auth para invite...`);
+
+        try {
+          const response = await axios.post(
+            `${this.baseURL}/document/${documentId}/invite`, 
+            inviteData, 
+            { 
+              headers: method.headers(),
+              timeout: 30000
+            }
+          );
+
+          console.log(`✅ ${method.type} Auth FUNCIONÓ para invite!`);
+          console.log('📥 Respuesta de FREEFORM INVITE:');
+          console.log(`Status: ${response.status}`);
+          console.log(`✅ FREEFORM INVITE creado exitosamente para ${signerEmail}`);
+          console.log('=== FIN CREACIÓN DE FREEFORM INVITE ===\n');
+          
+          return response.data;
+
+        } catch (error) {
+          console.log(`❌ ${method.type} Auth FALLÓ para invite:`, error.response?.data?.error || error.message);
+          
+          if (i === authMethods.length - 1) {
+            console.log('\n❌ === TODOS LOS MÉTODOS DE AUTH FALLARON PARA INVITE ===');
+            console.log('Error final:', error.message);
+            console.log('Status:', error.response?.status);
+            console.log('Response Data:', JSON.stringify(error.response?.data, null, 2));
+            console.log('================================\n');
+            throw error;
+          }
+          
+          console.log(`🔄 Intentando invite con ${authMethods[i + 1].type} Auth...`);
+        }
+      }
+
+    } catch (error) {
+      console.log('\n❌ === ERROR EN CREACIÓN DE FREEFORM INVITE ===');
+      console.log('Error message:', error.message);
+      console.log('Status:', error.response?.status);
+      console.log('Response Data:', JSON.stringify(error.response?.data, null, 2));
+      console.log('================================\n');
+      throw error;
+    }
   }
-}
 
   // Obtener estado del documento
   async getDocumentStatus(documentId) {
