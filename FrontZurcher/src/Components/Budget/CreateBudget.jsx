@@ -12,7 +12,7 @@ import "@react-pdf-viewer/core/lib/styles/index.css";
 import "@react-pdf-viewer/default-layout/lib/styles/index.css";
 import Swal from 'sweetalert2';
 import DynamicCategorySection from "./DynamicCategorySection";
-
+ 
 // --- Helper para generar IDs temporales ---
 const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -47,7 +47,48 @@ const CreateBudget = () => {
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const defaultLayoutPluginInstance = defaultLayoutPlugin();
+  const defaultLayoutPluginInstance = defaultLayoutPlugin({
+    renderToolbar: (Toolbar) => (
+      <Toolbar>
+        {(props) => (
+          <div
+            style={{
+              alignItems: 'center',
+              display: 'flex',
+              width: '100%',
+              padding: '0 8px',
+              backgroundColor: '#f8fafc',
+              borderBottom: '1px solid #e2e8f0',
+              minHeight: '40px',
+            }}
+          >
+            <div style={{ padding: '0px 4px' }}>
+              <props.GoToPreviousPage />
+            </div>
+            <div style={{ padding: '0px 4px', display: 'flex', alignItems: 'center', fontSize: '0.875rem' }}>
+              <props.CurrentPageInput />
+              <span style={{ margin: '0 6px', color: '#64748b' }}>/</span>
+              <props.NumberOfPages />
+            </div>
+            <div style={{ padding: '0px 4px' }}>
+              <props.GoToNextPage />
+            </div>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: '4px' }}>
+                <div style={{ padding: '0px 2px' }}>
+                    <props.ZoomOut />
+                </div>
+                <div style={{ padding: '0px 2px' }}>
+                    <props.Zoom />
+                </div>
+                <div style={{ padding: '0px 2px' }}>
+                    <props.ZoomIn />
+                </div>
+            </div>
+          </div>
+        )}
+      </Toolbar>
+    ),
+  });
 
   // --- Estado del Catálogo y Carga ---
   const { items: budgetItemsCatalog = [], loading: loadingCatalog, error: errorCatalog } = useSelector(state => state.budgetItems) || {};
@@ -136,7 +177,7 @@ const CreateBudget = () => {
       console.warn("No se proporcionó permitId en la URL para crear el presupuesto.");
       // Opcional: Redirigir o mostrar un mensaje si el permitId es obligatorio
       // navigate('/ruta-error');
-      // alert("Se requiere un ID de permiso para crear un presupuesto.");
+      // alert("Se requiere un ID de permiso para  presupuesto.");
     }
   }, [dispatch, permitIdFromQuery]); // Dependencias simplificadas
 
@@ -188,29 +229,7 @@ const CreateBudget = () => {
             }
         }
       }
-      // Poblar campos específicos desde el Permit
-      // if (selectedPermit.drainfieldDepth) {
-      //   setDrainfieldSelection(prev => ({
-      //     ...prev,
-      //     sf: selectedPermit.drainfieldDepth,
-      //   }));
-      // }
-
-      // if (selectedPermit.systemType) {
-      //   setSystemTypeSelection(prev => ({
-      //     ...prev,
-      //     type: selectedPermit.systemType.includes("ATU") ? "ATU" : "REGULAR",
-      //   }));
-      // }
-
-      // if (selectedPermit.excavationRequired) {
-      //   setFormData(prev => ({
-      //     ...prev,
-      //     excavationRequired: selectedPermit.excavationRequired,
-      //   }));
-      // }
-
-      // Mostrar PDFs del Permit
+   
       if (selectedPermit.pdfData) { // Asumiendo que ahora viene como URL
         setPdfPreview(selectedPermit.pdfData.data);
       } else {
@@ -548,131 +567,180 @@ const CreateBudget = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-[1400px] mx-auto p-6 lg:p-8 space-y-10">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 lg:gap-8">
+      <div className="max-w-[1600px] mx-auto p-3 lg:p-6 space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-6">
           {/* Columna izquierda: Vista previa de los PDFs */}
-          <div className="bg-white shadow-lg rounded-xl p-6 md:col-span-3"> {/* PDF viewer takes 3/5 of width on xl screens */}
-            <h2 className="text-2xl font-semibold text-gray-800 mb-6">Vista previa de los PDFs del Permiso</h2>
+          <div className="bg-white shadow-xl rounded-xl p-4 lg:col-span-3 flex flex-col max-h-[calc(100vh-6rem)]">
+           
 
-            <div className="flex justify-center space-x-4 mb-6"> {/* Centrado y con espacio */}
+            <div className="flex justify-center space-x-3 mb-1">
               <button
                 onClick={() => setCurrentPage(1)}
-                className={`py-2 px-4 rounded-md text-sm font-medium transition-colors ${currentPage === 1 ? "bg-indigo-600 text-white shadow-sm" : "bg-gray-100 text-gray-700 hover:bg-gray-200"} disabled:opacity-50 disabled:cursor-not-allowed`}
+                className={`py-1 px-2 rounded-lg text-xs  transition-all duration-200 ${
+                  currentPage === 1 
+                    ? "bg-indigo-600 text-white shadow-lg transform scale-105" 
+                    : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300 hover:border-indigo-300"
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                Ver PDF Principal
+                <div className="flex items-center space-x-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>Permit</span>
+                </div>
               </button>
               <button
                 onClick={() => setCurrentPage(2)}
-                className={`py-2 px-4 rounded-md text-sm font-medium transition-colors ${currentPage === 2 ? "bg-indigo-600 text-white shadow-sm" : "bg-gray-100 text-gray-700 hover:bg-gray-200"} disabled:opacity-50 disabled:cursor-not-allowed`}
+                className={`py-1 px-2 rounded-lg text-xs  transition-all duration-200 ${
+                  currentPage === 2 
+                    ? "bg-indigo-600 text-white shadow-lg transform scale-105" 
+                    : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300 hover:border-indigo-300"
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                Ver Documento Opcional
+                <div className="flex items-center space-x-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  <span>Planos</span>
+                </div>
               </button>
             </div>
 
             {/* Vista previa del PDF */}
-            {currentPage === 1 && pdfPreview ? (
-              <div className="overflow-y-auto max-h-[750px] border border-gray-200 rounded-lg shadow-inner bg-gray-50">
-                <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
-                  <Viewer
-                    fileUrl={pdfPreview}
-                    plugins={[defaultLayoutPluginInstance]}
-                  />
-                </Worker>
-              </div>
-            ) : currentPage === 2 && optionalDocPreview ? (
-              <div className="overflow-y-auto max-h-[750px] border border-gray-200 rounded-lg shadow-inner bg-gray-50">
-                <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
-                  <Viewer
-                    fileUrl={optionalDocPreview}
-                    plugins={[defaultLayoutPluginInstance]}
-                  />
-                </Worker>
-              </div>
-            ) : (
-              <p className="text-gray-500 py-10 text-center">
-                {currentPage === 1
-                  ? "No se ha cargado ningún PDF principal."
-                  : "No se ha cargado ningún documento opcional."}
-              </p>
-            )}
+            <div className="flex-grow overflow-y-auto border-2 border-gray-200 rounded-xl shadow-inner bg-gradient-to-br from-gray-50 to-gray-100">
+              {currentPage === 1 && pdfPreview ? (
+                <div className="h-full w-full">
+                  <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+                    <Viewer
+                      fileUrl={pdfPreview}
+                      plugins={[defaultLayoutPluginInstance]}
+                    />
+                  </Worker>
+                </div>
+              ) : currentPage === 2 && optionalDocPreview ? (
+                <div className="h-full w-full">
+                  <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+                    <Viewer
+                      fileUrl={optionalDocPreview}
+                      plugins={[defaultLayoutPluginInstance]}
+                    />
+                  </Worker>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full min-h-[400px] p-8">
+                  <div className="text-center">
+                    <svg className="mx-auto h-16 w-16 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <h3 className="text-lg font-medium text-gray-500 mb-2">No hay documento disponible</h3>
+                    <p className="text-sm text-gray-400">
+                      {currentPage === 1
+                        ? "No se ha cargado el documento del permiso"
+                        : "No se han cargado los planos"}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* --- Formulario (Columna Derecha) --- */}
-          <div className="bg-white shadow-lg rounded-xl p-6 md:col-span-2 space-y-6 max-h-[calc(100vh-8rem)] overflow-y-auto">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-2 text-center md:text-left sticky top-0 bg-white py-2 z-10">Crear Nuevo Presupuesto</h2> {/* Made title sticky */}
+          <div className="bg-white shadow-xl rounded-xl p-6 lg:col-span-2 space-y-6 max-h-[calc(100vh-6rem)] overflow-y-auto">
+          
+            
             <form onSubmit={handleSubmit} className="space-y-6">
 
-            {/* --- Sección Información General (Grid within Space-y) --- */}
-            <div className="grid grid-cols-4 gap-4 border-b pb-4">
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-500">Permit Number</label>
-                <p className="text-sm font-semibold text-gray-800">{formData.permitNumber || 'N/A'}</p>
+          
+            {/* --- Sección Información General (Reestructurada) --- */}
+            <div className="border border-gray-200 rounded-lg shadow-sm">
+              {/* --- Título de la Sección --- */}
+              <div className="bg-gray-50 p-4 border-b border-gray-200 rounded-t-lg">
+                <h3 className="text-lg font-semibold text-gray-800">General Information</h3>
+               
               </div>
-              <div className="col-span-2">
-                <label className="block text-xs font-medium text-gray-500">Applicant</label>
-                <p className="text-sm font-semibold text-gray-800">{formData.applicantName || 'N/A'}</p>
-              </div>
-              <div className="col-span-full"> {/* Ajustado para ocupar todo el ancho */}
-                <label className="block text-xs font-medium text-gray-500">Property Address</label>
-                <p className="text-sm font-semibold text-gray-800">{formData.propertyAddress || 'N/A'}</p>
-              </div>
-              <div className="col-span-1">
-                <label className="block text-xs font-medium text-gray-500">Lot</label>
-                <p className="text-sm font-semibold text-gray-800">{formData.lot || 'N/A'}</p>
-              </div>
-              <div className="col-span-1">
-                <label className="block text-xs font-medium text-gray-500">Block</label>
-                <p className="text-sm font-semibold text-gray-800">{formData.block || 'N/A'}</p>
-              </div>
-              <div className="col-span-2"> {/* Ajustado para que no se monte con la alerta */}
-                <label className="block text-xs font-medium text-gray-500">Excavation</label>
-                <p className="text-sm font-semibold text-gray-800">{formData.excavationRequired || 'N/A'}</p>
-              </div>
-              <div className="col-span-1">
-    <label className="block text-xs font-medium text-gray-500">Excavation</label>
-    <p className="text-sm font-semibold text-gray-800">{formData.excavationRequired || 'N/A'}</p>
-  </div>
-  <div className="col-span-1">
-    <label className="block text-xs font-medium text-gray-500">System Type</label>
-    <p className="text-sm font-semibold text-gray-800">{formData.systemType || 'N/A'}</p>
-  </div>
 
-  {/* ✅ AGREGAMOS DRAINFIELD DEPTH SI QUIERES MOSTRARLO */}
-  {formData.drainfieldDepth && (
-    <div className="col-span-2">
-      <label className="block text-xs font-medium text-gray-500">Drainfield Depth</label>
-      <p className="text-sm font-semibold text-gray-800">{formData.drainfieldDepth}</p>
-    </div>
-  )}
-
-              {/* --- ALERTA DE EXPIRACIÓN DEL PERMIT --- */}
-              {permitExpirationAlert.message && (
-                <div className={`col-span-4 mt-2 p-3 rounded-md border ${
-                  permitExpirationAlert.type === 'error' ? 'bg-red-50 border-red-400 text-red-700' : 'bg-yellow-50 border-yellow-400 text-yellow-700'
-                }`}>
-                  <p className="font-bold text-sm">
-                    {permitExpirationAlert.type === 'error' ? '¡Permiso Vencido!' : '¡Atención! Permiso Próximo a Vencer'}
-                  </p>
-                  <p className="text-xs">{permitExpirationAlert.message}</p>
+              <div className="p-6 space-y-6">
+                {/* --- Detalles del Permiso --- */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500">Permit Number</label>
+                    <p className="text-sm font-semibold text-gray-800 mt-1">{formData.permitNumber || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500">Applicant</label>
+                    <p className="text-sm font-semibold text-gray-800 mt-1">{formData.applicantName || 'N/A'}</p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-medium text-gray-500">Property Address</label>
+                    <p className="text-sm font-semibold text-gray-800 mt-1">{formData.propertyAddress || 'N/A'}</p>
+                  </div>
                 </div>
-              )}
-              {/* --- FIN ALERTA --- */}
-              <div className="col-span-2">
-                <label htmlFor="budget_date" className="block text-sm font-medium text-gray-700">Date</label>
-                <input id="budget_date" type="date" name="date" value={formData.date} onChange={handleGeneralInputChange} required className="input-style" />
-              </div>
-              <div className="col-span-2">
-                <label htmlFor="budget_expiration" className="block text-sm font-medium text-gray-700">Expiration Date</label>
-                <input id="budget_expiration" type="text" name="expirationDate" value={formatDateMMDDYYYY(formData.expirationDate)} className="input-style bg-gray-100" readOnly />
+
+                {/* --- Línea Divisoria --- */}
+                <div className="border-t border-gray-200"></div>
+
+                {/* --- Detalles Técnicos --- */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500">Lot</label>
+                    <p className="text-sm font-semibold text-gray-800 mt-1">{formData.lot || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500">Block</label>
+                    <p className="text-sm font-semibold text-gray-800 mt-1">{formData.block || 'N/A'}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-gray-500">System Type</label>
+                    <p className="text-sm font-semibold text-gray-800 mt-1 uppercase">{formData.systemType || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500">Excavation</label>
+                    <p className="text-sm font-semibold text-gray-800 mt-1">{formData.excavationRequired || 'N/A'}</p>
+                  </div>
+                  {formData.drainfieldDepth && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500">Drainfield Depth</label>
+                      <p className="text-sm font-semibold text-gray-800 mt-1">{formData.drainfieldDepth}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* --- Alerta de Expiración (si existe) --- */}
+                {permitExpirationAlert.message && (
+                  <div className={`col-span-full p-4 rounded-md border ${
+                    permitExpirationAlert.type === 'error' ? 'bg-red-50 border-red-400 text-red-700' : 'bg-yellow-50 border-yellow-400 text-yellow-700'
+                  }`}>
+                    <p className="font-bold text-sm flex items-center">
+                      <svg className="w-5 h-5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.21 3.03-1.742 3.03H4.42c-1.532 0-2.492-1.696-1.742-3.03l5.58-9.92zM10 13a1 1 0 110-2 1 1 0 010 2zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"></path></svg>
+                      {permitExpirationAlert.type === 'error' ? '¡Permiso Vencido!' : '¡Atención! Permiso Próximo a Vencer'}
+                    </p>
+                    <p className="text-sm mt-1 pl-7">{permitExpirationAlert.message}</p>
+                  </div>
+                )}
+
+                {/* --- Línea Divisoria --- */}
+                <div className="border-t border-gray-200"></div>
+
+                {/* --- Fechas del Presupuesto --- */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                  <div>
+                    <label htmlFor="budget_date" className="block text-sm font-medium text-gray-700">Date</label>
+                    <input id="budget_date" type="date" name="date" value={formData.date} onChange={handleGeneralInputChange} required className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+                  </div>
+                  <div>
+                    <label htmlFor="budget_expiration" className="block text-sm font-medium text-gray-700">Expiration Date</label>
+                    <input id="budget_expiration" type="text" name="expirationDate" value={formatDateMMDDYYYY(formData.expirationDate)} className="mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm sm:text-sm cursor-default" readOnly />
+                  </div>
+                </div>
               </div>
             </div>
            {/* // --- Sección Items Presupuestables (Collapsible) --- */}
-            <div className="border p-3 rounded space-y-2 bg-gray-50">
-              <h3 className="text-lg font-semibold text-center text-gray-700 mb-2">Añadir Items</h3>
+            <div className="border p-4 rounded-lg space-y-4 bg-gray-50">
+           
 
              
           {/* --- Sección Items Presupuestables (Dinámicas) --- */}
-      <div className="space-y-3"> {/* Removed redundant border and padding, parent has it */}
+      <div className="space-y-4"> 
        
         {/* Generar secciones dinámicamente para cada categoría */}
         {availableCategories.map(category => (
@@ -694,18 +762,18 @@ const CreateBudget = () => {
           <button 
             type="button" 
             onClick={() => toggleSection('manualItem')} 
-            className="w-full flex justify-between items-center p-3 bg-gray-50 hover:bg-gray-100 rounded-t-lg transition-colors"
+            className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 rounded-t-lg transition-colors"
           >
-            <span className="font-medium text-sm text-gray-700">Añadir Item Manual</span> {/* Removed ➕ emoji */}
+            <span className="font-semibold text-base text-gray-800">Añadir Item Manual</span>
             {sectionVisibility.manualItem ? 
               <ChevronUpIcon className="h-5 w-5 text-gray-500" /> : 
               <ChevronDownIcon className="h-5 w-5 text-gray-500" />
             }
           </button>
           {sectionVisibility.manualItem && (
-            <fieldset className="p-4 border-t border-gray-200">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"> {/* Made manual item form more responsive */}
-                <div className="sm:col-span-1">
+            <fieldset className="p-6 border-t border-gray-200">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                <div>
                   <label htmlFor="manual_category" className="block text-sm font-medium text-gray-700 mb-1">
                     Categoría
                   </label>
@@ -716,10 +784,10 @@ const CreateBudget = () => {
                     value={manualItem.category} 
                     onChange={handleManualItemChange} 
                     placeholder="Ej: NUEVA CATEGORIA" 
-                    className={standardInputClasses} 
+                    className={`${standardInputClasses} text-sm`}
                   />
                 </div>
-                <div className="sm:col-span-1">
+                <div>
                   <label htmlFor="manual_name" className="block text-sm font-medium text-gray-700 mb-1">
                     Nombre
                   </label>
@@ -730,12 +798,12 @@ const CreateBudget = () => {
                     value={manualItem.name} 
                     onChange={handleManualItemChange} 
                     placeholder="Ej: Item Especial" 
-                    className={standardInputClasses} 
+                    className={`${standardInputClasses} text-sm`}
                   />
                 </div>
-                <div className="sm:col-span-1">
+                <div>
                   <label htmlFor="manual_price" className="block text-sm font-medium text-gray-700 mb-1">
-                    Precio Unitario
+                    Precio 
                   </label>
                   <input 
                     id="manual_price" 
@@ -746,10 +814,10 @@ const CreateBudget = () => {
                     min="0" 
                     step="0.01" 
                     placeholder="0.00" 
-                    className={standardInputClasses} 
+                    className={`${standardInputClasses} text-sm`}
                   />
                 </div>
-                <div className="sm:col-span-1">
+                <div>
                   <label htmlFor="manual_quantity" className="block text-sm font-medium text-gray-700 mb-1">
                     Cantidad
                   </label>
@@ -761,10 +829,10 @@ const CreateBudget = () => {
                     onChange={handleManualItemChange} 
                     min="1" 
                     placeholder="1" 
-                    className={standardInputClasses} 
+                    className={`${standardInputClasses} text-sm`}
                   />
                 </div>
-                <div className="col-span-full"> {/* Description field spans full width */}
+                <div className="sm:col-span-2">
                   <label htmlFor="manual_description" className="block text-sm font-medium text-gray-700 mb-1">
                     Descripción (Opcional)
                   </label>
@@ -775,16 +843,18 @@ const CreateBudget = () => {
                     onChange={handleManualItemChange}
                     placeholder="Detalles adicionales del item manual"
                     rows="3"
-                    className={`${standardInputClasses} w-full`}
+                    className={`${standardInputClasses} w-full text-sm`}
                   />
                 </div>
-                <button 
-                  type="button" 
-                  onClick={addManualItem} 
-                  className="col-span-full mt-3 w-full bg-indigo-500 hover:bg-indigo-600 text-white font-medium py-2 px-4 rounded-md shadow-sm transition-colors text-sm"
-                >
-                  Agregar Item Manual
-                </button>
+                <div className="sm:col-span-2 flex justify-end mt-2">
+                  <button 
+                    type="button" 
+                    onClick={addManualItem} 
+                    className="bg-indigo-500 hover:bg-indigo-600 text-white font-medium py-2 px-5 rounded-lg shadow-sm transition-colors text-sm"
+                  >
+                    Agregar Item Manual
+                  </button>
+                </div>
               </div>
             </fieldset>
           )}
@@ -795,21 +865,24 @@ const CreateBudget = () => {
 
               {/* --- Lista de Items Añadidos --- */}
               <div className="mt-6 border-t border-gray-200 pt-5 bg-white p-4 rounded-lg shadow">
-                <h4 className="text-md font-semibold mb-3 text-gray-700">Items Añadidos:</h4>
+                <h4 className="text-sm font-semibold mb-4 text-gray-700">Items Añadidos</h4>
                 {formData.lineItems.length === 0 ? (
                   <p className="text-gray-500 text-sm py-3 text-center">Aún no se han añadido items.</p>
                 ) : (
-                  <ul className="space-y-3 max-h-72 overflow-y-auto pr-2 -mr-2"> {/* Negative margin to offset scrollbar */}
+                  <ul className="space-y-3 max-h-80 overflow-y-auto pr-2 -mr-2">
                     {formData.lineItems.map(item => (
-                      <li key={item._tempId} className="flex justify-between items-start text-sm py-3 border-b border-gray-200 last:border-b-0 hover:bg-gray-50 transition-colors rounded-md px-2">
+                      <li key={item._tempId} className="flex justify-between items-start text-sm p-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors rounded-md">
                         <div className="flex-grow mr-3">
-                          <span className="font-medium text-gray-800">{item.name}</span>
-                          {item.marca && <span className="text-gray-600 text-xs"> ({item.marca})</span>}
-                          {item.capacity && <span className="text-gray-600 text-xs"> [{item.capacity}]</span>}
-                          <span className="block text-gray-700 text-xs">Cant: {item.quantity} @ ${parseFloat(item.unitPrice).toFixed(2)} c/u</span>
-                          {item.notes && <span className="block text-xs text-gray-500 italic mt-1 ml-2">- {item.notes}</span>}
+                          <p className="font-semibold text-gray-800">{item.name}</p>
+                          <p className="text-gray-600 text-xs">
+                            {item.marca && <span>{item.marca}</span>}
+                            {item.marca && item.capacity && <span> &bull; </span>}
+                            {item.capacity && <span>{item.capacity}</span>}
+                          </p>
+                          <p className="text-gray-700 text-xs mt-1">Cant: {item.quantity} @ ${parseFloat(item.unitPrice).toFixed(2)} c/u</p>
+                          {item.notes && <p className="text-xs text-gray-500 italic mt-1.5 ml-2">- {item.notes}</p>}
                         </div>
-                        <button type="button" onClick={() => handleRemoveItem(item._tempId)} className="text-gray-500 hover:text-red-500 text-xs font-medium ml-2 flex-shrink-0 transition-colors py-1">Eliminar</button>
+                        <button type="button" onClick={() => handleRemoveItem(item._tempId)} className="text-gray-400 hover:text-red-600 text-xs font-medium ml-2 flex-shrink-0 transition-colors py-1 px-2 rounded-full hover:bg-red-50">Eliminar</button>
                       </li>
                     ))}
                   </ul>
@@ -817,46 +890,46 @@ const CreateBudget = () => {
               </div>
             </div>
             {/* --- Descuento --- */}
-            <fieldset className="border border-gray-200 p-4 rounded-lg bg-white shadow">
-              <legend className="text-md font-semibold px-2 text-gray-700">Descuento</legend>
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-center pt-2"> {/* Made discount section responsive */}
-                <div className="sm:col-span-3">
-                  <label htmlFor="discount_desc" className="block text-sm font-medium text-gray-700">Descripción</label>
+            <fieldset className="border border-gray-200 p-6 rounded-lg bg-white shadow">
+              <legend className="text-lg font-semibold px-3 text-gray-700">Descuento</legend>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-center pt-3"> {/* Made discount section responsive */}
+                <div className="sm:col-span-2">
+                  <label htmlFor="discount_desc" className="block text-xs text-gray-700">Descripción</label>
                   <input id="discount_desc" type="text" name="discountDescription" value={formData.discountDescription} onChange={handleGeneralInputChange} className={standardInputClasses} />
                 </div>
-                <div className="sm:col-span-1">
-                  <label htmlFor="discount_amount" className="block text-sm font-medium text-gray-700">Monto ($)</label>
+                <div className="sm:col-span-2">
+                  <label htmlFor="discount_amount" className="block text-xs text-gray-700">Monto ($)</label>
                   <input id="discount_amount" type="number" name="discountAmount" value={formData.discountAmount} onChange={handleGeneralInputChange} min="0" step="0.01" className={standardInputClasses} />
                 </div>
               </div>
             </fieldset>
 
             {/* --- Totales y Pago Inicial --- */}
-            <div className="text-right space-y-2 border-t border-gray-200 pt-6 mt-6">
+            <div className="text-right space-y-3 border-t border-gray-200 pt-8 mt-8">
               <p className="text-gray-700">Subtotal: <span className="font-semibold text-gray-900">${formData.subtotalPrice.toFixed(2)}</span></p>
               {formData.discountAmount > 0 && (
                 <p className="text-red-600">Descuento ({formData.discountDescription || 'General'}): <span className="font-semibold">-${formData.discountAmount.toFixed(2)}</span></p>
               )}
-              <p className="text-lg font-bold text-gray-800">Total: <span className="font-semibold text-gray-900">${formData.totalPrice.toFixed(2)}</span></p>
-              <div className="flex flex-col sm:flex-row justify-end items-center space-y-2 sm:space-y-0 sm:space-x-3 mt-3 pt-2"> {/* Made payment section responsive */}
+              <p className="text-xl font-bold text-gray-800">Total: <span className="font-semibold text-gray-900">${formData.totalPrice.toFixed(2)}</span></p>
+              <div className="flex flex-col sm:flex-row justify-end items-center space-y-3 sm:space-y-0 sm:space-x-4 mt-4 pt-3"> {/* Made payment section responsive */}
                 <label htmlFor="payment_perc" className="text-sm font-medium text-gray-700">Pago Inicial:</label>
                 <select id="payment_perc" name="initialPaymentPercentage" value={formData.initialPaymentPercentage} onChange={handlePaymentPercentageChange} className={`${standardInputClasses} !mt-0 w-auto min-w-[120px]`}>
                   <option value="60">60%</option>
                   <option value="total">Total (100%)</option>
                 </select>
-                <span className="text-lg font-semibold text-gray-900">(${formData.initialPayment.toFixed(2)})</span>
+                <span className="text-xl font-semibold text-gray-900">(${formData.initialPayment.toFixed(2)})</span>
               </div>
             </div>
 
             {/* --- Notas Generales --- */}
-            <div className="pt-2">
-              <label htmlFor="general_notes" className="block text-sm font-medium text-gray-700">Notas Generales</label>
+            <div className="pt-4">
+              <label htmlFor="general_notes" className="block text-sm font-medium text-gray-700 mb-2">Notas Generales</label>
               <textarea id="general_notes" name="generalNotes" value={formData.generalNotes} onChange={handleGeneralInputChange} rows="4" className={`${standardInputClasses} w-full`}></textarea>
             </div>
 
             {/* --- Botón Submit --- */}
       
-       <div className="mt-8 border-t border-gray-200 pt-6">
+       <div className="mt-10 border-t border-gray-200 pt-8">
               {!createdBudgetInfo ? (
                 <button
                   type="submit"

@@ -13,7 +13,7 @@ const BarraLateral = () => {
 
   const menuSections = [
     {
-      name: "Work Management",
+      name: "Works",
       items: [
         { name: "Works", path: "/works" },
         { name: "Tracking Work", path: "/check" },
@@ -78,19 +78,19 @@ const BarraLateral = () => {
       <div key={section.name} className="w-full">
         <button
           onClick={() => toggleSection(section.name)}
-          className="flex items-center justify-between w-full py-3 px-4 text-sm md:text-base font-medium transition-all duration-300 text-left hover:bg-gray-700 hover:text-blue-300 focus:outline-none"
+          className="flex items-center justify-between w-full py-3 px-4 text-sm md:text-base font-medium transition-all duration-300 text-left text-gray-300 hover:bg-gray-700 hover:text-white focus:outline-none"
         >
           <span className="truncate">{section.name}</span>
           <span className="text-lg ml-2 flex-shrink-0">{openSections[section.name] ? "−" : "+"}</span>
         </button>
         {openSections[section.name] && (
-          <ul className="pl-6 bg-gray-900">
+          <ul className="pl-4 pr-2 bg-gray-900/50">
             {section.items.map((item) => (
               <li key={item.name} className="w-full">
                 <button
                   onClick={() => isMobile ? handleMobileNavigation(item.path) : handleNavigation(item.path)}
-                  className={`block py-2 px-3 text-xs md:text-sm font-medium transition-all duration-300 w-full text-left hover:bg-gray-600 hover:text-blue-200 rounded-md mx-1 my-1 ${
-                    location.pathname === item.path ? "bg-gray-600 text-blue-200" : ""
+                  className={`block py-2.5 px-4 text-xs md:text-sm font-medium transition-all duration-300 w-full text-left rounded-md my-1 ${
+                    location.pathname === item.path ? "bg-blue-600 text-white" : "text-gray-400 hover:bg-gray-700 hover:text-white"
                   }`}
                 >
                   {item.name}
@@ -106,11 +106,11 @@ const BarraLateral = () => {
   return (
     <div className="flex">
       {/* Desktop/Tablet Sidebar */}
-      <div className="hidden md:flex flex-col bg-gray-800 text-white w-56 lg:w-64 h-screen fixed z-30 shadow-lg">
+      <div className="hidden md:flex flex-col bg-gray-900 text-white w-48 lg:w-52 h-screen fixed z-30 shadow-lg">
         <div className="p-4 border-b border-gray-700">
-          <h2 className="text-lg font-semibold text-center">Navigation</h2>
+          <h2 className="text-lg font-semibold text-center text-gray-200">Navigation</h2>
         </div>
-        <ul className="flex flex-col mt-2 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
+        <ul className="flex flex-col mt-2 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-900">
           {renderMenuItems(false)}
         </ul>
       </div>
@@ -129,13 +129,13 @@ const BarraLateral = () => {
         </button>
 
         {/* Mobile Sidebar */}
-        <div className={`fixed top-0 left-0 w-80 h-screen bg-gray-800 text-white z-40 transform transition-transform duration-300 ease-in-out ${
+        <div className={`fixed top-0 left-0 w-64 h-screen bg-gray-900 text-white z-40 transform transition-transform duration-300 ease-in-out ${
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
         } shadow-2xl`}>
           <div className="p-4 pt-20 border-b border-gray-700">
             <h2 className="text-lg font-semibold text-center">Menu</h2>
           </div>
-          <ul className="flex flex-col mt-2 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
+          <ul className="flex flex-col mt-2 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-900">
             {renderMenuItems(true)}
           </ul>
         </div>

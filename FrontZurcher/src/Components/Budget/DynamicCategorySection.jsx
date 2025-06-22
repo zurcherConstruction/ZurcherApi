@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect} from 'react';
 import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/solid';
 
 const DynamicCategorySection = ({
@@ -32,6 +32,18 @@ const DynamicCategorySection = ({
       .sort((a, b) => a.name.localeCompare(b.name)),
     [normalizedCatalog, category]
   );
+
+   useEffect(() => {
+    if (category.toUpperCase() === 'LABOR' && !selection.name) {
+      const laborFeeItem = categoryItems.find(item => item.name.toUpperCase() === 'LABOR FEE');
+      if (laborFeeItem) {
+        setSelection(prev => ({
+          ...prev,
+          name: laborFeeItem.name
+        }));
+      }
+    }
+  }, [category, categoryItems, selection.name]);
 
   // ✅ VERIFICAR QUÉ CAMPOS REALMENTE TIENEN DATOS EN ESTA CATEGORÍA
   const fieldAnalysis = useMemo(() => {
@@ -68,7 +80,7 @@ const DynamicCategorySection = ({
       .map(i => i.marca || '')
       .filter(marca => marca.trim() !== '')
       .filter((marca, index, self) => self.indexOf(marca) === index) // Eliminar duplicados
-      .sort();
+      .sort((a, b) => b.localeCompare(a)); 
   }, [categoryItems, selection.name, fieldAnalysis.hasMarcas]);
 
   const uniqueCapacities = useMemo(() => {
@@ -231,22 +243,6 @@ const DynamicCategorySection = ({
 
   if (categoryItems.length === 0) return null; // No mostrar si no hay items
 
-  // ✅ DETERMINAR LAYOUT DINÁMICO BASADO EN CAMPOS DISPONIBLES
-  // MODIFICAR el conteo de campos disponibles (líneas ~150-160):
-
-  const availableFieldsCount = [
-    fieldAnalysis.hasNames,
-    fieldAnalysis.hasMarcas && uniqueMarcas.length > 0,
-    fieldAnalysis.hasCapacities && uniqueCapacities.length > 0,
-    fieldAnalysis.hasDescriptions && uniqueDescriptions.length > 0, // ✅ AGREGAR DESCRIPTION
-    true // Quantity siempre está presente
-  ].filter(Boolean).length;
-
-  // Ajustar grid según número de campos
-  const gridCols = availableFieldsCount <= 2 ? 'grid-cols-2' :
-    availableFieldsCount === 3 ? 'grid-cols-3' :
-      availableFieldsCount === 4 ? 'grid-cols-2' : 'grid-cols-2';
-
   // REEMPLAZAR el return del componente DynamicCategorySection (líneas ~200-350):
 
   return (
@@ -254,11 +250,11 @@ const DynamicCategorySection = ({
       <button
         type="button"
         onClick={onToggle}
-        className="w-full flex justify-between items-center p-3 bg-gray-50 hover:bg-gray-100 rounded-t-lg transition-colors"
+        className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 rounded-t-lg transition-colors"
       >
         <span className="font-semibold text-sm text-gray-800">{category}</span>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500">({categoryItems.length} items)</span>
+          <span className="text-sm text-gray-500">({categoryItems.length} items)</span>
           {isVisible ?
             <ChevronUpIcon className="h-5 w-5 text-gray-600" /> :
             <ChevronDownIcon className="h-5 w-5 text-gray-600" />
@@ -267,75 +263,47 @@ const DynamicCategorySection = ({
       </button>
 
       {isVisible && (
-        <div className="p-4 border-t">
-          {/* ✅ INFORMACIÓN DE DEBUG MEJORADA */}
-          {/* <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-sm font-medium text-blue-800 mb-1">
-              {category} - {categoryItems.length} items disponibles
-            </p>
-            <div className="flex flex-wrap gap-2 text-xs">
-              {fieldAnalysis.hasNames && (
-                <span className="px-2 py-1 bg-green-100 text-green-700 rounded">Nombres</span>
-              )}
-              {fieldAnalysis.hasDescriptions && (
-                <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded">Descripciones</span>
-              )}
-              {fieldAnalysis.hasMarcas && (
-                <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded">Marcas/Tipos</span>
-              )}
-              {fieldAnalysis.hasCapacities && (
-                <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded">Capacidades</span>
-              )}
-              <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded">Cantidad</span>
-            </div>
-          </div> */}
-
-          {/* ✅ GRID DINÁMICO CON MEJOR ESPACIADO */}
-          <div className={`grid ${gridCols} gap-4`}>
-
-            {/* ✅ CAMPO NOMBRE (siempre disponible si hasNames) */}
+        <div className="p-6 border-t space-y-6">
+          
+          <div className="space-y-4">
             {fieldAnalysis.hasNames && (
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Nombre del Item
-                  <span className="text-red-500">*</span>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Name <span className="text-red-500">*</span>
                 </label>
                 <select
                   name="name"
                   value={selection.name}
                   onChange={handleSelectionChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  disabled={category.toUpperCase() === 'LABOR'}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
                 >
                   <option value="">-- Seleccionar Nombre --</option>
-                  {uniqueNames.map(name =>
+                   {uniqueNames.map(name =>
                     <option key={name} value={name}>{name}</option>
                   )}
-                  <option value="OTROS" className="bg-yellow-50 font-medium">
-                    PERSONALIZADO (Escribir manualmente)
-                  </option>
+                  {/* Solo muestra "PERSONALIZADO" si la categoría NO es LABOR */}
+                  {category.toUpperCase() !== 'LABOR' && (
+                    <option value="OTROS" className="bg-yellow-50 font-medium">
+                      PERSONALIZADO
+                    </option>
+                  )}
                 </select>
-                {selection.name && (
-                  <p className="text-xs text-gray-500">
-                    Seleccionado: <span className="font-medium">{selection.name}</span>
-                  </p>
-                )}
               </div>
             )}
 
-            {/* ✅ CAMPO MARCA/TIPO (solo si la categoría tiene marcas Y hay opciones) */}
             {fieldAnalysis.hasMarcas && (
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  Marca/Tipo
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Type
                   {uniqueMarcas.length > 0 && <span className="text-red-500">*</span>}
                 </label>
                 {uniqueMarcas.length > 0 ? (
-                  <>
-                    <select
+                  <select
                       name="marca"
                       value={selection.marca}
                       onChange={handleSelectionChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
                     >
                       <option value="">-- Seleccionar Marca --</option>
                       {uniqueMarcas.map(marca =>
@@ -345,37 +313,26 @@ const DynamicCategorySection = ({
                         PERSONALIZADO
                       </option>
                     </select>
-                    {selection.marca && (
-                      <p className="text-xs text-gray-500">
-                        Marca: <span className="font-medium">{selection.marca}</span>
-                      </p>
-                    )}
-                  </>
                 ) : (
-                  <div className="px-3 py-2 bg-gray-100 rounded-md text-sm text-gray-600">
-                    {selection.name ?
-                      'Primero selecciona un nombre' :
-                      'No hay marcas disponibles'
-                    }
+                  <div className="px-3 py-2 bg-gray-100 rounded-md text-sm text-gray-500 italic">
+                    {selection.name ? 'Seleccione un nombre para ver marcas' : 'No hay marcas disponibles'}
                   </div>
                 )}
               </div>
             )}
 
-            {/* ✅ CAMPO CAPACIDAD (solo si la categoría tiene capacidades Y hay opciones) */}
             {fieldAnalysis.hasCapacities && (
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Capacidad/Tamaño
                   {uniqueCapacities.length > 0 && <span className="text-red-500">*</span>}
                 </label>
                 {uniqueCapacities.length > 0 ? (
-                  <>
-                    <select
+                  <select
                       name="capacity"
                       value={selection.capacity}
                       onChange={handleSelectionChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
                     >
                       <option value="">-- Seleccionar Capacidad --</option>
                       {uniqueCapacities.map(capacity =>
@@ -385,37 +342,29 @@ const DynamicCategorySection = ({
                         PERSONALIZADO
                       </option>
                     </select>
-                    {selection.capacity && (
-                      <p className="text-xs text-gray-500">
-                        Capacidad: <span className="font-medium">{selection.capacity}</span>
-                      </p>
-                    )}
-                  </>
                 ) : (
-                  <div className="px-3 py-2 bg-gray-100 rounded-md text-sm text-gray-600">
-                    {!selection.name ?
-                      'Primero selecciona un nombre' :
-                      !selection.marca && fieldAnalysis.hasMarcas ?
-                        'Primero selecciona una marca' :
+                  <div className="px-3 py-2 bg-gray-100 rounded-md text-sm text-gray-500 italic">
+                    {!selection.name ? 'Seleccione un nombre' :
+                      !selection.marca && fieldAnalysis.hasMarcas ? 'Seleccione una marca' :
                         'No hay capacidades disponibles'
                     }
                   </div>
                 )}
               </div>
             )}
-              {fieldAnalysis.hasDescriptions && (
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
+
+            {fieldAnalysis.hasDescriptions && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Descripción
                   {uniqueDescriptions.length > 0 && <span className="text-red-500">*</span>}
                 </label>
                 {uniqueDescriptions.length > 0 ? (
-                  <>
-                    <select 
+                  <select 
                       name="description" 
                       value={selection.description} 
                       onChange={handleSelectionChange} 
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-indigo-500"
                     >
                       <option value="">-- Seleccionar Descripción --</option>
                       {uniqueDescriptions.map(description => 
@@ -425,20 +374,14 @@ const DynamicCategorySection = ({
                         PERSONALIZADO
                       </option>
                     </select>
-                    {selection.description && (
-                      <p className="text-xs text-gray-500">
-                        Descripción: <span className="font-medium">{selection.description}</span>
-                      </p>
-                    )}
-                  </>
                 ) : (
-                  <div className="px-3 py-2 bg-gray-100 rounded-md text-sm text-gray-600">
+                  <div className="px-3 py-2 bg-gray-100 rounded-md text-sm text-gray-500 italic">
                     {!selection.name ? 
-                      'Primero selecciona un nombre' :
+                      'Seleccione un nombre' :
                       !selection.marca && fieldAnalysis.hasMarcas ? 
-                      'Primero selecciona una marca' :
+                      'Seleccione una marca' :
                       !selection.capacity && fieldAnalysis.hasCapacities ? 
-                      'Primero selecciona una capacidad' :
+                      'Seleccione una capacidad' :
                       'No hay descripciones disponibles'
                     }
                   </div>
@@ -446,11 +389,9 @@ const DynamicCategorySection = ({
               </div>
             )}
 
-            {/* ✅ CAMPO CANTIDAD (siempre presente) */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">
-                Cantidad
-                <span className="text-red-500">*</span>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Cantidad <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -459,95 +400,71 @@ const DynamicCategorySection = ({
                 onChange={selection.name === 'OTROS' ? handleCustomChange : handleSelectionChange}
                 min="1"
                 max="999"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-indigo-500"
                 placeholder="1"
               />
-              <p className="text-xs text-gray-500">
-                Unidades a agregar
-              </p>
             </div>
           </div>
 
-          {/* ✅ SECCIÓN DE CAMPOS PERSONALIZADOS (solo si se seleccionó OTROS) */}
+          {/* SECCIÓN DE CAMPOS PERSONALIZADOS */}
          {(selection.name === 'OTROS' ||
-  (fieldAnalysis.hasMarcas && selection.marca === 'OTROS') ||
-  (fieldAnalysis.hasCapacities && selection.capacity === 'OTROS') ||
-  (fieldAnalysis.hasDescriptions && selection.description === 'OTROS')) && (
-              <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <div className="flex items-center gap-2 mb-4">
-                  <h3 className="text-sm font-semibold text-yellow-800">
-                    Detalles Personalizados para {category}
-                  </h3>
-                </div>
+            (fieldAnalysis.hasMarcas && selection.marca === 'OTROS') ||
+            (fieldAnalysis.hasCapacities && selection.capacity === 'OTROS') ||
+            (fieldAnalysis.hasDescriptions && selection.description === 'OTROS')) && (
+              <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg space-y-4">
+                <h3 className="text-sm font-semibold text-yellow-800">
+                  Detalles Personalizados para {category}
+                </h3>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Nombre personalizado */}
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Nombre del Item <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       name="name"
-                      placeholder="Ej: Tanque especial, Tubería custom..."
+                      placeholder="Ej: Tanque especial"
                       value={customItem.name}
                       onChange={handleCustomChange}
-                      className="w-full px-3 py-2 border border-yellow-300 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                      className="w-full px-3 py-2 text-sm border border-yellow-300 rounded-md focus:ring-1 focus:ring-yellow-500"
                     />
                   </div>
-                  {fieldAnalysis.hasDescriptions && (
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Descripción
-                      </label>
-                      <textarea
-                        name="description"
-                        placeholder="Ej: Descripción detallada del item..."
-                        value={customItem.description}
-                        onChange={handleCustomChange}
-                        rows={3}
-                        className="w-full px-3 py-2 border border-yellow-300 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
-                      />
-                    </div>
-                  )}
-
-                  {/* Marca personalizada (solo si la categoría maneja marcas) */}
+                  
                   {fieldAnalysis.hasMarcas && (
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
                         Marca/Tipo
                       </label>
                       <input
                         type="text"
                         name="marca"
-                        placeholder="Ej: Marca especial, Tipo custom..."
+                        placeholder="Ej: Marca especial"
                         value={customItem.marca}
                         onChange={handleCustomChange}
-                        className="w-full px-3 py-2 border border-yellow-300 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                        className="w-full px-3 py-2 text-sm border border-yellow-300 rounded-md focus:ring-1 focus:ring-yellow-500"
                       />
                     </div>
                   )}
 
-                  {/* Capacidad personalizada (solo si la categoría maneja capacidades) */}
                   {fieldAnalysis.hasCapacities && (
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-700">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
                         Capacidad/Tamaño
                       </label>
                       <input
                         type="text"
                         name="capacity"
-                        placeholder="Ej: 1000L, 24 pulgadas, Custom..."
+                        placeholder="Ej: 1000L"
                         value={customItem.capacity}
                         onChange={handleCustomChange}
-                        className="w-full px-3 py-2 border border-yellow-300 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                        className="w-full px-3 py-2 text-sm border border-yellow-300 rounded-md focus:ring-1 focus:ring-yellow-500"
                       />
                     </div>
                   )}
 
-                  {/* Precio unitario */}
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-700">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Precio Unitario ($) <span className="text-red-500">*</span>
                     </label>
                     <input
@@ -558,19 +475,34 @@ const DynamicCategorySection = ({
                       onChange={handleCustomChange}
                       min="0"
                       step="0.01"
-                      className="w-full px-3 py-2 border border-yellow-300 rounded-md focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500"
+                      className="w-full px-3 py-2 text-sm border border-yellow-300 rounded-md focus:ring-1 focus:ring-yellow-500"
                     />
                   </div>
+
+                  {fieldAnalysis.hasDescriptions && (
+                    <div className="sm:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Descripción
+                      </label>
+                      <textarea
+                        name="description"
+                        placeholder="Descripción detallada..."
+                        value={customItem.description}
+                        onChange={handleCustomChange}
+                        rows={3}
+                        className="w-full px-3 py-2 text-sm border border-yellow-300 rounded-md focus:ring-1 focus:ring-yellow-500"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
-          {/* ✅ BOTÓN DE AGREGAR MEJORADO */}
-          <div className="mt-6 flex justify-end">
+          <div className="flex justify-end">
             <button
               type="button"
               onClick={handleAddItem}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md"
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-lg transition-colors shadow-sm"
             >
               Agregar {category}
             </button>
