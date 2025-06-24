@@ -4,11 +4,12 @@ import { FaWhatsapp, FaEnvelope } from "react-icons/fa";
 import compromisoImg from '../../assets/6.jpeg';
 import dedicacionImg from '../../assets/1.jpeg';
 import responsabilidadImg from '../../assets/5.jpeg';
+// Add Link import for navigation
+import { Link } from 'react-router-dom';
 
 const whatsappNumber = "14074194495";
 const whatsappMessage = "Hola, estoy interesado en sus servicios.";
 const email = "zurcher44@gmail.com";
-
 
 const LandingClients = () => (
    <>
@@ -58,8 +59,6 @@ const LandingClients = () => (
       </div>
     </div>
 
-
-
     {/* 3 CUADRADOS CON TEXTO ENCIMA */}
     <div className="flex flex-col sm:flex-row justify-center items-center gap-8 my-10">
         {[
@@ -82,7 +81,6 @@ const LandingClients = () => (
           </div>
         ))}
       </div>
-
 
     {/* FOOTER */}
     <footer className="bg-slate-800 text-white text-center py-8 px-4 mt-12 ">
@@ -107,6 +105,17 @@ const LandingClients = () => (
       </a>
     </div>
       </div>
+      
+      {/* Privacy Policy Link */}
+      <div className="mb-4">
+        <Link 
+          to="/privacy-policy" 
+          className="text-slate-300 hover:text-white underline text-sm transition-colors"
+        >
+          Privacy Policy
+        </Link>
+      </div>
+      
       <div className="text-base text-slate-300">
         &copy; {new Date().getFullYear()} Zurcher Construction. All rights reserved.
       </div>
