@@ -21,6 +21,8 @@ import GeneralExpenseScreen from '../screens/GeneralExpenseScreen';
 import AllMyWorksScreen from '../screens/AllMyWorksScreen';
 import MaintenanceOverviewScreen from '../screens/MaintenanceOverviewScreen';
 import MaintenanceWorkDetailScreen from '../screens/MaintenanceWorkDetailScreen';
+
+import NotificationBell from '../components/NotificationBell';
 // --- Context & Actions ---
 import { NotificationContext } from '../utils/notificationContext';
 import { logout } from '../Redux/features/authSlice';
@@ -31,27 +33,16 @@ const Drawer = createDrawerNavigator();
 // --- Componente para Header Derecho (Reutilizable) ---
 const AuthenticatedHeaderRight = () => {
   const navigation = useNavigation();
-  const notificationContext = useContext(NotificationContext);
-  const unreadCount = notificationContext?.unreadCount || 0;
 
 
 
   return (
     <View style={styles.headerRightContainer}>
-      {notificationContext && (
-        <TouchableOpacity
-          onPress={() => navigation.navigate("Notifications")} // Navega a la pantalla de Notificaciones del Stack principal
-          style={styles.headerButton}
-        >
-          <Ionicons name="notifications-outline" size={24} color="#1e3a8a" />
-          {unreadCount > 0 && (
-            <View style={styles.notificationBadge}>
-              <Text style={styles.badgeText}>{unreadCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      )}
-
+      <NotificationBell 
+        onPress={() => navigation.navigate("Notifications")}
+        size={24}
+        color="#1e3a8a"
+      />
     </View>
   );
 };
@@ -107,6 +98,7 @@ const AppDrawerNavigator = () => {
             component={HomeScreen} // <--- Usar HomeScreen en lugar de WorkScreen
             options={{ title: 'Resumen de Trabajos' }} // <--- Cambiar título si quieres
           />
+          
           <Drawer.Screen
             name="PendingWorks" // Nombre único
             component={PendingWorks}

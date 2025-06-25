@@ -13,12 +13,21 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "notification": {
+      "icon": "./assets/logo.png",
+      "color": "#1e3a8a",
+      "androidMode": "default",
+      "androidCollapsedTitle": "#{unread_notifications} nuevas notificaciones"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.zurcher.construction",
       "buildNumber": "4",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -26,7 +35,14 @@
         "foregroundImage": "./assets/logo.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.zurcher.construction"
+      "package": "com.zurcher.construction",
+      "permissions": [
+        "NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "WAKE_LOCK",
+        "android.permission.SCHEDULE_EXACT_ALARM"
+      ]
     },
     "web": {
       "bundler": "metro"
