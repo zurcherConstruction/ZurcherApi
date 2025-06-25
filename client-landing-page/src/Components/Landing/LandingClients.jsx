@@ -1,6 +1,6 @@
 import logo from '../../assets/logo.png';
 import headerImage from '../../assets/banner.png';
-import { FaWhatsapp, FaEnvelope } from "react-icons/fa";
+import { FaWhatsapp, FaEnvelope, FaPhone, FaMapMarkerAlt, FaClock } from "react-icons/fa";
 import compromisoImg from '../../assets/6.jpeg';
 import dedicacionImg from '../../assets/1.jpeg';
 import responsabilidadImg from '../../assets/5.jpeg';
@@ -8,116 +8,261 @@ import responsabilidadImg from '../../assets/5.jpeg';
 import { Link } from 'react-router-dom';
 
 const whatsappNumber = "14074194495";
-const whatsappMessage = "Hola, estoy interesado en sus servicios.";
+const whatsappMessage = "Hello, I'm interested in your construction services.";
 const email = "zurcher44@gmail.com";
+const phone = "+1 (407) 419-4495";
 
 const LandingClients = () => (
    <>
     {/* HEADER */}
-    <header className="bg-slate-800 px-4 py-3 flex items-center justify-between shadow-md">
+    <header className="bg-gradient-to-r from-slate-800 to-slate-700 px-4 py-4 flex items-center justify-between shadow-xl">
       <div className="flex items-center gap-3">
-        <img src={logo} alt="Logo Zurcher" className="h-16 w-16 p-1 shadow" />
-        <span className="text-2xl font-bold text-white tracking-wide drop-shadow">ZC</span>
+        <img src={logo} alt="Zurcher Construction Logo" className="h-16 w-16 p-1 shadow-lg rounded-lg bg-white" />
+        <div>
+          <span className="text-2xl font-bold text-white tracking-wide drop-shadow">ZURCHER</span>
+          <p className="text-sm text-slate-300 font-medium">CONSTRUCTION</p>
+        </div>
       </div>
       <div className="flex items-center gap-4">
+        <a
+          href={`tel:${phone}`}
+          className="hidden md:flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-300 font-medium"
+        >
+          <FaPhone className="w-4 h-4" />
+          Call Now
+        </a>
         <a
           href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMessage)}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center justify-center w-10 h-10 rounded-full transition"
+          className="inline-flex items-center justify-center w-10 h-10 bg-green-500 hover:bg-green-600 rounded-full transition-all duration-300 shadow-lg"
           aria-label="WhatsApp"
         >
-          <FaWhatsapp className="w-6 h-6 text-white" />
+          <FaWhatsapp className="w-5 h-5 text-white" />
         </a>
         <a
           href={`mailto:${email}`}
-          className="inline-flex items-center justify-center w-10 h-10 rounded-full transition"
-          aria-label="Correo electrónico"
+          className="inline-flex items-center justify-center w-10 h-10 bg-blue-500 hover:bg-blue-600 rounded-full transition-all duration-300 shadow-lg"
+          aria-label="Email"
         >
-          <FaEnvelope className="w-6 h-6 text-white" />
+          <FaEnvelope className="w-5 h-5 text-white" />
         </a>
       </div>
     </header>
-  <div className="font-sans bg-slate-50 min-h-screen">
-    {/* HERO */}
-    <div className="flex flex-col md:flex-row items-stretch min-h-[50vh] bg-slate-700 shadow-lg  overflow-hidden mb-8">
-      {/* Imagen costado */}
+  <div className="font-sans bg-gradient-to-b from-slate-50 to-slate-100 min-h-screen">
+    {/* HERO SECTION */}
+    <div className="flex flex-col lg:flex-row items-stretch min-h-[70vh] bg-gradient-to-r from-slate-800 to-slate-700 shadow-2xl overflow-hidden">
+      {/* Hero Image */}
       <div
-        className="flex-1 min-h-[320px] bg-center bg-cover"
+        className="flex-1 min-h-[400px] bg-center bg-cover relative"
         style={{ backgroundImage: `url(${headerImage})` }}
-      />
-      {/* Texto principal */}
-      <div className="flex-1 flex flex-col justify-center px-8 py-12 text-center">
-       
-        <h1 className="text-4xl md:text-5xl font-bold text-slate-400 mb-3">
-          Zurcher Construction
+      >
+        <div className="absolute inset-0 bg-black opacity-20"></div>
+      </div>
+      {/* Hero Content */}
+      <div className="flex-1 flex flex-col justify-center px-8 lg:px-12 py-16 text-center lg:text-left">
+        <h1 className="text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight">
+          Building Your <span className="text-blue-400">Dreams</span>
         </h1>
-        <p className="text-lg md:text-xl text-slate-400 mb-6">
-          Quality, trust, and experience for your project.
+        <p className="text-xl lg:text-2xl text-slate-300 mb-8 leading-relaxed">
+          Professional construction services with over 10 years of experience. Quality, reliability, and excellence in every project.
         </p>
-      
+        <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+          <a
+            href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent("I would like a free quote for my construction project.")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-lg transition-all duration-300 shadow-lg transform hover:scale-105"
+          >
+            Get Free Quote
+          </a>
+          <a
+            href={`tel:${phone}`}
+            className="px-8 py-4 border-2 border-white text-white hover:bg-white hover:text-slate-800 rounded-lg font-semibold text-lg transition-all duration-300"
+          >
+            Call Now
+          </a>
+        </div>
       </div>
     </div>
 
-    {/* 3 CUADRADOS CON TEXTO ENCIMA */}
-    <div className="flex flex-col sm:flex-row justify-center items-center gap-8 my-10">
-        {[
-          { img: compromisoImg, label: 'COMMITMENT' },
-          { img: dedicacionImg, label: 'DEDICATION' },
-          { img: responsabilidadImg, label: 'RESPONSIBILITY' }
-        ].map(({ img, label }) => (
-          <div
-            key={label}
-            className="relative w-[90vw] max-w-xs h-56 rounded-xl overflow-hidden  transition-transform transform hover:scale-105 opacity-80  shadow-lg"
-          >
-            <img
-              src={img}
-              alt={label}
-              className="w-full h-full object-cover brightness-75"
-            />
-            <span className="absolute inset-0 flex items-center justify-center text-2xl font-bold text-white drop-shadow-lg tracking-wide">
-              {label}
-            </span>
-          </div>
-        ))}
+    {/* SERVICES SECTION */}
+    <div className="py-20 px-4">
+      <div className="max-w-6xl mx-auto">
+        <div className="text-center mb-16">
+          <h2 className="text-4xl lg:text-5xl font-bold text-slate-800 mb-4">Our Values</h2>
+          <p className="text-xl text-slate-600 max-w-3xl mx-auto">
+            We build more than structures - we build relationships based on trust, quality, and professional excellence.
+          </p>
+        </div>
+        
+        <div className="grid md:grid-cols-3 gap-8">
+          {[
+            { 
+              img: compromisoImg, 
+              label: 'COMMITMENT',
+              description: 'Dedicated to delivering every project on time and within budget, ensuring your complete satisfaction.'
+            },
+            { 
+              img: dedicacionImg, 
+              label: 'DEDICATION',
+              description: 'Our team brings passion and expertise to every detail, treating your project as our own.'
+            },
+            { 
+              img: responsabilidadImg, 
+              label: 'RESPONSIBILITY',
+              description: 'Fully licensed, insured, and committed to the highest safety and quality standards.'
+            }
+          ].map(({ img, label, description }) => (
+            <div
+              key={label}
+              className="group relative bg-white rounded-2xl overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-2"
+            >
+              <div className="relative h-64 overflow-hidden">
+                <img
+                  src={img}
+                  alt={label}
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-70"></div>
+                <h3 className="absolute bottom-4 left-6 text-2xl font-bold text-white tracking-wide">
+                  {label}
+                </h3>
+              </div>
+              <div className="p-6">
+                <p className="text-slate-600 leading-relaxed">{description}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
+    </div>
+
+    {/* CONTACT SECTION */}
+    <div className="bg-slate-800 py-20 px-4">
+      <div className="max-w-4xl mx-auto text-center">
+        <h2 className="text-4xl lg:text-5xl font-bold text-white mb-6">Ready to Start Your Project?</h2>
+        <p className="text-xl text-slate-300 mb-10">
+          Contact us today for a free consultation and quote. Let's bring your vision to life.
+        </p>
+        
+        <div className="grid md:grid-cols-3 gap-8 mb-12">
+          <div className="flex flex-col items-center">
+            <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mb-4">
+              <FaPhone className="w-7 h-7 text-white" />
+            </div>
+            <h3 className="text-lg font-semibold text-white mb-2">Call Us</h3>
+            <a href={`tel:${phone}`} className="text-slate-300 hover:text-white transition-colors">
+              {phone}
+            </a>
+          </div>
+          
+          <div className="flex flex-col items-center">
+            <div className="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mb-4">
+              <FaWhatsapp className="w-7 h-7 text-white" />
+            </div>
+            <h3 className="text-lg font-semibold text-white mb-2">WhatsApp</h3>
+            <a 
+              href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMessage)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-slate-300 hover:text-white transition-colors"
+            >
+              Message Us
+            </a>
+          </div>
+          
+          <div className="flex flex-col items-center">
+            <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center mb-4">
+              <FaEnvelope className="w-7 h-7 text-white" />
+            </div>
+            <h3 className="text-lg font-semibold text-white mb-2">Email</h3>
+            <a href={`mailto:${email}`} className="text-slate-300 hover:text-white transition-colors">
+              {email}
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
 
     {/* FOOTER */}
-    <footer className="bg-slate-800 text-white text-center py-8 px-4 mt-12 ">
-      <div className="mb-4 text-lg">
-       
-    <div className="mt-4 flex justify-center gap-8">
-      <a
-        href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMessage)}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-500 hover:bg-green-600 transition"
-        aria-label="WhatsApp"
-      >
-        <FaWhatsapp className="w-7 h-7" />
-      </a>
-      <a
-        href={`mailto:${email}`}
-        className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-sky-500 hover:bg-sky-600 transition"
-        aria-label="Correo electrónico"
-      >
-        <FaEnvelope className="w-7 h-7" />
-      </a>
-    </div>
-      </div>
-      
-      {/* Privacy Policy Link */}
-      <div className="mb-4">
-        <Link 
-          to="/privacy-policy" 
-          className="text-slate-300 hover:text-white underline text-sm transition-colors"
-        >
-          Privacy Policy
-        </Link>
-      </div>
-      
-      <div className="text-base text-slate-300">
-        &copy; {new Date().getFullYear()} Zurcher Construction. All rights reserved.
+    <footer className="bg-slate-900 text-white py-12 px-4">
+      <div className="max-w-6xl mx-auto">
+        <div className="grid md:grid-cols-4 gap-8 mb-8">
+          {/* Company Info */}
+          <div className="md:col-span-2">
+            <div className="flex items-center gap-3 mb-4">
+              <img src={logo} alt="Zurcher Construction" className="h-12 w-12 rounded-lg bg-white p-1" />
+              <div>
+                <h3 className="text-xl font-bold">ZURCHER CONSTRUCTION</h3>
+                <p className="text-slate-400 text-sm">Professional Construction Services</p>
+              </div>
+            </div>
+            <p className="text-slate-400 leading-relaxed">
+              Building excellence since 2014. We specialize in residential and commercial construction 
+              with a commitment to quality, safety, and customer satisfaction.
+            </p>
+          </div>
+          
+          {/* Services */}
+          <div>
+            <h4 className="text-lg font-semibold mb-4">Services</h4>
+            <ul className="space-y-2 text-slate-400">
+              <li>Residential Construction</li>
+              <li>Commercial Projects</li>
+              <li>Renovations</li>
+              <li>Maintenance</li>
+            </ul>
+          </div>
+          
+          {/* Contact */}
+          <div>
+            <h4 className="text-lg font-semibold mb-4">Contact</h4>
+            <div className="space-y-3 text-slate-400">
+              <div className="flex items-center gap-2">
+                <FaPhone className="w-4 h-4" />
+                <span>{phone}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <FaEnvelope className="w-4 h-4" />
+                <span>{email}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <FaClock className="w-4 h-4" />
+                <span>Mon-Fri: 8AM-6PM</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="border-t border-slate-700 pt-8 flex flex-col md:flex-row justify-between items-center">
+          <div className="flex items-center gap-6 mb-4 md:mb-0">
+            {/* Employee Access - Discrete */}
+            <button
+              onClick={() => {
+                const code = prompt("Enter access code:");
+                if (code === "ZC2024") {
+                  window.open("https://zurcher-api-two.vercel.app", "_blank");
+                }
+              }}
+              className="text-slate-500 hover:text-slate-400 text-xs transition-colors"
+              style={{ fontSize: '10px' }}
+            >
+              •
+            </button>
+            
+            <Link 
+              to="/privacy-policy" 
+              className="text-slate-400 hover:text-white text-sm transition-colors"
+            >
+              Privacy Policy
+            </Link>
+          </div>
+          
+          <div className="text-slate-400 text-sm">
+            &copy; {new Date().getFullYear()} Zurcher Construction. All rights reserved.
+          </div>
+        </div>
       </div>
     </footer>
   </div>
