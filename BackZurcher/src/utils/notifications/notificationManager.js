@@ -73,14 +73,20 @@ const sendNotifications = async (status, work, budget, io) => {
            console.log(`Preparando push para ${staffMember.id} (Token: ${pushToken}), Badge: ${unreadCount}`);
 
            // Añadir al array de mensajes a enviar
-           messagesToSend.push({
-             to: pushToken,
-             sound: 'default',
-             title: notificationRecord.title, // Usar título guardado
-             body: notificationRecord.message, // Usar mensaje guardado
-             data: { notificationId: notificationRecord.id }, // Datos extra si los necesitas en la app
-             badge: unreadCount, // *** INCLUIR BADGE COUNT ***
-           });
+          messagesToSend.push({
+        to: pushToken,
+        sound: 'default',
+        title: notificationRecord.title,
+        body: notificationRecord.message,
+        data: { 
+            notificationId: notificationRecord.id,
+            staffId: staffMember.id,
+            type: 'workUpdate'
+        },
+        badge: unreadCount + 1, // +1 porque esta notificación aún no se ha contado
+        priority: 'high', // Asegurar alta prioridad
+        channelId: 'default', // Para Android
+    });
          } else {
            console.warn(`Usuario ${staffMember.id} no tiene un push token válido.`);
          }

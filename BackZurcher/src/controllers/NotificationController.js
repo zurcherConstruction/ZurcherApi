@@ -118,6 +118,51 @@ const markAsRead = async (req, res) => {
     console.error('Error al marcar la notificación como leída:', error);
     res.status(500).json({ error: true, message: 'Error interno del servidor.' });
   }
+
 };
 
-module.exports = { createNotification, getNotifications, markAsRead };
+const markAllAsRead = async (req, res) => {
+  try {
+    const { staffId } = req.params;
+
+    console.log('markAllAsRead called with staffId:', staffId); // Debug log
+
+    // Validar que staffId sea un UUID
+    if (!/^[0-9a-fA-F-]{36}$/.test(staffId)) {
+      return res.status(400).json({ error: true, message: 'El ID del staff no es válido.' });
+    }
+
+    // Actualizar todas las notificaciones no leídas del usuario
+    const [updatedCount] = await Notification.update(
+      { isRead: true },
+      { 
+        where: { 
+          staffId: staffId,
+          isRead: false 
+        } 
+      }
+    );
+
+    console.log(`${updatedCount} notificaciones marcadas como leídas para staffId: ${staffId}`);
+
+    // Obtener el nuevo conteo de notificaciones no leídas (debería ser 0)
+    const unreadCount = await Notification.count({
+      where: { 
+        staffId: staffId,
+        isRead: false 
+      }
+    });
+
+    res.status(200).json({ 
+      error: false, 
+      message: `${updatedCount} notificaciones marcadas como leídas.`,
+      updatedCount,
+      unreadCount
+    });
+  } catch (error) {
+    console.error('Error al marcar todas las notificaciones como leídas:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor.' });
+  }
+};
+
+module.exports = { createNotification, getNotifications, markAsRead, markAllAsRead };

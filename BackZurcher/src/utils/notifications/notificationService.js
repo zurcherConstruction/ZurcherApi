@@ -55,23 +55,23 @@ const stateNotificationMap = {
     message: (work) => `El trabajo con dirección ${work.propertyAddress} está pendiente de la primera inspección. Esperando respuesta del inspector.`,
   },
   approvedInspection: {
-    roles: ['worker', 'admin','owner'], 
+    roles: [ 'admin','owner'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha pasado la inspección inicial. Por favor, procede con las tareas asignadas.`,
   },
   rejectedInspection: {
-    roles: ['admin','recept','owner'], 
+    roles: ['admin','owner'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido rechazado en la inspección inicial. Por favor, revisa los detalles y toma las medidas necesarias.`,
   },
    reinspection_initial_requested: { // Added new status
-    roles: ['admin', 'recept', 'owner'], // Define appropriate roles
+    roles: ['admin', 'owner'], // Define appropriate roles
     message: (work, context) => `Se ha solicitado una reinspección inicial para la obra en ${work.propertyAddress}. Inspección ID: ${context?.inspectionId || 'N/A'}.`,
   },
   completed: {
-    roles: ['owner', 'admin', 'recept'], 
+    roles: ['owner', 'admin'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido completado. Por favor, revisa el estado final.`,
   },
   coverPending: {
-    roles: ['owner', 'worker', 'recept'], 
+    roles: ['owner', 'worker', 'admin'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} esta listo para ser tapado.`,
   },
   covered: {
@@ -79,23 +79,23 @@ const stateNotificationMap = {
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido Tapado. Por favor, revisa los detalles y envía el Invoice Final.`,
   },
   finalInspectionPending: {
-    roles: ['recept'], 
+    roles: ['admin', 'owner'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} está pendiente de la inspección final. Por favor, coordina con el inspector.`,
   },
   finalApproved: {
-    roles: ['owner', 'recept', 'admin'], 
+    roles: ['owner',  'admin'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido aprobado en la inspección final. El proyecto está completo.`,
   },
   finalRejected: {
-    roles: ['admin', 'recept'], 
+    roles: ['admin', 'owner'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido rechazado en la inspección final. Por favor, revisa los detalles.`,
   },
     reinspection_final_requested: { // Added new status
-    roles: ['admin', 'recept', 'owner'], // Define appropriate roles
+    roles: ['admin', 'owner'], // Define appropriate roles
     message: (work, context) => `Se ha solicitado una reinspección final para la obra en ${work.propertyAddress}. Inspección ID: ${context?.inspectionId || 'N/A'}.`,
   },
   maintenance: {
-    roles: ['owner'], 
+    roles: ['owner', 'admin'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} está en mantenimiento. Por favor, realiza las tareas asignadas.`,
   },
   budgetCreated: {
@@ -107,7 +107,7 @@ const stateNotificationMap = {
     message: (work) => `El presupuesto para la dirección ${work.propertyAddress} ha sido enviado al cliente.`,
   },
    budgetSentToSignNow: {
-    roles: ['admin', 'owner', 'recept'],
+    roles: ['admin', 'owner'],
     message: (data) => `El presupuesto #${data.idBudget} para la dirección ${data.propertyAddress} ha sido enviado a ${data.applicantName} (${data.applicantEmail}) para su firma digital a través de SignNow.`
   },
   incomeCreated: {
