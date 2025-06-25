@@ -15,6 +15,10 @@ const whatsappMessage = "Hello, I'm interested in your septic system services.";
 const email = "zurcher44@gmail.com";
 const phone = "+1 (407) 419-4495";
 
+// Very simple email configuration
+const emailSubject = "Quote Request";
+const emailBody = "Hello, I need a quote for septic services.";
+
 const LandingClients = () => (
    <>
     {/* HEADER */}
@@ -203,9 +207,15 @@ const LandingClients = () => (
               <FaEnvelope className="w-7 h-7 text-white" />
             </div>
             <h3 className="text-lg font-semibold text-white mb-2">Email</h3>
-            <a href={`mailto:${email}`} className="text-slate-300 hover:text-white transition-colors">
+            <button 
+              onClick={() => {
+                navigator.clipboard.writeText(email);
+                alert('Email copied to clipboard!');
+              }}
+              className="text-slate-300 hover:text-white transition-colors cursor-pointer"
+            >
               {email}
-            </a>
+            </button>
           </div>
         </div>
       </div>
