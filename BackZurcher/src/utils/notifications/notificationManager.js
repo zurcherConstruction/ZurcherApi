@@ -86,6 +86,17 @@ const sendNotifications = async (status, work, budget, io) => {
         badge: unreadCount + 1, // +1 porque esta notificación aún no se ha contado
         priority: 'high', // Asegurar alta prioridad
         channelId: 'default', // Para Android
+         ios: {
+            sound: 'default',
+            badge: unreadCount + 1,
+            _displayInForeground: true,
+        },
+        // Para Android específicamente  
+        android: {
+            sound: 'default',
+            priority: 'high',
+            channelId: 'default',
+        }
     });
          } else {
            console.warn(`Usuario ${staffMember.id} no tiene un push token válido.`);

@@ -8,6 +8,9 @@ Notifications.setNotificationHandler({
         shouldShowAlert: true,
         shouldPlaySound: true,
         shouldSetBadge: true, // Importante para iOS
+         ...(Platform.OS === 'ios' && {
+            sound: true,
+        }),
     }),
 });
 
@@ -30,7 +33,25 @@ export const registerForPushNotificationsAsync = async () => {
         let finalStatus = existingStatus;
 
         if (existingStatus !== 'granted') {
-            const { status } = await Notifications.requestPermissionsAsync();
+            // Para iOS, solicitar permisos específicos de una vez
+            const { status } = await Notifications.requestPermissionsAsync({
+                ios: {
+                    allowAlert: true,
+                    allowBadge: true,
+                    allowSound: true,
+                    allowDisplayInCarPlay: true,
+                    allowCriticalAlerts: false,
+                    allowProvisional: false,
+                    allowAnnouncements: true,
+                    providesAppNotificationSettings: false,
+                },
+                android: {
+                    allowAlert: true,
+                    allowBadge: true,
+                    allowSound: true,
+                    allowDisplayInCarPlay: true,
+                },
+            });
             finalStatus = status;
         }
 
@@ -39,19 +60,19 @@ export const registerForPushNotificationsAsync = async () => {
             return null;
         }
 
-        // Para iOS, también solicitar permisos de badge
+        // Verificar específicamente el permiso de sonido para iOS
         if (Platform.OS === 'ios') {
-            await Notifications.requestPermissionsAsync({
-                ios: {
-                    allowAlert: true,
-                    allowBadge: true,
-                    allowSound: true,
-                    allowAnnouncements: true,
-                },
-            });
+            const permissions = await Notifications.getPermissionsAsync();
+            console.log('Permisos de notificación iOS:', permissions);
+            
+            if (!permissions.ios?.allowsSound) {
+                console.warn('Permisos de sonido no otorgados en iOS');
+            }
         }
 
-        const token = (await Notifications.getExpoPushTokenAsync()).data;
+        const token = (await Notifications.getExpoPushTokenAsync({
+            projectId: '12f004e9-48c9-4c45-b2b8-d68a1228bcdf' // Tu project ID de app.json
+        })).data;
         console.log('Token de notificación:', token);
         return token;
     } else {
@@ -60,15 +81,17 @@ export const registerForPushNotificationsAsync = async () => {
     }
 };
 
-// Mostrar una notificación local
+// Mostrar una notificación local (para testing)
 export const showNotification = async (title, body, badge = null) => {
     await Notifications.scheduleNotificationAsync({
         content: {
             title: title,
             body: body,
-            sound: 'default',
+            sound: Platform.OS === 'ios' ? 'default' : 'default',
             badge: badge,
-            priority: Notifications.AndroidImportance.HIGH,
+            ...(Platform.OS === 'android' && {
+                priority: Notifications.AndroidImportance.HIGH,
+            }),
         },
         trigger: null, // Inmediatamente
     });
@@ -88,4 +111,13 @@ export const updateBadgeCount = async (count) => {
 export const clearAllNotifications = async () => {
     await Notifications.dismissAllNotificationsAsync();
     await Notifications.setBadgeCountAsync(0);
+};
+
+// Función para probar sonido de notificación local
+export const testNotificationSound = async () => {
+    await showNotification(
+        'Prueba de Sonido',
+        'Esta es una notificación de prueba para verificar el sonido',
+        1
+    );
 };
