@@ -17,17 +17,23 @@
       "icon": "./assets/logo.png",
       "color": "#1e3a8a",
       "androidMode": "default",
-      "androidCollapsedTitle": "#{unread_notifications} nuevas notificaciones"
+      "androidCollapsedTitle": "#{unread_notifications} nuevas notificaciones",
+      "iosDisplayInForeground": true
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.zurcher.construction",
-      "buildNumber": "4",
+      "buildNumber": "5",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
           "remote-notification"
-        ]
+        ],
+        "UNUserNotificationCenter": {
+          "UNAuthorizationOptionAlert": true,
+          "UNAuthorizationOptionBadge": true,
+          "UNAuthorizationOptionSound": true
+        }
       }
     },
     "android": {
