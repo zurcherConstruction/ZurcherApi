@@ -191,7 +191,7 @@ class SignNowService {
         message: `Hi ${signerName || 'there'}, please review and sign this budget document from Zurcher Construction. Thank you!`,
         language: "en",
         redirect_target: "blank",
-        redirect_uri: process.env.FRONTEND_URL2 || "https://zurcher-api-fvus.vercel.app/"
+        redirect_uri: process.env.FRONTEND_URL || "https://zurcher-api-two.vercel.app/"
       };
 
       console.log('📤 Datos de FREEFORM INVITE (formato oficial):');
