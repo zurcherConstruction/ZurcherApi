@@ -22,11 +22,11 @@ module.exports = {
   NODE_ENV: process.env.NODE_ENV,
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
   API_URL: process.env.API_URL,
-  FRONTEND_URL2: process.env.FRONTEND_URL2,
   ADOBE_CLIENT_ID: process.env.ADOBE_CLIENT_ID,
   ADOBE_CLIENT_SECRET: process.env.ADOBE_CLIENT_SECRET,
   ADOBE_TECHNICAL_ACCOUNT_ID: process.env.ADOBE_TECHNICAL_ACCOUNT_ID,
   ADOBE_PRIVATE_KEY: process.env.ADOBE_PRIVATE_KEY,
+  
  
 
 };
