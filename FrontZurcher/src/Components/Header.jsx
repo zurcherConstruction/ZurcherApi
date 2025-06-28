@@ -18,7 +18,7 @@ const Header = () => {
   const handleLogout = () => {
     if (window.confirm("¿Estás seguro de que deseas cerrar sesión?")) {
       dispatch(logoutStaff());
-      navigate("/login");
+      navigate("/");
     }
   };
 

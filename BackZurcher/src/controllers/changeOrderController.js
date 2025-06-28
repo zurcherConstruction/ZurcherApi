@@ -230,7 +230,7 @@ const sendChangeOrderToClient = async (req, res) => {
     const rejectionToken = uuidv4();
     changeOrder.approvalToken = approvalToken;
     changeOrder.rejectionToken = rejectionToken;
-    const frontendBaseUrl = process.env.FRONTEND_URL2 || 'http://localhost:5174'; 
+    const frontendBaseUrl = process.env.FRONTEND_URL || 'http://localhost:5173'; 
 
     const approvalLink = `${frontendBaseUrl}/change-order-response?token=${approvalToken}&decision=approved&coId=${changeOrder.id}`;
     const rejectionLink = `${frontendBaseUrl}/change-order-response?token=${rejectionToken}&decision=rejected&coId=${changeOrder.id}`;
