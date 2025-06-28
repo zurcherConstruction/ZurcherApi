@@ -20,9 +20,17 @@ const ChangeOrderResponsePage = () => {
       if (token && decision && coId) {
         const apiUrlFromEnv = import.meta.env.VITE_API_URL || 'https://zurcherapi.up.railway.app';
         const backendApiUrl = `${apiUrlFromEnv}/change-orders/respond`;
+        
+        console.log('🔗 Llamando al backend:', backendApiUrl);
+        console.log('📊 Parámetros:', { token: token?.substring(0,8) + '...', decision, coId });
 
         try {
-          const response = await axios.get(backendApiUrl, { params: { token, decision, coId } });
+          console.log('🚀 Enviando petición al backend...');
+          const response = await axios.get(backendApiUrl, { 
+            params: { token, decision, coId },
+            timeout: 30000 // 30 segundos timeout
+          });
+          console.log('✅ Respuesta del backend:', response.data);
           if (isMounted) {
             if (response.data && response.data.success) {
               setMessage(response.data.message || '¡Operación exitosa!');
@@ -33,6 +41,13 @@ const ChangeOrderResponsePage = () => {
             }
           }
         } catch (err) {
+          console.error('❌ Error al llamar al backend:', err);
+          console.error('📊 Error details:', {
+            message: err.message,
+            status: err.response?.status,
+            data: err.response?.data,
+            url: backendApiUrl
+          });
           if (isMounted) {
             let errorMessage = 'Ocurrió un error al procesar su solicitud.';
             if (err.response) {
