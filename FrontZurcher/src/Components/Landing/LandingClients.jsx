@@ -1,182 +1,19 @@
 import React, { useState } from 'react';
-import logo from '../../assets/logo.png';
-import headerImage from '../../assets/banner.png';
-import { FaWhatsapp, FaEnvelope, FaPhone, FaMapMarkerAlt, FaClock, FaUser, FaTimes, FaEye, FaEyeSlash } from "react-icons/fa";
-import compromisoImg from '../../assets/6.jpeg';
-import dedicacionImg from '../../assets/1.jpeg';
-import responsabilidadImg from '../../assets/5.jpeg';
-import img1 from '../../assets/8.jpeg';
-import img3 from '../../assets/10.jpeg';
-import img2 from '../../assets/9.jpeg';
-// Add Link import for navigation
+import { FaWhatsapp, FaEnvelope, FaPhone, FaMapMarkerAlt, FaClock, FaUser } from "react-icons/fa";
+import logo from '/logo.png';
+import compromisoImg from '../../assets/landing/6.jpeg';
+import dedicacionImg from '../../assets/landing/1.jpeg';
+import responsabilidadImg from '../../assets/landing/5.jpeg';
+import img1 from '../../assets/landing/8.jpeg';
+import img3 from '../../assets/landing/10.jpeg';
+import img2 from '../../assets/landing/9.jpeg';
 import { Link } from 'react-router-dom';
+import LoginPopup from '../Auth/LoginPopup';
 
 const whatsappNumber = "14074194495";
 const whatsappMessage = "Hello, I'm interested in your septic system services.";
 const email = "zurcher44@gmail.com";
 const phone = "+1 (407) 419-4495";
-
-// Very simple email configuration
-const emailSubject = "Quote Request";
-const emailBody = "Hello, I need a quote for septic services.";
-
-// Login Modal Component
-const LoginModal = ({ isOpen, onClose }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError('');
-
-    try {
-      // Usar la misma estructura que tu FrontZurcher
-      const response = await fetch('http://localhost:3001/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (response.ok) {
-        const responseData = await response.json();
-        
-        // La respuesta del backend tiene la estructura: { error: false, data: { token, staff } }
-        const { token, staff } = responseData.data;
-        
-        // Guardar token y staff en localStorage (igual que en FrontZurcher)
-        localStorage.setItem('token', token);
-        localStorage.setItem('staff', JSON.stringify(staff));
-        
-        // Construir la URL del FrontZurcher con el token
-        const frontendUrl = 'http://localhost:5173';
-        
-        // Abrir en nueva pestaña y cerrar modal
-        window.open(`${frontendUrl}/progress-tracker`, '_blank');
-        onClose();
-        
-        // Limpiar formulario
-        setEmail('');
-        setPassword('');
-      } else {
-        const errorData = await response.json();
-        setError(errorData.message || 'Error al iniciar sesión');
-      }
-    } catch (err) {
-      console.error('Login error:', err);
-      setError('Error de conexión. Intente nuevamente.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <img src={logo} alt="Zurcher Logo" className="h-12 w-12 rounded-lg bg-white p-1" />
-            <div>
-              <h2 className="text-xl font-bold text-slate-800">Employee Access</h2>
-              <p className="text-sm text-slate-500">Zurcher Construction</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
-            aria-label="Close"
-          >
-            <FaTimes className="w-4 h-4 text-gray-500" />
-          </button>
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handleLogin} className="p-6 space-y-4">
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-600 text-sm">{error}</p>
-            </div>
-          )}
-
-          {/* Email Input */}
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-              Email
-            </label>
-            <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              placeholder="your.email@company.com"
-              required
-            />
-          </div>
-
-          {/* Password Input */}
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-              Password
-            </label>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                id="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 pr-10"
-                placeholder="••••••••"
-                required
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                aria-label="Toggle password visibility"
-              >
-                {showPassword ? <FaEyeSlash className="w-4 h-4" /> : <FaEye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-
-          {/* Login Button */}
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-blue-950 hover:bg-blue-900 text-white font-semibold py-3 px-4 rounded-md transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
-          >
-            {isLoading ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                Signing in...
-              </>
-            ) : (
-              'Sign In'
-            )}
-          </button>
-        </form>
-
-        {/* Footer */}
-        <div className="px-6 pb-6">
-          <p className="text-xs text-gray-500 text-center">
-            This portal is for authorized employees only.
-            <br />
-            Contact your administrator if you need access.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const LandingClients = () => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -459,7 +296,7 @@ const LandingClients = () => {
     </footer>
 
     {/* Login Modal */}
-    <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
+    <LoginPopup isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
   </div>
   </>
 );

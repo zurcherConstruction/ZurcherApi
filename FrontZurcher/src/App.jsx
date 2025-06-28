@@ -18,7 +18,7 @@ import Register from "./Components/Auth/Register";
 import Dashboard from "./Components/Dashboard/Dashboard";
 import NotFound from "./Components/NotFound";
 import Unauthorized from "./Components/Auth/Unauthorized";
-import Landing from "./Components/Landing";
+//import Landing from "./Components/Landing";
 import PdfReceipt from "./Components/PdfReceipt";
 import BarraLateral from "./Components/Dashboard/BarraLateral";
 import BudgetList from "./Components/Budget/BudgetList";
@@ -46,6 +46,11 @@ import ItemsBudgets from "./Components/Budget/ItemsBudgets";
 import EditBudget from "./Components/Budget/EditBudget";
 import Summary from "./Components/Summary";
 import GestionBudgets from "./Components/Budget/GestionBudgets";
+// Importar componentes de la Landing
+import LandingClients from "./Components/Landing/LandingClients";
+import ThankYou from "./Components/Landing/ThankYou";
+import ChangeOrderResponsePage from "./Components/Landing/ChangeOrderResponsePage";
+import PrivacyPolicy from "./Components/PrivacyPolicy";
 
 
 function App() {
@@ -61,10 +66,14 @@ function App() {
   }, [dispatch]);
 
   useEffect(() => {
-    // Redirigir al dashboard si el usuario está autenticado y está en la página de login o landing
-    if (isAuthenticated && location.pathname === "/") {
-      navigate("/progress-tracker");
-    }
+    // Lista de rutas públicas que no requieren redirección automática
+    const publicRoutes = ["/", "/thank-you", "/change-order-response", "/privacy-policy", "/login", "/forgot-password"];
+    const isPublicRoute = publicRoutes.some(route => 
+      location.pathname === route || location.pathname.startsWith("/reset-password")
+    );
+    
+    // No redirigir automáticamente desde la landing principal
+    // Los usuarios usarán el login modal para acceder al dashboard
   }, [isAuthenticated, location.pathname, navigate]);
 
   if (!isSessionRestored) {
@@ -73,17 +82,28 @@ function App() {
     </div>;
   }
 
+  // Determinar si estamos en una ruta pública de la landing
+  const publicLandingRoutes = ["/", "/thank-you", "/change-order-response", "/privacy-policy"];
+  const isPublicLandingRoute = publicLandingRoutes.includes(location.pathname);
+  
+  // Determinar si mostrar header y sidebar
+  const shouldShowLayout = isAuthenticated && !isPublicLandingRoute;
+
   return (
     <>
-      {isAuthenticated && <Header />}
+      {shouldShowLayout && <Header />}
       <LoadingSpinner />
-      <div className={`flex ${isAuthenticated ? "pt-16 md:pt-20" : ""} min-h-screen bg-gray-50`}>
-        {isAuthenticated && <BarraLateral />}
+      <div className={`flex ${shouldShowLayout ? "pt-16 md:pt-20" : ""} min-h-screen bg-gray-50`}>
+        {shouldShowLayout && <BarraLateral />}
         <div className="flex-1 w-full overflow-x-hidden">
-          <div className="w-full max-w-none px-2 sm:px-4 md:px-6 lg:px-8 py-4 md:py-6">
+          <div className={`w-full max-w-none ${shouldShowLayout ? "px-2 sm:px-4 md:px-6 lg:px-8 py-4 md:py-6" : ""}`}>
             <Routes>
-            {/* Ruta pública */}
-            <Route path="/" element={<Landing />} />
+            {/* Rutas públicas */}
+            <Route path="/" element={<LandingClients />} />
+           
+            <Route path="/thank-you" element={<ThankYou />} />
+            <Route path="/change-order-response" element={<ChangeOrderResponsePage />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
            
             {/* Rutas privadas */}
             <Route

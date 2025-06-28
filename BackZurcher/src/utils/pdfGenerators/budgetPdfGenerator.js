@@ -561,8 +561,8 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
           quantity: 1,
         }],
         mode: 'payment',
-        success_url: 'https://zurcher-api-fvus.vercel.app/',
-        cancel_url: 'https://zurcher-api-fvus.vercel.app/',
+        success_url: 'https://zurcher-api-two.vercel.app/',
+        cancel_url: 'https://zurcher-api-two.vercel.app/',
         ...(clientEmailFromPermit && { customer_email: clientEmailFromPermit }),
         metadata: { internal_budget_id: budgetData.idBudget, payment_type: 'invoice_payment' }
       });
