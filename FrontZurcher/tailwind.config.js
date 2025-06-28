@@ -17,7 +17,15 @@ export const theme = {
       customPink: "#059669",
       textWhite: "white",
       footer: "#49465a",
-      dash:"#f6d02c"
+      dash:"#f6d02c",
+      gray: {
+        750: '#374151',
+        850: '#1f2937',
+      }
+    },
+    zIndex: {
+      '60': '60',
+      '70': '70',
     },
     animation: {
       'blink-soft': 'blink-soft 1.5s linear infinite',
