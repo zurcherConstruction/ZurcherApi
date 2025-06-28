@@ -4,6 +4,16 @@ import { fetchWorks } from "../../Redux/Actions/workActions"; // Acción para ob
 import { createReceipt } from "../../Redux/Actions/receiptActions"; // Acción para crear comprobantes
 import { incomeActions, expenseActions } from "../../Redux/Actions/balanceActions"; // Acciones para Income y Expense
 import { toast } from "react-toastify";
+import {
+  DocumentTextIcon,
+  CurrencyDollarIcon,
+  BuildingOffice2Icon,
+  ExclamationTriangleIcon,
+  CheckCircleIcon,
+  InformationCircleIcon,
+  PaperClipIcon,
+  ArrowUpTrayIcon
+} from "@heroicons/react/24/outline";
 
 const incomeTypes = [
   "Factura Pago Final Budget",
@@ -207,242 +217,358 @@ const AttachReceipt = () => {
 
 
   return (
-    <div className="p-4 bg-white shadow-md rounded-lg max-w-lg mx-auto"> {/* Aumentado max-w-lg */}
-      <h2 className="text-xl font-bold mb-6 text-center">Adjuntar Comprobante</h2>
-
-      {loading && <p className="text-center text-blue-500">Cargando obras...</p>}
-      {worksError && <p className="text-center text-red-500">Error al cargar obras: {typeof worksError === 'object' ? JSON.stringify(worksError) : worksError}</p>}
-
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label htmlFor="work" className="block text-gray-700 text-sm font-bold mb-2">
-            Seleccionar Obra:
-          </label>
-          <select
-            id="work"
-            value={selectedWork}
-            onChange={(e) => setSelectedWork(e.target.value)}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-          >
-            <option value="">Seleccione una obra</option>
-            {works && works.map((work) => {
-              // Mostrar obras que pueden necesitar comprobantes de pago
-              const canAttachPayment = ['invoiceFinal', 'paymentReceived'].includes(work.status);
-              const hasUnpaidInvoice = work.finalInvoice && work.finalInvoice.status !== 'paid';
-
-              // Mostrar todas las obras, pero destacar las relevantes para pagos
-              return (
-                <option key={work.idWork} value={work.idWork}>
-                  {work.propertyAddress}
-                  {canAttachPayment && hasUnpaidInvoice ? ' 💰' : ''}
-                  {work.status === 'paymentReceived' ? ' (Pago Recibido)' : ''}
-                </option>
-              );
-            })}
-          </select>
-        </div>
-
-        {selectedWork && currentWorkDetails && (
-  <div className="my-4 p-3 border border-gray-300 rounded bg-gray-50">
-    <h5 className="text-sm font-semibold text-gray-700 mb-2">📊 Estado de la Obra</h5>
-    <p className="text-xs"><strong>Obra:</strong> {currentWorkDetails.propertyAddress}</p>
-    <p className="text-xs"><strong>Estado:</strong> 
-      <span className={`ml-1 px-2 py-1 rounded text-xs ${
-        currentWorkDetails.status === 'paymentReceived' ? 'bg-green-100 text-green-800' :
-        currentWorkDetails.status === 'invoiceFinal' ? 'bg-blue-100 text-blue-800' :
-        'bg-gray-100 text-gray-800'
-      }`}>
-        {currentWorkDetails.status}
-      </span>
-    </p>
-    
-    {/* ALERTA PARA FACTURA FINAL FALTANTE */}
-    {type === "Factura Pago Final Budget" && !currentWorkDetails.finalInvoice && (
-      <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-        <div className="flex items-start">
-          <svg className="w-5 h-5 text-yellow-400 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-          </svg>
-          <div>
-            <p className="text-sm font-medium text-yellow-800">
-              ⚠️ Factura Final no encontrada
-            </p>
-            <p className="text-xs text-yellow-700 mt-1">
-              Para poder registrar el pago final, primero debes <strong>generar la Factura Final</strong> de esta obra.
-            </p>
-            <p className="text-xs text-yellow-600 mt-2">
-              📋 <strong>Pasos a seguir:</strong>
-            </p>
-            <ol className="text-xs text-yellow-600 mt-1 ml-4 list-decimal">
-              <li>Ve al detalle de la obra</li>
-              <li>Busca la sección "Factura Final"</li>
-              <li>Haz clic en "Generar Factura Final"</li>
-              <li>Luego podrás registrar el comprobante de pago aquí</li>
-            </ol>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8">
+      <div className="max-w-2xl mx-auto px-4">
+        {/* Header Card */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+          <div className="flex items-center space-x-3 mb-2">
+            <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg">
+              <PaperClipIcon className="h-6 w-6 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-800">Adjuntar Comprobante</h2>
           </div>
-        </div>
-      </div>
-    )}
-
-    {/* ALERTA PARA ESTADO INCORRECTO */}
-    {type === "Factura Pago Final Budget" && currentWorkDetails.finalInvoice && 
-     !['invoiceFinal', 'paymentReceived'].includes(currentWorkDetails.status) && (
-      <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-md">
-        <div className="flex items-start">
-          <svg className="w-5 h-5 text-orange-400 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-          </svg>
-          <div>
-            <p className="text-sm font-medium text-orange-800">
-              ℹ️ Estado no óptimo para pago
-            </p>
-            <p className="text-xs text-orange-700 mt-1">
-              La obra debería estar en estado <strong>"Factura Final"</strong> o <strong>"Pago Recibido"</strong> para procesar pagos.
-            </p>
-            <p className="text-xs text-orange-600 mt-1">
-              Estado actual: <strong>{currentWorkDetails.status}</strong>
-            </p>
-          </div>
-        </div>
-      </div>
-    )}
-
-    {/* ALERTA DE FACTURA YA PAGADA */}
-    {type === "Factura Pago Final Budget" && currentWorkDetails.finalInvoice?.status === 'paid' && (
-      <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-md">
-        <div className="flex items-start">
-          <svg className="w-5 h-5 text-green-400 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-          </svg>
-          <div>
-            <p className="text-sm font-medium text-green-800">
-              ✅ Factura completamente pagada
-            </p>
-            <p className="text-xs text-green-700 mt-1">
-              La Factura Final de esta obra ya está marcada como pagada completamente.
-            </p>
-          </div>
-        </div>
-      </div>
-    )}
-  </div>
-)}
-
-        <div>
-          <label htmlFor="type" className="block text-gray-700 text-sm font-bold mb-2">
-            Tipo de Comprobante:
-          </label>
-          <select
-            id="type"
-            value={type}
-            onChange={(e) => setType(e.target.value)}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-          >
-            <option value="">Seleccione un tipo</option>
-            <optgroup label="Ingresos">
-              {incomeTypes.map((incomeType) => (
-                <option key={incomeType} value={incomeType}>
-                  {incomeType}
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="Gastos">
-              {expenseTypes.map((expenseType) => (
-                <option key={expenseType} value={expenseType}>
-                  {expenseType}
-                </option>
-              ))}
-            </optgroup>
-          </select>
+          <p className="text-gray-600">Registra ingresos, gastos y pagos de facturas finales</p>
         </div>
 
-        {/* Mostrar detalles de Factura Final y campo de monto específico */}
-        {type === "Factura Pago Final Budget" && finalInvoiceDetails && currentWorkDetails && (
-          <div className="my-4 p-3 border border-blue-300 rounded bg-blue-50">
-            <h5 className="text-md font-semibold text-blue-700 mb-2">
-              Detalles de Factura Final para: {currentWorkDetails.propertyAddress}
-            </h5>
-            <p className="text-sm">Monto Total Original: ${parseFloat(finalInvoiceDetails.originalBudgetTotal || 0).toFixed(2)}</p>
-            {parseFloat(finalInvoiceDetails.subtotalExtras || 0) > 0 &&
-              <p className="text-sm">Subtotal Extras: ${parseFloat(finalInvoiceDetails.subtotalExtras).toFixed(2)}</p>
-            }
-            <p className="text-sm">Monto Total Adeudado (Incl. Extras): ${parseFloat(finalInvoiceDetails.finalAmountDue || 0).toFixed(2)}</p>
-            <p className="text-sm">Total Pagado Hasta Ahora: ${parseFloat(finalInvoiceDetails.totalAmountPaid || 0).toFixed(2)}</p>
-            <p className="text-sm font-bold text-blue-600">
-              Saldo Pendiente Actual: ${calculatedRemainingBalance}
-            </p>
-
-            <div className="form-group mt-3">
-              <label htmlFor="finalPaymentAmount" className="block text-gray-700 text-sm font-bold mb-2">Monto Pagado con este Comprobante:</label>
-              <input
-                type="number"
-                step="0.01"
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                id="finalPaymentAmount"
-                value={finalPaymentAmount}
-                onChange={(e) => setFinalPaymentAmount(e.target.value)}
-                placeholder="0.00"
-                required
-              />
+        {/* Loading State */}
+        {loading && (
+          <div className="bg-white rounded-xl shadow-lg p-8 mb-6">
+            <div className="flex items-center justify-center space-x-3">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+              <p className="text-blue-600 font-medium">Cargando obras...</p>
             </div>
           </div>
         )}
 
-        {/* Monto general (para otros tipos de ingresos/gastos) */}
-        {type && type !== "Factura Pago Final Budget" && (
-          <div>
-            <label htmlFor="generalAmount" className="block text-gray-700 text-sm font-bold mb-2">
-              Monto del {incomeTypes.includes(type) ? "Ingreso" : "Gasto"}:
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              id="generalAmount"
-              value={generalAmount}
-              onChange={(e) => setGeneralAmount(e.target.value)}
-              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              placeholder="0.00"
-              required
-            />
+        {/* Error State */}
+        {worksError && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+            <div className="flex items-center space-x-2">
+              <ExclamationTriangleIcon className="h-5 w-5 text-red-500" />
+              <p className="text-red-700 font-medium">Error al cargar obras</p>
+            </div>
+            <p className="text-red-600 text-sm mt-1">
+              {typeof worksError === 'object' ? JSON.stringify(worksError) : worksError}
+            </p>
           </div>
         )}
 
-        <div>
-          <label htmlFor="file" className="block text-gray-700 text-sm font-bold mb-2">
-            Adjuntar Comprobante (PDF o Imagen):
-          </label>
-          <input
-            type="file"
-            id="file"
-            name="file" // Añadir name para que e.target.elements.file funcione
-            accept="application/pdf, image/jpeg, image/png, image/gif"
-            onChange={(e) => setFile(e.target.files[0])}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-          />
-          {file && <p className="text-sm text-gray-600 mt-1">Archivo seleccionado: {file.name}</p>}
-        </div>
+        {/* Main Form Card */}
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Work Selection */}
+            <div>
+              <label htmlFor="work" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
+                <BuildingOffice2Icon className="h-5 w-5 mr-2 text-blue-500" />
+                Seleccionar Obra
+              </label>
+              <select
+                id="work"
+                value={selectedWork}
+                onChange={(e) => setSelectedWork(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
+              >
+                <option value="">Seleccione una obra</option>
+                {works && works.map((work) => {
+                  // Mostrar obras que pueden necesitar comprobantes de pago
+                  const canAttachPayment = ['invoiceFinal', 'paymentReceived'].includes(work.status);
+                  const hasUnpaidInvoice = work.finalInvoice && work.finalInvoice.status !== 'paid';
 
-        <div>
-          <label htmlFor="notes" className="block text-gray-700 text-sm font-bold mb-2">
-            Notas (Opcional):
-          </label>
-          <textarea
-            id="notes"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            rows="3"
-          />
-        </div>
+                  // Mostrar todas las obras, pero destacar las relevantes para pagos
+                  return (
+                    <option key={work.idWork} value={work.idWork}>
+                      {work.propertyAddress}
+                      {canAttachPayment && hasUnpaidInvoice ? ' 💰' : ''}
+                      {work.status === 'paymentReceived' ? ' (Pago Recibido)' : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
 
-        <button
-          type="submit"
-          className="w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-          disabled={loading} // Deshabilitar botón mientras carga
-        >
-          {loading ? "Procesando..." : "Adjuntar Comprobante"}
-        </button>
-      </form>
+            {/* Work Status Card */}
+            {selectedWork && currentWorkDetails && (
+              <div className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg p-4 border border-gray-200">
+                <div className="flex items-center space-x-3 mb-3">
+                  <InformationCircleIcon className="h-5 w-5 text-blue-500" />
+                  <h5 className="font-semibold text-gray-800">Estado de la Obra</h5>
+                </div>
+                
+                <div className="space-y-2">
+                  <p className="text-sm text-gray-700">
+                    <span className="font-medium">Obra:</span> {currentWorkDetails.propertyAddress}
+                  </p>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-medium text-gray-700">Estado:</span>
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                      currentWorkDetails.status === 'paymentReceived' 
+                        ? 'bg-green-100 text-green-800 border border-green-200' :
+                      currentWorkDetails.status === 'invoiceFinal' 
+                        ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                      'bg-gray-100 text-gray-800 border border-gray-200'
+                    }`}>
+                      {currentWorkDetails.status}
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Alert for Missing Final Invoice */}
+                {type === "Factura Pago Final Budget" && !currentWorkDetails.finalInvoice && (
+                  <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div className="flex items-start space-x-3">
+                      <ExclamationTriangleIcon className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="font-medium text-yellow-800 text-sm">
+                          ⚠️ Factura Final no encontrada
+                        </p>
+                        <p className="text-yellow-700 text-xs mt-1">
+                          Para poder registrar el pago final, primero debes <strong>generar la Factura Final</strong> de esta obra.
+                        </p>
+                        <div className="mt-3">
+                          <p className="text-yellow-700 text-xs font-medium">📋 Pasos a seguir:</p>
+                          <ol className="text-yellow-600 text-xs mt-1 ml-4 list-decimal space-y-0.5">
+                            <li>Ve al detalle de la obra</li>
+                            <li>Busca la sección "Factura Final"</li>
+                            <li>Haz clic en "Generar Factura Final"</li>
+                            <li>Luego podrás registrar el comprobante de pago aquí</li>
+                          </ol>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Alert for Incorrect Status */}
+                {type === "Factura Pago Final Budget" && currentWorkDetails.finalInvoice && 
+                 !['invoiceFinal', 'paymentReceived'].includes(currentWorkDetails.status) && (
+                  <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                    <div className="flex items-start space-x-3">
+                      <InformationCircleIcon className="h-5 w-5 text-orange-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="font-medium text-orange-800 text-sm">
+                          ℹ️ Estado no óptimo para pago
+                        </p>
+                        <p className="text-orange-700 text-xs mt-1">
+                          La obra debería estar en estado <strong>"Factura Final"</strong> o <strong>"Pago Recibido"</strong> para procesar pagos.
+                        </p>
+                        <p className="text-orange-600 text-xs mt-1">
+                          Estado actual: <strong>{currentWorkDetails.status}</strong>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Alert for Already Paid Invoice */}
+                {type === "Factura Pago Final Budget" && currentWorkDetails.finalInvoice?.status === 'paid' && (
+                  <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-start space-x-3">
+                      <CheckCircleIcon className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="font-medium text-green-800 text-sm">
+                          ✅ Factura completamente pagada
+                        </p>
+                        <p className="text-green-700 text-xs mt-1">
+                          La Factura Final de esta obra ya está marcada como pagada completamente.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Receipt Type Selection */}
+            <div>
+              <label htmlFor="type" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
+                <DocumentTextIcon className="h-5 w-5 mr-2 text-blue-500" />
+                Tipo de Comprobante
+              </label>
+              <select
+                id="type"
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
+              >
+                <option value="">Seleccione un tipo</option>
+                <optgroup label="💰 Ingresos">
+                  {incomeTypes.map((incomeType) => (
+                    <option key={incomeType} value={incomeType}>
+                      {incomeType}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="💳 Gastos">
+                  {expenseTypes.map((expenseType) => (
+                    <option key={expenseType} value={expenseType}>
+                      {expenseType}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+
+            {/* Final Invoice Details Card */}
+            {type === "Factura Pago Final Budget" && finalInvoiceDetails && currentWorkDetails && (
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-5 border border-blue-200">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="p-2 bg-blue-500 rounded-lg">
+                    <CurrencyDollarIcon className="h-5 w-5 text-white" />
+                  </div>
+                  <h5 className="font-semibold text-blue-800">
+                    Detalles de Factura Final
+                  </h5>
+                </div>
+                
+                <div className="bg-white rounded-lg p-4 space-y-3">
+                  <p className="text-sm font-medium text-gray-800">
+                    Obra: {currentWorkDetails.propertyAddress}
+                  </p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div className="space-y-2">
+                      <p className="text-gray-600">
+                        <span className="font-medium">Monto Total Original:</span>
+                        <span className="font-bold text-gray-800 ml-2">
+                          ${parseFloat(finalInvoiceDetails.originalBudgetTotal || 0).toFixed(2)}
+                        </span>
+                      </p>
+                      
+                      {parseFloat(finalInvoiceDetails.subtotalExtras || 0) > 0 && (
+                        <p className="text-gray-600">
+                          <span className="font-medium">Subtotal Extras:</span>
+                          <span className="font-bold text-gray-800 ml-2">
+                            ${parseFloat(finalInvoiceDetails.subtotalExtras).toFixed(2)}
+                          </span>
+                        </p>
+                      )}
+                      
+                      <p className="text-gray-600">
+                        <span className="font-medium">Monto Total Adeudado:</span>
+                        <span className="font-bold text-gray-800 ml-2">
+                          ${parseFloat(finalInvoiceDetails.finalAmountDue || 0).toFixed(2)}
+                        </span>
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <p className="text-gray-600">
+                        <span className="font-medium">Total Pagado:</span>
+                        <span className="font-bold text-green-600 ml-2">
+                          ${parseFloat(finalInvoiceDetails.totalAmountPaid || 0).toFixed(2)}
+                        </span>
+                      </p>
+                      
+                      <p className="text-gray-600">
+                        <span className="font-medium">Saldo Pendiente:</span>
+                        <span className="font-bold text-red-600 ml-2">
+                          ${calculatedRemainingBalance}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <label htmlFor="finalPaymentAmount" className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                    <CurrencyDollarIcon className="h-4 w-4 mr-2 text-green-500" />
+                    Monto Pagado con este Comprobante
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    id="finalPaymentAmount"
+                    value={finalPaymentAmount}
+                    onChange={(e) => setFinalPaymentAmount(e.target.value)}
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* General Amount Input */}
+            {type && type !== "Factura Pago Final Budget" && (
+              <div>
+                <label htmlFor="generalAmount" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
+                  <CurrencyDollarIcon className="h-5 w-5 mr-2 text-green-500" />
+                  Monto del {incomeTypes.includes(type) ? "Ingreso" : "Gasto"}
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  id="generalAmount"
+                  value={generalAmount}
+                  onChange={(e) => setGeneralAmount(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+            )}
+
+            {/* File Upload */}
+            <div>
+              <label htmlFor="file" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
+                <ArrowUpTrayIcon className="h-5 w-5 mr-2 text-blue-500" />
+                Adjuntar Comprobante (PDF o Imagen)
+              </label>
+              <div className="relative">
+                <input
+                  type="file"
+                  id="file"
+                  name="file"
+                  accept="application/pdf, image/jpeg, image/png, image/gif"
+                  onChange={(e) => setFile(e.target.files[0])}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+              </div>
+              {file && (
+                <div className="mt-2 flex items-center space-x-2 text-sm text-gray-600 bg-green-50 p-2 rounded-lg">
+                  <PaperClipIcon className="h-4 w-4 text-green-500" />
+                  <span>Archivo seleccionado: <span className="font-medium">{file.name}</span></span>
+                </div>
+              )}
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label htmlFor="notes" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
+                <DocumentTextIcon className="h-5 w-5 mr-2 text-blue-500" />
+                Notas (Opcional)
+              </label>
+              <textarea
+                id="notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 resize-none"
+                rows="3"
+                placeholder="Agregar notas adicionales..."
+              />
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+            >
+              {loading ? (
+                <div className="flex items-center justify-center space-x-2">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                  <span>Procesando...</span>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center space-x-2">
+                  <PaperClipIcon className="h-5 w-5" />
+                  <span>Adjuntar Comprobante</span>
+                </div>
+              )}
+            </button>
+          </form>
+        </div>
+      </div>
     </div>
   );
 };
