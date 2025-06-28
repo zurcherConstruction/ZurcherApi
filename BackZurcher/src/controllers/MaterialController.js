@@ -4,10 +4,11 @@ const createMaterialSet = async (req, res) => {
   try {
     const { materials, workId, purchaseDate } = req.body;
 
-    // Crear el conjunto de materiales
+    // Crear el conjunto de materiales con staffId
     const materialSet = await MaterialSet.create({
       workId,
       purchaseDate,
+      staffId: req.user?.id, // Agregar staffId del usuario autenticado
     });
 
     // Asociar los materiales al conjunto
@@ -16,6 +17,7 @@ const createMaterialSet = async (req, res) => {
       quantity: material.quantity,
       comment: material.comment || "",
       materialSetId: materialSet.idMaterialSet,
+      staffId: req.user?.id, // Agregar staffId para cada material
     }));
 
     const savedMaterials = await Material.bulkCreate(materialsToSave);
@@ -63,11 +65,11 @@ const updateMaterial = async (req, res) => {
       return res.status(404).json({ error: true, message: 'Material no encontrado' });
     }
 
-    // Actualizar el material
+    // Actualizar el material con staffId
     material.name = name || material.name;
     material.quantity = quantity || material.quantity;
-   
     material.cost = cost || material.cost;
+    material.staffId = req.user?.id; // Agregar staffId del usuario que actualiza
     await material.save();
 
     res.status(200).json(material);

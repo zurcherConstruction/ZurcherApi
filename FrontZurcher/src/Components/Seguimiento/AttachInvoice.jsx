@@ -23,12 +23,14 @@ const incomeTypes = [
 
 const expenseTypes = [
   "Materiales",
+  "Materiales Iniciales",
+  "Inspección Inicial",
+  "Inspección Final",
   "Diseño",
   "Workers",
   "Imprevistos",
   "Comprobante Gasto",
-  "Materiales Iniciales"
-
+  "Gastos Generales"
 ];
 
 const AttachReceipt = () => {

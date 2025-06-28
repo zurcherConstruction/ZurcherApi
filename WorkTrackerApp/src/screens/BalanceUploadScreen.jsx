@@ -15,6 +15,9 @@ const incomeTypes = [
   ];
   const expenseTypes = [
            'Materiales',
+           'Materiales Iniciales',
+           'Inspección Inicial',
+           'Inspección Final',
             'Diseño',
             'Workers',
             'Imprevistos',
@@ -28,6 +31,9 @@ const BalanceUploadScreen = () => {
   const dispatch = useDispatch();
   const { idWork, propertyAddress } = route.params; // Recibir idWork y dirección
 
+  // Obtener usuario autenticado desde Redux
+  const user = useSelector((state) => state.auth?.staff); // Cambiar user por staff
+  
   // Estado local del formulario
   const [uploadType, setUploadType] = useState('expense'); // 'expense' or 'income'
   const [amount, setAmount] = useState('');
@@ -107,6 +113,7 @@ const BalanceUploadScreen = () => {
           typeIncome: typeDetail,
           notes: notes,
           workId: idWork,
+          staffId: user?.id, // Agregar staffId del usuario autenticado
         };
         // Despachar y esperar el resultado usando unwrap()
         createdRecord = await dispatch(createIncome(incomeData)).unwrap();
@@ -119,6 +126,7 @@ const BalanceUploadScreen = () => {
           typeExpense: typeDetail,
           notes: notes,
           workId: idWork,
+          staffId: user?.id, // Agregar staffId del usuario autenticado
         };
         // Despachar y esperar el resultado usando unwrap()
         createdRecord = await dispatch(createExpense(expenseData)).unwrap();

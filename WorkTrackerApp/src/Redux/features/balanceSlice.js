@@ -126,7 +126,7 @@ export const getReceipts = createAsyncThunk(
 // Thunk para crear Gasto General y opcionalmente subir Recibo
 export const createGeneralExpenseWithReceipt = createAsyncThunk(
   'balance/createGeneralExpenseWithReceipt',
-  async ({ amount, notes, image }, { rejectWithValue }) => {
+  async ({ amount, notes, image, staffId }, { rejectWithValue }) => {
     try {
       // 1. Crear el Gasto General
       const expenseData = {
@@ -134,6 +134,7 @@ export const createGeneralExpenseWithReceipt = createAsyncThunk(
         notes,
         typeExpense: "Gastos Generales", // Tipo por defecto
         date: new Date().toISOString(), // Fecha actual
+        staffId: staffId, // Agregar staffId del usuario autenticado
         // NO incluimos workId
       };
       console.log("Enviando datos de gasto general:", expenseData);
