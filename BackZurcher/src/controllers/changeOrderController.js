@@ -231,7 +231,32 @@ const sendChangeOrderToClient = async (req, res) => {
     const rejectionToken = uuidv4();
     changeOrder.approvalToken = approvalToken;
     changeOrder.rejectionToken = rejectionToken;
-    const frontendBaseUrl = process.env.FRONTEND_URL || 'http://localhost:5173'; 
+    
+    // Mejorar la detección de la URL del frontend
+    let frontendBaseUrl = process.env.FRONTEND_URL;
+    
+    // Logs de debug detallados
+    console.log(`🔍 === DEBUG FRONTEND URL ===`);
+    console.log(`🌍 NODE_ENV: ${process.env.NODE_ENV}`);
+    console.log(`📧 FRONTEND_URL desde process.env: "${process.env.FRONTEND_URL}"`);
+    console.log(`🏠 Host header: ${req.get('host')}`);
+    console.log(`📍 Referer: ${req.get('referer')}`);
+    
+    // Si no hay FRONTEND_URL configurada, usar fallbacks inteligentes
+    if (!frontendBaseUrl) {
+      if (process.env.NODE_ENV === 'production') {
+        frontendBaseUrl = 'https://zurcher-api-two.vercel.app';
+        console.warn(`⚠️  FRONTEND_URL no configurada en producción. Usando fallback: ${frontendBaseUrl}`);
+      } else {
+        frontendBaseUrl = 'http://localhost:5173';
+        console.log(`🏠 Usando URL de desarrollo: ${frontendBaseUrl}`);
+      }
+    } else {
+      console.log(`✅ Usando FRONTEND_URL configurada: ${frontendBaseUrl}`);
+    }
+    
+    console.log(`� URL final para enlaces: ${frontendBaseUrl}`);
+    console.log(`===============================`); 
 
     const approvalLink = `${frontendBaseUrl}/change-order-response?token=${approvalToken}&decision=approved&coId=${changeOrder.id}`;
     const rejectionLink = `${frontendBaseUrl}/change-order-response?token=${rejectionToken}&decision=rejected&coId=${changeOrder.id}`;
