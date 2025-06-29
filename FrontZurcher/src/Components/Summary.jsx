@@ -178,11 +178,13 @@ const Summary = () => {
             toast.success("Movimiento de ingreso eliminado.");
           }
         } else if (mov.movimiento === "Gasto") {
-          // Lógica para gastos (sin cambios)
+          // Lógica para gastos
           if (mov.Receipts && mov.Receipts.length > 0) {
             const receiptToDelete = mov.Receipts[0];
             if (receiptToDelete && receiptToDelete.idReceipt) {
               await deleteReceipt(receiptToDelete.idReceipt);
+              // Después de borrar el comprobante, borrar el gasto
+              await expenseActions.delete(mov.idExpense);
               toast.success("Comprobante y movimiento de gasto asociado eliminados correctamente.");
             } else {
               await expenseActions.delete(mov.idExpense);
