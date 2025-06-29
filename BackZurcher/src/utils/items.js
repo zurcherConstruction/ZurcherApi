@@ -34,7 +34,7 @@ const defaultItems = [
   { category: "Inspection", name: "HEALTH DEPARTMENT INSPECTION", marca: "", capacity: "", description: "FINAL INSPECTION", unitPrice: 200, supplierName: "", supplierLocation: "" },
 
   // LABOR
-  { category: "Labor Fee", name: "LABOR FEE", marca: "", capacity: "", description: "ZURCHER CONSTRUCTION", unitPrice: 6000, supplierName: "", supplierLocation: "" },
+  { category: "Labor Fee", name: "ZURCHER CONSTRUCTION", marca: "", capacity: "", description: "", unitPrice: 6000, supplierName: "", supplierLocation: "" },
  
   { category: "Rock", name: "ROCK REMOVAL", marca: "", capacity: "", description: "INCLUDED AT NO ADDITIONALCOST IF REQUIRED DURING INSTALLATION", unitPrice: 0, supplierName: "", supplierLocation: "" },
   { category: "Cover", name: "DIR TRUCK FOR COVER", marca: "", capacity: "", description: "LOADS OF DIRT INCLUDED", unitPrice: 0, supplierName: "", supplierLocation: "" },
