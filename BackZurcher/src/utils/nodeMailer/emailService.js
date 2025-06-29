@@ -22,7 +22,7 @@ const sendEmail = async (staff, message) => {
       html: `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
           <div style="text-align: center; margin-bottom: 20px;">
-            <img src="https://zurcher-api-two.vercel.app//assets/logoseptic.png" alt="Logo de la empresa" style="width: 150px; height: auto;" />
+            <img src="https://res.cloudinary.com/dt4ah1jmy/image/upload/v1751206826/logo_zlxdhw.png" alt="Zurcher Construction" style="height:60px; margin-bottom:20px;" />
           </div>
           <h2 style="color: #0056b3;">Hola ${staff.name || staff.email},</h2>
           <p>${message}</p>
