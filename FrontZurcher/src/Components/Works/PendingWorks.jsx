@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useDispatch, useSelector } from "react-redux";
+import { useDispatch, useSelector }  from "react-redux";
 import { fetchWorks, updateWork } from "../../Redux/Actions/workActions";
 import { fetchStaff } from "../../Redux/Actions/adminActions";
 import Calendar from "react-calendar";
@@ -7,11 +7,12 @@ import "react-calendar/dist/Calendar.css";
 import { Calendar as BigCalendar, momentLocalizer } from "react-big-calendar";
 import moment from "moment";
 import "react-big-calendar/lib/css/react-big-calendar.css";
-import socket from "../../utils/io"; // Importar Socket.IO
-import api from "../../utils/axios"; // Importar Axios para notificaciones
-import logo from "../../assets/logoseptic.png"; // Cambia esta ruta al logo que quieras usar
-import { toast, ToastContainer } from "react-toastify";
+import socket from "../../utils/io";
+import logo from "../../assets/logoseptic.png";
+import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { UserIcon, CalendarDaysIcon, ArrowPathIcon, CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon, CalendarDaysIcon as CalendarIcon } from "@heroicons/react/24/outline";
 
 const PendingWorks = () => {
   const dispatch = useDispatch();
@@ -21,27 +22,38 @@ const PendingWorks = () => {
   const [selectedWork, setSelectedWork] = useState(null);
   const [startDate, setStartDate] = useState(new Date());
   const [selectedStaff, setSelectedStaff] = useState("");
+  const [editMode, setEditMode] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   const localizer = momentLocalizer(moment);
 
-  // Filtrar trabajos con estado "pending"
+  // Filtrar trabajos
   const pendingWorks = works.filter((work) => work.status === "pending");
+  const assignedWorks = works.filter((work) => work.status === "assigned");
 
   useEffect(() => {
     dispatch(fetchStaff());
-    dispatch(fetchWorks())
+    dispatch(fetchWorks());
   }, [dispatch]);
 
-  const handleAssign = async () => {
+  // Cuando seleccionas un trabajo, carga sus datos actuales
+  useEffect(() => {
+    if (selectedWork) {
+      setStartDate(selectedWork.startDate ? moment(selectedWork.startDate).toDate() : new Date());
+      setSelectedStaff(selectedWork.staffId || "");
+      setEditMode(selectedWork.status === "assigned");
+    } else {
+      setEditMode(false);
+    }
+  }, [selectedWork]);
+
+  const handleAssignOrUpdate = async () => {
     if (!selectedWork || !selectedStaff) {
       toast.error("Por favor selecciona un trabajo y un miembro del staff.");
       return;
     }
-
-    const formattedDate = moment(startDate).format("YYYY-MM-DD"); // Asegúrate de usar la zona horaria local
-
+    const formattedDate = moment(startDate).format("YYYY-MM-DD");
     try {
-      // Actualizar el trabajo en el backend
       await dispatch(
         updateWork(selectedWork.idWork, {
           startDate: formattedDate,
@@ -49,48 +61,33 @@ const PendingWorks = () => {
           status: "assigned",
         })
       );
-
-      // Enviar notificación por correo al miembro del staff asignado
-      const assignedStaff = staff.find((member) => member.id === selectedStaff);
-      if (assignedStaff) {
-        // await api.post("/notification", {
-        //   email: assignedStaff.email,
-        //   subject: "Trabajo Asignado",
-        //   message: `Se te ha asignado el trabajo en ${selectedWork.propertyAddress} para la fecha ${formattedDate}.`,
-        // });
-
-        // Enviar notificación por Socket.IO al miembro del staff
-        socket.emit("notification", {
-          recipientId: selectedStaff,
-          message: `Se te ha asignado un trabajo en ${selectedWork.propertyAddress}.`,
-        });
-      }
-
-      // Obtener correos del staff con rol "recept"
-      const receptStaff = staff.filter((member) => member.role === "recept");
-      const receptEmails = receptStaff.map((member) => member.email);
-
-      if (receptEmails.length > 0) {
-        // Enviar correo a los receptores
-        // await api.post("/notification/email", {
-        //   email: receptEmails.join(","),
-        //   subject: "Compra de Materiales Pendiente",
-        //   message: `Hay una compra de materiales pendiente para el trabajo en ${selectedWork.propertyAddress}. Los materiales se necesitan para la fecha ${formattedDate}.`,
-        // });
-
-        // Notificar a los receptores por Socket.IO
-        socket.emit("notification", {
-          role: "recept",
-          message: `Hay una compra de materiales pendiente para el trabajo en ${selectedWork.propertyAddress}. Los materiales se necesitan para la fecha ${formattedDate}.`,
-        });
-      }
-
-      toast.success("Trabajo asignado correctamente.");
+      // Eliminada la notificación manual por Socket.IO
+      toast.success(editMode ? "Asignación modificada correctamente." : "Trabajo asignado correctamente.");
       setSelectedWork(null);
       setSelectedStaff("");
     } catch (error) {
-      console.error("Error al asignar el trabajo:", error);
-      toast.error("Hubo un error al asignar el trabajo.");
+      console.error("Error al asignar/modificar el trabajo:", error);
+      toast.error("Hubo un error al guardar la asignación.");
+    }
+  };
+
+  // Nueva función para suspender/cancelar trabajo
+  const handleCancelWork = async () => {
+    if (!selectedWork) return;
+    if (!window.confirm("¿Seguro que deseas suspender/cancelar este trabajo?")) return;
+    try {
+      await dispatch(
+        updateWork(selectedWork.idWork, {
+          ...selectedWork,
+          status: "cancelled",
+        })
+      );
+      toast.success("Trabajo suspendido/cancelado correctamente.");
+      setSelectedWork(null);
+      setSelectedStaff("");
+    } catch (error) {
+      console.error("Error al cancelar el trabajo:", error);
+      toast.error("Hubo un error al cancelar el trabajo.");
     }
   };
 
@@ -99,7 +96,6 @@ const PendingWorks = () => {
     .map((work) => {
       const staffMember = staff.find((member) => member.id === work.staffId);
       const staffName = staffMember ? staffMember.name : "Sin asignar";
-
       return {
         title: `${work.propertyAddress} - (${staffName})`,
         start: moment(work.startDate).toDate(),
@@ -111,68 +107,108 @@ const PendingWorks = () => {
   const eventStyleGetter = (event) => {
     return {
       style: {
-        backgroundColor: "#4CAF50", // Cambia el color de fondo
-        color: "white", // Cambia el color del texto
-        borderRadius: "5px", // Bordes redondeados
+        backgroundColor: event.work.status === "assigned" ? "#2563eb" : "#4CAF50",
+        color: "white",
+        borderRadius: "5px",
         padding: "5px",
-        textAlign: "center", // Centra el texto
+        textAlign: "center",
+        border: event.work.status === "assigned" ? "2px solid #1d4ed8" : "2px solid #22c55e",
       },
     };
   };
   const getToday = () => {
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Establece la hora a las 00:00:00
+    today.setHours(0, 0, 0, 0);
     return today;
   };
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-nunito mb-4 font-semibold">Assign Installation Date</h1>
-      <div className="flex flex-col md:flex-row gap-4">
-        {/* Sección izquierda: Selección de trabajos o logo */}
-        <div className="w-full md:w-1/3 bg-gray-100 shadow-md rounded-md p-4">
+    <div className="p-4 min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+      <h1 className="text-2xl font-bold mb-6 text-blue-900 flex items-center gap-2">
+        <CalendarDaysIcon className="h-7 w-7 text-blue-500" />
+        Gestión de Asignaciones de Instalación
+      </h1>
+      <div className="flex flex-col md:flex-row gap-6">
+        {/* Panel izquierdo: Trabajos pendientes y asignados */}
+        <div className="w-full md:w-1/3 bg-white shadow-xl rounded-xl p-4 flex flex-col gap-4">
+          <h2 className="text-lg font-semibold text-gray-800 mb-2">Trabajos Pendientes</h2>
           {pendingWorks.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full">
-              <img
-                src={logo} // Cambia esta ruta al logo que quieras usar
-                alt="No pending works"
-                className="w-32 h-32 mb-4"
-              />
-              <p className="text-lg font-semibold text-gray-500">No pending works</p>
+            <div className="flex flex-col items-center justify-center h-40">
+              <img src={logo} alt="No pending works" className="w-24 h-24 mb-2" />
+              <p className="text-md font-medium text-gray-400">No hay trabajos pendientes</p>
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {pendingWorks.map((work) => (
+                <li
+                  key={work.idWork}
+                  className={`p-3 border rounded-lg cursor-pointer transition-all hover:bg-blue-50 ${selectedWork?.idWork === work.idWork ? "bg-blue-100 border-blue-400" : "bg-gray-50"}`}
+                  onClick={() => setSelectedWork(work)}
+                >
+                  <span className="font-semibold text-blue-700">{work.propertyAddress}</span>
+                  <span className="ml-2 text-xs px-2 py-0.5 rounded bg-yellow-100 text-yellow-800">Pendiente</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <h2 className="text-lg font-semibold text-gray-800 mt-6 mb-2">Trabajos Asignados</h2>
+          {assignedWorks.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-20">
+              <XCircleIcon className="h-8 w-8 text-gray-300 mb-1" />
+              <p className="text-md font-medium text-gray-400">No hay trabajos asignados</p>
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {assignedWorks.map((work) => (
+                <li
+                  key={work.idWork}
+                  className={`p-3 border rounded-lg cursor-pointer transition-all hover:bg-blue-50 ${selectedWork?.idWork === work.idWork ? "bg-blue-100 border-blue-400" : "bg-gray-50"}`}
+                  onClick={() => setSelectedWork(work)}
+                >
+                  <span className="font-semibold text-blue-700">{work.propertyAddress}</span>
+                  <span className="ml-2 text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800">Asignado</span>
+                  <span className="ml-2 text-xs text-gray-500">{work.startDate ? moment(work.startDate).format("DD/MM/YYYY") : "Sin fecha"}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {/* Panel central: Detalle y asignación/modificación */}
+        <div className="flex-1 bg-white shadow-xl rounded-xl p-6 flex flex-col gap-4">
+          {!selectedWork ? (
+            <div className="flex flex-col items-center justify-center h-full py-16">
+              <UserIcon className="h-16 w-16 text-blue-200 mb-4" />
+              <p className="text-lg text-gray-500 font-medium">Selecciona un trabajo para asignar o modificar</p>
             </div>
           ) : (
             <>
-              <h2 className="text-lg font-semibold font-nunito mb-4">Select an address:</h2>
-              <ul className="space-y-2">
-                {pendingWorks.map((work) => (
-                  <li
-                    key={work.idWork}
-                    className={`p-2 border rounded cursor-pointer ${
-                      selectedWork?.idWork === work.idWork ? "bg-blue-200" : ""
-                    }`}
-                    onClick={() => setSelectedWork(work)}
-                  >
-                    {work.propertyAddress} - {work.status}
-                  </li>
-                ))}
-              </ul>
-  
-              {selectedWork && (
-                <>
-                  <h2 className="text-lg font-semibold mt-4 mb-2">Selecciona una fecha:</h2>
-                  <Calendar 
-                    onChange={setStartDate} 
-                    value={startDate} 
-                    minDate={getToday()} // Restringe la selección a partir del día actual
+              <h2 className="text-xl font-bold text-blue-800 mb-2 flex items-center gap-2">
+                {selectedWork.propertyAddress}
+                {selectedWork.status === "assigned" ? (
+                  <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                ) : (
+                  <ArrowPathIcon className="h-5 w-5 text-yellow-500" />
+                )}
+              </h2>
+              <div className="flex flex-col md:flex-row gap-4 items-start">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Fecha de instalación</label>
+                  <Calendar
+                    onChange={setStartDate}
+                    value={startDate}
+                    minDate={getToday()}
+                    className="rounded-lg border border-gray-200 shadow-sm"
                   />
-                  <h2 className="text-lg font-semibold mt-4 mb-2">Asignar a un miembro del staff:</h2>
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Miembro del staff asignado</label>
                   {staffLoading && <p>Cargando miembros del staff...</p>}
                   {staffError && <p className="text-red-500">Error: {staffError}</p>}
                   {!staffLoading && !staffError && (
                     <select
                       value={selectedStaff}
                       onChange={(e) => setSelectedStaff(e.target.value)}
-                      className="border p-2 rounded w-full"
+                      className="border p-2 rounded w-full bg-gray-50 focus:ring-2 focus:ring-blue-400"
                     >
                       <option value="">Selecciona un miembro del staff</option>
                       {staff.map((member) => (
@@ -182,36 +218,79 @@ const PendingWorks = () => {
                       ))}
                     </select>
                   )}
-  
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={handleAssignOrUpdate}
+                  className={`flex-1 py-3 rounded-lg font-semibold text-white transition-all duration-200 ${
+                    !selectedWork || !selectedStaff
+                      ? "bg-gray-300 cursor-not-allowed"
+                      : "bg-blue-600 hover:bg-blue-700 shadow-md hover:scale-[1.02]"
+                  }`}
+                  disabled={!selectedWork || !selectedStaff}
+                >
+                  {editMode ? "Guardar cambios" : "Asignar trabajo"}
+                </button>
+                <button
+                  onClick={() => setSelectedWork(null)}
+                  className="flex-1 py-3 rounded-lg font-semibold bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 transition-all duration-200"
+                >
+                  Cancelar
+                </button>
+                {/* Botón para suspender/cancelar trabajo */}
+                {selectedWork && selectedWork.status !== "cancelled" && (
                   <button
-                    onClick={handleAssign}
-                    className={`mt-4 px-4 py-2 text-white rounded ${
-                      !selectedWork || !selectedStaff 
-                        ? 'bg-gray-400 cursor-not-allowed' 
-                        : 'bg-blue-500 hover:bg-blue-600'
-                    }`}
-                    disabled={!selectedWork || !selectedStaff} // Añadir esta línea
+                    onClick={handleCancelWork}
+                    className="flex-1 py-3 text-xs rounded-lg font-semibold bg-red-500 hover:bg-red-600 text-white border border-red-600 transition-all duration-200"
                   >
-                    Assign work
+                    Cancelar trabajo
                   </button>
-                </>
-              )}
+                )}
+              </div>
             </>
           )}
         </div>
-  
-        {/* Sección derecha: BigCalendar */}
-        <div className="flex-1 bg-white shadow-md rounded-md p-4">
-          <BigCalendar
-            localizer={localizer}
-            events={events}
-            startAccessor="start"
-            endAccessor="end"
-            style={{ height: 500, width: "100%" }}
-            eventPropGetter={eventStyleGetter}
-          />
+        {/* Botón para abrir el calendario en modal */}
+        <div className="flex flex-col justify-center items-center md:items-end md:justify-start">
+          <button
+            onClick={() => setCalendarOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-md font-semibold transition-all duration-200"
+          >
+            <CalendarIcon className="h-5 w-5" />
+            Ver calendario
+          </button>
         </div>
       </div>
+      {/* Modal del calendario (React puro) */}
+      {calendarOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-5xl mx-auto p-6">
+            <button
+              onClick={() => setCalendarOpen(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700"
+              aria-label="Cerrar calendario"
+            >
+              <XMarkIcon className="h-6 w-6" />
+            </button>
+            <h2 className="text-xl font-bold text-blue-800 mb-4 flex items-center gap-2">
+              <CalendarIcon className="h-6 w-6 text-blue-500" />
+              Calendario de trabajos
+            </h2>
+            <div className="overflow-x-auto">
+              <BigCalendar
+                localizer={localizer}
+                events={events}
+                startAccessor="start"
+                endAccessor="end"
+                style={{ height: 600, minWidth: 600 }}
+                eventPropGetter={eventStyleGetter}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-  );}
+  );
+};
 export default PendingWorks;

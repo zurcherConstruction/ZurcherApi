@@ -302,84 +302,77 @@ const updateWork = async (req, res) => {
     const { idWork } = req.params;
     const { propertyAddress, status, startDate, notes, staffId, stoneExtractionCONeeded  } = req.body;
 
-    let workInstance = await Work.findByPk(idWork); // Renombrado a workInstance para claridad
+    let workInstance = await Work.findByPk(idWork);
     if (!workInstance) {
       return res.status(404).json({ error: true, message: 'Obra no encontrada' });
     }
-    // --- Guardar el estado anterior ---
+    // --- Guardar valores antiguos ---
     const oldStatus = workInstance.status;
-    const oldStoneExtractionCONeeded = workInstance.stoneExtractionCONeeded; // Guardar valor anterior para log
+    const oldStartDate = workInstance.startDate;
+    const oldStaffId = workInstance.staffId;
+    const oldStoneExtractionCONeeded = workInstance.stoneExtractionCONeeded;
     let statusChanged = false;
+    let assignmentChanged = false;
 
     // --- Actualizar los campos ---
     workInstance.propertyAddress = propertyAddress || workInstance.propertyAddress;
 
-   if (status && status !== oldStatus) {
+    // Permitir reactivar trabajos cancelados
+    if (oldStatus === 'cancelled' && status && status !== 'cancelled') {
+      workInstance.status = status;
+      statusChanged = true;
+    } else if (status && status !== oldStatus) {
       workInstance.status = status;
       statusChanged = true;
       if (status === 'inProgress' && !workInstance.startDate) {
         workInstance.startDate = new Date();
       }
-    } // Mover la lógica de mantenimiento fuera del if (status && status !== oldStatus)
-      // para que se evalúe incluso si el estado 'maintenance' no cambió pero se está actualizando la obra.
+    }
 
     // --- LÓGICA DE MANTENIMIENTO ---
-    // Si el estado final es 'maintenance'
     if (workInstance.status === 'maintenance') {
-        // Establecer maintenanceStartDate si aún no tiene una, o si la política es actualizarla siempre.
-        // Para asegurar que se establezca si es null, incluso si oldStatus era 'maintenance' (caso de corrección)
-        if (!workInstance.maintenanceStartDate) { 
-            workInstance.maintenanceStartDate = new Date();
-            console.log(`[WorkController - updateWork] Work ${idWork} IS 'maintenance' and maintenanceStartDate was NULL. SETTING MaintenanceStartDate TO: ${workInstance.maintenanceStartDate}`);
+      if (!workInstance.maintenanceStartDate) {
+        workInstance.maintenanceStartDate = new Date();
+      }
+      if (status === 'maintenance' && oldStatus !== 'maintenance') {
+        await workInstance.save();
+        try {
+          await scheduleInitialMaintenanceVisits(idWork);
+        } catch (scheduleError) {
+          console.error(`[WorkController - updateWork] ERROR CALLING scheduleInitialMaintenanceVisits for work ${idWork}:`, scheduleError);
         }
-
-        // Llamar a programar visitas SOLO si el estado CAMBIÓ a 'maintenance' desde otro estado.
-          if (status === 'maintenance' && oldStatus !== 'maintenance') {
-            // Si acabamos de establecer maintenanceStartDate arriba y era null, esta es la primera vez.
-            // O si ya tenía una fecha pero el estado cambió de no-mantenimiento a mantenimiento.
-            console.log(`[WorkController - updateWork] DETECTED status change to 'maintenance' for work ${idWork}. Old status: ${oldStatus}. MaintenanceStartDate IS: ${workInstance.maintenanceStartDate}`);
-            
-            // --- GUARDAR WORK ANTES DE PROGRAMAR VISITAS ---
-            await workInstance.save(); // Guardar los cambios en workInstance (status, maintenanceStartDate)
-            console.log(`[WorkController - updateWork] Work ${idWork} saved before calling scheduleInitialMaintenanceVisits. Status: ${workInstance.status}, MaintenanceStartDate: ${workInstance.maintenanceStartDate}`);
-            // --- FIN GUARDAR WORK ---
-
-            console.log(`[WorkController - updateWork] ATTEMPTING to call scheduleInitialMaintenanceVisits for work ${idWork}`);
-            try {
-              await scheduleInitialMaintenanceVisits(idWork); 
-              console.log(`[WorkController - updateWork] SUCCESSFULLY CALLED scheduleInitialMaintenanceVisits for work ${idWork}`);
-            } catch (scheduleError) {
-              console.error(`[WorkController - updateWork] ERROR CALLING scheduleInitialMaintenanceVisits for work ${idWork}:`, scheduleError);
-            }
-        }
+      }
     }
+
+    // Detectar cambios en asignación (staffId o startDate)
+    if ((staffId && staffId !== oldStaffId) || (startDate && startDate !== oldStartDate)) {
+      assignmentChanged = true;
+    }
+
     workInstance.startDate = startDate || workInstance.startDate;
     workInstance.staffId = staffId || workInstance.staffId;
     workInstance.notes = notes || workInstance.notes;
- if (typeof stoneExtractionCONeeded === 'boolean') {
+    if (typeof stoneExtractionCONeeded === 'boolean') {
       workInstance.stoneExtractionCONeeded = stoneExtractionCONeeded;
-      if (oldStoneExtractionCONeeded !== stoneExtractionCONeeded) {
-        console.log(`[WorkController - updateWork] ID: ${idWork}, stoneExtractionCONeeded cambiado de ${oldStoneExtractionCONeeded} a ${stoneExtractionCONeeded}`);
-      }
     }
 
     await workInstance.save();
-    // --- Enviar notificaciones SOLO SI el estado cambió ---
+
+    // --- Notificaciones ---
     if (statusChanged) {
-      console.log(`Work ${idWork}: Status changed from '${oldStatus}' to '${workInstance.status}'. Sending notifications...`);
       try {
         await sendNotifications(workInstance.status, workInstance, req.app.get('io'));
-        console.log(`Notifications sent for status '${workInstance.status}'.`);
       } catch (notificationError) {
         console.error(`Error sending notifications for work ${idWork} status ${workInstance.status}:`, notificationError);
-        if (notificationError.message.includes('Estado de notificación no configurado')) {
-          console.warn(notificationError.message);
-        }
       }
-    } else if (status && status === oldStatus) {
-       console.log(`Work ${idWork}: Status received ('${status}') is the same as current ('${oldStatus}'). No notifications sent.`);
-    } else {
-       console.log(`Work ${idWork}: Status not provided or not changed. No status notifications sent.`);
+    }
+    // Notificar si cambia asignación aunque el estado no cambie
+    if (assignmentChanged) {
+      try {
+        await sendNotifications('assigned', workInstance, req.app.get('io'));
+      } catch (notificationError) {
+        console.error(`Error sending assignment notifications for work ${idWork}:`, notificationError);
+      }
     }
 
     // --- RECARGAR LA OBRA CON SUS ASOCIACIONES ANTES DE DEVOLVERLA ---
@@ -390,8 +383,8 @@ const updateWork = async (req, res) => {
         { model: Material, attributes: ['idMaterial', 'name', 'quantity', 'cost']},
         {
           model: Inspection,
-          as: 'inspections', // <--- ASEGÚRATE DE QUE ESTE ALIAS ES EL CORRECTO (definido en data/index.js)
-          attributes: [ // <--- ATRIBUTOS ACTUALIZADOS DEL MODELO INSPECTION
+          as: 'inspections',
+          attributes: [
            'idInspection',
             'type',
             'processStatus', 
@@ -406,12 +399,11 @@ const updateWork = async (req, res) => {
             'resultDocumentUrl',
             'dateResultReceived',
             'notes',
-            'workerHasCorrected', // <--- AÑADIR ESTE CAMPO
-            'dateWorkerCorrected', // <--- AÑADIR ESTE CAMPO
+            'workerHasCorrected',
+            'dateWorkerCorrected',
             'createdAt', 
-            'updatedAt', // Para saber cuándo se actualizó por última vez
+            'updatedAt',
           ],
-          // Opcional: puedes ordenar las inspecciones si una obra puede tener múltiples
           order: [['createdAt', 'DESC']], 
         },
         { model: InstallationDetail, as: 'installationDetails', attributes: ['idInstallationDetail', 'date', 'extraDetails', 'extraMaterials', 'images']},
@@ -420,12 +412,10 @@ const updateWork = async (req, res) => {
        {
           model: Receipt,
           as: 'Receipts',
-          required: false, // Para asegurar un LEFT JOIN
+          required: false,
           on: {
             [Op.and]: [
-              // Condición para el relatedModel
               literal(`"Receipts"."relatedModel" = 'Work'`),
-              // Condición para el relatedId, casteando relatedId a UUID para comparar con Work.idWork
               literal(`"Work"."idWork" = CAST("Receipts"."relatedId" AS UUID)`)
             ]
           },
@@ -436,20 +426,13 @@ const updateWork = async (req, res) => {
     });
 
     if (!updatedWorkWithAssociations) {
-        // Esto sería muy raro si la actualización fue exitosa, pero es un chequeo de seguridad
-        return res.status(404).json({ error: true, message: 'Obra no encontrada después de la actualización (inesperado)' });
+      return res.status(404).json({ error: true, message: 'Obra no encontrada después de la actualización (inesperado)' });
     }
-    
-    // Procesar Receipts si es necesario (copiado de getWorkById)
     const finalWorkResponse = {
       ...updatedWorkWithAssociations.get({ plain: true }),
       Receipts: updatedWorkWithAssociations.Receipts ? convertPdfDataToUrl(updatedWorkWithAssociations.Receipts) : [],
     };
-
-
-    // Devolver la obra actualizada CON asociaciones
     res.status(200).json(finalWorkResponse);
-
   } catch (error) {
     console.error(`Error al actualizar la obra ${req.params.idWork}:`, error);
     res.status(500).json({ error: true, message: 'Error interno del servidor al actualizar la obra' });
@@ -521,7 +504,7 @@ const addInstallationDetail = async (req, res) => {
     res.status(201).json({
       message: 'Detalle de instalación agregado correctamente y estado actualizado a installed.',
       installationDetail,
-      work, // Devolver el work actualizado
+      work // Devolver el work actualizado
     });
   } catch (error) {
     console.error('Error al agregar el detalle de instalación:', error);
@@ -733,6 +716,8 @@ const addImagesToWork = async (req, res) => {
             'resultDocumentUrl',
             'dateResultReceived',
             'notes',
+            'workerHasCorrected', // <--- AÑADIR ESTE CAMPO
+            'dateWorkerCorrected', // <--- AÑADIR ESTE CAMPO
             'createdAt',
             'updatedAt',
           ],

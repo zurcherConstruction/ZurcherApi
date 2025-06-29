@@ -163,6 +163,9 @@ const WorkStatusManager = () => {
     return '◯'; // Mismo
   };
 
+  // Filtrar estados a los que se puede reactivar desde cancelado
+  const reactivationTargets = statusOrder.filter(s => s !== 'cancelled');
+
   return (
     <div className="container mx-auto p-4 md:p-8 lg:p-12">
       <h2 className="text-3xl font-bold mb-6 text-gray-800">
@@ -183,8 +186,8 @@ const WorkStatusManager = () => {
         >
           <option value="">Seleccione una dirección</option>
           {works.map((work) => (
-            <option key={work.idWork} value={work.idWork}>
-              {work.propertyAddress} - {statusLabels[work.status]}
+            <option key={work.idWork} value={work.idWork} className={work.status === 'cancelled' ? 'text-red-600 font-bold' : ''}>
+              {work.propertyAddress} - {statusLabels[work.status] || work.status}{work.status === 'cancelled' ? ' (Cancelado)' : ''}
             </option>
           ))}
         </select>
@@ -198,8 +201,8 @@ const WorkStatusManager = () => {
       <div>
         <p><strong>Dirección:</strong> {selectedWork.propertyAddress}</p>
         <p><strong>Estado Actual:</strong> 
-          <span className="ml-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-            {statusLabels[selectedWork.status]}
+          <span className={`ml-2 px-3 py-1 rounded-full text-sm ${selectedWork.status === 'cancelled' ? 'bg-red-100 text-red-700 border border-red-300' : 'bg-blue-100 text-blue-800'}`}>
+            {statusLabels[selectedWork.status] || selectedWork.status}
           </span>
         </p>
       </div>
@@ -208,7 +211,18 @@ const WorkStatusManager = () => {
         <p><strong>Fecha de Inicio:</strong> {selectedWork.startDate ? new Date(selectedWork.startDate).toLocaleDateString() : 'No definida'}</p>
       </div>
     </div>
-    
+    {/* Si está cancelado, mostrar botón de reactivación */}
+    {selectedWork.status === 'cancelled' && (
+      <div className="mt-6 flex flex-col items-center">
+        <p className="mb-2 text-red-700 font-semibold">Este trabajo está cancelado. Puedes reactivarlo cambiando su estado.</p>
+        <button
+          className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-6 rounded-lg shadow-lg mb-2"
+          onClick={() => setShowStatusChangeModal(true)}
+        >
+          🔄 Reactivar trabajo
+        </button>
+      </div>
+    )}
     {/* AGREGAR INDICADORES DE DOCUMENTACIÓN FALTANTE */}
     {selectedWork.status === 'paymentReceived' && selectedWork.finalInvoice?.status !== 'paid' && (
       <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
@@ -263,7 +277,7 @@ const WorkStatusManager = () => {
       )}
 
       {/* Grid de estados como botones */}
-      {selectedWork && (
+      {selectedWork && selectedWork.status !== 'cancelled' && (
         <div className="bg-white shadow-lg rounded-lg p-6">
           <h3 className="text-xl font-bold mb-4 text-gray-800">🎯 Cambiar Estado</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -307,30 +321,47 @@ const WorkStatusManager = () => {
       )}
 
       {/* Modal de cambio de estado */}
-      {showStatusChangeModal && (
+      {showStatusChangeModal && selectedWork && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <h3 className="text-xl font-bold mb-4 text-gray-800">
-                🔄 Cambiar Estado de Trabajo
+                {selectedWork.status === 'cancelled' ? '🔄 Reactivar trabajo' : '🔄 Cambiar Estado de Trabajo'}
               </h3>
-              
               <div className="space-y-4">
                 <div>
                   <p><strong>Estado actual:</strong> 
-                    <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">
-                      {statusLabels[selectedWork.status]}
+                    <span className={`ml-2 px-2 py-1 rounded text-sm ${selectedWork.status === 'cancelled' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-800'}`}>
+                      {statusLabels[selectedWork.status] || selectedWork.status}
                     </span>
                   </p>
                   <p><strong>Nuevo estado:</strong> 
                     <span className="ml-2 px-2 py-1 bg-green-100 text-green-800 rounded text-sm">
-                      {statusLabels[targetStatus]}
+                      {statusLabels[targetStatus] || targetStatus}
                     </span>
                   </p>
                   <p className="text-sm text-gray-600 mt-2">
                     Dirección: <strong>{getDirectionIcon(selectedWork.status, targetStatus)}</strong>
                   </p>
                 </div>
+                {/* Si está cancelado, mostrar select de reactivación */}
+                {selectedWork.status === 'cancelled' && (
+                  <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">
+                      Seleccione nuevo estado para reactivar: *
+                    </label>
+                    <select
+                      value={targetStatus}
+                      onChange={e => setTargetStatus(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                    >
+                      <option value="">Seleccione un estado</option>
+                      {reactivationTargets.map(s => (
+                        <option key={s} value={s}>{statusLabels[s]}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-gray-700 text-sm font-bold mb-2">
