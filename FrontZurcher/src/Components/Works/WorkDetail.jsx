@@ -25,7 +25,7 @@ const WorkDetail = () => {
   const dispatch = useDispatch();
 
   // Refresco automático cada 60 segundos
-  useAutoRefresh(() => fetchWorkById(idWork), 60000, [idWork]);
+  useAutoRefresh(() => fetchWorkById(idWork), 120000, [idWork]);
 
 
 
