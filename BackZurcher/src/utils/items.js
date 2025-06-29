@@ -14,7 +14,7 @@ const defaultItems = [
 
  
   // SISTEMA CHAMBERS
-  { category: "Sistema Chambers", name: "CHAMBERS", marca: "", capacity: "", description: "INFILTRATOR Q4+EQ36 LP QUICK4 PLUS EQLZR 36 LOW PROFILE CHAMBER", unitPrice: 1000, supplierName: "", supplierLocation: "" },
+  { category: "Sistema Chambers", name: "CHAMBERS", marca: "", capacity: "", description: "INFILTRATOR Q4+EQ36 LP QUICK4 PLUS EQLZR 36 LOW PROFILE CHAMBER", unitPrice: 29.76, supplierName: "", supplierLocation: "" },
   { category: "Sistema Chambers", name: "CHAMBERS", marca: "", capacity: "", description: "INFILTRATOR Q4+EQ36 LP QUICK4 PLUS EQLZR 36 ARC 24 CHAMBER", unitPrice: 2000, supplierName: "", supplierLocation: "" },
 
   // PUMP
@@ -25,6 +25,10 @@ const defaultItems = [
   { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "7 ALL INCLUDED", description: "LOADS SAND INCLUDED", unitPrice: 1500, supplierName: "", supplierLocation: "" },
   { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "0", description: "", unitPrice: 0, supplierName: "", supplierLocation: "" },
   { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "4", description: "4 SAND INCLUDED", unitPrice: 1000, supplierName: "", supplierLocation: "" },
+
+  { category: "Materiales", name: "HYDRAPRO 4", marca: "", capacity: "", description: "HYDRAPRO 4 HXH S&D D3304 1/4 SHORT BEND 90 EQUALS P204 NV3304", unitPrice: 15, supplierName: "", supplierLocation: "" },
+  { category: "Materiales", name: "HYDRAPRO 4 ", marca: "", capacity: "", description: "HYDRAPRO 4 HXHXH S&D D3034 STRAIGHT TEE EQUALS P104 NV804", unitPrice: 10, supplierName: "", supplierLocation: "" },
+  { category: "Materiales", name: "4x10 3034", marca: "", capacity: "", description: "4X10 3034 SDR35 PVC BOE PLAS PIPE", unitPrice: 12, supplierName: "", supplierLocation: "" },
 
   // INSPECTION
   { category: "Inspection", name: "PRIVATE INSPECTION", marca: "", capacity: "", description: "FIRST & FINAL INSPECTION", unitPrice: 500, supplierName: "", supplierLocation: "" },
