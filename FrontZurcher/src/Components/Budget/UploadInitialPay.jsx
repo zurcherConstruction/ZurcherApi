@@ -3,6 +3,14 @@ import { useDispatch, useSelector } from 'react-redux';
 import { uploadInvoice, fetchBudgets, updateBudget } from '../../Redux/Actions/budgetActions';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import {
+  DocumentArrowUpIcon,
+  CurrencyDollarIcon,
+  CloudArrowUpIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  ClipboardDocumentListIcon
+} from '@heroicons/react/24/outline';
 
 const UploadInitialPay = () => {
   const dispatch = useDispatch();
@@ -148,112 +156,192 @@ const UploadInitialPay = () => {
   const sendBudgets = budgets.filter(b =>b.status === 'send' || b.status === 'sent_for_signature');
 
   if (budgetsLoading) {
-    return <p className="text-blue-500 p-4">Cargando presupuestos...</p>;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8">
+        <div className="max-w-md mx-auto px-4">
+          <div className="bg-white rounded-xl shadow-lg p-8">
+            <div className="flex items-center justify-center space-x-3">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+              <p className="text-blue-600 font-medium">Cargando presupuestos...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (budgetsError) {
-    return <p className="text-red-500 p-4">Error al cargar presupuestos: {budgetsError}</p>;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8">
+        <div className="max-w-md mx-auto px-4">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+            <div className="flex items-center space-x-2 mb-2">
+              <ExclamationTriangleIcon className="h-5 w-5 text-red-500" />
+              <p className="text-red-700 font-medium">Error al cargar presupuestos</p>
+            </div>
+            <p className="text-red-600 text-sm">{budgetsError}</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (sendBudgets.length === 0) {
-    return <p className="text-gray-500 text-sm p-4">No hay presupuestos pendientes de comprobante.</p>;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8">
+        <div className="max-w-md mx-auto px-4">
+          <div className="bg-white rounded-xl shadow-lg p-8 text-center">
+            <ClipboardDocumentListIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-500 font-medium">No hay presupuestos pendientes</p>
+            <p className="text-gray-400 text-sm mt-1">No hay presupuestos pendientes de comprobante.</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
-    const selectedBudgetDetails = selectedBudgetId ? budgets.find(b => b.idBudget === parseInt(selectedBudgetId)) : null;
+  const selectedBudgetDetails = selectedBudgetId ? budgets.find(b => b.idBudget === parseInt(selectedBudgetId)) : null;
 
   return (
-    <div className="p-4 border border-gray-300 rounded-lg shadow-md my-4 bg-gray-50 max-w-md mx-auto">
-      <h2 className="text-md font-semibold mb-3 text-gray-700">Subir Comprobante de Pago Inicial</h2>
-      
-      <div className="mb-3">
-        <label htmlFor="budget-select" className="block text-sm font-medium text-gray-600 mb-1">
-          Seleccionar Presupuesto (Estado: Enviado):
-        </label>
-        <select
-          id="budget-select"
-          value={selectedBudgetId}
-          onChange={handleBudgetSelect}
-          className="block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
-        >
-          <option value="">-- Seleccionar Presupuesto --</option>
-          {sendBudgets.map((budget) => (
-            <option key={budget.idBudget} value={budget.idBudget}>
-              {budget.applicantName} - {budget.propertyAddress}
-            </option>
-          ))}
-        </select>
-      </div>
-
-       {selectedBudgetId && (
-        <>
-          <div className="mb-3">
-            <label htmlFor="invoice-upload-input" className="block text-sm font-medium text-gray-600 mb-1">
-              Seleccionar Comprobante (PDF o Imagen):
-            </label>
-            <input
-              id="invoice-upload-input"
-              name="file"
-              type="file"
-              accept="application/pdf,image/jpeg,image/png,image/gif,image/webp"
-              onChange={handleFileChange}
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-            />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8">
+      <div className="max-w-2xl mx-auto px-4">
+        {/* Header Card */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+          <div className="flex items-center space-x-3 mb-2">
+            <div className="p-2 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg">
+              <DocumentArrowUpIcon className="h-6 w-6 text-white" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-800">Subir Comprobante de Pago Inicial</h2>
           </div>
+          <p className="text-gray-600">Registra el comprobante de pago inicial para aprobar el presupuesto</p>
+        </div>
 
-          <div className="mb-3"> {/* <--- Nuevo campo para el monto --> */}
-            <label htmlFor="uploaded-amount-input" className="block text-sm font-medium text-gray-600 mb-1">
-              Monto del Comprobante:
-            </label>
-            <input
-              id="uploaded-amount-input"
-              type="text" // Usar text para permitir validación manual, o number con step="0.01"
-              value={uploadedAmount}
-              onChange={handleAmountChange}
-              placeholder="Ej: 1250.50"
-              className="block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
-            />
-            {selectedBudgetDetails && (
-              <p className="text-xs text-gray-500 mt-1">
-                Pago inicial esperado para este presupuesto: ${parseFloat(selectedBudgetDetails.initialPayment).toFixed(2)}
-              </p>
+        {/* Main Form Card */}
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <div className="space-y-6">
+            {/* Budget Selection */}
+            <div>
+              <label htmlFor="budget-select" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
+                <ClipboardDocumentListIcon className="h-5 w-5 mr-2 text-blue-500" />
+                Seleccionar Presupuesto (Estado: Enviado)
+              </label>
+              <select
+                id="budget-select"
+                value={selectedBudgetId}
+                onChange={handleBudgetSelect}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
+              >
+                <option value="">-- Seleccionar Presupuesto --</option>
+                {sendBudgets.map((budget) => (
+                  <option key={budget.idBudget} value={budget.idBudget}>
+                    {budget.applicantName} - {budget.propertyAddress}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedBudgetId && (
+              <>
+                {/* Budget Details Card */}
+                {selectedBudgetDetails && (
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <CurrencyDollarIcon className="h-5 w-5 text-blue-500" />
+                      <h3 className="font-semibold text-blue-800">Detalles del Presupuesto</h3>
+                    </div>
+                    <div className="bg-white rounded-lg p-4">
+                      <p className="text-sm text-gray-600 mb-2">
+                        <span className="font-medium">Cliente:</span> {selectedBudgetDetails.applicantName}
+                      </p>
+                      <p className="text-sm text-gray-600 mb-2">
+                        <span className="font-medium">Dirección:</span> {selectedBudgetDetails.propertyAddress}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        <span className="font-medium">Pago inicial esperado:</span>
+                        <span className="font-bold text-green-600 ml-2">
+                          ${parseFloat(selectedBudgetDetails.initialPayment).toFixed(2)}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* File Upload */}
+                <div>
+                  <label htmlFor="invoice-upload-input" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
+                    <CloudArrowUpIcon className="h-5 w-5 mr-2 text-blue-500" />
+                    Seleccionar Comprobante (PDF o Imagen)
+                  </label>
+                  <input
+                    id="invoice-upload-input"
+                    name="file"
+                    type="file"
+                    accept="application/pdf,image/jpeg,image/png,image/gif,image/webp"
+                    onChange={handleFileChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  />
+                  {file && (
+                    <div className="mt-2 flex items-center space-x-2 text-sm text-gray-600 bg-green-50 p-2 rounded-lg">
+                      <CheckCircleIcon className="h-4 w-4 text-green-500" />
+                      <span>Archivo seleccionado: <span className="font-medium">{file.name}</span></span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Amount Input */}
+                <div>
+                  <label htmlFor="uploaded-amount-input" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
+                    <CurrencyDollarIcon className="h-5 w-5 mr-2 text-green-500" />
+                    Monto del Comprobante
+                  </label>
+                  <input
+                    id="uploaded-amount-input"
+                    type="text"
+                    value={uploadedAmount}
+                    onChange={handleAmountChange}
+                    placeholder="Ej: 1250.50"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Progress Bar */}
+            {isLoading && uploadProgress > 0 && (
+              <div className="space-y-2">
+                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                  <div 
+                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+                <p className="text-sm text-gray-600 text-center">{uploadProgress}% completado</p>
+              </div>
+            )}
+
+            {/* Submit Button */}
+            {selectedBudgetId && file && uploadedAmount && (
+              <button
+                onClick={handleUpload}
+                disabled={isLoading}
+                className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:transform-none"
+              >
+                {isLoading ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                    <span>Subiendo...</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center space-x-2">
+                    <DocumentArrowUpIcon className="h-5 w-5" />
+                    <span>Subir Comprobante y Aprobar</span>
+                  </div>
+                )}
+              </button>
             )}
           </div>
-        </>
-      )}
-
-      {isLoading && uploadProgress > 0 && (
-        <div className="mb-4">
-          <div className="w-full bg-gray-200 rounded-full h-2.5">
-            <div 
-              className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
-              style={{ width: `${uploadProgress}%` }}
-            />
-          </div>
-          <p className="text-sm text-gray-600 mt-1 text-center">{uploadProgress}% completado</p>
         </div>
-      )}
-
-       {selectedBudgetId && file && uploadedAmount && (
-        <button
-          onClick={handleUpload}
-          disabled={isLoading}
-          className={`w-full px-4 py-2 rounded text-white font-semibold text-sm ${
-            isLoading 
-              ? 'bg-gray-400 cursor-not-allowed' 
-              : 'bg-blue-600 hover:bg-blue-700'
-          }`}
-        >
-          {isLoading ? (
-            <span className="flex items-center justify-center">
-              <svg className="animate-spin h-5 w-5 mr-3" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-              </svg>
-              Subiendo...
-            </span>
-          ) : 'Subir Comprobante y Aprobar'}
-        </button>
-      )}
+      </div>
     </div>
   );
 };

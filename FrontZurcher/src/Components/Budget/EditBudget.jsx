@@ -485,20 +485,20 @@ const editableBudgets = useMemo(() => {
 
   // --- Renderizado ---
   return (
-    <div className="container mx-auto p-4 max-w-4xl">
+    <div className="max-w-4xl mx-auto p-4 min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       {/* --- Sección de Búsqueda --- */}
       {!selectedBudgetId && (
-        <div className="mb-6 p-4 bg-gray-100 rounded-lg shadow-md">
-          <label htmlFor="searchAddress" className="block text-sm font-medium text-gray-700 mb-1">
-            Buscar por Dirección, Permit # o Applicant
+        <div className="mb-8 p-6 bg-white rounded-2xl shadow-xl border border-gray-200">
+          <label htmlFor="searchAddress" className="block text-base font-semibold text-blue-900 mb-2">
+            Search by Address, Permit # or Applicant
           </label>
           <input
             type="text"
             id="searchAddress"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Escribe para buscar..."
-            className="input-style w-full border border-gray-300 rounded px-3 py-2"
+            placeholder="Type to search..."
+            className="input-style w-full border border-gray-300 rounded-lg px-4 py-2 text-base focus:ring-2 focus:ring-blue-400 focus:border-blue-500"
             list="address-suggestions"
             autoComplete="off"
           />
@@ -507,20 +507,19 @@ const editableBudgets = useMemo(() => {
               <option key={index} value={address} />
             ))}
           </datalist>
-
-          {loadingList && <p className="text-sm text-blue-500 mt-2">Buscando presupuestos...</p>}
-          {listError && <p className="text-sm text-red-600 mt-2">Error al buscar: {listError}</p>}
+          {loadingList && <p className="text-sm text-blue-500 mt-2">Searching budgets...</p>}
+          {listError && <p className="text-sm text-red-600 mt-2">Error: {listError}</p>}
           {searchResults.length > 0 && (
-            <ul className="mt-4 border border-gray-300 rounded max-h-60 overflow-y-auto bg-white shadow">
+            <ul className="mt-4 border border-gray-200 rounded-lg max-h-60 overflow-y-auto bg-white shadow">
               {searchResults.map(budget => (
-                <li key={budget.idBudget} className="border-b border-gray-200 last:border-b-0">
+                <li key={budget.idBudget} className="border-b border-gray-100 last:border-b-0">
                   <button
                     onClick={() => handleSelectBudget(budget.idBudget)}
-                    className="w-full text-left p-3 hover:bg-blue-50 focus:outline-none focus:bg-blue-100 transition duration-150 ease-in-out"
+                    className="w-full text-left p-3 hover:bg-blue-50 focus:outline-none focus:bg-blue-100 transition duration-150 ease-in-out rounded-lg"
                   >
-                    <p className="font-medium text-sm text-gray-900">{budget.propertyAddress}</p>
+                    <p className="font-medium text-base text-blue-900">{budget.propertyAddress}</p>
                     <p className="text-xs text-gray-600">
-                      Permit: {budget.Permit?.permitNumber || 'N/A'} | Applicant: {budget.applicantName || 'N/A'} | Fecha: {budget.date ? format(parseISO(budget.date), 'MM/dd/yyyy') : 'N/A'}
+                      Permit: {budget.Permit?.permitNumber || 'N/A'} | Applicant: {budget.applicantName || 'N/A'} | Date: {budget.date ? format(parseISO(budget.date), 'MM/dd/yyyy') : 'N/A'}
                     </p>
                   </button>
                 </li>
@@ -528,7 +527,7 @@ const editableBudgets = useMemo(() => {
             </ul>
           )}
           {searchTerm && searchResults.length === 0 && !loadingList && (
-            <p className="text-sm text-gray-500 mt-2">No se encontraron presupuestos que coincidan.</p>
+            <p className="text-sm text-gray-500 mt-2">No matching budgets found.</p>
           )}
         </div>
       )}
@@ -536,89 +535,82 @@ const editableBudgets = useMemo(() => {
       {/* --- Sección de Edición --- */}
       {selectedBudgetId && (
         <>
-          <button onClick={handleSearchAgain} className="mb-4 text-sm text-blue-600 hover:text-blue-800 hover:underline">
+          <button onClick={handleSearchAgain} className="mb-4 text-sm text-blue-700 hover:text-blue-900 hover:underline font-semibold">
             &larr; Back
           </button>
-
-          {loadingCurrentBudget && !formData && <div className="text-center p-4 text-blue-600">Cargando datos del presupuesto...</div>}
-          {currentBudgetError && !formData && <div className="text-center p-4 text-red-600">Error al cargar datos: {currentBudgetError}</div>}
-
+          {loadingCurrentBudget && !formData && <div className="text-center p-4 text-blue-600">Loading budget data...</div>}
+          {currentBudgetError && !formData && <div className="text-center p-4 text-red-600">Error loading data: {currentBudgetError}</div>}
           {formData && (
-            <form onSubmit={handleSubmit} className="space-y-6 bg-white shadow-lg rounded-lg p-6 border border-gray-200">
-              <h3 className="text-xl font-semibold border-b border-gray-300 pb-2 mb-4 text-gray-700">Editando Presupuesto #{selectedBudgetId}</h3>
-
+            <form onSubmit={handleSubmit} className="space-y-8 bg-white shadow-2xl rounded-2xl p-8 border border-gray-200">
+              <h3 className="text-2xl font-bold border-b border-gray-200 pb-3 mb-6 text-blue-900">Edit Budget #{selectedBudgetId}</h3>
               {/* --- Datos del Permit (No editables) --- */}
-              <fieldset className="border border-gray-200 p-4 rounded-md">
-                <legend className="text-lg font-medium text-gray-600 px-2">Información del Permiso</legend>
+              <fieldset className="border border-gray-200 p-4 rounded-lg mb-6">
+                <legend className="text-lg font-semibold text-blue-800 px-2">Permit Information</legend>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Permit #</label>
-                    <p className="mt-1 text-sm text-gray-900">{formData.permitNumber || 'N/A'}</p>
+                    <p className="mt-1 text-base text-gray-900 font-semibold">{formData.permitNumber || 'N/A'}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-500">Dirección</label>
-                    <p className="mt-1 text-sm text-gray-900">{formData.propertyAddress || 'N/A'}</p>
+                    <label className="block text-sm font-medium text-gray-500">Address</label>
+                    <p className="mt-1 text-base text-gray-900 font-semibold">{formData.propertyAddress || 'N/A'}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Applicant</label>
-                    <p className="mt-1 text-sm text-gray-900">{formData.applicantName || 'N/A'}</p>
+                    <p className="mt-1 text-base text-gray-900 font-semibold">{formData.applicantName || 'N/A'}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Lot / Block</label>
-                    <p className="mt-1 text-sm text-gray-900">{formData.lot || 'N/A'} / {formData.block || 'N/A'}</p>
+                    <p className="mt-1 text-base text-gray-900 font-semibold">{formData.lot || 'N/A'} / {formData.block || 'N/A'}</p>
                   </div>
                 </div>
               </fieldset>
-
               {/* --- Datos Generales del Presupuesto (Editables) --- */}
-              <fieldset className="border border-gray-200 p-4 rounded-md">
-                <legend className="text-lg font-medium text-gray-600 px-2">Detalles del Presupuesto</legend>
+              <fieldset className="border border-gray-200 p-4 rounded-lg mb-6">
+                <legend className="text-lg font-semibold text-blue-800 px-2">Budget Details</legend>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="date" className="block text-sm font-medium text-gray-700">Fecha</label>
+                    <label htmlFor="date" className="block text-sm font-medium text-gray-700">Date</label>
                     <input type="date" id="date" name="date" value={formData.date} onChange={handleGeneralInputChange} className="input-style mt-1" />
                   </div>
                   <div>
-                    <label htmlFor="expirationDate" className="block text-sm font-medium text-gray-700">Fecha de Expiración</label>
+                    <label htmlFor="expirationDate" className="block text-sm font-medium text-gray-700">Expiration Date</label>
                     <input type="date" id="expirationDate" name="expirationDate" value={formData.expirationDate} onChange={handleGeneralInputChange} className="input-style mt-1" />
                   </div>
-                 
-  <label htmlFor="status" className="block text-sm font-medium text-gray-700">Estado</label>
-  <select id="status" name="status" value={formData.status} onChange={handleGeneralInputChange} className="input-style mt-1">
-    <option value="created">Creado</option>
-    <option value="send">Enviar</option> {/* ✅ Corregido: era "sent" */}
-     <option value="sent">Enviado</option>
-    <option value="sent_for_signature">Enviado a Firma</option> {/* ✅ NUEVO */}
-    <option value="pending">Pendiente</option> {/* ✅ NUEVO */}
-    <option value="approved">Aprobado</option>
-    <option value="rejected">Rechazado</option>
-    <option value="notResponded">Sin Respuesta</option> {/* ✅ NUEVO */}
-    <option value="signed">Firmado</option> {/* ✅ NUEVO */}
-    {/* Removido "expired" ya que no está en el modelo */}
-  </select>
-</div>
-                
+                  <div>
+                    <label htmlFor="status" className="block text-sm font-medium text-gray-700">Status</label>
+                    <select id="status" name="status" value={formData.status} onChange={handleGeneralInputChange} className="input-style mt-1">
+                      <option value="created">Created</option>
+                      <option value="send">Send</option>
+                      <option value="sent">Sent</option>
+                      <option value="sent_for_signature">Sent for Signature</option>
+                      <option value="pending">Pending</option>
+                      <option value="approved">Approved</option>
+                      <option value="rejected">Rejected</option>
+                      <option value="notResponded">No Response</option>
+                      <option value="signed">Signed</option>
+                    </select>
+                  </div>
+                </div>
                 <div className="mt-4">
-                  <label htmlFor="generalNotes" className="block text-sm font-medium text-gray-700">Notas Generales</label>
+                  <label htmlFor="generalNotes" className="block text-sm font-medium text-gray-700">General Notes</label>
                   <textarea id="generalNotes" name="generalNotes" value={formData.generalNotes} onChange={handleGeneralInputChange} rows="3" className="input-style mt-1"></textarea>
                 </div>
               </fieldset>
-
               {/* --- Líneas de Items (Editables: Cantidad y Notas) --- */}
-              <fieldset className="border border-gray-200 p-4 rounded-md">
-                <legend className="text-lg font-medium text-gray-600 px-2">Items del Presupuesto</legend>
+              <fieldset className="border border-gray-200 p-4 rounded-lg mb-6">
+                <legend className="text-lg font-semibold text-blue-800 px-2">Budget Items</legend>
                 <div className="space-y-4">
                   {formData.lineItems.map((item, index) => (
                     <div key={item._tempId || item.id || index} className="border-b border-gray-100 pb-4 last:border-b-0">
-                      <p className="font-medium text-gray-800">{item.name} ({item.category})</p>
-                      <p className="text-sm text-gray-600">Marca: {item.marca || 'N/A'} | Capacidad: {item.capacity || 'N/A'} | Precio Unitario: ${item.unitPrice.toFixed(2)}</p>
-                      {/* ✅ MOSTRAR DESCRIPTION SI EXISTE */}
+                      <p className="font-medium text-blue-900">{item.name} <span className="text-xs text-gray-500">({item.category})</span></p>
+                      <p className="text-sm text-gray-600">Brand: {item.marca || 'N/A'} | Capacity: {item.capacity || 'N/A'} | Unit Price: ${item.unitPrice.toFixed(2)}</p>
                       {item.description && (
-                        <p className="text-sm text-gray-500 italic">Descripción: {item.description}</p>
+                        <p className="text-sm text-gray-500 italic">Description: {item.description}</p>
                       )}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
                         <div>
-                          <label htmlFor={`quantity-${index}`} className="block text-xs font-medium text-gray-700">Cantidad</label>
+                          <label htmlFor={`quantity-${index}`} className="block text-xs font-medium text-gray-700">Quantity</label>
                           <input
                             type="number"
                             id={`quantity-${index}`}
@@ -630,7 +622,7 @@ const editableBudgets = useMemo(() => {
                           />
                         </div>
                         <div className="md:col-span-2">
-                          <label htmlFor={`notes-${index}`} className="block text-xs font-medium text-gray-700">Notas del Item</label>
+                          <label htmlFor={`notes-${index}`} className="block text-xs font-medium text-gray-700">Item Notes</label>
                           <input
                             type="text"
                             id={`notes-${index}`}
@@ -640,15 +632,14 @@ const editableBudgets = useMemo(() => {
                           />
                         </div>
                       </div>
-                      <button type="button" onClick={() => handleRemoveLineItem(index)} className="text-red-500 text-xs mt-1">Eliminar Item</button>
+                      <button type="button" onClick={() => handleRemoveLineItem(index)} className="text-red-500 text-xs mt-1 hover:underline">Remove Item</button>
                     </div>
                   ))}
                 </div>
               </fieldset>
-
-              {/* ✅ NUEVA SECCIÓN: AGREGAR ITEMS DEL CATÁLOGO */}
-              <fieldset className="border border-gray-200 p-4 rounded-md">
-                <legend className="text-lg font-medium text-gray-600 px-2">Agregar Items del Catálogo</legend>
+              {/* --- Agregar Items del Catálogo --- */}
+              <fieldset className="border border-gray-200 p-4 rounded-lg mb-6">
+                <legend className="text-lg font-semibold text-blue-800 px-2">Add Catalog Items</legend>
                 
                 {loadingCatalog && (
                   <p className="text-sm text-blue-500 mb-4">Cargando catálogo de items...</p>
@@ -678,10 +669,9 @@ const editableBudgets = useMemo(() => {
                   <p className="text-sm text-gray-500">No hay categorías disponibles en el catálogo.</p>
                 )}
               </fieldset>
-
               {/* --- Añadir Item Manualmente --- */}
-              <fieldset className="border border-gray-200 p-4 rounded-md">
-                <legend className="text-lg font-medium text-gray-600 px-2">Añadir Item Manualmente</legend>
+              <fieldset className="border border-gray-200 p-4 rounded-lg mb-6">
+                <legend className="text-lg font-semibold text-blue-800 px-2">Add Manual Item</legend>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label htmlFor="manualCategory" className="block text-xs font-medium text-gray-700">Categoría</label>
@@ -726,46 +716,44 @@ const editableBudgets = useMemo(() => {
                   </button>
                 </div>
               </fieldset>
-
               {/* --- Descuento y Totales --- */}
-              <fieldset className="border border-gray-200 p-4 rounded-md">
-                <legend className="text-lg font-medium text-gray-600 px-2">Resumen Financiero</legend>
+              <fieldset className="border border-gray-200 p-4 rounded-lg mb-6">
+                <legend className="text-lg font-semibold text-blue-800 px-2">Financial Summary</legend>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="discountDescription" className="block text-sm font-medium text-gray-700">Descripción Descuento</label>
+                    <label htmlFor="discountDescription" className="block text-sm font-medium text-gray-700">Discount Description</label>
                     <input type="text" id="discountDescription" name="discountDescription" value={formData.discountDescription} onChange={handleGeneralInputChange} className="input-style mt-1" />
                   </div>
                   <div>
-                    <label htmlFor="discountAmount" className="block text-sm font-medium text-gray-700">Monto Descuento ($)</label>
+                    <label htmlFor="discountAmount" className="block text-sm font-medium text-gray-700">Discount Amount ($)</label>
                     <input type="number" id="discountAmount" name="discountAmount" value={formData.discountAmount} onChange={handleGeneralInputChange} className="input-style mt-1" min="0" step="0.01" />
                   </div>
                 </div>
                 <div className="mt-4 space-y-2 text-right">
                   <p className="text-sm text-gray-600">Subtotal: <span className="font-medium text-gray-900">${formData.subtotalPrice.toFixed(2)}</span></p>
-                  <p className="text-sm text-gray-600">Descuento: <span className="font-medium text-red-600">-${(parseFloat(formData.discountAmount) || 0).toFixed(2)}</span></p>
-                  <p className="text-lg font-semibold text-gray-900">Total: ${formData.totalPrice.toFixed(2)}</p>
-                  <p className="text-md font-medium text-blue-700">Pago Inicial Requerido: ${formData.initialPayment.toFixed(2)}</p>
+                  <p className="text-sm text-gray-600">Discount: <span className="font-medium text-red-600">-${(parseFloat(formData.discountAmount) || 0).toFixed(2)}</span></p>
+                  <p className="text-lg font-semibold text-blue-900">Total: ${formData.totalPrice.toFixed(2)}</p>
+                  <p className="text-md font-medium text-blue-700">Initial Payment Required: ${formData.initialPayment.toFixed(2)}</p>
                 </div>
               </fieldset>
-
               {/* --- Botón de Envío --- */}
               <div className="flex justify-end pt-4">
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+                  className="px-8 py-3 bg-blue-700 text-white rounded-lg font-bold shadow hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 text-lg"
                 >
-                  {isSubmitting ? 'Guardando...' : 'Guardar Cambios'}
+                  {isSubmitting ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>
           )}
           {!formData && !loadingCurrentBudget && !currentBudgetError && (
-            <div className="text-center p-4 text-orange-600">No se pudieron mostrar los datos del formulario. Verifique la consola.</div>
+            <div className="text-center p-4 text-orange-600">Could not display form data. Check console.</div>
           )}
         </>
       )}
-      <style>{`.input-style { border: 1px solid #d1d5db; border-radius: 0.375rem; padding: 0.5rem 0.75rem; width: 100%; box-sizing: border-box; } .input-style:focus { outline: 2px solid transparent; outline-offset: 2px; border-color: #2563eb; box-shadow: 0 0 0 2px #bfdbfe; }`}</style>
+      <style>{`.input-style { border: 1px solid #d1d5db; border-radius: 0.5rem; padding: 0.75rem 1rem; width: 100%; box-sizing: border-box; font-size: 1rem; } .input-style:focus { outline: 2px solid transparent; outline-offset: 2px; border-color: #2563eb; box-shadow: 0 0 0 2px #bfdbfe; }`}</style>
     </div>
   );
 };

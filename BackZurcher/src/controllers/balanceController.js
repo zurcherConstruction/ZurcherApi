@@ -167,6 +167,7 @@ const getGeneralBalance = async (req, res) => {
         {
           model: Work,
           as: 'work',
+          attributes: ['idWork', 'propertyAddress'],
           required: false,
           include: [
             {
@@ -176,7 +177,7 @@ const getGeneralBalance = async (req, res) => {
             },
             {
               model: FinalInvoice,
-              as: 'finalInvoice', // AGREGAR: usar el alias correcto
+              as: 'finalInvoice',
               required: false,
               attributes: ['id', 'status', 'finalAmountDue']
             }
@@ -185,7 +186,7 @@ const getGeneralBalance = async (req, res) => {
       ]
     });
 
-    // Obtener gastos con Staff solamente
+    // Obtener gastos con Staff y Work
     const allExpenses = await Expense.findAll({
       where: expenseWhere,
       order: [['date', 'DESC']],
@@ -194,6 +195,12 @@ const getGeneralBalance = async (req, res) => {
           model: Staff,
           as: 'Staff',
           attributes: ['id', 'name', 'email'],
+          required: false
+        },
+        {
+          model: Work,
+          as: 'work',
+          attributes: ['idWork', 'propertyAddress'],
           required: false
         }
       ]

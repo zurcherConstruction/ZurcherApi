@@ -7,13 +7,13 @@ import {
 } from "../Redux/Actions/notificationAction";
 import { addNotification } from "../Redux/Reducer/notificationReducer";
 import api from "../utils/axios";
+import { FaBell } from "react-icons/fa";
 
 
 const Notifications = ({ isDropdown = false, onClose }) => {
   const dispatch = useDispatch();
   const { currentStaff: staff } = useSelector((state) => state.auth);
   const { notifications, loading, error } = useSelector((state) => state.notifications);
-console.log("Notificaciones desde Redux:", notifications); // Verifica qué datos llegan al componente
 
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [responseMessage, setResponseMessage] = useState("");
@@ -89,97 +89,137 @@ console.log("Notificaciones desde Redux:", notifications); // Verifica qué dato
   if (error) return <p>Error: {error}</p>;
 
   return (
-    <div className={isDropdown ? "absolute bg-white shadow-lg rounded-lg" : ""}>
-      <h2 className="text-sm font-medium bg-sky-800 text-white p-2 border-">
-        Notificaciones
+    <div className={isDropdown ? "bg-white shadow-lg rounded-lg" : ""}>
+      <h2 className="text-sm font-medium bg-blue-600 text-white p-3 rounded-t-lg">
+        Notificaciones {validNotifications.length > 0 && `(${validNotifications.length})`}
       </h2>
-      <ul
+      <div
         className="divide-y divide-gray-200 overflow-y-auto"
-        style={{ maxHeight: "400px" }} // Altura máxima con scroll
+        style={{ maxHeight: "400px" }}
       >
         {validNotifications.length > 0 ? (
           validNotifications.map((notification) => (
-            <li
+            <div
               key={notification.id}
-              className={`p-2 ${notification.isRead ? "bg-gray-100" : "bg-blue-100"}`}
+              className={`p-4 transition-all duration-200 hover:bg-gray-50 ${notification.isRead ? "bg-white" : "bg-blue-50 border-l-4 border-blue-500"}`}
             >
-              <p className="font-semibold">{notification.message}</p>
-              <p className="text-sm text-gray-500">
-                Tipo: {notification.type} | Enviado por: {notification.senderName || "Desconocido"}
-              </p>
-              <button
-                onClick={() => handleOpenNotification(notification)}
-                className="mt-2 text-blue-500 hover:underline"
-              >
-                Responder
-              </button>
-              {!notification.isRead && (
-                <button
-                  onClick={() => handleMarkAsRead(notification.id)}
-                  className="ml-2 text-green-500 hover:underline"
-                >
-                  Marcar como leída
-                </button>
-              )}
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-800 mb-1">{notification.message}</p>
+                  <p className="text-sm text-gray-500 mb-2">
+                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 mr-2">
+                      {notification.type}
+                    </span>
+                    Enviado por: {notification.senderName || "Desconocido"}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleOpenNotification(notification)}
+                      className="text-blue-600 hover:text-blue-800 text-sm font-medium hover:underline transition-colors duration-200"
+                    >
+                      Responder
+                    </button>
+                    {!notification.isRead && (
+                      <button
+                        onClick={() => handleMarkAsRead(notification.id)}
+                        className="text-green-600 hover:text-green-800 text-sm font-medium hover:underline transition-colors duration-200"
+                      >
+                        Marcar como leída
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {!notification.isRead && (
+                  <div className="w-3 h-3 bg-blue-500 rounded-full flex-shrink-0 ml-3 mt-1"></div>
+                )}
+              </div>
 
               {/* Mostrar respuestas asociadas */}
               {notification.responses && Array.isArray(notification.responses) && notification.responses.length > 0 && (
-                <ul className="mt-2 pl-4 border-l-2 border-gray-300">
+                <div className="mt-3 pl-4 border-l-2 border-gray-200 bg-gray-50 rounded-r-lg p-3">
+                  <p className="text-xs font-medium text-gray-600 mb-2">Respuestas:</p>
                   {notification.responses.map((response) => (
-                    <li key={response.id} className="text-sm text-gray-700">
-                      <p>Respuesta: {response.message}</p>
+                    <div key={response.id} className="text-sm text-gray-700 mb-2 last:mb-0">
+                      <p className="mb-1">{response.message}</p>
                       <p className="text-xs text-gray-500">
-                        Enviado el: {new Date(response.createdAt).toLocaleString()}
+                        {new Date(response.createdAt).toLocaleString()}
                       </p>
-                    </li>
+                    </div>
                   ))}
-                </ul>
+                </div>
               )}
-            </li>
+            </div>
           ))
         ) : (
-          <li className="p-2 text-center text-gray-500">No hay notificaciones</li>
+          <div className="p-8 text-center text-gray-500">
+            <FaBell className="mx-auto text-4xl text-gray-300 mb-3" />
+            <p className="text-lg font-medium">No hay notificaciones</p>
+            <p className="text-sm">Te notificaremos cuando tengas nuevos mensajes</p>
+          </div>
         )}
-      </ul>
+      </div>
 
       {/* Modal para ver detalles */}
       {selectedNotification && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-96">
-            <h2 className="text-lg font-bold mb-2">Detalles de la Notificación</h2>
-            <p className="mb-2">
-              <strong>Mensaje:</strong> {selectedNotification.message}
-            </p>
-            <p className="mb-2">
-              <strong>Tipo:</strong> {selectedNotification.type}
-            </p>
-            <p className="mb-4">
-              <strong>Enviado por:</strong> {selectedNotification.senderName}
-            </p>
+          <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-800">Detalles de la Notificación</h2>
+              <button
+                onClick={handleCloseNotification}
+                className="text-gray-400 hover:text-gray-600 transition-colors duration-200"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Mensaje</label>
+                <p className="p-3 bg-gray-50 rounded-lg text-gray-800">{selectedNotification.message}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Tipo</label>
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                  {selectedNotification.type}
+                </span>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Enviado por</label>
+                <p className="text-gray-800">{selectedNotification.senderName}</p>
+              </div>
+            </div>
 
             {/* Formulario para responder */}
-            <form onSubmit={handleResponseSubmit}>
-              <textarea
-                value={responseMessage}
-                onChange={(e) => setResponseMessage(e.target.value)}
-                placeholder="Escribe tu respuesta aquí..."
-                className="w-full border rounded-lg p-2 mb-4"
-                rows="3"
-              ></textarea>
-              <button
-                type="submit"
-                className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600"
-              >
-                Enviar respuesta
-              </button>
+            <form onSubmit={handleResponseSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-2">Tu respuesta</label>
+                <textarea
+                  value={responseMessage}
+                  onChange={(e) => setResponseMessage(e.target.value)}
+                  placeholder="Escribe tu respuesta aquí..."
+                  className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 resize-none"
+                  rows="4"
+                ></textarea>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors duration-200 font-medium"
+                >
+                  Enviar respuesta
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCloseNotification}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
+                >
+                  Cancelar
+                </button>
+              </div>
             </form>
-
-            <button
-              onClick={handleCloseNotification}
-              className="mt-4 text-red-500 hover:underline"
-            >
-              Cerrar
-            </button>
           </div>
         </div>
       )}

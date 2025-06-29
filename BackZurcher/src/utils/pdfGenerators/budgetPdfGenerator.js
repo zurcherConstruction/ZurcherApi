@@ -376,7 +376,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   if (lineItems && lineItems.length > 0) {
     // ✅ ÚNICO CAMBIO: Se filtra el array antes de recorrerlo para no mostrar "LABOR FEE"
     lineItems
-      .filter(item => item.name?.toUpperCase() !== 'LABOR FEE')
+    .filter(item => item.name?.toUpperCase() !== 'ZURCHER CONSTRUCTION')
       .forEach((item) => {
         const itemQty = parseInt(item.quantity) || 1;
         

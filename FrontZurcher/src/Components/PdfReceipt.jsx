@@ -10,6 +10,7 @@ import "@react-pdf-viewer/default-layout/lib/styles/index.css";
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Swal from 'sweetalert2';
+ 
 
 const PdfReceipt = () => {
   const dispatch = useDispatch();
@@ -41,6 +42,7 @@ const PdfReceipt = () => {
 
   const [expirationWarning, setExpirationWarning] = useState({ type: "", message: "" });
   const [excavationUnit, setExcavationUnit] = useState("INCH"); 
+  const [uploadType, setUploadType] = useState("main"); // "main" o "optional"
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
 
   useEffect(() => {
@@ -376,10 +378,10 @@ const PdfReceipt = () => {
   
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="max-w-7xl mx-auto p-4 min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       <ToastContainer
-        position="top-right" // Puedes cambiar la posición
-        autoClose={3000} // Duración por defecto
+        position="top-right"
+        autoClose={3000}
         hideProgressBar={false}
         newestOnTop={false}
         closeOnClick
@@ -387,109 +389,173 @@ const PdfReceipt = () => {
         pauseOnFocusLoss
         draggable
         pauseOnHover
-        theme="colored" 
-        />
-      <h1 className="text-xl font-bold">Gestión de PDF y Permit</h1>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-       
-        <div className="bg-white shadow-md rounded-lg p-4 col-span-2">
-         
-          
-           <div className="flex justify-between mb-4">
-             <button onClick={() => setCurrentPage(1)} className={`py-1 px-2 rounded-md ${ currentPage === 1 ? "bg-blue-950 text-white" : "bg-gray-200 text-gray-700" }`}>Ver PDF Principal</button>
-             <button onClick={() => setCurrentPage(2)} className={`py-1 px-2 rounded-md ${ currentPage === 2 ? "bg-blue-950 text-white" : "bg-gray-200 text-gray-700" }`}>Ver Documento Opcional</button>
-           </div>
-           {currentPage === 1 && pdfPreview ? (
-             <div className="overflow-y-auto max-h-[700px] border border-gray-300 rounded-md">
-               <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
-                 <Viewer fileUrl={pdfPreview} plugins={[defaultLayoutPluginInstance]} />
-               </Worker>
-             </div>
-           ) : currentPage === 2 && optionalDocPreview ? (
-             <div className="overflow-y-auto max-h-[700px] border border-gray-300 rounded-md">
-               <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
-                 <Viewer fileUrl={optionalDocPreview} plugins={[defaultLayoutPluginInstance]} />
-               </Worker>
-             </div>
-           ) : ( <p className="text-gray-500">{currentPage === 1 ? "No se ha cargado ningún PDF principal." : "No se ha cargado ningún documento opcional."}</p> )}
-           {currentPage === 1 && ( <div className="mt-4"><label className="block text-sm font-medium text-gray-700">Cargar PDF Principal</label><input type="file" accept="application/pdf" onChange={handleFileUpload} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"/></div> )}
-           {currentPage === 2 && ( <div className="mt-4"><label className="block text-sm font-medium text-gray-700">Cargar Documento Opcional</label><input type="file" accept="application/pdf" onChange={handleOptionalDocUpload} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"/></div> )}
+        theme="colored"
+      />
+      <h1 className="text-2xl md:text-3xl font-bold mb-8 text-blue-900 flex items-center gap-3">
+        <span className="inline-block bg-blue-100 text-blue-700 rounded-full px-3 py-1 text-lg font-semibold">Permits & PDF</span>
+        <span className="text-base font-normal text-gray-400">Document & Data Management</span>
+      </h1>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* Panel PDF */}
+        <div className="bg-white shadow-xl rounded-2xl p-6 col-span-2 flex flex-col">
+          {/* Barra de acciones arriba con select y un solo input */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+            <div className="flex gap-2">
+              <button onClick={() => setCurrentPage(1)} className={`py-2 px-2 rounded-lg font-semibold transition-all duration-200 ${currentPage === 1 ? "bg-blue-700 text-white shadow" : "bg-gray-100 text-blue-700 hover:bg-blue-50"}`}>Permit</button>
+              <button onClick={() => setCurrentPage(2)} className={`py-2 px-2 rounded-lg font-semibold transition-all duration-200 ${currentPage === 2 ? "bg-blue-700 text-white shadow" : "bg-gray-100 text-blue-700 hover:bg-blue-50"}`}>Site Plan</button>
+            </div>
+            <div className="flex flex-col md:flex-row md:items-center gap-2 w-full md:w-auto">
+             
+              <select
+                value={uploadType}
+                onChange={e => setUploadType(e.target.value)}
+                className="border border-gray-300 rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              >
+                <option value="main">Permit</option>
+                <option value="optional">Site Plane</option>
+              </select>
+              {uploadType === "main" ? (
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={handleFileUpload}
+                  className="block border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white p-2 w-full md:w-auto"
+                />
+              ) : (
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={handleOptionalDocUpload}
+                  className="block border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white p-2 w-full md:w-auto"
+                />
+              )}
+            </div>
+          </div>
+          <div className="flex-1 flex flex-col">
+            {currentPage === 1 && pdfPreview ? (
+              <div className="overflow-y-auto max-h-[600px] border border-gray-200 rounded-lg shadow-inner bg-gray-50">
+                <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+                  <Viewer fileUrl={pdfPreview} plugins={[defaultLayoutPluginInstance]} />
+                </Worker>
+              </div>
+            ) : currentPage === 2 && optionalDocPreview ? (
+              <div className="overflow-y-auto max-h-[600px] border border-gray-200 rounded-lg shadow-inner bg-gray-50">
+                <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+                  <Viewer fileUrl={optionalDocPreview} plugins={[defaultLayoutPluginInstance]} />
+                </Worker>
+              </div>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-gray-400 text-lg min-h-[200px]">{currentPage === 1 ? "No main PDF uploaded." : "No optional document uploaded."}</div>
+            )}
+          </div>
         </div>
-
-        {/* Columna derecha: Formulario (solo para datos del Permit) */}
-        <div className="bg-white shadow-md rounded-lg p-4 col-span-1">
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4">
-            {/* Mapea los campos del formData como antes */}
+        {/* Panel Formulario */}
+        <div className="bg-white shadow-xl rounded-2xl p-6 col-span-1">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-5">
+            <h2 className="text-lg font-bold text-blue-800 mb-2">Permit Data</h2>
             {Object.keys(formData)
               .filter(
                 (key) =>
                   key !== "applicationNumber" &&
                   key !== "constructionPermitFor" &&
-                  key !== "dateIssued" 
+                  key !== "dateIssued"
               )
               .map((key) => (
-              <div key={key}>
-                 {key === "applicantName" && ( <h2 className="text-sm font-semibold mt-2 mb-2 bg-blue-950 text-white p-1 rounded-md">CUSTOMER CLIENT</h2> )}
-                 <label className="block text-xs font-medium capitalize text-gray-700">
-                   {key === "applicantName" ? "Name" : key === "applicantEmail" ? "Email" : key === "applicantPhone" ? "Phone" : key.replace(/([A-Z])/g, " $1").trim()}
-                 </label>
+                <div key={key} className="mb-1">
+                  {key === "applicantName" && (
+                    <h3 className="text-xs font-semibold mt-2 mb-2 bg-blue-100 text-blue-800 p-1 rounded">CUSTOMER CLIENT</h3>
+                  )}
+                  <label className="block text-xs font-medium capitalize text-gray-700 mb-1">
+                    {key === "applicantName"
+                      ? "Name"
+                      : key === "applicantEmail"
+                      ? "Email"
+                      : key === "applicantPhone"
+                      ? "Phone"
+                      : key === "propertyAddress"
+                      ? "Property Address"
+                      : key === "systemType"
+                      ? "System Type"
+                      : key === "lot"
+                      ? "Lot"
+                      : key === "block"
+                      ? "Block"
+                      : key === "gpdCapacity"
+                      ? "GPD Capacity"
+                      : key === "drainfieldDepth"
+                      ? "Drainfield Depth"
+                      : key === "excavationRequired"
+                      ? "Excavation Required"
+                      : key === "expirationDate"
+                      ? "Expiration Date"
+                      : key === "pump"
+                      ? "Pump"
+                      : key.replace(/([A-Z])/g, " $1").trim()}
+                  </label>
                   {/* --- RENDERIZADO CONDICIONAL --- */}
-                  {key === 'excavationRequired' ? (
-                   // --- Renderizar Input + Select para Excavation ---
-                   <div className="flex items-center space-x-2 mt-1">
-                     <input
-                       type="text"
-                       name="excavationRequired"
-                       value={formData.excavationRequired ?? ''}
-                       onChange={handleInputChange}
-                       className="block w-2/3 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                       placeholder="Valor o descripción"
-                     />
-                     <select
-                       name="excavationUnit" // Usa un nombre diferente si es necesario, o maneja en el submit
-                       value={excavationUnit}
-                       onChange={(e) => setExcavationUnit(e.target.value)}
-                       className="block w-1/3 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                     >
-                       <option value="INCH">INCH</option>
-                       <option value="FEET">FEET</option>
-                     </select>
-                   </div>
-                 ) : (
-                
-                  <input
-                  type={
-                    key === 'applicantEmail' ? 'email' : 
-                    key === 'applicantPhone' ? 'tel' : 
-                    key === 'expirationDate' ? 'date' : // Usar input tipo date
-                    'text'
-                  }
-                  name={key}
-                  value={formData[key] ?? ''} 
-                  onChange={handleInputChange}
-                  className={`mt-1 block w-full border ${
-                    key === 'expirationDate' && expirationWarning.type === 'error' ? 'border-red-500 bg-red-100 text-red-700 placeholder-red-700' : 
-                    key === 'expirationDate' && expirationWarning.type === 'warning' ? 'border-yellow-500 bg-yellow-100 text-yellow-700 placeholder-yellow-700' : 
-                    'border-gray-300'
-                  } rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm`}
-                  required={key === 'applicantName' || key === 'propertyAddress'} 
-                  />
-                 )}
-                 {key === 'expirationDate' && expirationWarning.message && (
-                   <p className={`text-xs mt-1 ${expirationWarning.type === 'error' ? 'text-red-600 font-semibold' : 'text-yellow-600 font-semibold'}`}>
-                     {expirationWarning.message}
-                   </p>
-                 )}
+                  {key === "excavationRequired" ? (
+                    <div className="flex items-center space-x-2 mt-1">
+                      <input
+                        type="text"
+                        name="excavationRequired"
+                        value={formData.excavationRequired ?? ""}
+                        onChange={handleInputChange}
+                        className="block w-2/3 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-gray-50"
+                        placeholder="Value or description"
+                      />
+                      <select
+                        name="excavationUnit"
+                        value={excavationUnit}
+                        onChange={(e) => setExcavationUnit(e.target.value)}
+                        className="block w-1/3 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-gray-50"
+                      >
+                        <option value="INCH">INCH</option>
+                        <option value="FEET">FEET</option>
+                      </select>
+                    </div>
+                  ) : (
+                    <input
+                      type={
+                        key === "applicantEmail"
+                          ? "email"
+                          : key === "applicantPhone"
+                          ? "tel"
+                          : key === "expirationDate"
+                          ? "date"
+                          : "text"
+                      }
+                      name={key}
+                      value={formData[key] ?? ""}
+                      onChange={handleInputChange}
+                      className={`mt-1 block w-full border ${
+                        key === "expirationDate" && expirationWarning.type === "error"
+                          ? "border-red-500 bg-red-100 text-red-700 placeholder-red-700"
+                          : key === "expirationDate" && expirationWarning.type === "warning"
+                          ? "border-yellow-500 bg-yellow-100 text-yellow-700 placeholder-yellow-700"
+                          : "border-gray-300 bg-gray-50"
+                      } rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm`}
+                      required={key === "applicantName" || key === "propertyAddress"}
+                    />
+                  )}
+                  {key === "expirationDate" && expirationWarning.message && (
+                    <p
+                      className={`text-xs mt-1 ${
+                        expirationWarning.type === "error"
+                          ? "text-red-600 font-semibold"
+                          : "text-yellow-600 font-semibold"
+                      }`}
+                    >
+                      {expirationWarning.message}
+                    </p>
+                  )}
                   {/* --- FIN RENDERIZADO CONDICIONAL --- */}
-               </div>
-            ))}
-            
+                </div>
+              ))}
             <button
               type="submit"
-              className="bg-blue-950 text-white py-2 px-4 rounded-md hover:bg-indigo-700"
+              className="bg-blue-700 text-white py-3 px-4 rounded-lg font-bold shadow hover:bg-blue-800 transition-all duration-200 mt-2"
             >
-              Guardar Permiso y Continuar
+              Save Permit and Continue
             </button>
           </form>
         </div>

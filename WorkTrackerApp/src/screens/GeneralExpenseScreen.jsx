@@ -20,6 +20,9 @@ const GeneralExpenseScreen = () => {
   const dispatch = useDispatch();
   const navigation = useNavigation();
   const { loading, error } = useSelector((state) => state.balance); // O el slice correspondiente
+  
+  // Obtener usuario autenticado desde Redux
+  const user = useSelector((state) => state.auth?.staff); // Cambiar user por staff
 
   const [amount, setAmount] = useState('');
   const [notes, setNotes] = useState('');
@@ -94,7 +97,12 @@ const GeneralExpenseScreen = () => {
     }
 
 
-    dispatch(createGeneralExpenseWithReceipt({ amount: numericAmount, notes, image }))
+    dispatch(createGeneralExpenseWithReceipt({ 
+      amount: numericAmount, 
+      notes, 
+      image,
+      staffId: user?.id // Agregar staffId del usuario autenticado
+    }))
       .unwrap() // Permite usar .then() y .catch() en el dispatch
       .then(() => {
         Alert.alert('Éxito', 'Gasto general guardado correctamente.');

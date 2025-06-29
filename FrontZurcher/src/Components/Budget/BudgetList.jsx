@@ -388,31 +388,31 @@ const BudgetList = () => {
   const totalPages = Math.ceil(sortedBudgets.length / itemsPerPage);
   console.log("IDs en currentBudgetsForDisplay:", currentBudgetsForDisplay.map(b => b.idBudget));
   return (
-    <div className="w-full min-h-screen bg-gray-50 p-4 md:p-6">
-      <div className="max-w-full mx-auto">
-        <h1 className="text-xl md:text-2xl lg:text-3xl font-semibold mb-4 md:mb-6 text-gray-800">Monthly Budgets</h1>
-
-
-
+    <div className="w-full min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 md:p-8">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-2xl md:text-3xl font-bold mb-8 text-blue-900 flex items-center gap-3">
+          <span className="inline-block bg-blue-100 text-blue-700 rounded-full px-3 py-1 text-lg font-semibold">Monthly Budgets</span>
+          <span className="text-base font-normal text-gray-400">Overview & Management</span>
+        </h1>
         {loading && <p className="text-blue-500">Loading Budgets...</p>}
         {error && <p className="text-red-500">Error: {error}</p>}
         {!loading && !error && (
           <>
             {/* Tabla optimizada para tablets/desktop */}
-            <div className="hidden lg:block overflow-x-auto shadow-lg rounded-lg">
-              <table className="min-w-full table-auto border-collapse bg-white rounded-lg overflow-hidden">
+            <div className="hidden lg:block overflow-x-auto shadow-2xl rounded-2xl mb-8">
+              <table className="min-w-full table-auto border-collapse bg-white rounded-2xl overflow-hidden">
                 <thead>
-                  <tr className="bg-gray-200 text-xs lg:text-sm text-gray-600 uppercase tracking-wider">
-                    <th className="border border-gray-300 px-3 py-3 text-left">Applicant</th>
-                    <th className="border border-gray-300 px-3 py-3 text-left">Date</th>
-                    <th className="border border-gray-300 px-3 py-3 text-left">End Date</th>
-                    <th className="border border-gray-300 px-3 py-3 text-right">Total Price</th>
-                    <th className="border border-gray-300 px-3 py-3 text-right">Pay</th>
-                    <th className="border border-gray-300 px-3 py-3 text-center">Status</th>
-                    <th className="border border-gray-300 px-3 py-3 text-left">Address</th>
-                    <th className="border border-gray-300 px-3 py-3 text-left">System</th>
-                    <th className="border border-gray-300 px-3 py-3 text-left">Notes</th>
-                    <th className="border border-gray-300 px-3 py-3 text-center">Actions</th>
+                  <tr className="bg-blue-50 text-xs lg:text-sm text-blue-800 uppercase tracking-wider">
+                    <th className="border border-gray-200 px-4 py-3 text-left">Applicant</th>
+                    <th className="border border-gray-200 px-4 py-3 text-left">Date</th>
+                    <th className="border border-gray-200 px-4 py-3 text-left">End Date</th>
+                    <th className="border border-gray-200 px-4 py-3 text-right">Total Price</th>
+                    <th className="border border-gray-200 px-4 py-3 text-right">Pay</th>
+                    <th className="border border-gray-200 px-4 py-3 text-center">Status</th>
+                    <th className="border border-gray-200 px-4 py-3 text-left">Address</th>
+                    <th className="border border-gray-200 px-4 py-3 text-left">System</th>
+                    <th className="border border-gray-200 px-4 py-3 text-left">Notes</th>
+                    <th className="border border-gray-200 px-4 py-3 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -693,8 +693,8 @@ const BudgetList = () => {
             </div>
 
             {/* Vista de cards optimizada para tablet/móvil */}
-            <div className="block lg:hidden space-y-4 md:space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+            <div className="block lg:hidden space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {currentBudgetsForDisplay.map((budget) => {
                   let paymentLabel = `Pay ${budget.initialPaymentPercentage || 60}%`;
                   if (budget.initialPaymentPercentage === 100 || String(budget.initialPaymentPercentage).toLowerCase() === 'total') {
@@ -934,17 +934,17 @@ const BudgetList = () => {
               </div>
             </div>
 
-            {/* Paginación optimizada */}
-            <div className="flex justify-center mt-8 pb-4">
-              <div className="flex flex-wrap justify-center gap-1 md:gap-2">
+            {/* Paginación */}
+            <div className="flex justify-center mt-10 pb-4">
+              <div className="flex flex-wrap justify-center gap-2">
                 {Array.from({ length: totalPages }, (_, index) => (
                   <button
                     key={`page-${index + 1}`}
                     onClick={() => handlePageChange(index + 1)}
-                    className={`px-3 py-2 md:px-4 md:py-2 text-sm rounded-lg transition-colors ${
+                    className={`px-4 py-2 text-base rounded-xl font-semibold transition-colors shadow-sm border ${
                       currentPage === index + 1
-                        ? "bg-blue-950 text-white shadow-md"
-                        : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-300"
+                        ? "bg-blue-700 text-white shadow-md border-blue-700"
+                        : "bg-white text-blue-700 hover:bg-blue-50 border-gray-300"
                     }`}
                   >
                     {index + 1}
@@ -953,7 +953,7 @@ const BudgetList = () => {
               </div>
             </div>
 
-            {/* Modal optimizado para móvil */}
+            {/* Modal PDF */}
             <PdfModal
               isOpen={isModalOpen}
               onClose={closeModal}

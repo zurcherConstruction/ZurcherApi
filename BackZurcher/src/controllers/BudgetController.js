@@ -1277,7 +1277,7 @@ const BudgetController = {
               typeIncome: 'Factura Pago Inicial Budget',
               notes: `Pago inicial registrado al aprobar Budget #${budget.idBudget}`,
               workId: workRecord.idWork,
-              staffId: req.user?.id  // Agregar staffId
+              staffId: req.staff?.id  // Cambiar req.user por req.staff
             }, { transaction });
             console.log(`Nuevo Income creado exitosamente.`);
           } catch (incomeError) {
@@ -1308,7 +1308,7 @@ const BudgetController = {
                 typeIncome: 'Factura Pago Inicial Budget',
                 notes: `Pago inicial (tardío) registrado al aprobar Budget #${budget.idBudget}`,
                 workId: workRecord.idWork,
-                staffId: req.user?.id // Agregar staffId
+                staffId: req.staff?.id // Cambiar req.user por req.staff
               }, { transaction });
               console.log(`Income (tardío) creado exitosamente.`);
             } catch (lateIncomeError) {

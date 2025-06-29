@@ -28,6 +28,8 @@ module.exports = (sequelize) => {
             'Comprobante Ingreso',
             'Gastos Generales',
             'Materiales Iniciales',
+            'Inspección Inicial',
+            'Inspección Final'
 
            ),
         allowNull: false,

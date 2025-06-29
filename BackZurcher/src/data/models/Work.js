@@ -29,7 +29,8 @@ module.exports = (sequelize) => {
         'finalInspectionPending',
         'finalApproved',
         'finalRejected',
-        'maintenance'
+        'maintenance',
+        'cancelled'
       ),
       allowNull: false,
       defaultValue: 'pending',

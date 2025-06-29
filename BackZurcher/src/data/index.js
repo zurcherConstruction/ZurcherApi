@@ -74,6 +74,13 @@ Inspection.belongsTo(Work, { foreignKey: 'workId' });
 Staff.hasMany(Work, { foreignKey: 'staffId' });
 Work.belongsTo(Staff, { foreignKey: 'staffId' });
 
+// Relaciones entre Staff y Income/Expense
+Staff.hasMany(Income, { foreignKey: 'staffId', as: 'incomes' });
+Income.belongsTo(Staff, { foreignKey: 'staffId', as: 'Staff' });
+
+Staff.hasMany(Expense, { foreignKey: 'staffId', as: 'expenses' });
+Expense.belongsTo(Staff, { foreignKey: 'staffId', as: 'Staff' });
+
 // Work.belongsTo(Budget, { foreignKey: 'idBudget', as: 'budget' });
 // Budget.hasMany(Work, { foreignKey: 'idBudget' });
 // Relación entre Staff y Notification
@@ -205,9 +212,6 @@ FinalInvoice.hasMany(WorkExtraItem, {
 WorkExtraItem.belongsTo(FinalInvoice, {
   foreignKey: 'finalInvoiceId'
 });
-
-Income.belongsTo(Staff, { as: 'Staff', foreignKey: 'staffId' });
-Expense.belongsTo(Staff, { as: 'Staff', foreignKey: 'staffId' });
 
 // --- RELACIONES PARA CHANGE ORDER ---
 Work.hasMany(ChangeOrder, {

@@ -14,6 +14,24 @@ import { Worker, Viewer } from '@react-pdf-viewer/core';
 import { defaultLayoutPlugin } from '@react-pdf-viewer/default-layout';
 import '@react-pdf-viewer/core/lib/styles/index.css';
 import '@react-pdf-viewer/default-layout/lib/styles/index.css';
+import {
+  CubeIcon,
+  BuildingOffice2Icon,
+  CalendarDaysIcon,
+  DocumentTextIcon,
+  PlusIcon,
+  PencilIcon,
+  TrashIcon,
+  EyeIcon,
+  ArrowDownTrayIcon,
+  ArrowUpTrayIcon,
+  ClipboardDocumentListIcon,
+  HashtagIcon,
+  ChatBubbleBottomCenterTextIcon,
+  CurrencyDollarIcon,
+  CheckCircleIcon,
+  DocumentIcon,
+} from "@heroicons/react/24/outline";
 
 const Materiales = () => {
   const dispatch = useDispatch();
@@ -41,6 +59,7 @@ const Materiales = () => {
   const [editingIndex, setEditingIndex] = useState(null); // Índice del material que se está editando
   const [pdfUrl, setPdfUrl] = useState(null);
   const [currentPdfView, setCurrentPdfView] = useState('permit');
+  const [showReceiptModal, setShowReceiptModal] = useState(false); // Estado para el modal
 
    // Nuevo estado para el archivo del comprobante de materiales iniciales
    const [initialReceiptFile, setInitialReceiptFile] = useState(null);
@@ -433,401 +452,726 @@ console.log("selectedAddress:", selectedAddress, "work:", work);
   }
 
   return (
-    <div className="p-4 bg-white shadow-md rounded-lg max-w-screen-2xl mx-auto"> {/* o el max-w que prefieras */}
-      <div className="flex flex-col lg:flex-row gap-8">
-        {/* Columna izquierda: Formulario y tabla de materiales */}
-        <div className="lg:w-2/5 xl:w-1/3">
-          <h2 className="text-xl font-bold mb-4">Formulario de Materiales</h2>
-          <form className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="address" className="block text-gray-700 text-sm font-bold mb-2">
-                Dirección:
-              </label>
-              <select
-                id="address"
-                name="address"
-                value={selectedAddress}
-                onChange={(e) => setSelectedAddress(e.target.value)}
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-              >
-                <option value="">Seleccione una dirección</option>
-                {works
-                  .filter((work) => work.status === "pending" || work.status === "assigned" || work.status === "inProgress")
-                  .map((work) => (
-                    <option key={work.idWork} value={work.propertyAddress}>
-                      {work.propertyAddress}
-                    </option>
-                  ))}
-              </select>
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header con controles principales */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-gradient-to-r from-orange-500 to-red-600 rounded-lg">
+                <CubeIcon className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800">Gestión de Materiales</h2>
+                <p className="text-gray-600">Administra los materiales utilizados en cada obra</p>
+              </div>
             </div>
-            <div>
-  <label htmlFor="date" className="block text-gray-700 text-sm font-bold mb-2">
-    Fecha:
-  </label>
-  <input
-    type="date"
-    id="date"
-    name="date"
-    value={formData.date}
-    readOnly // Deshabilitar edición
-    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-200 cursor-not-allowed"
-  />
-</div>
 
-<div className="flex-1 p-4 border-2 border-gray-300 rounded-lg shadow-md">
-  {/* Material predefinido */}
-  <div className="flex-1">
-  <label htmlFor="material" className="block text-gray-700 text-sm font-bold mb-2">
-      Material:
-    </label>
-    <select
-      id="predefinedMaterial"
-      name="predefinedMaterial"
-      value={newPredefinedMaterial.material}
-      onChange={(e) => {
-        const selectedMaterial = predefinedMaterials.find(
-          (material) => material.material === e.target.value
-        );
-        setNewPredefinedMaterial({
-          ...newPredefinedMaterial,
-          material: selectedMaterial ? selectedMaterial.material : "",
-          selectedOption: "",
-        });
-      }}
-      className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-    >
-      <option value="">Seleccione un material</option>
-      {predefinedMaterials.map((material) => (
-        <option key={material.material} value={material.material}>
-          {material.material}
-        </option>
-      ))}
-    </select>
-  </div>
+            <div className="flex flex-col sm:flex-row gap-4">
+              {/* Selección de obra */}
+              <div className="min-w-0 flex-1 sm:min-w-[300px]">
+                <label htmlFor="address" className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                  <BuildingOffice2Icon className="h-4 w-4 mr-2 text-gray-500" />
+                  Seleccionar Obra
+                </label>
+                <select
+                  id="address"
+                  name="address"
+                  value={selectedAddress}
+                  onChange={(e) => setSelectedAddress(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                >
+                  <option value="">Seleccione una dirección</option>
+                  {works
+                    .filter((work) => work.status === "pending" || work.status === "assigned" || work.status === "inProgress")
+                    .map((work) => (
+                      <option key={work.idWork} value={work.propertyAddress}>
+                        {work.propertyAddress}
+                      </option>
+                    ))}
+                </select>
+              </div>
 
-  {/* Subopción */}
-  {newPredefinedMaterial.material &&
-      predefinedMaterials.find((m) => m.material === newPredefinedMaterial.material)?.options && (
-        <div className="flex-1">
-          <label htmlFor="subOption" className="block text-gray-700 text-sm font-bold mb-1">
-            Subopción:
-          </label>
-          <select
-            id="subOption"
-            name="subOption"
-            value={newPredefinedMaterial.selectedOption}
-            onChange={(e) =>
-              setNewPredefinedMaterial({ ...newPredefinedMaterial, selectedOption: e.target.value })
-            }
-            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-          >
-            <option value="">Seleccione una subopción</option>
-            {predefinedMaterials
-              .find((m) => m.material === newPredefinedMaterial.material)
-              ?.options.map((option, index) => (
-                <option key={index} value={option}>
-                  {option}
-                </option>
-              ))}
-          </select>
-        </div>
-      )}
+              {/* Fecha y botón de comprobante */}
+              <div className="flex gap-3">
+                <div className="min-w-[150px]">
+                  <label htmlFor="date" className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                    <CalendarDaysIcon className="h-4 w-4 mr-2 text-gray-500" />
+                    Fecha
+                  </label>
+                  <input
+                    type="date"
+                    id="date"
+                    name="date"
+                    value={formData.date}
+                    readOnly
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed text-gray-600"
+                  />
+                </div>
 
-
-  {/* Cantidad */}
-  <div className="flex-1">
-      <label htmlFor="quantity" className="block text-gray-700 text-sm font-bold mb-1">
-        Cantidad:
-      </label>
-      <input
-        type="number"
-        id="quantity"
-        name="quantity"
-        value={newPredefinedMaterial.quantity}
-        onChange={(e) =>
-          setNewPredefinedMaterial({ ...newPredefinedMaterial, quantity: e.target.value })
-        }
-        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-      />
-    </div>
-    <button
-    type="button"
-    onClick={editingIndex !== null ? addOrUpdateMaterial : addPredefinedMaterial}
-    className="bg-blue-950 w-full hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded focus:outline-none focus:shadow-outline mt-4"
-  >
-    {editingIndex !== null ? "Actualizar" : "Añadir"}
-  </button>
-
-</div>
-
-
-<div className="flex-1 p-4 border-2 border-gray-300 rounded-lg shadow-md">
-              <label htmlFor="material" className="block text-gray-700 text-sm font-bold mb-2">
-                Escribir Manual:
-              </label>
-              <input
-        type="text"
-        id="manualMaterial"
-        name="material"
-        placeholder="Material"
-        value={newManualMaterial.material}
-        onChange={(e) =>
-          setNewManualMaterial({ ...newManualMaterial, material: e.target.value })
-        }
-        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-      />
-      <label htmlFor="quantity" className="block text-gray-700 text-sm font-bold mb-1">
-        Cantidad:
-      </label>
-               <input
-        type="number"
-        id="manualQuantity"
-        name="quantity"
-        placeholder="Cantidad"
-        value={newManualMaterial.quantity}
-        onChange={(e) =>
-          setNewManualMaterial({ ...newManualMaterial, quantity: e.target.value })
-        }
-        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-      />
-      <label htmlFor="quantity" className="block text-gray-700 text-sm font-bold mb-1">
-        Detalle:
-      </label>
-              <input
-        type="text"
-        id="manualComment"
-        name="comment"
-        placeholder="Comentario"
-        value={newManualMaterial.comment}
-        onChange={(e) =>
-          setNewManualMaterial({ ...newManualMaterial, comment: e.target.value })
-        }
-        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-      />
-              <button
-    type="button"
-    onClick={editingIndex !== null ? addOrUpdateMaterial : addManualMaterial}
-    className="bg-blue-950 w-full hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded focus:outline-none focus:shadow-outline mt-4"
-  >
-    {editingIndex !== null ? "Actualizar" : "Añadir"}
-  </button>
-            </div>
-          </form>
-  
-          {/* Tabla para pantallas grandes */}
-          <div className="flex-1 p-4 border-2 mt-2 border-gray-300 rounded-lg shadow-md">
-        
-            <div className="overflow-x-auto">
-              <table className="table-auto w-full mt-2">
-              <thead>
-  <tr>
-    <th className="px-4 py-2 font-Montserrat text-sm">Material</th>
-    <th className="px-4 py-2 font-Montserrat text-sm">Subopción</th>
-    <th className="px-4 py-2 font-Montserrat text-sm">Cantidad</th>
-    <th className="px-4 py-2 font-Montserrat text-sm">Comentario</th>
-    <th className="px-4 py-2 font-Montserrat text-sm">Acciones</th>
-  </tr>
-</thead>
-<tbody>
-  {formData.materials.map((material, index) => (
-    <tr key={index}>
-      <td className="border px-4 py-2 font-Montserrat text-sm">{material.material}</td>
-      <td className="border px-4 py-2 font-Montserrat text-sm">{material.option}</td>
-      <td className="border px-4 py-2 font-Montserrat text-sm">{material.quantity}</td>
-      <td className="border px-4 py-2 font-Montserrat text-sm">{material.comment}</td>
-      <td className="border px-4 py-2 font-Montserrat text-sm">
-      <div className="flex items-center gap-2"> {/* Flexbox para alinear los botones */}
-          <button
-            onClick={() => editMaterial(index)}
-            className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded"
-          >
-            <FontAwesomeIcon icon={faEdit} /> {/* Ícono de editar */}
-          </button>
-          <button
-            onClick={() => deleteMaterial(index)}
-            className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded"
-          >
-            <FontAwesomeIcon icon={faTrash} /> {/* Ícono de eliminar */}
-          </button>
-        </div>
-      </td>
-    </tr>
-  ))}
-</tbody>
-              </table>
+                {/* Botón para abrir modal de comprobante */}
+                {work && ['pending', 'assigned', 'inProgress'].includes(work.status) && selectedAddress && (
+                  <div className="flex items-end">
+                    <button
+                      onClick={() => setShowReceiptModal(true)}
+                      className="px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center space-x-2"
+                    >
+                      <ArrowUpTrayIcon className="h-5 w-5" />
+                      <span className="hidden sm:inline">Materiales Iniciales</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-  
-         
-          <button
-            type="button"
-            onClick={generatePDF}
-            className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline mt-4"
-          >
-            Generar PDF de Materiales
-          </button>
+        </div>
 
-          
-{work && ['pending', 'assigned', 'inProgress'].includes(work.status) && selectedAddress && (
-  <div className="mt-6 p-4 border-2 border-dashed border-blue-500 rounded-lg shadow-md">
-    <h3 className="text-lg font-semibold mb-3 text-blue-700">Confirmar Compra de Materiales Iniciales</h3>
-    <p className="text-sm text-gray-600 mb-3">
-      Sube el comprobante y registra el gasto de los materiales iniciales para la obra en <span className="font-semibold">{work.propertyAddress}</span>.
-      {work.status !== 'inProgress' && " Esto cambiará el estado de la obra a 'En Progreso'."}
-    </p>
-              {/* Campo para el Monto */}
-              <div className="mb-3">
-                <label htmlFor="initialMaterialsAmount" className="block text-gray-700 text-sm font-bold mb-1">
-                  Monto del Gasto de Materiales Iniciales:
-                </label>
-                <input
-                  type="number"
-                  id="initialMaterialsAmount"
-                  value={initialMaterialsAmount}
-                  onChange={(e) => setInitialMaterialsAmount(e.target.value)}
-                  placeholder="Ingrese el monto total"
-                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                />
+        {/* Layout principal con proporciones optimizadas */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Columna izquierda: Solo formularios de materiales (1/4 del espacio) */}
+          <div className="space-y-6 lg:col-span-3">
+
+            {/* Predefined Materials Card */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <ClipboardDocumentListIcon className="h-5 w-5 text-green-500" />
+                <h3 className="text-lg font-semibold text-gray-800">Materiales Predefinidos</h3>
               </div>
-              <div className="mb-3">
-                <label htmlFor="initialReceiptFile" className="block text-gray-700 text-sm font-bold mb-1">
-                  Archivo del Comprobante:
-                </label>
-                <input
-                  type="file"
-                  id="initialReceiptFile" // ID para poder resetearlo
-                  onChange={handleInitialReceiptFileChange} // Nuevo manejador
-                  accept=".pdf,.jpg,.jpeg,.png" // Tipos de archivo aceptados
-                  className="block w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 cursor-pointer focus:outline-none"
-                />
+              
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="predefinedMaterial" className="block text-sm font-medium text-gray-700 mb-2">
+                    Material
+                  </label>
+                  <select
+                    id="predefinedMaterial"
+                    name="predefinedMaterial"
+                    value={newPredefinedMaterial.material}
+                    onChange={(e) => {
+                      const selectedMaterial = predefinedMaterials.find(
+                        (material) => material.material === e.target.value
+                      );
+                      setNewPredefinedMaterial({
+                        ...newPredefinedMaterial,
+                        material: selectedMaterial ? selectedMaterial.material : "",
+                        selectedOption: "",
+                      });
+                    }}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                  >
+                    <option value="">Seleccione un material</option>
+                    {predefinedMaterials.map((material) => (
+                      <option key={material.material} value={material.material}>
+                        {material.material}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Subopción */}
+                {newPredefinedMaterial.material &&
+                  predefinedMaterials.find((m) => m.material === newPredefinedMaterial.material)?.options && (
+                    <div>
+                      <label htmlFor="subOption" className="block text-sm font-medium text-gray-700 mb-2">
+                        Especificación
+                      </label>
+                      <select
+                        id="subOption"
+                        name="subOption"
+                        value={newPredefinedMaterial.selectedOption}
+                        onChange={(e) =>
+                          setNewPredefinedMaterial({ ...newPredefinedMaterial, selectedOption: e.target.value })
+                        }
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                      >
+                        <option value="">Seleccione una especificación</option>
+                        {predefinedMaterials
+                          .find((m) => m.material === newPredefinedMaterial.material)
+                          ?.options.map((option, index) => (
+                            <option key={index} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  )}
+
+                <div>
+                  <label htmlFor="quantity" className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                    <HashtagIcon className="h-4 w-4 mr-2 text-gray-500" />
+                    Cantidad
+                  </label>
+                  <input
+                    type="number"
+                    id="quantity"
+                    name="quantity"
+                    value={newPredefinedMaterial.quantity}
+                    onChange={(e) =>
+                      setNewPredefinedMaterial({ ...newPredefinedMaterial, quantity: e.target.value })
+                    }
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
+                    placeholder="Ingrese la cantidad"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={editingIndex !== null ? addOrUpdateMaterial : addPredefinedMaterial}
+                  className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                >
+                  <div className="flex items-center justify-center space-x-2">
+                    {editingIndex !== null ? (
+                      <>
+                        <PencilIcon className="h-5 w-5" />
+                        <span>Actualizar Material</span>
+                      </>
+                    ) : (
+                      <>
+                        <PlusIcon className="h-5 w-5" />
+                        <span>Añadir Material</span>
+                      </>
+                    )}
+                  </div>
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleUploadInitialReceipt} // Nuevo manejador
-                disabled={!initialReceiptFile || !initialMaterialsAmount || isUploadingReceipt} // Se deshabilita si no hay archivo, monto o si está cargando
-                className="bg-blue-600 hover:bg-blue-800 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full disabled:opacity-50 flex items-center justify-center"
-              >
-                <FontAwesomeIcon icon={faUpload} className="mr-2"/>
-                {isUploadingReceipt ? "Procesando..." : "Registrar Gasto, Subir Comprobante y Marcar 'En Progreso'"}
-              </button>
-              {isUploadingReceipt && <p className="text-sm text-blue-600 text-center mt-2">Procesando, por favor espere...</p>}
             </div>
-          )}
+
+            {/* Manual Materials Card */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="flex items-center space-x-3 mb-4">
+                <PencilIcon className="h-5 w-5 text-purple-500" />
+                <h3 className="text-lg font-semibold text-gray-800">Material Manual</h3>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="manualMaterial" className="block text-sm font-medium text-gray-700 mb-2">
+                    Nombre del Material
+                  </label>
+                  <input
+                    type="text"
+                    id="manualMaterial"
+                    name="material"
+                    placeholder="Escriba el nombre del material"
+                    value={newManualMaterial.material}
+                    onChange={(e) =>
+                      setNewManualMaterial({ ...newManualMaterial, material: e.target.value })
+                    }
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="manualQuantity" className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                    <HashtagIcon className="h-4 w-4 mr-2 text-gray-500" />
+                    Cantidad
+                  </label>
+                  <input
+                    type="number"
+                    id="manualQuantity"
+                    name="quantity"
+                    placeholder="Ingrese la cantidad"
+                    value={newManualMaterial.quantity}
+                    onChange={(e) =>
+                      setNewManualMaterial({ ...newManualMaterial, quantity: e.target.value })
+                    }
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="manualComment" className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                    <ChatBubbleBottomCenterTextIcon className="h-4 w-4 mr-2 text-gray-500" />
+                    Detalle/Comentario
+                  </label>
+                  <input
+                    type="text"
+                    id="manualComment"
+                    name="comment"
+                    placeholder="Detalles adicionales (opcional)"
+                    value={newManualMaterial.comment}
+                    onChange={(e) =>
+                      setNewManualMaterial({ ...newManualMaterial, comment: e.target.value })
+                    }
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={editingIndex !== null ? addOrUpdateMaterial : addManualMaterial}
+                  className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+                >
+                  <div className="flex items-center justify-center space-x-2">
+                    {editingIndex !== null ? (
+                      <>
+                        <PencilIcon className="h-5 w-5" />
+                        <span>Actualizar Material</span>
+                      </>
+                    ) : (
+                      <>
+                        <PlusIcon className="h-5 w-5" />
+                        <span>Añadir Material</span>
+                      </>
+                    )}
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Columna derecha: Vista de PDFs/documentos y lista de materiales (3/4 del espacio) */}
+          <div className="space-y-6 lg:col-span-9">
+            {/* Vista de Documentos PDFs */}
+            {(permitPdfUrl || optionalDocsUrl || pdfUrl) && (
+              <div className="bg-white rounded-xl shadow-lg p-6">
+               
+               
+                <div className="flex flex-wrap justify-center gap-2 mb-6">
+                  {permitPdfUrl && (
+                    <button
+                      onClick={() => setCurrentPdfView('permit')}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                        currentPdfView === 'permit' 
+                          ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg" 
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <DocumentTextIcon className="h-4 w-4" />
+                        <span>Permiso Principal</span>
+                      </div>
+                    </button>
+                  )}
+                  {optionalDocsUrl && (
+                    <button
+                      onClick={() => setCurrentPdfView('optional')}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                        currentPdfView === 'optional' 
+                          ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg" 
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <DocumentIcon className="h-4 w-4" />
+                        <span>Documentos Opcionales</span>
+                      </div>
+                    </button>
+                  )}
+                  {pdfUrl && (
+                    <button
+                      onClick={() => setCurrentPdfView('materials')}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                        currentPdfView === 'materials' 
+                          ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg" 
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <CubeIcon className="h-4 w-4" />
+                        <span>Materiales</span>
+                      </div>
+                    </button>
+                  )}
+                </div>
+
+                <div className="relative bg-gray-50 rounded-lg overflow-hidden border border-gray-200">
+                  {currentPdfView === 'permit' && permitPdfUrl ? (
+                    <div className="h-[600px] lg:h-[700px]"> 
+                      <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+                        <Viewer
+                          fileUrl={permitPdfUrl}
+                          plugins={[defaultLayoutPluginInstance]}
+                        />
+                      </Worker>
+                    </div>
+                  ) : currentPdfView === 'optional' && optionalDocsUrl ? (
+                    <div className="h-[600px] lg:h-[700px]">
+                      <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+                        <Viewer
+                          fileUrl={optionalDocsUrl}
+                          plugins={[defaultLayoutPluginInstance]}
+                        />
+                      </Worker>
+                    </div>
+                  ) : currentPdfView === 'materials' && pdfUrl ? (
+                    <div className="h-[600px] lg:h-[700px]">
+                      <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+                        <Viewer
+                          fileUrl={pdfUrl}
+                          plugins={[defaultLayoutPluginInstance]}
+                        />
+                      </Worker>
+                    </div>
+                  ) : (
+                    <div className="h-[500px] lg:h-[600px] flex items-center justify-center">
+                      <div className="text-center">
+                        <DocumentTextIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                        <p className="text-gray-500 text-sm">
+                          {currentPdfView === 'permit' ? "PDF Principal no disponible" :
+                           currentPdfView === 'optional' ? "Documento Opcional no disponible" :
+                           "PDF de Materiales no generado"}
+                        </p>
+                        <p className="text-gray-400 text-xs mt-1">
+                          {currentPdfView === 'materials' ? "Genere un PDF agregando materiales" : "Seleccione una obra con documentos"}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Botón de descarga para PDF de materiales */}
+                {currentPdfView === 'materials' && pdfUrl && (
+                  <div className="mt-4">
+                    <a
+                      href={pdfUrl}
+                      download={`materiales_${work?.propertyAddress?.replace(/\s+/g, '_') || 'obra'}.pdf`}
+                      className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 inline-flex items-center justify-center space-x-2"
+                    >
+                      <ArrowDownTrayIcon className="h-5 w-5" />
+                      <span>Descargar PDF de Materiales</span>
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Lista de Materiales Agregados */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-3">
+                  <ClipboardDocumentListIcon className="h-5 w-5 text-blue-500" />
+                  <h3 className="text-lg font-semibold text-gray-800">Materiales Agregados</h3>
+                </div>
+                <span className="bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full">
+                  {formData.materials.length} materiales
+                </span>
+              </div>
+
+              {formData.materials.length === 0 ? (
+                <div className="text-center py-12">
+                  <CubeIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500 text-sm">No hay materiales agregados</p>
+                  <p className="text-gray-400 text-xs mt-1">Agregue materiales usando los formularios de la izquierda</p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {formData.materials.map((material, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded">
+                              #{index + 1}
+                            </span>
+                            <h4 className="font-medium text-gray-900">{material.material}</h4>
+                          </div>
+                          
+                          <div className="text-sm text-gray-600 space-y-1">
+                            {material.option && material.option !== "N/A" && (
+                              <p>Especificación: <span className="font-medium">{material.option}</span></p>
+                            )}
+                            <p>Cantidad: <span className="font-medium text-blue-600">{material.quantity}</span></p>
+                            {material.comment && (
+                              <p>Comentario: <span className="italic">{material.comment}</span></p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-2 ml-4">
+                          <button
+                            onClick={() => editMaterial(index)}
+                            className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                            title="Editar material"
+                          >
+                            <PencilIcon className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => deleteMaterial(index)}
+                            className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                            title="Eliminar material"
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              {formData.materials.length > 0 && (
+                <div className="mt-6 pt-6 border-t border-gray-200 space-y-3">
+                  <button
+                    onClick={generatePDF}
+                    className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                  >
+                    <div className="flex items-center justify-center space-x-2">
+                      <ArrowDownTrayIcon className="h-5 w-5" />
+                      <span>Generar PDF y Guardar</span>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Initial Materials Receipt Card */}
+            {work && ['pending', 'assigned', 'inProgress'].includes(work.status) && selectedAddress && (
+              <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-l-blue-500">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="p-2 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg">
+                    <ArrowUpTrayIcon className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-800">Materiales Iniciales</h3>
+                    <p className="text-sm text-gray-600">Confirmar compra y cambiar estado</p>
+                  </div>
+                </div>
+                
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                  <div className="flex items-start space-x-3">
+                    <div className="p-1 bg-blue-500 rounded-full">
+                      <CheckCircleIcon className="h-4 w-4 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-blue-800 font-medium">
+                        Obra: <span className="font-semibold">{work.propertyAddress}</span>
+                      </p>
+                      <p className="text-xs text-blue-600 mt-1">
+                        {work.status !== 'inProgress' 
+                          ? "Al subir el comprobante, la obra cambiará a estado 'En Progreso'"
+                          : "Registro de comprobante para obra en progreso"
+                        }
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="initialMaterialsAmount" className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                      <CurrencyDollarIcon className="h-4 w-4 mr-2 text-gray-500" />
+                      Monto del Gasto
+                    </label>
+                    <input
+                      type="number"
+                      id="initialMaterialsAmount"
+                      value={initialMaterialsAmount}
+                      onChange={(e) => setInitialMaterialsAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="initialReceiptFile" className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                      <DocumentTextIcon className="h-4 w-4 mr-2 text-gray-500" />
+                      Archivo del Comprobante
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="file"
+                        id="initialReceiptFile"
+                        onChange={handleInitialReceiptFileChange}
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      />
+                    </div>
+                    {initialReceiptFile && (
+                      <p className="text-xs text-green-600 mt-2 flex items-center">
+                        <CheckCircleIcon className="h-4 w-4 mr-1" />
+                        Archivo seleccionado: {initialReceiptFile.name}
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleUploadInitialReceipt}
+                    disabled={!initialReceiptFile || !initialMaterialsAmount || isUploadingReceipt}
+                    className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:transform-none disabled:cursor-not-allowed"
+                  >
+                    <div className="flex items-center justify-center space-x-2">
+                      {isUploadingReceipt ? (
+                        <>
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                          <span>Procesando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ArrowUpTrayIcon className="h-5 w-5" />
+                          <span>Registrar Gasto y Comprobante</span>
+                        </>
+                      )}
+                    </div>
+                  </button>
+
+                  {isUploadingReceipt && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <p className="text-sm text-blue-700 text-center flex items-center justify-center space-x-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-700"></div>
+                        <span>Procesando, por favor espere...</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
            {/* Mensaje si la obra ya no está pendiente o asignada */}
            {work && !['pending', 'assigned', 'inProgress'].includes(work.status) && selectedAddress && (
-  <div className="mt-6 p-4 border-2 border-green-500 bg-green-50 rounded-lg shadow-md">
-    <p className="text-sm text-green-700">
-      La obra en <span className="font-semibold">{work.propertyAddress}</span> ya tiene el estado: <span className="font-bold">{work.status}</span>.
-      Los materiales iniciales ya fueron procesados o la obra está en una etapa posterior.
-    </p>
-  </div>
+             <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-l-green-500">
+               <div className="flex items-center space-x-3 mb-4">
+                 <div className="p-2 bg-gradient-to-r from-green-500 to-green-600 rounded-lg">
+                   <CheckCircleIcon className="h-5 w-5 text-white" />
+                 </div>
+                 <div>
+                   <h3 className="text-lg font-semibold text-gray-800">Estado Completado</h3>
+                   <p className="text-sm text-gray-600">Los materiales iniciales ya fueron procesados</p>
+                 </div>
+               </div>
+               
+               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                 <p className="text-sm text-green-700">
+                   La obra en <span className="font-semibold">{work.propertyAddress}</span> ya tiene el estado: 
+                   <span className="font-bold ml-1 px-2 py-1 bg-green-100 rounded text-green-800">{work.status}</span>
+                 </p>
+                 <p className="text-xs text-green-600 mt-2">
+                   Los materiales iniciales ya fueron procesados o la obra está en una etapa posterior.
+                 </p>
+               </div>
+             </div>
            )}
+          </div>
         </div>
-      
-  
-        {/* Columna derecha: Vista previa del PDF del permiso y PDF generado */}
-        <div className="flex-1">
-          {(permitPdfUrl || optionalDocsUrl || pdfUrl) && ( // Condición para mostrar la sección de PDFs
-            <div className="mb-4">
-             
-              <div className="flex justify-center space-x-2 sm:space-x-4 mb-4">
-                {permitPdfUrl && (
-                  <button
-                    onClick={() => setCurrentPdfView('permit')}
-                    className={`py-1 px-2 sm:px-3 rounded-md text-xs sm:text-sm ${currentPdfView === 'permit' ? "bg-blue-950 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"} disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    Permiso Principal
-                  </button>
-                )}
-                {optionalDocsUrl && (
-                  <button
-                    onClick={() => setCurrentPdfView('optional')}
-                    className={`py-1 px-2 sm:px-3 rounded-md text-xs sm:text-sm ${currentPdfView === 'optional' ? "bg-blue-950 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"} disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    Doc. Opcional
-                  </button>
-                )}
-                {pdfUrl && ( // Botón para el PDF de materiales
-                  <button
-                    onClick={() => setCurrentPdfView('materials')}
-                    className={`py-1 px-2 sm:px-3 rounded-md text-xs sm:text-sm ${currentPdfView === 'materials' ? "bg-green-700 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"} disabled:opacity-50 disabled:cursor-not-allowed`}
-                  >
-                    PDF Materiales
-                  </button>
-                )}
+
+        {/* Modal para carga de comprobante de materiales iniciales */}
+        {showReceiptModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg">
+                    <ArrowUpTrayIcon className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-800">Materiales Iniciales</h3>
+                    <p className="text-sm text-gray-600">Confirmar compra y cambiar estado</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowReceiptModal(false)}
+                  className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <div className="flex items-start space-x-3">
+                  <div className="p-1 bg-blue-500 rounded-full">
+                    <CheckCircleIcon className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-800 font-medium">
+                      Obra: <span className="font-semibold">{work?.propertyAddress}</span>
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      {work?.status !== 'inProgress' 
+                        ? "Al subir el comprobante, la obra cambiará a estado 'En Progreso'"
+                        : "Registro de comprobante para obra en progreso"
+                      }
+                    </p>
+                  </div>
+                </div>
               </div>
 
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="modalInitialMaterialsAmount" className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                    <CurrencyDollarIcon className="h-4 w-4 mr-2 text-gray-500" />
+                    Monto del Gasto
+                  </label>
+                  <input
+                    type="number"
+                    id="modalInitialMaterialsAmount"
+                    value={initialMaterialsAmount}
+                    onChange={(e) => setInitialMaterialsAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  />
+                </div>
 
-            
-              <div className="relative overflow-hidden border border-gray-300 rounded-md">
-                {currentPdfView === 'permit' && permitPdfUrl ? (
-                  <div className="h-auto w-full md:h-[600px] lg:h-[700px]"> 
-                    <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
-                      <Viewer
-                        fileUrl={permitPdfUrl}
-                        plugins={[defaultLayoutPluginInstance]}
-                      />
-                    </Worker>
-                  </div>
-                ) : currentPdfView === 'optional' && optionalDocsUrl ? (
-                  <div className="h-auto w-full md:h-[600px] lg:h-[700px]">
-                    <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
-                      <Viewer
-                        fileUrl={optionalDocsUrl}
-                        plugins={[defaultLayoutPluginInstance]}
-                      />
-                    </Worker>
-                  </div>
-                ) : currentPdfView === 'materials' && pdfUrl ? ( // Vista para el PDF de materiales
-                  <div className="h-auto w-full md:h-[600px] lg:h-[700px]">
-                     {/* Puedes usar Viewer también si prefieres, o mantener el iframe */}
-                    <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
-                      <Viewer
-                        fileUrl={pdfUrl} // URL del PDF de materiales
-                        plugins={[defaultLayoutPluginInstance]}
-                      />
-                    </Worker>
-                    {/* O si prefieres iframe para este en particular:
-                    <iframe
-                      src={pdfUrl}
-                      className="w-full h-full" // Asegúrate que el iframe llene el div
-                      title="Vista previa del PDF de Materiales"
-                    ></iframe>
-                    */}
-                  </div>
-                ) : (
-                  <div className="h-auto w-full md:h-[600px] lg:h-[700px] flex items-center justify-center">
-                    <p className="text-gray-500 p-4 text-center">
-                      {currentPdfView === 'permit' ? "PDF Principal no disponible o no seleccionado." :
-                       currentPdfView === 'optional' ? "Documento Opcional no disponible o no seleccionado." :
-                       "PDF de Materiales no disponible o no generado."}
+                <div>
+                  <label htmlFor="modalInitialReceiptFile" className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                    <DocumentTextIcon className="h-4 w-4 mr-2 text-gray-500" />
+                    Archivo del Comprobante
+                  </label>
+                  <input
+                    type="file"
+                    id="modalInitialReceiptFile"
+                    onChange={handleInitialReceiptFileChange}
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  />
+                  {initialReceiptFile && (
+                    <p className="text-xs text-green-600 mt-2 flex items-center">
+                      <CheckCircleIcon className="h-4 w-4 mr-1" />
+                      Archivo seleccionado: {initialReceiptFile.name}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowReceiptModal(false)}
+                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 px-4 rounded-lg transition-all duration-200"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleUploadInitialReceipt();
+                      setShowReceiptModal(false);
+                    }}
+                    disabled={!initialReceiptFile || !initialMaterialsAmount || isUploadingReceipt}
+                    className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:transform-none disabled:cursor-not-allowed"
+                  >
+                    <div className="flex items-center justify-center space-x-2">
+                      {isUploadingReceipt ? (
+                        <>
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                          <span>Procesando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ArrowUpTrayIcon className="h-5 w-5" />
+                          <span>Registrar</span>
+                        </>
+                      )}
+                    </div>
+                  </button>
+                </div>
+
+                {isUploadingReceipt && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-sm text-blue-700 text-center flex items-center justify-center space-x-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-700"></div>
+                      <span>Procesando, por favor espere...</span>
                     </p>
                   </div>
                 )}
               </div>
-              {/* Botón de descarga solo para el PDF de materiales si está visible */}
-              {currentPdfView === 'materials' && pdfUrl && (
-                <div className="mt-4 text-center">
-                    <a
-                    href={pdfUrl}
-                    download={`materiales_${work?.propertyAddress?.replace(/\s+/g, '_') || 'obra'}.pdf`}
-                    className="btn btn-primary inline-block bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-                    >
-                    Descargar PDF de Materiales
-                    </a>
-                </div>
-              )}
             </div>
-          )}
-          {/* La sección original para el PDF de materiales se elimina de aquí si la integras arriba */}
-          {/* 
-          {pdfUrl && (
-            <div className="mt-6"> ... </div> // ESTA SECCIÓN SE ELIMINARÍA
-          )} 
-          */}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
 export default Materiales;
