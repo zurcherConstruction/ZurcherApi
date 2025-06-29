@@ -38,53 +38,57 @@ const SendNotification = () => {
   if (error) return <p>Error: {error}</p>;
 
   return (
-    <div className="p-6 bg-white shadow-md rounded-md max-w-md mx-auto">
-      <h2 className="text-xl font-semibold text-gray-800 mb-4">Enviar Notificación</h2>
-      <form className="space-y-4">
-        {/* Seleccionar destinatario */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Destinatario:
-          </label>
-          <select
-            value={recipientId}
-            onChange={(e) => setRecipientId(e.target.value)}
-            className="w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm p-2"
-          >
-            <option value="">Selecciona un compañero</option>
-            {staff.map((staff) => (
-              <option key={staff.id} value={staff.id}>
-                {staff.name} ({staff.email})
-              </option>
-            ))}
-          </select>
-        </div>
+    <div className="bg-gradient-to-br from-blue-50 to-gray-100 min-h-screen flex items-center justify-center py-8 px-2">
+      <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl p-8 border border-gray-200">
+        <h2 className="text-2xl font-bold text-blue-900 mb-6 text-center tracking-tight">
+          Send Notification
+        </h2>
+        <form className="space-y-6">
+          {/* Recipient */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Recipient
+            </label>
+            <select
+              value={recipientId}
+              onChange={(e) => setRecipientId(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-base p-2 bg-gray-50"
+            >
+              <option value="">Select a team member</option>
+              {staff.map((staff) => (
+                <option key={staff.id} value={staff.id}>
+                  {staff.name} ({staff.email})
+                </option>
+              ))}
+            </select>
+          </div>
 
-        {/* Mensaje */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Mensaje:
-          </label>
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            className="w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm p-2"
-            rows="4"
-            placeholder="Escribe tu mensaje aquí..."
-          />
-        </div>
+          {/* Message */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Message
+            </label>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-base p-2 bg-gray-50 resize-none"
+              rows="4"
+              placeholder="Type your message here..."
+            />
+          </div>
 
-        {/* Botón Enviar */}
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={handleSendNotification}
-            className="bg-blue-500 text-white px-4 py-2 rounded-md shadow hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            Enviar
-          </button>
-        </div>
-      </form>
+          {/* Send Button */}
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleSendNotification}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg shadow focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 transition"
+            >
+              Send
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };
