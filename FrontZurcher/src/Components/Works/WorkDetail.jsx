@@ -16,12 +16,16 @@ import FinalInspectionFlowManager from "./FinalInspectionFlowManager"
 import { ExclamationTriangleIcon } from '@heroicons/react/24/solid'; // Para el banner
 import CreateChangeOrderModal from './CreateChangeOrderModal'; // Importar el nuevo modal
 import api from "../../utils/axios";
+import useAutoRefresh from "../../utils/useAutoRefresh";
 
 
 
 const WorkDetail = () => {
   const { idWork } = useParams();
   const dispatch = useDispatch();
+
+  // Refresco automático cada 60 segundos
+  useAutoRefresh(() => fetchWorkById(idWork), 120000, [idWork]);
 
 
 

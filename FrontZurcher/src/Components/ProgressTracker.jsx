@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { fetchWorks } from "../Redux/Actions/workActions"; // Acción para obtener los works
 import { Link } from "react-router-dom";
 import { ExclamationTriangleIcon } from '@heroicons/react/24/solid'; // Importar el ícono
+import useAutoRefresh from "../utils/useAutoRefresh";
 
 const etapas = [
   { backend: "assigned", display: "Purchase in Progress" },
@@ -24,6 +25,9 @@ const ProgressTracker = () => {
   useEffect(() => {
     dispatch(fetchWorks());
   }, [dispatch]);
+
+  // Refresco automático cada 60 segundos
+  useAutoRefresh(fetchWorks, 60000, []);
 
   useEffect(() => {
     if (works) {

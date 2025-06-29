@@ -200,7 +200,7 @@ const Notifications = ({ isDropdown = false, onClose }) => {
                   value={responseMessage}
                   onChange={(e) => setResponseMessage(e.target.value)}
                   placeholder="Escribe tu respuesta aquí..."
-                  className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 resize-none"
+                  className="w-full border border-gray-300 rounded-lg p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 resize-none text-gray-800 bg-white"
                   rows="4"
                 ></textarea>
               </div>
