@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useDispatch } from "react-redux";
 import {
   incomeActions,
   expenseActions,
@@ -56,19 +57,38 @@ const Summary = () => {
   const [editModal, setEditModal] = useState({ open: false, movement: null });
   const [editData, setEditData] = useState({});
   const [receiptUrl, setReceiptUrl] = useState(null);
+  
+  // Estados para gestión de comprobantes en el modal de edición
+  const [newReceipt, setNewReceipt] = useState(null);
+  const [receiptAction, setReceiptAction] = useState('keep'); // 'keep', 'change', 'delete'
+  const [receiptLoading, setReceiptLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0); // Para forzar re-render
+  const dispatch = useDispatch();
 
   // Obtener movimientos con filtros
   const fetchMovements = async () => {
     setLoading(true);
     try {
+      console.log('🔄 Obteniendo movimientos con filtros:', filters);
       const data = await balanceActions.getGeneralBalance(filters);
       const incomes = data.list?.incomes || [];
       const expenses = data.list?.expenses || [];
+      
+      console.log('📥 Ingresos obtenidos:', incomes.length);
+      console.log('📥 Gastos obtenidos:', expenses.length);
+      
       const allMovements = [
         ...incomes.map((m) => ({ ...m, movimiento: "Ingreso" })),
         ...expenses.map((m) => ({ ...m, movimiento: "Gasto" })),
       ];
+      
+      console.log('✅ Total movimientos procesados:', allMovements.length);
+      
+      // Actualizar estado con un pequeño delay para asegurar re-render
       setMovements(allMovements);
+      
+      // Pequeño delay para asegurar que el estado se actualice completamente
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // Extraer staff únicos de los movimientos
       const uniqueStaff = [];
@@ -80,7 +100,9 @@ const Summary = () => {
         }
       });
       setStaffList(uniqueStaff);
-    } catch {
+      console.log('👥 Staff únicos extraídos:', uniqueStaff.length);
+    } catch (error) {
+      console.error('❌ Error al obtener movimientos:', error);
       setMovements([]);
       setStaffList([]);
     }
@@ -91,6 +113,15 @@ const Summary = () => {
     fetchMovements();
     // eslint-disable-next-line
   }, []);
+
+  // Recargar datos cuando cambie el refreshKey
+  useEffect(() => {
+    if (refreshKey > 0) {
+      console.log('🔄 Refrescando datos debido a cambios (refreshKey:', refreshKey, ')');
+      fetchMovements();
+    }
+    // eslint-disable-next-line
+  }, [refreshKey]);
 
   const handleChange = (e) => {
     setFilters({ ...filters, [e.target.name]: e.target.value });
@@ -181,12 +212,66 @@ const Summary = () => {
       typeIncome: mov.typeIncome || "",
       typeExpense: mov.typeExpense || "",
     });
+    
+    // Inicializar estados de comprobantes
+    setNewReceipt(null);
+    setReceiptAction('keep');
+    setReceiptLoading(false);
+  };
+
+  // Cerrar modal y resetear estados
+  const handleCloseModal = () => {
+    setEditModal({ open: false, movement: null });
+    setNewReceipt(null);
+    setReceiptAction('keep');
+    setReceiptLoading(false);
+  };
+
+  // Manejar selección de archivo
+  const handleFileSelect = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      // Validar tipo de archivo
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+      if (!allowedTypes.includes(file.type)) {
+        toast.error('Solo se permiten archivos JPG, PNG o PDF');
+        // Limpiar el input
+        event.target.value = '';
+        return;
+      }
+      
+      // Validar tamaño (máximo 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error('El archivo no debe superar los 10MB');
+        // Limpiar el input
+        event.target.value = '';
+        return;
+      }
+      
+      setNewReceipt(file);
+      setReceiptAction('change');
+    }
+  };
+
+  // Eliminar comprobante
+  const handleReceiptDelete = () => {
+    setReceiptAction('delete');
+    setNewReceipt(null);
+  };
+
+  // Restablecer comprobante
+  const handleReceiptReset = () => {
+    setReceiptAction('keep');
+    setNewReceipt(null);
   };
 
   // Guardar edición
   const handleEditSave = async () => {
     const mov = editModal.movement;
+    setReceiptLoading(true);
+    
     try {
+      // 1. Actualizar el movimiento (ingreso o gasto)
       if (mov.movimiento === "Ingreso") {
         await incomeActions.update(mov.idIncome, {
           amount: editData.amount,
@@ -194,7 +279,6 @@ const Summary = () => {
           date: editData.date,
           typeIncome: editData.typeIncome,
         });
-        toast.success("Ingreso actualizado.");
       } else {
         await expenseActions.update(mov.idExpense, {
           amount: editData.amount,
@@ -202,12 +286,107 @@ const Summary = () => {
           date: editData.date,
           typeExpense: editData.typeExpense,
         });
-        toast.success("Gasto actualizado.");
       }
+
+      // 2. Gestionar cambios en comprobantes
+      const hasCurrentReceipt = mov.Receipts && mov.Receipts.length > 0;
+      const currentReceipt = hasCurrentReceipt ? mov.Receipts[0] : null;
+      
+      // Verificar si el comprobante actual es editable (no de Budget o FinalInvoice)
+      const isEditableReceipt = currentReceipt && 
+        currentReceipt.idReceipt && 
+        !currentReceipt.idReceipt.toString().startsWith('budget-') &&
+        !currentReceipt.source; // Los comprobantes con source son especiales
+
+      let receiptMessage = '';
+
+      if (receiptAction === 'delete' && isEditableReceipt) {
+        // Eliminar comprobante existente
+        console.log('Eliminando comprobante:', currentReceipt.idReceipt);
+        await dispatch(deleteReceipt(currentReceipt.idReceipt));
+        receiptMessage = "Comprobante eliminado.";
+        
+      } else if (receiptAction === 'change') {
+        // Validar que hay un archivo seleccionado
+        if (!newReceipt) {
+          toast.error("Por favor selecciona un archivo antes de guardar.");
+          setReceiptLoading(false);
+          return;
+        }
+
+        // Primero eliminar el comprobante existente si es editable
+        if (isEditableReceipt) {
+          console.log('Eliminando comprobante existente antes de subir nuevo:', currentReceipt.idReceipt);
+          await dispatch(deleteReceipt(currentReceipt.idReceipt));
+        }
+        
+        // Luego subir el nuevo comprobante
+        const formData = new FormData();
+        formData.append('file', newReceipt);
+        formData.append('relatedModel', mov.movimiento === 'Ingreso' ? 'Income' : 'Expense');
+        formData.append('relatedId', mov.movimiento === 'Ingreso' ? mov.idIncome : mov.idExpense);
+        formData.append('type', mov.typeIncome || mov.typeExpense || 'Documento');
+        formData.append('notes', `Comprobante ${hasCurrentReceipt ? 'actualizado' : 'agregado'} para ${mov.movimiento.toLowerCase()}`);
+        
+        console.log('📤 Subiendo nuevo comprobante:', {
+          movimiento: mov.movimiento,
+          id: mov.idIncome || mov.idExpense,
+          tipo: mov.typeIncome || mov.typeExpense || 'Documento',
+          archivo: newReceipt.name
+        });
+        
+        const uploadResult = await dispatch(createReceipt(formData));
+        console.log('✅ Comprobante subido exitosamente:', uploadResult);
+        
+        // Verificar que la respuesta contiene la información del receipt
+        if (uploadResult && uploadResult.receipt) {
+          console.log('📄 Detalles del nuevo comprobante:', uploadResult.receipt);
+        }
+        
+        receiptMessage = `Comprobante ${hasCurrentReceipt ? 'actualizado' : 'agregado'} correctamente.`;
+      }
+
+      // Resetear estados de comprobantes antes de cerrar
+      setNewReceipt(null);
+      setReceiptAction('keep');
+      
+      // Recargar movimientos para reflejar cambios
+      console.log('🔄 Recargando movimientos después de la edición...');
+      
+      // Forzar actualización inmediata del estado
+      setRefreshKey(prev => prev + 1);
+      
+      // Recargar datos desde el servidor
+      await fetchMovements();
+      
+      // Cerrar modal después de recargar
       setEditModal({ open: false, movement: null });
-      fetchMovements();
+      
+      // Mostrar mensajes de éxito
+      if (receiptMessage) {
+        toast.success(receiptMessage);
+      }
+      toast.success(`${mov.movimiento} actualizado correctamente.`);
+      
+      // Forzar re-render adicional después de un pequeño delay
+      setTimeout(() => {
+        console.log('🔄 Actualizando interfaz después de cambios...');
+        setRefreshKey(prev => prev + 1);
+      }, 1000);
+      
     } catch (error) {
-      toast.error("Error al actualizar.");
+      console.error("❌ Error al actualizar:", error);
+      console.error("❌ Detalles del error:", error.response?.data);
+      
+      const errorMessage = error.response?.data?.message || error.message || "Error desconocido";
+      toast.error(`Error al actualizar: ${errorMessage}`);
+      
+      // Si el error es por un problema de archivo, dar más información
+      if (error.response?.status === 400 && error.response?.data?.message?.includes('enum')) {
+        toast.error('Error: El tipo de comprobante no es válido. Intenta con un tipo diferente.');
+      }
+    } finally {
+      setReceiptLoading(false);
     }
   };
 
@@ -393,7 +572,7 @@ const Summary = () => {
 
           {/* Contenedor con scroll vertical solamente */}
           <div className="max-h-[70vh] overflow-y-auto">
-            <table className="w-full min-w-full table-auto">
+            <table key={`movements-table-${movements.length}-${refreshKey}`} className="w-full min-w-full table-auto">
               <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
@@ -559,7 +738,7 @@ const Summary = () => {
                   Editar {editModal.movement.movimiento}
                 </h3>
                 <button
-                  onClick={() => setEditModal({ open: false, movement: null })}
+                  onClick={handleCloseModal}
                   className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   <XMarkIcon className="h-5 w-5" />
@@ -659,17 +838,166 @@ const Summary = () => {
                   </div>
                 )}
 
+                {/* Sección de gestión de comprobantes */}
+                <div className="border-t pt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    <DocumentTextIcon className="h-4 w-4 inline mr-1" />
+                    Comprobante
+                  </label>
+                  
+                  {/* Estado actual del comprobante */}
+                  <div className="mb-3">
+                    {editModal.movement.Receipts && editModal.movement.Receipts.length > 0 ? (
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <span className="text-sm text-green-800">Comprobante actual: {editModal.movement.Receipts[0]?.originalName || 'Archivo adjunto'}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setReceiptUrl(editModal.movement.Receipts[0])}
+                            className="text-green-600 hover:text-green-800 text-sm underline"
+                          >
+                            Ver
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                        <div className="flex items-center space-x-2">
+                          <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                          <span className="text-sm text-gray-600">Sin comprobante</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Opciones de acción */}
+                  <div className="space-y-3">
+                    {(() => {
+                      const hasCurrentReceipt = editModal.movement.Receipts && editModal.movement.Receipts.length > 0;
+                      const currentReceipt = hasCurrentReceipt ? editModal.movement.Receipts[0] : null;
+                      const isEditableReceipt = currentReceipt && 
+                        currentReceipt.idReceipt && 
+                        !currentReceipt.idReceipt.toString().startsWith('budget-') &&
+                        !currentReceipt.source;
+                      
+                      return (
+                        <>
+                          {/* Mantener actual */}
+                          <label className="flex items-center space-x-3 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="receiptAction"
+                              value="keep"
+                              checked={receiptAction === 'keep'}
+                              onChange={(e) => setReceiptAction(e.target.value)}
+                              className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-gray-700">
+                              {hasCurrentReceipt 
+                                ? 'Mantener comprobante actual' 
+                                : 'No agregar comprobante'}
+                            </span>
+                          </label>
+
+                          {/* Cambiar/Agregar */}
+                          <label className="flex items-center space-x-3 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="receiptAction"
+                              value="change"
+                              checked={receiptAction === 'change'}
+                              onChange={(e) => setReceiptAction(e.target.value)}
+                              className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-gray-700">
+                              {hasCurrentReceipt 
+                                ? (isEditableReceipt ? 'Cambiar comprobante' : 'Agregar comprobante adicional')
+                                : 'Agregar comprobante'}
+                            </span>
+                          </label>
+
+                          {/* Eliminar (solo si hay comprobante editable) */}
+                          {hasCurrentReceipt && isEditableReceipt && (
+                            <label className="flex items-center space-x-3 cursor-pointer">
+                              <input
+                                type="radio"
+                                name="receiptAction"
+                                value="delete"
+                                checked={receiptAction === 'delete'}
+                                onChange={(e) => setReceiptAction(e.target.value)}
+                                className="w-4 h-4 text-red-600 border-gray-300 focus:ring-red-500"
+                              />
+                              <span className="text-sm text-red-700">Eliminar comprobante</span>
+                            </label>
+                          )}
+                          
+                          {/* Mensaje informativo para comprobantes no editables */}
+                          {hasCurrentReceipt && !isEditableReceipt && (
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
+                              <p className="text-sm text-blue-800">
+                                ℹ️ Este comprobante está vinculado al sistema de facturación y no puede ser eliminado. 
+                                Solo puedes agregar un comprobante adicional.
+                              </p>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Input de archivo cuando se selecciona cambiar/agregar */}
+                  {receiptAction === 'change' && (
+                    <div className="mt-3">
+                      <input
+                        type="file"
+                        accept=".jpg,.jpeg,.png,.pdf"
+                        onChange={handleFileSelect}
+                        className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Formatos soportados: JPG, PNG, PDF (máx. 10MB)
+                      </p>
+                      {newReceipt && (
+                        <div className="mt-2 text-sm text-green-600">
+                          ✓ Archivo seleccionado: {newReceipt.name}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Confirmación de eliminación */}
+                  {receiptAction === 'delete' && (
+                    <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
+                      <p className="text-sm text-red-800">
+                        ⚠️ El comprobante será eliminado permanentemente
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex gap-3 pt-4">
                   <button
                     type="submit"
-                    className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200"
+                    disabled={receiptLoading}
+                    className={`flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 flex items-center justify-center space-x-2 ${receiptLoading ? 'opacity-75 cursor-not-allowed' : ''}`}
                   >
-                    Guardar
+                    {receiptLoading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span>Guardando...</span>
+                      </>
+                    ) : (
+                      <span>Guardar</span>
+                    )}
                   </button>
                   <button
                     type="button"
-                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg transition-all duration-200"
-                    onClick={() => setEditModal({ open: false, movement: null })}
+                    disabled={receiptLoading}
+                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleCloseModal}
                   >
                     Cancelar
                   </button>

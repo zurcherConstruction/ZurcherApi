@@ -168,6 +168,7 @@ const createReceipt = async (req, res) => {
           console.log('[ReceiptController] Datos para Receipt.create:', newReceiptData);
           const createdReceipt = await Receipt.create(newReceiptData, { transaction });
           console.log("[ReceiptController] Receipt creado exitosamente en BD:", createdReceipt.toJSON());
+          console.log("[ReceiptController] Receipt ID generado:", createdReceipt.idReceipt);
 
           // Actualizar las notas de FinalInvoice con el ID real del recibo
           if (relatedModel === 'FinalInvoice' && finalInvoiceInstanceForUpdate && createdIncomeId) {
@@ -188,7 +189,22 @@ const createReceipt = async (req, res) => {
           await transaction.commit();
           console.log("[ReceiptController] Transacción completada (commit).");
           
-          res.status(201).json({ message: 'Comprobante procesado y guardado correctamente.', receipt: createdReceipt });
+          // Preparar respuesta completa
+          const response = {
+            message: 'Comprobante procesado y guardado correctamente.',
+            receipt: {
+              id: createdReceipt.idReceipt,
+              fileUrl: createdReceipt.fileUrl,
+              type: createdReceipt.type,
+              originalName: createdReceipt.originalName,
+              mimeType: createdReceipt.mimeType,
+              relatedModel: createdReceipt.relatedModel,
+              relatedId: createdReceipt.relatedId
+            }
+          };
+          
+          console.log("[ReceiptController] Enviando respuesta:", response);
+          res.status(201).json(response);
 
         } catch (dbError) {
           if (transaction && !transaction.finished) { // Asegurarse que la transacción existe y no ha terminado
