@@ -70,6 +70,8 @@ const InspectionActionForm = ({
     const handleFileChange = (e) => {
         const { name, files: filesFromEvent } = e.target; // 'name' es el atributo name del input
 
+        console.log('[handleFileChange] name:', name, 'files:', filesFromEvent);
+
         if (filesFromEvent && filesFromEvent.length > 0) {
             const newFile = filesFromEvent[0];
 
@@ -112,7 +114,7 @@ const InspectionActionForm = ({
 
     const handleSubmit = (e) => {
         e.preventDefault();
-
+        console.log('[handleSubmit] files:', files);
 
         if (actionType === 'scheduleReceived') {
             if (!files.documentForApplicantFile || files.documentForApplicantFile.length === 0) {
@@ -136,6 +138,12 @@ const InspectionActionForm = ({
         if (actionType === 'registerFinalInvoice') {
             if (!files.invoiceFile || files.invoiceFile.length === 0) {
                 toast.error("Por favor, selecciona el archivo PDF del invoice del inspector.");
+                return;
+            }
+        }
+        if (actionType === 'directPaymentProof') {
+            if (!files.paymentProofFile || files.paymentProofFile.length === 0) {
+                toast.error('Error: Debe cargar el comprobante de pago antes de continuar.');
                 return;
             }
         }
@@ -511,6 +519,27 @@ const InspectionActionForm = ({
                             )}
                         </div>
 
+                    </>
+                );
+            case 'directPaymentProof':
+                return (
+                    <>
+                        <label className="block text-sm font-medium text-gray-700">Comprobante de Pago (PDF/JPG/PNG):</label>
+                        <input
+                            type="file"
+                            name="paymentProofFile"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            onChange={handleFileChange}
+                        />
+                        {renderSelectedFiles('paymentProofFile', false)}
+                        <label className="block text-sm font-medium text-gray-700 mt-2">Notas (opcional):</label>
+                        <textarea
+                            name="notes"
+                            value={formData.notes}
+                            onChange={handleInputChange}
+                            className="mt-1 block w-full border border-gray-300 rounded-md"
+                            rows={2}
+                        />
                     </>
                 );
 

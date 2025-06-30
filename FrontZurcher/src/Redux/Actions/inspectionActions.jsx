@@ -64,6 +64,8 @@ export const sendDocumentToApplicant = (inspectionId, applicantData) => async (d
   }
 };
 
+
+
 // 4. Registrar Documento Firmado por el Aplicante
 export const registerSignedApplicantDocument = (inspectionId, formData) => async (dispatch) => {
   // formData debe ser un objeto FormData que incluya:
@@ -247,6 +249,28 @@ export const sendInvoiceToClientForFinal = (inspectionId, clientData) => async (
     return response.data;
   } catch (error) {
     const errorMessage = error.response?.data?.message || 'Error al enviar el invoice al cliente.';
+    dispatch(inspectionFailure(errorMessage));
+    toast.error(errorMessage);
+    throw error;
+  }
+};
+
+// 9b. Confirmar Pago Directo para Inspección Final (admin/recept/owner paga el invoice directamente)
+export const confirmDirectPaymentForFinal = (inspectionId, formData) => async (dispatch) => {
+  // formData: { notes (opcional), paymentProofFile (file, requerido) }
+  dispatch(inspectionRequest());
+  try {
+    const response = await api.put(`/inspection/${inspectionId}/confirm-direct-payment`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data', // Necesario para FormData con archivos
+      },
+    });
+    // response.data = { message, inspection }
+    dispatch(upsertInspectionSuccess(response.data));
+    toast.success(response.data.message || "Pago directo registrado correctamente.");
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || 'Error al registrar el pago directo.';
     dispatch(inspectionFailure(errorMessage));
     toast.error(errorMessage);
     throw error;

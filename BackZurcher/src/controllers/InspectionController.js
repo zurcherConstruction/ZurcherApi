@@ -984,6 +984,46 @@ const sendInvoiceToClientForFinal = async (req, res) => {
   }
 };
 
+// Registra el pago directo del invoice (sin enviar al cliente)
+const confirmDirectPaymentForFinal = async (req, res) => {
+  try {
+    const { inspectionId } = req.params;
+    const { notes } = req.body;
+
+    if (!req.file) {
+      return res.status(400).json({ error: true, message: 'Debes subir el comprobante de pago.' });
+    }
+
+    const inspection = await Inspection.findByPk(inspectionId);
+    if (!inspection) {
+      return res.status(404).json({ error: true, message: 'Inspección no encontrada.' });
+    }
+    if (inspection.processStatus !== 'final_invoice_received') {
+      return res.status(400).json({ error: true, message: 'La inspección no está esperando confirmación de pago.' });
+    }
+
+    // Subir comprobante a Cloudinary
+    const cloudinaryResult = await uploadBufferToCloudinary(req.file.buffer, {
+      folder: `inspections/${inspection.workId}/${inspection.idInspection}/direct_payment_proofs`,
+      resource_type: 'raw',
+      public_id: `direct_payment_${req.file.originalname.split('.')[0]}_${Date.now()}`
+    });
+
+    inspection.clientPaymentProofUrl = cloudinaryResult.secure_url;
+    inspection.clientPaymentProofPublicId = cloudinaryResult.public_id;
+    inspection.datePaymentConfirmedByClient = new Date();
+    inspection.processStatus = 'final_payment_confirmed';
+    inspection.notes = notes ? `${inspection.notes || ''}\nPago directo registrado: ${notes}`.trim() : inspection.notes;
+    await inspection.save();
+
+    res.status(200).json({ message: 'Pago directo registrado correctamente.', inspection });
+  } catch (error) {
+    console.error('Error en confirmDirectPaymentForFinal:', error);
+    res.status(500).json({ error: true, message: 'Error interno al registrar pago directo.' });
+  }
+};
+
+
 /**
  * @description Cliente avisa que abonó el invoice. Se registra la confirmación.
  */
@@ -1135,6 +1175,7 @@ module.exports = {
   requestFinalInspection,
   registerInspectorInvoiceForFinal,
   sendInvoiceToClientForFinal,
+  confirmDirectPaymentForFinal,
   confirmClientPaymentForFinal,
   notifyInspectorPaymentForFinal,
  

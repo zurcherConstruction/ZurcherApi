@@ -9,6 +9,7 @@ import {
     confirmClientPaymentForFinal,
     notifyInspectorPaymentForFinal,
     requestReinspection,
+    confirmDirectPaymentForFinal,
 } from '../../Redux/Actions/inspectionActions';
 import { fetchWorkById } from '../../Redux/Actions/workActions';
 import InspectionActionForm from './InspectionActionForm';
@@ -18,10 +19,10 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
     const dispatch = useDispatch();
     const [activeForm, setActiveForm] = useState(null);
 
-    const { 
-        inspectionsByWork, 
-        loading: inspectionLoading, 
-        error: inspectionError, 
+    const {
+        inspectionsByWork,
+        loading: inspectionLoading,
+        error: inspectionError,
     } = useSelector((state) => state.inspection);
 
     // Refs para depurar cambios de referencia (puedes comentarlos en producción)
@@ -32,7 +33,7 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
             inspectionsByWorkRef.current = inspectionsByWork;
         }
     }, [inspectionsByWork]);
-    
+
     const currentFinalInspection = useMemo(() => {
         if (!inspectionsByWork || inspectionsByWork.length === 0) {
             return null;
@@ -60,16 +61,16 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
     }, [dispatch, work?.idWork, isVisible]);
 
     // Determinar estados generales de la inspección final
-    const finalInspectionApproved = useMemo(() => 
+    const finalInspectionApproved = useMemo(() =>
         currentFinalInspection?.finalStatus === 'approved' && currentFinalInspection?.type === 'final',
-    [currentFinalInspection]);
+        [currentFinalInspection]);
 
-    const finalInspectionRejected = useMemo(() => 
+    const finalInspectionRejected = useMemo(() =>
         currentFinalInspection?.finalStatus === 'rejected' && currentFinalInspection?.type === 'final',
-    [currentFinalInspection]);
+        [currentFinalInspection]);
 
     // Manejador de envío de formularios
-          const handleActionSubmit = async (itemId, actionCreator, formDataFromForm, successMsgContext) => {
+    const handleActionSubmit = async (itemId, actionCreator, formDataFromForm, successMsgContext) => {
         try {
             // Acciones que SIEMPRE deben enviar FormData (porque el backend usa Multer)
             const actionsAlwaysExpectingFormData = [
@@ -78,7 +79,8 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
                 confirmClientPaymentForFinal,     // si sube comprobante de pago
                 registerInspectionResult,         // si sube documentos de resultado
                 requestReinspection,              // si sube adjuntos para la reinspección
-                requestFinalInspection,           // si sube adjuntos para la solicitud final
+                requestFinalInspection,
+                confirmDirectPaymentForFinal,           // si sube adjuntos para la solicitud final
                 // Añade aquí otras acciones que usen Multer en el backend
             ];
 
@@ -121,7 +123,7 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
                 // Para acciones que esperan JSON
                 dataToSend = { ...formDataFromForm };
             }
-            
+
             // console.log(`[FinalInspectionFlowManager] Submitting action: ${successMsgContext}`, { itemId, actionCreatorName: actionCreator.name, dataToSend: isActionExpectingFormData ? 'FormData (ver consola para detalles)' : dataToSend });
             // if (isActionExpectingFormData) {
             //     for (let [key, value] of dataToSend.entries()) {
@@ -132,13 +134,14 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
             let resultAction;
             // Thunks que esperan (itemId, dataToSend)
             const directDispatchActions = [
-                registerInspectorInvoiceForFinal, 
-                requestFinalInspection, 
+                registerInspectorInvoiceForFinal,
+                requestFinalInspection,
                 sendInvoiceToClientForFinal,
                 confirmClientPaymentForFinal,
                 notifyInspectorPaymentForFinal,
                 registerInspectionResult,
-                requestReinspection
+                requestReinspection,
+                confirmDirectPaymentForFinal,
             ];
 
             if (directDispatchActions.includes(actionCreator)) {
@@ -146,20 +149,20 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
             } else {
                 // Si tienes otros thunks (ej. creados con createAsyncThunk) que esperan un solo objeto:
                 console.warn(`[FinalInspectionFlowManager] Dispatching con formato de payload no estándar para ${actionCreator.name}. Asumiendo objeto { id: itemId, formData: dataToSend }`);
-                resultAction = await dispatch(actionCreator({ id: itemId, formData: dataToSend })); 
+                resultAction = await dispatch(actionCreator({ id: itemId, formData: dataToSend }));
             }
 
             // Manejo de la respuesta y toasts (simplificado para brevedad, usa tu lógica existente)
             if (resultAction && (resultAction.error || resultAction.payload?.error)) {
-                 const errorMessage = resultAction.payload?.message || resultAction.error?.message || resultAction.message || `Error en ${successMsgContext}`;
-                 console.error(`[FinalInspectionFlowManager] Error en ${successMsgContext}:`, resultAction);
-                 toast.error(errorMessage);
+                const errorMessage = resultAction.payload?.message || resultAction.error?.message || resultAction.message || `Error en ${successMsgContext}`;
+                console.error(`[FinalInspectionFlowManager] Error en ${successMsgContext}:`, resultAction);
+                toast.error(errorMessage);
             } else {
                 const successMessage = resultAction?.payload?.message || resultAction?.message || `${successMsgContext} realizado con éxito.`;
                 toast.success(successMessage);
                 setActiveForm(null);
                 if (work?.idWork) {
-                    dispatch(fetchWorkById(work.idWork)); 
+                    dispatch(fetchWorkById(work.idWork));
                     dispatch(fetchInspectionsByWork(work.idWork));
                 }
             }
@@ -178,7 +181,7 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
         const detailItemClass = "py-2 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-0";
         const detailLabelClass = "text-sm font-medium text-gray-600";
         const detailValueClass = "mt-1 text-sm text-gray-800 sm:mt-0 sm:col-span-2";
-        const inspectionIdDisplay = inspection.idInspection ? inspection.idInspection.substring(0,8) : 'N/A';
+        const inspectionIdDisplay = inspection.idInspection ? inspection.idInspection.substring(0, 8) : 'N/A';
 
         return (
             <div className="mt-4 p-3 border rounded-md bg-gray-100">
@@ -192,7 +195,7 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
                         <dt className={detailLabelClass}>Estado Final</dt>
                         <dd className={detailValueClass}>{inspection.finalStatus || 'Pendiente'}</dd>
                     </div>
-                 
+
                     {inspection.invoiceFromInspectorUrl && (
                         <div className={detailItemClass}>
                             <dt className={detailLabelClass}>Invoice del Inspector</dt>
@@ -213,11 +216,11 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
                             </dd>
                         </div>
                     )}
-                     {inspection.resultDocumentUrl && (
+                    {inspection.resultDocumentUrl && (
                         <div className={detailItemClass}>
                             <dt className={detailLabelClass}>Documento(s) de Resultado</dt>
                             <dd className={detailValueClass}>
-                                   {Array.isArray(inspection.resultDocumentUrl) ? (
+                                {Array.isArray(inspection.resultDocumentUrl) ? (
                                     inspection.resultDocumentUrl.map((url, index) => (
                                         url && <a key={index} href={url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline block">
                                             Ver Documento {index + 1}
@@ -237,20 +240,20 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
     };
 
     // Memorización de objetos initialData
-   const initialDataForRejection = useMemo(() => ({
-    notes: `Re-solicitud de inspección final para obra ${work?.propertyAddress || 'N/A'}. Rechazo previo: ${currentFinalInspection?.notes || 'N/A'}`,
-    originalInspectionId: currentFinalInspection?.idInspection,
-    // Intenta obtener el email del inspector de la inspección rechazada si está en las notas
-    inspectorEmail: currentFinalInspection?.notes?.match(/Inspector:\s*([\w@.-]+)/i)?.[1] || '',
-    // Asume que selectedWorkImageId está disponible en el objeto 'work' si es necesario
-    // Si no, necesitarás obtenerlo de otra manera (ej. props, selector de Redux)
-    workImageId: work?.selectedWorkImageId || null 
-}), [work, currentFinalInspection]);
+    const initialDataForRejection = useMemo(() => ({
+        notes: `Re-solicitud de inspección final para obra ${work?.propertyAddress || 'N/A'}. Rechazo previo: ${currentFinalInspection?.notes || 'N/A'}`,
+        originalInspectionId: currentFinalInspection?.idInspection,
+        // Intenta obtener el email del inspector de la inspección rechazada si está en las notas
+        inspectorEmail: currentFinalInspection?.notes?.match(/Inspector:\s*([\w@.-]+)/i)?.[1] || '',
+        // Asume que selectedWorkImageId está disponible en el objeto 'work' si es necesario
+        // Si no, necesitarás obtenerlo de otra manera (ej. props, selector de Redux)
+        workImageId: work?.selectedWorkImageId || null
+    }), [work, currentFinalInspection]);
 
     const initialDataForFinalResult = useMemo(() => ({
         finalStatus: 'approved' // Valor por defecto para el formulario
     }), []);
-    
+
     // Si otros formularios necesitan initialData, definirlos aquí con useMemo:
     // const initialDataForFirstRequest = useMemo(() => ({ ... }), [work?.propertyAddress, ...]);
     // const initialDataForRegisterFinalInvoice = useMemo(() => ({ ... }), [currentFinalInspection?.someField, ...]);
@@ -261,44 +264,44 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
         if (!work || !work.status) {
             return <p>Cargando datos de la obra...</p>;
         }
-       
+
         if (finalInspectionApproved) {
             return <p className="text-green-700 font-semibold">Inspección Final APROBADA.</p>;
         }
 
-       if (finalInspectionRejected) {
-        return (
-            <div>
-                <p className="text-red-700 font-semibold">Inspección Final RECHAZADA.</p>
-                {currentFinalInspection?.notes && <p className="text-sm text-gray-600 mb-2">Notas del rechazo: {currentFinalInspection.notes}</p>}
-                <button
-                    onClick={() => setActiveForm('requestReinspectionAfterFinalRejection')} // Cambia el nombre del activeForm
-                    className="font-bold py-2 px-4 rounded mb-2 bg-orange-500 hover:bg-orange-600 text-white"
-                >
-                    Solicitar Reinspección Final {/* Cambia el texto del botón si quieres */}
-                </button>
-                
-                {activeForm === 'requestReinspectionAfterFinalRejection' && (
-                    <InspectionActionForm
-                        actionType="requestReinspection" // <--- USA 'requestReinspection'
-                        itemId={work.idWork} // itemId es work.idWork para requestReinspection
-                        work={work}
-                        inspection={currentFinalInspection} // Pasa la inspección rechazada para contexto
-                        initialData={initialDataForRejection} // Usa el initialData modificado
-                        onSubmit={(formData) => handleActionSubmit(work.idWork, requestReinspection, formData, 'Solicitud de Reinspección Final')} // <--- LLAMA A requestReinspection
-                        isLoading={inspectionLoading}
-                        onCancel={() => setActiveForm(null)}
-                    />
-                )}
-            </div>
-        );
-    }
-        
+        if (finalInspectionRejected) {
+            return (
+                <div>
+                    <p className="text-red-700 font-semibold">Inspección Final RECHAZADA.</p>
+                    {currentFinalInspection?.notes && <p className="text-sm text-gray-600 mb-2">Notas del rechazo: {currentFinalInspection.notes}</p>}
+                    <button
+                        onClick={() => setActiveForm('requestReinspectionAfterFinalRejection')} // Cambia el nombre del activeForm
+                        className="font-bold py-2 px-4 rounded mb-2 bg-orange-500 hover:bg-orange-600 text-white"
+                    >
+                        Solicitar Reinspección Final {/* Cambia el texto del botón si quieres */}
+                    </button>
+
+                    {activeForm === 'requestReinspectionAfterFinalRejection' && (
+                        <InspectionActionForm
+                            actionType="requestReinspection" // <--- USA 'requestReinspection'
+                            itemId={work.idWork} // itemId es work.idWork para requestReinspection
+                            work={work}
+                            inspection={currentFinalInspection} // Pasa la inspección rechazada para contexto
+                            initialData={initialDataForRejection} // Usa el initialData modificado
+                            onSubmit={(formData) => handleActionSubmit(work.idWork, requestReinspection, formData, 'Solicitud de Reinspección Final')} // <--- LLAMA A requestReinspection
+                            isLoading={inspectionLoading}
+                            onCancel={() => setActiveForm(null)}
+                        />
+                    )}
+                </div>
+            );
+        }
+
         // Si no hay inspección final activa
         if (!currentFinalInspection) {
             const canRequestFinal = ['approvedInspection', 'finalRejected', 'paymentReceived', 'covered'].includes(work.status);
-            if (canRequestFinal) { 
-                 return (
+            if (canRequestFinal) {
+                return (
                     <div>
                         <button
                             onClick={() => setActiveForm('requestFinalInspection')}
@@ -310,7 +313,7 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
                             <InspectionActionForm
                                 actionType="requestFinalInspection"
                                 itemId={work.idWork}
-                                work={work} 
+                                work={work}
                                 inspection={null} // No hay inspección actual
                                 // initialData={initialDataForFirstRequest} // Descomentar y definir si es necesario
                                 onSubmit={(formData) => handleActionSubmit(work.idWork, requestFinalInspection, formData, 'Solicitud de Inspección Final')}
@@ -321,13 +324,13 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
                     </div>
                 );
             } else {
-                 return <p className="text-gray-600">La obra no está en un estado válido ({work.status}) para solicitar inspección final.</p>;
+                return <p className="text-gray-600">La obra no está en un estado válido ({work.status}) para solicitar inspección final.</p>;
             }
         }
 
         // Flujo si ya existe una currentFinalInspection y no está aprobada/rechazada
         switch (currentFinalInspection?.processStatus) {
-            case 'pending_final_request': 
+            case 'pending_final_request':
             case 'final_requested_to_inspector':
                 return (
                     <div>
@@ -350,7 +353,7 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
                     </div>
                 );
             case 'final_invoice_received':
-                 return (
+                return (
                     <div>
                         <p className="mb-2 text-green-700">Invoice del inspector recibido.</p>
                         {currentFinalInspection.invoiceFromInspectorUrl && (
@@ -361,14 +364,28 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
                         <button onClick={() => setActiveForm('sendInvoiceToClient')} className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
                             Enviar Invoice al Cliente
                         </button>
+                        <button onClick={() => setActiveForm('directPaymentProof')} className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded ml-2">
+                            Subir Comprobante de Pago (Pago Directo)
+                        </button>
                         {activeForm === 'sendInvoiceToClient' && (
-                             <InspectionActionForm
+                            <InspectionActionForm
                                 actionType="sendInvoiceToClient"
                                 itemId={currentFinalInspection.idInspection}
-                                work={work} 
+                                work={work}
                                 inspection={currentFinalInspection}
-                                // initialData={...} // Descomentar y definir si es necesario
                                 onSubmit={(formData) => handleActionSubmit(currentFinalInspection.idInspection, sendInvoiceToClientForFinal, formData, 'Envío de Invoice al Cliente')}
+                                isLoading={inspectionLoading}
+                                onCancel={() => setActiveForm(null)}
+                            />
+                        )}
+                        {activeForm === 'directPaymentProof' && (
+                            <InspectionActionForm
+                                key={`directPaymentProof-${currentFinalInspection?.idInspection || ''}`}
+                                actionType="directPaymentProof"
+                                itemId={currentFinalInspection.idInspection}
+                                work={work}
+                                inspection={currentFinalInspection}
+                                onSubmit={(formData) => handleActionSubmit(currentFinalInspection.idInspection, confirmDirectPaymentForFinal, formData, 'Registro de Pago Directo')}
                                 isLoading={inspectionLoading}
                                 onCancel={() => setActiveForm(null)}
                             />
@@ -407,7 +424,7 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
                             <InspectionActionForm
                                 actionType="notifyInspectorPayment"
                                 itemId={currentFinalInspection.idInspection}
-                                inspection={currentFinalInspection} 
+                                inspection={currentFinalInspection}
                                 work={work}
                                 // initialData={...} // Descomentar y definir si es necesario
                                 onSubmit={(formData) => handleActionSubmit(currentFinalInspection.idInspection, notifyInspectorPaymentForFinal, formData, 'Notificación de Pago al Inspector')}
@@ -419,14 +436,14 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
                 );
             case 'final_payment_notified_to_inspector': // Inspector notificado, esperando resultado
             case 'inspection_completed_pending_result': // Estado genérico de inspección completada
-                 if (currentFinalInspection.type === 'final') {
+                if (currentFinalInspection.type === 'final') {
                     return (
                         <div>
                             <p className="mb-2 text-blue-700">Esperando resultado de inspección final del inspector...</p>
                             <button onClick={() => setActiveForm('registerFinalResult')} className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
                                 Registrar Resultado Inspección Final
                             </button>
-                           {activeForm === 'registerFinalResult' && (
+                            {activeForm === 'registerFinalResult' && (
                                 <InspectionActionForm
                                     actionType="registerResult" // Asegúrate que este actionType es manejado en InspectionActionForm
                                     itemId={currentFinalInspection.idInspection}
@@ -441,7 +458,7 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
                         </div>
                     );
                 }
-                break; 
+                break;
             default:
                 return <p>Estado de proceso desconocido para inspección final: {currentFinalInspection?.processStatus || 'N/A'}</p>;
         }
@@ -457,7 +474,7 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
     if (inspectionLoading && !currentFinalInspection && (!inspectionsByWork || inspectionsByWork.length === 0)) {
         return <p>Cargando información de inspección final...</p>;
     }
-    
+
     // Muestra error si falló la carga inicial de inspecciones
     if (inspectionError && !currentFinalInspection && (!inspectionsByWork || inspectionsByWork.length === 0)) {
         const errorMessageString = typeof inspectionError === 'object' ? JSON.stringify(inspectionError) : String(inspectionError);
@@ -467,11 +484,11 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
     return (
         <div className="my-6 p-4 border rounded-lg shadow-sm bg-gray-50">
             <h3 className="text-lg font-semibold text-gray-700 mb-3">Gestión de Inspección Final</h3>
-            
+
             {currentFinalInspection && renderFinalInspectionDetails(currentFinalInspection)}
-            
+
             {!currentFinalInspection && !inspectionLoading && !finalInspectionApproved && !finalInspectionRejected && work && !['approvedInspection', 'finalRejected', 'paymentReceived', 'covered'].includes(work.status) && (
-                 <p className="text-gray-600">La obra no está en un estado válido ({work?.status || 'desconocido'}) para iniciar el flujo de inspección final o no hay una inspección final activa.</p>
+                <p className="text-gray-600">La obra no está en un estado válido ({work?.status || 'desconocido'}) para iniciar el flujo de inspección final o no hay una inspección final activa.</p>
             )}
 
             {renderActionsForFinalInspection()}
