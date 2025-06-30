@@ -99,12 +99,22 @@ router.put(
   InspectionController.confirmClientPaymentForFinal
 );
 
+// 9b. Registrar pago directo (admin/recept/owner paga el invoice directamente)
+router.put(
+  '/:inspectionId/confirm-direct-payment',
+  verifyToken, allowRoles(['admin', 'recept', 'owner']),
+  upload.single('paymentProofFile'),
+  InspectionController.confirmDirectPaymentForFinal
+);
+
 // 10. Se envía confirmación de pago al inspector para que termine la inspección final
 router.post(
   '/:inspectionId/notify-inspector-payment',
   verifyToken, allowRoles(['admin', 'recept', 'owner']),
   InspectionController.notifyInspectorPaymentForFinal
 );
+
+
 
 // --- FIN: RUTAS PARA EL FLUJO DE INSPECCIÓN FINAL ---
 
