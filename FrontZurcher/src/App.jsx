@@ -128,7 +128,7 @@ function App() {
             <Route
               path="/progress-tracker"
               element={
-                <PrivateRoute allowedRoles={["owner"]}>
+                <PrivateRoute allowedRoles={["admin", "recept", "owner"]}>
                   <ProgressTracker />
                 </PrivateRoute>
               }
@@ -137,7 +137,7 @@ function App() {
             <Route
               path="/works"
               element={
-                <PrivateRoute allowedRoles={["owner"]}>
+                <PrivateRoute allowedRoles={["owner", "admin"]}>
                   <Works />
                 </PrivateRoute>
               }
@@ -145,7 +145,7 @@ function App() {
             <Route
               path="/work/:idWork"
               element={
-                <PrivateRoute allowedRoles={["owner"]}>
+                <PrivateRoute allowedRoles={["owner", "admin"]}>
                   <WorkDetail />
                 </PrivateRoute>
               }
@@ -187,7 +187,7 @@ function App() {
             <Route
               path="/check"
               element={
-                <PrivateRoute allowedRoles={["owner", "admin", "recept"]}>
+                <PrivateRoute allowedRoles={["owner", "admin"]}>
                   <MaterialsCheck />
                 </PrivateRoute>
               }
@@ -299,7 +299,7 @@ function App() {
             <Route
               path="/priceBudget"
               element={
-                <PrivateRoute allowedRoles={["owner"]}>
+                <PrivateRoute allowedRoles={["owner", "admin"]}>
                   <PriceBudgetManagement />
                 </PrivateRoute>
               }
