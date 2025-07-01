@@ -86,21 +86,25 @@ app.use(passport.initialize());
 
 
 // Session
-app.use(cors({
-  origin: '*', // Permitir cualquier origen
-  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE', 'PATCH'], // Métodos permitidos
-  allowedHeaders: ['Content-Type', 'Authorization'], // Encabezados permitidos
-  credentials: true, // Permitir el uso de credenciales
-}));
+// ==== CORS CONFIGURACIÓN CORRECTA ====
+const allowedOrigins = [
+  'https://www.zurcherseptic.com', // Producción
+  'http://localhost:5173' // Desarrollo local (ajusta si usas otro puerto)
+];
 
-// CORS Headers
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*'); 
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE', 'PATCH');
-  next();
-});
+app.use(cors({
+  origin: function(origin, callback){
+    // Permitir requests sin origin (como Postman) o si está en la lista
+    if(!origin || allowedOrigins.indexOf(origin) !== -1){
+      callback(null, true)
+    }else{
+      callback(new Error('No permitido por CORS'))
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 
 // **AQUÍ AGREGAR LA INICIALIZACIÓN DE LA BASE DE DATOS**
 const initializeDatabase = async () => {
