@@ -1,3 +1,4 @@
+
 import api from '../../utils/axios';
 import {
   fetchBudgetsRequest,
@@ -18,7 +19,30 @@ import {
   fetchArchivedBudgetsRequest,
   fetchArchivedBudgetsSuccess,
   fetchArchivedBudgetsFailure,
+
 } from '../Reducer/BudgetReducer';
+
+// Descargar PDF firmado de presupuesto
+export const downloadSignedBudget = (idBudget) => async () => {
+  try {
+    // Usar el mismo cliente axios configurado (api)
+    const response = await api.get(`/budget/${idBudget}/download-signed`, {
+      responseType: 'blob',
+      withCredentials: true,
+    });
+    // Descargar el archivo
+    const blob = response.data;
+    const link = document.createElement('a');
+    link.href = window.URL.createObjectURL(blob);
+    link.download = `Presupuesto_Firmado_${idBudget}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    return { type: 'DOWNLOAD_SIGNED_BUDGET_SUCCESS' };
+  } catch (error) {
+    return { type: 'DOWNLOAD_SIGNED_BUDGET_FAILURE', payload: error.message };
+  }
+};
 
 import { createAsyncThunk } from '@reduxjs/toolkit';
 

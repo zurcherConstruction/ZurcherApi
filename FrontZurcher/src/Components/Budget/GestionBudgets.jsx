@@ -4,7 +4,8 @@ import {
   fetchBudgets,
   fetchBudgetById,
   deleteBudget,
-  updateBudget
+  updateBudget,
+  downloadSignedBudget
 } from '../../Redux/Actions/budgetActions';
 import {
   MagnifyingGlassIcon,
@@ -15,6 +16,9 @@ import {
   CalendarDaysIcon,
   DocumentTextIcon
 } from '@heroicons/react/24/outline';
+import { Worker, Viewer } from '@react-pdf-viewer/core';
+import api from '../../utils/axios';
+import '@react-pdf-viewer/core/lib/styles/index.css';
 
 const GestionBudgets = () => {
   const dispatch = useDispatch();
@@ -34,6 +38,9 @@ const GestionBudgets = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedBudget, setSelectedBudget] = useState(null);
+  const [showSignedPdfModal, setShowSignedPdfModal] = useState(false);
+  const [signedPdfUrl, setSignedPdfUrl] = useState(null);
+  const [downloadingSignedPdf, setDownloadingSignedPdf] = useState(false);
 
   // Estados para el modal de edición
   const [editData, setEditData] = useState({
@@ -354,6 +361,35 @@ const handleSaveEdit = async () => {
   };
 
 
+  // Handler para ver PDF firmado (usando Vite env)
+  const handleViewSignedPdf = async (budget) => {
+    // Usar el mismo cliente axios para obtener la URL blob
+    try {
+      const response = await api.get(`/budget/${budget.idBudget}/download-signed`, {
+        responseType: 'blob',
+        withCredentials: true,
+      });
+      const blob = response.data;
+      const url = window.URL.createObjectURL(blob);
+      setSignedPdfUrl(url);
+      setShowSignedPdfModal(true);
+    } catch (error) {
+      alert('No se pudo cargar el PDF firmado.');
+    }
+  };
+
+  // Handler para descargar el PDF firmado
+  const handleDownloadSignedPdf = async () => {
+    if (!selectedBudget) return;
+    setDownloadingSignedPdf(true);
+    try {
+      await dispatch(downloadSignedBudget(selectedBudget.idBudget));
+    } catch (e) {
+      alert('No se pudo descargar el PDF firmado.');
+    }
+    setDownloadingSignedPdf(false);
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -557,6 +593,15 @@ const handleSaveEdit = async () => {
                           title="No se puede eliminar (Aprobado/Firmado)"
                         >
                           <TrashIcon className="h-4 w-4" />
+                        </button>
+                      )}
+                      {budget.status === 'signed' && (
+                        <button
+                          onClick={() => handleViewSignedPdf(budget)}
+                          className="text-indigo-600 hover:text-indigo-900 p-1 rounded"
+                          title="Ver PDF Firmado"
+                        >
+                          <DocumentTextIcon className="h-4 w-4" />
                         </button>
                       )}
                     </div>
@@ -1023,6 +1068,39 @@ const handleSaveEdit = async () => {
                   Guardar Cambios
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal visor PDF firmado */}
+      {showSignedPdfModal && (
+        <div className="fixed inset-0 bg-gray-700 bg-opacity-60 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full p-4 relative">
+            <button
+              onClick={() => setShowSignedPdfModal(false)}
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <h2 className="text-lg font-bold mb-4 text-center">PDF Firmado</h2>
+            <div className="flex justify-end mb-2">
+              <button
+                onClick={handleDownloadSignedPdf}
+                className="px-3 py-1 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+                disabled={downloadingSignedPdf}
+              >
+                {downloadingSignedPdf ? 'Descargando...' : 'Descargar PDF'}
+              </button>
+            </div>
+            <div className="h-[70vh] overflow-y-auto border rounded shadow-inner bg-gray-50">
+              {signedPdfUrl && (
+                <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+                  <Viewer fileUrl={signedPdfUrl} />
+                </Worker>
+              )}
             </div>
           </div>
         </div>
