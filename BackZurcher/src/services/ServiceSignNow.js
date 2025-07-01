@@ -344,11 +344,13 @@ class SignNowService {
         throw new Error('API Key no configurada');
       }
 
-      console.log(`🔄 Descargando documento firmado: ${documentId}`);
-      console.log(`📡 URL: ${this.baseURL}/document/${documentId}/download`);
+      // Usar el endpoint correcto para PDF "flattened" (firma visible)
+      const downloadUrl = `${this.baseURL}/document/${documentId}/download?type=collapsed`;
+      console.log(`🔄 Descargando documento firmado (flattened): ${documentId}`);
+      console.log(`📡 URL: ${downloadUrl}`);
 
       const response = await axios.get(
-        `${this.baseURL}/document/${documentId}/download`, 
+        downloadUrl,
         {
           headers: {
             'Authorization': `Bearer ${this.apiKey}`
@@ -362,13 +364,13 @@ class SignNowService {
 
       return new Promise((resolve, reject) => {
         writer.on('finish', () => {
-          console.log(`✅ Documento descargado: ${downloadPath}`);
+          console.log(`✅ Documento descargado (flattened): ${downloadPath}`);
           resolve();
         });
         writer.on('error', reject);
       });
     } catch (error) {
-      console.error('Error descargando documento:', error.response?.data || error.message);
+      console.error('Error descargando documento (flattened):', error.response?.data || error.message);
       throw error;
     }
   }
