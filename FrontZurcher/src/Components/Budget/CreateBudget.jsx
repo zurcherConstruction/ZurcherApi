@@ -186,6 +186,22 @@ const CreateBudget = () => {
     console.log("Effect para poblar formulario ejecutado. selectedPermit:", selectedPermit);
     if (selectedPermit && selectedPermit.idPermit === permitIdFromQuery) { // Asegurarse que es el permit correcto
       console.log("Poblando formulario desde Permit:", selectedPermit);
+      // Construir los lineItems iniciales
+      let initialLineItems = [];
+      // Si excavationRequired tiene texto, agregar item EXCAVATION incluido
+      if (selectedPermit.excavationRequired && selectedPermit.excavationRequired.trim() !== "") {
+        initialLineItems.push({
+          _tempId: generateTempId(),
+          budgetItemId: null, // Item manual
+          category: "EXCAVATION",
+          name: "EXCAVATION",
+          included: true,
+          description: `EXCAVATION DRAINFIELD ${selectedPermit.drainfieldDepth} SF`,
+          unitPrice: 0,
+          quantity: 1,
+          notes: "Incluido automáticamente por excavationRequired"
+        });
+      }
       setFormData(prev => ({
         ...prev,
         permitNumber: selectedPermit.permitNumber || "",
@@ -194,7 +210,7 @@ const CreateBudget = () => {
         lot: selectedPermit.lot || "",
         block: selectedPermit.block || "",
         // Resetear campos específicos del budget al cargar nuevo permit
-        lineItems: [],
+        lineItems: initialLineItems,
         discountAmount: 0,
         discountDescription: "",
         generalNotes: "",
@@ -414,10 +430,29 @@ const CreateBudget = () => {
 
 
  // --- Obtener todas las categorías disponibles dinámicamente ---
+const customCategoryOrder = [
+  'SYSTEM TYPE',
+  'SISTEMA CHAMBERS',
+  'ACCESORIOS',
+  'PUMP',
+  'SAND',
+  'DIRT',
+  'ROCK',
+  'INSPECTION',
+  'LABOR FEE',
+  // El resto aparecerá después
+];
   const availableCategories = useMemo(() => {
-    const categories = [...new Set(normalizedBudgetItemsCatalog.map(item => item.category))].sort();
-    console.log("Categorías detectadas automáticamente:", categories);
-    return categories;
+    const categories = [...new Set(normalizedBudgetItemsCatalog.map(item => item.category))];
+    // Ordenar según customCategoryOrder, el resto al final
+    return categories.sort((a, b) => {
+      const aIdx = customCategoryOrder.indexOf((a || '').toUpperCase());
+      const bIdx = customCategoryOrder.indexOf((b || '').toUpperCase());
+      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+      if (aIdx !== -1) return -1;
+      if (bIdx !== -1) return 1;
+      return a.localeCompare(b);
+    });
   }, [normalizedBudgetItemsCatalog]);
 
   // --- Estado para visibilidad de secciones dinámicas ---
@@ -869,23 +904,49 @@ const CreateBudget = () => {
                 {formData.lineItems.length === 0 ? (
                   <p className="text-gray-500 text-sm py-3 text-center">Aún no se han añadido items.</p>
                 ) : (
-                  <ul className="space-y-3 max-h-80 overflow-y-auto pr-2 -mr-2">
-                    {formData.lineItems.map(item => (
-                      <li key={item._tempId} className="flex justify-between items-start text-sm p-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors rounded-md">
-                        <div className="flex-grow mr-3">
-                          <p className="font-semibold text-gray-800">{item.name}</p>
-                          <p className="text-gray-600 text-xs">
-                            {item.marca && <span>{item.marca}</span>}
-                            {item.marca && item.capacity && <span> &bull; </span>}
-                            {item.capacity && <span>{item.capacity}</span>}
-                          </p>
-                          <p className="text-gray-700 text-xs mt-1">Cant: {item.quantity} @ ${parseFloat(item.unitPrice).toFixed(2)} c/u</p>
-                          {item.notes && <p className="text-xs text-gray-500 italic mt-1.5 ml-2">- {item.notes}</p>}
-                        </div>
-                        <button type="button" onClick={() => handleRemoveItem(item._tempId)} className="text-gray-400 hover:text-red-600 text-xs font-medium ml-2 flex-shrink-0 transition-colors py-1 px-2 rounded-full hover:bg-red-50">Eliminar</button>
-                      </li>
-                    ))}
-                  </ul>
+                  (() => {
+                    // --- Custom order for categories ---
+                    const customOrder = [
+                      'SYSTEM TYPE',
+                      'SISTEMA CHAMBERS',
+                      'ACCESORIOS',
+                      'PUMP',
+                      'SAND',
+                      'DIRT',
+                      'ROCK',
+                      'INSPECTION',
+                      'LABOR FEE'
+                    ];
+                    // Sort items: first by custom order, then the rest
+                    const orderedItems = [...formData.lineItems].sort((a, b) => {
+                      const aIdx = customOrder.indexOf((a.category || '').toUpperCase());
+                      const bIdx = customOrder.indexOf((b.category || '').toUpperCase());
+                      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+                      if (aIdx !== -1) return -1;
+                      if (bIdx !== -1) return 1;
+                      // If both are not in custom order, keep their original order
+                      return 0;
+                    });
+                    return (
+                      <ul className="space-y-3 max-h-80 overflow-y-auto pr-2 -mr-2">
+                        {orderedItems.map(item => (
+                          <li key={item._tempId} className="flex justify-between items-start text-sm p-3 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors rounded-md">
+                            <div className="flex-grow mr-3">
+                              <p className="font-semibold text-gray-800">{item.name}</p>
+                              <p className="text-gray-600 text-xs">
+                                {item.marca && <span>{item.marca}</span>}
+                                {item.marca && item.capacity && <span> &bull; </span>}
+                                {item.capacity && <span>{item.capacity}</span>}
+                              </p>
+                              <p className="text-gray-700 text-xs mt-1">Cant: {item.quantity} @ ${parseFloat(item.unitPrice).toFixed(2)} c/u</p>
+                              {item.notes && <p className="text-xs text-gray-500 italic mt-1.5 ml-2">- {item.notes}</p>}
+                            </div>
+                            <button type="button" onClick={() => handleRemoveItem(item._tempId)} className="text-gray-400 hover:text-red-600 text-xs font-medium ml-2 flex-shrink-0 transition-colors py-1 px-2 rounded-full hover:bg-red-50">Eliminar</button>
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  })()
                 )}
               </div>
             </div>
