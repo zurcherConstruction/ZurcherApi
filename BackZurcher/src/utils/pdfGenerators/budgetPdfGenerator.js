@@ -503,10 +503,22 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
     currentTotalY = doc.y;
     doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
     const discountLabel = discountDescription ? `${discountDescription.toUpperCase()}` : "DISCOUNT";
-    doc.text(discountLabel, totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
-    doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
-    doc.text(`-$${discountNum.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
-    doc.moveDown(0.6);
+    // Hacer wrap del label si es muy largo
+    doc.text(discountLabel, totalsStartX, currentTotalY, {
+      width: totalsValueX - totalsStartX - cellPadding,
+      align: 'left',
+      continued: false // Importante para que TAX y TOTAL bajen
+    });
+    // El monto siempre alineado a la derecha, en la misma línea que termina el label
+    const discountLabelHeight = doc.heightOfString(discountLabel, { width: totalsValueX - totalsStartX - cellPadding });
+    doc.text(`-$${discountNum.toFixed(2)}`, totalsValueX, currentTotalY, {
+      width: totalsRightEdge - totalsValueX,
+      align: 'right',
+      continued: false
+    });
+    // Avanzar y dejar espacio después del label largo
+    doc.y = currentTotalY + discountLabelHeight;
+    doc.moveDown(0.2);
   }
 
   // ✅ TAX - empieza en totalsStartX
