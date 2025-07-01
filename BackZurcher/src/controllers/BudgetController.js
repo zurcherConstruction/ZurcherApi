@@ -533,34 +533,21 @@ const BudgetController = {
   // Descargar documento firmado
   async downloadSignedBudget(req, res) {
     const { idBudget } = req.params;
-
     try {
-      console.log(`--- Descargando documento firmado para presupuesto ${idBudget} ---`);
-
+      console.log(`--- Descargando PDF firmado desde SignNow para presupuesto ${idBudget} ---`);
       // Buscar el presupuesto
       const budget = await Budget.findByPk(idBudget);
-
       if (!budget) {
-        return res.status(404).json({
-          error: true,
-          message: 'Presupuesto no encontrado'
-        });
+        return res.status(404).json({ error: true, message: 'Presupuesto no encontrado' });
       }
-
       if (!budget.signNowDocumentId) {
-        return res.status(400).json({
-          error: true,
-          message: 'Este presupuesto no ha sido enviado para firma'
-        });
+        return res.status(400).json({ error: true, message: 'Este presupuesto no ha sido enviado para firma' });
       }
-
       // Inicializar servicio de SignNow
       const SignNowService = require('../services/ServiceSignNow');
       const signNowService = new SignNowService();
-
       // Verificar si está firmado
       const signatureStatus = await signNowService.isDocumentSigned(budget.signNowDocumentId);
-
       if (!signatureStatus.isSigned) {
         return res.status(400).json({
           error: true,
@@ -572,48 +559,41 @@ const BudgetController = {
           }
         });
       }
-
       // Crear path para el archivo firmado
       const path = require('path');
+      const fs = require('fs');
       const uploadsDir = path.join(__dirname, '..', '..', 'uploads', 'signed-budgets');
-
-      // Crear directorio si no existe
       if (!fs.existsSync(uploadsDir)) {
         fs.mkdirSync(uploadsDir, { recursive: true });
       }
-
       const signedFileName = `Budget_${budget.idBudget}_signed.pdf`;
       const signedFilePath = path.join(uploadsDir, signedFileName);
-
-      // Descargar documento firmado
+      // Descargar SIEMPRE el PDF firmado más reciente desde SignNow
       await signNowService.downloadSignedDocument(budget.signNowDocumentId, signedFilePath);
-
       // Actualizar presupuesto con path del archivo firmado
       await budget.update({
         signedPdfPath: signedFilePath,
         status: 'signed',
         signedAt: new Date()
       });
-
       // Enviar archivo al cliente
       res.download(signedFilePath, signedFileName, (err) => {
         if (err) {
-          console.error('Error enviando archivo:', err);
-          res.status(500).json({
-            error: true,
-            message: 'Error descargando archivo firmado'
-          });
+          console.error('Error enviando archivo firmado:', err);
+          if (!res.headersSent) {
+            res.status(500).json({ error: true, message: 'Error descargando archivo firmado' });
+          }
         }
       });
-
     } catch (error) {
       console.error('❌ Error descargando documento firmado:', error);
-
-      res.status(500).json({
-        error: true,
-        message: 'Error descargando documento firmado',
-        details: error.message
-      });
+      if (!res.headersSent) {
+        res.status(500).json({
+          error: true,
+          message: 'Error descargando documento firmado',
+          details: error.message
+        });
+      }
     }
   },
 
