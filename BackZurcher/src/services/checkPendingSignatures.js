@@ -97,12 +97,13 @@ const checkPendingSignatures = async () => {
 };
 
 const startSignatureCheckCron = () => {
-  cron.schedule('0 */2 * * *', checkPendingSignatures, {
+  // Ejecutar cada 10 minutos: '*/10 * * * *'
+  cron.schedule('*/10 * * * *', checkPendingSignatures, {
     scheduled: true,
     timezone: "America/New_York" // IMPORTANTE: Ajusta a tu zona horaria.
   });
 
-  console.log('✅ Cron job para verificar firmas de SignNow programado para ejecutarse cada 2 horas.');
+  console.log('✅ Cron job para verificar firmas de SignNow programado para ejecutarse cada 10 minutos.');
 };
 
 module.exports = { startSignatureCheckCron, checkPendingSignatures };
