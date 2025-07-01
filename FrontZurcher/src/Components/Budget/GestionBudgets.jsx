@@ -595,7 +595,7 @@ const handleSaveEdit = async () => {
                           <TrashIcon className="h-4 w-4" />
                         </button>
                       )}
-                      {budget.status === 'signed' && (
+                      {(budget.status === 'signed' || budget.status === 'approved') && (
                         <button
                           onClick={() => handleViewSignedPdf(budget)}
                           className="text-indigo-600 hover:text-indigo-900 p-1 rounded"
