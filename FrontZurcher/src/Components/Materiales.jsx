@@ -342,9 +342,10 @@ console.log("selectedAddress:", selectedAddress, "work:", work);
 
     autoTable(doc, {
       startY: work?.startDate ? 80 : 80,
-      head: [["Material", "Cantidad", "Comentario"]],
+      head: [["Material", "Descripción", "Cantidad", "Comentario"]],
       body: formData.materials.map((material) => [
         material.material || material.name || "N/A",
+        material.description || "",
         material.quantity,
         material.comment || "",
       ]),
