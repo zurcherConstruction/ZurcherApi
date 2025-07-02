@@ -94,19 +94,18 @@ const ProgressTracker = () => {
   
       {!loading &&
         !error &&
-        filteredData.map(({ idWork, propertyAddress, status, Permit }) => {
-          
-          let permitExpirationAlertIcon = null; // Asegúrate que esta variable esté definida aquí
-          if (Permit && Permit.expirationStatus) { // Verificar que Permit y expirationStatus existan
+        filteredData.map((work) => {
+          const { idWork, propertyAddress, status, Permit, Receipts } = work;
+
+          let permitExpirationAlertIcon = null;
+          if (Permit && Permit.expirationStatus) {
             const permitExpStatus = Permit.expirationStatus;
             const permitExpMessage = Permit.expirationMessage;
-
             if (permitExpStatus === "expired" || permitExpStatus === "soon_to_expire") {
               const isError = permitExpStatus === "expired";
               const alertColorClass = isError ? "text-red-500" : "text-yellow-500";
               const pingColorClass = isError ? "bg-red-400" : "bg-yellow-400";
               const alertMessage = permitExpMessage || (isError ? "Permiso Vencido" : "Permiso Próximo a Vencer");
-              
               permitExpirationAlertIcon = (
                 <span 
                   title={alertMessage} 
@@ -115,6 +114,22 @@ const ProgressTracker = () => {
                   <span className={`absolute inline-flex h-full w-full rounded-full ${pingColorClass} opacity-75 animate-ping`}></span>
                   <ExclamationTriangleIcon className={`relative z-10 inline-flex h-6 w-6 ${alertColorClass}`} />
                 </span>
+              );
+            }
+          }
+
+          // --- ALERTA DE INSPECCIÓN INICIAL NO ABONADA ---
+          let initialInspectionAlert = null;
+          if (["installed", "firstInspectionPending"].includes(status)) {
+            const hasInitialInspectionReceipt = Array.isArray(Receipts)
+              ? Receipts.some(r => r.type === "Inspección Inicial")
+              : false;
+            if (!hasInitialInspectionReceipt) {
+              initialInspectionAlert = (
+                <div className="flex items-center justify-center mt-2 text-xs text-red-600 font-semibold">
+                  <ExclamationTriangleIcon className="h-4 w-4 mr-1 text-red-500 animate-pulse" />
+                  No se abonó la Inspección Inicial
+                </div>
               );
             }
           }
@@ -129,8 +144,9 @@ const ProgressTracker = () => {
             >
               <h3 className="font-varela uppercase text-lg md:text-xl text-gray-700 text-center flex items-center justify-center">
                 {propertyAddress}
-                {permitExpirationAlertIcon} {/* Aquí se incluye el ícono */}
+                {permitExpirationAlertIcon}
               </h3>
+              {initialInspectionAlert}
     
               <div className="hidden sm:flex relative items-center justify-between mt-4">
                 <div className="absolute w-full h-2 bg-gray-200 rounded-full"></div>

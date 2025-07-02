@@ -1,12 +1,43 @@
 const { Expense, Staff, Receipt } = require('../data'); // Agregar Staff y Receipt
 const { Op } = require('sequelize'); // Agregar para las consultas
+const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader');
 
 // Crear un nuevo gasto
 const createExpense = async (req, res) => {
   const { date, amount, typeExpense, notes, workId, staffId } = req.body;
   try {
+    // 1. Crear el Expense normalmente
     const newExpense = await Expense.create({ date, amount, typeExpense, notes, workId, staffId });
-    res.status(201).json(newExpense);
+
+    // 2. Si es Inspección Inicial o Inspección Final y hay archivo, crear Receipt asociado
+    let createdReceipt = null;
+    if ((typeExpense === 'Inspección Inicial' || typeExpense === 'Inspección Final') && req.file) {
+      // Subir archivo a Cloudinary
+      const result = await uploadBufferToCloudinary(req.file.buffer, {
+        folder: 'zurcher_receipts',
+        resource_type: req.file.mimetype === 'application/pdf' ? 'raw' : 'auto',
+        format: req.file.mimetype === 'application/pdf' ? undefined : 'jpg',
+        access_mode: 'public'
+      });
+
+      // Crear Receipt asociado al Expense
+      createdReceipt = await Receipt.create({
+        relatedModel: 'Expense',
+        relatedId: newExpense.idExpense.toString(),
+        type: typeExpense,
+        notes,
+        fileUrl: result.secure_url,
+        publicId: result.public_id,
+        mimeType: req.file.mimetype,
+        originalName: req.file.originalname
+      });
+    }
+
+    // Devolver ambos si corresponde
+    res.status(201).json({
+      ...newExpense.toJSON(),
+      Receipt: createdReceipt ? createdReceipt.toJSON() : null
+    });
   } catch (error) {
     res.status(500).json({ message: 'Error al crear el gasto', error: error.message });
   }

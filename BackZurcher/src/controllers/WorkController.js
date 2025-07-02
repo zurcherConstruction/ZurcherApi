@@ -1,8 +1,8 @@
-const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, ChangeOrder, FinalInvoice, MaintenanceVisit } = require('../data');
-const { sendEmail } = require('../utils/notifications/emailService');
+const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, Expense, ChangeOrder, FinalInvoice, MaintenanceVisit } = require('../data');
+
 const convertPdfDataToUrl = require('../utils/convertPdfDataToUrl');
 const { sendNotifications } = require('../utils/notifications/notificationManager');
-const { uploadToCloudinary, deleteFromCloudinary, uploadBufferToCloudinary } = require('../utils/cloudinaryUploader'); // Asegúrate de importar la función de subida a Cloudinary
+const {  deleteFromCloudinary, uploadBufferToCloudinary } = require('../utils/cloudinaryUploader'); // Asegúrate de importar la función de subida a Cloudinary
 const multer = require('multer');
 const path = require('path');
 const {generateAndSaveChangeOrderPDF} = require('../utils/pdfGenerator')
@@ -81,21 +81,58 @@ const getWorks = async (req, res) => {
         },
         {
           model: Permit,
-          // Asegúrate de que 'expirationDate' esté aquí
           attributes: ['idPermit', 'propertyAddress', 'applicantName', 'expirationDate', 'applicantEmail'],
         },
-          {
+        {
           model: FinalInvoice,
-          as: 'finalInvoice', // <--- ASEGÚRATE DE QUE ESTÉ AQUÍ
-          required: false // LEFT JOIN para obtener obras aunque no tengan factura final
+          as: 'finalInvoice',
+          required: false
+        },
+        {
+          model: Expense,
+          as: 'expenses',
+        },
+        {
+          model: Receipt,
+          as: 'Receipts',
+          required: false,
+          on: {
+            [Op.and]: [
+              literal(`"Receipts"."relatedModel" = 'Work'`),
+              literal(`"Work"."idWork" = CAST("Receipts"."relatedId" AS UUID)`)
+            ]
+          },
+          attributes: ['idReceipt', 'type', 'notes', 'fileUrl', 'publicId', 'mimeType', 'originalName','createdAt'],
         }
       ],
-      // Podrías querer ordenar los trabajos, por ejemplo, por fecha de creación o actualización
-      order: [['createdAt', 'DESC']], 
+      order: [['createdAt', 'DESC']],
     });
 
-    const worksWithDetails = worksInstances.map((workInstance) => {
-      const workJson = workInstance.get({ plain: true }); // Convertir a objeto plano
+    // Para cada work, combinar los receipts directos y los de expenses (sin romper la estructura original)
+    const worksWithDetails = await Promise.all(worksInstances.map(async (workInstance) => {
+      const workJson = workInstance.get({ plain: true });
+
+      // Receipts directos (como siempre)
+      let directReceipts = [];
+      if (workJson.Receipts && Array.isArray(workJson.Receipts)) {
+        directReceipts = convertPdfDataToUrl(workJson.Receipts);
+      }
+
+      // Receipts de tipo Inspección Inicial asociados a Expenses (agregado, no rompe nada)
+      let expenseReceipts = [];
+      if (workJson.expenses && Array.isArray(workJson.expenses) && workJson.expenses.length > 0) {
+        const expenseIds = workJson.expenses.map(e => e.idExpense);
+        if (expenseIds.length > 0) {
+          const foundReceipts = await Receipt.findAll({
+            where: {
+              relatedModel: 'Expense',
+              relatedId: expenseIds,
+              type: 'Inspección Inicial'
+            }
+          });
+          expenseReceipts = convertPdfDataToUrl(foundReceipts.map(r => ({ ...r.get({ plain: true }), fromExpense: true })));
+        }
+      }
 
       // Eliminar el campo startDate si no está asignado (lógica existente)
       if (!workJson.startDate) {
@@ -109,18 +146,18 @@ const getWorks = async (req, res) => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const expirationDateString = typeof workJson.Permit.expirationDate === 'string' 
-                                    ? workJson.Permit.expirationDate.split('T')[0] 
-                                    : new Date(workJson.Permit.expirationDate).toISOString().split('T')[0];
-        
+        const expirationDateString = typeof workJson.Permit.expirationDate === 'string'
+          ? workJson.Permit.expirationDate.split('T')[0]
+          : new Date(workJson.Permit.expirationDate).toISOString().split('T')[0];
+
         const expDateParts = expirationDateString.split('-');
         const year = parseInt(expDateParts[0], 10);
-        const month = parseInt(expDateParts[1], 10) - 1; // Mes es 0-indexado
+        const month = parseInt(expDateParts[1], 10) - 1;
         const day = parseInt(expDateParts[2], 10);
 
         if (!isNaN(year) && !isNaN(month) && !isNaN(day) && month >= 0 && month <= 11 && day >= 1 && day <= 31) {
           const expDate = new Date(year, month, day);
-          expDate.setHours(0,0,0,0);
+          expDate.setHours(0, 0, 0, 0);
 
           if (!isNaN(expDate.getTime())) {
             if (expDate < today) {
@@ -138,20 +175,19 @@ const getWorks = async (req, res) => {
             console.warn(`Fecha de expiración de permiso inválida (post-parse) para work ${workJson.idWork}, permit ${workJson.Permit.idPermit}: ${expirationDateString}`);
           }
         } else {
-           console.warn(`Formato de fecha de expiración de permiso inválido para work ${workJson.idWork}, permit ${workJson.Permit.idPermit}: ${expirationDateString}`);
+          console.warn(`Formato de fecha de expiración de permiso inválido para work ${workJson.idWork}, permit ${workJson.Permit.idPermit}: ${expirationDateString}`);
         }
-        // Añadir al objeto Permit DENTRO del workJson
         workJson.Permit.expirationStatus = permitExpirationStatus;
         workJson.Permit.expirationMessage = permitExpirationMessage;
       } else if (workJson.Permit) {
-        // Si hay Permit pero no expirationDate
-        workJson.Permit.expirationStatus = "valid"; 
+        workJson.Permit.expirationStatus = "valid";
         workJson.Permit.expirationMessage = "Permiso sin fecha de expiración especificada.";
       }
-      // --- Fin del cálculo de expiración ---
 
+      // Unir ambos arrays de receipts (sin romper la estructura original)
+      workJson.Receipts = [...directReceipts, ...expenseReceipts];
       return workJson;
-    });
+    }));
 
     res.status(200).json(worksWithDetails);
   } catch (error) {
@@ -167,13 +203,11 @@ const getWorkById = async (req, res) => {
     const work = await Work.findByPk(idWork, {
       include: [
         {
-
           model: Budget,
           as: 'budget',
           attributes: ['idBudget', 'propertyAddress', 'status', 'paymentInvoice', 'paymentProofType', 'initialPayment', 'paymentProofAmount', 'date', 'applicantName','totalPrice', 'initialPaymentPercentage'],
         },
         {
-
           model: Permit,
           attributes: [
             'idPermit',
@@ -192,12 +226,12 @@ const getWorkById = async (req, res) => {
         },
         {
           model: Inspection,
-          as: 'inspections', // <--- ASEGÚRATE DE QUE ESTE ALIAS ES EL CORRECTO (definido en data/index.js)
-          attributes: [ // <--- ATRIBUTOS ACTUALIZADOS DEL MODELO INSPECTION
-           'idInspection',
+          as: 'inspections',
+          attributes: [
+            'idInspection',
             'type',
-            'processStatus', 
-            'finalStatus',   
+            'processStatus',
+            'finalStatus',
             'dateRequestedToInspectors',
             'inspectorScheduledDate',
             'documentForApplicantUrl',
@@ -208,13 +242,12 @@ const getWorkById = async (req, res) => {
             'resultDocumentUrl',
             'dateResultReceived',
             'notes',
-            'workerHasCorrected', // <--- AÑADIR ESTE CAMPO
-            'dateWorkerCorrected', // <--- AÑADIR ESTE CAMPO
-            'createdAt', 
-            'updatedAt', // Para saber cuándo se actualizó por última vez
+            'workerHasCorrected',
+            'dateWorkerCorrected',
+            'createdAt',
+            'updatedAt',
           ],
-          // Opcional: puedes ordenar las inspecciones si una obra puede tener múltiples
-          order: [['createdAt', 'DESC']], 
+          order: [['createdAt', 'DESC']],
         },
         {
           model: InstallationDetail,
@@ -232,31 +265,29 @@ const getWorkById = async (req, res) => {
           attributes: ['id', 'stage', 'dateTime', 'imageUrl', 'publicId', 'comment', 'truckCount'],
         },
         {
+          model: Expense,
+          as: 'expenses',
+        },
+        {
           model: Receipt,
           as: 'Receipts',
-          required: false, // Para asegurar un LEFT JOIN
+          required: false,
           on: {
             [Op.and]: [
-              // Condición para el relatedModel
               literal(`"Receipts"."relatedModel" = 'Work'`),
-              // Condición para el relatedId, casteando relatedId a UUID para comparar con Work.idWork
               literal(`"Work"."idWork" = CAST("Receipts"."relatedId" AS UUID)`)
             ]
           },
           attributes: ['idReceipt', 'type', 'notes', 'fileUrl', 'publicId', 'mimeType', 'originalName','createdAt'],
         },
-         {
+        {
           model: ChangeOrder,
-          as: 'changeOrders', // <--- ESTA ES LA INCLUSIÓN CRUCIAL
-          // Opcional: puedes ordenar las COs si lo deseas
-          // order: [['createdAt', 'DESC']] 
+          as: 'changeOrders',
         },
-        { // --- AÑADIR ESTA SECCIÓN PARA FINALINVOICE ---
+        {
           model: FinalInvoice,
-          as: 'finalInvoice', // Asegúrate que este alias 'as' coincida con la definición de la relación en data/index.js (Work.hasOne(FinalInvoice, { as: 'FinalInvoice', ... }))
-          required: false, // Hace que sea un LEFT JOIN, así la obra se devuelve aunque no tenga factura final
-          // Opcional: puedes incluir los WorkExtraItem de la FinalInvoice si son necesarios
-          // include: [{ model: WorkExtraItem, as: 'extraItems' }] 
+          as: 'finalInvoice',
+          required: false,
         }
       ],
     });
@@ -264,32 +295,34 @@ const getWorkById = async (req, res) => {
     if (!work) {
       return res.status(404).json({ error: true, message: 'Obra no encontrada' });
     }
-    console.log("Receipts antes de procesar:", work.Receipts);
-    // Convertir los datos de los comprobantes (Receipts) a URLs base64
-    const workWithReceipts = {
-      ...work.get({ plain: true }), // Convertir a objeto plano
-      Receipts: work.Receipts ? convertPdfDataToUrl(work.Receipts) : [],
-    };
-    console.log("Receipts después de procesar:", workWithReceipts.Receipts);
 
-    // Agregar información del presupuesto (Budget) si no está incluida en la relación
-    if (!workWithReceipts.budget) {
-      const budget = await Budget.findOne({ where: { propertyAddress: work.propertyAddress } });
-      workWithReceipts.budget = budget
-        ? {
-          idBudget: budget.idBudget,
-          propertyAddress: budget.propertyAddress,
-          status: budget.status,
-
-          initialPayment: budget.initialPayment,
-          paymentInvoice: budget.paymentInvoice,
-          date: budget.date,
-        }
-        : null;
+    // Receipts directos
+    let directReceipts = [];
+    if (work.Receipts) {
+      directReceipts = convertPdfDataToUrl(work.Receipts);
     }
 
-    // Enviar la respuesta con la obra y sus relaciones
-    res.status(200).json(workWithReceipts);
+    // Receipts de tipo Inspección Inicial asociados a Expenses (consulta JS, no include)
+    let expenseReceipts = [];
+    const workJson = work.get({ plain: true });
+    if (workJson.expenses && Array.isArray(workJson.expenses) && workJson.expenses.length > 0) {
+      const expenseIds = workJson.expenses.map(e => e.idExpense);
+      if (expenseIds.length > 0) {
+        const foundReceipts = await Receipt.findAll({
+          where: {
+            relatedModel: 'Expense',
+            relatedId: expenseIds,
+            type: 'Inspección Inicial'
+          }
+        });
+        expenseReceipts = convertPdfDataToUrl(foundReceipts.map(r => ({ ...r.get({ plain: true }), fromExpense: true })));
+      }
+    }
+
+    // Unir ambos arrays de receipts
+    workJson.Receipts = [...directReceipts, ...expenseReceipts];
+
+    res.status(200).json(workJson);
   } catch (error) {
     console.error('Error al obtener la obra:', error);
     res.status(500).json({ error: true, message: 'Error interno del servidor' });
