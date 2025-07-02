@@ -811,7 +811,9 @@ console.log("selectedAddress:", selectedAddress, "work:", work);
                                 #{index + 1}
                               </span>
                               <h4 className="font-medium text-gray-900 truncate">{material.material || material.name}</h4>
+                               <h4 className="font-medium text-gray-900 truncate">{material.material || material.description}</h4>
                             </div>
+                            
                             <div className="text-sm text-gray-600 space-y-1">
                               {material.option && material.option !== "N/A" && (
                                 <p>Especificación: <span className="font-medium">{material.option}</span></p>
