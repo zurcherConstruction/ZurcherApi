@@ -374,9 +374,12 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
 
    // ✅ 2. MOSTRAR LOS lineItems QUE VIENEN DEL PRESUPUESTO (COMO "INCLUDED")
   if (lineItems && lineItems.length > 0) {
-    // ✅ ÚNICO CAMBIO: Se filtra el array antes de recorrerlo para no mostrar "LABOR FEE"
+    // Filtrar para no mostrar "LABOR FEE" ni "ZURCHER CONSTRUCTION"
     lineItems
-    .filter(item => item.name?.toUpperCase() !== 'ZURCHER CONSTRUCTION')
+      .filter(item => {
+        const name = item.name?.toUpperCase() || '';
+        return name !== 'ZURCHER CONSTRUCTION' && name !== 'LABOR FEE';
+      })
       .forEach((item) => {
         const itemQty = parseInt(item.quantity) || 1;
         
@@ -394,23 +397,23 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
         const estimatedItemHeight = Math.max(doc.heightOfString(fullDescription, { width: wDesc }), 25);
         checkPageBreak(estimatedItemHeight);
 
-      currentItemY = doc.y;
-      doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
-      doc.text((item.name || 'Component').toUpperCase(), xIncludedText, currentItemY, { width: wIncluded });
-      
-      const yBeforeDesc = doc.y;
-      doc.text(item.description, xDescText, currentItemY, { width: wDesc });
-      const yAfterDesc = doc.y;
+        currentItemY = doc.y;
+        doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
+        doc.text((item.name || 'Component').toUpperCase(), xIncludedText, currentItemY, { width: wIncluded });
+        
+        const yBeforeDesc = doc.y;
+        doc.text(item.description, xDescText, currentItemY, { width: wDesc });
+        const yAfterDesc = doc.y;
 
-      // LÓGICA ORIGINAL RESTAURADA: Se muestra como incluido, sin precio individual.
-      doc.text(itemQty.toString(), xQtyText, currentItemY, { width: wQty, align: 'right' });
-      doc.text("$0.00", xRateText, currentItemY, { width: wRate, align: 'right' });
-      doc.font(FONT_FAMILY_MONO_BOLD).text("INCLUDED", xAmountText, currentItemY, { width: wAmount, align: 'right' });
-      doc.font(FONT_FAMILY_MONO);
+        // LÓGICA ORIGINAL RESTAURADA: Se muestra como incluido, sin precio individual.
+        doc.text(itemQty.toString(), xQtyText, currentItemY, { width: wQty, align: 'right' });
+        doc.text("$0.00", xRateText, currentItemY, { width: wRate, align: 'right' });
+        doc.font(FONT_FAMILY_MONO_BOLD).text("INCLUDED", xAmountText, currentItemY, { width: wAmount, align: 'right' });
+        doc.font(FONT_FAMILY_MONO);
 
-      doc.y = yAfterDesc;
-      doc.moveDown(3.0);
-    });
+        doc.y = yAfterDesc;
+        doc.moveDown(3.0);
+      });
   }
 
   // ✅ 3. GENERAR Y MOSTRAR ITEMS INCLUIDOS ADICIONALES (Warranty, etc.)
