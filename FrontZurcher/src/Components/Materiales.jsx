@@ -33,6 +33,7 @@ import {
   DocumentIcon,
 } from "@heroicons/react/24/outline";
 import DynamicCategorySection from "./Budget/DynamicCategorySection";
+import { fetchBudgetItems } from '../Redux/Actions/budgetItemActions';
 
 const Materiales = () => {
   const dispatch = useDispatch();
@@ -74,6 +75,13 @@ const Materiales = () => {
 
   // Agrega el catálogo dinámico de materiales
   const { items: budgetItemsCatalog = [], loading: loadingCatalog, error: errorCatalog } = useSelector(state => state.budgetItems) || {};
+  // Forzar fetch si el catálogo está vacío
+  useEffect(() => {
+    if (!loadingCatalog && (!budgetItemsCatalog || budgetItemsCatalog.length === 0)) {
+      dispatch(fetchBudgetItems());
+    }
+  }, [budgetItemsCatalog, loadingCatalog, dispatch]);
+
   const [dynamicSectionVisible, setDynamicSectionVisible] = useState(true);
   // Catálogo flexible: acepta "materiales" en cualquier formato
   // Catálogo flexible: acepta "materiales" en cualquier formato y mantiene imageUrl
@@ -140,7 +148,7 @@ const Materiales = () => {
     dispatch(fetchWorks());
   }, [dispatch]);
 
-  // Cuando se selecciona una dirección
+// Cuando se selecciona una dirección, cargar detalles de la obra
 useEffect(() => {
   if (selectedAddress) {
     const selectedWork = works.find((work) => work.propertyAddress === selectedAddress);
@@ -152,7 +160,30 @@ useEffect(() => {
       });
     }
   }
+  // eslint-disable-next-line
 }, [selectedAddress, works, dispatch]);
+
+// Cuando cambian los detalles de la obra seleccionada, actualizar la fecha en el formulario
+useEffect(() => {
+  if (work && work.startDate) {
+    setFormData(prev => ({
+      ...prev,
+      date: work.startDate
+    }));
+  }
+}, [work?.startDate]);
+
+// Helper para formatear fecha a MM-DD-AAAA
+const formatDate = (isoDate) => {
+  if (!isoDate) return '';
+  const d = new Date(isoDate);
+  if (isNaN(d.getTime())) return '';
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${mm}-${dd}-${yyyy}`;
+};
+
 console.log("selectedAddress:", selectedAddress, "work:", work);
   // Memorizar la URL del PDF del permiso
 
@@ -295,13 +326,22 @@ console.log("selectedAddress:", selectedAddress, "work:", work);
     const doc = new jsPDF();
     doc.addImage(logo, 'PNG', 10, 10, 30, 30); // Adjust logo size
     doc.setFontSize(12);
-    doc.text(`Fecha: ${formData.date}`, 150, 15);
+    doc.text(`Fecha: ${formatDate(formData.date)}`, 150, 15);
     doc.text(`Cliente: ${work?.Permit?.applicantName || "No disponible"}`, 150, 25);
     doc.setFontSize(16);
     doc.text(`Materiales para:`, 10, 50);
     doc.text(`${work?.propertyAddress || "No disponible"}`, 10, 60);
+
+    // Cartel de fecha de inicio si existe
+    if (work?.startDate) {
+      doc.setFontSize(13);
+      doc.setTextColor(0, 102, 204);
+      doc.text(`MATERIALES PARA FECHA DE INICIO: ${formatDate(work.startDate)}`, 10, 70);
+      doc.setTextColor(0,0,0);
+    }
+
     autoTable(doc, {
-      startY: 80,
+      startY: work?.startDate ? 80 : 80,
       head: [["Material", "Cantidad", "Comentario"]],
       body: formData.materials.map((material) => [
         material.material || material.name || "N/A",
@@ -309,9 +349,10 @@ console.log("selectedAddress:", selectedAddress, "work:", work);
         material.comment || "",
       ]),
     });
+    let lastY = doc.lastAutoTable.finalY;
     if (formData.comments) {
-      doc.text("Comentarios adicionales:", 10, doc.lastAutoTable.finalY + 10);
-      doc.text(formData.comments, 10, doc.lastAutoTable.finalY + 20);
+      doc.text("Comentarios adicionales:", 10, lastY + 10);
+      doc.text(formData.comments, 10, lastY + 20);
     }
 
     const pdfBlob = doc.output("blob");
@@ -481,10 +522,10 @@ console.log("selectedAddress:", selectedAddress, "work:", work);
                     Fecha
                   </label>
                   <input
-                    type="date"
+                    type="text"
                     id="date"
                     name="date"
-                    value={formData.date}
+                    value={formatDate(formData.date)}
                     readOnly
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed text-gray-600"
                   />
@@ -509,6 +550,14 @@ console.log("selectedAddress:", selectedAddress, "work:", work);
 
         {/* Layout principal con proporciones optimizadas */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Cartel de fecha de inicio de la obra seleccionada */}
+          {work?.startDate && (
+            <div className="lg:col-span-12 mb-2">
+              <div className="bg-blue-100 border border-blue-300 text-blue-800 rounded-lg px-4 py-3 text-center font-semibold text-base shadow">
+                Fecha de inicio asignada a la obra: {formatDate(work.startDate)}
+              </div>
+            </div>
+          )}
           {/* Columna izquierda: Solo formularios de materiales (1/4 del espacio) */}
           <div className="space-y-6 lg:col-span-3">
 

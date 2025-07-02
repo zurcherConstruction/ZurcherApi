@@ -316,16 +316,18 @@ const DynamicCategorySection = ({
                             </div>
                           );
                         })}
-                        {/* Solo muestra "PERSONALIZADO" si la categoría NO es LABOR */}
-                        <div
-                          className="flex items-center px-3 py-2 cursor-pointer hover:bg-yellow-50 bg-yellow-50 font-medium"
-                          onClick={() => {
-                            handleSelectionChange({ target: { name: 'name', value: 'OTROS' } });
-                            setShowMaterialDropdown(false);
-                          }}
-                        >
-                          <span>PERSONALIZADO</span>
-                        </div>
+                        {/* Solo muestra "PERSONALIZADO" si la categoría NO es MATERIALES ni LABOR */}
+                        {category.toString().toUpperCase() !== 'MATERIALES' && category.toString().toUpperCase() !== 'LABOR' && (
+                          <div
+                            className="flex items-center px-3 py-2 cursor-pointer hover:bg-yellow-50 bg-yellow-50 font-medium"
+                            onClick={() => {
+                              handleSelectionChange({ target: { name: 'name', value: 'OTROS' } });
+                              setShowMaterialDropdown(false);
+                            }}
+                          >
+                            <span>PERSONALIZADO</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -430,9 +432,12 @@ const DynamicCategorySection = ({
                       {uniqueDescriptions.map(description => 
                         <option key={description} value={description}>{description}</option>
                       )}
-                      <option value="OTROS" className="bg-yellow-50 font-medium">
-                        PERSONALIZADO
-                      </option>
+                      {/* Solo muestra PERSONALIZADO si la categoría NO es MATERIALES ni LABOR */}
+                      {category.toString().toUpperCase() !== 'MATERIALES' && category.toString().toUpperCase() !== 'LABOR' && (
+                        <option value="OTROS" className="bg-yellow-50 font-medium">
+                          PERSONALIZADO
+                        </option>
+                      )}
                     </select>
                 ) : (
                   <div className="px-3 py-2 bg-gray-100 rounded-md text-sm text-gray-500 italic">
