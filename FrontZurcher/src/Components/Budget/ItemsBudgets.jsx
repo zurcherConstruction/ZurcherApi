@@ -26,6 +26,8 @@ const ItemsBudgets = () => {
   const [editingId, setEditingId] = useState(null);
   const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
   const [newCategory, setNewCategory] = useState("");
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
 
   const uniqueCategories = useMemo(() => {
     if (!items || items.length === 0) return [];
@@ -62,6 +64,18 @@ const ItemsBudgets = () => {
     setEditingId(null);
     setShowNewCategoryInput(false);
     setNewCategory("");
+    setImageFile(null);
+    setImagePreview(null);
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    setImageFile(file);
+    if (file) {
+      setImagePreview(URL.createObjectURL(file));
+    } else {
+      setImagePreview(null);
+    }
   };
 
   const handleCreateOrUpdate = (e) => {
@@ -89,8 +103,11 @@ const ItemsBudgets = () => {
       alert("Unit price cannot be negative.");
       return;
     }
-    if (editingId) {
-      dispatch(updateBudgetItem(editingId, dataToSend));
+    if (imageFile) {
+      const formDataToSend = new FormData();
+      Object.entries(dataToSend).forEach(([key, value]) => formDataToSend.append(key, value));
+      formDataToSend.append('image', imageFile);
+      dispatch(createBudgetItem(formDataToSend));
     } else {
       dispatch(createBudgetItem(dataToSend));
     }
@@ -201,6 +218,15 @@ const ItemsBudgets = () => {
               <label className="block text-xs font-semibold text-blue-700 mb-1">Supplier Location</label>
               <input type="text" name="supplierLocation" value={formData.supplierLocation} onChange={handleInputChange} className="input-style focus:ring-2 focus:ring-blue-300 focus:border-blue-400 transition" />
             </div>
+            <div>
+              <label className="block text-xs font-semibold text-blue-700 mb-1">Imagen (opcional)</label>
+              <input type="file" accept="image/*" onChange={handleImageChange} />
+              {imagePreview && (
+                <div className="mt-2">
+                  <img src={imagePreview} alt="Preview" className="h-24 rounded shadow border" />
+                </div>
+              )}
+            </div>
             <div className="flex items-center mt-6 space-x-4">
               <button type="submit" className="bg-blue-600 text-white py-2 px-6 rounded-lg shadow hover:bg-blue-800 transition font-semibold disabled:opacity-50" disabled={loading}>
                 {loading ? (editingId ? 'Updating...' : 'Creating...') : (editingId ? "Update Item" : "Create Item")}
@@ -230,20 +256,25 @@ const ItemsBudgets = () => {
                   key={item.id}
                   className="flex flex-col md:flex-row items-start md:items-center justify-between p-4 rounded-xl border border-gray-200 bg-gradient-to-r from-blue-50 to-white hover:shadow-lg transition-colors"
                 >
-                  <div className="mb-2 md:mb-0 md:flex-1 mr-2">
-                    <p className="text-base font-bold text-blue-700">
-                      {item.category || '(No Name)'}
-                    </p>
-                    <p className="text-xs text-gray-600 font-semibold">
-                      {item.name}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {item.marca ? `Brand: ${item.marca}` : ''} {item.capacity ? `(${item.capacity})` : ''}
-                    </p>
-                    <p className="text-xs text-blue-700 font-bold">
-                      Price: ${parseFloat(item.unitPrice).toFixed(2)}
-                    </p>
-                    {item.supplierName && <p className="text-xs text-gray-500">Supplier: {item.supplierName} ({item.supplierLocation || 'N/A'})</p>}
+                  <div className="mb-2 md:mb-0 md:flex-1 mr-2 flex items-center gap-4">
+                    {item.imageUrl && (
+                      <img src={item.imageUrl} alt={item.name} className="h-16 w-16 object-contain rounded border shadow" />
+                    )}
+                    <div>
+                      <p className="text-base font-bold text-blue-700">
+                        {item.category || '(No Name)'}
+                      </p>
+                      <p className="text-xs text-gray-600 font-semibold">
+                        {item.name}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {item.marca ? `Brand: ${item.marca}` : ''} {item.capacity ? `(${item.capacity})` : ''}
+                      </p>
+                      <p className="text-xs text-blue-700 font-bold">
+                        Price: ${parseFloat(item.unitPrice).toFixed(2)}
+                      </p>
+                      {item.supplierName && <p className="text-xs text-gray-500">Supplier: {item.supplierName} ({item.supplierLocation || 'N/A'})</p>}
+                    </div>
                   </div>
                   <div className="flex items-center space-x-2 flex-shrink-0">
                     <button

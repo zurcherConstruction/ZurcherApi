@@ -32,15 +32,20 @@ export const fetchBudgetItems = (params = {}) => async (dispatch) => {
 export const createBudgetItem = (itemData) => async (dispatch) => {
   dispatch(createBudgetItemRequest());
   try {
-    const response = await api.post('/budget-item', itemData);
+    let response;
+    if (itemData instanceof FormData) {
+      response = await api.post('/budget-item', itemData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+    } else {
+      response = await api.post('/budget-item', itemData);
+    }
     dispatch(createBudgetItemSuccess(response.data));
-    // Opcional: puedes retornar la data si necesitas hacer algo después en el componente
     return response.data;
   } catch (error) {
     const errorMessage =
       error.response?.data?.error || 'Error al crear el item del presupuesto';
     dispatch(createBudgetItemFailure(errorMessage));
-    // Opcional: retornar undefined o lanzar el error para manejo en el componente
     return undefined;
   }
 };

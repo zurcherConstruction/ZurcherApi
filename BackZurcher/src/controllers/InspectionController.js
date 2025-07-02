@@ -49,7 +49,7 @@ const requestInitialInspection = async (req, res) => {
 
     const work = await Work.findByPk(workId, {
       include: [
-        { model: Permit, attributes: ['idPermit', 'pdfData', 'permitNumber','applicantEmail', 'applicantName'] },
+        { model: Permit, attributes: ['idPermit', 'pdfData', 'optionalDocs', 'permitNumber','applicantEmail', 'applicantName'] },
         { model: Image, as: 'images', where: { id: workImageId }, limit: 1, required: false } // ✅ required: false para mejor manejo
       ]
     });
@@ -83,41 +83,76 @@ const requestInitialInspection = async (req, res) => {
     }
     const workImage = work.images[0];
 
+
     // 1. Crear el registro de Inspección
     let inspection = await Inspection.create({
       workId,
       type: 'initial',
-      processStatus: 'pending_request', // Estado inicial del proceso de inspección
+      processStatus: 'pending_request',
       notes: `Solicitud inicial para ${work.propertyAddress}. Email inspector: ${inspectorEmail}`,
     });
 
     // 2. Preparar y enviar correo a inspectores
-    const emailSubject = `Solicitud de Inspección Inicial - Obra: ${work.propertyAddress}`;
-    const emailText = `Estimados Inspectores,\n\nAdjunto encontrarán la documentación para solicitar la inspección inicial de la obra ubicada en ${work.propertyAddress}.\n\n- Permit N°: ${work.Permit.permitNumber || 'N/A'}\n- Imagen de la obra.\n\nQuedamos atentos a su respuesta con la fecha programada y cualquier documento adicional requerido.\n\nSaludos cordiales.`;
-    
     const attachments = [];
     if (work.Permit.pdfData) {
+      attachments.push({
+        filename: `Permit_${work.Permit.permitNumber || workId}.pdf`,
+        content: Buffer.isBuffer(work.Permit.pdfData) ? work.Permit.pdfData : Buffer.from(work.Permit.pdfData, 'base64'),
+        contentType: 'application/pdf'
+      });
+    }
+    // Adjuntar optionalDocs igual de simple que pdfData
+    if (work.Permit.optionalDocs) {
+      if (Buffer.isBuffer(work.Permit.optionalDocs)) {
         attachments.push({
-            filename: `Permit_${work.Permit.permitNumber || workId}.pdf`,
-            content: Buffer.isBuffer(work.Permit.pdfData) ? work.Permit.pdfData : Buffer.from(work.Permit.pdfData, 'base64'), // Asume que pdfData es buffer o base64
-            contentType: 'application/pdf'
+          filename: `OptionalDoc.pdf`,
+          content: work.Permit.optionalDocs,
+          contentType: 'application/pdf'
         });
+      } else if (typeof work.Permit.optionalDocs === 'string') {
+        attachments.push({
+          filename: `OptionalDoc.pdf`,
+          content: Buffer.from(work.Permit.optionalDocs, 'base64'),
+          contentType: 'application/pdf'
+        });
+      } else if (Array.isArray(work.Permit.optionalDocs)) {
+        work.Permit.optionalDocs.forEach((doc, idx) => {
+          if (Buffer.isBuffer(doc)) {
+            attachments.push({
+              filename: `OptionalDoc_${idx + 1}.pdf`,
+              content: doc,
+              contentType: 'application/pdf'
+            });
+          } else if (typeof doc === 'string') {
+            attachments.push({
+              filename: `OptionalDoc_${idx + 1}.pdf`,
+              content: Buffer.from(doc, 'base64'),
+              contentType: 'application/pdf'
+            });
+          } else if (doc && doc.data) {
+            attachments.push({
+              filename: doc.filename || `OptionalDoc_${idx + 1}.pdf`,
+              content: Buffer.isBuffer(doc.data) ? doc.data : Buffer.from(doc.data, 'base64'),
+              contentType: doc.contentType || 'application/pdf'
+            });
+          }
+        });
+      }
     }
-    if (workImage.imageUrl) { // Asumimos que imageUrl es accesible y podemos adjuntarla (o enviar un link)
-        // Para adjuntar directamente, necesitarías descargarla primero si es una URL externa.
-        // Por simplicidad, aquí podrías optar por incluir la URL en el cuerpo del correo,
-        // o si tu emailService puede adjuntar desde URL, úsalo.
-        // Si es un buffer o puedes obtenerlo:
-        // attachments.push({ filename: `WorkImage_${workImage.id}.jpg`, content: imageBuffer, contentType: 'image/jpeg' });
-        // Por ahora, solo mencionaremos la imagen en el texto o enviaremos la URL.
-        // Si quieres adjuntar la imagen de Cloudinary, necesitarías obtener su buffer.
+
+    // Email en inglés para el inspector
+    const emailSubject = `Solicitud de Inspección Inicial - Obra: ${work.propertyAddress}`;
+    let emailText = `Dear Inspector,\n\nAttached you will find the documentation to request the initial inspection for the project located at ${work.propertyAddress}.\n\n- Permit No.: ${work.Permit.permitNumber || 'N/A'}\n- Project image.\n`;
+    if (attachments.length > 1) {
+      emailText += `- Additional documents are also attached.\n`;
     }
+    emailText += `\nPlease let us know the scheduled date and any additional documents required.\n\nBest regards.`;
 
     await sendEmail({
       to: inspectorEmail,
       subject: emailSubject,
       text: emailText,
-      html: `<p>${emailText.replace(/\n/g, '<br>')}</p><p>Imagen de la obra: <a href="${workImage.imageUrl}">Ver Imagen</a></p>`, // Ejemplo con link a la imagen
+      html: `<p>${emailText.replace(/\n/g, '<br>')}</p><p>Project image: <a href="${workImage.imageUrl}">View Image</a></p>`,
       attachments,
     });
 

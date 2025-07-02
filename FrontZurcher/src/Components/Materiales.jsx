@@ -32,6 +32,8 @@ import {
   CheckCircleIcon,
   DocumentIcon,
 } from "@heroicons/react/24/outline";
+import DynamicCategorySection from "./Budget/DynamicCategorySection";
+import { fetchBudgetItems } from '../Redux/Actions/budgetItemActions';
 
 const Materiales = () => {
   const dispatch = useDispatch();
@@ -68,60 +70,48 @@ const Materiales = () => {
    // Nuevo estado para el monto del gasto de materiales iniciales
    const [initialMaterialsAmount, setInitialMaterialsAmount] = useState(""); 
    
-   // Obtener staffId del estado de autenticación (asumiendo que está disponible así)
+   // Obtener staffId del estado de autenticación (asumiendo que está disponible)
    const staff = useSelector((state) => state.auth.currentStaff);
 
-  const predefinedMaterials = [
-    {
-      material: "Tanque Atu",
-      options: ["1060 Galones", "900 Galones", "700 Galones", "500 Galones"], // Subopciones para "Tanque"
-    },
-    {
-      material: "Tanque Regular",
-      options: ["1060 Galones", "900 Galones", "700 Galones", "500 Galones"], // Subopciones para "Tanque"
-    },
-    {
-      material: "Chambers",
-      options: ["arc24", "LP", "Drip", "Bundles"], // Subopciones para "Tanque"
-    },
-    {
-      material: "Kit Atu",
-       
-    },
-    {
-      material: "End Cap",
-      options: ["arc24", "LP", "Bundles"], 
-    },
-    {
-      material: "Racer",
-      options: ["12'", "6'"], 
-    },
-    {
-      material: "Clean Out",
-    },
-    {
-      material: "Cruz de 4",
-    },
-    {
-      material: "Reducción de 4' a 3' ",
-    },
-    
-    {
-      material: "Caños",
-      options: ["Verdes", "3/4 x 10'"], 
-    },
-    {
-      material: "Codos ",
-      options: ["de 90* de 4", "de 90* de 3/4"],
-    },
-    {
-      material: "T de 4'",
-    },
-    {
-      material: "Filtro",
+  // Agrega el catálogo dinámico de materiales
+  const { items: budgetItemsCatalog = [], loading: loadingCatalog, error: errorCatalog } = useSelector(state => state.budgetItems) || {};
+  // Forzar fetch si el catálogo está vacío
+  useEffect(() => {
+    if (!loadingCatalog && (!budgetItemsCatalog || budgetItemsCatalog.length === 0)) {
+      dispatch(fetchBudgetItems());
     }
-    // Agrega más materiales según sea necesario
-  ];
+  }, [budgetItemsCatalog, loadingCatalog, dispatch]);
+
+  const [dynamicSectionVisible, setDynamicSectionVisible] = useState(true);
+  // Catálogo flexible: acepta "materiales" en cualquier formato
+  // Catálogo flexible: acepta "materiales" en cualquier formato y mantiene imageUrl
+  const normalizedCatalog = useMemo(() =>
+    (budgetItemsCatalog || [])
+      .filter(item => item.isActive && item.category && item.category.toString().toLowerCase().trim() === "materiales")
+      .map(item => ({
+        ...item,
+        category: item.category?.toUpperCase().trim() || '',
+        name: item.name?.toUpperCase().trim() || '',
+        marca: item.marca?.toUpperCase().trim() || '',
+        capacity: item.capacity?.toUpperCase().trim() || '',
+        imageUrl: item.imageUrl || item.imageurl || '', // Asegura que imageUrl se mantenga
+      })),
+    [budgetItemsCatalog]
+  );
+  const addMaterialFromDynamicSection = (item) => {
+    // Asegura que imageUrl se preserve en el array de materiales
+    setFormData(prev => ({
+      ...prev,
+      materials: [
+        ...prev.materials,
+        {
+          ...item,
+          imageUrl: item.imageUrl || item.imageurl || '',
+        },
+      ],
+    }));
+  };
+
   const saveMaterials = async () => {
     const materialsData = {
       materials: formData.materials.map((material) => ({
@@ -158,7 +148,7 @@ const Materiales = () => {
     dispatch(fetchWorks());
   }, [dispatch]);
 
-  // Cuando se selecciona una dirección
+// Cuando se selecciona una dirección, cargar detalles de la obra
 useEffect(() => {
   if (selectedAddress) {
     const selectedWork = works.find((work) => work.propertyAddress === selectedAddress);
@@ -170,7 +160,30 @@ useEffect(() => {
       });
     }
   }
+  // eslint-disable-next-line
 }, [selectedAddress, works, dispatch]);
+
+// Cuando cambian los detalles de la obra seleccionada, actualizar la fecha en el formulario
+useEffect(() => {
+  if (work && work.startDate) {
+    setFormData(prev => ({
+      ...prev,
+      date: work.startDate
+    }));
+  }
+}, [work?.startDate]);
+
+// Helper para formatear fecha a MM-DD-AAAA
+const formatDate = (isoDate) => {
+  if (!isoDate) return '';
+  const d = new Date(isoDate);
+  if (isNaN(d.getTime())) return '';
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${mm}-${dd}-${yyyy}`;
+};
+
 console.log("selectedAddress:", selectedAddress, "work:", work);
   // Memorizar la URL del PDF del permiso
 
@@ -313,24 +326,33 @@ console.log("selectedAddress:", selectedAddress, "work:", work);
     const doc = new jsPDF();
     doc.addImage(logo, 'PNG', 10, 10, 30, 30); // Adjust logo size
     doc.setFontSize(12);
-    doc.text(`Fecha: ${formData.date}`, 150, 15);
+    doc.text(`Fecha: ${formatDate(formData.date)}`, 150, 15);
     doc.text(`Cliente: ${work?.Permit?.applicantName || "No disponible"}`, 150, 25);
     doc.setFontSize(16);
     doc.text(`Materiales para:`, 10, 50);
     doc.text(`${work?.propertyAddress || "No disponible"}`, 10, 60);
+
+    // Cartel de fecha de inicio si existe
+    if (work?.startDate) {
+      doc.setFontSize(13);
+      doc.setTextColor(0, 102, 204);
+      doc.text(`MATERIALES PARA FECHA DE INICIO: ${formatDate(work.startDate)}`, 10, 70);
+      doc.setTextColor(0,0,0);
+    }
+
     autoTable(doc, {
-      startY: 80,
-      head: [["Material","Opción", "Cantidad", "Comentario"]],
+      startY: work?.startDate ? 80 : 80,
+      head: [["Material", "Cantidad", "Comentario"]],
       body: formData.materials.map((material) => [
-        material.material,
-        material.option || "N/A",
+        material.material || material.name || "N/A",
         material.quantity,
-        material.comment,
+        material.comment || "",
       ]),
     });
+    let lastY = doc.lastAutoTable.finalY;
     if (formData.comments) {
-      doc.text("Comentarios adicionales:", 10, doc.lastAutoTable.finalY + 10);
-      doc.text(formData.comments, 10, doc.lastAutoTable.finalY + 20);
+      doc.text("Comentarios adicionales:", 10, lastY + 10);
+      doc.text(formData.comments, 10, lastY + 20);
     }
 
     const pdfBlob = doc.output("blob");
@@ -500,10 +522,10 @@ console.log("selectedAddress:", selectedAddress, "work:", work);
                     Fecha
                   </label>
                   <input
-                    type="date"
+                    type="text"
                     id="date"
                     name="date"
-                    value={formData.date}
+                    value={formatDate(formData.date)}
                     readOnly
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-100 cursor-not-allowed text-gray-600"
                   />
@@ -528,112 +550,31 @@ console.log("selectedAddress:", selectedAddress, "work:", work);
 
         {/* Layout principal con proporciones optimizadas */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Cartel de fecha de inicio de la obra seleccionada */}
+          {work?.startDate && (
+            <div className="lg:col-span-12 mb-2">
+              <div className="bg-blue-100 border border-blue-300 text-blue-800 rounded-lg px-4 py-3 text-center font-semibold text-base shadow">
+                Fecha de inicio asignada a la obra: {formatDate(work.startDate)}
+              </div>
+            </div>
+          )}
           {/* Columna izquierda: Solo formularios de materiales (1/4 del espacio) */}
           <div className="space-y-6 lg:col-span-3">
 
-            {/* Predefined Materials Card */}
+            {/* Dynamic Materials Catalog Card */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex items-center space-x-3 mb-4">
                 <ClipboardDocumentListIcon className="h-5 w-5 text-green-500" />
-                <h3 className="text-lg font-semibold text-gray-800">Materiales Predefinidos</h3>
+                <h3 className="text-lg font-semibold text-gray-800">Seleccionar Materiales del Catálogo</h3>
               </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <label htmlFor="predefinedMaterial" className="block text-sm font-medium text-gray-700 mb-2">
-                    Material
-                  </label>
-                  <select
-                    id="predefinedMaterial"
-                    name="predefinedMaterial"
-                    value={newPredefinedMaterial.material}
-                    onChange={(e) => {
-                      const selectedMaterial = predefinedMaterials.find(
-                        (material) => material.material === e.target.value
-                      );
-                      setNewPredefinedMaterial({
-                        ...newPredefinedMaterial,
-                        material: selectedMaterial ? selectedMaterial.material : "",
-                        selectedOption: "",
-                      });
-                    }}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                  >
-                    <option value="">Seleccione un material</option>
-                    {predefinedMaterials.map((material) => (
-                      <option key={material.material} value={material.material}>
-                        {material.material}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Subopción */}
-                {newPredefinedMaterial.material &&
-                  predefinedMaterials.find((m) => m.material === newPredefinedMaterial.material)?.options && (
-                    <div>
-                      <label htmlFor="subOption" className="block text-sm font-medium text-gray-700 mb-2">
-                        Especificación
-                      </label>
-                      <select
-                        id="subOption"
-                        name="subOption"
-                        value={newPredefinedMaterial.selectedOption}
-                        onChange={(e) =>
-                          setNewPredefinedMaterial({ ...newPredefinedMaterial, selectedOption: e.target.value })
-                        }
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                      >
-                        <option value="">Seleccione una especificación</option>
-                        {predefinedMaterials
-                          .find((m) => m.material === newPredefinedMaterial.material)
-                          ?.options.map((option, index) => (
-                            <option key={index} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  )}
-
-                <div>
-                  <label htmlFor="quantity" className="flex items-center text-sm font-medium text-gray-700 mb-2">
-                    <HashtagIcon className="h-4 w-4 mr-2 text-gray-500" />
-                    Cantidad
-                  </label>
-                  <input
-                    type="number"
-                    id="quantity"
-                    name="quantity"
-                    value={newPredefinedMaterial.quantity}
-                    onChange={(e) =>
-                      setNewPredefinedMaterial({ ...newPredefinedMaterial, quantity: e.target.value })
-                    }
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all duration-200"
-                    placeholder="Ingrese la cantidad"
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={editingIndex !== null ? addOrUpdateMaterial : addPredefinedMaterial}
-                  className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-                >
-                  <div className="flex items-center justify-center space-x-2">
-                    {editingIndex !== null ? (
-                      <>
-                        <PencilIcon className="h-5 w-5" />
-                        <span>Actualizar Material</span>
-                      </>
-                    ) : (
-                      <>
-                        <PlusIcon className="h-5 w-5" />
-                        <span>Añadir Material</span>
-                      </>
-                    )}
-                  </div>
-                </button>
-              </div>
+              <DynamicCategorySection
+                category="MATERIALES"
+                normalizedCatalog={normalizedCatalog}
+                isVisible={dynamicSectionVisible}
+                onToggle={() => setDynamicSectionVisible(v => !v)}
+                onAddItem={addMaterialFromDynamicSection}
+                generateTempId={() => `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`}
+              />
             </div>
 
             {/* Manual Materials Card */}
@@ -858,26 +799,30 @@ console.log("selectedAddress:", selectedAddress, "work:", work);
                 <div className="space-y-3 max-h-96 overflow-y-auto">
                   {formData.materials.map((material, index) => (
                     <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2 mb-2">
-                            <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded">
-                              #{index + 1}
-                            </span>
-                            <h4 className="font-medium text-gray-900">{material.material}</h4>
-                          </div>
-                          
-                          <div className="text-sm text-gray-600 space-y-1">
-                            {material.option && material.option !== "N/A" && (
-                              <p>Especificación: <span className="font-medium">{material.option}</span></p>
-                            )}
-                            <p>Cantidad: <span className="font-medium text-blue-600">{material.quantity}</span></p>
-                            {material.comment && (
-                              <p>Comentario: <span className="italic">{material.comment}</span></p>
-                            )}
+                      <div className="flex items-center justify-between">
+                        {/* Imagen y nombre alineados horizontalmente */}
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                          {material.imageUrl && (
+                            <img src={material.imageUrl} alt={material.material || material.name} className="h-12 w-12 object-contain rounded border shadow flex-shrink-0" />
+                          )}
+                          <div className="flex flex-col min-w-0">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded">
+                                #{index + 1}
+                              </span>
+                              <h4 className="font-medium text-gray-900 truncate">{material.material || material.name}</h4>
+                            </div>
+                            <div className="text-sm text-gray-600 space-y-1">
+                              {material.option && material.option !== "N/A" && (
+                                <p>Especificación: <span className="font-medium">{material.option}</span></p>
+                              )}
+                              <p>Cantidad: <span className="font-medium text-blue-600">{material.quantity}</span></p>
+                              {material.comment && (
+                                <p>Comentario: <span className="italic">{material.comment}</span></p>
+                              )}
+                            </div>
                           </div>
                         </div>
-
                         <div className="flex items-center space-x-2 ml-4">
                           <button
                             onClick={() => editMaterial(index)}

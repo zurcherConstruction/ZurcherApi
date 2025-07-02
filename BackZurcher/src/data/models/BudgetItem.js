@@ -49,6 +49,11 @@ module.exports = (sequelize) => {
       allowNull: false,
       defaultValue: true,
     },
+    // Campo opcional para la URL de la imagen del ítem (Cloudinary)
+    imageUrl: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     // Puedes añadir más campos si necesitas, como 'brand', 'model', etc.
   }, {
     timestamps: true,

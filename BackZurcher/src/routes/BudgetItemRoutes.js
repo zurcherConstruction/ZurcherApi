@@ -8,11 +8,13 @@ const router = express.Router();
 // --- Rutas para BudgetItems ---
 // Todas las rutas requieren token y rol de admin/owner para gestionar el catálogo
 
-// POST /api/budget-items - Crear un nuevo item
+// POST /api/budget-items - Crear un nuevo item (con imagen opcional)
+const { upload } = require('../middleware/multer');
 router.post(
     '/',
     verifyToken,
-    allowRoles(['admin', 'owner']), // Solo admin/owner pueden crear items
+    allowRoles(['admin', 'owner']),
+    upload.single('image'), // Campo 'image' para la imagen opcional
     budgetItemController.createBudgetItem
 );
 
