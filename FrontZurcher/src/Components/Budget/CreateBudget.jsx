@@ -444,8 +444,10 @@ const customCategoryOrder = [
 ];
   const availableCategories = useMemo(() => {
     const categories = [...new Set(normalizedBudgetItemsCatalog.map(item => item.category))];
+    // Filtrar para NO mostrar la categoría "MATERIALES"
+    const filtered = categories.filter(cat => (cat || '').toUpperCase().trim() !== 'MATERIALES');
     // Ordenar según customCategoryOrder, el resto al final
-    return categories.sort((a, b) => {
+    return filtered.sort((a, b) => {
       const aIdx = customCategoryOrder.indexOf((a || '').toUpperCase());
       const bIdx = customCategoryOrder.indexOf((b || '').toUpperCase());
       if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;

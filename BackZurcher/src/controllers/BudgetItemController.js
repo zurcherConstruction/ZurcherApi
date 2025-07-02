@@ -1,4 +1,5 @@
-const {BudgetItem} = require('../data'); // Asegúrate de que la ruta sea correcta
+const { BudgetItem } = require('../data');
+const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader');
 
 const budgetItemController = {
   // --- CREAR un nuevo BudgetItem ---
@@ -8,18 +9,32 @@ const budgetItemController = {
         name,
         description,
         category,
-        marca, // Opcional
-        capacity,    // Opcional
+        marca,
+        capacity,
         unitPrice,
-        unit,        // Opcional
-        supplierName, // Opcional
-        supplierLocation // Opcional
-        // isActive se establece por defecto en true
+        unit,
+        supplierName,
+        supplierLocation
       } = req.body;
 
       // Validación básica de campos requeridos
       if (!name || !category || unitPrice === undefined || unitPrice === null) {
         return res.status(400).json({ error: 'Faltan campos obligatorios: name,  category, unitPrice.' });
+      }
+
+      let imageUrl = null;
+      // Si se envía archivo (imagen), subir a Cloudinary
+      if (req.file && req.file.buffer) {
+        try {
+          const uploadResult = await uploadBufferToCloudinary(req.file.buffer, {
+            folder: 'budget_items',
+            resource_type: 'image',
+          });
+          imageUrl = uploadResult.secure_url;
+        } catch (err) {
+          console.error('Error subiendo imagen a Cloudinary:', err);
+          return res.status(500).json({ error: 'Error al subir la imagen.' });
+        }
       }
 
       const newItem = await BudgetItem.create({
@@ -32,15 +47,15 @@ const budgetItemController = {
         unit,
         supplierName,
         supplierLocation,
-        isActive: true // Asegurar que se cree como activo
+        imageUrl,
+        isActive: true
       });
 
       res.status(201).json(newItem);
     } catch (error) {
       console.error("Error al crear BudgetItem:", error);
-      // Manejar error de unicidad si el 'name' ya existe
       if (error.name === 'SequelizeUniqueConstraintError') {
-          return res.status(400).json({ error: `El nombre del item '${req.body.name}' ya existe.` });
+        return res.status(400).json({ error: `El nombre del item '${req.body.name}' ya existe.` });
       }
       res.status(500).json({ error: 'Error interno del servidor al crear el item.' });
     }

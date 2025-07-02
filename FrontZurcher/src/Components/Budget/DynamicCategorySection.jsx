@@ -26,9 +26,15 @@ const DynamicCategorySection = ({
   });
 
   // Obtener todos los items de esta categoría
+  // Para la categoría "MATERIALES", igualar ignorando mayúsculas/minúsculas y espacios
   const categoryItems = useMemo(() =>
     normalizedCatalog
-      .filter(i => i.category === category)
+      .filter(i => {
+        if (category.toString().toUpperCase().trim() === 'MATERIALES') {
+          return i.category && i.category.toString().toUpperCase().trim() === 'MATERIALES';
+        }
+        return i.category === category;
+      })
       .sort((a, b) => a.name.localeCompare(b.name)),
     [normalizedCatalog, category]
   );
@@ -228,12 +234,14 @@ const DynamicCategorySection = ({
       }
 
       // Usar la función de agregar del componente padre
+      // Asegurarse de pasar imageUrl si existe
       onAddItem({
         category: category,
         name: foundItem.name,
         marca: foundItem.marca || '',
         capacity: foundItem.capacity || '',
-        description: foundItem.description || '', // ✅ AGREGAR
+        description: foundItem.description || '',
+        imageUrl: foundItem.imageUrl || foundItem.imageurl || '',
         quantity: selection.quantity,
       });
 
@@ -243,7 +251,8 @@ const DynamicCategorySection = ({
 
   if (categoryItems.length === 0) return null; // No mostrar si no hay items
 
-  // REEMPLAZAR el return del componente DynamicCategorySection (líneas ~200-350):
+  // Hook para mostrar/ocultar el dropdown custom de materiales
+  const [showMaterialDropdown, setShowMaterialDropdown] = useState(false);
 
   return (
     <div className="border rounded-lg bg-white shadow-sm">
@@ -264,33 +273,84 @@ const DynamicCategorySection = ({
 
       {isVisible && (
         <div className="p-6 border-t space-y-6">
-          
           <div className="space-y-4">
             {fieldAnalysis.hasNames && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Name <span className="text-red-500">*</span>
                 </label>
-                <select
-                  name="name"
-                  value={selection.name}
-                  onChange={handleSelectionChange}
-                  disabled={category.toUpperCase() === 'LABOR'}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-                >
-                  <option value="">-- Seleccionar Nombre --</option>
-                   {uniqueNames.map(name =>
-                    <option key={name} value={name}>{name}</option>
-                  )}
-                  {/* Solo muestra "PERSONALIZADO" si la categoría NO es LABOR */}
-                  {category.toUpperCase() !== 'LABOR' && (
-                    <option value="OTROS" className="bg-yellow-50 font-medium">
-                      PERSONALIZADO
-                    </option>
-                  )}
-                </select>
+                {/* Si la categoría es MATERIALES, renderiza un dropdown custom con imagen y nombre */}
+                {category.toString().toUpperCase() === 'MATERIALES' ? (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className="w-full flex items-center px-3 py-2 border border-gray-300 rounded-md bg-white focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-left"
+                      onClick={() => setShowMaterialDropdown(v => !v)}
+                    >
+                      {(() => {
+                        const selected = categoryItems.find(i => i.name === selection.name);
+                        return selected && selected.imageUrl ? (
+                          <img src={selected.imageUrl} alt={selected.name} className="h-8 w-8 object-contain rounded border mr-2" />
+                        ) : null;
+                      })()}
+                      <span className="truncate flex-1">{selection.name || '-- Seleccionar Nombre --'}</span>
+                      <ChevronDownIcon className="h-4 w-4 ml-2 text-gray-400" />
+                    </button>
+                    {showMaterialDropdown && (
+                      <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                        {uniqueNames.map(name => {
+                          const item = categoryItems.find(i => i.name === name);
+                          return (
+                            <div
+                              key={name}
+                              className={`flex items-center px-3 py-2 cursor-pointer hover:bg-indigo-50 ${selection.name === name ? 'bg-indigo-100' : ''}`}
+                              onClick={() => {
+                                handleSelectionChange({ target: { name: 'name', value: name } });
+                                setShowMaterialDropdown(false);
+                              }}
+                            >
+                              {item && item.imageUrl && (
+                                <img src={item.imageUrl} alt={item.name} className="h-8 w-8 object-contain rounded border mr-2" />
+                              )}
+                              <span className="truncate">{name}</span>
+                            </div>
+                          );
+                        })}
+                        {/* Solo muestra "PERSONALIZADO" si la categoría NO es LABOR */}
+                        <div
+                          className="flex items-center px-3 py-2 cursor-pointer hover:bg-yellow-50 bg-yellow-50 font-medium"
+                          onClick={() => {
+                            handleSelectionChange({ target: { name: 'name', value: 'OTROS' } });
+                            setShowMaterialDropdown(false);
+                          }}
+                        >
+                          <span>PERSONALIZADO</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <select
+                    name="name"
+                    value={selection.name}
+                    onChange={handleSelectionChange}
+                    disabled={category.toUpperCase() === 'LABOR'}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                  >
+                    <option value="">-- Seleccionar Nombre --</option>
+                    {uniqueNames.map(name =>
+                      <option key={name} value={name}>{name}</option>
+                    )}
+                    {category.toUpperCase() !== 'LABOR' && (
+                      <option value="OTROS" className="bg-yellow-50 font-medium">
+                        PERSONALIZADO
+                      </option>
+                    )}
+                  </select>
+                )}
               </div>
             )}
+
 
             {fieldAnalysis.hasMarcas && (
               <div>
