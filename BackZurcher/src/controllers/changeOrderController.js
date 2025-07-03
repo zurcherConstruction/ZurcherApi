@@ -245,7 +245,7 @@ const sendChangeOrderToClient = async (req, res) => {
     // Si no hay FRONTEND_URL configurada, usar fallbacks inteligentes
     if (!frontendBaseUrl) {
       if (process.env.NODE_ENV === 'production') {
-        frontendBaseUrl = 'https://zurcher-api-two.vercel.app';
+        frontendBaseUrl = 'https://www.zurcherseptic.com';
         console.warn(`⚠️  FRONTEND_URL no configurada en producción. Usando fallback: ${frontendBaseUrl}`);
       } else {
         frontendBaseUrl = 'http://localhost:5173';
@@ -275,9 +275,7 @@ const sendChangeOrderToClient = async (req, res) => {
           </td>
         </tr>
         <tr>
-          <td>
-            <a href="${rejectionLink}" target="_blank" style="background-color: #dc3545; color: white; padding: 12px 25px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px; font-weight: bold; font-size: 16px;">RECHAZAR ORDEN DE CAMBIO</a>
-          </td>
+         
         </tr>
       </table>
       <p>Si tiene alguna pregunta, no dude en contactarnos.</p>

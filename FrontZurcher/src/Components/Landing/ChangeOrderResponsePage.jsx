@@ -18,7 +18,7 @@ const ChangeOrderResponsePage = () => {
 
     const processResponse = async () => {
       if (token && decision && coId) {
-        const apiUrlFromEnv = import.meta.env.VITE_API_URL || 'https://zurcherapi.up.railway.app';
+        const apiUrlFromEnv = import.meta.env.VITE_API_URL || 'https://www.zurcherseptic.com';
         const backendApiUrl = `${apiUrlFromEnv}/change-orders/respond`;
         
         console.log('🔗 Llamando al backend:', backendApiUrl);
