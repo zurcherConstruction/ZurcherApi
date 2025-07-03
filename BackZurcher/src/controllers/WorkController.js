@@ -36,7 +36,7 @@ const createWork = async (req, res) => {
 
     // Buscar el presupuesto con estado "approved"
     const budget = await Budget.findOne({
-      where: { idBudget, status: 'approved' || 'signed' },
+      where: { idBudget, status: 'approved' },
       include: [{ model: Permit }], // Incluir el permiso relacionado
     });
 
