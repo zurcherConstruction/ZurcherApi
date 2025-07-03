@@ -1222,7 +1222,7 @@ const BudgetController = {
       } // --- Fin Lógica if (status === 'send') ---
 
       // --- 7b. Lógica si el estado es 'approved' ---
-      if (budget.status === "approved" || budget.status === "signed") {
+      if (budget.status === "approved" ) {
         console.log("El estado es 'approved'. Procesando creación/actualización de Work/Income...");
 
         // Determinar el monto real del pago inicial a usar

@@ -153,7 +153,7 @@ const UploadInitialPay = () => {
     }
   };
 
-  const sendBudgets = budgets.filter(b =>b.status === 'send' || b.status === 'sent_for_signature');
+  const sendBudgets = budgets.filter(b =>b.status === 'send' || b.status === 'sent_for_signature' || b.status === 'signed');
 
   if (budgetsLoading) {
     return (
