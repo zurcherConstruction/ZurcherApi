@@ -49,6 +49,13 @@ const CONDITIONAL_INCLUDED_ITEMS = {
       qty: "1",
       rate: 0.00,
       amount: "INCLUDED"
+    },
+    {
+      name: "KIT TANK ATU",
+      description: "TREATMENT SYSTEM PANEL CONTROL/BLOW AIR",
+      qty: "1",
+      rate: 0.00,
+      amount: "INCLUDED"
     }
   ],
   // Puedes agregar más reglas aquí, por ejemplo:
@@ -477,7 +484,11 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   doc.moveDown(0.3);
   doc.text("ROUTING NUMBER: 063100277".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(0.3);
-  doc.text("EMAIL: ZURCHERCONSTRUCTION.FL@GMAIL.COM".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.text("CREDIT CARD + 3%".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.moveDown(0.3);
+  doc.text("ASK ABOUT PAYMENT METHODS. ".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.moveDown(0.3);
+  doc.text("EMAIL: ZURCHERSEPTIC@GMAIL.COM".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
 
   const yAfterPaymentInfo = doc.y;
 
@@ -576,8 +587,8 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
           quantity: 1,
         }],
         mode: 'payment',
-        success_url: 'https://zurcher-api-two.vercel.app/',
-        cancel_url: 'https://zurcher-api-two.vercel.app/',
+        success_url: 'https://www.zurcherseptic.com/',
+        cancel_url: 'https://www.zurcherseptic.com/',
         ...(clientEmailFromPermit && { customer_email: clientEmailFromPermit }),
         metadata: { internal_budget_id: budgetData.idBudget, payment_type: 'invoice_payment' }
       });
