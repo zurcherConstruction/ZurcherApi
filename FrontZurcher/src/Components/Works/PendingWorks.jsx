@@ -6,6 +6,7 @@ import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import { Calendar as BigCalendar, momentLocalizer } from "react-big-calendar";
 import moment from "moment";
+import "moment-timezone";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import socket from "../../utils/io";
 import logo from "../../assets/logoseptic.png";
@@ -52,16 +53,26 @@ const PendingWorks = () => {
       toast.error("Por favor selecciona un trabajo y un miembro del staff.");
       return;
     }
-    const formattedDate = moment(startDate).format("YYYY-MM-DD");
+    // Tomar la fecha seleccionada del calendario y enviarla como string YYYY-MM-DD sin conversión de zona horaria
+    let rawDate;
+    if (startDate instanceof Date) {
+      // Si es un objeto Date, formatear a YYYY-MM-DD
+      rawDate = startDate.toISOString().split('T')[0];
+    } else if (typeof startDate === 'string') {
+      // Si ya es string (de react-calendar), usar tal cual
+      rawDate = startDate;
+    } else {
+      // Fallback: usar moment
+      rawDate = moment(startDate).format('YYYY-MM-DD');
+    }
     try {
       await dispatch(
         updateWork(selectedWork.idWork, {
-          startDate: formattedDate,
+          startDate: rawDate,
           staffId: selectedStaff,
           status: "assigned",
         })
       );
-      // Eliminada la notificación manual por Socket.IO
       toast.success(editMode ? "Asignación modificada correctamente." : "Trabajo asignado correctamente.");
       setSelectedWork(null);
       setSelectedStaff("");
@@ -96,10 +107,12 @@ const PendingWorks = () => {
     .map((work) => {
       const staffMember = staff.find((member) => member.id === work.staffId);
       const staffName = staffMember ? staffMember.name : "Sin asignar";
+      // Mostrar siempre en horario de Miami
+      const startMiami = moment.tz(work.startDate, "America/New_York").toDate();
       return {
         title: `${work.propertyAddress} - (${staffName})`,
-        start: moment(work.startDate).toDate(),
-        end: moment(work.startDate).toDate(),
+        start: startMiami,
+        end: startMiami,
         work,
       };
     });
@@ -167,7 +180,7 @@ const PendingWorks = () => {
                 >
                   <span className="font-semibold text-blue-700">{work.propertyAddress}</span>
                   <span className="ml-2 text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800">Asignado</span>
-                  <span className="ml-2 text-xs text-gray-500">{work.startDate ? moment(work.startDate).format("DD/MM/YYYY") : "Sin fecha"}</span>
+                  <span className="ml-2 text-xs text-gray-500">{work.startDate ? moment.tz(work.startDate, "America/New_York").format("MM-DD-YYYY HH:mm") : "Sin fecha"}</span>
                 </li>
               ))}
             </ul>
