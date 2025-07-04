@@ -118,6 +118,18 @@ const ProgressTracker = () => {
             }
           }
 
+
+          // --- ALERTA DE PRESUPUESTO NO FIRMADO ---
+          let budgetNotSignedAlert = null;
+          if (work.budget && work.budget.status !== "signed") {
+            budgetNotSignedAlert = (
+              <div className="flex items-center justify-center mt-2 text-xs text-yellow-600 font-semibold">
+                <ExclamationTriangleIcon className="h-4 w-4 mr-1 text-yellow-500 animate-pulse" />
+                Presupuesto pendiente de firma
+              </div>
+            );
+          }
+
           // --- ALERTA DE INSPECCIÓN INICIAL NO ABONADA ---
           let initialInspectionAlert = null;
           if (["installed", "firstInspectionPending"].includes(status)) {
@@ -146,6 +158,9 @@ const ProgressTracker = () => {
                 {propertyAddress}
                 {permitExpirationAlertIcon}
               </h3>
+
+              {/* Mostrar primero la alerta de presupuesto no firmado, luego la de inspección si corresponde */}
+              {budgetNotSignedAlert}
               {initialInspectionAlert}
     
               <div className="hidden sm:flex relative items-center justify-between mt-4">

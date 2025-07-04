@@ -159,7 +159,8 @@ const getDisplayName = (status) => {
       {loading && <Text style={styles.loadingText}>Cargando obras...</Text>}
       {error && <Text style={styles.errorText}>Error: {error}</Text>}
 
-      {!loading && !error && filteredData.map(({ idWork, propertyAddress, status, Permit }) => {
+      {!loading && !error && filteredData.map((work) => {
+          const { idWork, propertyAddress, status, Permit, Receipts, budget } = work;
           let permitAlertIcon = null;
           if (Permit) {
             const permitExpStatus = Permit.expirationStatus;
@@ -174,7 +175,34 @@ const getDisplayName = (status) => {
               );
             }
           }
-          
+
+          // --- ALERTA DE PRESUPUESTO NO FIRMADO ---
+          let budgetNotSignedAlert = null;
+          if (budget && budget.status !== "signed") {
+            budgetNotSignedAlert = (
+              <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 4, marginBottom: 2}}>
+                <MaterialIcons name="warning-amber" size={18} color="#f59e0b" style={{marginRight: 4}} />
+                <Text style={{color: '#f59e0b', fontSize: 13, fontWeight: 'bold'}}>Presupuesto pendiente de firma</Text>
+              </View>
+            );
+          }
+
+          // --- ALERTA DE INSPECCIÓN INICIAL NO ABONADA ---
+          let initialInspectionAlert = null;
+          if (["installed", "firstInspectionPending"].includes(status)) {
+            const hasInitialInspectionReceipt = Array.isArray(Receipts)
+              ? Receipts.some(r => r.type === "Inspección Inicial")
+              : false;
+            if (!hasInitialInspectionReceipt) {
+              initialInspectionAlert = (
+                <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 4, marginBottom: 2}}>
+                  <MaterialIcons name="warning-amber" size={18} color="#ef4444" style={{marginRight: 4}} />
+                  <Text style={{color: '#ef4444', fontSize: 13, fontWeight: 'bold'}}>No se abonó la Inspección Inicial</Text>
+                </View>
+              );
+            }
+          }
+
           const workItemKey = String(idWork || `unknown-work-${Math.random()}`);
           const progressBarIndex = getProgressIndexForBar(status);
 
@@ -194,6 +222,9 @@ const getDisplayName = (status) => {
                 <Text style={styles.addressText}>{propertyAddress || "N/A"}</Text>
                 {permitAlertIcon} 
               </View>
+              {/* Mostrar primero la alerta de presupuesto no firmado, luego la de inspección si corresponde */}
+              {budgetNotSignedAlert}
+              {initialInspectionAlert}
               <Text style={[styles.statusTextBase, getStatusTextStyle(status)]}>
                 Estado: {getDisplayName(status)}
               </Text>
