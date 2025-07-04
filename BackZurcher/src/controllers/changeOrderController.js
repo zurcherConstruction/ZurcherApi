@@ -2,7 +2,6 @@ const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDe
 const { sendEmail } = require('../utils/notifications/emailService');
 const path = require('path');
 const { generateAndSaveChangeOrderPDF } = require('../utils/pdfGenerators');
-const  SignNowService  = require('../services/ServiceSignNow');
 const fs = require('fs'); 
 const { v4: uuidv4 } = require('uuid');
 const { Op } = require('sequelize');
@@ -236,16 +235,16 @@ const sendChangeOrderToClient = async (req, res) => {
     let frontendBaseUrl = process.env.FRONTEND_URL;
     
     // Logs de debug detallados
-    console.log(`🔍 === DEBUG FRONTEND URL ===`);
-    console.log(`🌍 NODE_ENV: ${process.env.NODE_ENV}`);
-    console.log(`📧 FRONTEND_URL desde process.env: "${process.env.FRONTEND_URL}"`);
-    console.log(`🏠 Host header: ${req.get('host')}`);
-    console.log(`📍 Referer: ${req.get('referer')}`);
+    // console.log(`🔍 === DEBUG FRONTEND URL ===`);
+    // console.log(`🌍 NODE_ENV: ${process.env.NODE_ENV}`);
+    // console.log(`📧 FRONTEND_URL desde process.env: "${process.env.FRONTEND_URL}"`);
+    // console.log(`🏠 Host header: ${req.get('host')}`);
+    // console.log(`📍 Referer: ${req.get('referer')}`);
     
     // Si no hay FRONTEND_URL configurada, usar fallbacks inteligentes
     if (!frontendBaseUrl) {
       if (process.env.NODE_ENV === 'production') {
-        frontendBaseUrl = 'https://zurcher-api-two.vercel.app';
+        frontendBaseUrl = 'https://www.zurcherseptic.com';
         console.warn(`⚠️  FRONTEND_URL no configurada en producción. Usando fallback: ${frontendBaseUrl}`);
       } else {
         frontendBaseUrl = 'http://localhost:5173';
@@ -258,37 +257,36 @@ const sendChangeOrderToClient = async (req, res) => {
     console.log(`� URL final para enlaces: ${frontendBaseUrl}`);
     console.log(`===============================`); 
 
+
     const approvalLink = `${frontendBaseUrl}/change-order-response?token=${approvalToken}&decision=approved&coId=${changeOrder.id}`;
     const rejectionLink = `${frontendBaseUrl}/change-order-response?token=${rejectionToken}&decision=rejected&coId=${changeOrder.id}`;
 
-    const emailSubject = `Acción Requerida: Orden de Cambio #${changeOrder.changeOrderNumber || changeOrder.id.substring(0,8)} para ${workDetails.propertyAddress}`;
+    const emailSubject = `Action Required: Change Order #${changeOrder.changeOrderNumber || changeOrder.id.substring(0,8)} for ${workDetails.propertyAddress}`;
     const emailHtml = `
-      <p>Estimado/a ${clientName},</p>
-      <p>${changeOrder.clientMessage || `Adjunto encontrará una orden de cambio (${changeOrder.description || 'N/A'}) que requiere su atención para la propiedad en ${workDetails.propertyAddress}.`}</p>
-      <p><strong>Descripción del Cambio:</strong> ${changeOrder.itemDescription || changeOrder.description}</p>
-      <p><strong>Costo Total Adicional:</strong> $${parseFloat(changeOrder.totalCost).toFixed(2)}</p>
-      <p>Por favor, revise el documento PDF adjunto y seleccione una de las siguientes opciones para proceder:</p>
+      <p>Dear ${clientName},</p>
+      <p>${changeOrder.clientMessage || `Please find attached a change order (${changeOrder.description || 'N/A'}) that requires your review for the property at ${workDetails.propertyAddress}.`}</p>
+      <p><strong>Change Description:</strong> ${changeOrder.itemDescription || changeOrder.description}</p>
+      <p><strong>Additional Total Cost:</strong> $${parseFloat(changeOrder.totalCost).toFixed(2)}</p>
+      <p>Please review the attached PDF document and select one of the following options to proceed:</p>
       <table width="100%" cellspacing="0" cellpadding="0" style="margin-top: 20px; margin-bottom: 20px;">
         <tr>
           <td style="padding-bottom: 10px;">
-            <a href="${approvalLink}" target="_blank" style="background-color: #28a745; color: white; padding: 12px 25px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px; font-weight: bold; font-size: 16px;">APROBAR ORDEN DE CAMBIO</a>
+            <a href="${approvalLink}" target="_blank" style="background-color: #28a745; color: white; padding: 12px 25px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px; font-weight: bold; font-size: 16px;">APPROVE CHANGE ORDER</a>
           </td>
         </tr>
         <tr>
-          <td>
-            <a href="${rejectionLink}" target="_blank" style="background-color: #dc3545; color: white; padding: 12px 25px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px; font-weight: bold; font-size: 16px;">RECHAZAR ORDEN DE CAMBIO</a>
-          </td>
+        
         </tr>
       </table>
-      <p>Si tiene alguna pregunta, no dude en contactarnos.</p>
-      <p>Gracias,<br/>El Equipo de ${companyData.name}</p>
+      <p>If you have any questions, please do not hesitate to contact us.</p>
+      <p>Thank you,<br/>The ${companyData.name} Team</p>
     `;
-    
+
     await sendEmail({
       to: clientEmail,
       subject: emailSubject,
       html: emailHtml,
-      text: `Texto alternativo: ${emailSubject}`, 
+      text: `Alternative text: ${emailSubject}`,
       attachments: [{ filename: `Change_Order_${changeOrder.id.substring(0,8)}.pdf`, path: pdfPath }]
     });
 
@@ -666,173 +664,33 @@ const handleClientChangeOrderResponse = async (req, res) => {
 
     // ============= CASO 2: CLIENTE APRUEBA =============
     if (decision === 'approved') {
-      // Paso 1: Marcar como 'approved'
+      // Step 1: Mark as 'approved'
       changeOrder.status = 'approved';
       changeOrder.respondedAt = new Date();
       changeOrder.approvalToken = null;
       changeOrder.rejectionToken = null;
       await changeOrder.save();
 
-      console.log(`[CO Response] CO #${coId} marcado como 'approved'. Procediendo a notificar y enviar para firma.`);
-
-      // Detectar si estamos en producción para ajustar timeouts
-      const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
-      const timeoutMs = isProduction ? 25000 : 60000; // 25s en producción, 60s en local
-      console.log(`🔧 Modo: ${isProduction ? 'PRODUCCIÓN' : 'LOCAL'} - Timeout: ${timeoutMs}ms`);
-
-      // Paso 2: Enviar notificación interna de APROBACIÓN
+      // Internal notification of APPROVAL (in English)
       try {
-        const clientName = changeOrder.work?.Permit?.applicantName || changeOrder.work?.budget?.applicantName || 'El cliente';
+        const clientName = changeOrder.work?.Permit?.applicantName || changeOrder.work?.budget?.applicantName || 'The client';
         const propertyAddress = changeOrder.work?.propertyAddress || changeOrder.work?.budget?.propertyAddress || 'N/A';
         const coNumber = changeOrder.changeOrderNumber || changeOrder.id.substring(0, 8);
-        const adminOwnerSubject = `Respuesta de Cliente: Orden de Cambio #${coNumber} ha sido APROBADA`;
-        const adminOwnerHtml = `<p>Hola,</p><p>${clientName} ha APROBADO la Orden de Cambio #${coNumber} para la propiedad en <strong>${propertyAddress}</strong>.</p><p>El documento ha sido enviado para firma electrónica.</p><p><strong>Costo Total:</strong> $${parseFloat(changeOrder.totalCost || 0).toFixed(2)}</p>`;
-        
+        const adminOwnerSubject = `Client Response: Change Order #${coNumber} has been APPROVED`;
+        const adminOwnerHtml = `<p>Hello,</p><p>${clientName} has <strong>APPROVED</strong> Change Order #${coNumber} for the property at <strong>${propertyAddress}</strong>.</p><p><strong>Total Cost:</strong> $${parseFloat(changeOrder.totalCost || 0).toFixed(2)}</p>`;
         const staffToNotify = await Staff.findAll({ where: { role: ['admin', 'owner'], email: { [Op.ne]: null } } });
         for (const staffMember of staffToNotify) {
           await sendEmail({ to: staffMember.email, subject: adminOwnerSubject, html: adminOwnerHtml });
         }
       } catch (notificationError) {
-        console.error('Error al enviar notificación interna de aprobación de CO:', notificationError);
+        console.error('Error sending internal approval notification for CO:', notificationError);
       }
 
-      // Paso 3: Intentar enviar para firma electrónica (CON TIMEOUT OPTIMIZADO)
-      try {
-        if (!changeOrder.pdfUrl) throw new Error('Falta el PDF del Change Order.');
-        
-        // Buscar email en ambos lugares
-        let clientEmail = null;
-        if (changeOrder.work?.budget?.applicantEmail) {
-          clientEmail = changeOrder.work.budget.applicantEmail;
-        } else if (changeOrder.work?.Permit?.applicantEmail) {
-          clientEmail = changeOrder.work.Permit.applicantEmail;
-        }
-        
-        if (!clientEmail) throw new Error('Falta el email del cliente.');
-
-        // ========= SOLUCIÓN HÍBRIDA OPTIMIZADA =========
-        let pdfUrlForSignNow = changeOrder.pdfUrl;
-        let tempFilePath = null;
-        
-        // Si es URL de Cloudinary, crear copia local para SignNow
-        if (changeOrder.pdfUrl && changeOrder.pdfUrl.includes('cloudinary.com')) {
-          console.log('[SignNow] PDF en Cloudinary detectado, creando copia local...');
-          
-          const fileName = `signnow_co_${changeOrder.id}_${Date.now()}.pdf`;
-          const localPdfPath = path.join(__dirname, '../../uploads/change_orders', fileName);
-          
-          // Crear directorio si no existe
-          const uploadDir = path.join(__dirname, '../../uploads/change_orders');
-          if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-          }
-          
-          try {
-            // Descargar PDF desde Cloudinary CON TIMEOUT DINÁMICO
-            console.log(`[SignNow] Descargando PDF (timeout: ${timeoutMs}ms)...`);
-            const response = await Promise.race([
-              axios({
-                method: 'GET',
-                url: changeOrder.pdfUrl,
-                responseType: 'stream',
-                timeout: timeoutMs, // Usar timeout dinámico
-                headers: { 'User-Agent': 'ZurcherApp/1.0' }
-              }),
-              new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('Timeout descargando PDF')), timeoutMs);
-              })
-            ]);
-            
-            const writer = fs.createWriteStream(localPdfPath);
-            response.data.pipe(writer);
-            
-            // Timeout también para la escritura
-            await Promise.race([
-              new Promise((resolve, reject) => {
-                writer.on('finish', resolve);
-                writer.on('error', reject);
-              }),
-              new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('Timeout escribiendo archivo')), timeoutMs);
-              })
-            ]);
-            
-            pdfUrlForSignNow = localPdfPath; // Usar ruta local directamente
-            tempFilePath = localPdfPath;
-            console.log('[SignNow] ✅ PDF local creado:', pdfUrlForSignNow);
-            
-          } catch (downloadError) {
-            console.error('[SignNow] ❌ Error descargando PDF:', downloadError.message);
-            console.log('[SignNow] Usando URL de Cloudinary directamente...');
-            pdfUrlForSignNow = changeOrder.pdfUrl;
-          }
-        }
-
-        const signNowService = new SignNowService();
-        const clientName = changeOrder.work?.Permit?.applicantName || changeOrder.work?.budget?.applicantName || 'Valued Client';
-        const propertyAddress = changeOrder.work?.propertyAddress || changeOrder.work?.budget?.propertyAddress || 'N/A';
-        const fileName = `ChangeOrder_${coId}_${propertyAddress.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-
-        console.log(`[SignNow] Enviando a SignNow (timeout: ${timeoutMs}ms)...`);
-        
-        // ✅ ENVÍO A SIGNNOW CON TIMEOUT DINÁMICO
-        const signNowResult = await Promise.race([
-          signNowService.sendBudgetForSignature(
-            pdfUrlForSignNow,
-            fileName,
-            clientEmail,
-            clientName
-          ),
-          new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Timeout en SignNow')), timeoutMs);
-          })
-        ]);
-
-        // Actualizar el estado de la firma y guardar el ID de SignNow
-        changeOrder.signatureStatus = 'pending';
-        changeOrder.signNowDocumentId = signNowResult.documentId;
-        await changeOrder.save();
-
-        console.log(`[CO Response] ✅ CO #${coId} enviado a SignNow. Document ID: ${signNowResult.documentId}`);
-
-        // Programar limpieza del archivo temporal después de 5 minutos (reducido para producción)
-        if (tempFilePath) {
-          const cleanupTime = isProduction ? 5 * 60 * 1000 : 10 * 60 * 1000; // 5min prod, 10min local
-          setTimeout(() => {
-            if (fs.existsSync(tempFilePath)) {
-              try {
-                fs.unlinkSync(tempFilePath);
-                console.log('[SignNow] 🧹 Archivo temporal limpiado:', tempFilePath);
-              } catch (cleanupError) {
-                console.error('[SignNow] Error limpiando archivo temporal:', cleanupError.message);
-              }
-            }
-          }, cleanupTime);
-        }
-
-        // ✅ RETURN DE ÉXITO COMPLETO
-        return res.status(200).json({
-          success: true,
-          message: '¡Gracias! Su aprobación ha sido registrada. Le hemos enviado un correo electrónico por separado para que firme formalmente el documento.',
-        });
-
-      } catch (signError) {
-        console.error(`💥 === ERROR EN SIGNNOW ===`);
-        console.error(`Error: ${signError.message}`);
-        console.error(`========================`);
-        
-        console.error(`[CO Response] CO #${coId} aprobado, pero SignNow falló: ${signError.message}`);
-        
-        // El CO ya está 'approved', pero la firma falló
-        changeOrder.signatureStatus = 'not_sent';
-        await changeOrder.save();
-        
-        // ✅ RETURN DE ÉXITO PARCIAL (CUANDO SIGNNOW FALLA)
-        return res.status(200).json({
-          success: true,
-          message: 'Su aprobación ha sido registrada, pero hubo un problema al enviar el documento para la firma electrónica. Nuestro equipo lo revisará manualmente.',
-        });
-      }
+      // Direct success return, no SignNow
+      return res.status(200).json({
+        success: true,
+        message: 'Thank you! Your approval has been registered. The Zurcher Construction team will process the change order.',
+      });
     }
 
     // ✅ RETURN DE SEGURIDAD
