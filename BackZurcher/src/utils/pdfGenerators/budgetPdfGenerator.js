@@ -570,9 +570,10 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   doc.y = Math.max(yAfterPaymentInfo, yAfterTotals);
   doc.moveDown(2);
 
-  // STRIPE PAYMENT BUTTON
+  // STRIPE PAYMENT BUTTON (con 3% fee)
   let paymentLinkUrl = null;
   const paymentAmountForStripe = parseFloat(initialPayment);
+  const paymentAmountWithFee = Math.round(paymentAmountForStripe * 1.03 * 100); // suma el 3% y convierte a centavos
 
   if (paymentAmountForStripe > 0 && process.env.STRIPE_SECRET_KEY) {
     try {
@@ -582,7 +583,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
           price_data: {
             currency: 'usd',
             product_data: { name: `Invoice #${budgetData.idBudget} - ${budgetData.applicantName}` },
-            unit_amount: Math.round(paymentAmountForStripe * 100)
+            unit_amount: paymentAmountWithFee
           },
           quantity: 1,
         }],
@@ -616,7 +617,12 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
     doc.text('Click Here to Pay Online', buttonX, buttonY + (buttonHeight / 2) - 4, { width: buttonWidth, align: 'center' });
     doc.restore();
     doc.link(buttonX, buttonY, buttonWidth, buttonHeight, paymentLinkUrl);
-    doc.y = buttonY + buttonHeight + 10;
+    doc.y = buttonY + buttonHeight + 5;
+
+    // Agregar aclaración del 3% fee debajo del botón
+    doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+    doc.text('Note: Online payments via this button include a 3% processing fee.', buttonX, doc.y, { width: buttonWidth, align: 'center' });
+    doc.y += 5;
   }
 }
 
