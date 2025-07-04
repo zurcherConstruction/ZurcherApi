@@ -249,16 +249,21 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
       doc.moveDown(1.8);
 
       doc.font(FONT_FAMILY_MONO_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK)
-        .text("PAYMENT INFORMATION", NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-      doc.moveDown(0.3);
-      doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
-      doc.text("BANK: BANK OF AMERICA".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-      doc.moveDown(0.3);
-      doc.text("ACCOUNT NUMBER: 898138399808".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-      doc.moveDown(0.3);
-      doc.text("ROUTING NUMBER: 063100277".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-      doc.moveDown(0.3);
-      doc.text("EMAIL: ZURCHERCONSTRUCTION.FL@GMAIL.COM".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+          .text("PAYMENT INFORMATION", NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+        doc.moveDown(0.3);
+        doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
+        doc.text("BANK: BANK OF AMERICA".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+        doc.moveDown(0.3);
+        doc.text("ACCOUNT NUMBER: 898138399808".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+        doc.moveDown(0.3);
+        doc.text("ROUTING NUMBER: 063100277".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+        doc.moveDown(0.3);
+        doc.text("CREDIT CARD + 3%".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+        doc.moveDown(0.3);
+        doc.text("ASK ABOUT PAYMENT METHODS. ".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+        doc.moveDown(0.3);
+        doc.text("EMAIL: ZURCHERSEPTIC@GMAIL.COM".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+      
 
       const yAfterPaymentInfo = doc.y;
       doc.y = thankYouAndPaymentInfoY;
@@ -314,6 +319,7 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
       // ✅ INICIO: Lógica del botón de pago de Stripe
       let paymentLinkUrl = null;
       const paymentAmountForStripe = total;
+      const paymentAmountWithFee = Math.round(paymentAmountForStripe * 1.03 * 100); // suma el 3% y convierte a centav
 
       if (invoiceStatus !== 'paid' && paymentAmountForStripe > 0 && process.env.STRIPE_SECRET_KEY) {
         try {
@@ -323,13 +329,13 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
               price_data: {
                 currency: 'usd',
                 product_data: { name: `Final Invoice #${invoiceNumber} - ${clientName}` },
-                unit_amount: Math.round(paymentAmountForStripe * 100)
+                 unit_amount: paymentAmountWithFee,
               },
               quantity: 1,
             }],
             mode: 'payment',
-            success_url: 'https://zurcher-api-two.vercel.app/', // Cambiar por tu URL de éxito
-            cancel_url: 'https://zurcher-api-two.vercel.app/',  // Cambiar por tu URL de cancelación
+            success_url: 'https://www.zurcherseptic.com/', // Cambiar por tu URL de éxito
+            cancel_url: 'https://www.zurcherseptic.com/',  // Cambiar por tu URL de cancelación
             ...(clientEmail && { customer_email: clientEmail }),
             metadata: { 
               internal_invoice_id: invoiceId, 
@@ -360,7 +366,12 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
         doc.text('Click Here to Pay Online', buttonX, buttonY + (buttonHeight / 2) - 4, { width: buttonWidth, align: 'center' });
         doc.restore();
         doc.link(buttonX, buttonY, buttonWidth, buttonHeight, paymentLinkUrl);
-        doc.y = buttonY + buttonHeight + 10;
+          doc.y = buttonY + buttonHeight + 5;
+
+    // Agregar aclaración del 3% fee debajo del botón
+    doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+    doc.text('Note: Online payments via this button include a 3% processing fee.', buttonX, doc.y, { width: buttonWidth, align: 'center' });
+    doc.y += 5;
       }
       // ✅ FIN: Lógica del botón de pago de Stripe
 
