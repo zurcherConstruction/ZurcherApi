@@ -263,7 +263,6 @@ const sendChangeOrderToClient = async (req, res) => {
 
     const emailSubject = `Action Required: Change Order #${changeOrder.changeOrderNumber || changeOrder.id.substring(0,8)} for ${workDetails.propertyAddress}`;
     const emailHtml = `
-
       <p>Dear ${clientName},</p>
       <p>${changeOrder.clientMessage || `Please find attached a change order (${changeOrder.description || 'N/A'}) that requires your review for the property at ${workDetails.propertyAddress}.`}</p>
       <p><strong>Change Description:</strong> ${changeOrder.itemDescription || changeOrder.description}</p>
@@ -273,7 +272,8 @@ const sendChangeOrderToClient = async (req, res) => {
         <a href="${approvalLink}" target="_blank" style="background-color: #28a745; color: white; padding: 16px 32px; text-align: center; text-decoration: none; display: inline-block; border-radius: 6px; font-weight: bold; font-size: 18px; letter-spacing: 1px;">APPROVE CHANGE ORDER</a>
       </div>
       <p>If you have any questions, please do not hesitate to contact us.</p>
-      <p>Thank you,<br/>The ${companyData.name}</p>`;
+      <p>Thank you,<br/>The ${companyData.name}</p>
+    `;
 
     await sendEmail({
       to: clientEmail,
