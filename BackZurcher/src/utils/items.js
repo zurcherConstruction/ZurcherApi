@@ -42,7 +42,7 @@ const defaultItems = [
  
   { category: "Rock", name: "ROCK REMOVAL", marca: "", capacity: "", description: "INCLUDED AT NO ADDITIONALCOST IF REQUIRED DURING INSTALLATION", unitPrice: 0, supplierName: "", supplierLocation: "" },
   { category: "Dirt", name: "DIR TRUCK FOR COVER", marca: "", capacity: "", description: "LOADS OF DIRT INCLUDED", unitPrice: 0, supplierName: "", supplierLocation: "" },
-  { category: "Kit", name: "INFILTRATOR KIT", marca: "", capacity: "", description: "ECOPOD-NX IM 1530 RESIDENTIAL WASTEWATER TREATMENT SYSTEM", unitPrice: 0, supplierName: "", supplierLocation: "" },
+  
 
   { category: "MATERIALES", imageUrl:"https://res.cloudinary.com/dt4ah1jmy/image/upload/v1751459910/Captura_de_pantalla_2025-07-02_093318_jmmamp.png", name: "10747", marca: "", capacity: "", description: "HYDRAPRO 4 HXH S&D D3304 1/4 SHORT BEND 90 EQUALS P204 NV3304", unitPrice: 4.29, supplierName: "", supplierLocation: "" },
   { category: "MATERIALES", imageUrl:"https://res.cloudinary.com/dt4ah1jmy/image/upload/v1751459910/Captura_de_pantalla_2025-07-02_093326_yakcjx.png", name: "10757", marca: "", capacity: "", description: "HYDRAPRO 4 HXHXH S&D D3034 STRAIGHT TEE EQUALS P104 NV804", unitPrice: 4.89, supplierName: "", supplierLocation: "" },
