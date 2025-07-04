@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import moment from "moment-timezone";
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { Calendar } from "react-native-calendars";
 import Toast from "react-native-toast-message";
@@ -193,7 +194,14 @@ const PendingWorks = () => {
                                 ]}
                                 onPress={() => setSelectedWork(item)}
                             >
-                                <Text>{item.propertyAddress} - {item.status}</Text>
+                                <Text>
+                                    {item.propertyAddress} - {item.status}
+                                </Text>
+                                <Text style={{ fontSize: 12, color: '#555' }}>
+                                    {item.startDate
+                                        ? moment.tz(item.startDate, "America/New_York").format("DD/MM/YYYY")
+                                        : "Sin fecha asignada"}
+                                </Text>
                             </TouchableOpacity>
                         )}
                         // Cabecera de la lista

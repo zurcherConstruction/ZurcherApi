@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
+import moment from "moment-timezone";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchAssignedWorks } from "../Redux/Actions/workActions";
 import { View, Text, FlatList, TouchableOpacity, TextInput, ActivityIndicator } from "react-native";
@@ -167,9 +168,9 @@ const renderHeader = () => (
                 {statusTranslations[item.status] || item.status || "Estado no definido"}
               </Text>
               <Text className="text-sm text-blue-600 mb-2 ">
-                <Text className="font-bold text-gray-700">Fecha Instalacion:</Text>{" "}
+                <Text className="font-bold text-gray-700">Fecha Instalación:</Text>{" "}
                 {item.startDate
-                  ? new Intl.DateTimeFormat('es-ES', { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(item.startDate))
+                  ? moment.tz(item.startDate, "America/New_York").format("MM-DD-YYYY HH:mm")
                   : "Sin Fecha de instalación"}
               </Text>
             </TouchableOpacity>

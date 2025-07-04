@@ -336,12 +336,13 @@ const CreateBudget = () => {
   const addOrUpdateLineItem = (itemDetails, replaceIfExists = false) => {
     console.log("Buscando item con:", itemDetails);
 
-    // Buscar el item en el catálogo
+    // Buscar el item en el catálogo (comparando también descripción si corresponde)
     const foundItem = normalizedBudgetItemsCatalog.find(catalogItem => {
       let match = catalogItem.category === itemDetails.category?.toUpperCase();
       if (match && itemDetails.name !== undefined) match = catalogItem.name === itemDetails.name?.toUpperCase();
       if (match && itemDetails.marca !== undefined) match = (catalogItem.marca || '') === (itemDetails.marca?.toUpperCase() || '');
       if (match && itemDetails.capacity !== undefined) match = (catalogItem.capacity || '') === (itemDetails.capacity?.toUpperCase() || '');
+      if (match && itemDetails.description !== undefined) match = (catalogItem.description || '') === (itemDetails.description?.toUpperCase() || '');
       return match;
     });
 

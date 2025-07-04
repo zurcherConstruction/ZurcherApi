@@ -49,6 +49,13 @@ const CONDITIONAL_INCLUDED_ITEMS = {
       qty: "1",
       rate: 0.00,
       amount: "INCLUDED"
+    },
+    {
+      name: "KIT TANK ATU",
+      description: "TREATMENT SYSTEM PANEL CONTROL/BLOW AIR",
+      qty: "1",
+      rate: 0.00,
+      amount: "INCLUDED"
     }
   ],
   // Puedes agregar más reglas aquí, por ejemplo:
@@ -477,7 +484,11 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   doc.moveDown(0.3);
   doc.text("ROUTING NUMBER: 063100277".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(0.3);
-  doc.text("EMAIL: ZURCHERCONSTRUCTION.FL@GMAIL.COM".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.text("CREDIT CARD + 3%".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.moveDown(0.3);
+  doc.text("ASK ABOUT PAYMENT METHODS. ".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.moveDown(0.3);
+  doc.text("EMAIL: ZURCHERSEPTIC@GMAIL.COM".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
 
   const yAfterPaymentInfo = doc.y;
 
@@ -559,9 +570,10 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   doc.y = Math.max(yAfterPaymentInfo, yAfterTotals);
   doc.moveDown(2);
 
-  // STRIPE PAYMENT BUTTON
+  // STRIPE PAYMENT BUTTON (con 3% fee)
   let paymentLinkUrl = null;
   const paymentAmountForStripe = parseFloat(initialPayment);
+  const paymentAmountWithFee = Math.round(paymentAmountForStripe * 1.03 * 100); // suma el 3% y convierte a centavos
 
   if (paymentAmountForStripe > 0 && process.env.STRIPE_SECRET_KEY) {
     try {
@@ -571,13 +583,13 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
           price_data: {
             currency: 'usd',
             product_data: { name: `Invoice #${budgetData.idBudget} - ${budgetData.applicantName}` },
-            unit_amount: Math.round(paymentAmountForStripe * 100)
+            unit_amount: paymentAmountWithFee
           },
           quantity: 1,
         }],
         mode: 'payment',
-        success_url: 'https://zurcher-api-two.vercel.app/',
-        cancel_url: 'https://zurcher-api-two.vercel.app/',
+        success_url: 'https://www.zurcherseptic.com/',
+        cancel_url: 'https://www.zurcherseptic.com/',
         ...(clientEmailFromPermit && { customer_email: clientEmailFromPermit }),
         metadata: { internal_budget_id: budgetData.idBudget, payment_type: 'invoice_payment' }
       });
@@ -605,7 +617,12 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
     doc.text('Click Here to Pay Online', buttonX, buttonY + (buttonHeight / 2) - 4, { width: buttonWidth, align: 'center' });
     doc.restore();
     doc.link(buttonX, buttonY, buttonWidth, buttonHeight, paymentLinkUrl);
-    doc.y = buttonY + buttonHeight + 10;
+    doc.y = buttonY + buttonHeight + 5;
+
+    // Agregar aclaración del 3% fee debajo del botón
+    doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+    doc.text('Note: Online payments via this button include a 3% processing fee.', buttonX, doc.y, { width: buttonWidth, align: 'center' });
+    doc.y += 5;
   }
 }
 

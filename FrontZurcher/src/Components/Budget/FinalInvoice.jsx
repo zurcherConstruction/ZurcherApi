@@ -500,7 +500,7 @@ const handleGeneratePdf = () => {
             {/* Ver y Descargar PDF (si existe) */}
             {currentInvoice?.pdfPath && currentInvoice.id && (
               <div className="flex items-center space-x-4">
-                {currentInvoice.pdfUrl && (
+                {/* {currentInvoice.pdfUrl && (
                   <button
                     onClick={() => window.open(currentInvoice.pdfUrl, '_blank')}
                     className="text-sm text-green-600 hover:text-green-800 underline disabled:opacity-50"
@@ -508,7 +508,7 @@ const handleGeneratePdf = () => {
                   >
                     Ver PDF
                   </button>
-                )}
+                )} */}
                 {/* BOTÓN DE DESCARGA ACTUALIZADO */}
                 <button
                   onClick={handleDownloadPdf}

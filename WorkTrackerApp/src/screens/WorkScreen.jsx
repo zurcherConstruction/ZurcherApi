@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import moment from 'moment-timezone';
 import { View, Text, FlatList, Pressable } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useDispatch, useSelector } from 'react-redux';
@@ -76,6 +77,9 @@ useEffect(() => {
               <Text className="text-sm text-gray-600 mb-1">
                 <Text className="font-bold text-gray-700">Estado:</Text> {item.status || 'Sin estado'}
               </Text>
+              <Text className="text-sm text-gray-600 mb-1">
+                <Text className="font-bold text-gray-700">Fecha asignada:</Text> {item.startDate ? moment.tz(item.startDate, 'America/New_York').format('MM-DD-YYYY') : 'Sin fecha'}
+              </Text>
               <Text className="text-sm text-gray-600">
                 <Text className="font-bold text-gray-700">Notas:</Text> {item.notes || 'Sin notas'}
               </Text>
@@ -97,6 +101,9 @@ useEffect(() => {
               </Text>
               <Text className="text-sm text-gray-600 mb-1">
                 <Text className="font-bold text-gray-700">Estado:</Text> {item.status || 'Sin estado'}
+              </Text>
+              <Text className="text-sm text-gray-600 mb-1">
+                <Text className="font-bold text-gray-700">Fecha asignada:</Text> {item.startDate ? moment.tz(item.startDate, 'America/New_York').format('MM-DD-YYYY HH:mm') : 'Sin fecha'}
               </Text>
               <Text className="text-sm text-gray-600">
                 <Text className="font-bold text-gray-700">Notas:</Text> {item.notes || 'Sin notas'}

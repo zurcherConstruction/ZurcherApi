@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import moment from "moment-timezone";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useDispatch, useSelector } from "react-redux";
@@ -173,15 +174,14 @@ useEffect(() => {
   }
 }, [work?.startDate]);
 
-// Helper para formatear fecha a MM-DD-AAAA
+// Helper para formatear fecha a MM-DD-YYYY HH:mm en horario Miami
 const formatDate = (isoDate) => {
   if (!isoDate) return '';
-  const d = new Date(isoDate);
-  if (isNaN(d.getTime())) return '';
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  return `${mm}-${dd}-${yyyy}`;
+  try {
+    return moment.tz(isoDate, "America/New_York").format("MM-DD-YYYY HH:mm");
+  } catch {
+    return '';
+  }
 };
 
 console.log("selectedAddress:", selectedAddress, "work:", work);
