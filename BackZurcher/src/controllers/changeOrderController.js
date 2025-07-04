@@ -258,8 +258,8 @@ const sendChangeOrderToClient = async (req, res) => {
     console.log(`===============================`); 
 
 
+
     const approvalLink = `${frontendBaseUrl}/change-order-response?token=${approvalToken}&decision=approved&coId=${changeOrder.id}`;
-    const rejectionLink = `${frontendBaseUrl}/change-order-response?token=${rejectionToken}&decision=rejected&coId=${changeOrder.id}`;
 
     const emailSubject = `Action Required: Change Order #${changeOrder.changeOrderNumber || changeOrder.id.substring(0,8)} for ${workDetails.propertyAddress}`;
     const emailHtml = `
@@ -267,19 +267,12 @@ const sendChangeOrderToClient = async (req, res) => {
       <p>${changeOrder.clientMessage || `Please find attached a change order (${changeOrder.description || 'N/A'}) that requires your review for the property at ${workDetails.propertyAddress}.`}</p>
       <p><strong>Change Description:</strong> ${changeOrder.itemDescription || changeOrder.description}</p>
       <p><strong>Additional Total Cost:</strong> $${parseFloat(changeOrder.totalCost).toFixed(2)}</p>
-      <p>Please review the attached PDF document and select one of the following options to proceed:</p>
-      <table width="100%" cellspacing="0" cellpadding="0" style="margin-top: 20px; margin-bottom: 20px;">
-        <tr>
-          <td style="padding-bottom: 10px;">
-            <a href="${approvalLink}" target="_blank" style="background-color: #28a745; color: white; padding: 12px 25px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px; font-weight: bold; font-size: 16px;">APPROVE CHANGE ORDER</a>
-          </td>
-        </tr>
-        <tr>
-        
-        </tr>
-      </table>
+      <p>Please review the attached PDF document and click the button below to approve the change order:</p>
+      <div style="margin: 30px 0; text-align: center;">
+        <a href="${approvalLink}" target="_blank" style="background-color: #28a745; color: white; padding: 16px 32px; text-align: center; text-decoration: none; display: inline-block; border-radius: 6px; font-weight: bold; font-size: 18px; letter-spacing: 1px;">APPROVE CHANGE ORDER</a>
+      </div>
       <p>If you have any questions, please do not hesitate to contact us.</p>
-      <p>Thank you,<br/>The ${companyData.name} Team</p>
+      <p>Thank you,<br/>The ${companyData.name}</p>
     `;
 
     await sendEmail({
@@ -671,13 +664,27 @@ const handleClientChangeOrderResponse = async (req, res) => {
       changeOrder.rejectionToken = null;
       await changeOrder.save();
 
-      // Internal notification of APPROVAL (in English)
+      // Internal notification of APPROVAL (in English, with more details)
       try {
         const clientName = changeOrder.work?.Permit?.applicantName || changeOrder.work?.budget?.applicantName || 'The client';
         const propertyAddress = changeOrder.work?.propertyAddress || changeOrder.work?.budget?.propertyAddress || 'N/A';
         const coNumber = changeOrder.changeOrderNumber || changeOrder.id.substring(0, 8);
         const adminOwnerSubject = `Client Response: Change Order #${coNumber} has been APPROVED`;
-        const adminOwnerHtml = `<p>Hello,</p><p>${clientName} has <strong>APPROVED</strong> Change Order #${coNumber} for the property at <strong>${propertyAddress}</strong>.</p><p><strong>Total Cost:</strong> $${parseFloat(changeOrder.totalCost || 0).toFixed(2)}</p>`;
+        const adminOwnerHtml = `
+          <p>Hello,</p>
+          <p><strong>Client:</strong> ${clientName}</p>
+          <p><strong>Property Address:</strong> ${propertyAddress}</p>
+          <p><strong>Change Order Number:</strong> ${coNumber}</p>
+          <p><strong>Status:</strong> APPROVED by client (via email link)</p>
+          <p><strong>Approval Date:</strong> ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })}</p>
+          <p><strong>Change Description:</strong> ${changeOrder.itemDescription || changeOrder.description}</p>
+          <p><strong>Total Cost:</strong> $${parseFloat(changeOrder.totalCost || 0).toFixed(2)}</p>
+          <p><strong>Client Message:</strong> ${changeOrder.clientMessage || 'N/A'}</p>
+          <p><strong>Admin Notes:</strong> ${changeOrder.adminNotes || 'N/A'}</p>
+          <p><strong>Change Order PDF:</strong> <a href="${changeOrder.pdfUrl || '#'}" target="_blank">View PDF</a></p>
+          <hr/>
+          <p>This approval was registered automatically via the client email link. No digital signature was required.</p>
+        `;
         const staffToNotify = await Staff.findAll({ where: { role: ['admin', 'owner'], email: { [Op.ne]: null } } });
         for (const staffMember of staffToNotify) {
           await sendEmail({ to: staffMember.email, subject: adminOwnerSubject, html: adminOwnerHtml });
