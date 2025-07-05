@@ -23,6 +23,7 @@ const maintenanceRoutes = require('./maintenanceRoutes'); // Asegúrate de que l
 const adobeRoutes = require('./adobeRoutes'); // Asegúrate de que la ruta sea correcta
 
 const signNowRoutes = require('./signNowRoutes'); // Asegúrate de que la ruta sea correcta
+const contactRoutes = require('./contactRoutes'); // Asegúrate de que la ruta sea correcta
 
 
 router.use('/auth', authRoutes); // Registro y login no requieren token
@@ -30,6 +31,7 @@ router.use('/change-orders',changeOrdersRoutes); // Ruta para comprobantes
 
 //router.use('/webhooks-adobe-sign', adobeWebhookRoutes); 
 router.use('/signnow', signNowRoutes);
+router.use('/contact', contactRoutes); // Ruta pública para formulario de contacto
 
 // Rutas protegidas (requieren token)
 const { verifyToken } = require('../middleware/isAuth');

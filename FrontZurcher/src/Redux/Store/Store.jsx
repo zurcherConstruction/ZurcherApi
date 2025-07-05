@@ -16,6 +16,7 @@ import uiReducer from '../Reducer/uiReducer';
 import systemReducer from '../Reducer/SystemReducer';
 import budgetItemReducer from '../Reducer/budgetItemReducer';
 import finalInvoiceReducer from '../Reducer/finalInvoiceReducer'; // Asegúrate de importar el reducer correcto
+import contactReducer from '../Reducer/contactReducer';
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -33,6 +34,7 @@ const rootReducer = combineReducers({
   systemType: systemReducer,
   budgetItems: budgetItemReducer,
   finalInvoice: finalInvoiceReducer,
+  contact: contactReducer,
 });
 
 export const store = configureStore({
