@@ -588,8 +588,8 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
           quantity: 1,
         }],
         mode: 'payment',
-        success_url: 'https://www.zurcherseptic.com/',
-        cancel_url: 'https://www.zurcherseptic.com/',
+        success_url: 'https://www.zurcherseptic.com/thank-you',
+        cancel_url: 'https://www.zurcherseptic.com/thank-you',
         ...(clientEmailFromPermit && { customer_email: clientEmailFromPermit }),
         metadata: { internal_budget_id: budgetData.idBudget, payment_type: 'invoice_payment' }
       });
