@@ -1,4 +1,4 @@
-import backgroundImage from '../../assets/landing/5.jpeg';
+import backgroundImage from '../../assets/landing/3.jpeg';
 
 function ThankYou() {
   // Configuración de WhatsApp
