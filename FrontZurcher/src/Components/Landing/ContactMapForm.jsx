@@ -11,22 +11,43 @@ const initialState = {
   files: [],
 };
 
+
 const ContactMapForm = () => {
   const [form, setForm] = useState(initialState);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
+  const [fileList, setFileList] = useState([]); // [{name, file, id}]
   const dispatch = useDispatch();
   const contactState = useSelector((state) => state.contact);
 
+  // Helper to generate unique ids for files
+  const generateFileId = (file) => `${file.name}_${file.size}_${file.lastModified}`;
+
+  // Handle input changes
   const handleChange = (e) => {
     const { name, value, files } = e.target;
     if (name === "files") {
-      setForm((prev) => ({ ...prev, files: Array.from(files) }));
+      // Accumulate files, avoid duplicates
+      let newFiles = Array.from(files);
+      setFileList((prev) => {
+        const existingIds = new Set(prev.map((f) => f.id));
+        const filtered = newFiles.filter((file) => !existingIds.has(generateFileId(file)));
+        return [
+          ...prev,
+          ...filtered.map((file) => ({ file, name: file.name, id: generateFileId(file) })),
+        ];
+      });
     } else {
       setForm((prev) => ({ ...prev, [name]: value }));
     }
   };
 
+  // Remove file from list
+  const handleRemoveFile = (id) => {
+    setFileList((prev) => prev.filter((f) => f.id !== id));
+  };
+
+  // On submit, build FormData with files from fileList
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name || !form.email || !form.phone) {
@@ -39,13 +60,14 @@ const ContactMapForm = () => {
     formData.append("email", form.email);
     formData.append("phone", form.phone);
     formData.append("message", form.message);
-    if (form.files && form.files.length > 0) {
-      form.files.forEach((file) => formData.append("attachments", file));
+    if (fileList.length > 0) {
+      fileList.forEach(({ file }) => formData.append("attachments", file));
     }
     try {
       await dispatch(sendContact(formData));
       setSubmitted(true);
       setForm(initialState);
+      setFileList([]);
     } catch (err) {
       setError("There was an error sending your request. Please try again later.");
     }
@@ -54,9 +76,9 @@ const ContactMapForm = () => {
   return (
     <section className="w-full bg-slate-50 py-12 border-t border-slate-200">
       <div className="max-w-7xl mx-auto px-4 md:px-8">
-        <div className="grid md:grid-cols-2 gap-8 items-start justify-center">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch justify-center">
           {/* AREAS + MAPA */}
-          <div className="bg-white rounded-2xl shadow-md p-6 flex flex-col min-h-[350px] border border-slate-100 w-full">
+          <div className="bg-white rounded-2xl shadow-md p-6 flex flex-col min-h-[350px] border border-slate-100 w-full h-full md:h-auto">
             <h2 className="text-3xl font-bold text-blue-900 mb-2 tracking-tight text-center">Service Areas</h2>
             <div className="w-12 h-1 bg-blue-200 rounded-full mb-6 mx-auto"></div>
             <div className="rounded-lg overflow-hidden shadow border border-slate-200 w-full h-56 bg-slate-100 flex flex-col mb-4">
@@ -99,7 +121,7 @@ const ContactMapForm = () => {
             </div>
           </div>
           {/* FORMULARIO */}
-          <div className="bg-white rounded-2xl shadow-md p-8 flex flex-col justify-center min-h-[350px] border border-slate-100 w-full max-w-2xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-md p-8 flex flex-col justify-center min-h-[350px] border border-slate-100 w-full max-w-2xl mx-auto h-full md:h-auto">
             <form className="flex flex-col gap-4 h-full" onSubmit={handleSubmit}>
               <h4 className="text-3xl font-bold text-blue-900 mb-2 tracking-tight text-center">Request a Quote</h4>
               {error && <div className="text-red-500 text-xs mb-2">{error}</div>}
@@ -151,6 +173,24 @@ const ContactMapForm = () => {
                       multiple
                     />
                     <span className="text-xs text-slate-500 mt-1 italic">If you don’t have the permit yet, no worries — just send us your information and we’ll guide you through the process.</span>
+                    {/* File list with remove option */}
+                    {fileList.length > 0 && (
+                      <ul className="mt-2 space-y-1">
+                        {fileList.map((f) => (
+                          <li key={f.id} className="flex items-center justify-between bg-slate-100 rounded px-2 py-1 text-blue-900 text-xs border border-slate-200">
+                            <span className="truncate max-w-[180px]" title={f.name}>{f.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveFile(f.id)}
+                              className="ml-2 text-red-500 hover:text-red-700 px-1 py-0.5 rounded focus:outline-none focus:ring-2 focus:ring-red-300"
+                              aria-label={`Remove ${f.name}`}
+                            >
+                              Remove
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
                   <div className="flex flex-col gap-2 flex-1">
                    
