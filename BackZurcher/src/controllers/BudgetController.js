@@ -1649,7 +1649,37 @@ async downloadBudgetPDF(req, res) {
     // Verificar si el archivo existe en el sistema de archivos
     if (!fs.existsSync(localPdfPath)) {
       console.error(`Error: Archivo PDF no encontrado en la ruta física: ${localPdfPath}`);
-      return res.status(404).send('Archivo PDF no encontrado en el servidor.');
+      
+      // 🔧 INTENTAR REGENERAR EL PDF SI NO EXISTE
+      console.log(`Intentando regenerar PDF para Budget ID: ${idBudget}`);
+      try {
+        // Obtener todos los datos del budget para regenerar el PDF
+        const fullBudget = await Budget.findByPk(idBudget, {
+          include: [
+            { model: Permit, attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'applicantName', 'lot', 'block'] },
+            { model: BudgetLineItem, as: 'lineItems' }
+          ]
+        });
+
+        if (!fullBudget) {
+          return res.status(404).send('Presupuesto no encontrado.');
+        }
+
+        // Regenerar el PDF
+        const { generateAndSaveBudgetPDF } = require('../utils/pdfGenerators');
+        const regeneratedPdfPath = await generateAndSaveBudgetPDF(fullBudget.toJSON());
+        
+        // Actualizar la ruta en la base de datos
+        const pdfPublicUrl = getPublicPdfUrl(regeneratedPdfPath, req);
+        await fullBudget.update({ pdfPath: pdfPublicUrl });
+        
+        console.log(`PDF regenerado exitosamente: ${regeneratedPdfPath}`);
+        localPdfPath = regeneratedPdfPath;
+        
+      } catch (regenerationError) {
+        console.error(`Error al regenerar PDF:`, regenerationError);
+        return res.status(500).send('Error al regenerar el archivo PDF.');
+      }
     }
 
     // Usar res.download() para forzar la descarga con el nombre original
@@ -1738,24 +1768,66 @@ async downloadBudgetPDF(req, res) {
     // Verificar si el archivo existe
     if (!fs.existsSync(localPdfPath)) {
       console.error(`Error: Archivo PDF no encontrado en la ruta física: ${localPdfPath}`);
-      return res.status(404).send('Archivo PDF no encontrado en el servidor.');
+      
+      // 🔧 INTENTAR REGENERAR EL PDF SI NO EXISTE
+      console.log(`Intentando regenerar PDF para visualización - Budget ID: ${idBudget}`);
+      try {
+        // Obtener todos los datos del budget para regenerar el PDF
+        const fullBudget = await Budget.findByPk(idBudget, {
+          include: [
+            { model: Permit, attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'applicantName', 'lot', 'block'] },
+            { model: BudgetLineItem, as: 'lineItems' }
+          ]
+        });
+
+        if (!fullBudget) {
+          return res.status(404).send('Presupuesto no encontrado.');
+        }
+
+        // Regenerar el PDF
+        const { generateAndSaveBudgetPDF } = require('../utils/pdfGenerators');
+        const regeneratedPdfPath = await generateAndSaveBudgetPDF(fullBudget.toJSON());
+        
+        // Actualizar la ruta en la base de datos
+        const pdfPublicUrl = getPublicPdfUrl(regeneratedPdfPath, req);
+        await fullBudget.update({ pdfPath: pdfPublicUrl });
+        
+        console.log(`PDF regenerado exitosamente para visualización: ${regeneratedPdfPath}`);
+        localPdfPath = regeneratedPdfPath;
+        
+      } catch (regenerationError) {
+        console.error(`Error al regenerar PDF para visualización:`, regenerationError);
+        return res.status(500).send('Error al regenerar el archivo PDF.');
+      }
     }
 
-    // *** Establecer cabeceras para visualización inline ***
+    // *** Establecer cabeceras mejoradas para visualización inline y compatibilidad con Chrome ***
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('Content-Disposition', 'inline; filename="budget_' + idBudget + '.pdf"');
+    res.setHeader('Cache-Control', 'private, max-age=0, no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '-1');
+    
+    // Cabeceras CORS para evitar bloqueos
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
 
-    // Enviar el archivo
-    res.sendFile(localPdfPath, (err) => {
-      if (err) {
-        console.error(`Error al enviar el archivo PDF para visualización (ID ${idBudget}):`, err);
-        if (!res.headersSent) {
-          res.status(500).send('Error al enviar el archivo PDF.');
-        }
-      } else {
-        console.log(`PDF para Budget ID ${idBudget} enviado para visualización.`);
+    // Leer el archivo y enviarlo como stream
+    const stat = fs.statSync(localPdfPath);
+    res.setHeader('Content-Length', stat.size);
+
+    // Crear stream de lectura y enviarlo
+    const fileStream = fs.createReadStream(localPdfPath);
+    
+    fileStream.on('error', (err) => {
+      console.error(`Error en el stream del PDF para visualización (ID ${idBudget}):`, err);
+      if (!res.headersSent) {
+        res.status(500).send('Error al leer el archivo PDF.');
       }
     });
+
+    fileStream.pipe(res);
 
   } catch (error) {
     console.error(`Error general en viewBudgetPDF para ID ${req.params.idBudget}:`, error);
@@ -1769,7 +1841,6 @@ async downloadBudgetPDF(req, res) {
 
   async previewBudgetPDF(req, res) {
     const { idBudget } = req.params;
-    let tempPdfPath = null; // Para rastrear la ruta del archivo temporal
 
     try {
       // 1. Buscar el presupuesto con TODOS los datos necesarios para el PDF
@@ -1784,39 +1855,35 @@ async downloadBudgetPDF(req, res) {
         return res.status(404).json({ error: true, message: 'Presupuesto no encontrado.' });
       }
 
-      // 2. Generar el PDF al momento. La función lo guarda en disco y obtenemos su ruta.
-      tempPdfPath = await generateAndSaveBudgetPDF(budget.toJSON());
+      // 2. Generar el PDF al momento
+      const { generateAndSaveBudgetPDF } = require('../utils/pdfGenerators');
+      const tempPdfPath = await generateAndSaveBudgetPDF(budget.toJSON());
 
-      // 3. Enviar el archivo al navegador para visualización inline
+      // 3. Establecer cabeceras para mostrar el PDF inline
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename="preview_budget_${idBudget}.pdf"`);
-      
-      const fileStream = fs.createReadStream(tempPdfPath);
-      fileStream.pipe(res);
 
-      // 4. Cuando el envío termine, borrar el archivo temporal.
-      fileStream.on('close', () => {
-        fs.unlink(tempPdfPath, (err) => {
-          if (err) {
-            console.error(`Error al borrar el PDF temporal de previsualización ${tempPdfPath}:`, err);
-          } else {
-            console.log(`PDF temporal de previsualización ${tempPdfPath} borrado.`);
+      // 4. Enviar el archivo
+      res.sendFile(tempPdfPath, (err) => {
+        if (err) {
+          console.error('Error enviando PDF:', err);
+          if (!res.headersSent) {
+            res.status(500).send('Error al enviar el PDF.');
           }
-        });
-      });
-
-      fileStream.on('error', (err) => {
-        console.error('Error en el stream del PDF de previsualización del presupuesto:', err);
-        if (fs.existsSync(tempPdfPath)) {
-          fs.unlinkSync(tempPdfPath);
         }
+        
+        // 5. Limpiar el archivo temporal
+        setTimeout(() => {
+          if (fs.existsSync(tempPdfPath)) {
+            fs.unlink(tempPdfPath, (unlinkErr) => {
+              if (unlinkErr) console.error('Error eliminando archivo temporal:', unlinkErr);
+            });
+          }
+        }, 1000);
       });
 
     } catch (error) {
-      console.error('Error al generar la vista previa del PDF del Presupuesto:', error);
-      if (tempPdfPath && fs.existsSync(tempPdfPath)) {
-        fs.unlinkSync(tempPdfPath);
-      }
+      console.error('Error al generar la vista previa del PDF:', error);
       if (!res.headersSent) {
         res.status(500).json({ error: true, message: 'Error interno al generar la vista previa del PDF.' });
       }
