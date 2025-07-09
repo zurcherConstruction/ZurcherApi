@@ -10,6 +10,8 @@ import { DocumentArrowDownIcon, EyeIcon, PencilIcon, CheckIcon, XMarkIcon, Excla
 import { parseISO, format } from "date-fns";
 import api from "../../utils/axios";
 
+
+
 const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
   if (!isOpen || !pdfUrl) return null;
 
@@ -65,11 +67,10 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
 
 const BudgetList = () => {
   const dispatch = useDispatch();
-  const { budgets, loading, error } = useSelector((state) => state.budget);
+  const { budgets, loading, error, total, pageSize } = useSelector((state) => state.budget);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-  console.log("Presupuestos:", budgets); // Verifica si los presupuestos se están obteniendo correctamente
-  // --- NUEVO ESTADO PARA EDICIÓN DE NOTAS ---
+  
+ 
   const [editingBudgetId, setEditingBudgetId] = useState(null); // ID del budget en edición
   const [currentNote, setCurrentNote] = useState(''); // Valor actual de la nota en el editor
   const [isSavingNote, setIsSavingNote] = useState(false); // Para feedback visual al guardar
@@ -84,33 +85,18 @@ const BudgetList = () => {
   const [pdfTitleForModal, setPdfTitleForModal] = useState('');
   const [isLoadingPdfInModal, setIsLoadingPdfInModal] = useState(null);
 
-  useEffect(() => {
-    dispatch(fetchBudgets());
-  }, [dispatch]);
+useEffect(() => {
+  dispatch(fetchBudgets(currentPage, pageSize || 10));
+}, [dispatch, currentPage, pageSize]);
 
-  const sortedBudgets = budgets ? budgets
-    .slice() // Crear una copia superficial para no mutar el estado original
-    .sort((a, b) => {
-      try {
-        // Parsear las fechas de creación
-        const dateA = parseISO(a.createdAt);
-        const dateB = parseISO(b.createdAt);
-        // Orden descendente (más reciente primero)
-        return dateB - dateA;
-      } catch (e) {
-        console.error("Error parsing createdAt date for sorting:", a.createdAt, b.createdAt, e);
-        return 0; // Mantener orden original si hay error de parseo
-      }
-    }) : [];
-  // --- 3. APLICAR PAGINACIÓN A LA LISTA COMPLETA Y ORDENADA ---
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  // Usar sortedBudgets (que ahora contiene todos los presupuestos ordenados)
-  const currentBudgetsForDisplay = sortedBudgets.slice(indexOfFirstItem, indexOfLastItem);
+const totalPages = Math.ceil((total || 0) / (pageSize || 10));
 
-  const handlePageChange = (pageNumber) => {
-    setCurrentPage(pageNumber);
-  };
+// Cuando cambias de página:
+const handlePageChange = (pageNumber) => {
+  setCurrentPage(pageNumber);
+};
+
+  
 
   // Función para manejar la descarga del PDF
   const handleDownloadPdf = async (budgetId, filename) => {
@@ -381,8 +367,7 @@ const BudgetList = () => {
     }
   };
 
-  const totalPages = Math.ceil(sortedBudgets.length / itemsPerPage);
-  console.log("IDs en currentBudgetsForDisplay:", currentBudgetsForDisplay.map(b => b.idBudget));
+  
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
@@ -412,7 +397,7 @@ const BudgetList = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {currentBudgetsForDisplay.map((budget) => {
+                 {budgets && budgets.map((budget)  => {
                     let permitExpirationAlertIcon = null;
                     const permitExpStatus = budget.Permit?.expirationStatus || budget.permitExpirationStatus;
                     const permitExpMessage = budget.Permit?.expirationMessage || budget.permitExpirationMessage;
@@ -691,7 +676,7 @@ const BudgetList = () => {
             {/* Vista de cards optimizada para tablet/móvil */}
             <div className="block lg:hidden space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {currentBudgetsForDisplay.map((budget) => {
+                {budgets && budgets.map((budget)  => {
                   let paymentLabel = `Pay ${budget.initialPaymentPercentage || 60}%`;
                   if (budget.initialPaymentPercentage === 100 || String(budget.initialPaymentPercentage).toLowerCase() === 'total') {
                     paymentLabel = `Pay 100%`;

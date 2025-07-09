@@ -690,21 +690,30 @@ const BudgetController = {
 
 
 
-  async getBudgets(req, res) { // O como se llame tu función para obtener la lista
-    try {
-      const budgetsInstances = await Budget.findAll({
-        include: [
-          {
-            model: Permit,
-            // Asegúrate de incluir expirationDate y otros campos necesarios del Permit
-            attributes: ['idPermit', 'propertyAddress', 'systemType', 'expirationDate', 'applicantEmail', 'pdfData', 'optionalDocs', 'applicantPhone', 'applicantName', 'permitNumber', 'lot', 'block']
-          }
-        ],
-        order: [['date', 'DESC']]
-      });
+async getBudgets(req, res) {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = parseInt(req.query.pageSize) || 10;
+    const offset = (page - 1) * pageSize;
 
-      const budgetsWithDetails = budgetsInstances.map(budgetInstance => {
-        const budgetJson = budgetInstance.toJSON(); // Convertir a objeto plano
+    const { rows: budgetsInstances, count: totalBudgets } = await Budget.findAndCountAll({
+      include: [
+        {
+          model: Permit,
+          attributes: ['idPermit', 'propertyAddress', 'systemType', 'expirationDate', 'applicantEmail', 'pdfData', 'optionalDocs', 'applicantPhone', 'applicantName', 'permitNumber', 'lot', 'block']
+        }
+      ],
+      order: [['date', 'DESC']],
+      limit: pageSize,
+      offset,
+      attributes: [
+        'idBudget', 'date', 'expirationDate', 'status', 'applicantName', 'propertyAddress',
+        'subtotalPrice', 'totalPrice', 'initialPayment', 'initialPaymentPercentage', 'pdfPath'
+      ]
+    });
+
+    const budgetsWithDetails = budgetsInstances.map(budgetInstance => {
+      const budgetJson = budgetInstance.toJSON();
 
         // Calcular y añadir estado de expiración del Permit si existe
         if (budgetJson.Permit && budgetJson.Permit.expirationDate) {
@@ -754,21 +763,26 @@ const BudgetController = {
         }
 
         // Transformar pdfPath a budgetPdfUrl
-        if (budgetJson.pdfPath && fs.existsSync(budgetJson.pdfPath)) {
-          budgetJson.budgetPdfUrl = `${req.protocol}://${req.get('host')}/budgets/${budgetJson.idBudget}/pdf`;
-        } else {
-          budgetJson.budgetPdfUrl = null;
-        }
-        return budgetJson; // Devolver el objeto budgetJson modificado
-      });
+        if (budgetJson.pdfPath) {
+        budgetJson.budgetPdfUrl = `${req.protocol}://${req.get('host')}/budgets/${budgetJson.idBudget}/pdf`;
+      } else {
+        budgetJson.budgetPdfUrl = null;
+      }
+      return budgetJson;
+    });
 
-      res.status(200).json(budgetsWithDetails);
+    res.status(200).json({
+      budgets: budgetsWithDetails,
+      total: totalBudgets,
+      page,
+      pageSize
+    });
 
-    } catch (error) {
-      console.error("Error fetching budgets:", error);
-      res.status(500).json({ error: 'Error al obtener los presupuestos.' });
-    }
-  },
+  } catch (error) {
+    console.error("Error fetching budgets:", error);
+    res.status(500).json({ error: 'Error al obtener los presupuestos.' });
+  }
+},
 
 
   async updateBudget(req, res) {
