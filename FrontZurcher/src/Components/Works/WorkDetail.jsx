@@ -17,7 +17,7 @@ import { ExclamationTriangleIcon } from '@heroicons/react/24/solid'; // Para el 
 import CreateChangeOrderModal from './CreateChangeOrderModal'; // Importar el nuevo modal
 import api from "../../utils/axios";
 import useAutoRefresh from "../../utils/useAutoRefresh";
-
+import PdfModal from "../Budget/PdfModal"; // Asegúrate de que esta ruta sea correcta
 
 
 const WorkDetail = () => {
@@ -82,6 +82,9 @@ const workRef = useRef(work);
   const [installedImageFile, setInstalledImageFile] = useState(null);
   const [uploadingInstalledImage, setUploadingInstalledImage] = useState(false);
   const [installedImageComment, setInstalledImageComment] = useState('');
+ const [showBudgetPdfModal, setShowBudgetPdfModal] = useState(false);
+const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
+ 
   // --- 1. CALCULAR TOTALES Y BALANCE ---
   const { totalIncome, totalExpense, balance } = useMemo(() => {
     const incomeSum = incomes?.reduce((sum, income) => sum + parseFloat(income.amount || 0), 0) || 0;
@@ -420,6 +423,24 @@ const handleUploadInstalledImage = async () => {
   }
 };
 
+const handleShowBudgetPdf = async () => {
+  // Si tienes la URL pública:
+  if (work?.budget?.pdfPath) {
+    setBudgetPdfUrl(work.budget.pdfPath);
+    setShowBudgetPdfModal(true);
+    return;
+  }
+  // Si necesitas pedirlo como blob:
+  try {
+    const response = await api.get(`/budget/${work.budget.idBudget}/preview`, { responseType: 'blob' });
+    const objectUrl = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+    setBudgetPdfUrl(objectUrl);
+    setShowBudgetPdfModal(true);
+  } catch (e) {
+    alert('No se pudo cargar el PDF del presupuesto');
+  }
+};
+
 
 
   if (workLoading) {
@@ -718,6 +739,12 @@ const handleUploadInstalledImage = async () => {
                     </p>
                   </>
                 )}
+                <button
+    className="bg-blue-600 text-white px-3 py-2 rounded shadow hover:bg-blue-700"
+    onClick={handleShowBudgetPdf}
+  >
+    Ver Presupuesto PDF
+  </button>
               </div>
             )}
 
@@ -1574,6 +1601,16 @@ const handleUploadInstalledImage = async () => {
           </div>
         )}
       </div>
+      <PdfModal
+  isOpen={showBudgetPdfModal}
+  onClose={() => {
+    setShowBudgetPdfModal(false);
+    if (budgetPdfUrl) URL.revokeObjectURL(budgetPdfUrl);
+    setBudgetPdfUrl('');
+  }}
+  pdfUrl={budgetPdfUrl}
+  title={`Presupuesto #${work?.budget?.idBudget}`}
+/>
     </div>
   );
 };

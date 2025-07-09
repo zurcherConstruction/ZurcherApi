@@ -20,9 +20,13 @@ const budgetSlice = createSlice({
       state.error = null;
     },
     fetchBudgetsSuccess: (state, action) => {
-      state.loading = false;
-      state.budgets = action.payload;
-    },
+  state.loading = false;
+  // action.payload es { budgets, total, page, pageSize }
+  state.budgets = action.payload.budgets;
+  state.total = action.payload.total;
+  state.page = action.payload.page;
+  state.pageSize = action.payload.pageSize;
+},
     fetchBudgetsFailure: (state, action) => {
       state.loading = false;
       state.error = action.payload;

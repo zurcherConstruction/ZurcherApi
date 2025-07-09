@@ -7,6 +7,7 @@ import responsabilidadImg from '../../assets/landing/5.jpeg';
 import img1 from '../../assets/landing/1.jpeg';
 import img3 from '../../assets/landing/3.jpeg';
 import img2 from '../../assets/landing/2.jpeg';
+
 import { Link } from 'react-router-dom';
 import LoginPopup from '../Auth/LoginPopup';
 import ContactMapForm from './ContactMapForm';
@@ -176,7 +177,30 @@ const LandingClients = () => {
       {/* Hero Images - 3 del mismo tamaño */}
       <div className="flex-1 min-h-[400px] relative">
         <div className="absolute inset-0 bg-gradient-to-r from-slate-800 to-slate-700"></div>
-        <div className="relative h-full grid grid-cols-1 md:grid-cols-3 gap-3 p-4">
+        {/*
+          - xl:grid-cols-3: 3 images for large desktops (side by side)
+          - md:flex-col: 2 images stacked vertically for tablets (iPad Pro, etc)
+          - below md: carousel/slice
+        */}
+        {/*
+          - xl:grid-cols-3: 3 images for large desktops (side by side)
+          - md:flex-col: 2 images stacked vertically for tablets (iPad Pro, etc)
+          - below md: carousel/slice
+        */}
+        {/* Tablet (iPad Pro): 2 images stacked vertically */}
+        <div className="hidden md:flex xl:hidden flex-col gap-2 p-4 h-full">
+        
+          <div className="relative overflow-hidden rounded-lg flex-1 min-h-[180px]">
+            <img
+              src={img2}
+              alt="Professional Work"
+              className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
+            />
+            <div className="absolute inset-0 bg-black opacity-25"></div>
+          </div>
+        </div>
+        {/* Desktop: 3 images side by side */}
+        <div className="hidden xl:grid grid-cols-3 gap-3 p-4 h-full">
           <div className="relative overflow-hidden rounded-lg">
             <img
               src={img1}
@@ -202,10 +226,13 @@ const LandingClients = () => {
             <div className="absolute inset-0 bg-black opacity-25"></div>
           </div>
         </div>
-      </div>
-      {/* Hero Content */}
-      <div className="flex-1 flex flex-col justify-center px-8 lg:px-12 py-16 text-center lg:text-left">
-        <h1 className="text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight">
+        <div className="block md:hidden h-full w-full">
+          <HeroImageSliceCarouselMobile />
+        </div>
+</div>
+{/* Hero Content */}
+<div className="flex-1 flex flex-col justify-center px-8 lg:px-12 py-16 text-center lg:text-left">
+  <h1 className="text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight">
           Septic Systems  <span className="text-blue-400">Done Right</span>
         </h1>
         <p className="text-xl lg:text-2xl text-slate-300 mb-8 leading-relaxed">
@@ -239,6 +266,15 @@ We take care of everything: from fieldwork to handling the entire administrative
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 10.5V6a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2h5.5" /><path strokeLinecap="round" strokeLinejoin="round" d="M21 10.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" /></svg>
                   Request by SMS
+                </a>
+                 <a
+                  href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMessage)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-3 hover:bg-green-50 text-green-700 font-medium border-b border-gray-100"
+                >
+                  <FaWhatsapp className="w-4 h-4" />
+                  WhatsApp
                 </a>
               </div>
             )}
@@ -440,5 +476,47 @@ New installations, repairs, or maintenance — we’re ready to help.
   </>
 );
 };
+
+function HeroImageSliceCarouselMobile() {
+  const images = [
+    { src: img3, alt: 'Construction Quality' },
+    { src: img2, alt: 'Professional Work' },
+    { src: img1, alt: 'Construction Excellence' }
+  ];
+  const [current, setCurrent] = React.useState(0);
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrent((prev) => (prev + 1) % images.length);
+    }, 3500);
+    return () => clearInterval(interval);
+  }, []);
+  return (
+    <div className="relative flex flex-col items-center justify-center w-full h-[150vw] max-h-[600px] min-h-[320px] overflow-hidden p-6">
+      {images.map((img, i) => (
+        <img
+          key={img.alt}
+          src={img.src}
+          alt={img.alt}
+          className={`absolute p-2 top-0 left-0 w-full h-full object-cover rounded-lg transition-opacity duration-1000 ${i === current ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+          style={{ transitionProperty: 'opacity', paddingBottom: '1.5rem', paddingTop: '0.5rem' }}
+        />
+      ))}
+      {/* Overlay */}
+      <div className="absolute inset-0 bg-black opacity-25 rounded-lg pointer-events-none"></div>
+      {/* Dots for manual navigation */}
+      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+        {images.map((_, i) => (
+          <button
+            key={i}
+            className={`w-3 h-3 rounded-full border border-white ${i === current ? 'bg-white' : 'bg-slate-400 opacity-60'}`}
+            onClick={() => setCurrent(i)}
+            aria-label={`Go to slide ${i + 1}`}
+            style={{ outline: 'none' }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default LandingClients;

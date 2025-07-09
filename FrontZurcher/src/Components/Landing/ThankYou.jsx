@@ -1,13 +1,18 @@
+import React, { useState } from 'react';
+import { FaPhone, FaWhatsapp } from 'react-icons/fa';
 import backgroundImage from '../../assets/landing/3.jpeg';
 
 function ThankYou() {
-  // Configuración de WhatsApp
+  // Estado para controlar el dropdown
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  // Configuración de contacto
+  const phone = "+1 (407) 419-4495";
   const whatsappNumber = "14074194495"; // Updated to match the main number
-  const whatsappMessage = "Hola, tengo una consulta sobre los servicios contratados.";
+  const whatsappMessage = "Hello, I have a question about the contracted services.";
 
   const handleContactUsClick = () => {
-    const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMessage)}`;
-    window.open(whatsappUrl, '_blank');
+    setShowDropdown(!showDropdown);
   };
 
   const pageStyle = {
@@ -59,6 +64,21 @@ function ThankYou() {
     textTransform: 'uppercase',
     boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
     transition: 'background-color 0.3s ease, transform 0.2s ease',
+    position: 'relative',
+  };
+
+  const dropdownStyle = {
+    position: 'absolute',
+    top: '100%',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    backgroundColor: 'white',
+    borderRadius: '8px',
+    boxShadow: '0 8px 25px rgba(0,0,0,0.2)',
+    overflow: 'hidden',
+    minWidth: '250px',
+    zIndex: 1000,
+    marginTop: '8px',
   };
 
   const handleButtonMouseOver = (e) => {
@@ -71,25 +91,108 @@ function ThankYou() {
     e.currentTarget.style.transform = 'scale(1)';
   };
 
+  // Cerrar dropdown cuando se hace click fuera
+  const handleOutsideClick = (e) => {
+    if (showDropdown && !e.target.closest('.dropdown-container')) {
+      setShowDropdown(false);
+    }
+  };
+
+  // Agregar event listener para clicks fuera del dropdown
+  React.useEffect(() => {
+    document.addEventListener('click', handleOutsideClick);
+    return () => document.removeEventListener('click', handleOutsideClick);
+  }, [showDropdown]);
+
   return (
     <div style={pageStyle}>
       <div style={overlayStyle}>
-        <h1 style={headingStyle}>¡Thank you for trusting us!</h1>
+        <h1 style={headingStyle}>¡Thank you for choosing Zurcher Septic!</h1>
         <p style={paragraphStyle}>
-          We greatly appreciate your choice of our services. We're excited to get started
-          and committed to providing you with the best experience.
+          We truly appreciate your trust in our team. We’re excited to begin your project and are committed to delivering high-quality service every step of the way.
         </p>
         <p style={paragraphStyle}>
-          If you have any questions or need assistance, please do not hesitate to contact us.
+          If you have any questions or need support, feel free to reach out. We’re here to help.
         </p>
-        <button
-          style={buttonStyle}
-          onClick={handleContactUsClick}
-          onMouseOver={handleButtonMouseOver}
-          onMouseOut={handleButtonMouseOut}
-        >
-          Contact us
-        </button>
+        <div style={{ position: 'relative', display: 'inline-block' }} className="dropdown-container">
+          <button
+            style={buttonStyle}
+            onClick={handleContactUsClick}
+            onMouseOver={handleButtonMouseOver}
+            onMouseOut={handleButtonMouseOut}
+          >
+            Contact us
+          </button>
+          
+          {showDropdown && (
+            <div style={dropdownStyle}>
+              <a
+                href={`tel:${phone}`}
+                style={{ 
+                  textDecoration: 'none', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px',
+                  padding: '12px 16px',
+                  color: '#1d4ed8',
+                  fontWeight: '500',
+                  borderBottom: '1px solid #f3f4f6',
+                  transition: 'background-color 0.2s ease'
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#eff6ff'}
+                onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}
+                onClick={() => setShowDropdown(false)}
+              >
+                <FaPhone style={{ width: '16px', height: '16px' }} />
+                Call for Quote
+              </a>
+              <a
+                href={`sms:${phone.replace(/[^\d]/g, '')}?body=${encodeURIComponent("I would like a free quote for septic system services.")}`}
+                style={{ 
+                  textDecoration: 'none', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px',
+                  padding: '12px 16px',
+                  color: '#1d4ed8',
+                  fontWeight: '500',
+                  borderBottom: '1px solid #f3f4f6',
+                  transition: 'background-color 0.2s ease'
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#eff6ff'}
+                onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}
+                onClick={() => setShowDropdown(false)}
+              >
+                <svg style={{ width: '16px', height: '16px' }} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 10.5V6a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2h5.5" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 10.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                </svg>
+                Request by SMS
+              </a>
+              <a
+                href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMessage)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ 
+                  textDecoration: 'none', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '8px',
+                  padding: '12px 16px',
+                  color: '#15803d',
+                  fontWeight: '500',
+                  transition: 'background-color 0.2s ease'
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = '#f0fdf4'}
+                onMouseOut={(e) => e.target.style.backgroundColor = 'transparent'}
+                onClick={() => setShowDropdown(false)}
+              >
+                <FaWhatsapp style={{ width: '16px', height: '16px' }} />
+                WhatsApp
+              </a>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

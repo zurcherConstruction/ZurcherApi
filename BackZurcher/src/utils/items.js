@@ -23,7 +23,7 @@ const defaultItems = [
 
   // MATERIALES
   { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "7 ALL INCLUDED", description: "LOADS SAND INCLUDED", unitPrice: 1500, supplierName: "", supplierLocation: "" },
-  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "0", description: "", unitPrice: 0, supplierName: "", supplierLocation: "" },
+  // { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "0", description: "", unitPrice: 0, supplierName: "", supplierLocation: "" },
   { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "4", description: "4 SAND INCLUDED", unitPrice: 1000, supplierName: "", supplierLocation: "" },
 
   { category: "Accesorios", name: "HYDRAPRO 4", marca: "", capacity: "", description: "HYDRAPRO 4 HXH S&D D3304 1/4 SHORT BEND 90 EQUALS P204 NV3304", unitPrice: 15, supplierName: "", supplierLocation: "" },

@@ -12,19 +12,19 @@ require('dotenv').config();
 // AGREGAR esta función auxiliar después de los imports:
 function getPublicPdfUrl(localPath, req) {
   if (!localPath) return null;
-  
+
   // 🧪 TEST: Verificar que API_URL se lee correctamente
   console.log('🔍 DEBUG: process.env.API_URL =', process.env.API_URL);
-  
+
   // Extraer la parte relativa de la ruta
   const relativePath = localPath.replace(path.join(__dirname, '../'), '');
-  
+
   // ✅ USAR API_URL en lugar de BACKEND_URL
   const baseUrl = process.env.API_URL || `${req.protocol}://${req.get('host')}`;
   const publicUrl = `${baseUrl}/${relativePath.replace(/\\/g, '/')}`;
-  
+
   console.log('🔗 DEBUG: URL generada =', publicUrl);
-  
+
   return publicUrl;
 }
 
@@ -163,14 +163,6 @@ const BudgetController = {
       await transaction.commit();
       console.log(`--- Transacción principal para crear Budget ID ${newBudgetId} confirmada. ---`);
 
-      // --- Enviar Notificaciones (ya estaba funcionando) ---
-      const notificationDetails = {
-        propertyAddress: permit.propertyAddress,
-        idBudget: newBudgetId,
-        applicantEmail: permit.applicantEmail || null,
-      };
-      await sendNotifications('budgetCreated', notificationDetails, null, req.io);
-      console.log(`Notificaciones 'budgetCreated' enviadas para Budget ID ${newBudgetId}.`);
 
       // --- Generar PDF y Actualizar Ruta (Fuera de la transacción original) ---
       let generatedPdfPath = null;
@@ -228,6 +220,25 @@ const BudgetController = {
         // Actualizar el registro Budget con la URL pública
         await budgetForPdf.update({ pdfPath: pdfPublicUrl });
         console.log("Ruta del PDF actualizada para Budget ID", budgetForPdf.idBudget);
+
+        const attachments = [];
+        if (generatedPdfPath && fs.existsSync(generatedPdfPath)) {
+          attachments.push({
+            filename: `Budget_${newBudgetId}.pdf`,
+            path: generatedPdfPath,
+            contentType: 'application/pdf'
+          });
+        }
+        const budgetLink = "https://www.zurcherseptic.com/budgets";
+        const notificationDetails = {
+          propertyAddress: permit.propertyAddress,
+          idBudget: newBudgetId,
+          applicantEmail: permit.applicantEmail || null,
+          budgetLink,
+          attachments // <--- ahora sí, el PDF va adjunto
+        };
+        await sendNotifications('budgetCreated', notificationDetails, null, req.io);
+        console.log(`Notificaciones 'budgetCreated' enviadas para Budget ID ${newBudgetId}.`);
 
       } catch (pdfError) {
         console.error(`Error al generar o guardar PDF para Budget ID ${newBudgetId} (post-creación):`, pdfError);
@@ -329,7 +340,7 @@ const BudgetController = {
         });
       }
 
-       let localPdfPath;
+      let localPdfPath;
       if (budget.pdfPath.startsWith('http')) {
         const pdfFileName = budget.pdfPath.split('/').pop();
         // Asumiendo que los PDFs de presupuestos se guardan en 'uploads/budgets'
@@ -394,7 +405,7 @@ const BudgetController = {
       // Actualizar presupuesto con información de SignNow
       console.log('💾 Actualizando presupuesto en la base de datos...');
       const updateData = {
-       signNowDocumentId: signNowResult.documentId, // Reutilizar este campo para SignNow
+        signNowDocumentId: signNowResult.documentId, // Reutilizar este campo para SignNow
         status: 'sent_for_signature',
         sentForSignatureAt: new Date()
       };
@@ -407,7 +418,7 @@ const BudgetController = {
 
       // Enviar notificación interna de que se envió a SignNow
       try {
-       
+
         await sendNotifications('budgetSentToSignNow', {
           propertyAddress: budget.Permit?.propertyAddress || budget.propertyAddress,
           applicantEmail: budget.Permit.applicantEmail,
@@ -659,21 +670,30 @@ const BudgetController = {
 
 
 
-  async getBudgets(req, res) { // O como se llame tu función para obtener la lista
-    try {
-      const budgetsInstances = await Budget.findAll({
-        include: [
-          {
-            model: Permit,
-            // Asegúrate de incluir expirationDate y otros campos necesarios del Permit
-            attributes: ['idPermit', 'propertyAddress', 'systemType', 'expirationDate', 'applicantEmail', 'pdfData', 'optionalDocs', 'applicantPhone', 'applicantName', 'permitNumber', 'lot', 'block']
-          }
-        ],
-        order: [['date', 'DESC']]
-      });
+async getBudgets(req, res) {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const pageSize = parseInt(req.query.pageSize) || 10;
+    const offset = (page - 1) * pageSize;
 
-      const budgetsWithDetails = budgetsInstances.map(budgetInstance => {
-        const budgetJson = budgetInstance.toJSON(); // Convertir a objeto plano
+    const { rows: budgetsInstances, count: totalBudgets } = await Budget.findAndCountAll({
+      include: [
+        {
+          model: Permit,
+          attributes: ['idPermit', 'propertyAddress', 'systemType', 'expirationDate', 'applicantEmail', 'pdfData', 'optionalDocs', 'applicantPhone', 'applicantName', 'permitNumber', 'lot', 'block']
+        }
+      ],
+      order: [['date', 'DESC']],
+      limit: pageSize,
+      offset,
+      attributes: [
+        'idBudget', 'date', 'expirationDate', 'status', 'applicantName', 'propertyAddress',
+        'subtotalPrice', 'totalPrice', 'initialPayment', 'initialPaymentPercentage', 'pdfPath'
+      ]
+    });
+
+    const budgetsWithDetails = budgetsInstances.map(budgetInstance => {
+      const budgetJson = budgetInstance.toJSON();
 
         // Calcular y añadir estado de expiración del Permit si existe
         if (budgetJson.Permit && budgetJson.Permit.expirationDate) {
@@ -723,21 +743,26 @@ const BudgetController = {
         }
 
         // Transformar pdfPath a budgetPdfUrl
-        if (budgetJson.pdfPath && fs.existsSync(budgetJson.pdfPath)) {
-          budgetJson.budgetPdfUrl = `${req.protocol}://${req.get('host')}/budgets/${budgetJson.idBudget}/pdf`;
-        } else {
-          budgetJson.budgetPdfUrl = null;
-        }
-        return budgetJson; // Devolver el objeto budgetJson modificado
-      });
+        if (budgetJson.pdfPath) {
+        budgetJson.budgetPdfUrl = `${req.protocol}://${req.get('host')}/budgets/${budgetJson.idBudget}/pdf`;
+      } else {
+        budgetJson.budgetPdfUrl = null;
+      }
+      return budgetJson;
+    });
 
-      res.status(200).json(budgetsWithDetails);
+    res.status(200).json({
+      budgets: budgetsWithDetails,
+      total: totalBudgets,
+      page,
+      pageSize
+    });
 
-    } catch (error) {
-      console.error("Error fetching budgets:", error);
-      res.status(500).json({ error: 'Error al obtener los presupuestos.' });
-    }
-  },
+  } catch (error) {
+    console.error("Error fetching budgets:", error);
+    res.status(500).json({ error: 'Error al obtener los presupuestos.' });
+  }
+},
 
 
   async updateBudget(req, res) {
@@ -1117,7 +1142,7 @@ const BudgetController = {
           }
         }
 
- // --- ✅ NUEVO: Enviar automáticamente a SignNow después del email ---
+        // --- ✅ NUEVO: Enviar automáticamente a SignNow después del email ---
         console.log('\n🔄 === INICIANDO ENVÍO AUTOMÁTICO A SIGNNOW ===');
 
         try {
@@ -1146,10 +1171,10 @@ const BudgetController = {
             let localPdfPath = null;
 
             if (pdfPathForEmail && (pdfPathForEmail.includes('/uploads/budgets/') || pdfPathForEmail.startsWith('http'))) {
-  // Extraer nombre del archivo de la URL
-  const pdfFileName = pdfPathForEmail.split('/').pop();
-  localPdfPath = path.join(__dirname, '../uploads/budgets', pdfFileName);
-              
+              // Extraer nombre del archivo de la URL
+              const pdfFileName = pdfPathForEmail.split('/').pop();
+              localPdfPath = path.join(__dirname, '../uploads/budgets', pdfFileName);
+
               // Verificar que el archivo existe
               if (!fs.existsSync(localPdfPath)) {
                 console.error(`❌ PDF no encontrado en ruta local: ${localPdfPath}`);
@@ -1206,7 +1231,7 @@ const BudgetController = {
           console.error('❌ ERROR enviando a SignNow:', signNowError);
           console.error('   - Mensaje:', signNowError.message);
           console.error('   - Stack:', signNowError.stack);
-          
+
           console.log('⚠️ Continuando sin envío a SignNow debido a error');
           console.log('📧 El email fue enviado exitosamente, pero SignNow falló');
         }
@@ -1222,7 +1247,7 @@ const BudgetController = {
       } // --- Fin Lógica if (status === 'send') ---
 
       // --- 7b. Lógica si el estado es 'approved' ---
-      if (budget.status === "approved" ) {
+      if (budget.status === "approved") {
         console.log("El estado es 'approved'. Procesando creación/actualización de Work/Income...");
 
         // Determinar el monto real del pago inicial a usar
@@ -1365,9 +1390,9 @@ const BudgetController = {
       // Devolver un error genérico o el mensaje específico si es seguro
       res.status(400).json({ error: error.message || 'Error interno al actualizar el presupuesto.' });
     }
-  
+
   },
-  async uploadInvoice(req, res) { 
+  async uploadInvoice(req, res) {
     const transaction = await conn.transaction();
 
     try {
@@ -1601,59 +1626,89 @@ const BudgetController = {
     }
   },
 
-async downloadBudgetPDF(req, res) {
-  try {
-    const { idBudget } = req.params;
-    console.log(`Solicitud para descargar PDF de Budget ID: ${idBudget}`);
+  async downloadBudgetPDF(req, res) {
+    try {
+      const { idBudget } = req.params;
+      console.log(`Solicitud para descargar PDF de Budget ID: ${idBudget}`);
 
-    const budget = await Budget.findByPk(idBudget, { attributes: ['pdfPath'] });
+      const budget = await Budget.findByPk(idBudget, { attributes: ['pdfPath'] });
 
-    if (!budget || !budget.pdfPath) {
-      console.log(`PDF no encontrado en BD para Budget ID: ${idBudget}`);
-      return res.status(404).send('PDF no encontrado para este presupuesto.');
-    }
-
-    // ✅ CONVERTIR URL PÚBLICA A RUTA LOCAL
-    let localPdfPath;
-    
-    if (budget.pdfPath.startsWith('http')) {
-      // Es una URL pública, convertir a ruta local
-      const fileName = budget.pdfPath.split('/').pop(); // Extraer 'budget_X.pdf'
-      localPdfPath = path.join(__dirname, '../uploads/budgets', fileName);
-      console.log(`Convertido URL pública a ruta local: ${budget.pdfPath} -> ${localPdfPath}`);
-    } else {
-      // Es una ruta local directa (para compatibility con PDFs antiguos)
-      localPdfPath = budget.pdfPath;
-    }
-
-    // Verificar si el archivo existe en el sistema de archivos
-    if (!fs.existsSync(localPdfPath)) {
-      console.error(`Error: Archivo PDF no encontrado en la ruta física: ${localPdfPath}`);
-      return res.status(404).send('Archivo PDF no encontrado en el servidor.');
-    }
-
-    // Usar res.download() para forzar la descarga con el nombre original
-    const filename = path.basename(localPdfPath); // Extrae 'budget_XX.pdf' de la ruta completa
-    console.log(`Intentando descargar archivo: ${localPdfPath} como ${filename}`);
-
-    res.download(localPdfPath, filename, (err) => {
-      if (err) {
-        console.error(`Error al enviar el archivo PDF (${filename}):`, err);
-        if (!res.headersSent) {
-          res.status(500).send('Error al descargar el archivo PDF.');
-        }
-      } else {
-        console.log(`PDF ${filename} descargado exitosamente.`);
+      if (!budget || !budget.pdfPath) {
+        console.log(`PDF no encontrado en BD para Budget ID: ${idBudget}`);
+        return res.status(404).send('PDF no encontrado para este presupuesto.');
       }
-    });
 
-  } catch (error) {
-    console.error(`Error general en downloadBudgetPDF para ID ${req.params.idBudget}:`, error);
-    if (!res.headersSent) {
-      res.status(500).send('Error interno al procesar la solicitud del PDF.');
+      // ✅ CONVERTIR URL PÚBLICA A RUTA LOCAL
+      let localPdfPath;
+
+      if (budget.pdfPath.startsWith('http')) {
+        // Es una URL pública, convertir a ruta local
+        const fileName = budget.pdfPath.split('/').pop(); // Extraer 'budget_X.pdf'
+        localPdfPath = path.join(__dirname, '../uploads/budgets', fileName);
+        console.log(`Convertido URL pública a ruta local: ${budget.pdfPath} -> ${localPdfPath}`);
+      } else {
+        // Es una ruta local directa (para compatibility con PDFs antiguos)
+        localPdfPath = budget.pdfPath;
+      }
+
+      // Verificar si el archivo existe en el sistema de archivos
+      if (!fs.existsSync(localPdfPath)) {
+        console.error(`Error: Archivo PDF no encontrado en la ruta física: ${localPdfPath}`);
+
+        // 🔧 INTENTAR REGENERAR EL PDF SI NO EXISTE
+        console.log(`Intentando regenerar PDF para Budget ID: ${idBudget}`);
+        try {
+          // Obtener todos los datos del budget para regenerar el PDF
+          const fullBudget = await Budget.findByPk(idBudget, {
+            include: [
+              { model: Permit, attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'applicantName', 'lot', 'block'] },
+              { model: BudgetLineItem, as: 'lineItems' }
+            ]
+          });
+
+          if (!fullBudget) {
+            return res.status(404).send('Presupuesto no encontrado.');
+          }
+
+          // Regenerar el PDF
+          const { generateAndSaveBudgetPDF } = require('../utils/pdfGenerators');
+          const regeneratedPdfPath = await generateAndSaveBudgetPDF(fullBudget.toJSON());
+
+          // Actualizar la ruta en la base de datos
+          const pdfPublicUrl = getPublicPdfUrl(regeneratedPdfPath, req);
+          await fullBudget.update({ pdfPath: pdfPublicUrl });
+
+          console.log(`PDF regenerado exitosamente: ${regeneratedPdfPath}`);
+          localPdfPath = regeneratedPdfPath;
+
+        } catch (regenerationError) {
+          console.error(`Error al regenerar PDF:`, regenerationError);
+          return res.status(500).send('Error al regenerar el archivo PDF.');
+        }
+      }
+
+      // Usar res.download() para forzar la descarga con el nombre original
+      const filename = path.basename(localPdfPath); // Extrae 'budget_XX.pdf' de la ruta completa
+      console.log(`Intentando descargar archivo: ${localPdfPath} como ${filename}`);
+
+      res.download(localPdfPath, filename, (err) => {
+        if (err) {
+          console.error(`Error al enviar el archivo PDF (${filename}):`, err);
+          if (!res.headersSent) {
+            res.status(500).send('Error al descargar el archivo PDF.');
+          }
+        } else {
+          console.log(`PDF ${filename} descargado exitosamente.`);
+        }
+      });
+
+    } catch (error) {
+      console.error(`Error general en downloadBudgetPDF para ID ${req.params.idBudget}:`, error);
+      if (!res.headersSent) {
+        res.status(500).send('Error interno al procesar la solicitud del PDF.');
+      }
     }
-  }
-},
+  },
 
   async uploadBudgetPDF(req, res) {
     try {
@@ -1690,66 +1745,107 @@ async downloadBudgetPDF(req, res) {
       res.status(500).json({ error: 'Error interno al subir el PDF' });
     }
   },
- async viewBudgetPDF(req, res) {
-  try {
-    const { idBudget } = req.params;
-    console.log(`Solicitud para ver PDF de Budget ID: ${idBudget}`);
+  async viewBudgetPDF(req, res) {
+    try {
+      const { idBudget } = req.params;
+      console.log(`Solicitud para ver PDF de Budget ID: ${idBudget}`);
 
-    const budget = await Budget.findByPk(idBudget, { attributes: ['pdfPath'] });
+      const budget = await Budget.findByPk(idBudget, { attributes: ['pdfPath'] });
 
-    if (!budget || !budget.pdfPath) {
-      console.log(`PDF no encontrado en BD para Budget ID: ${idBudget}`);
-      return res.status(404).send('PDF no encontrado para este presupuesto.');
-    }
-
-    // ✅ CONVERTIR URL PÚBLICA A RUTA LOCAL
-    let localPdfPath;
-    
-    if (budget.pdfPath.startsWith('http')) {
-      // Es una URL pública, convertir a ruta local
-      const fileName = budget.pdfPath.split('/').pop(); // Extraer 'budget_X.pdf'
-      localPdfPath = path.join(__dirname, '../uploads/budgets', fileName);
-      console.log(`Convertido URL pública a ruta local para vista: ${budget.pdfPath} -> ${localPdfPath}`);
-    } else {
-      // Es una ruta local directa (para compatibility con PDFs antiguos)
-      localPdfPath = budget.pdfPath;
-    }
-
-    // Verificar si el archivo existe
-    if (!fs.existsSync(localPdfPath)) {
-      console.error(`Error: Archivo PDF no encontrado en la ruta física: ${localPdfPath}`);
-      return res.status(404).send('Archivo PDF no encontrado en el servidor.');
-    }
-
-    // *** Establecer cabeceras para visualización inline ***
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'inline');
-
-    // Enviar el archivo
-    res.sendFile(localPdfPath, (err) => {
-      if (err) {
-        console.error(`Error al enviar el archivo PDF para visualización (ID ${idBudget}):`, err);
-        if (!res.headersSent) {
-          res.status(500).send('Error al enviar el archivo PDF.');
-        }
-      } else {
-        console.log(`PDF para Budget ID ${idBudget} enviado para visualización.`);
+      if (!budget || !budget.pdfPath) {
+        console.log(`PDF no encontrado en BD para Budget ID: ${idBudget}`);
+        return res.status(404).send('PDF no encontrado para este presupuesto.');
       }
-    });
 
-  } catch (error) {
-    console.error(`Error general en viewBudgetPDF para ID ${req.params.idBudget}:`, error);
-    if (!res.headersSent) {
-      res.status(500).send('Error interno al procesar la solicitud del PDF.');
+      // ✅ CONVERTIR URL PÚBLICA A RUTA LOCAL
+      let localPdfPath;
+
+      if (budget.pdfPath.startsWith('http')) {
+        // Es una URL pública, convertir a ruta local
+        const fileName = budget.pdfPath.split('/').pop(); // Extraer 'budget_X.pdf'
+        localPdfPath = path.join(__dirname, '../uploads/budgets', fileName);
+        console.log(`Convertido URL pública a ruta local para vista: ${budget.pdfPath} -> ${localPdfPath}`);
+      } else {
+        // Es una ruta local directa (para compatibility con PDFs antiguos)
+        localPdfPath = budget.pdfPath;
+      }
+
+      // Verificar si el archivo existe
+      if (!fs.existsSync(localPdfPath)) {
+        console.error(`Error: Archivo PDF no encontrado en la ruta física: ${localPdfPath}`);
+
+        // 🔧 INTENTAR REGENERAR EL PDF SI NO EXISTE
+        console.log(`Intentando regenerar PDF para visualización - Budget ID: ${idBudget}`);
+        try {
+          // Obtener todos los datos del budget para regenerar el PDF
+          const fullBudget = await Budget.findByPk(idBudget, {
+            include: [
+              { model: Permit, attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'applicantName', 'lot', 'block'] },
+              { model: BudgetLineItem, as: 'lineItems' }
+            ]
+          });
+
+          if (!fullBudget) {
+            return res.status(404).send('Presupuesto no encontrado.');
+          }
+
+          // Regenerar el PDF
+          const { generateAndSaveBudgetPDF } = require('../utils/pdfGenerators');
+          const regeneratedPdfPath = await generateAndSaveBudgetPDF(fullBudget.toJSON());
+
+          // Actualizar la ruta en la base de datos
+          const pdfPublicUrl = getPublicPdfUrl(regeneratedPdfPath, req);
+          await fullBudget.update({ pdfPath: pdfPublicUrl });
+
+          console.log(`PDF regenerado exitosamente para visualización: ${regeneratedPdfPath}`);
+          localPdfPath = regeneratedPdfPath;
+
+        } catch (regenerationError) {
+          console.error(`Error al regenerar PDF para visualización:`, regenerationError);
+          return res.status(500).send('Error al regenerar el archivo PDF.');
+        }
+      }
+
+      // *** Establecer cabeceras mejoradas para visualización inline y compatibilidad con Chrome ***
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline; filename="budget_' + idBudget + '.pdf"');
+      res.setHeader('Cache-Control', 'private, max-age=0, no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '-1');
+
+      // Cabeceras CORS para evitar bloqueos
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
+
+      // Leer el archivo y enviarlo como stream
+      const stat = fs.statSync(localPdfPath);
+      res.setHeader('Content-Length', stat.size);
+
+      // Crear stream de lectura y enviarlo
+      const fileStream = fs.createReadStream(localPdfPath);
+
+      fileStream.on('error', (err) => {
+        console.error(`Error en el stream del PDF para visualización (ID ${idBudget}):`, err);
+        if (!res.headersSent) {
+          res.status(500).send('Error al leer el archivo PDF.');
+        }
+      });
+
+      fileStream.pipe(res);
+
+    } catch (error) {
+      console.error(`Error general en viewBudgetPDF para ID ${req.params.idBudget}:`, error);
+      if (!res.headersSent) {
+        res.status(500).send('Error interno al procesar la solicitud del PDF.');
+      }
     }
-  }
-},
+  },
 
 
 
   async previewBudgetPDF(req, res) {
     const { idBudget } = req.params;
-    let tempPdfPath = null; // Para rastrear la ruta del archivo temporal
 
     try {
       // 1. Buscar el presupuesto con TODOS los datos necesarios para el PDF
@@ -1764,39 +1860,35 @@ async downloadBudgetPDF(req, res) {
         return res.status(404).json({ error: true, message: 'Presupuesto no encontrado.' });
       }
 
-      // 2. Generar el PDF al momento. La función lo guarda en disco y obtenemos su ruta.
-      tempPdfPath = await generateAndSaveBudgetPDF(budget.toJSON());
+      // 2. Generar el PDF al momento
+      const { generateAndSaveBudgetPDF } = require('../utils/pdfGenerators');
+      const tempPdfPath = await generateAndSaveBudgetPDF(budget.toJSON());
 
-      // 3. Enviar el archivo al navegador para visualización inline
+      // 3. Establecer cabeceras para mostrar el PDF inline
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename="preview_budget_${idBudget}.pdf"`);
-      
-      const fileStream = fs.createReadStream(tempPdfPath);
-      fileStream.pipe(res);
 
-      // 4. Cuando el envío termine, borrar el archivo temporal.
-      fileStream.on('close', () => {
-        fs.unlink(tempPdfPath, (err) => {
-          if (err) {
-            console.error(`Error al borrar el PDF temporal de previsualización ${tempPdfPath}:`, err);
-          } else {
-            console.log(`PDF temporal de previsualización ${tempPdfPath} borrado.`);
+      // 4. Enviar el archivo
+      res.sendFile(tempPdfPath, (err) => {
+        if (err) {
+          console.error('Error enviando PDF:', err);
+          if (!res.headersSent) {
+            res.status(500).send('Error al enviar el PDF.');
           }
-        });
-      });
-
-      fileStream.on('error', (err) => {
-        console.error('Error en el stream del PDF de previsualización del presupuesto:', err);
-        if (fs.existsSync(tempPdfPath)) {
-          fs.unlinkSync(tempPdfPath);
         }
+
+        // 5. Limpiar el archivo temporal
+        setTimeout(() => {
+          if (fs.existsSync(tempPdfPath)) {
+            fs.unlink(tempPdfPath, (unlinkErr) => {
+              if (unlinkErr) console.error('Error eliminando archivo temporal:', unlinkErr);
+            });
+          }
+        }, 1000);
       });
 
     } catch (error) {
-      console.error('Error al generar la vista previa del PDF del Presupuesto:', error);
-      if (tempPdfPath && fs.existsSync(tempPdfPath)) {
-        fs.unlinkSync(tempPdfPath);
-      }
+      console.error('Error al generar la vista previa del PDF:', error);
       if (!res.headersSent) {
         res.status(500).json({ error: true, message: 'Error interno al generar la vista previa del PDF.' });
       }
@@ -1804,7 +1896,7 @@ async downloadBudgetPDF(req, res) {
   },
 
 }
-  
+
 
 
 module.exports = BudgetController;

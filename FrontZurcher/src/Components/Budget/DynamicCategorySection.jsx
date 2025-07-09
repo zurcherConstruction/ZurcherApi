@@ -14,15 +14,15 @@ const DynamicCategorySection = ({
     marca: '',
     capacity: '',
     description: '',
-    quantity: 1
+    quantity: ''
   });
   const [customItem, setCustomItem] = useState({
     name: '',
     marca: '',
     capacity: '',
     description: '',
-    unitPrice: 0,
-    quantity: 1
+    unitPrice: '',
+    quantity: ''
   });
 
   // Obtener todos los items de esta categoría
@@ -122,79 +122,102 @@ const DynamicCategorySection = ({
   }, [categoryItems, selection.name, selection.marca, selection.capacity, fieldAnalysis.hasDescriptions, fieldAnalysis.hasMarcas, fieldAnalysis.hasCapacities]);
 
 
-  const handleSelectionChange = (e) => {
-    const { name, value } = e.target;
-    setSelection(prev => {
-      const newState = { ...prev, [name]: value };
-      // Reset dependent fields only if those fields exist
-      if (name === 'name') {
-        if (fieldAnalysis.hasMarcas) newState.marca = '';
-        if (fieldAnalysis.hasCapacities) newState.capacity = '';
-        if (fieldAnalysis.hasDescriptions) newState.description = ''; // ✅ RESET DESCRIPTION
-      }
-      if (name === 'marca') {
-        if (fieldAnalysis.hasCapacities) newState.capacity = '';
-        if (fieldAnalysis.hasDescriptions) newState.description = ''; // ✅ RESET DESCRIPTION
-      }
-      if (name === 'capacity' && fieldAnalysis.hasDescriptions) {
-        newState.description = ''; // ✅ RESET DESCRIPTION
-      }
-      return newState;
-    });
-
-    if (value !== 'OTROS') {
-      setCustomItem({ name: '', marca: '', capacity: '', description: '', unitPrice: 0, quantity: 1 });
+ const handleSelectionChange = (e) => {
+  const { name, value } = e.target;
+  
+  if (name === 'quantity') {
+    // Permitir valores vacíos y números válidos para quantity
+    if (value === '' || (!isNaN(value) && parseFloat(value) >= 0)) {
+      setSelection(prev => ({
+        ...prev,
+        [name]: value
+      }));
     }
-  };
+    return;
+  }
+  
+  // Para otros campos, mantener la lógica original
+  setSelection(prev => {
+    const newState = { ...prev, [name]: value };
+    if (name === 'name') {
+      if (fieldAnalysis.hasMarcas) newState.marca = '';
+      if (fieldAnalysis.hasCapacities) newState.capacity = '';
+      if (fieldAnalysis.hasDescriptions) newState.description = '';
+    }
+    if (name === 'marca') {
+      if (fieldAnalysis.hasCapacities) newState.capacity = '';
+      if (fieldAnalysis.hasDescriptions) newState.description = '';
+    }
+    if (name === 'capacity' && fieldAnalysis.hasDescriptions) {
+      newState.description = '';
+    }
+    return newState;
+  });
 
-  const handleCustomChange = (e) => {
-    const { name, value } = e.target;
-    const isNumeric = ['unitPrice', 'quantity'].includes(name);
+  if (value !== 'OTROS') {
+    setCustomItem({ name: '', marca: '', capacity: '', description: '', unitPrice: '', quantity: '' });
+  }
+};
+
+const handleCustomChange = (e) => {
+  const { name, value } = e.target;
+  const isNumeric = ['unitPrice', 'quantity'].includes(name);
+  
+  if (isNumeric) {
+    // Permitir valores vacíos y números válidos
+    if (value === '' || (!isNaN(value) && parseFloat(value) >= 0)) {
+      setCustomItem(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
+  } else {
     setCustomItem(prev => ({
       ...prev,
-      [name]: isNumeric ? parseFloat(value) || 0 : value
+      [name]: value
     }));
-  };
+  }
+};
 
   // MODIFICAR handleAddItem para incluir description (líneas ~120-180):
 
   const handleAddItem = () => {
-    // Determinar si es item personalizado
-    const isCustom = selection.name === 'OTROS' ||
-      (fieldAnalysis.hasMarcas && selection.marca === 'OTROS') ||
-      (fieldAnalysis.hasCapacities && selection.capacity === 'OTROS') ||
-      (fieldAnalysis.hasDescriptions && selection.description === 'OTROS'); // ✅ AGREGAR
+  const isCustom = selection.name === 'OTROS' ||
+    (fieldAnalysis.hasMarcas && selection.marca === 'OTROS') ||
+    (fieldAnalysis.hasCapacities && selection.capacity === 'OTROS') ||
+    (fieldAnalysis.hasDescriptions && selection.description === 'OTROS');
 
-    if (isCustom) {
-      // Validar item personalizado
-      if (!customItem.name || customItem.unitPrice <= 0) {
-        alert("Por favor complete Nombre y Precio del item personalizado.");
-        return;
-      }
+  if (isCustom) {
+    const unitPrice = parseFloat(customItem.unitPrice) || 0;
+    const quantity = parseFloat(customItem.quantity) || 1;
+    
+    if (!customItem.name || unitPrice <= 0) {
+      alert("Por favor complete Nombre y Precio del item personalizado.");
+      return;
+    }
 
-      // Agregar item personalizado
-      onAddItem({
-        _tempId: generateTempId(),
-        budgetItemId: null,
-        name: customItem.name.toUpperCase(),
-        category: category,
-        marca: customItem.marca.toUpperCase(),
-        capacity: customItem.capacity.toUpperCase(),
-        description: customItem.description.toUpperCase(), // ✅ AGREGAR
-        unitPrice: customItem.unitPrice,
-        quantity: customItem.quantity,
-        notes: 'Item Personalizado',
-      });
+    onAddItem({
+      _tempId: generateTempId(),
+      budgetItemId: null,
+      name: customItem.name.toUpperCase(),
+      category: category,
+      marca: customItem.marca.toUpperCase(),
+      capacity: customItem.capacity.toUpperCase(),
+      description: customItem.description.toUpperCase(),
+      unitPrice: unitPrice,
+      quantity: quantity,
+      notes: 'Item Personalizado',
+    });
 
-      // Reset forms
-      setCustomItem({ name: '', marca: '', capacity: '', description: '', unitPrice: 0, quantity: 1 });
-      setSelection({ name: '', marca: '', capacity: '', description: '', quantity: 1 });
-    } else {
-      // Agregar item del catálogo
-      if (!selection.name) {
-        alert("Por favor seleccione un item.");
-        return;
-      }
+    setCustomItem({ name: '', marca: '', capacity: '', description: '', unitPrice: '', quantity: '' });
+    setSelection({ name: '', marca: '', capacity: '', description: '', quantity: '' });
+  } else {
+    if (!selection.name) {
+      alert("Por favor seleccione un item.");
+      return;
+    }
+
+    const quantity = parseFloat(selection.quantity) || 1;
 
       // ✅ BÚSQUEDA INTELIGENTE: Solo considerar campos que existen
       let foundItem = categoryItems.find(i => {
@@ -235,19 +258,19 @@ const DynamicCategorySection = ({
 
       // Usar la función de agregar del componente padre
       // Asegurarse de pasar imageUrl si existe
-      onAddItem({
-        category: category,
-        name: foundItem.name,
-        marca: foundItem.marca || '',
-        capacity: foundItem.capacity || '',
-        description: foundItem.description || '',
-        imageUrl: foundItem.imageUrl || foundItem.imageurl || '',
-        quantity: selection.quantity,
-      });
+     onAddItem({
+      category: category,
+      name: foundItem.name,
+      marca: foundItem.marca || '',
+      capacity: foundItem.capacity || '',
+      description: foundItem.description || '',
+      imageUrl: foundItem.imageUrl || foundItem.imageurl || '',
+      quantity: quantity, // Usar el valor parseado
+    });
 
-      setSelection({ name: '', marca: '', capacity: '', description: '', quantity: 1 });
-    }
-  };
+    setSelection({ name: '', marca: '', capacity: '', description: '', quantity: '' });
+  }
+};
 
   if (categoryItems.length === 0) return null; // No mostrar si no hay items
 

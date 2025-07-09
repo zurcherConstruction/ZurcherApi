@@ -10,29 +10,56 @@ import { DocumentArrowDownIcon, EyeIcon, PencilIcon, CheckIcon, XMarkIcon, Excla
 import { parseISO, format } from "date-fns";
 import api from "../../utils/axios";
 
+
+
 const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
   if (!isOpen || !pdfUrl) return null;
 
+  // Detect if it's a mobile device
+  const isMobile = window.innerWidth < 997;
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl h-[90vh] flex flex-col">
-        <div className="flex justify-between items-center p-4 border-b">
-          <h3 className="text-lg font-semibold text-gray-700">{title || "Vista Previa del PDF"}</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
-            title="Cerrar"
-          >
-            <XMarkIcon className="h-6 w-6" />
-          </button>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[95vh] sm:h-[90vh] flex flex-col">
+        <div className="flex justify-between items-center p-3 sm:p-4 border-b">
+          <h3 className="text-sm sm:text-lg font-semibold text-gray-700 truncate pr-2">{title || "Vista Previa del PDF"}</h3>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {isMobile && (
+              <a
+                href={pdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-800 text-xs sm:text-sm underline"
+                title="Abrir en nueva pestaña"
+              >
+                Nueva pestaña
+              </a>
+            )}
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 p-1"
+              title="Cerrar"
+            >
+              <XMarkIcon className="h-5 w-5 sm:h-6 sm:w-6" />
+            </button>
+          </div>
         </div>
-        <div className="flex-grow p-1">
+        <div className="flex-grow overflow-auto"> {/* Cambiado overflow-hidden a overflow-auto */}
           <iframe
             src={pdfUrl}
             title={title || "PDF Viewer"}
             className="w-full h-full border-none"
+            style={{ 
+              minHeight: '100%',
+              WebkitOverflowScrolling: 'touch' // Improve scrolling on iOS
+            }}
           />
         </div>
+        {isMobile && (
+          <div className="p-2 sm:p-3 bg-gray-50 border-t text-xs sm:text-sm text-gray-600 text-center">
+            <p>Para mejor navegación en móvil, <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">abrir en nueva pestaña</a></p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -40,11 +67,10 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
 
 const BudgetList = () => {
   const dispatch = useDispatch();
-  const { budgets, loading, error } = useSelector((state) => state.budget);
+  const { budgets, loading, error, total, pageSize } = useSelector((state) => state.budget);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-  console.log("Presupuestos:", budgets); // Verifica si los presupuestos se están obteniendo correctamente
-  // --- NUEVO ESTADO PARA EDICIÓN DE NOTAS ---
+  
+ 
   const [editingBudgetId, setEditingBudgetId] = useState(null); // ID del budget en edición
   const [currentNote, setCurrentNote] = useState(''); // Valor actual de la nota en el editor
   const [isSavingNote, setIsSavingNote] = useState(false); // Para feedback visual al guardar
@@ -59,33 +85,18 @@ const BudgetList = () => {
   const [pdfTitleForModal, setPdfTitleForModal] = useState('');
   const [isLoadingPdfInModal, setIsLoadingPdfInModal] = useState(null);
 
-  useEffect(() => {
-    dispatch(fetchBudgets());
-  }, [dispatch]);
+useEffect(() => {
+  dispatch(fetchBudgets(currentPage, pageSize || 10));
+}, [dispatch, currentPage, pageSize]);
 
-  const sortedBudgets = budgets ? budgets
-    .slice() // Crear una copia superficial para no mutar el estado original
-    .sort((a, b) => {
-      try {
-        // Parsear las fechas de creación
-        const dateA = parseISO(a.createdAt);
-        const dateB = parseISO(b.createdAt);
-        // Orden descendente (más reciente primero)
-        return dateB - dateA;
-      } catch (e) {
-        console.error("Error parsing createdAt date for sorting:", a.createdAt, b.createdAt, e);
-        return 0; // Mantener orden original si hay error de parseo
-      }
-    }) : [];
-  // --- 3. APLICAR PAGINACIÓN A LA LISTA COMPLETA Y ORDENADA ---
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  // Usar sortedBudgets (que ahora contiene todos los presupuestos ordenados)
-  const currentBudgetsForDisplay = sortedBudgets.slice(indexOfFirstItem, indexOfLastItem);
+const totalPages = Math.ceil((total || 0) / (pageSize || 10));
 
-  const handlePageChange = (pageNumber) => {
-    setCurrentPage(pageNumber);
-  };
+// Cuando cambias de página:
+const handlePageChange = (pageNumber) => {
+  setCurrentPage(pageNumber);
+};
+
+  
 
   // Función para manejar la descarga del PDF
   const handleDownloadPdf = async (budgetId, filename) => {
@@ -118,49 +129,36 @@ const BudgetList = () => {
     }
   };
 
-  // *** NUEVA FUNCIÓN para manejar la vista previa del PDF ***
+  // *** FUNCIÓN para manejar la vista previa del PDF en modal ***
   const handleViewPdf = async (budgetId) => {
     setViewingPdfId(budgetId); // Indicar que se está cargando la vista previa
-    let objectUrl = null; // Variable para guardar la URL temporal
+    
+    // Limpiar modal anterior si existe
+    if (pdfUrlForModal) {
+      console.log("Revocando URL de modal anterior:", pdfUrlForModal);
+      URL.revokeObjectURL(pdfUrlForModal);
+      setPdfUrlForModal('');
+    }
 
     try {
-      console.log(`Intentando obtener PDF para vista previa: /budget/${budgetId}/pdf`);
-      // Usa la misma ruta que la descarga, ya que Axios enviará el token
-      const response = await api.get(`/budget/${budgetId}/pdf`, {
+      console.log(`Intentando obtener PDF para vista previa: /budget/${budgetId}/preview`);
+      // Usar la ruta de preview específica para vista previa
+      const response = await api.get(`/budget/${budgetId}/preview`, {
         responseType: 'blob', // Obtener como Blob
       });
 
       // Crear una URL temporal para el Blob
-      objectUrl = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
-      console.log("Object URL creada:", objectUrl);
+      const objectUrl = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      console.log("Object URL creada para modal:", objectUrl);
 
-      // Abrir la URL temporal en una nueva pestaña
-      const pdfWindow = window.open(objectUrl, '_blank', 'noopener,noreferrer');
-
-      // Opcional: Revocar la URL después de un tiempo o cuando la ventana se cierre
-      // Esto es más complejo de manejar de forma fiable, pero ayuda a liberar memoria.
-      // Una forma simple es revocarla después de un tiempo razonable.
-      if (pdfWindow) {
-        setTimeout(() => {
-          if (objectUrl) {
-            console.log("Revocando Object URL (timeout):", objectUrl);
-            window.URL.revokeObjectURL(objectUrl);
-          }
-        }, 60000); // Revocar después de 1 minuto
-      } else {
-        // Si window.open fue bloqueado por el navegador
-        alert("No se pudo abrir la ventana de vista previa. Revisa si tu navegador bloqueó las ventanas emergentes.");
-        if (objectUrl) window.URL.revokeObjectURL(objectUrl); // Limpiar si no se abrió
-      }
-
+      // Configurar el modal
+      setPdfUrlForModal(objectUrl);
+      setPdfTitleForModal(`Presupuesto - ${budgetId}`);
+      setIsModalOpen(true);
 
     } catch (error) {
       console.error('Error fetching PDF for viewing:', error);
       alert('Error al obtener el PDF para visualizar. Verifique que exista y tenga permisos.');
-      if (objectUrl) {
-        // Asegurarse de revocar si hubo error después de crear la URL
-        window.URL.revokeObjectURL(objectUrl);
-      }
     } finally {
       setViewingPdfId(null); // Dejar de indicar carga
     }
@@ -245,14 +243,14 @@ const BudgetList = () => {
         alert("Error al actualizar el estado: " + (error.message || "Unknown error"));
       });
   };
-  // --- MODIFICADA: FUNCIÓN PARA MOSTRAR PDF DE PERMISO/OPCIONAL EN MODAL ---
+  // --- FUNCIÓN PARA MOSTRAR PDF DE PERMISO/OPCIONAL EN MODAL ---
   const handleShowPermitPdfInModal = async (budget, pdfType) => {
-    console.log(`handleShowPermitPdfInModal llamado con budget ID: ${budget.idBudget}, pdfType: ${pdfType}`); // DEBUG INICIAL
+    console.log(`handleShowPermitPdfInModal llamado con budget ID: ${budget.idBudget}, pdfType: ${pdfType}`);
     const loadingKey = `${budget.idBudget}-${pdfType}`;
     setIsLoadingPdfInModal(loadingKey);
 
     if (pdfUrlForModal) {
-      console.log("Revocando URL de modal anterior:", pdfUrlForModal); // DEBUG
+      console.log("Revocando URL de modal anterior:", pdfUrlForModal);
       URL.revokeObjectURL(pdfUrlForModal);
       setPdfUrlForModal('');
     }
@@ -260,47 +258,32 @@ const BudgetList = () => {
     let pdfDataBlob;
     let title;
 
-    if (pdfType === 'budgetSelf') { // Para el PDF del presupuesto mismo
-      try {
-        console.log(`Obteniendo PDF del presupuesto (budgetSelf) para ID: ${budget.idBudget}`); // DEBUG
-        const response = await api.get(`/budget/${budget.idBudget}/preview`, {
-          responseType: 'blob',
-        });
-        pdfDataBlob = response.data;
-        title = `Presupuesto - ${budget.idBudget}`;
-        console.log("PDF del presupuesto (budgetSelf) obtenido, blob:", pdfDataBlob); // DEBUG
-      } catch (error) {
-        console.error(`Error al obtener PDF del presupuesto (${budget.idBudget}):`, error);
-        alert(`Error al obtener el PDF del presupuesto: ${error.response?.data?.message || error.message}`);
-        setIsLoadingPdfInModal(null);
-        return;
-      }
-    } else if (budget.Permit) {
-      console.log("Procesando PDF de Permiso. budget.Permit:", budget.Permit); // DEBUG
+    if (budget.Permit) {
+      console.log("Procesando PDF de Permiso. budget.Permit:", budget.Permit);
       if (pdfType === 'pdfData' && budget.Permit.pdfData) {
         pdfDataBlob = budget.Permit.pdfData;
         title = `Permiso Principal - Presupuesto ${budget.idBudget}`;
-        console.log("Usando budget.Permit.pdfData para 'pdfData', blob:", pdfDataBlob); // DEBUG
+        console.log("Usando budget.Permit.pdfData para 'pdfData', blob:", pdfDataBlob);
       } else if (pdfType === 'optionalDocs' && budget.Permit.optionalDocs) {
         pdfDataBlob = budget.Permit.optionalDocs;
         title = `Documentos Opcionales - Presupuesto ${budget.idBudget}`;
-        console.log("Usando budget.Permit.optionalDocs para 'optionalDocs', blob:", pdfDataBlob); // DEBUG
+        console.log("Usando budget.Permit.optionalDocs para 'optionalDocs', blob:", pdfDataBlob);
       } else {
-        console.log(`Tipo de PDF de permiso '${pdfType}' no encontrado o sin datos en budget.Permit`); // DEBUG
+        console.log(`Tipo de PDF de permiso '${pdfType}' no encontrado o sin datos en budget.Permit`);
       }
     } else {
-      console.log("budget.Permit no existe, no se puede procesar PDF de permiso."); // DEBUG
+      console.log("budget.Permit no existe, no se puede procesar PDF de permiso.");
     }
 
     if (pdfDataBlob) {
       try {
-        console.log("Procesando pdfDataBlob:", pdfDataBlob, "para pdfType:", pdfType, "con título:", title); // DEBUG
+        console.log("Procesando pdfDataBlob:", pdfDataBlob, "para pdfType:", pdfType, "con título:", title);
         let finalBlob;
         if (pdfDataBlob instanceof Blob) {
           finalBlob = pdfDataBlob;
-          console.log("pdfDataBlob ya es una instancia de Blob."); // DEBUG
+          console.log("pdfDataBlob ya es una instancia de Blob.");
         } else if (typeof pdfDataBlob === 'string') { // Asumir base64
-          console.log("pdfDataBlob es un string, intentando convertir desde base64."); // DEBUG
+          console.log("pdfDataBlob es un string, intentando convertir desde base64.");
           const byteCharacters = atob(pdfDataBlob);
           const byteNumbers = new Array(byteCharacters.length);
           for (let i = 0; i < byteCharacters.length; i++) {
@@ -308,11 +291,11 @@ const BudgetList = () => {
           }
           const byteArray = new Uint8Array(byteNumbers);
           finalBlob = new Blob([byteArray], { type: 'application/pdf' });
-          console.log("finalBlob creado desde string base64:", finalBlob); // DEBUG
+          console.log("finalBlob creado desde string base64:", finalBlob);
         } else if (pdfDataBlob && pdfDataBlob.type === 'Buffer' && Array.isArray(pdfDataBlob.data)) { // Común desde Node.js
-          console.log("pdfDataBlob es un objeto Buffer, intentando convertir."); // DEBUG
+          console.log("pdfDataBlob es un objeto Buffer, intentando convertir.");
           finalBlob = new Blob([new Uint8Array(pdfDataBlob.data)], { type: 'application/pdf' });
-          console.log("finalBlob creado desde Buffer:", finalBlob); // DEBUG
+          console.log("finalBlob creado desde Buffer:", finalBlob);
         } else {
           console.error("Formato de pdfDataBlob no reconocido o es nulo:", pdfDataBlob);
           alert("No se pudo procesar el archivo PDF. Formato no reconocido.");
@@ -321,23 +304,22 @@ const BudgetList = () => {
         }
 
         if (!title) {
-          console.warn("El título del PDF es undefined. Usando título por defecto."); // DEBUG
-          // title = "Vista Previa del PDF"; // Opcional: poner un default si es crítico
+          console.warn("El título del PDF es undefined. Usando título por defecto.");
         }
 
         const objectUrl = URL.createObjectURL(finalBlob);
-        console.log("objectUrl creado:", objectUrl, "con título:", title); // DEBUG
+        console.log("objectUrl creado:", objectUrl, "con título:", title);
         setPdfUrlForModal(objectUrl);
         setPdfTitleForModal(title);
         setIsModalOpen(true);
-        console.log("Modal debería estar abriéndose."); // DEBUG
+        console.log("Modal debería estar abriéndose.");
       } catch (e) {
         console.error("Error creando Object URL o procesando el blob:", e, pdfDataBlob);
         alert("Error al procesar el archivo PDF.");
         setPdfUrlForModal('');
       }
     } else {
-      console.log(`No se encontraron datos válidos en pdfDataBlob para el PDF (${pdfType}) en el presupuesto ${budget.idBudget}. No se abrirá el modal.`); // DEBUG
+      console.log(`No se encontraron datos válidos en pdfDataBlob para el PDF (${pdfType}) en el presupuesto ${budget.idBudget}. No se abrirá el modal.`);
       alert(`No se encontraron datos para el PDF (${pdfType}) en el presupuesto ${budget.idBudget}.`);
       setPdfUrlForModal('');
     }
@@ -385,8 +367,7 @@ const BudgetList = () => {
     }
   };
 
-  const totalPages = Math.ceil(sortedBudgets.length / itemsPerPage);
-  console.log("IDs en currentBudgetsForDisplay:", currentBudgetsForDisplay.map(b => b.idBudget));
+  
   return (
     <div className="w-full min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
@@ -416,7 +397,7 @@ const BudgetList = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {currentBudgetsForDisplay.map((budget) => {
+                 {budgets && budgets.map((budget)  => {
                     let permitExpirationAlertIcon = null;
                     const permitExpStatus = budget.Permit?.expirationStatus || budget.permitExpirationStatus;
                     const permitExpMessage = budget.Permit?.expirationMessage || budget.permitExpirationMessage;
@@ -613,12 +594,12 @@ const BudgetList = () => {
                             {hasBudgetPdfItself && (
                               <>
                                 <button
-                                  onClick={() => handleShowPermitPdfInModal(budget, 'budgetSelf')}
-                                  disabled={isLoadingPdfInModal === `${budget.idBudget}-budgetSelf`}
+                                  onClick={() => handleViewPdf(budget.idBudget)}
+                                  disabled={viewingPdfId === budget.idBudget}
                                   className="inline-flex items-center justify-center bg-teal-600 text-white px-1 py-0.5 rounded text-[9px] hover:bg-teal-700 disabled:opacity-50 h-6 w-12"
                                   title="View Budget PDF"
                                 >
-                                  {isLoadingPdfInModal === `${budget.idBudget}-budgetSelf` ? (
+                                  {viewingPdfId === budget.idBudget ? (
                                     <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
                                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -695,7 +676,7 @@ const BudgetList = () => {
             {/* Vista de cards optimizada para tablet/móvil */}
             <div className="block lg:hidden space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {currentBudgetsForDisplay.map((budget) => {
+                {budgets && budgets.map((budget)  => {
                   let paymentLabel = `Pay ${budget.initialPaymentPercentage || 60}%`;
                   if (budget.initialPaymentPercentage === 100 || String(budget.initialPaymentPercentage).toLowerCase() === 'total') {
                     paymentLabel = `Pay 100%`;
@@ -883,11 +864,11 @@ const BudgetList = () => {
                               {hasBudgetPdfItself && (
                                 <>
                                   <button 
-                                    onClick={() => handleShowPermitPdfInModal(budget, 'budgetSelf')} 
-                                    disabled={isLoadingPdfInModal === `${budget.idBudget}-budgetSelf`} 
+                                    onClick={() => handleViewPdf(budget.idBudget)} 
+                                    disabled={viewingPdfId === budget.idBudget} 
                                     className="flex items-center justify-center bg-teal-600 text-white px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-teal-700 disabled:opacity-50 transition-colors"
                                   >
-                                    {isLoadingPdfInModal === `${budget.idBudget}-budgetSelf` ? (
+                                    {viewingPdfId === budget.idBudget ? (
                                       <svg className="animate-spin h-4 w-4 mr-1" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
