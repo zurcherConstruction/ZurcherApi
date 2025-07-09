@@ -112,8 +112,8 @@ const CreateBudget = () => {
   const [manualItem, setManualItem] = useState({
     category: "",
     name: "",
-    unitPrice: 0,
-    quantity: 1,
+    unitPrice: "",
+    quantity: "",
     description: "", // Added description field
   });
   const [normalizedBudgetItemsCatalog, setNormalizedBudgetItemsCatalog] = useState([]);
@@ -153,7 +153,7 @@ const CreateBudget = () => {
     initialPayment: 0,
     status: "created", // Estado inicial por defecto
     discountDescription: "",
-    discountAmount: 0,
+    discountAmount: "", // Cambiar de 0 a string vacío
     generalNotes: "",
     lineItems: [],
     subtotalPrice: 0,
@@ -211,7 +211,7 @@ const CreateBudget = () => {
         block: selectedPermit.block || "",
         // Resetear campos específicos del budget al cargar nuevo permit
         lineItems: initialLineItems,
-        discountAmount: 0,
+        discountAmount: "", // Cambiar de 0 a string vacío
         discountDescription: "",
         generalNotes: "",
         initialPayment: 0,
@@ -268,7 +268,8 @@ const CreateBudget = () => {
       return sum + lineTotal;
     }, 0);
 
-    const total = subtotal - (parseFloat(formData.discountAmount) || 0);
+    const discountValue = parseFloat(formData.discountAmount) || 0;
+    const total = subtotal - discountValue;
 
     let payment = 0;
     const percentage = parseFloat(formData.initialPaymentPercentage);
@@ -319,14 +320,25 @@ const CreateBudget = () => {
 
 
   // --- Handlers para Inputs Generales ---
-  const handleGeneralInputChange = (e) => {
-    const { name, value } = e.target;
-    const isNumeric = ['discountAmount'].includes(name);
+const handleGeneralInputChange = (e) => {
+  const { name, value } = e.target;
+  const isNumeric = ['discountAmount'].includes(name);
+  
+  if (isNumeric) {
+    // Permitir valores vacíos y números válidos
+    if (value === '' || (!isNaN(value) && parseFloat(value) >= 0)) {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value // Mantener como string
+      }));
+    }
+  } else {
     setFormData(prev => ({
       ...prev,
-      [name]: isNumeric ? parseFloat(value) || 0 : value,
+      [name]: value,
     }));
-  };
+  }
+};
 
   const handlePaymentPercentageChange = (e) => {
     setFormData(prev => ({ ...prev, initialPaymentPercentage: e.target.value }));
@@ -396,38 +408,53 @@ const CreateBudget = () => {
   };
 
   //handle item manual
-  const handleManualItemChange = (e) => {
-    const { name, value } = e.target;
-    const isNumeric = ['unitPrice', 'quantity'].includes(name);
+const handleManualItemChange = (e) => {
+  const { name, value } = e.target;
+  const isNumeric = ['unitPrice', 'quantity'].includes(name);
+  
+  if (isNumeric) {
+    // Permitir valores vacíos y números válidos
+    if (value === '' || (!isNaN(value) && parseFloat(value) >= 0)) {
+      setManualItem(prev => ({
+        ...prev,
+        [name]: value // Mantener como string
+      }));
+    }
+  } else {
     setManualItem(prev => ({
       ...prev,
-      [name]: isNumeric ? parseFloat(value) || 0 : value,
+      [name]: value,
     }));
-  };
+  }
+};
 
-  const addManualItem = () => {
-    if (!manualItem.category || !manualItem.name || manualItem.unitPrice <= 0 || manualItem.quantity <= 0) {
-      alert("Por favor complete todos los campos del item manual.");
-      return;
-    }
+// Modificar la validación en addManualItem
+const addManualItem = () => {
+  const unitPrice = parseFloat(manualItem.unitPrice) || 0;
+  const quantity = parseFloat(manualItem.quantity) || 1;
+  
+  if (!manualItem.category || !manualItem.name || unitPrice <= 0 || quantity <= 0) {
+    alert("Por favor complete todos los campos del item manual.");
+    return;
+  }
 
-    setFormData(prev => ({
-      ...prev,
-      lineItems: [...prev.lineItems, {
-        _tempId: generateTempId(),
-        budgetItemId: null, // Item personalizado
-        category: manualItem.category.toUpperCase(),
-        name: manualItem.name.toUpperCase(),
-        unitPrice: manualItem.unitPrice,
-        quantity: manualItem.quantity,
-        description: manualItem.description, // Added description
-        notes: "Item Manual", // You might want to adjust notes or use description for this
-      }],
-    }));
+  setFormData(prev => ({
+    ...prev,
+    lineItems: [...prev.lineItems, {
+      _tempId: generateTempId(),
+      budgetItemId: null,
+      category: manualItem.category.toUpperCase(),
+      name: manualItem.name.toUpperCase(),
+      unitPrice: unitPrice, // Usar el valor parseado
+      quantity: quantity, // Usar el valor parseado
+      description: manualItem.description,
+      notes: "Item Manual",
+    }],
+  }));
 
-    // Resetear el formulario del item manual
-    setManualItem({ category: "", name: "", unitPrice: 0, quantity: 1, description: "" }); // Reset description
-  };
+  // Reset con strings vacíos
+  setManualItem({ category: "", name: "", unitPrice: "", quantity: "", description: "" });
+};
 
 
  // --- Obtener todas las categorías disponibles dinámicamente ---
@@ -538,7 +565,7 @@ const customCategoryOrder = [
       expirationDate: formData.expirationDate || null,
       status: formData.status, // Enviar el estado ('created' o el que sea)
       discountDescription: formData.discountDescription,
-      discountAmount: formData.discountAmount,
+      discountAmount: parseFloat(formData.discountAmount) || 0, // Convertir a número
       generalNotes: formData.generalNotes,
       initialPaymentPercentage: formData.initialPaymentPercentage,
       lineItems: formData.lineItems.map(item => ({
@@ -963,7 +990,7 @@ const customCategoryOrder = [
                 </div>
                 <div className="sm:col-span-2">
                   <label htmlFor="discount_amount" className="block text-xs text-gray-700">Monto ($)</label>
-                  <input id="discount_amount" type="number" name="discountAmount" value={formData.discountAmount} onChange={handleGeneralInputChange} min="0" step="0.01" className={standardInputClasses} />
+                  <input id="discount_amount" type="number" name="discountAmount" value={formData.discountAmount} onChange={handleGeneralInputChange} min="0" step="0.01" placeholder="0.00" className={standardInputClasses} />
                 </div>
               </div>
             </fieldset>
@@ -971,8 +998,8 @@ const customCategoryOrder = [
             {/* --- Totales y Pago Inicial --- */}
             <div className="text-right space-y-3 border-t border-gray-200 pt-8 mt-8">
               <p className="text-gray-700">Subtotal: <span className="font-semibold text-gray-900">${formData.subtotalPrice.toFixed(2)}</span></p>
-              {formData.discountAmount > 0 && (
-                <p className="text-red-600">Descuento ({formData.discountDescription || 'General'}): <span className="font-semibold">-${formData.discountAmount.toFixed(2)}</span></p>
+              {(parseFloat(formData.discountAmount) || 0) > 0 && (
+                <p className="text-red-600">Descuento ({formData.discountDescription || 'General'}): <span className="font-semibold">-${(parseFloat(formData.discountAmount) || 0).toFixed(2)}</span></p>
               )}
               <p className="text-xl font-bold text-gray-800">Total: <span className="font-semibold text-gray-900">${formData.totalPrice.toFixed(2)}</span></p>
               <div className="flex flex-col sm:flex-row justify-end items-center space-y-3 sm:space-y-0 sm:space-x-4 mt-4 pt-3"> {/* Made payment section responsive */}
