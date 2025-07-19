@@ -464,11 +464,10 @@ const UploadScreen = () => {
 
       const resultAction = await dispatch(addImagesToWork(idWork, formData));
       
-      // Primero, verifica si la acción misma devolvió una estructura de error explícita
-      if (resultAction && resultAction.error && typeof resultAction.error === 'string') { // o resultAction.message si el error viene del backend
+      // ✅ MEJORA: Manejo más robusto del resultado
+      if (resultAction && resultAction.error) {
         console.error("Error explícito devuelto por addImagesToWork action:", resultAction.error || resultAction.message);
-        // La reversión optimista ya debería estar en el catch de esta función,
-        // pero puedes asegurarte aquí o simplemente dejar que el catch lo maneje.
+        // Ya se mostró el Alert en la acción, solo propagar el error
         return Promise.reject(new Error(resultAction.error || resultAction.message || `No se pudo cargar la imagen ${filename}.`));
       }
       if (resultAction && resultAction.createdImage) {
@@ -497,13 +496,20 @@ const UploadScreen = () => {
             "Extracción de Piedras Registrada",
             "Se ha subido una imagen para 'extracción de piedras'. Se notificará a la oficina para generar una Orden de Cambio."
           );
-          // Despachar acción para actualizar el work en el backend
-          dispatch(updateWork(idWork, { stoneExtractionCONeeded: true }))
-            .then(() => {
-              setNotifiedForStoneCO(true); // Marcar como notificado para esta sesión/estado
-              dispatch(fetchWorkById(idWork)); // Volver a cargar los datos del work para reflejar el cambio
-            })
-            .catch(err => console.error("Error al marcar stoneExtractionCONeeded:", err));
+          
+          // ✅ MEJORA: Manejo más seguro del updateWork
+          try {
+            const resultAction = await dispatch(updateWork(idWork, { stoneExtractionCONeeded: true }));
+            
+            if (!resultAction || !resultAction.error) {
+              setNotifiedForStoneCO(true);
+              dispatch(fetchWorkById(idWork));
+            } else {
+              console.error("Error al marcar stoneExtractionCONeeded:", resultAction.error);
+            }
+          } catch (error) {
+            console.error("Error no controlado al actualizar stoneExtractionCONeeded:", error);
+          }
         }
        
         // Alert.alert('Éxito', `Imagen ${filename} cargada.`); // Quizás no alertar por cada una en un lote
@@ -562,13 +568,16 @@ const UploadScreen = () => {
 
             try {
               const resultAction = await dispatch(deleteImagesFromWork(idWork, imageIdToDelete));
-
-
-              Alert.alert("Éxito", "Imagen eliminada correctamente.");
+              
+              // ✅ MEJORA: Solo mostrar éxito si no hubo error
+              if (!resultAction || !resultAction.error) {
+                Alert.alert("Éxito", "Imagen eliminada correctamente.");
+              }
 
             } catch (error) {
-              console.error("Error al eliminar la imagen:", error);
-              Alert.alert("Error", `No se pudo eliminar la imagen: ${error.message || 'Error desconocido'}`);
+              // ✅ Captura errores JS no controlados
+              console.error("Error no controlado en handleDeleteImage:", error);
+              Alert.alert("Error", "Error inesperado al eliminar la imagen");
               setCurrentWorkData(prev => ({ ...prev, images: originalImages }));
             }
           },
@@ -588,19 +597,25 @@ const UploadScreen = () => {
     if (isInstallationSubmitted || isSubmittingWorkInstalled) return;
     setIsSubmittingWorkInstalled(true);  
     try {
-      await dispatch(updateWork(idWork, { status: 'installed' }));
-      // await dispatch(fetchAssignedWorks());
+      const result = await dispatch(updateWork(idWork, { status: 'installed' }));
       
-      setIsInstallationSubmitted(true);
-      Alert.alert('Éxito', 'El estado del trabajo se actualizó a "installed".');
-      if (navigation.canGoBack()) {
-        navigation.goBack();
+      // ✅ MEJORA: Solo navegar si realmente fue exitoso
+      if (!result || !result.error) {
+        // Éxito o éxito con refresco
+        setIsInstallationSubmitted(true);
+        Alert.alert('Éxito', 'El estado del trabajo se actualizó a "installed".');
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+        }
       }
+      // Si hubo error, ya se mostró en la acción
+      
     } catch (error) {
-      console.error('Error al actualizar el estado del trabajo a installed:', error);
-      Alert.alert('Error', 'No se pudo actualizar el estado del trabajo.');
+      // ✅ Captura errores JS no controlados
+      console.error('Error no controlado en handleWorkInstalled:', error);
+      Alert.alert('Error', 'Error inesperado al cambiar el estado');
     } finally {
-      setIsSubmittingWorkInstalled(false); // Finalizar carga
+      setIsSubmittingWorkInstalled(false);
     }
   };
 
@@ -613,16 +628,22 @@ const UploadScreen = () => {
     }
     setIsMarkingCovered(true);
     try {
-      await dispatch(updateWork(idWork, { status: 'covered' }));
-      // fetchWorkById should be dispatched by the updateWork thunk or a listener,
-      // which will update currentWork.status and hide this block.
-      Alert.alert('Éxito', 'Trabajo marcado como "Cubierto". La oficina será notificada.');
-      if (navigation.canGoBack()) { // Opcional: navegar atrás si se desea
-        navigation.goBack();
+      const result = await dispatch(updateWork(idWork, { status: 'covered' }));
+      
+      // ✅ MEJORA: Solo navegar si realmente fue exitoso
+      if (!result || !result.error) {
+        // Éxito o éxito con refresco
+        Alert.alert('Éxito', 'Trabajo marcado como "Cubierto". La oficina será notificada.');
+        if (navigation.canGoBack()) {
+          navigation.goBack();
+        }
       }
+      // Si hubo error, ya se mostró en la acción
+      
     } catch (error) {
-      console.error('Error al marcar el trabajo como cubierto:', error);
-      Alert.alert('Error', `No se pudo marcar el trabajo como cubierto: ${error.message || 'Error desconocido'}`);
+      // ✅ Captura errores JS no controlados
+      console.error('Error no controlado en handleMarkCovered:', error);
+      Alert.alert('Error', 'Error inesperado al cambiar el estado');
     } finally {
       setIsMarkingCovered(false);
     }

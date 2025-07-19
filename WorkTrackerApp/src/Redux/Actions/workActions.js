@@ -110,13 +110,31 @@ export const createWork = (workData) => async (dispatch) => {
 export const updateWork = (idWork, workData) => async (dispatch) => {
   dispatch(updateWorkRequest());
   try {
-    const response = await api.put(`/work/${idWork}`, workData); // Ruta del backend
-    dispatch(updateWorkSuccess(response.data));
+    const response = await api.put(`/work/${idWork}`, workData);
+    console.log('[workActions] updateWork SUCCESS, response.data:', response.data);
+    
+    // ✅ Verificar éxito por status HTTP
+    if (response.status >= 200 && response.status < 300) {
+      // Si tiene la estructura esperada, perfecto
+      if (response.data && response.data.idWork) {
+        dispatch(updateWorkSuccess(response.data));
+        return response.data;
+      }
+      // Si no tiene la estructura esperada pero fue exitoso, refresca el trabajo
+      else {
+        console.warn('[workActions] Estado actualizado pero estructura inesperada, refrescando trabajo...');
+        await dispatch(fetchWorkById(idWork));
+        return { success: true, message: 'Estado actualizado correctamente' };
+      }
+    } else {
+      throw new Error('Respuesta inesperada del servidor al actualizar la obra.');
+    }
   } catch (error) {
-    const errorMessage =
-      error.response?.data?.message || 'Error al actualizar la obra';
+    const errorMessage = error.response?.data?.message || 'Error al actualizar la obra';
+    console.error('[workActions] updateWork FAILURE:', errorMessage, 'Error details:', error.response?.data);
     dispatch(updateWorkFailure(errorMessage));
-    Alert.alert('Error', errorMessage); // Mostrar error en una alerta
+    Alert.alert('Error', errorMessage);
+    return { error: true, message: errorMessage };
   }
 };
 
@@ -153,32 +171,41 @@ export const addInstallationDetail = (idWork, installationData) => async (dispat
 export const addImagesToWork = (idWork, formData) => async (dispatch) => {
   dispatch(addImagesRequest());
   try {
-    const response = await api.post(`/work/${idWork}/images`, formData, {
-      // ... headers si son necesarios ...
-    });
-    // Loguea para confirmar la estructura de response.data
-    console.log('[workActions] addImagesToWork SUCCESS, response.data:', response.data); 
+    const response = await api.post(`/work/${idWork}/images`, formData);
+    console.log('[workActions] addImagesToWork SUCCESS, response.data:', response.data);
     
-    // Asegúrate de que response.data y response.data.createdImage existan
-    if (response.data && response.data.createdImage) {
-      dispatch(addImagesSuccess(response.data)); 
-      return response.data; // Devuelve { message, work, createdImage }
+    // ✅ Verificar éxito por status HTTP en vez de estructura específica
+    if (response.status >= 200 && response.status < 300) {
+      // Si tiene la estructura esperada, perfecto
+      if (response.data && response.data.createdImage) {
+        dispatch(addImagesSuccess(response.data));
+        return response.data;
+      }
+      // Si no tiene la estructura esperada pero fue exitoso, refresca y marca como éxito
+      else if (response.data && response.data.work) {
+        dispatch(addImagesSuccess(response.data));
+        return response.data;
+      }
+      // Como último recurso, refresca el trabajo para asegurar consistencia
+      else {
+        console.warn('[workActions] Respuesta exitosa pero estructura inesperada, refrescando trabajo...');
+        await dispatch(fetchWorkById(idWork));
+        return { success: true, message: 'Imagen subida correctamente' };
+      }
     } else {
-      // Si la respuesta es 2xx pero no tiene la estructura esperada
-      console.error('[workActions] addImagesToWork SUCCESS pero respuesta inesperada:', response.data);
-      const failureMsg = 'Respuesta inesperada del servidor tras subir imagen.';
+      // Status no exitoso del backend
+      const failureMsg = response.data?.message || 'Error del servidor al subir imagen.';
       dispatch(addImagesFailure(failureMsg));
       Alert.alert('Error', failureMsg);
-      return { error: true, message: failureMsg, details: response.data };
+      return { error: true, message: failureMsg };
     }
   } catch (error) {
     const backendErrorMessage = error.response?.data?.message;
     const displayErrorMessage = backendErrorMessage || 'Error al agregar las imágenes';
-    
-    console.error('[workActions] addImagesToWork FAILURE:', displayErrorMessage, 'Full error response:', error.response?.data); // <--- AQUÍ error.response?.data es undefined
-    dispatch(addImagesFailure(displayErrorMessage)); 
-    Alert.alert('Error', displayErrorMessage); 
-    return { error: true, message: displayErrorMessage, details: error.response?.data }; 
+    console.error('[workActions] addImagesToWork FAILURE:', displayErrorMessage, 'Error details:', error.response?.data);
+    dispatch(addImagesFailure(displayErrorMessage));
+    Alert.alert('Error', displayErrorMessage);
+    return { error: true, message: displayErrorMessage };
   }
 };
 // ...
