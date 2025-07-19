@@ -33,10 +33,10 @@ const FinalInvoiceController = {
         await transaction.rollback();
         return res.status(400).json({ error: true, message: 'La obra no tiene un presupuesto asociado.' });
       }
-      if (work.budget.status !== 'approved') {
-        await transaction.rollback();
-        return res.status(400).json({ error: true, message: 'El presupuesto asociado a la obra no está aprobado.' });
-      }
+      if (!['approved', 'signed'].includes(work.budget.status)) {
+  await transaction.rollback();
+  return res.status(400).json({ error: true, message: 'El presupuesto asociado a la obra debe estar aprobado o firmado.' });
+}
 
       const existingInvoice = await FinalInvoice.findOne({ where: { workId }, transaction });
       if (existingInvoice) {
