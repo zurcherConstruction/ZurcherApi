@@ -20,17 +20,21 @@ const LoginScreen = ({ navigation }) => {
   }, []);
 
   const checkBiometricAvailability = async () => {
-    const availability = await BiometricService.isAvailable();
-    setBiometricAvailable(availability.isSupported);
+    try {
+      const availability = await BiometricService.isAvailable();
+      setBiometricAvailable(availability.isSupported);
 
-    if (availability.isSupported) {
-      const credentials = await BiometricService.getCredentials();
-      setBiometricEnabled(credentials?.enabled || false);
+      if (availability.isSupported) {
+        const credentials = await BiometricService.getCredentials();
+        setBiometricEnabled(credentials?.enabled || false);
 
-      // Si está habilitado, intentar login automático
-      if (credentials?.enabled) {
-        handleBiometricLogin();
+        // Si está habilitado, intentar login automático
+        if (credentials?.enabled) {
+          handleBiometricLogin();
+        }
       }
+    } catch (error) {
+      console.error('Error checking biometric availability:', error);
     }
   };
 
@@ -51,7 +55,7 @@ const LoginScreen = ({ navigation }) => {
 
   const handleLogin = async () => {
     const result = await dispatch(login(email, password));
-
+    
     // Si el login fue exitoso y la biometría está disponible, preguntar si quiere habilitarla
     if (result && !result.error && biometricAvailable && !biometricEnabled) {
       Alert.alert(
@@ -59,8 +63,8 @@ const LoginScreen = ({ navigation }) => {
         '¿Deseas habilitar Face ID/Touch ID para futuros inicios de sesión?',
         [
           { text: 'No', style: 'cancel' },
-          {
-            text: 'Sí',
+          { 
+            text: 'Sí', 
             onPress: async () => {
               await BiometricService.saveCredentials(email, password);
               setBiometricEnabled(true);
@@ -69,9 +73,7 @@ const LoginScreen = ({ navigation }) => {
         ]
       );
     }
-  };
-
-  // Manejar redirección basada en el rol
+  };  // Manejar redirección basada en el rol
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
       console.log(`Login exitoso. Staff ID: ${staff?.id}, Rol: ${staff?.role}`);
