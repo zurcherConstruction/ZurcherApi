@@ -26,6 +26,7 @@
       "buildNumber": "5",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
+        "NSFaceIDUsageDescription": "Use Face ID to authenticate yourself and access your account",
         "UIBackgroundModes": [
           "remote-notification"
         ],
