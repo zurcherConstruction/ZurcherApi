@@ -1,5 +1,6 @@
 import api from '../../utils/axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert } from 'react-native';
 import { loginRequest, loginSuccess, loginFailure, logout, sessionCheckComplete } from '../features/authSlice';
 
 // Acción para iniciar sesión
@@ -16,14 +17,20 @@ export const login = (email, password) => async (dispatch) => {
     await AsyncStorage.setItem('staff', JSON.stringify(staff));
 
     dispatch(loginSuccess({ token, staff }));
-console.log('Login exitoso. Staff ID:', staff.id, 'Rol:', staff.role);
+    
     // Despachar la acción para obtener los trabajos asignados al staff
     dispatch(fetchWorks(staff.id)); // Aquí usamos staff.id como staffId
+    
+    // ✅ RETORNAR ÉXITO
+    return { success: true, staff };
   } catch (error) {
     const errorMessage =
       error.response?.data?.message || error.message || 'Error al iniciar sesión';
     dispatch(loginFailure(errorMessage));
     Alert.alert('Error', errorMessage); // Mostrar error en una alerta
+    
+    // ✅ RETORNAR ERROR
+    return { error: true, message: errorMessage };
   }
 };
 
