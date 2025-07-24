@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "expo start",
+    "start": "expo start --dev-client",
+    "dev": "expo start --dev-client --clear",
     "android": "expo start --android",
-    "ios": "expo start --ios",
+    "ios": "expo start --ios --dev-client",
     "web": "expo start --web"
   },
   "dependencies": {

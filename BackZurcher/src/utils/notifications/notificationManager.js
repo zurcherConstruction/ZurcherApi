@@ -24,7 +24,7 @@ const sendNotifications = async (status, work, budget, io) => {
           console.log(`Enviando correo a: ${staff.email}`);
           await sendEmail({
             to: staff.email,
-            subject: 'Nuevo presupuesto listo para revisión',
+            subject: `${work.propertyAddress}`,
             text: `${message}\n\nRevisa todos los presupuestos aquí: ${work.budgetLink || (work.notificationDetails && work.notificationDetails.budgetLink)}`,
             html: `
               <div style="font-family: Arial, sans-serif; color: #333;">
