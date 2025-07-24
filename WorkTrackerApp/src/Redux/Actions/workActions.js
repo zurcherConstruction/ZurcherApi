@@ -113,21 +113,15 @@ export const updateWork = (idWork, workData) => async (dispatch) => {
     const response = await api.put(`/work/${idWork}`, workData);
     console.log('[workActions] updateWork SUCCESS, response.data:', response.data);
     
-    // ✅ Verificar éxito por status HTTP
+    // ✅ SOLUCIÓN: Solo verificar que el status sea exitoso
     if (response.status >= 200 && response.status < 300) {
-      // Si tiene la estructura esperada, perfecto
-      if (response.data && response.data.idWork) {
-        dispatch(updateWorkSuccess(response.data));
-        return response.data;
-      }
-      // Si no tiene la estructura esperada pero fue exitoso, refresca el trabajo
-      else {
-        console.warn('[workActions] Estado actualizado pero estructura inesperada, refrescando trabajo...');
-        await dispatch(fetchWorkById(idWork));
-        return { success: true, message: 'Estado actualizado correctamente' };
-      }
+      // Despachar éxito con cualquier estructura que venga
+      dispatch(updateWorkSuccess(response.data));
+      
+      // Devolver la respuesta tal como viene del backend
+      return response.data;
     } else {
-      throw new Error('Respuesta inesperada del servidor al actualizar la obra.');
+      throw new Error(`Status no exitoso: ${response.status}`);
     }
   } catch (error) {
     const errorMessage = error.response?.data?.message || 'Error al actualizar la obra';
@@ -174,30 +168,19 @@ export const addImagesToWork = (idWork, formData) => async (dispatch) => {
     const response = await api.post(`/work/${idWork}/images`, formData);
     console.log('[workActions] addImagesToWork SUCCESS, response.data:', response.data);
     
-    // ✅ Verificar éxito por status HTTP en vez de estructura específica
+    // ✅ SOLUCIÓN: Solo verificar que el status sea exitoso
     if (response.status >= 200 && response.status < 300) {
-      // Si tiene la estructura esperada, perfecto
-      if (response.data && response.data.createdImage) {
-        dispatch(addImagesSuccess(response.data));
+      // Despachar éxito con cualquier estructura que venga
+      dispatch(addImagesSuccess(response.data));
+      
+      // Si hay un trabajo actualizado en la respuesta, genial
+      if (response.data && response.data.work) {
         return response.data;
       }
-      // Si no tiene la estructura esperada pero fue exitoso, refresca y marca como éxito
-      else if (response.data && response.data.work) {
-        dispatch(addImagesSuccess(response.data));
-        return response.data;
-      }
-      // Como último recurso, refresca el trabajo para asegurar consistencia
-      else {
-        console.warn('[workActions] Respuesta exitosa pero estructura inesperada, refrescando trabajo...');
-        await dispatch(fetchWorkById(idWork));
-        return { success: true, message: 'Imagen subida correctamente' };
-      }
+      // Si no, devolver éxito simple
+      return { success: true, message: response.data?.message || 'Imagen subida correctamente' };
     } else {
-      // Status no exitoso del backend
-      const failureMsg = response.data?.message || 'Error del servidor al subir imagen.';
-      dispatch(addImagesFailure(failureMsg));
-      Alert.alert('Error', failureMsg);
-      return { error: true, message: failureMsg };
+      throw new Error(`Status no exitoso: ${response.status}`);
     }
   } catch (error) {
     const backendErrorMessage = error.response?.data?.message;
@@ -209,29 +192,29 @@ export const addImagesToWork = (idWork, formData) => async (dispatch) => {
   }
 };
 // ...
-export const deleteImagesFromWork = (idWork, imageId) => async (dispatch) => { // Cambiado imageData por imageId
-  dispatch(deleteImagesRequest()); // Acción para iniciar la solicitud
+export const deleteImagesFromWork = (idWork, imageId) => async (dispatch) => {
+  dispatch(deleteImagesRequest());
   try {
-    // URL corregida, sin cuerpo (data)
     const response = await api.delete(`/work/${idWork}/images/${imageId}`);
+    console.log('[workActions] deleteImagesFromWork SUCCESS, status:', response.status);
 
-    // Verificar si la respuesta es 204 No Content (éxito sin cuerpo)
-    if (response.status === 204) {
-      // Payload opcional, podría ser útil para el reducer si no se refresca
-      dispatch(deleteImagesSuccess({ idWork, imageId })); // Acción para éxito
-      // *** CLAVE: Refrescar la lista de trabajos para actualizar la UI ***
+    // ✅ SOLUCIÓN: Aceptar cualquier status exitoso (200, 204, etc.)
+    if (response.status >= 200 && response.status < 300) {
+      dispatch(deleteImagesSuccess({ idWork, imageId }));
+      
+      // Refrescar trabajos asignados para actualizar la UI
       dispatch(fetchAssignedWorks());
+      
+      return { success: true, message: 'Imagen eliminada correctamente' };
     } else {
-      // Manejar otros códigos de estado si es necesario
-      throw new Error(`Error inesperado al eliminar: ${response.status}`);
+      throw new Error(`Status no exitoso: ${response.status}`);
     }
-    // No necesitas devolver response.data porque es 204 No Content
   } catch (error) {
-    const errorMessage =
-      error.response?.data?.message || error.message || 'Error al eliminar la imagen';
-    dispatch(deleteImagesFailure(errorMessage)); // Acción para error
-    Alert.alert('Error', errorMessage); // Mostrar error en una alerta
-    throw error; // Lanzar el error para manejarlo en el componente
+    const errorMessage = error.response?.data?.message || error.message || 'Error al eliminar la imagen';
+    console.error('[workActions] deleteImagesFromWork FAILURE:', errorMessage);
+    dispatch(deleteImagesFailure(errorMessage));
+    Alert.alert('Error', errorMessage);
+    return { error: true, message: errorMessage };
   }
 };
 

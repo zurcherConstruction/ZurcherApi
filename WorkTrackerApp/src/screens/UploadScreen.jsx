@@ -464,72 +464,36 @@ const UploadScreen = () => {
 
       const resultAction = await dispatch(addImagesToWork(idWork, formData));
       
-      // ✅ MEJORA: Manejo más robusto del resultado
+      // ✅ SOLUCIÓN SIMPLIFICADA: Solo verificar si NO hay error
       if (resultAction && resultAction.error) {
-        console.error("Error explícito devuelto por addImagesToWork action:", resultAction.error || resultAction.message);
-        // Ya se mostró el Alert en la acción, solo propagar el error
+        console.error("Error al subir imagen:", resultAction.error || resultAction.message);
         return Promise.reject(new Error(resultAction.error || resultAction.message || `No se pudo cargar la imagen ${filename}.`));
       }
-      if (resultAction && resultAction.createdImage) {
-        const uploadedImageFromServer = resultAction.createdImage;
-        
-        console.log(`Imagen ${filename} procesada. Imagen del servidor:`, uploadedImageFromServer);
-        // Reemplazar la imagen temporal con la real del servidor
-        setImagesByStage(prev => {
-            const stageImages = (prev[stageToUse] || []).map(img => 
-                img.id === tempImageId ? { ...uploadedImageFromServer, imageUrl: uploadedImageFromServer.imageUrl || resizedImage.uri } : img
-            );
-            return { ...prev, [stageToUse]: stageImages };
-        });
-        setImagesWithDataURLs(prev => {
-            const newUrls = { ...prev };
-            delete newUrls[tempImageId];
-            if (uploadedImageFromServer.id) {
-              newUrls[uploadedImageFromServer.id] = uploadedImageFromServer.imageUrl || resizedImage.uri;
-            }
-            return newUrls;
-        });
 
-        // --- LÓGICA PARA CHANGE ORDER POR EXTRACCIÓN DE PIEDRAS ---
-        if (stageToUse === 'extracción de piedras' && (!currentWork || currentWork.stoneExtractionCONeeded === false) && !notifiedForStoneCO) {
-          Alert.alert(
-            "Extracción de Piedras Registrada",
-            "Se ha subido una imagen para 'extracción de piedras'. Se notificará a la oficina para generar una Orden de Cambio."
-          );
-          
-          // ✅ MEJORA: Manejo más seguro del updateWork
-          try {
-            const resultAction = await dispatch(updateWork(idWork, { stoneExtractionCONeeded: true }));
-            
-            if (!resultAction || !resultAction.error) {
-              setNotifiedForStoneCO(true);
-              dispatch(fetchWorkById(idWork));
-            } else {
-              console.error("Error al marcar stoneExtractionCONeeded:", resultAction.error);
-            }
-          } catch (error) {
-            console.error("Error no controlado al actualizar stoneExtractionCONeeded:", error);
+      // ✅ Si no hay error, consideramos que fue exitoso
+      console.log(`✅ Imagen ${filename} subida exitosamente`);
+      
+      // Refrescar el trabajo para obtener datos actualizados
+      dispatch(fetchWorkById(idWork));
+
+      // --- LÓGICA PARA CHANGE ORDER POR EXTRACCIÓN DE PIEDRAS ---
+      if (stageToUse === 'extracción de piedras' && (!currentWork || currentWork.stoneExtractionCONeeded === false) && !notifiedForStoneCO) {
+        Alert.alert(
+          "Extracción de Piedras Registrada",
+          "Se ha subido una imagen para 'extracción de piedras'. Se notificará a la oficina para generar una Orden de Cambio."
+        );
+        
+        try {
+          const updateResult = await dispatch(updateWork(idWork, { stoneExtractionCONeeded: true }));
+          if (!updateResult || !updateResult.error) {
+            setNotifiedForStoneCO(true);
+            dispatch(fetchWorkById(idWork));
           }
+        } catch (error) {
+          console.error("Error al actualizar stoneExtractionCONeeded:", error);
         }
-       
-        // Alert.alert('Éxito', `Imagen ${filename} cargada.`); // Quizás no alertar por cada una en un lote
-      } else {
-        // Si llegamos aquí, la respuesta no tuvo 'error' explícito ni 'createdImage'.
-        // Esto podría significar que la respuesta del backend fue exitosa (2xx) pero no tuvo la estructura esperada,
-        // o que 'addImagesToWork' no devolvió 'createdImage' como se esperaba.
-        console.error("Respuesta de addImagesToWork no contiene 'createdImage' ni una estructura de error esperada:", resultAction);
-        console.warn("No se pudo encontrar la imagen subida en la respuesta del servidor para actualizar ID temporal:", filename);
-        
-        // Como fallback, si resultAction.work.images existe, podrías intentar la lógica de find (aunque es frágil)
-        // o simplemente recargar. Por ahora, recargamos.
-        if (resultAction && resultAction.work && resultAction.work.images) {
-            console.log("Respuesta del servidor (resultAction.work.images) en fallback:", resultAction.work.images);
-        }
-        dispatch(fetchWorkById(idWork)); // Recargar para asegurar consistencia como último recurso
-        
-        // Considera esto como un error parcial si la actualización optimista es crítica
-        // return Promise.reject(new Error(`Respuesta inesperada del servidor para ${filename}. No se pudo actualizar ID.`));
       }
+
       return Promise.resolve(); // Indicar éxito para esta imagen
     } catch (error) {
       console.error(`Error al procesar/cargar ${imageUri}:`, error);
@@ -569,10 +533,11 @@ const UploadScreen = () => {
             try {
               const resultAction = await dispatch(deleteImagesFromWork(idWork, imageIdToDelete));
               
-              // ✅ MEJORA: Solo mostrar éxito si no hubo error
+              // ✅ SOLUCIÓN: Solo mostrar éxito si NO hay error
               if (!resultAction || !resultAction.error) {
                 Alert.alert("Éxito", "Imagen eliminada correctamente.");
               }
+              // Si hay error, ya se mostró en la acción
 
             } catch (error) {
               // ✅ Captura errores JS no controlados
