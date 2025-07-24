@@ -1,15 +1,75 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, Image, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView , ActivityIndicator} from 'react-native';
+import { View, Text, TextInput, Pressable, Image, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { login } from '../Redux/Actions/authActions';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { BiometricService } from '../utils/biometricAuth';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+
   const dispatch = useDispatch();
   const { loading, error, isAuthenticated, staff, isLoading } = useSelector((state) => state.auth);
+
+  useEffect(() => {
+    checkBiometricAvailability();
+  }, []);
+
+  const checkBiometricAvailability = async () => {
+    const availability = await BiometricService.isAvailable();
+    setBiometricAvailable(availability.isSupported);
+
+    if (availability.isSupported) {
+      const credentials = await BiometricService.getCredentials();
+      setBiometricEnabled(credentials?.enabled || false);
+
+      // Si está habilitado, intentar login automático
+      if (credentials?.enabled) {
+        handleBiometricLogin();
+      }
+    }
+  };
+
+  const handleBiometricLogin = async () => {
+    try {
+      const authResult = await BiometricService.authenticate();
+
+      if (authResult.success) {
+        const credentials = await BiometricService.getCredentials();
+        if (credentials && credentials.email && credentials.password) {
+          await dispatch(login(credentials.email, credentials.password));
+        }
+      }
+    } catch (error) {
+      console.error('Error en login biométrico:', error);
+    }
+  };
+
+  const handleLogin = async () => {
+    const result = await dispatch(login(email, password));
+
+    // Si el login fue exitoso y la biometría está disponible, preguntar si quiere habilitarla
+    if (result && !result.error && biometricAvailable && !biometricEnabled) {
+      Alert.alert(
+        'Autenticación Biométrica',
+        '¿Deseas habilitar Face ID/Touch ID para futuros inicios de sesión?',
+        [
+          { text: 'No', style: 'cancel' },
+          {
+            text: 'Sí',
+            onPress: async () => {
+              await BiometricService.saveCredentials(email, password);
+              setBiometricEnabled(true);
+            }
+          }
+        ]
+      );
+    }
+  };
 
   // Manejar redirección basada en el rol
   useEffect(() => {
@@ -34,11 +94,6 @@ const LoginScreen = ({ navigation }) => {
       </View>
     );
   }
-
-
-  const handleLogin = async () => {
-    await dispatch(login(email, password));
-  };
 
   return (
     <KeyboardAvoidingView
@@ -96,6 +151,16 @@ const LoginScreen = ({ navigation }) => {
               {loading ? 'Cargando...' : 'Iniciar Sesión'}
             </Text>
           </Pressable>
+          {biometricAvailable && biometricEnabled && (
+            <TouchableOpacity
+              onPress={handleBiometricLogin}
+              style={styles.biometricButton}
+            >
+              <Ionicons name="finger-print" size={24} color="#1e3a8a" />
+              <Text style={styles.biometricText}>Usar Face ID / Touch ID</Text>
+            </TouchableOpacity>
+          )}
+
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -120,7 +185,7 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: '#f9f9f9',
   },
-    loadingContainer: {
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
@@ -197,6 +262,23 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  biometricButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 15,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#1e3a8a',
+    borderRadius: 8,
+    backgroundColor: '#f8f9ff'
+  },
+  biometricText: {
+    color: '#1e3a8a',
+    fontSize: 16,
+    marginLeft: 8,
+    fontWeight: '500'
   },
 });
 
