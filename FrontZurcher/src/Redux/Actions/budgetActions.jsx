@@ -47,11 +47,26 @@ export const downloadSignedBudget = (idBudget) => async () => {
 import { createAsyncThunk } from '@reduxjs/toolkit';
 
 // Obtener todos los presupuestos
-export const fetchBudgets = (page = 1, pageSize = 10) => async (dispatch) => {
+export const fetchBudgets = ({
+  page = 1,
+  pageSize = 10,
+  search = '',
+  status = '',
+  month = '',
+  year = ''
+} = {}) => async (dispatch) => {
   dispatch(fetchBudgetsRequest());
   try {
-    const response = await api.get(`/budget/all?page=${page}&pageSize=${pageSize}`);
-    dispatch(fetchBudgetsSuccess(response.data)); // Ahora response.data es { budgets, total, page, pageSize }
+    const params = new URLSearchParams();
+    params.append('page', page);
+    params.append('pageSize', pageSize);
+    if (search) params.append('search', search);
+    if (status && status !== 'all') params.append('status', status);
+    if (month && month !== 'all') params.append('month', month);
+    if (year && year !== 'all') params.append('year', year);
+
+    const response = await api.get(`/budget/all?${params.toString()}`);
+    dispatch(fetchBudgetsSuccess(response.data)); // { budgets, total, page, pageSize }
   } catch (error) {
     const errorMessage =
       error.response?.data?.message || 'Error al obtener los presupuestos';

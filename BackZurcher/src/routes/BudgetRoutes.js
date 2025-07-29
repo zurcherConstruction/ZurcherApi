@@ -43,6 +43,20 @@ router.get(
 );
 
 router.get('/:idBudget/preview',verifyToken, isStaff, BudgetController.previewBudgetPDF);
+
+// === NUEVAS RUTAS PARA PDF DE PERMISO Y OPCIONALES ===
+router.get(
+  '/:idBudget/permit-pdf',
+  verifyToken,
+  isStaff,
+  BudgetController.permitPdf
+);
+router.get(
+  '/:idBudget/optional-docs',
+  verifyToken,
+  isStaff,
+  BudgetController.optionalDocs
+);
   // ========== RUTAS DE SIGNNOW ==========
 
 // Enviar presupuesto a SignNow para firma
