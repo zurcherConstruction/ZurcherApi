@@ -1,4 +1,5 @@
 const { Budget, Permit, Work, Income, BudgetItem, BudgetLineItem, Receipt, conn } = require('../data');
+const { Op, literal } = require('sequelize'); 
 const { cloudinary } = require('../utils/cloudinaryConfig.js');
 const { sendNotifications } = require('../utils/notifications/notificationManager.js');
 const fs = require('fs');
@@ -676,11 +677,53 @@ async getBudgets(req, res) {
     const pageSize = parseInt(req.query.pageSize) || 10;
     const offset = (page - 1) * pageSize;
 
+    const { search, status, month, year } = req.query;
+
+    const whereClause = {};
+    const includeWhereClause = {};
+
+     if (search && search.trim()) {
+      whereClause[Op.or] = [
+        { applicantName: { [Op.iLike]: `%${search.trim()}%` } },
+        { propertyAddress: { [Op.iLike]: `%${search.trim()}%` } }
+      ];
+    }
+
+    // Filtro por status
+    if (status && status !== 'all') {
+      whereClause.status = status;
+    }
+
+    // Filtro por mes
+    if (month && month !== 'all') {
+      const monthNum = parseInt(month);
+      if (monthNum >= 1 && monthNum <= 12) {
+        whereClause[Op.and] = whereClause[Op.and] || [];
+        whereClause[Op.and].push(
+          literal(`EXTRACT(MONTH FROM "Budget"."date") = ${monthNum}`)
+        );
+      }
+    }
+
+    // Filtro por año
+    if (year && year !== 'all') {
+      const yearNum = parseInt(year);
+      if (yearNum > 2020 && yearNum <= new Date().getFullYear() + 1) {
+        whereClause[Op.and] = whereClause[Op.and] || [];
+        whereClause[Op.and].push(
+          literal(`EXTRACT(YEAR FROM "Budget"."date") = ${yearNum}`)
+        );
+      }
+    }
+
+    console.log('🔍 Filtros aplicados:', { search, status, month, year });
+    console.log('🔍 Where clause:', whereClause);
+
     const { rows: budgetsInstances, count: totalBudgets } = await Budget.findAndCountAll({
       include: [
         {
           model: Permit,
-          attributes: ['idPermit', 'propertyAddress', 'systemType', 'expirationDate', 'applicantEmail', 'pdfData', 'optionalDocs', 'applicantPhone', 'applicantName', 'permitNumber', 'lot', 'block']
+          attributes: ['idPermit', 'propertyAddress', 'systemType', 'expirationDate', 'applicantEmail',  'applicantPhone', 'applicantName', 'permitNumber', 'lot', 'block', 'pdfData', 'optionalDocs'],
         }
       ],
       order: [['date', 'DESC']],
@@ -742,6 +785,14 @@ async getBudgets(req, res) {
           budgetJson.Permit.expirationMessage = "";
         }
 
+        if (budgetJson.Permit) {
+    budgetJson.Permit.hasPermitPdfData = !!budgetJson.Permit.pdfData;
+    budgetJson.Permit.hasOptionalDocs = !!budgetJson.Permit.optionalDocs;
+    // Opcional: eliminar los campos pesados si por error llegan
+    delete budgetJson.Permit.pdfData;
+    delete budgetJson.Permit.optionalDocs;
+  }
+
         // Transformar pdfPath a budgetPdfUrl
         if (budgetJson.pdfPath) {
         budgetJson.budgetPdfUrl = `${req.protocol}://${req.get('host')}/budgets/${budgetJson.idBudget}/pdf`;
@@ -761,6 +812,81 @@ async getBudgets(req, res) {
   } catch (error) {
     console.error("Error fetching budgets:", error);
     res.status(500).json({ error: 'Error al obtener los presupuestos.' });
+  }
+},
+
+async permitPdf(req, res) {
+  try {
+    const { idBudget } = req.params;
+    const budget = await Budget.findByPk(idBudget, {
+      include: [{ model: Permit, attributes: ['pdfData', 'idPermit'] }]
+    });
+
+    if (!budget || !budget.Permit) {
+      return res.status(404).json({ error: 'Presupuesto o permiso no encontrado.' });
+    }
+
+    const pdfData = budget.Permit.pdfData;
+    if (!pdfData) {
+      return res.status(404).json({ error: 'No hay PDF de permiso asociado a este presupuesto.' });
+    }
+
+    // Determinar el tipo de dato y devolver como PDF
+    let buffer;
+    if (Buffer.isBuffer(pdfData)) {
+      buffer = pdfData;
+    } else if (pdfData.type === 'Buffer' && Array.isArray(pdfData.data)) {
+      buffer = Buffer.from(pdfData.data);
+    } else if (typeof pdfData === 'string') {
+      buffer = Buffer.from(pdfData, 'base64');
+    } else {
+      return res.status(500).json({ error: 'Formato de PDF no soportado.' });
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="permit_${budget.Permit.idPermit}.pdf"`);
+    res.send(buffer);
+  } catch (error) {
+    console.error('Error al servir el PDF de permiso:', error);
+    res.status(500).json({ error: 'Error interno al servir el PDF de permiso.' });
+  }
+},
+
+// Descargar los documentos opcionales del permiso asociado a un presupuesto
+async optionalDocs(req, res) {
+  try {
+    const { idBudget } = req.params;
+    const budget = await Budget.findByPk(idBudget, {
+      include: [{ model: Permit, attributes: ['optionalDocs', 'idPermit'] }]
+    });
+
+    if (!budget || !budget.Permit) {
+      return res.status(404).json({ error: 'Presupuesto o permiso no encontrado.' });
+    }
+
+    const optionalDocs = budget.Permit.optionalDocs;
+    if (!optionalDocs) {
+      return res.status(404).json({ error: 'No hay documentos opcionales asociados a este presupuesto.' });
+    }
+
+    // Determinar el tipo de dato y devolver como PDF
+    let buffer;
+    if (Buffer.isBuffer(optionalDocs)) {
+      buffer = optionalDocs;
+    } else if (optionalDocs.type === 'Buffer' && Array.isArray(optionalDocs.data)) {
+      buffer = Buffer.from(optionalDocs.data);
+    } else if (typeof optionalDocs === 'string') {
+      buffer = Buffer.from(optionalDocs, 'base64');
+    } else {
+      return res.status(500).json({ error: 'Formato de PDF no soportado.' });
+    }
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="optional_docs_${budget.Permit.idPermit}.pdf"`);
+    res.send(buffer);
+  } catch (error) {
+    console.error('Error al servir los documentos opcionales:', error);
+    res.status(500).json({ error: 'Error interno al servir los documentos opcionales.' });
   }
 },
 
