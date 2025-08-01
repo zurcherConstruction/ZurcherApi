@@ -69,20 +69,19 @@ const Summary = () => {
   const fetchMovements = async () => {
     setLoading(true);
     try {
-      console.log('🔄 Obteniendo movimientos con filtros:', filters);
+      
       const data = await balanceActions.getGeneralBalance(filters);
       const incomes = data.list?.incomes || [];
       const expenses = data.list?.expenses || [];
       
-      console.log('📥 Ingresos obtenidos:', incomes.length);
-      console.log('📥 Gastos obtenidos:', expenses.length);
+      
       
       const allMovements = [
         ...incomes.map((m) => ({ ...m, movimiento: "Ingreso" })),
         ...expenses.map((m) => ({ ...m, movimiento: "Gasto" })),
       ];
       
-      console.log('✅ Total movimientos procesados:', allMovements.length);
+      
       
       // Actualizar estado con un pequeño delay para asegurar re-render
       setMovements(allMovements);
@@ -100,7 +99,7 @@ const Summary = () => {
         }
       });
       setStaffList(uniqueStaff);
-      console.log('👥 Staff únicos extraídos:', uniqueStaff.length);
+      
     } catch (error) {
       console.error('❌ Error al obtener movimientos:', error);
       setMovements([]);
@@ -117,7 +116,7 @@ const Summary = () => {
   // Recargar datos cuando cambie el refreshKey
   useEffect(() => {
     if (refreshKey > 0) {
-      console.log('🔄 Refrescando datos debido a cambios (refreshKey:', refreshKey, ')');
+     
       fetchMovements();
     }
     // eslint-disable-next-line
@@ -147,19 +146,19 @@ const Summary = () => {
               
               // Si el comprobante viene del Budget (pago inicial)
               if (receiptToDelete.source === 'budget') {
-                console.log(`SUMMARY: Pago inicial con comprobante de Budget. Solo eliminando el Income ID: ${mov.idIncome}`);
+                
                 await incomeActions.delete(mov.idIncome);
                 toast.success("Movimiento de ingreso eliminado. El comprobante del budget se mantiene.");
               } 
               // Si el comprobante viene de FinalInvoice (pago final)
               else if (receiptToDelete.source === 'finalInvoice') {
-                console.log(`SUMMARY: Pago final con comprobante de FinalInvoice. Solo eliminando el Income ID: ${mov.idIncome}`);
+                
                 await incomeActions.delete(mov.idIncome);
                 toast.success("Movimiento de ingreso eliminado. El comprobante de la factura final se mantiene.");
               }
               // Si es un Receipt real (no vinculado a Budget o FinalInvoice)
               else if (receiptToDelete.idReceipt && !receiptToDelete.idReceipt.toString().startsWith('budget-')) {
-                console.log(`SUMMARY: Eliminando Receipt ID: ${receiptToDelete.idReceipt}`);
+                
                 await deleteReceipt(receiptToDelete.idReceipt);
                 toast.success("Comprobante y movimiento asociado eliminados correctamente.");
               } else {
@@ -197,7 +196,7 @@ const Summary = () => {
         }
         fetchMovements();
       } catch (error) {
-        console.error("Error al eliminar en Summary:", error);
+       
         const displayError = error.response?.data?.message || error.message || "Error desconocido al eliminar.";
         toast.error(displayError);
       }
@@ -304,7 +303,7 @@ const Summary = () => {
 
       if (receiptAction === 'delete' && isEditableReceipt) {
         // Eliminar comprobante existente
-        console.log('Eliminando comprobante:', currentReceipt.idReceipt);
+        
         await dispatch(deleteReceipt(currentReceipt.idReceipt));
         receiptMessage = "Comprobante eliminado.";
         
@@ -318,7 +317,7 @@ const Summary = () => {
 
         // Primero eliminar el comprobante existente si es editable
         if (isEditableReceipt) {
-          console.log('Eliminando comprobante existente antes de subir nuevo:', currentReceipt.idReceipt);
+         
           await dispatch(deleteReceipt(currentReceipt.idReceipt));
         }
         
@@ -330,19 +329,14 @@ const Summary = () => {
         formData.append('type', mov.typeIncome || mov.typeExpense || 'Documento');
         formData.append('notes', `Comprobante ${hasCurrentReceipt ? 'actualizado' : 'agregado'} para ${mov.movimiento.toLowerCase()}`);
         
-        console.log('📤 Subiendo nuevo comprobante:', {
-          movimiento: mov.movimiento,
-          id: mov.idIncome || mov.idExpense,
-          tipo: mov.typeIncome || mov.typeExpense || 'Documento',
-          archivo: newReceipt.name
-        });
+       
         
         const uploadResult = await dispatch(createReceipt(formData));
-        console.log('✅ Comprobante subido exitosamente:', uploadResult);
+        
         
         // Verificar que la respuesta contiene la información del receipt
         if (uploadResult && uploadResult.receipt) {
-          console.log('📄 Detalles del nuevo comprobante:', uploadResult.receipt);
+          
         }
         
         receiptMessage = `Comprobante ${hasCurrentReceipt ? 'actualizado' : 'agregado'} correctamente.`;
@@ -353,7 +347,7 @@ const Summary = () => {
       setReceiptAction('keep');
       
       // Recargar movimientos para reflejar cambios
-      console.log('🔄 Recargando movimientos después de la edición...');
+     
       
       // Forzar actualización inmediata del estado
       setRefreshKey(prev => prev + 1);

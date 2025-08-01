@@ -125,17 +125,17 @@ export const balanceActions = {
 
   getGeneralBalance: async (filters = {}) => {
   try {
-    console.log('Enviando solicitud con filtros:', filters);
+    
     
     // AGREGAR: Validar y limpiar filtros vacíos
     const cleanFilters = Object.entries(filters)
       .filter(([key, value]) => value !== '' && value !== null && value !== undefined)
       .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
     
-    console.log('Filtros limpiados:', cleanFilters);
+   
     
     const response = await api.get('/balance/generalBalance', { params: cleanFilters });
-    console.log('Respuesta recibida:', response.data);
+   
     return response.data;
   } catch (error) {
     return handleError(error, 'Error al obtener el balance general');
@@ -168,7 +168,7 @@ export const balanceActions = {
         }
       }
       
-      console.log('Obteniendo estadísticas financieras para:', { period, filters });
+      
       return await this.getGeneralBalance(filters);
     } catch (error) {
       return handleError(error, 'Error al obtener estadísticas financieras');

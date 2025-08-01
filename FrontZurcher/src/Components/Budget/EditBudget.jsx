@@ -14,7 +14,7 @@ import api from "../../utils/axios";
 const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
 const EditBudget = () => {
-  console.log('--- EditBudget Component Rendered ---');
+  
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -36,7 +36,7 @@ const EditBudget = () => {
     error: catalogError
   } = useSelector(state => state.budgetItems);
 
-  console.log('Value of currentBudget from useSelector:', currentBudget);
+ 
 
   // --- Estados Locales ---
   const [searchTerm, setSearchTerm] = useState("");
@@ -132,11 +132,10 @@ const editableBudgets = useMemo(() => {
 
   // --- Poblar Estado Local (formData) cuando currentBudget cambia ---
   useEffect(() => {
-    console.log('Form population effect triggered. selectedBudgetId:', selectedBudgetId, 'currentBudget:', currentBudget);
+   
 
     if (currentBudget && currentBudget.idBudget === selectedBudgetId && (!formData || formData.idBudget !== selectedBudgetId)) {
-      console.log(`✅ Condition met: Populating formData for budget ID: ${currentBudget.idBudget}`);
-      console.log('Current budget data:', JSON.stringify(currentBudget, null, 2));
+      
 
       try {
         const permitData = currentBudget.Permit || {};
@@ -178,9 +177,9 @@ const editableBudgets = useMemo(() => {
           totalPrice: 0,
           initialPayment: 0,
         };
-        console.log('Calling setFormData with:', newFormData);
+       
         setFormData(newFormData);
-        console.log('✅ setFormData called successfully.');
+       
 
       } catch (error) {
         console.error('❌ Error during setFormData:', error, 'currentBudget was:', currentBudget);
@@ -199,7 +198,7 @@ const editableBudgets = useMemo(() => {
   useEffect(() => {
     if (!formData) return;
 
-    console.log('Recalculating totals effect triggered.');
+   
 
     const subtotal = formData.lineItems.reduce((sum, item) => {
       const quantity = parseFloat(item.quantity) || 0;
@@ -219,7 +218,7 @@ const editableBudgets = useMemo(() => {
     }
 
     if (subtotal !== formData.subtotalPrice || total !== formData.totalPrice || payment !== formData.initialPayment) {
-      console.log(`Updating totals: Subtotal=${subtotal}, Total=${total}, Payment=${payment}`);
+      
       setFormData(prev => {
         if (!prev) return null;
         return {
@@ -385,14 +384,14 @@ const editableBudgets = useMemo(() => {
   };
 
   const handleSelectBudget = (id) => {
-    console.log(`>>> handleSelectBudget called with ID: ${id}`);
+   
     setSelectedBudgetId(id);
     setSearchTerm("");
     setSearchResults([]);
   };
 
   const handleSearchAgain = () => {
-    console.log(">>> handleSearchAgain called");
+    
     setSelectedBudgetId(null);
     setFormData(null);
     setSearchTerm("");
@@ -406,8 +405,7 @@ const editableBudgets = useMemo(() => {
       return;
     }
     setIsSubmitting(true);
-    console.log("--- Iniciando handleSubmit (Backend PDF Gen) ---");
-    console.log("Datos del formulario (formData) al inicio:", formData);
+   
 
     // --- 1. Preparar datos para la actualización (Incluyendo status: 'send' si aplica) ---
     const dataToSend = {
@@ -439,7 +437,7 @@ const editableBudgets = useMemo(() => {
     let payload;
     // Verificar si se están actualizando los archivos del PERMIT
     if (formData.pdfDataFile || formData.optionalDocsFile) {
-      console.log("Detectados archivos del Permit. Usando FormData.");
+      
       payload = new FormData();
       Object.keys(dataToSend).forEach(key => {
         if (dataToSend[key] !== undefined) {
@@ -450,18 +448,17 @@ const editableBudgets = useMemo(() => {
       if (formData.pdfDataFile) payload.append('permitPdfFile', formData.pdfDataFile, formData.pdfDataFile.name);
       if (formData.optionalDocsFile) payload.append('permitOptionalDocsFile', formData.optionalDocsFile, formData.optionalDocsFile.name);
     } else {
-      console.log("No hay archivos del Permit. Usando JSON.");
+     
       payload = { ...dataToSend, lineItems: lineItemsPayload };
     }
 
-    console.log("Payload para la actualización:", payload);
+   
 
     try {
-      // --- 2. Ejecutar la Actualización (UNA SOLA LLAMADA) ---
-      console.log(`Dispatching updateBudget for ID: ${selectedBudgetId}`);
+     
       const resultAction = await dispatch(updateBudget(selectedBudgetId, payload));
       const updatedBudget = unwrapResult(resultAction);
-      console.log("✅ Actualización completada por el backend:", updatedBudget);
+ 
 
       alert("Presupuesto actualizado exitosamente!");
       handleSearchAgain();
@@ -479,7 +476,7 @@ const editableBudgets = useMemo(() => {
       alert(`Error al actualizar el presupuesto: ${errorMsg}`);
     } finally {
       setIsSubmitting(false);
-      console.log("--- Finalizando handleSubmit ---");
+     
     }
   };
 

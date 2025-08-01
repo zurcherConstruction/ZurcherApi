@@ -162,9 +162,7 @@ const BudgetList = () => {
     }
 
     try {
-      console.log(
-        `Intentando obtener PDF para vista previa: /budget/${budgetId}/preview`
-      );
+      
       // Usar la ruta de preview específica para vista previa
       const response = await api.get(`/budget/${budgetId}/preview`, {
         responseType: "blob", // Obtener como Blob
@@ -174,7 +172,7 @@ const BudgetList = () => {
       const objectUrl = window.URL.createObjectURL(
         new Blob([response.data], { type: "application/pdf" })
       );
-      console.log("Object URL creada para modal:", objectUrl);
+     
 
       // Configurar el modal
       setPdfUrlForModal(objectUrl);
@@ -216,9 +214,7 @@ const BudgetList = () => {
       await dispatch(
         updateBudget(editingBudgetId, { generalNotes: currentNote })
       );
-      console.log(`Notas actualizadas para Budget ID: ${editingBudgetId}`);
-      // Opcional: Refrescar la lista completa o confiar en que el estado se actualice
-      // dispatch(fetchBudgets()); // Descomentar si es necesario forzar refresco
+      
       handleCancelEditNote(); // Salir del modo edición
     } catch (error) {
       console.error("Error al guardar las notas:", error);
@@ -265,7 +261,7 @@ const BudgetList = () => {
 
     dispatch(updateBudget(idBudget, payload))
       .then(() => {
-        console.log(`Estado actualizado a: ${newStatus}`);
+       
         dispatch(fetchBudgets());
       })
       .catch((error) => {
@@ -277,9 +273,7 @@ const BudgetList = () => {
   };
   // --- FUNCIÓN PARA MOSTRAR PDF DE PERMISO/OPCIONAL EN MODAL ---
   const handleShowPermitPdfInModal = async (budget, pdfType) => {
-    console.log(
-      `handleShowPermitPdfInModal llamado con budget ID: ${budget.idBudget}, pdfType: ${pdfType}`
-    );
+    
     const loadingKey = `${budget.idBudget}-${pdfType}`;
     setIsLoadingPdfInModal(loadingKey);
 
@@ -312,7 +306,7 @@ const BudgetList = () => {
       setPdfUrlForModal(objectUrl);
       setPdfTitleForModal(title);
       setIsModalOpen(true);
-      console.log("Modal debería estar abriéndose.");
+     
     } catch (e) {
       console.error("Error obteniendo el PDF desde el backend:", e);
       alert("No se pudo cargar el archivo PDF.");
@@ -424,11 +418,7 @@ const BudgetList = () => {
                       );
                       const hasBudgetPdfItself = !!budget.pdfPath;
 
-                      // Debug
-                      console.log(
-                        `[TABLE] Budget ${budget.idBudget} | PermitId: ${permitId} | hasPermitPdfData: ${hasPermitPdfData} | hasPermitOptionalDocs: ${hasPermitOptionalDocs}`,
-                        budget.Permit
-                      );
+                     
 
                       let permitExpirationAlertIcon = null;
                       const permitExpStatus =

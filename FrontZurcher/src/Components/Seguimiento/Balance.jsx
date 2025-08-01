@@ -119,11 +119,11 @@ const fetchFinancialData = async (selectedPeriod) => {
       staffId: ''
     };
 
-    console.log('Fetching data with filters:', filters); // DEBUG
+    
 
     const response = await balanceActions.getGeneralBalance(filters);
     
-    console.log('Response received:', response); // DEBUG
+   
     
     if (response && !response.error) {
       setData(response);
@@ -191,12 +191,12 @@ const fetchFinancialData = async (selectedPeriod) => {
 const processTimeSeriesData = () => {
   // MEJORAR: Verificar la estructura de datos
   if (!data?.list) {
-    console.log('No data.list available:', data);
+   
     return null;
   }
   
   if (!isValidDate(dateRange.start) || !isValidDate(dateRange.end)) {
-    console.log('Invalid date range:', dateRange);
+    
     return null;
   }
 
@@ -204,11 +204,7 @@ const processTimeSeriesData = () => {
   const incomes = data.list.incomes || data.incomes || [];
   const expenses = data.list.expenses || data.expenses || [];
   
-  console.log('Processing data:', { 
-    incomesCount: incomes.length, 
-    expensesCount: expenses.length,
-    dateRange 
-  });
+ 
   
   try {
       // Crear intervalos de tiempo según el período

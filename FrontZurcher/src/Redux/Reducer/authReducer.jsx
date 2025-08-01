@@ -18,7 +18,7 @@ const authSlice = createSlice({
       state.error = null; // Limpiar errores previos
     },
     loginSuccess: (state, action) => {
-      console.log('Login Success Payload:', action.payload);
+     
       state.loading = false;
       state.currentStaff = action.payload.staff; // Changed from currentStaff to staff
       state.token = action.payload.token;

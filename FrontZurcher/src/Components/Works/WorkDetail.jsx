@@ -40,22 +40,14 @@ const workRef = useRef(work);
   useEffect(() => {
     // Compara la referencia actual de work con la guardada
     if (workRef.current !== work) {
-      console.error(
-        '[WorkDetail] REFERENCIA DEL OBJETO WORK CAMBIÓ!', 
-        { 
-          prevStatus: workRef.current?.status, 
-          currentStatus: work?.status,
-          prevRef: workRef.current, // Loguea el objeto anterior
-          currentRef: work // Loguea el objeto actual
-        }
-      );
+     
       workRef.current = work; // Actualiza la referencia guardada
     } else {
-      // console.log('[WorkDetail] Referencia del objeto work ESTABLE.');
+     
     }
   }, [work]);
 
-  console.log("Datos de la obra:", work); // Para depuración
+  
   const [selectedImage, setSelectedImage] = useState(null);
   const [fileBlob, setFileBlob] = useState(null);
   const [openSections, setOpenSections] = useState({}); // Cambiado a un objeto para manejar múltiples secciones
@@ -185,7 +177,7 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
           setFileBlob(null);
         }
       } catch (error) {
-        console.error("Error al establecer la URL del archivo:", error);
+       
         setFileBlob(null);
       }
     };
@@ -205,7 +197,7 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
           console.error("Error fetching incomes/expenses:", data.message);
           dispatch(fetchIncomesAndExpensesFailure(data.message));
         } else {
-          console.log("Incomes/Expenses data received:", data);
+          
           // El payload debe ser { incomes: [...], expenses: [...] } según el reducer
           dispatch(fetchIncomesAndExpensesSuccess(data));
         }
@@ -253,7 +245,7 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
     headerButtonText = "⚠️ Manual: Cambiar a Pendiente de Cubrir";
     headerButtonClasses += " bg-yellow-500 hover:bg-yellow-600"; // Color de advertencia
     headerButtonAction = async () => {
-      console.log(`[MANUAL] Cambiando estado de obra ${idWork} de 'approvedInspection' a 'coverPending'`);
+      
       await dispatch(updateWork(idWork, { status: "coverPending" }));
     };
   } else if (work?.status === 'covered') {
@@ -262,7 +254,7 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
     headerButtonText = "⚠️ Manual: Marcar Factura Final Enviada";
     headerButtonClasses += " bg-yellow-600 hover:bg-yellow-700"; // Color de advertencia
     headerButtonAction = async () => {
-      console.log(`[MANUAL] Cambiando estado de obra ${idWork} de 'covered' a 'invoiceFinal'`);
+      
       await dispatch(updateWork(idWork, { status: "invoiceFinal" }));
     };
   }
@@ -275,8 +267,7 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
       alert("Error: ID de Orden de Cambio no válido.");
       return;
     }
-    // Opcional: Mostrar un indicador de carga
-    console.log(`Intentando enviar CO ${coId} al cliente...`);
+   
     try {
       const result = await dispatch(sendChangeOrderToClient(coId));
       if (result && !result.error) {
@@ -292,7 +283,7 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
     // Opcional: Ocultar indicador de carga
   };
   const handleEditCO = (coToEdit) => {
-    console.log("Abriendo modal para editar CO:", coToEdit);
+   
     setEditingCO(coToEdit);
     setShowEditCOModal(true);
   };
@@ -1539,7 +1530,7 @@ const handleShowBudgetPdf = async () => {
         {/* --- MODAL PARA CREAR ORDEN DE CAMBIO --- */}
         {work && (
           <>
-            {console.log('[WorkDetail] Rendering CreateCOModal. idWork from useParams:', idWork, 'Using work.idWork for modal:', work.idWork, 'Current work object:', work)}
+           
             <CreateChangeOrderModal
               isOpen={showCreateCOModal}
               onClose={() => setShowCreateCOModal(false)}

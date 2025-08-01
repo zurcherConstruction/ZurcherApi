@@ -86,7 +86,7 @@ export const createWork = (workData) => async (dispatch) => {
 export const updateWork = (idWork, workData) => async (dispatch) => {
   dispatch(updateWorkRequest());
   try {
-    console.log('Enviando datos al backend:', { idWork, workData });
+    
     
     const response = await api.put(`/work/${idWork}`, workData);
     
@@ -181,7 +181,7 @@ export const attachInvoiceToWork = (idWork, file, totalCost) => async (dispatch)
     formData.append('invoiceFile', file); // Archivo de la factura
     formData.append('totalCost', totalCost); // Costo total
 
-    console.log('Enviando datos al backend:', { idWork, file, totalCost }); // Log para depuración
+    
 
     // Enviar la solicitud al backend
     const response = await api.put(`/work/${idWork}/invoice`, formData, {
@@ -190,11 +190,11 @@ export const attachInvoiceToWork = (idWork, file, totalCost) => async (dispatch)
       },
     });
 
-    console.log('Respuesta del backend:', response.data); // Log para depuración
+   
     dispatch(updateWorkSuccess(response.data)); // Actualizar el estado global con los datos de la obra
     return response.data; // Devolver los datos para usarlos en el componente
   } catch (error) {
-    console.error('Error al adjuntar la factura:', error); // Log para depuración
+  
     const errorMessage =
       error.response?.data?.message || 'Error al adjuntar la factura';
     dispatch(updateWorkFailure(errorMessage)); // Despachar el error al estado global
@@ -215,7 +215,7 @@ export const recordOrUpdateChangeOrderDetails = (idWork, changeOrderId, coData) 
   dispatch({ type: 'RECORD_OR_UPDATE_CHANGE_ORDER_DETAILS_REQUEST' });
 
 
-  console.log(`[WorkActions] recordOrUpdateChangeOrderDetails - START. Is updating: ${!!changeOrderId}`, { idWork, changeOrderId, coData });
+  
 
   const isUpdating = !!changeOrderId;
   // Asegurar que effectiveIdWork se tome correctamente, priorizando idWork si está presente,
@@ -241,12 +241,12 @@ export const recordOrUpdateChangeOrderDetails = (idWork, changeOrderId, coData) 
   if (isUpdating) {
     apiUrl = `/change-orders/${changeOrderId}`; // Ruta para actualizar una CO existente
     httpMethod = 'PUT';
-    console.log(`[WorkActions] recordOrUpdateChangeOrderDetails - PUT request to: ${apiUrl}`);
+    
   } else {
     // Para CREAR un CO:
     apiUrl = `/change-orders/${effectiveIdWork}/change-orders`; // Ruta para crear una nueva CO asociada a un workId
     httpMethod = 'POST';
-    console.log(`[WorkActions] recordOrUpdateChangeOrderDetails - POST request to: ${apiUrl}`);
+    
   }
 
   try {
@@ -267,7 +267,7 @@ export const recordOrUpdateChangeOrderDetails = (idWork, changeOrderId, coData) 
       dispatch(updateChangeOrderSuccess(response.data)); // Despachar acción de éxito para actualización
     }
     
-    console.log(`[WorkActions] Change Order ${isUpdating ? 'updated' : 'created'} successfully. Payload to reducer:`, response.data);
+   
     return response.data; // Devolver los datos de la respuesta
 
   } catch (error) {
@@ -281,8 +281,7 @@ export const recordOrUpdateChangeOrderDetails = (idWork, changeOrderId, coData) 
         : createChangeOrderFailure({ message: errorMessage, details: error.response?.data?.details })
     );
 
-    console.log('[WorkActions] recordOrUpdateChangeOrderDetails - Returning error structure to component:', { error: true, message: errorMessage, details: error.response?.data?.details });
-    // Devolver una estructura de error para que el componente pueda manejarlo
+   
     return { 
       error: true, 
       message: errorMessage, 
@@ -291,19 +290,14 @@ export const recordOrUpdateChangeOrderDetails = (idWork, changeOrderId, coData) 
     };
   }
 };
-// ... (importaciones existentes) ...
 
-// Podrías añadir tipos de acción específicos para el reducer si quieres manejar estados de loading/error
-// export const SEND_CO_TO_CLIENT_REQUEST = 'SEND_CO_TO_CLIENT_REQUEST';
-// export const SEND_CO_TO_CLIENT_SUCCESS = 'SEND_CO_TO_CLIENT_SUCCESS';
-// export const SEND_CO_TO_CLIENT_FAILURE = 'SEND_CO_TO_CLIENT_FAILURE';
 
-// ... (otras actions) ...
+
 
 export const sendChangeOrderToClient = (changeOrderId) => async (dispatch, getState) => {
   // dispatch({ type: SEND_CO_TO_CLIENT_REQUEST }); // O un action creator si lo defines
   const { token } = getState().auth;
-  console.log(`[WorkActions] sendChangeOrderToClient - START. Change Order ID: ${changeOrderId}`);
+ 
 
   if (!changeOrderId) {
     console.error('[WorkActions] sendChangeOrderToClient - CRITICAL: changeOrderId is undefined.');
@@ -324,16 +318,7 @@ export const sendChangeOrderToClient = (changeOrderId) => async (dispatch, getSt
     // Si no necesita un body, puedes pasar un objeto vacío {} o null.
     const response = await api.post(`/change-orders/${changeOrderId}/send-to-client`, {}, config);
 
-    console.log('[WorkActions] sendChangeOrderToClient - Success:', response.data);
-    // dispatch({ type: SEND_CO_TO_CLIENT_SUCCESS, payload: response.data });
-
-    // Considera si necesitas refrescar datos después de esto.
-    // Por ejemplo, el estado de la CO podría cambiar a 'pendingClientApproval'.
-    // Podrías querer volver a obtener la Work (que contiene las COs) o la CO específica.
-    // dispatch(fetchWorkById(response.data.workId)); // Si la respuesta te da el workId
-    // O si la respuesta es la CO actualizada:
-    // dispatch(updateChangeOrderSuccess(response.data.changeOrder)); // Asumiendo que tienes una forma de actualizar una CO individual en el store
-
+    
     return response.data; // Devuelve la respuesta del backend
 
   } catch (error) {
@@ -371,8 +356,7 @@ export const addImagesToWork = (idWork, formData) => async (dispatch) => {
     const response = await api.post(`/work/${idWork}/images`, formData, {
       // ... headers si son necesarios ...
     });
-    // Loguea para confirmar la estructura de response.data
-    console.log('[workActions] addImagesToWork SUCCESS, response.data:', response.data); 
+     
     
     // Asegúrate de que response.data y response.data.createdImage existan
     if (response.data && response.data.createdImage) {
@@ -433,7 +417,7 @@ export const changeWorkStatus = (idWork, targetStatus, reason, force = false) =>
       force
     });
 
-    console.log('Estado cambiado exitosamente:', response.data);
+    
     dispatch(changeWorkStatusSuccess(response.data));
     
     // Actualizar también la obra en el estado si está cargada

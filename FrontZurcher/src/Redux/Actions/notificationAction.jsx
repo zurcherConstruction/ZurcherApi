@@ -16,7 +16,7 @@ export const fetchNotifications = (staffId) => async (dispatch) => {
   dispatch(fetchNotificationsRequest());
   try {
     const response = await api.get(`/notification/${staffId}`);
-    console.log("Respuesta del backend:", response.data); // Verifica la estructura de la respuesta
+    
     dispatch(fetchNotificationsSuccess(response.data)); // Pasa directamente response.data
   } catch (error) {
     const errorMessage =
