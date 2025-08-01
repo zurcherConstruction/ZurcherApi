@@ -78,6 +78,10 @@ const stateNotificationMap = {
     roles: ['owner', 'admin'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido Tapado. Por favor, revisa los detalles y envía el Invoice Final.`,
   },
+  invoiceFinal: {
+    roles: ['owner', 'admin'], 
+    message: (work) => `La factura final del trabajo con dirección ${work.propertyAddress} ha sido enviada al cliente. Esperando pago.`,
+  },
   finalInspectionPending: {
     roles: ['admin', 'owner'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} está pendiente de la inspección final. Por favor, coordina con el inspector.`,

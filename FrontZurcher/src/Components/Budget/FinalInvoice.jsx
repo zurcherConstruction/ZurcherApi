@@ -74,7 +74,7 @@ const FinalInvoiceComponent = ({ workId }) => {
   
   useEffect(() => {
     if (workId) {
-      console.log("FinalInvoiceComponent: Fetching invoice for workId", workId);
+     
       dispatch(fetchFinalInvoiceByWorkId(workId));
     }
     

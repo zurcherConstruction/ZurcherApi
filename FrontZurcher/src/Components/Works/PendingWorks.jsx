@@ -31,6 +31,7 @@ const PendingWorks = () => {
   // Filtrar trabajos
   const pendingWorks = works.filter((work) => work.status === "pending");
   const assignedWorks = works.filter((work) => work.status === "assigned");
+  const inProgressWorks = works.filter((work) => work.status === "inProgress");
 
   useEffect(() => {
     dispatch(fetchStaff());
@@ -42,7 +43,7 @@ const PendingWorks = () => {
     if (selectedWork) {
       setStartDate(selectedWork.startDate ? moment(selectedWork.startDate).toDate() : new Date());
       setSelectedStaff(selectedWork.staffId || "");
-      setEditMode(selectedWork.status === "assigned");
+      setEditMode(['pending', 'assigned', 'inProgress'].includes(selectedWork.status));
     } else {
       setEditMode(false);
     }
@@ -185,6 +186,27 @@ const PendingWorks = () => {
               ))}
             </ul>
           )}
+          <h2 className="text-lg font-semibold text-gray-800 mt-6 mb-2">Trabajos En Progreso</h2>
+          {inProgressWorks.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-20">
+              <XCircleIcon className="h-8 w-8 text-gray-300 mb-1" />
+              <p className="text-md font-medium text-gray-400">No hay trabajos en progreso</p>
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {inProgressWorks.map((work) => (
+                <li
+                  key={work.idWork}
+                  className={`p-3 border rounded-lg cursor-pointer transition-all hover:bg-blue-50 ${selectedWork?.idWork === work.idWork ? "bg-blue-100 border-blue-400" : "bg-gray-50"}`}
+                  onClick={() => setSelectedWork(work)}
+                >
+                  <span className="font-semibold text-blue-700">{work.propertyAddress}</span>
+                  <span className="ml-2 text-xs px-2 py-0.5 rounded bg-green-100 text-green-800">En Progreso</span>
+                  <span className="ml-2 text-xs text-gray-500">{work.startDate ? moment.tz(work.startDate, "America/New_York").format("MM-DD-YYYY HH:mm") : "Sin fecha"}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         {/* Panel central: Detalle y asignación/modificación */}
         <div className="flex-1 bg-white shadow-xl rounded-xl p-6 flex flex-col gap-4">
@@ -224,7 +246,7 @@ const PendingWorks = () => {
                       className="border p-2 rounded w-full bg-gray-50 focus:ring-2 focus:ring-blue-400"
                     >
                       <option value="">Selecciona un miembro del staff</option>
-                      {staff.map((member) => (
+                      {staff.filter(member => member.role === 'worker').map((member) => (
                         <option key={member.id} value={member.id}>
                           {member.name}
                         </option>

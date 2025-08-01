@@ -69,7 +69,7 @@ const DynamicCategorySection = ({
     };
   }, [categoryItems]);
 
-  console.log(`Análisis de campos para ${category}:`, fieldAnalysis);
+  
 
   // Obtener valores únicos solo si el campo tiene datos
   const uniqueNames = useMemo(() => {

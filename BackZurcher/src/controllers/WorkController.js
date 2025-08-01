@@ -31,7 +31,7 @@ const {
 
 const createWork = async (req, res) => {
   try {
-    console.log("Request Body:", req.body); // <---- Agregar este console.log
+   
     const { idBudget } = req.body;
 
     // Buscar el presupuesto con estado "approved"
@@ -58,8 +58,7 @@ const createWork = async (req, res) => {
       notes: `Work creado a partir del presupuesto N° ${idBudget}`,
     });
 
-    // Enviar notificaciones (correo y push)
-    console.log('Work creado:', work);
+    
     await sendNotifications('pending', work, req.app.get('io'));
 
     res.status(201).json({ message: 'Obra creada correctamente', work });
@@ -598,7 +597,7 @@ const attachInvoiceToWork = async (req, res) => {
 
 const getAssignedWorks = async (req, res) => {
   try {
-    console.log("Datos del usuario autenticado (req.staff):", req.staff);
+    
 
     // Obtener las obras asignadas al worker autenticado
     const works = await Work.findAll({
@@ -657,12 +656,11 @@ const getAssignedWorks = async (req, res) => {
 };
 
 const addImagesToWork = async (req, res) => {
-  console.log("Controlador addImagesToWork: INICIO");
+ 
   try {
     const { idWork } = req.params; // ID del trabajo
     const { stage, dateTime, comment, truckCount } = req.body; // Etapa, imagen en Base64 y fecha/hora
-    console.log("Controlador addImagesToWork: Body:", req.body);
-    console.log("Controlador addImagesToWork: File:", req.file);
+    
     if (!req.file) {
       console.error("Controlador addImagesToWork: No se proporcionó ningún archivo.");
       return res.status(400).json({ error: true, message: 'No se proporcionó ningún archivo de imagen.' });
@@ -705,7 +703,7 @@ const addImagesToWork = async (req, res) => {
       folder: `works/${idWork}/${stage}`,
       resource_type: "image"
     });
-    console.log("Controlador addImagesToWork: Resultado de Cloudinary:", cloudinaryResult.secure_url);
+    
     
     // --- ASIGNAR EL RESULTADO DE Image.create A newImage ---
     const newImage = await Image.create({ // <--- CAMBIO AQUÍ
@@ -717,7 +715,7 @@ const addImagesToWork = async (req, res) => {
       comment: comment,
       truckCount: truckCount,
     });
-    console.log("Controlador addImagesToWork: Imagen guardada en DB.");
+   
     const updatedWork = await Work.findByPk(idWork, {
      
       include: [
@@ -771,7 +769,7 @@ const addImagesToWork = async (req, res) => {
         // a través de currentWork o sus componentes hijos.
       ]
     });
-    console.log("Controlador addImagesToWork: Trabajo actualizado obtenido.");
+    
     res.status(201).json({
       message: 'Imagen agregada correctamente a Cloudinary y DB',
       work: updatedWork,
@@ -796,7 +794,7 @@ const deleteImagesFromWork = async (req, res) => {
   try {
     const { idWork, imageId } = req.params; // Obtener IDs de los parámetros de la URL
 
-    console.log(`Recibida petición para eliminar imagen ID: ${imageId} del trabajo ID: ${idWork}`);
+  
 
 
 
@@ -816,7 +814,7 @@ const deleteImagesFromWork = async (req, res) => {
     // Eliminar de la base de datos
     await imageToDelete.destroy();
 
-    console.log(`Imagen ID: ${imageId} (Cloudinary public_id: ${imageToDelete.publicId}) eliminada exitosamente.`);
+    
     res.status(204).send();
 
   } catch (error) {

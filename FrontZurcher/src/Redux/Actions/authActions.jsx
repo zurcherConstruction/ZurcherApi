@@ -25,8 +25,7 @@ export const login = (email, password) => async (dispatch) => {
     localStorage.setItem('token', token);
     localStorage.setItem('staff', JSON.stringify(staff));
 
-    // Verificar los datos enviados al reducer
-    console.log('Datos enviados al reducer:', { token, staff });
+    
 
     dispatch(loginSuccess({ token, staff }));
   } catch (error) {
@@ -77,7 +76,7 @@ export const restoreSession = () => (dispatch) => {
 export const register = (userData) => async (dispatch) => {
   dispatch(loginRequest()); // Reutilizamos loginRequest para manejar el estado de carga
   try {
-    console.log('Datos enviados al backend para registro:', userData); // Depuración
+   
     const response = await api.post('/auth/register', userData);
     const { token, user } = response.data.data;
 

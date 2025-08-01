@@ -184,8 +184,7 @@ const formatDate = (isoDate) => {
   }
 };
 
-console.log("selectedAddress:", selectedAddress, "work:", work);
-  // Memorizar la URL del PDF del permiso
+
 
 
   const permitPdfUrl = useMemo(() => {

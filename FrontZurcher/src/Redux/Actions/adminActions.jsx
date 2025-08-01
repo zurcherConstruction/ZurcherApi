@@ -21,7 +21,7 @@ export const fetchStaff = () => async (dispatch) => {
   dispatch(fetchStaffRequest());
   try {
     const response = await api.get('/admin/staff/'); // Ruta del backend
-    console.log('Respuesta del backend:', response.data); // Log para depuración
+   
 
     const transformedData = Array.isArray(response.data.data)
       ? response.data.data.map((staff) => ({
@@ -56,7 +56,7 @@ export const createStaff = (staffData) => async (dispatch) => {
   dispatch(createStaffRequest());
 
   try {
-    console.log('Datos enviados al backend para crear staff:', staffData);
+   
     
     // Use the admin route instead of auth route
     const response = await api.post('/admin/staff', staffData);
