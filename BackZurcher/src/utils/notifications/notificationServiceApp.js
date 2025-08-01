@@ -85,6 +85,11 @@ const getNotificationDetailsApp = async (newStatus, work, budget) => {
                     staffToNotify = await Staff.findAll({ where: { role: [ 'admin', 'owner'] } });
                     message = `Trabajo Tapado: ${address}. Solicitar inspección Final.`;
                     break;
+        case 'invoiceFinal':
+                    // Notificar cuando se envía la factura final
+                    staffToNotify = await Staff.findAll({ where: { role: [ 'admin', 'owner'] } });
+                    message = `Factura Final enviada para: ${address}. Esperando pago del cliente.`;
+                    break;
 
         // --- Añade CASES para TODOS los demás estados de Work ---
         // firstInspectionPending, approvedInspection, rejectedInspection,

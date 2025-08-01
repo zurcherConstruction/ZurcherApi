@@ -475,8 +475,15 @@ const registerInspectionResult = async (req, res) => {
   // Actualizar Work.status
     if (finalStatus === 'approved') {
       if (inspection.type === 'initial') {
-        work.status = 'approvedInspection'; 
-        // ... (notificaciones) ...
+        // Automatizar la transición: approvedInspection → coverPending
+        work.status = 'coverPending'; 
+        console.log(`[InspectionController] Inspección inicial aprobada para work ${work.idWork}. Estado cambiado automáticamente de 'approvedInspection' a 'coverPending'.`);
+        
+        // Guardar el trabajo antes de enviar notificaciones
+        await work.save();
+        
+        // Enviar notificaciones para el nuevo estado automático
+        await sendNotifications('coverPending', work, req.app.get('io'));
       } else if (inspection.type === 'final') {
         const oldWorkStatus = work.status; // Asegúrate que esto esté antes de cambiar work.status
         work.status = 'maintenance'; 

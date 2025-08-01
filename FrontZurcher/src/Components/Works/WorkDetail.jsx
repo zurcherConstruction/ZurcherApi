@@ -240,27 +240,30 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
   let headerButtonAction = null;
   let headerButtonClasses = "text-white font-bold py-2 px-4 rounded shadow-lg transition duration-150 ease-in-out";
 
-  // --- LÓGICA DEL BOTÓN AJUSTADA ---
+  // --- LÓGICA DEL BOTÓN AJUSTADA (SOLO PARA CASOS ESPECIALES) ---
 
-  // Caso 1: Si work.status es 'approvedInspection', mostrar botón para cambiar a 'coverPending'
+  // Nota: Las transiciones principales ahora son automáticas:
+  // - approvedInspection → coverPending (automático cuando se aprueba inspección inicial)
+  // - covered → invoiceFinal (automático cuando se envía factura final)
+  
+  // Solo mantener botones para casos especiales o de respaldo
   if (work?.status === 'approvedInspection') {
+    // Botón de respaldo por si la automatización falla
     displayHeaderButton = true;
-    headerButtonText = "Inspección Aprobada, Cubrir Obra";
-    headerButtonClasses += " bg-green-500 hover:bg-green-600";
+    headerButtonText = "⚠️ Manual: Cambiar a Pendiente de Cubrir";
+    headerButtonClasses += " bg-yellow-500 hover:bg-yellow-600"; // Color de advertencia
     headerButtonAction = async () => {
-      console.log(`Cambiando estado de obra ${idWork} de 'approvedInspection' a 'coverPending'`);
+      console.log(`[MANUAL] Cambiando estado de obra ${idWork} de 'approvedInspection' a 'coverPending'`);
       await dispatch(updateWork(idWork, { status: "coverPending" }));
-      // dispatch(fetchWorkById(idWork)); // Opcional: Redux debe manejar la actualización del store
     };
-  } else if (work?.status === 'covered') { // <-- ESTE ES EL BLOQUE PARA 'COVERED'
+  } else if (work?.status === 'covered') {
+    // Botón de respaldo por si la automatización falla
     displayHeaderButton = true;
-
-    headerButtonText = "Marcar Factura Final Enviada";
-    headerButtonClasses += " bg-purple-600 hover:bg-purple-700"; // Color distintivo
+    headerButtonText = "⚠️ Manual: Marcar Factura Final Enviada";
+    headerButtonClasses += " bg-yellow-600 hover:bg-yellow-700"; // Color de advertencia
     headerButtonAction = async () => {
-      console.log(`Cambiando estado de obra ${idWork} de 'covered' a 'invoiceFinal'`);
+      console.log(`[MANUAL] Cambiando estado de obra ${idWork} de 'covered' a 'invoiceFinal'`);
       await dispatch(updateWork(idWork, { status: "invoiceFinal" }));
-      // dispatch(fetchWorkById(idWork)); // Opcional: Redux debe manejar la actualización del store
     };
   }
 

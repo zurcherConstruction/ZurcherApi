@@ -613,6 +613,17 @@ async emailFinalInvoicePDF(req, res) {
        };
        await sendEmail(mailOptions);
        
+       // ✅ AUTOMATIZAR: Cambiar estado del work de 'covered' a 'invoiceFinal'
+       const work = finalInvoice.Work;
+       if (work && work.status === 'covered') {
+         await work.update({ status: 'invoiceFinal' });
+         console.log(`[FinalInvoiceController] Factura final enviada para work ${work.idWork}. Estado cambiado automáticamente de 'covered' a 'invoiceFinal'.`);
+         
+         // Enviar notificaciones para el nuevo estado automático
+         const { sendNotifications } = require('../utils/notifications/notificationManager');
+         await sendNotifications('invoiceFinal', work);
+       }
+       
        res.status(200).json({ message: `Factura final enviada exitosamente a ${clientEmail}.` });
 
    } catch (error) {
