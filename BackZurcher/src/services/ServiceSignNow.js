@@ -9,12 +9,6 @@ class SignNowService {
     // ✅ URL BASE CORRECTA (sin /oauth2/token)
     this.baseURL = 'https://api.signnow.com';
     
-    console.log('=== CONFIGURACIÓN SIGNNOW LIVE (API KEY) ===');
-    console.log(`🔧 Modo: Live (Production) - Sin OAuth`);
-    console.log(`🌐 URL base: ${this.baseURL}`);
-    console.log(`🔑 API Key: ${this.apiKey ? 'CONFIGURADO' : 'NO CONFIGURADO'}`);
-    console.log('===========================================');
-    
     if (!this.apiKey) {
       console.error('❌ SIGNNOW_API_KEY no configurada en variables de entorno');
     }
@@ -26,7 +20,7 @@ class SignNowService {
     const bearerAuth = `Bearer ${this.apiKey}`;
     
     const authMethod = useBasic ? basicAuth : bearerAuth;
-    console.log(`🔍 Usando ${useBasic ? 'Basic' : 'Bearer'} Auth:`, authMethod.substring(0, 30) + '...');
+    
     
     return {
       'Accept': 'application/json',
@@ -48,17 +42,14 @@ class SignNowService {
         throw new Error('API Key no configurada');
       }
 
-      console.log('\n🔄 === INICIANDO UPLOAD DE DOCUMENTO ===');
-      console.log(`📄 Archivo: ${fileName}`);
-      console.log(`📁 Origen: ${filePath}`);
-      console.log(`📡 URL de destino: ${this.baseURL}/document`);
+     
 
       let fileStream;
       let fileSize;
 
       // Manejar tanto archivos locales como URLs
       if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
-        console.log('   -> Origen es una URL. Descargando archivo en memoria...');
+       
         const axios = require('axios');
         const response = await axios({
           method: 'GET',
@@ -69,7 +60,7 @@ class SignNowService {
         fileStream = response.data;
         fileSize = response.headers['content-length'] || 'desconocido';
       } else {
-        console.log('   -> Origen es archivo local. Verificando existencia...');
+       
         if (!fs.existsSync(filePath)) {
           console.error(`❌ ERROR: Archivo no encontrado en ${filePath}`);
           throw new Error(`Archivo no encontrado: ${filePath}`);
@@ -78,13 +69,12 @@ class SignNowService {
         fileSize = fs.statSync(filePath).size;
       }
 
-      console.log(`✅ Archivo accesible, tamaño: ${fileSize} bytes`);
+    
 
       // Probar cada método de autenticación
       for (let i = 0; i < authMethods.length; i++) {
         const method = authMethods[i];
-        console.log(`\n🔄 Probando método ${i + 1}/2: ${method.type} Auth...`);
-
+       
         try {
           const formData = new FormData();
           
@@ -102,7 +92,7 @@ class SignNowService {
             formData.append('file', fs.createReadStream(filePath), fileName);
           }
 
-          console.log('📤 Subiendo a la API de SignNow...');
+        
 
           const response = await axios.post(`${this.baseURL}/document`, formData, {
             headers: {
@@ -115,13 +105,7 @@ class SignNowService {
             maxBodyLength: Infinity
           });
 
-          console.log(`✅ ${method.type} Auth FUNCIONÓ!`);
-          console.log('📥 Respuesta de upload:');
-          console.log(`Status: ${response.status}`);
-          console.log(`Document ID: ${response.data.id}`);
-          console.log(`✅ Documento subido exitosamente: ${fileName}`);
-          console.log('=== FIN UPLOAD DE DOCUMENTO ===\n');
-          
+         
           return response.data.id;
 
         } catch (error) {
@@ -129,26 +113,16 @@ class SignNowService {
           
           // Si es el último método, lanzar el error
           if (i === authMethods.length - 1) {
-            console.log('\n❌ === TODOS LOS MÉTODOS DE AUTH FALLARON ===');
-            console.log('Error final:', error.message);
-            console.log('Status:', error.response?.status);
-            console.log('Response Data:', JSON.stringify(error.response?.data, null, 2));
-            console.log('================================\n');
+           
             throw error;
           }
           
-          // Continuar con el siguiente método
-          console.log(`🔄 Intentando con ${authMethods[i + 1].type} Auth...`);
+          
         }
       }
 
     } catch (error) {
-      console.log('\n❌ === ERROR EN UPLOAD DE DOCUMENTO ===');
-      console.log('Error message:', error.message);
-      console.log('Status:', error.response?.status);
-      console.log('Status Text:', error.response?.statusText);
-      console.log('Response Data:', JSON.stringify(error.response?.data, null, 2));
-      console.log('================================\n');
+      
       throw error;
     }
   }
@@ -165,12 +139,7 @@ class SignNowService {
         throw new Error('API Key no configurada');
       }
 
-      console.log('\n🔄 === CREANDO FREEFORM INVITE (DOCUMENTACIÓN OFICIAL) ===');
-      console.log(`📧 Email del firmante: ${signerEmail}`);
-      console.log(`👤 Nombre del firmante: ${signerName}`);
-      console.log(`📄 Document ID: ${documentId}`);
-      console.log(`📧 From Email: ${fromEmail || "zurcherseptic@gmail.com"}`);
-      console.log(`📡 URL: ${this.baseURL}/document/${documentId}/invite`);
+     
 
       // Validar inputs
       if (!documentId) {
@@ -194,13 +163,12 @@ class SignNowService {
         redirect_uri: process.env.FRONTEND_URL || "https://zurcher-api-two.vercel.app",
       };
 
-      console.log('📤 Datos de FREEFORM INVITE (formato oficial):');
-      console.log(JSON.stringify(inviteData, null, 2));
+      
 
       // Probar cada método de autenticación
       for (let i = 0; i < authMethods.length; i++) {
         const method = authMethods[i];
-        console.log(`\n🔄 Probando método ${i + 1}/2: ${method.type} Auth para invite...`);
+       
 
         try {
           const response = await axios.post(
@@ -212,36 +180,24 @@ class SignNowService {
             }
           );
 
-          console.log(`✅ ${method.type} Auth FUNCIONÓ para invite!`);
-          console.log('📥 Respuesta de FREEFORM INVITE:');
-          console.log(`Status: ${response.status}`);
-          console.log(`✅ FREEFORM INVITE creado exitosamente para ${signerEmail}`);
-          console.log('=== FIN CREACIÓN DE FREEFORM INVITE ===\n');
+         
           
           return response.data;
 
         } catch (error) {
-          console.log(`❌ ${method.type} Auth FALLÓ para invite:`, error.response?.data?.error || error.message);
+         
           
           if (i === authMethods.length - 1) {
-            console.log('\n❌ === TODOS LOS MÉTODOS DE AUTH FALLARON PARA INVITE ===');
-            console.log('Error final:', error.message);
-            console.log('Status:', error.response?.status);
-            console.log('Response Data:', JSON.stringify(error.response?.data, null, 2));
-            console.log('================================\n');
+            
             throw error;
           }
           
-          console.log(`🔄 Intentando invite con ${authMethods[i + 1].type} Auth...`);
+         
         }
       }
 
     } catch (error) {
-      console.log('\n❌ === ERROR EN CREACIÓN DE FREEFORM INVITE ===');
-      console.log('Error message:', error.message);
-      console.log('Status:', error.response?.status);
-      console.log('Response Data:', JSON.stringify(error.response?.data, null, 2));
-      console.log('================================\n');
+     
       throw error;
     }
   }
@@ -258,13 +214,12 @@ class SignNowService {
         throw new Error('API Key no configurada');
       }
 
-      console.log(`🔄 Obteniendo estado del documento: ${documentId}`);
-      console.log(`📡 URL: ${this.baseURL}/document/${documentId}`);
+      
 
       // Probar cada método de autenticación
       for (let i = 0; i < authMethods.length; i++) {
         const method = authMethods[i];
-        console.log(`🔄 Probando método ${i + 1}/2: ${method.type} Auth para estado...`);
+       
 
         try {
           const response = await axios.get(`${this.baseURL}/document/${documentId}`, {
@@ -272,17 +227,15 @@ class SignNowService {
             timeout: 60000
           });
 
-          console.log(`✅ ${method.type} Auth FUNCIONÓ para estado!`);
-          console.log('📥 Estado del documento obtenido:');
-          console.log(JSON.stringify(response.data, null, 2));
+         
           
           return response.data;
 
         } catch (error) {
-          console.log(`❌ ${method.type} Auth FALLÓ para estado:`, error.response?.data?.error || error.message);
+         
           
           if (i === authMethods.length - 1) {
-            console.log('❌ Todos los métodos fallaron para obtener estado');
+           
             throw error;
           }
         }
@@ -297,11 +250,11 @@ class SignNowService {
   // Verificar si el documento está firmado
   async isDocumentSigned(documentId) {
     try {
-      console.log(`[SignNowService] Verificando estado detallado del documento: ${documentId}`);
+      
       const documentDetails = await this.getDocumentStatus(documentId);
 
       if (!documentDetails) {
-        console.log(`[SignNowService] No se pudieron obtener detalles para el documento ${documentId}.`);
+       
         return { isSigned: false, status: 'not_found', signatures: [], invites: [] };
       }
 
@@ -309,7 +262,7 @@ class SignNowService {
       // 1. ¿Hay invitaciones (requests)?
       const hasInvites = Array.isArray(documentDetails.requests) && documentDetails.requests.length > 0;
       if (!hasInvites) {
-        console.log(`[SignNowService] El documento ${documentId} no tiene invitaciones. No se puede considerar firmado.`);
+       
         return { isSigned: false, status: 'no_invites', signatures: [], invites: [] };
       }
 
@@ -319,7 +272,7 @@ class SignNowService {
       );
 
       if (allInvitesAreSigned) {
-        console.log(`[SignNowService] ¡Éxito! Todas las ${documentDetails.requests.length} invitaciones para el documento ${documentId} están firmadas.`);
+       
       } else {
         console.log(`[SignNowService] Aún pendiente. No todas las invitaciones para el documento ${documentId} están firmadas.`);
       }
@@ -346,9 +299,7 @@ class SignNowService {
 
       // Usar el endpoint correcto para PDF "flattened" (firma visible)
       const downloadUrl = `${this.baseURL}/document/${documentId}/download?type=collapsed`;
-      console.log(`🔄 Descargando documento firmado (flattened): ${documentId}`);
-      console.log(`📡 URL: ${downloadUrl}`);
-
+      
       const response = await axios.get(
         downloadUrl,
         {
@@ -364,7 +315,7 @@ class SignNowService {
 
       return new Promise((resolve, reject) => {
         writer.on('finish', () => {
-          console.log(`✅ Documento descargado (flattened): ${downloadPath}`);
+         
           resolve();
         });
         writer.on('error', reject);
@@ -378,14 +329,10 @@ class SignNowService {
   // Método principal para enviar presupuesto para firma
  async sendBudgetForSignature(pdfPath, fileName, signerEmail, signerName) {
     try {
-      console.log('\n🚀 === INICIANDO PROCESO COMPLETO DE ENVÍO A SIGNNOW ===');
-      console.log(`📄 Archivo: ${fileName}`);
-      console.log(`📁 Ruta: ${pdfPath}`);
-      console.log(`📧 Firmante: ${signerName} (${signerEmail})`);
-      console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
+      
       
       // Paso 1: Subir documento
-      console.log('📤 PASO 1: Subiendo documento...');
+      
       const documentId = await this.uploadDocument(pdfPath, fileName);
       
       // Paso 2: Crear invitación usando email de la cuenta SignNow
@@ -405,17 +352,11 @@ class SignNowService {
         timestamp: new Date().toISOString()
       };
       
-      console.log('🎉 === PROCESO COMPLETO EXITOSO ===');
-      console.log('📊 Resultado final:');
-      console.log(JSON.stringify(result, null, 2));
-      console.log('=== FIN PROCESO COMPLETO ===\n');
+     
       
       return result;
     } catch (error) {
-      console.log('\n💥 === ERROR EN PROCESO COMPLETO ===');
-      console.log('Error message:', error.message);
-      console.log('Stack trace:', error.stack);
-      console.log('================================\n');
+    
       throw error;
     }
   }
@@ -423,7 +364,7 @@ class SignNowService {
   // Test de conexión simplificado (sin OAuth)
   async testConnection() {
     try {
-      console.log('\n🔍 === TEST DE CONEXIÓN SIGNNOW (API KEY) ===');
+     
       
       if (!this.apiKey) {
         return {
@@ -433,17 +374,13 @@ class SignNowService {
         };
       }
 
-      console.log('🔄 Probando conexión con API Key...');
-      console.log(`📡 URL: ${this.baseURL}/user`);
+      
       
       const response = await axios.get(`${this.baseURL}/user`, {
         headers: this.getHeaders()
       });
 
-      console.log('📥 Respuesta del usuario:');
-      console.log('Status:', response.status);
-      console.log('User Data:', JSON.stringify(response.data, null, 2));
-      console.log('✅ === CONEXIÓN EXITOSA ===\n');
+     
 
       return {
         success: true,
@@ -456,14 +393,7 @@ class SignNowService {
         }
       };
     } catch (error) {
-      console.log('\n❌ === ERROR EN TEST DE CONEXIÓN ===');
-      console.log('Status:', error.response?.status);
-      console.log('Status Text:', error.response?.statusText);
-      console.log('Response Data:', JSON.stringify(error.response?.data, null, 2));
-      console.log('Request URL:', error.config?.url);
-      console.log('Request Headers:', error.config?.headers);
-      console.log('Error Message:', error.message);
-      console.log('================================\n');
+     
       
       return {
         success: false,
