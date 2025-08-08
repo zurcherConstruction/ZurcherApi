@@ -1,19 +1,35 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, Image, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert } from 'react-native';
-import { useDispatch, useSelector } from 'react-redux';
-import { login } from '../Redux/Actions/authActions';
-import Ionicons from 'react-native-vector-icons/Ionicons';
-import { BiometricService } from '../utils/biometricAuth';
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  Image,
+  StyleSheet,
+  TouchableOpacity,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+  Linking
+} from "react-native";
+import { useDispatch, useSelector } from "react-redux";
+import { login } from "../Redux/Actions/authActions";
+import Ionicons from "react-native-vector-icons/Ionicons";
+import { BiometricService } from "../utils/biometricAuth";
 
 const LoginScreen = ({ navigation }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
 
   const dispatch = useDispatch();
-  const { loading, error, isAuthenticated, staff, isLoading } = useSelector((state) => state.auth);
+  const { loading, error, isAuthenticated, staff, isLoading } = useSelector(
+    (state) => state.auth
+  );
 
   useEffect(() => {
     checkBiometricAvailability();
@@ -34,7 +50,7 @@ const LoginScreen = ({ navigation }) => {
         }
       }
     } catch (error) {
-      console.error('Error checking biometric availability:', error);
+      console.error("Error checking biometric availability:", error);
     }
   };
 
@@ -49,40 +65,47 @@ const LoginScreen = ({ navigation }) => {
         }
       }
     } catch (error) {
-      console.error('Error en login biométrico:', error);
+      console.error("Error en login biométrico:", error);
     }
   };
 
   const handleLogin = async () => {
     const result = await dispatch(login(email, password));
-    
+
     // Si el login fue exitoso y la biometría está disponible, preguntar si quiere habilitarla
     if (result && !result.error && biometricAvailable && !biometricEnabled) {
       Alert.alert(
-        'Autenticación Biométrica',
-        '¿Deseas habilitar Face ID/Touch ID para futuros inicios de sesión?',
+        "Autenticación Biométrica",
+        "¿Deseas habilitar Face ID/Touch ID para futuros inicios de sesión?",
         [
-          { text: 'No', style: 'cancel' },
-          { 
-            text: 'Sí', 
+          { text: "No", style: "cancel" },
+          {
+            text: "Sí",
             onPress: async () => {
               await BiometricService.saveCredentials(email, password);
               setBiometricEnabled(true);
-            }
-          }
+            },
+          },
         ]
       );
     }
-  };  // Manejar redirección basada en el rol
+  };
+
+  const handlePrivacyPolicyPress = () => {
+    Linking.openURL("https://www.zurcherseptic.com/privacy-policy").catch(
+      (err) => console.error("Error opening privacy policy URL:", err)
+    );
+  };
+
   useEffect(() => {
     if (isAuthenticated && !isLoading) {
       console.log(`Login exitoso. Staff ID: ${staff?.id}, Rol: ${staff?.role}`);
-      if (staff?.role === 'owner') {
-        navigation.replace('OwnerDrawer');
-      } else if (staff?.role === 'worker') {
-        navigation.replace('PendingWorks');
+      if (staff?.role === "owner") {
+        navigation.replace("OwnerDrawer");
+      } else if (staff?.role === "worker") {
+        navigation.replace("PendingWorks");
       } else {
-        console.log('Rol desconocido, no se realiza redirección');
+        console.log("Rol desconocido, no se realiza redirección");
       }
     }
   }, [isAuthenticated, staff, navigation, isLoading]);
@@ -100,24 +123,20 @@ const LoginScreen = ({ navigation }) => {
   return (
     <KeyboardAvoidingView
       style={styles.keyboardAvoidingContainer} // Usa un estilo con flex: 1
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'} // 'padding' para iOS
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0} // Ajuste opcional del offset
+      behavior={Platform.OS === "ios" ? "padding" : "height"} // 'padding' para iOS
+      keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0} // Ajuste opcional del offset
     >
-
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <Image
-          source={require('../../assets/logo.png')}
+          source={require("../../assets/logo.png")}
           style={styles.logo}
           resizeMode="contain"
         />
 
-
         <View style={styles.formContainer}>
           <Text style={styles.title}>Iniciar Sesión</Text>
 
-
           {error && <Text style={styles.error}>{error}</Text>}
-
 
           <TextInput
             style={styles.input}
@@ -127,7 +146,6 @@ const LoginScreen = ({ navigation }) => {
             keyboardType="email-address"
             autoCapitalize="none"
           />
-
 
           <View style={styles.passwordContainer}>
             <TextInput
@@ -142,7 +160,7 @@ const LoginScreen = ({ navigation }) => {
               style={styles.showPasswordButton}
             >
               <Ionicons
-                name={showPassword ? 'eye-off' : 'eye'}
+                name={showPassword ? "eye-off" : "eye"}
                 size={20}
                 color="#1e3a8a"
               />
@@ -150,7 +168,7 @@ const LoginScreen = ({ navigation }) => {
           </View>
           <Pressable onPress={handleLogin} style={styles.button}>
             <Text style={styles.buttonText}>
-              {loading ? 'Cargando...' : 'Iniciar Sesión'}
+              {loading ? "Cargando..." : "Iniciar Sesión"}
             </Text>
           </Pressable>
           {biometricAvailable && biometricEnabled && (
@@ -162,7 +180,16 @@ const LoginScreen = ({ navigation }) => {
               <Text style={styles.biometricText}>Usar Face ID / Touch ID</Text>
             </TouchableOpacity>
           )}
+        </View>
 
+        <View style={styles.privacyContainer}>
+          <Text style={styles.privacyText}>
+            By continuing, you agree to our{" "}
+            <Text style={styles.privacyLink} onPress={handlePrivacyPolicyPress}>
+              Privacy Policy
+            </Text>
+            .
+          </Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -175,28 +202,28 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flexGrow: 1, // Permite que el ScrollView crezca
-    justifyContent: 'center', // Centra el contenido verticalmente
-    alignItems: 'center', // Centra el contenido horizontalmente
+    justifyContent: "center", // Centra el contenido verticalmente
+    alignItems: "center", // Centra el contenido horizontalmente
     paddingVertical: 20, // Añade padding vertical si es necesario
-    backgroundColor: '#f9f9f9', // Mueve el color de fondo aquí
+    backgroundColor: "#f9f9f9", // Mueve el color de fondo aquí
   },
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
-    backgroundColor: '#f9f9f9',
+    backgroundColor: "#f9f9f9",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
   },
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#666',
+    color: "#666",
   },
   logo: {
     width: 150,
@@ -204,12 +231,12 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   formContainer: {
-    width: '90%',
+    width: "90%",
     maxWidth: 400,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     padding: 20,
     borderRadius: 10,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
@@ -217,70 +244,87 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1e3a8a',
+    fontWeight: "bold",
+    color: "#1e3a8a",
     marginBottom: 20,
-    textAlign: 'center',
+    textAlign: "center",
   },
   error: {
-    color: '#dc2626',
+    color: "#dc2626",
     marginBottom: 10,
-    textAlign: 'center',
+    textAlign: "center",
   },
   input: {
-    width: '100%',
+    width: "100%",
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: "#d1d5db",
     borderRadius: 8,
     padding: 12,
     marginBottom: 15,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   passwordContainer: {
-    position: 'relative',
-    width: '100%',
+    position: "relative",
+    width: "100%",
   },
   passwordInput: {
     paddingRight: 50,
   },
   showPasswordButton: {
-    position: 'absolute',
+    position: "absolute",
     right: 10,
     top: 12,
   },
   button: {
-    width: '100%',
-    backgroundColor: '#1e3a8a',
+    width: "100%",
+    backgroundColor: "#1e3a8a",
     padding: 15,
     borderRadius: 8,
-    alignItems: 'center',
-    shadowColor: '#000',
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 5,
   },
   buttonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   biometricButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 15,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#1e3a8a',
+    borderColor: "#1e3a8a",
     borderRadius: 8,
-    backgroundColor: '#f8f9ff'
+    backgroundColor: "#f8f9ff",
   },
   biometricText: {
-    color: '#1e3a8a',
+    color: "#1e3a8a",
     fontSize: 16,
     marginLeft: 8,
-    fontWeight: '500'
+    fontWeight: "500",
+  },
+
+    privacyContainer: {
+    marginTop: 20,
+    paddingHorizontal: 20,
+    width: '100%',
+    alignItems: 'center',
+  },
+  privacyText: {
+    fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 16,
+  },
+  privacyLink: {
+    color: '#1e3a8a',
+    textDecorationLine: 'underline',
   },
 });
 
