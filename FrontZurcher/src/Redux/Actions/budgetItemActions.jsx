@@ -54,9 +54,16 @@ export const createBudgetItem = (itemData) => async (dispatch) => {
 export const updateBudgetItem = (itemId, itemData) => async (dispatch) => {
   dispatch(updateBudgetItemRequest());
   try {
-    const response = await api.put(`/budget-item/${itemId}`, itemData);
+    let response;
+    if (itemData instanceof FormData) {
+      response = await api.put(`/budget-item/${itemId}`, itemData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+    } else {
+      response = await api.put(`/budget-item/${itemId}`, itemData);
+    }
     dispatch(updateBudgetItemSuccess(response.data));
-    return response.data; // Retorna el item actualizado
+    return response.data;
   } catch (error) {
     const errorMessage =
       error.response?.data?.error || 'Error al actualizar el item del presupuesto';

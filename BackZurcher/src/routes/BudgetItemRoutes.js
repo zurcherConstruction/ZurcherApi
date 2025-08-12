@@ -53,6 +53,7 @@ router.put(
     '/:id',
     verifyToken,
     allowRoles(['admin', 'owner']), // Solo admin/owner pueden modificar items
+    upload.single('image'), // Agregar esta línea para manejar imágenes en actualizaciones
     budgetItemController.updateBudgetItem
 );
 

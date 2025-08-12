@@ -78,31 +78,45 @@ const ItemsBudgets = () => {
     }
   };
 
-  const handleCreateOrUpdate = (e) => {
-    e.preventDefault();
-    const finalCategory = (showNewCategoryInput ? newCategory.trim() : formData.category)?.toUpperCase();
-    if (!finalCategory) {
-      alert("Please select or enter a category.");
-      return;
+const handleCreateOrUpdate = (e) => {
+  e.preventDefault();
+  const finalCategory = (showNewCategoryInput ? newCategory.trim() : formData.category)?.toUpperCase();
+  if (!finalCategory) {
+    alert("Please select or enter a category.");
+    return;
+  }
+  const dataToSend = {
+    name: formData.name?.trim().toUpperCase() || "",
+    category: finalCategory,
+    marca: formData.marca?.trim().toUpperCase() || "",
+    description: formData.description?.trim().toUpperCase() || "",
+    capacity: formData.capacity?.trim().toUpperCase() || "",
+    supplierName: formData.supplierName?.trim().toUpperCase() || "",
+    supplierLocation: formData.supplierLocation?.trim().toUpperCase() || "",
+    unitPrice: parseFloat(formData.unitPrice) || 0,
+  };
+  if (!dataToSend.name) {
+    alert("Name is required.");
+    return;
+  }
+  if (dataToSend.unitPrice < 0) {
+    alert("Unit price cannot be negative.");
+    return;
+  }
+
+  // Aquí está el cambio importante: verificar si estamos editando o creando
+  if (editingId) {
+    // EDITAR: usar updateBudgetItem
+    if (imageFile) {
+      const formDataToSend = new FormData();
+      Object.entries(dataToSend).forEach(([key, value]) => formDataToSend.append(key, value));
+      formDataToSend.append('image', imageFile);
+      dispatch(updateBudgetItem(editingId, formDataToSend));
+    } else {
+      dispatch(updateBudgetItem(editingId, dataToSend));
     }
-    const dataToSend = {
-      name: formData.name?.trim().toUpperCase() || "",
-      category: finalCategory,
-      marca: formData.marca?.trim().toUpperCase() || "",
-      description: formData.description?.trim().toUpperCase() || "",
-      capacity: formData.capacity?.trim().toUpperCase() || "",
-      supplierName: formData.supplierName?.trim().toUpperCase() || "",
-      supplierLocation: formData.supplierLocation?.trim().toUpperCase() || "",
-      unitPrice: parseFloat(formData.unitPrice) || 0,
-    };
-    if (!dataToSend.name) {
-      alert("Name is required.");
-      return;
-    }
-    if (dataToSend.unitPrice < 0) {
-      alert("Unit price cannot be negative.");
-      return;
-    }
+  } else {
+    // CREAR: usar createBudgetItem
     if (imageFile) {
       const formDataToSend = new FormData();
       Object.entries(dataToSend).forEach(([key, value]) => formDataToSend.append(key, value));
@@ -111,8 +125,9 @@ const ItemsBudgets = () => {
     } else {
       dispatch(createBudgetItem(dataToSend));
     }
-    resetForm();
-  };
+  }
+  resetForm();
+};
 
   const handleEdit = (item) => {
     setEditingId(item.id);

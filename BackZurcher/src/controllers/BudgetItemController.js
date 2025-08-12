@@ -150,38 +150,61 @@ const budgetItemController = {
   },
 
   // --- ACTUALIZAR un BudgetItem por ID ---
-  async updateBudgetItem(req, res) {
-    try {
-      const { id } = req.params;
-      const fieldsToUpdate = req.body;
+async updateBudgetItem(req, res) {
+  try {
+    const { id } = req.params;
+    const {
+      name,
+      description,
+      category,
+      marca,
+      capacity,
+      unitPrice,
+      unit,
+      supplierName,
+      supplierLocation
+    } = req.body;
 
-      // No permitir actualizar el ID
-      delete fieldsToUpdate.id;
-
-      // Validar que al menos se envíe un campo para actualizar
-      if (Object.keys(fieldsToUpdate).length === 0) {
-          return res.status(400).json({ error: 'No se proporcionaron campos para actualizar.' });
-      }
-
-      const [updated] = await BudgetItem.update(fieldsToUpdate, {
-        where: { id }
-      });
-
-      if (!updated) {
-        return res.status(404).json({ error: 'BudgetItem no encontrado para actualizar.' });
-      }
-
-      const updatedItem = await BudgetItem.findByPk(id); // Devolver el item actualizado
-      res.status(200).json(updatedItem);
-    } catch (error) {
-      console.error("Error al actualizar BudgetItem:", error);
-       // Manejar error de unicidad si se intenta cambiar a un 'name' que ya existe
-       if (error.name === 'SequelizeUniqueConstraintError') {
-        return res.status(400).json({ error: `El nombre del item '${req.body.name}' ya existe.` });
+    const item = await BudgetItem.findByPk(id);
+    if (!item) {
+      return res.status(404).json({ error: 'Item no encontrado' });
     }
-      res.status(500).json({ error: 'Error interno del servidor al actualizar el item.' });
+
+    let imageUrl = item.imageUrl; // Mantener la imagen existente por defecto
+
+    // Si se envía archivo (imagen), subir a Cloudinary
+    if (req.file && req.file.buffer) {
+      try {
+        const uploadResult = await uploadBufferToCloudinary(req.file.buffer, 'budget_items');
+        imageUrl = uploadResult.secure_url;
+      } catch (uploadError) {
+        console.error('Error al subir imagen:', uploadError);
+        return res.status(500).json({ error: 'Error al subir la imagen' });
+      }
     }
-  },
+
+    const updatedItem = await item.update({
+      name: name || item.name,
+      description: description || item.description,
+      category: category || item.category,
+      marca: marca || item.marca,
+      capacity: capacity || item.capacity,
+      unitPrice: unitPrice !== undefined ? unitPrice : item.unitPrice,
+      unit: unit || item.unit,
+      supplierName: supplierName || item.supplierName,
+      supplierLocation: supplierLocation || item.supplierLocation,
+      imageUrl
+    });
+
+    res.json(updatedItem);
+  } catch (error) {
+    console.error("Error al actualizar BudgetItem:", error);
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return res.status(400).json({ error: 'Ya existe un item con ese nombre en esa categoría.' });
+    }
+    res.status(500).json({ error: 'Error interno del servidor al actualizar el item.' });
+  }
+},
 
    // --- SOFT DELETE: Desactivar item ---
   async deactivateBudgetItem(req, res) {
