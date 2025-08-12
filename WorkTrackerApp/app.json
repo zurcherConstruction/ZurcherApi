@@ -23,10 +23,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.zurcher.construction",
-      "buildNumber": "5",
+      "buildNumber": "27",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSFaceIDUsageDescription": "Use Face ID to authenticate yourself and access your account",
+        "NSFaceIDUsageDescription": "Use Face ID to securely log in to your Zurcher Construction account without typing your password.",
+        "NSPhotoLibraryUsageDescription": "We need access to your photo library so you can select and upload images related to your construction projects, such as receipts, progress photos, or site documentation.",
+        "NSCameraUsageDescription": "We need access to your camera so you can take and upload photos of receipts, work progress, or construction sites directly to your project records.",
         "UIBackgroundModes": [
           "remote-notification"
         ],

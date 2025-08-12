@@ -40,6 +40,7 @@ const PrivacyPolicy = () => {
               <li>Photos of septic system installations uploaded by employees, taken outside residential buildings.</li>
               <li>Address or location of the project site, for tracking purposes.</li>
               <li>No personal information from users (such as name, email, phone number, or personal identifiers) is collected or stored in the app.</li>
+              <li>Photo Library Access: The application may request access to your device’s photo library exclusively to allow employees to select and upload images directly related to construction projects. These photos are used solely for documenting and tracking work progress, such as installation steps and site conditions, and are not shared outside Zurcher Construction without authorization. The app does not access or store unrelated personal images.</li>
             </ul>
           </section>
 
