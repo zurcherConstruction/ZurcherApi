@@ -111,6 +111,7 @@ const CreateBudget = () => {
   //estados items manual 
   const [manualItem, setManualItem] = useState({
     category: "",
+    customCategory: "",
     name: "",
     unitPrice: "",
     quantity: "",
@@ -411,13 +412,20 @@ const handleGeneralInputChange = (e) => {
 const handleManualItemChange = (e) => {
   const { name, value } = e.target;
   const isNumeric = ['unitPrice', 'quantity'].includes(name);
-  
+  if (name === 'category') {
+    setManualItem(prev => ({
+      ...prev,
+      category: value,
+      // Reset customCategory if not 'other'
+      customCategory: value === 'other' ? prev.customCategory : '',
+    }));
+    return;
+  }
   if (isNumeric) {
-    // Permitir valores vacíos y números válidos
     if (value === '' || (!isNaN(value) && parseFloat(value) >= 0)) {
       setManualItem(prev => ({
         ...prev,
-        [name]: value // Mantener como string
+        [name]: value
       }));
     }
   } else {
@@ -432,28 +440,25 @@ const handleManualItemChange = (e) => {
 const addManualItem = () => {
   const unitPrice = parseFloat(manualItem.unitPrice) || 0;
   const quantity = parseFloat(manualItem.quantity) || 1;
-  
-  if (!manualItem.category || !manualItem.name || unitPrice <= 0 || quantity <= 0) {
+  let categoryValue = manualItem.category === 'other' ? manualItem.customCategory : manualItem.category;
+  if (!categoryValue || !manualItem.name || unitPrice <= 0 || quantity <= 0) {
     alert("Por favor complete todos los campos del item manual.");
     return;
   }
-
   setFormData(prev => ({
     ...prev,
     lineItems: [...prev.lineItems, {
       _tempId: generateTempId(),
       budgetItemId: null,
-      category: manualItem.category.toUpperCase(),
+      category: categoryValue.toUpperCase(),
       name: manualItem.name.toUpperCase(),
-      unitPrice: unitPrice, // Usar el valor parseado
-      quantity: quantity, // Usar el valor parseado
+      unitPrice: unitPrice,
+      quantity: quantity,
       description: manualItem.description,
       notes: "Item Manual",
     }],
   }));
-
-  // Reset con strings vacíos
-  setManualItem({ category: "", name: "", unitPrice: "", quantity: "", description: "" });
+  setManualItem({ category: "", customCategory: "", name: "", unitPrice: "", quantity: "", description: "" });
 };
 
 
@@ -842,15 +847,29 @@ const customCategoryOrder = [
                   <label htmlFor="manual_category" className="block text-sm font-medium text-gray-700 mb-1">
                     Categoría
                   </label>
-                  <input 
-                    id="manual_category" 
-                    type="text" 
-                    name="category" 
-                    value={manualItem.category} 
-                    onChange={handleManualItemChange} 
-                    placeholder="Ej: NUEVA CATEGORIA" 
+                  <select
+                    id="manual_category"
+                    name="category"
+                    value={manualItem.category}
+                    onChange={handleManualItemChange}
                     className={`${standardInputClasses} text-sm`}
-                  />
+                  >
+                    <option value="">Seleccione una categoría</option>
+                    {availableCategories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                    <option value="other">Otra...</option>
+                  </select>
+                  {manualItem.category === 'other' && (
+                    <input
+                      type="text"
+                      name="customCategory"
+                      value={manualItem.customCategory}
+                      onChange={handleManualItemChange}
+                      placeholder="Ingrese nueva categoría"
+                      className={`${standardInputClasses} text-sm mt-2`}
+                    />
+                  )}
                 </div>
                 <div>
                   <label htmlFor="manual_name" className="block text-sm font-medium text-gray-700 mb-1">

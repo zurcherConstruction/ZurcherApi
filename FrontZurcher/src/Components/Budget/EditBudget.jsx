@@ -48,6 +48,7 @@ const EditBudget = () => {
 
   const [manualItemData, setManualItemData] = useState({
     category: "",
+    customCategory: "",
     name: "",
     unitPrice: "", // Usar string para el input
     quantity: "1", // Default a 1 como string
@@ -241,6 +242,14 @@ const editableBudgets = useMemo(() => {
 
   const handleManualItemChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'category') {
+      setManualItemData(prev => ({
+        ...prev,
+        category: value,
+        customCategory: value === 'other' ? prev.customCategory : '',
+      }));
+      return;
+    }
     setManualItemData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -249,10 +258,11 @@ const editableBudgets = useMemo(() => {
     const unitPriceNum = parseFloat(manualItemData.unitPrice);
     const quantityNum = parseFloat(manualItemData.quantity);
 
-    if (!manualItemData.category.trim() || !manualItemData.name.trim()) {
-        alert("Por favor, completa la categoría y el nombre del item manual.");
-        return;
-    }
+  let categoryValue = manualItemData.category === 'other' ? manualItemData.customCategory : manualItemData.category;
+  if (!categoryValue.trim() || !manualItemData.name.trim()) {
+    alert("Por favor, completa la categoría y el nombre del item manual.");
+    return;
+  }
     if (isNaN(unitPriceNum) || unitPriceNum < 0) {
         alert("Por favor, ingresa un precio unitario válido.");
         return;
@@ -262,19 +272,19 @@ const editableBudgets = useMemo(() => {
         return;
     }
 
-    const newItem = {
-        _tempId: generateTempId(), // ✅ AGREGAR TEMP ID
-        id: undefined,
-        budgetItemId: null,
-        category: manualItemData.category.trim(),
-        name: manualItemData.name.trim(),
-        unitPrice: unitPriceNum,
-        quantity: quantityNum,
-        notes: manualItemData.notes.trim(),
-        marca: '',
-        capacity: '',
-        description: manualItemData.description.trim(), // ✅ INCLUIR DESCRIPTION DEL FORMULARIO
-    };
+  const newItem = {
+    _tempId: generateTempId(), // ✅ AGREGAR TEMP ID
+    id: undefined,
+    budgetItemId: null,
+    category: categoryValue.trim(),
+    name: manualItemData.name.trim(),
+    unitPrice: unitPriceNum,
+    quantity: quantityNum,
+    notes: manualItemData.notes.trim(),
+    marca: '',
+    capacity: '',
+    description: manualItemData.description.trim(), // ✅ INCLUIR DESCRIPTION DEL FORMULARIO
+  };
 
     setFormData(prev => {
         if (!prev) return null;
@@ -285,7 +295,7 @@ const editableBudgets = useMemo(() => {
     });
 
     // Resetear formulario manual
-    setManualItemData({ category: "", name: "", unitPrice: "", quantity: "1", notes: "", description: "" }); // ✅ RESETEAR DESCRIPTION
+  setManualItemData({ category: "", customCategory: "", name: "", unitPrice: "", quantity: "1", notes: "", description: "" }); // ✅ RESETEAR DESCRIPTION
   };
 
   // ✅ AGREGAR HANDLERS PARA SISTEMA DINÁMICO:
@@ -672,7 +682,29 @@ const editableBudgets = useMemo(() => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label htmlFor="manualCategory" className="block text-xs font-medium text-gray-700">Categoría</label>
-                    <input type="text" id="manualCategory" name="category" value={manualItemData.category} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Ej: SYSTEM TYPE" />
+                    <select
+                      id="manualCategory"
+                      name="category"
+                      value={manualItemData.category}
+                      onChange={handleManualItemChange}
+                      className="input-style mt-1 text-sm"
+                    >
+                      <option value="">Seleccione una categoría</option>
+                      {availableCategories.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                      <option value="other">Otra...</option>
+                    </select>
+                    {manualItemData.category === 'other' && (
+                      <input
+                        type="text"
+                        name="customCategory"
+                        value={manualItemData.customCategory}
+                        onChange={handleManualItemChange}
+                        placeholder="Ingrese nueva categoría"
+                        className="input-style mt-1 text-sm"
+                      />
+                    )}
                   </div>
                   <div className="md:col-span-2">
                     <label htmlFor="manualName" className="block text-xs font-medium text-gray-700">Nombre del Item</label>
