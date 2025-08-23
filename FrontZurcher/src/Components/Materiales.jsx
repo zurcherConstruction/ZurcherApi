@@ -548,21 +548,20 @@ const formatDate = (isoDate) => {
           </div>
         </div>
 
-        {/* Layout principal con proporciones optimizadas */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Layout principal con grid responsive */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
           {/* Cartel de fecha de inicio de la obra seleccionada */}
           {work?.startDate && (
-            <div className="lg:col-span-12 mb-2">
+            <div className="col-span-full mb-2 w-full">
               <div className="bg-blue-100 border border-blue-300 text-blue-800 rounded-lg px-4 py-3 text-center font-semibold text-base shadow">
                 Fecha de inicio asignada a la obra: {formatDate(work.startDate)}
               </div>
             </div>
           )}
-          {/* Columna izquierda: Solo formularios de materiales (1/4 del espacio) */}
-          <div className="space-y-6 lg:col-span-3">
-
+          {/* Columna izquierda: Formularios de materiales */}
+          <div className="space-y-6 min-w-0 w-full">
             {/* Dynamic Materials Catalog Card */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="bg-white rounded-xl shadow-lg p-6 w-full">
               <div className="flex items-center space-x-3 mb-4">
                 <ClipboardDocumentListIcon className="h-5 w-5 text-green-500" />
                 <h3 className="text-lg font-semibold text-gray-800">Seleccionar Materiales del Catálogo</h3>
@@ -578,12 +577,11 @@ const formatDate = (isoDate) => {
             </div>
 
             {/* Manual Materials Card */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="bg-white rounded-xl shadow-lg p-6 w-full">
               <div className="flex items-center space-x-3 mb-4">
                 <PencilIcon className="h-5 w-5 text-purple-500" />
                 <h3 className="text-lg font-semibold text-gray-800">Material Manual</h3>
               </div>
-              
               <div className="space-y-4">
                 <div>
                   <label htmlFor="manualMaterial" className="block text-sm font-medium text-gray-700 mb-2">
@@ -601,7 +599,6 @@ const formatDate = (isoDate) => {
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
                   />
                 </div>
-
                 <div>
                   <label htmlFor="manualQuantity" className="flex items-center text-sm font-medium text-gray-700 mb-2">
                     <HashtagIcon className="h-4 w-4 mr-2 text-gray-500" />
@@ -619,7 +616,6 @@ const formatDate = (isoDate) => {
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
                   />
                 </div>
-
                 <div>
                   <label htmlFor="manualComment" className="flex items-center text-sm font-medium text-gray-700 mb-2">
                     <ChatBubbleBottomCenterTextIcon className="h-4 w-4 mr-2 text-gray-500" />
@@ -637,7 +633,6 @@ const formatDate = (isoDate) => {
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
                   />
                 </div>
-
                 <button
                   type="button"
                   onClick={editingIndex !== null ? addOrUpdateMaterial : addManualMaterial}
@@ -661,8 +656,8 @@ const formatDate = (isoDate) => {
             </div>
           </div>
 
-          {/* Columna derecha: Vista de PDFs/documentos y lista de materiales (3/4 del espacio) */}
-          <div className="space-y-6 lg:col-span-9">
+          {/* Columna derecha: Vista de PDFs/documentos y lista de materiales */}
+          <div className="space-y-6 min-w-0 w-full">
             {/* Vista de Documentos PDFs */}
             {(permitPdfUrl || optionalDocsUrl || pdfUrl) && (
               <div className="bg-white rounded-xl shadow-lg p-6">

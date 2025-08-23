@@ -19,7 +19,7 @@ const defaultItems = [
   { category: "Sistema Chambers", imageUrl: "https://res.cloudinary.com/dt4ah1jmy/image/upload/v1755880904/raaf4rthwtan9sufd123.png", name: "CHAMBERS", marca: "", capacity: "", description: "INFILTRATOR Q4+EQ36LP QUICK4 PLUS EQLZR 36 LOW PROFILE CHAMBER", unitPrice: 29.76, supplierName: "", supplierLocation: "" },
   { category: "Sistema Chambers", imageUrl: "https://res.cloudinary.com/dt4ah1jmy/image/upload/v1755880985/w0z76fqnazt25twcfct4.png", name: "CHAMBERS", marca: "", capacity: "", description: "INFILTRATOR 2412BD3-PP ARC 24 CHAMBER", unitPrice: 40.38, supplierName: "", supplierLocation: "" },
   { category: "Sistema Chambers", imageUrl: "https://res.cloudinary.com/dt4ah1jmy/image/upload/v1755881222/budget_items/caiwzhoiwzndrx3zghrd.png", name: "CHAMBERS", marca: "", capacity: "", description: "INFILTRATOR Q4+A1E QUICK4 PLUS ALL IN ONE END CAP", unitPrice: 16.27, supplierName: "", supplierLocation: "" },
-  { category: "Sistema Chambers", name: "CHAMBERS", marca: "", capacity: "", description: "INFILTRATOR 2402BD3 ARC 24 STD END CAP", unitPrice: 12.60, supplierName: "", supplierLocation: "" },
+  { category: "Sistema Chambers", imageUrl:"", name: "CHAMBERS", marca: "", capacity: "", description: "INFILTRATOR 2402BD3 ARC 24 STD END CAP", unitPrice: 12.60, supplierName: "", supplierLocation: "" },
 
   // PUMP
   { category: "Pump", name: "PUMP TANK LIFT STATION", marca: "", capacity: "300 gal", description: "TANK 300 GAL", unitPrice: 100, supplierName: "", supplierLocation: "" },
@@ -105,7 +105,12 @@ const defaultItems = [
   { category: "MATERIALES", imageUrl:"https://res.cloudinary.com/dt4ah1jmy/image/upload/v1755893837/u1adwl1v4zicuqqishds.png", name: "1046", marca: "", capacity: "", description: "409010 1 SPGXS SCH40 PVC STREET 90 ELBOW", unitPrice: 2.86, supplierName: "", supplierLocation: "" },
   { category: "MATERIALES", imageUrl:"https://res.cloudinary.com/dt4ah1jmy/image/upload/v1755893302/xlaw9h2y18sfdfjgiitb.png", name: "1004", marca: "", capacity: "", description: "429010 1 SXS SCH40 PVC CPLG", unitPrice: 0.76, supplierName: "", supplierLocation: "" },
   { category: "MATERIALES", imageUrl:"https://res.cloudinary.com/dt4ah1jmy/image/upload/v1755896077/astjrnkulwicwd57pese.png", name: "993", marca: "", capacity: "", description: "447010 1 SCH40 PVC CAP", unitPrice: 0.79, supplierName: "", supplierLocation: "" },
- 
+
+  { category: "MATERIALES", imageUrl:"https://res.cloudinary.com/dt4ah1jmy/image/upload/v1755907478/ybgivqf2htv3tsmk5iiq.png", name: "500GPD 1530 ECOPOD", marca: "", capacity: "", description: "362724-INFILTRATOR IM1530P/2 1530GAL DBL COMP SEPTIC TANK, 655711-DELTA TREATMENT E50-NXIM15302210LW NSF245 ECOPOD WITH AIR BLOWER AND CONTROL PANEL", unitPrice: 5311.66, supplierName: "", supplierLocation: "" },
+  { category: "MATERIALES", imageUrl:"https://res.cloudinary.com/dt4ah1jmy/image/upload/v1755907449/y0g8ub9xhhxlbzkzmtet.png", name: "500GPD 1060 ECOPOD", marca: "", capacity: "", description: "639043-INFILTRATOR CM1060P/2 1060G 2 COMP SEPTIC TANK , 710880-DELTA TREATMENT EDGE5002210LIN NSF245 ECOPOD-EDGE WITH LW250 AERATOR AND CP22010R2 CONTROL PANEL", unitPrice: 5285.17, supplierName: "", supplierLocation: "" },
+  { category: "MATERIALES", imageUrl:"https://res.cloudinary.com/dt4ah1jmy/image/upload/v1755907536/qz9q4qu4wedi6ojaxbzx.png", name: "750GPD ECOPOD", marca: "", capacity: "", description: "639043-INFILTRATOR CM1060P/2 1060G 2 COMP SEPTIC TANK , 709352-DELTA TREATMENT E75NCM2210 ECOPOD-N SERIES", unitPrice: 6407.48, supplierName: "", supplierLocation: "" },
+  { category: "MATERIALES", imageUrl:"https://res.cloudinary.com/dt4ah1jmy/image/upload/v1755907413/p2vjwxeandp8cofhecsw.png", name: "1000GPD ECOPOD", marca: "", capacity: "", description: "362724-INFILTRATOR IM1530P/2 1530GAL DBL COMP SEPTIC TANK, 639043-INFILTRATOR CM1060P/2 1060G 2 COMP SEPTIC TANK, 531396-DELTA TREATMENT E100NIM222OECOFGRB ECOPOD-N SERIES F/IM1530 TANK", unitPrice: 8119.12, supplierName: "", supplierLocation: "" },
+
 ];
 
 
