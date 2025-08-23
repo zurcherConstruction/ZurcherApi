@@ -373,6 +373,7 @@ const handleCustomChange = (e) => {
                               handleSelectionChange({ target: { name: 'description', value: item.description } });
                               setShowMaterialDropdown(false);
                             }}
+                            title={`${item.name} - ${item.description}`}
                           >
                             {item.imageUrl && (
                               <img src={item.imageUrl} alt={item.name} className="h-8 w-8 object-contain rounded border mr-2" />
