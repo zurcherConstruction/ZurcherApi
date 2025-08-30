@@ -114,6 +114,13 @@ router.post(
   InspectionController.notifyInspectorPaymentForFinal
 );
 
+// --- NUEVO: Registrar resultado rápido de inspección (aprobada/rechazada + imagen) ---
+router.post(
+  '/:workId/quick-result',
+  verifyToken, allowRoles(['admin', 'recept', 'owner', 'inspector']),
+  upload.single('resultDocumentFile'),
+  InspectionController.registerQuickInspectionResult
+);
 
 
 // --- FIN: RUTAS PARA EL FLUJO DE INSPECCIÓN FINAL ---

@@ -3,12 +3,85 @@ const { sendEmail } = require('../utils/notifications/emailService');
 const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryUploader');
 const { sendNotifications } = require('../utils/notifications/notificationManager'); // Para notificaciones internas si es necesario
 const { scheduleInitialMaintenanceVisits } = require('./MaintenanceController'); // <--- IMPORTANTE: AÑADIR ESTA LÍNEA
-// --- INICIO: NUEVAS FUNCIONES PARA EL FLUJO DE INSPECCIÓN DETALLADO ---
 
-/**
- * @description Inicia el proceso de inspección inicial para una obra.
- * Crea un registro de inspección, envía correo a inspectores con documentos.
- */
+
+const registerQuickInspectionResult = async (req, res) => {
+  try {
+    const { workId } = req.params;
+    const { type, finalStatus, notes, dateInspectionPerformed } = req.body;
+    if (!type || !['initial', 'final'].includes(type)) {
+      return res.status(400).json({ error: true, message: 'Tipo de inspección inválido (initial/final).' });
+    }
+    if (!finalStatus || !['approved', 'rejected'].includes(finalStatus)) {
+      return res.status(400).json({ error: true, message: 'finalStatus debe ser "approved" o "rejected".' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: true, message: 'Debes subir una imagen o PDF de resultado.' });
+    }
+
+    // Buscar la obra
+    const work = await Work.findByPk(workId, { include: [Permit] });
+    if (!work) {
+      return res.status(404).json({ error: true, message: 'Obra no encontrada.' });
+    }
+
+    // Subir archivo a Cloudinary
+    const cloudinaryResult = await uploadBufferToCloudinary(req.file.buffer, {
+      folder: `inspections/${workId}/quick_result`,
+      resource_type: 'raw',
+      public_id: `quick_result_${Date.now()}`
+    });
+
+    // Crear la inspección directamente con el resultado
+    const inspection = await Inspection.create({
+      workId,
+      type,
+      processStatus: type === 'initial'
+        ? (finalStatus === 'approved' ? 'result_approved' : 'result_rejected')
+        : (finalStatus === 'approved' ? 'result_approved' : 'result_rejected'),
+      finalStatus,
+      dateInspectionPerformed: dateInspectionPerformed || new Date(),
+      dateResultReceived: new Date(),
+      resultDocumentUrl: cloudinaryResult.secure_url,
+      resultDocumentPublicId: cloudinaryResult.public_id,
+      notes,
+    });
+
+    // Actualizar estado de la obra según lógica existente
+    if (type === 'initial') {
+      if (finalStatus === 'approved') {
+        work.status = 'approvedInspection';
+        await sendNotifications('initial_inspection_approved', work, req.app.get('io'), { inspectionId: inspection.idInspection });
+      } else {
+        work.status = 'rejectedInspection';
+        // Incluir la URL del documento de resultado en el objeto work para la notificación
+        work.resultDocumentUrl = inspection.resultDocumentUrl;
+        await sendNotifications('initial_inspection_rejected', work, req.app.get('io'), { inspectionId: inspection.idInspection, notes });
+        // Limpia el campo auxiliar después de la notificación para no persistirlo en la BD
+        delete work.resultDocumentUrl;
+      }
+    } else if (type === 'final') {
+      if (finalStatus === 'approved') {
+        work.status = 'maintenance';
+        await sendNotifications('final_inspection_approved_maintenance', work, req.app.get('io'), { inspectionId: inspection.idInspection });
+      } else {
+        work.status = 'finalRejected';
+        await sendNotifications('final_inspection_rejected', work, req.app.get('io'), { inspectionId: inspection.idInspection, notes });
+      }
+    }
+    await work.save();
+
+    return res.status(201).json({
+      message: 'Resultado de inspección registrado rápidamente.',
+      inspection,
+      workStatus: work.status
+    });
+  } catch (error) {
+    console.error('Error en registerQuickInspectionResult:', error);
+    res.status(500).json({ error: true, message: 'Error interno al registrar resultado rápido de inspección.' });
+  }
+};
+
 const requestInitialInspection = async (req, res) => {
   try {
     const { workId } = req.params;
@@ -1220,5 +1293,6 @@ module.exports = {
   confirmDirectPaymentForFinal,
   confirmClientPaymentForFinal,
   notifyInspectorPaymentForFinal,
+  registerQuickInspectionResult,
  
 };
