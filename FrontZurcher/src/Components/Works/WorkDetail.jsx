@@ -7,7 +7,6 @@ import {
   fetchIncomesAndExpensesSuccess,
   fetchIncomesAndExpensesFailure,
 } from "../../Redux/Reducer/balanceReducer"; // Ajusta esta ruta si es necesario
-import { fetchInspectionsByWork } from '../../Redux/Actions/inspectionActions'
 import { useParams } from "react-router-dom";
 //import api from "../../utils/axios";
 import FinalInvoice from "../Budget/FinalInvoice"
@@ -17,7 +16,11 @@ import { ExclamationTriangleIcon } from '@heroicons/react/24/solid'; // Para el 
 import CreateChangeOrderModal from './CreateChangeOrderModal'; // Importar el nuevo modal
 import api from "../../utils/axios";
 import useAutoRefresh from "../../utils/useAutoRefresh";
-import PdfModal from "../Budget/PdfModal"; // Asegúrate de que esta ruta sea correcta
+import PdfModal from "../Budget/PdfModal"; 
+import { fetchInspectionsByWork, registerQuickInspectionResult } from '../../Redux/Actions/inspectionActions'
+  // --- Estado para modal de resultado rápido de inspección ---
+  
+// Asegúrate de que esta ruta sea correcta
 
 
 const WorkDetail = () => {
@@ -53,6 +56,12 @@ const workRef = useRef(work);
   const [openSections, setOpenSections] = useState({}); // Cambiado a un objeto para manejar múltiples secciones
   const [showFinalInvoice, setShowFinalInvoice] = useState(false);
   const [selectedInstalledImage, setSelectedInstalledImage] = useState(null);
+  const [showQuickInspectionModal, setShowQuickInspectionModal] = useState(false);
+  const [quickInspectionType, setQuickInspectionType] = useState('initial');
+  const [quickInspectionStatus, setQuickInspectionStatus] = useState('approved');
+  const [quickInspectionFile, setQuickInspectionFile] = useState(null);
+  const [quickInspectionNotes, setQuickInspectionNotes] = useState('');
+  const [quickInspectionLoading, setQuickInspectionLoading] = useState(false);
   const {
     incomes,
     expenses,
@@ -1117,6 +1126,31 @@ const handleShowBudgetPdf = async () => {
                       </svg>
                     )}
                   </span>
+                  {work?.status === 'approvedInspection' ? (
+                    <span className="ml-4 px-3 py-2 rounded shadow text-sm font-bold bg-green-200 text-green-800">
+                      Inspección APROBADA
+                      {work?.updatedAt && (
+                        <span className="block text-xs font-normal text-gray-500 mt-1">{`Fecha: ${new Date(work.updatedAt).toLocaleString()}`}</span>
+                      )}
+                    </span>
+                  ) : (
+                    <>
+                      {work?.status === 'rejectedInspection' && (
+                        <span className="ml-4 px-3 py-2 rounded shadow text-sm font-bold bg-red-200 text-red-800">
+                          Inspección RECHAZADA
+                          {work?.updatedAt && (
+                            <span className="block text-xs font-normal text-gray-500 mt-1">{`Fecha: ${new Date(work.updatedAt).toLocaleString()}`}</span>
+                          )}
+                        </span>
+                      )}
+                      <button
+                        className="ml-4 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded shadow text-sm"
+                        onClick={e => { e.stopPropagation(); setShowQuickInspectionModal(true); }}
+                      >
+                        Registrar resultado rápido
+                      </button>
+                    </>
+                  )}
                 </h2>
                 
                 {/* Renderizado condicional del gestor de flujo apropiado */}
@@ -1127,6 +1161,65 @@ const handleShowBudgetPdf = async () => {
                     isVisible={openSections.inspectionFlow}
                   />
                 )}
+            {/* Modal para resultado rápido de inspección */}
+            {showQuickInspectionModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+                <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
+                  <button className="absolute top-2 right-2 text-gray-500 hover:text-red-600" onClick={() => setShowQuickInspectionModal(false)}>&#10005;</button>
+                  <h3 className="text-lg font-bold mb-4 text-gray-800">Registrar resultado rápido de inspección</h3>
+                  <form
+                    onSubmit={async e => {
+                      e.preventDefault();
+                      if (!quickInspectionFile) return alert('Debes subir una imagen o PDF.');
+                      setQuickInspectionLoading(true);
+                      try {
+                        const formData = new FormData();
+                        formData.append('type', quickInspectionType);
+                        formData.append('finalStatus', quickInspectionStatus);
+                        formData.append('resultDocumentFile', quickInspectionFile);
+                        if (quickInspectionNotes) formData.append('notes', quickInspectionNotes);
+                        await dispatch(registerQuickInspectionResult(work.idWork, formData));
+                        setShowQuickInspectionModal(false);
+                        setQuickInspectionFile(null);
+                        setQuickInspectionNotes('');
+                        setQuickInspectionLoading(false);
+                      } catch (err) {
+                        setQuickInspectionLoading(false);
+                      }
+                    }}
+                  >
+                    <div className="mb-3">
+                      <label className="block text-sm font-medium mb-1">Tipo de inspección</label>
+                      <select value={quickInspectionType} onChange={e => setQuickInspectionType(e.target.value)} className="w-full border rounded px-2 py-1">
+                        <option value="initial">Inicial</option>
+                        <option value="final">Final</option>
+                      </select>
+                    </div>
+                    <div className="mb-3">
+                      <label className="block text-sm font-medium mb-1">Resultado</label>
+                      <select value={quickInspectionStatus} onChange={e => setQuickInspectionStatus(e.target.value)} className="w-full border rounded px-2 py-1">
+                        <option value="approved">Aprobada</option>
+                        <option value="rejected">Rechazada</option>
+                      </select>
+                    </div>
+                    <div className="mb-3">
+                      <label className="block text-sm font-medium mb-1">Imagen o PDF</label>
+                      <input type="file" accept="image/*,application/pdf" onChange={e => setQuickInspectionFile(e.target.files[0])} className="w-full" />
+                    </div>
+                    <div className="mb-3">
+                      <label className="block text-sm font-medium mb-1">Notas (opcional)</label>
+                      <textarea value={quickInspectionNotes} onChange={e => setQuickInspectionNotes(e.target.value)} className="w-full border rounded px-2 py-1" rows={2} />
+                    </div>
+                    <div className="flex justify-end gap-2 mt-4">
+                      <button type="button" className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400" onClick={() => setShowQuickInspectionModal(false)}>Cancelar</button>
+                      <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700" disabled={quickInspectionLoading}>
+                        {quickInspectionLoading ? 'Guardando...' : 'Registrar'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
 
                 {showFinalInspectionManager && !showInitialInspectionManager && (
                   <FinalInspectionFlowManager

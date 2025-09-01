@@ -4,6 +4,28 @@ const { Op } = require('sequelize'); // Asegúrate de importar Op para usar oper
 
 // Mapeo de estados a roles y mensajes
 const stateNotificationMap = {
+  initial_inspection_approved: {
+    roles: ['admin', 'owner'],
+    message: (work, context) => `El trabajo con dirección ${work.propertyAddress} ha sido aprobado en la inspección inicial (registro rápido). Inspección ID: ${context?.inspectionId || 'N/A'}.`,
+  },
+  initial_inspection_rejected: {
+    roles: ['admin', 'owner', 'worker'],
+    message: (work, context) => {
+      let msg = `El trabajo con dirección ${work.propertyAddress} ha sido rechazado en la inspección inicial (registro rápido).`;
+      if (context?.inspectionId) msg += `\nInspección ID: ${context.inspectionId}`;
+      if (context?.notes) msg += `\nNotas: ${context.notes}`;
+      if (work.resultDocumentUrl) msg += `\nImagen/PDF: ${work.resultDocumentUrl}`;
+      return msg;
+    },
+  },
+  final_inspection_approved_maintenance: {
+    roles: ['admin', 'owner'],
+    message: (work, context) => `El trabajo con dirección ${work.propertyAddress} ha sido aprobado en la inspección final (registro rápido) y pasa a mantenimiento. Inspección ID: ${context?.inspectionId || 'N/A'}.`,
+  },
+  final_inspection_rejected: {
+    roles: ['admin', 'owner'],
+    message: (work, context) => `El trabajo con dirección ${work.propertyAddress} ha sido rechazado en la inspección final (registro rápido). Inspección ID: ${context?.inspectionId || 'N/A'}. Notas: ${context?.notes || 'Sin notas.'}`,
+  },
   pending: {
     roles: ['owner', 'recept'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ya fue confirmado. Por favor, compra los materiales necesarios  para la fecha ${work.startDate}.`,

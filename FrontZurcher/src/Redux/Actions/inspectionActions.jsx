@@ -1,3 +1,4 @@
+
 import api from '../../utils/axios';
 import {
   inspectionRequest,
@@ -312,6 +313,29 @@ export const notifyInspectorPaymentForFinal = (inspectionId, inspectorData) => a
     return response.data;
   } catch (error) {
     const errorMessage = error.response?.data?.message || 'Error al notificar el pago al inspector.';
+    dispatch(inspectionFailure(errorMessage));
+    toast.error(errorMessage);
+    throw error;
+  }
+};
+
+// NUEVA ACCIÓN: Registrar resultado rápido de inspección (aprobada/rechazada + imagen)
+export const registerQuickInspectionResult = (workId, formData) => async (dispatch) => {
+  dispatch(inspectionRequest());
+  try {
+    const response = await api.post(`/inspection/${workId}/quick-result`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    dispatch(upsertInspectionSuccess(response.data));
+    if (response.data.workStatus && workId) {
+      dispatch(fetchWorkById(workId));
+    }
+    toast.success(response.data.message || 'Resultado de inspección registrado.');
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || 'Error al registrar el resultado rápido de la inspección.';
     dispatch(inspectionFailure(errorMessage));
     toast.error(errorMessage);
     throw error;

@@ -14,7 +14,6 @@ const sendNotifications = async (status, work, budget, io) => {
     if (emailDetails) {
       const { staffToNotify, message } = emailDetails;
 
-      // Enviar correos electrónicos
       for (const staff of staffToNotify) {
         if (!staff.email || !staff.email.includes('@')) {
           console.error(`El usuario ${staff.id} no tiene un correo electrónico válido: ${staff.email}`);
@@ -22,21 +21,51 @@ const sendNotifications = async (status, work, budget, io) => {
         }
         try {
           console.log(`Enviando correo a: ${staff.email}`);
+          // Detectar si es notificación de rechazo de inspección rápida
+          const isQuickRejection = status === 'initial_inspection_rejected' && work.resultDocumentUrl;
+          const isBudgetCreated = status === 'budgetCreated' || status === 'budgetSentToSignNow';
+          let htmlContent;
+          if (isQuickRejection) {
+            // Mostrar la imagen/PDF como enlace y/o vista previa si es imagen
+            const isImage = work.resultDocumentUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+            htmlContent = `
+              <div style=\"font-family: Arial, sans-serif; color: #333;\">
+                <h2 style=\"color: #1a365d;\">${work.propertyAddress}</h2>
+                <p>${message.replace(work.resultDocumentUrl, '')}</p>
+                <p><strong>Documento de rechazo:</strong></p>
+                ${isImage ? `<img src=\"${work.resultDocumentUrl}\" alt=\"Documento de rechazo\" style=\"max-width:400px;max-height:400px;display:block;margin-bottom:10px;\" />` : ''}
+                <a href=\"${work.resultDocumentUrl}\" target=\"_blank\" style=\"color:#1a365d;word-break:break-all;\">${work.resultDocumentUrl}</a>
+              </div>
+            `;
+          } else if (isBudgetCreated) {
+            // Mantener el formato especial SOLO para creación/envío de presupuesto
+            htmlContent = `
+              <div style=\"font-family: Arial, sans-serif; color: #333;\">
+                <h2 style=\"color: #1a365d;\">Presupuesto listo para revisión</h2>
+                <p>${message}</p>
+                ${work.budgetLink || (work.notificationDetails && work.notificationDetails.budgetLink) ? `
+                  <a href=\"${work.budgetLink || (work.notificationDetails && work.notificationDetails.budgetLink)}\" 
+                     style=\"display:inline-block;margin:20px 0;padding:12px 24px;background:#1a365d;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;\">
+                    Ver presupuestos
+                  </a>
+                ` : ''}
+                ${work.attachments || (work.notificationDetails && work.notificationDetails.attachments) ? `<p>Adjunto encontrarás el PDF del presupuesto para revisión.</p>` : ''}
+              </div>
+            `;
+          } else {
+            // Para todas las demás notificaciones, usar la dirección como título
+            htmlContent = `
+              <div style=\"font-family: Arial, sans-serif; color: #333;\">
+                <h2 style=\"color: #1a365d;\">${work.propertyAddress}</h2>
+                <p>${message}</p>
+              </div>
+            `;
+          }
           await sendEmail({
             to: staff.email,
             subject: `${work.propertyAddress}`,
-            text: `${message}\n\nRevisa todos los presupuestos aquí: ${work.budgetLink || (work.notificationDetails && work.notificationDetails.budgetLink)}`,
-            html: `
-              <div style="font-family: Arial, sans-serif; color: #333;">
-                <h2 style="color: #1a365d;">Presupuesto listo para revisión</h2>
-                <p>${message}</p>
-                <a href="${work.budgetLink || (work.notificationDetails && work.notificationDetails.budgetLink)}" 
-                   style="display:inline-block;margin:20px 0;padding:12px 24px;background:#1a365d;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">
-                  Ver presupuestos
-                </a>
-                <p>Adjunto encontrarás el PDF del presupuesto para revisión.</p>
-              </div>
-            `,
+            text: message,
+            html: htmlContent,
             attachments: work.attachments || (work.notificationDetails && work.notificationDetails.attachments) || [],
           });
         } catch (error) {
