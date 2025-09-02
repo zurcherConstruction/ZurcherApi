@@ -375,47 +375,111 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   doc.text(`$${mainItemRate.toFixed(2)}`, xAmountText, currentItemY, { width: wAmount, align: 'right' });
   doc.moveDown(3.5);
 
-  // 2. Render each line item and, if it triggers conditional items, render those right after
+  // ✅ 2. FUNCIÓN PARA ORDENAR ITEMS SEGÚN EL ORDEN DESEADO
+  function getItemSortOrder(item) {
+    const name = (item.name || '').toUpperCase();
+    const category = (item.category || '').toUpperCase();
+    
+    // Orden específico para septic system
+   
+    if (name.includes('TANK') || category.includes('TANK')) return 1;
+    if (name.includes('ATU') && (name.includes('KIT') || name.includes('TREATMENT'))) return 2;
+    if (name.includes('CHAMBER') || category.includes('CHAMBER')) return 3;
+    if (name.includes('SYSTEM PARTS') || name.includes('ELECTRICAL') || category.includes('ELECTRICAL')) return 4;
+    if (name.includes('EXCAVATION') || category.includes('EXCAVATION')) return 5;
+    if (name.includes('SAND') || category.includes('SAND')) return 6;
+    if (name.includes('DIRT') || name.includes('COVER') || category.includes('DIRT')) return 7;
+    if (name.includes('ROCK') || name.includes('REMOVAL') || category.includes('ROCK')) return 8;
+    if (name.includes('INSPECTION') || category.includes('INSPECTION')) return 9;
+    if (name.includes('WARRANTY') || category.includes('WARRANTY')) return 10;
+    if (name.includes('SERVICE') || name.includes('MAINTENANCE') || category.includes('SERVICE')) return 11;
+    
+    // Cualquier otro item va al final
+    return 99;
+  }
+
+  // 2. Render each line item in the correct order
   if (lineItems && lineItems.length > 0) {
-    lineItems
+    const filteredAndSortedItems = lineItems
       .filter(item => {
         const name = item.name?.toUpperCase() || '';
         return name !== 'ZURCHER CONSTRUCTION' && name !== 'LABOR FEE' && item.name !== 'END CAP';
       })
-      .forEach((item) => {
-        const itemQty = parseInt(item.quantity) || 1;
-        let fullDescription = item.name || 'N/A';
-        if (item.description && item.description.trim() !== '') {
-          fullDescription += ` - ${item.description}`;
+      .sort((a, b) => getItemSortOrder(a) - getItemSortOrder(b));
+
+    filteredAndSortedItems.forEach((item) => {
+      const itemQty = parseInt(item.quantity) || 1;
+      let fullDescription = item.name || 'N/A';
+      if (item.description && item.description.trim() !== '') {
+        fullDescription += ` - ${item.description}`;
+      }
+      if (item.marca && item.marca.trim() !== '') {
+        fullDescription += ` [Marca: ${item.marca}]`;
+      }
+      if (item.capacity && item.capacity.trim() !== '') {
+        fullDescription += ` [Capacidad: ${item.capacity}]`;
+      }
+      const estimatedItemHeight = Math.max(doc.heightOfString(fullDescription, { width: wDesc }), 25);
+      checkPageBreak(estimatedItemHeight);
+      currentItemY = doc.y;
+      doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
+      doc.text((item.name || 'Component').toUpperCase(), xIncludedText, currentItemY, { width: wIncluded });
+      const yBeforeDesc = doc.y;
+      doc.text(item.description, xDescText, currentItemY, { width: wDesc });
+      const yAfterDesc = doc.y;
+      doc.text(itemQty.toString(), xQtyText, currentItemY, { width: wQty, align: 'right' });
+      doc.text("$0.00", xRateText, currentItemY, { width: wRate, align: 'right' });
+      doc.font(FONT_FAMILY_MONO_BOLD).text("INCLUDED", xAmountText, currentItemY, { width: wAmount, align: 'right' });
+      doc.font(FONT_FAMILY_MONO);
+      doc.y = yAfterDesc;
+      doc.moveDown(3.0);
+
+      // ✅ SI ES UN TANK ATU, INMEDIATAMENTE DESPUÉS RENDERIZAR EL KIT
+      if (item.category === 'System Type' && item.name && item.name.toUpperCase().includes('ATU')) {
+        // Buscar el KIT en los items incluidos y renderizarlo aquí
+        const kitItem = CONDITIONAL_INCLUDED_ITEMS["ATU"]?.find(conditionalItem => 
+          conditionalItem.name.toUpperCase().includes('KIT')
+        );
+        
+        if (kitItem) {
+          const estimatedKitHeight = doc.heightOfString(kitItem.description, { width: wDesc });
+          const estimatedRowHeight = Math.max(estimatedKitHeight + 20, 35);
+          checkPageBreak(estimatedRowHeight);
+
+          currentItemY = doc.y;
+          doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
+          doc.text(kitItem.name.toUpperCase(), xIncludedText, currentItemY, { width: wIncluded });
+          
+          const yBeforeKitDesc = doc.y;
+          doc.text(kitItem.description, xDescText, currentItemY, { width: wDesc });
+          const yAfterKitDesc = doc.y;
+
+          doc.text(kitItem.qty.toString(), xQtyText, currentItemY, { width: wQty, align: 'right' });
+          doc.text(`$${kitItem.rate.toFixed(2)}`, xRateText, currentItemY, { width: wRate, align: 'right' });
+          doc.font(FONT_FAMILY_MONO_BOLD).text(kitItem.amount, xAmountText, currentItemY, { width: wAmount, align: 'right' });
+          doc.font(FONT_FAMILY_MONO);
+
+          doc.y = yAfterKitDesc;
+          doc.moveDown(3.0);
         }
-        if (item.marca && item.marca.trim() !== '') {
-          fullDescription += ` [Marca: ${item.marca}]`;
-        }
-        if (item.capacity && item.capacity.trim() !== '') {
-          fullDescription += ` [Capacidad: ${item.capacity}]`;
-        }
-        const estimatedItemHeight = Math.max(doc.heightOfString(fullDescription, { width: wDesc }), 25);
-        checkPageBreak(estimatedItemHeight);
-        currentItemY = doc.y;
-        doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
-        doc.text((item.name || 'Component').toUpperCase(), xIncludedText, currentItemY, { width: wIncluded });
-        const yBeforeDesc = doc.y;
-        doc.text(item.description, xDescText, currentItemY, { width: wDesc });
-        const yAfterDesc = doc.y;
-        doc.text(itemQty.toString(), xQtyText, currentItemY, { width: wQty, align: 'right' });
-        doc.text("$0.00", xRateText, currentItemY, { width: wRate, align: 'right' });
-        doc.font(FONT_FAMILY_MONO_BOLD).text("INCLUDED", xAmountText, currentItemY, { width: wAmount, align: 'right' });
-        doc.font(FONT_FAMILY_MONO);
-        doc.y = yAfterDesc;
-        doc.moveDown(3.0);
-      });
+      }
+    });
   }
 
   // ✅ 3. GENERAR Y MOSTRAR ITEMS INCLUIDOS ADICIONALES (Warranty, etc.)
+  // PERO EXCLUIR EL KIT SI YA SE RENDERIZÓ CON EL TANK ATU
   const includedItems = _generateIncludedItems(budgetData.lineItems);
+  const hasATUTank = budgetData.lineItems?.some(item => 
+    item.category === 'System Type' && item.name && item.name.toUpperCase().includes('ATU')
+  );
 
   if (includedItems && includedItems.length > 0) {
     includedItems.forEach(item => {
+      // ✅ SI YA RENDERIZAMOS EL KIT CON EL TANK ATU, NO LO VOLVEMOS A RENDERIZAR
+      if (hasATUTank && item.name.toUpperCase().includes('KIT')) {
+        return; // Saltar este item
+      }
+
       const estimatedDescHeight = doc.heightOfString(item.description, { width: wDesc });
       const estimatedRowHeight = Math.max(estimatedDescHeight + 20, 35);
       checkPageBreak(estimatedRowHeight);
