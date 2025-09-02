@@ -16,11 +16,11 @@ const sendNotifications = async (status, work, budget, io) => {
 
       for (const staff of staffToNotify) {
         if (!staff.email || !staff.email.includes('@')) {
-          console.error(`El usuario ${staff.id} no tiene un correo electrónico válido: ${staff.email}`);
+          console.error(`❌ Usuario ${staff.id} no tiene email válido: ${staff.email}`);
           continue;
         }
         try {
-          console.log(`Enviando correo a: ${staff.email}`);
+          console.log(`📧 Enviando correo a: ${staff.email}`);
           // Detectar si es notificación de rechazo de inspección rápida
           const isQuickRejection = status === 'initial_inspection_rejected' && work.resultDocumentUrl;
           const isBudgetCreated = status === 'budgetCreated' || status === 'budgetSentToSignNow';
@@ -61,15 +61,25 @@ const sendNotifications = async (status, work, budget, io) => {
               </div>
             `;
           }
-          await sendEmail({
+          
+          // ✅ USAR LA NUEVA FUNCIÓN sendEmail QUE RETORNA RESULTADO
+          const emailResult = await sendEmail({
             to: staff.email,
             subject: `${work.propertyAddress}`,
             text: message,
             html: htmlContent,
             attachments: work.attachments || (work.notificationDetails && work.notificationDetails.attachments) || [],
           });
+          
+          // ✅ VERIFICAR EL RESULTADO
+          if (emailResult.success) {
+            console.log(`✅ Email enviado exitosamente a ${staff.email} en ${emailResult.duration}ms`);
+          } else {
+            console.error(`❌ Error enviando email a ${staff.email}: ${emailResult.error}`);
+          }
+          
         } catch (error) {
-          console.error(`Error al enviar correo a ${staff.email}:`, error);
+          console.error(`❌ Error general enviando correo a ${staff.email}:`, error.message);
         }
       }
     }

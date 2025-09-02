@@ -7,7 +7,10 @@ const initialState = {
   error: null, // Mensaje de error
   currentBudget: null, // El presupuesto cargado por ID
   loadingCurrent: false, // Loading específico para fetchBudgetById
-  errorCurrent: null,  
+  errorCurrent: null,
+  // ✅ NUEVOS ESTADOS PARA MANEJO DE CREACIÓN
+  creationStatus: null, // 'creating' | 'success' | 'failed' | null
+  lastCreatedBudget: null, // Info del último budget creado
 };
 
 const budgetSlice = createSlice({
@@ -62,14 +65,22 @@ const budgetSlice = createSlice({
     createBudgetRequest: (state) => {
       state.loading = true;
       state.error = null;
+      // ✅ LIMPIAR ERRORES PREVIOS Y PREPARAR PARA NUEVA CREACIÓN
+      state.creationStatus = 'creating';
     },
     createBudgetSuccess: (state, action) => {
       state.loading = false;
       state.budgets.push(action.payload);
+      // ✅ MARCAR COMO EXITOSO Y GUARDAR INFO
+      state.creationStatus = 'success';
+      state.lastCreatedBudget = action.payload;
     },
     createBudgetFailure: (state, action) => {
       state.loading = false;
       state.error = action.payload;
+      // ✅ MARCAR COMO FALLIDO
+      state.creationStatus = 'failed';
+      state.lastCreatedBudget = null;
     },
 
     // Actualizar presupuesto
@@ -120,6 +131,12 @@ const budgetSlice = createSlice({
     clearBudgetsError: (state) => {
       state.error = null;
     },
+    
+    // ✅ LIMPIAR ESTADO DE CREACIÓN
+    clearCreationStatus: (state) => {
+      state.creationStatus = null;
+      state.lastCreatedBudget = null;
+    },
   },
 });
 
@@ -143,6 +160,7 @@ export const {
   fetchArchivedBudgetsSuccess,
   fetchArchivedBudgetsFailure,
   clearBudgetsError,
+  clearCreationStatus,
 } = budgetSlice.actions;
 
 export default budgetSlice.reducer;

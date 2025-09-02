@@ -102,6 +102,7 @@ const CreateBudget = () => {
   const [optionalDocPreview, setOptionalDocPreview] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false); // Estado para deshabilitar botón
+  const [submissionProgress, setSubmissionProgress] = useState(''); // Estado para mostrar progreso
   const [createdBudgetInfo, setCreatedBudgetInfo] = useState(null); // Para guardar info del budget creado
  
   // Define standard input classes for reuse
@@ -532,6 +533,13 @@ const customCategoryOrder = [
   // --- Submit Handler (Solo Crear) ---
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // ✅ PREVENIR ENVÍOS DUPLICADOS
+    if (isSubmitting) {
+      console.log('⚠️ Envío ya en progreso, ignorando clic duplicado');
+      return;
+    }
+
      // Aunque permitamos crear, podríamos mostrar una confirmación extra si el permiso está vencido
      if (permitExpirationAlert.type === 'error') {
       const confirmExpired = await Swal.fire({
@@ -545,78 +553,119 @@ const customCategoryOrder = [
           cancelButtonText: 'Cancelar'
       });
       if (!confirmExpired.isConfirmed) {
-          setIsSubmitting(false);
-          return; // Detener si el usuario cancela
+          return; // Detener si el usuario cancela (sin cambiar isSubmitting)
       }
   }
-    setIsSubmitting(true); // Deshabilitar botón
-    setCreatedBudgetInfo(null); // Limpiar info previa
 
+    // ✅ VALIDACIONES PREVIAS
     if (!permitIdFromQuery) {
-      alert("Error: No se encontró el ID del permiso asociado.");
-      setIsSubmitting(false);
+      await Swal.fire({
+        title: 'Error',
+        text: 'No se encontró el ID del permiso asociado.',
+        icon: 'error'
+      });
       return;
     }
+    
     if (formData.lineItems.length === 0) {
-      alert("Debe añadir al menos un item al presupuesto.");
-      setIsSubmitting(false);
+      await Swal.fire({
+        title: 'Error',
+        text: 'Debe añadir al menos un item al presupuesto.',
+        icon: 'error'
+      });
       return;
     }
 
-    // Preparar datos para la creación del presupuesto
-    const dataToSend = {
-      permitId: permitIdFromQuery, // Asegúrate que este es el nombre correcto esperado por el backend
-      date: formData.date,
-      expirationDate: formData.expirationDate || null,
-      status: formData.status, // Enviar el estado ('created' o el que sea)
-      discountDescription: formData.discountDescription,
-      discountAmount: parseFloat(formData.discountAmount) || 0, // Convertir a número
-      generalNotes: formData.generalNotes,
-      initialPaymentPercentage: formData.initialPaymentPercentage,
-      lineItems: formData.lineItems.map(item => ({
-        budgetItemId: item.budgetItemId || null,
-        quantity: item.quantity,
-        notes: item.notes || null,
-        // Enviar datos de item manual si es necesario
-        ...(item.budgetItemId === null && {
-          category: item.category,
-          name: item.name,
-          unitPrice: item.unitPrice, // El backend usará este
-          description: item.description || null, // Added description field
-        }),
-        // Enviar otros campos si el backend los espera
-        marca: item.marca || null,
-        capacity: item.capacity || null,
-        // priceAtTimeOfBudget y unitPrice (para items de catálogo) los determinará el backend
-      })),
-      // No enviar totales, el backend los calcula
-    };
-
-    console.log("Enviando al backend para CREAR:", dataToSend);
+    // ✅ INICIAR PROCESO DE ENVÍO
+    setIsSubmitting(true);
+    setSubmissionProgress('Preparando datos...');
+    setCreatedBudgetInfo(null);
 
     try {
+      // ✅ MOSTRAR PROGRESO: Preparando datos
+      setSubmissionProgress('Validando información...');
+      await new Promise(resolve => setTimeout(resolve, 500)); // Pequeña pausa para mostrar el progreso
+
+      // Preparar datos para la creación del presupuesto
+      const dataToSend = {
+        permitId: permitIdFromQuery,
+        date: formData.date,
+        expirationDate: formData.expirationDate || null,
+        status: formData.status,
+        discountDescription: formData.discountDescription,
+        discountAmount: parseFloat(formData.discountAmount) || 0,
+        generalNotes: formData.generalNotes,
+        initialPaymentPercentage: formData.initialPaymentPercentage,
+        lineItems: formData.lineItems.map(item => ({
+          budgetItemId: item.budgetItemId || null,
+          quantity: item.quantity,
+          notes: item.notes || null,
+          ...(item.budgetItemId === null && {
+            category: item.category,
+            name: item.name,
+            unitPrice: item.unitPrice,
+            description: item.description || null,
+          }),
+          marca: item.marca || null,
+          capacity: item.capacity || null,
+        })),
+      };
+
+      console.log("📤 Enviando al backend para CREAR:", dataToSend);
+
+      // ✅ MOSTRAR PROGRESO: Enviando al servidor
+      setSubmissionProgress('Enviando al servidor...');
+      
       // Llamar a la acción createBudget
       const resultAction = await dispatch(createBudget(dataToSend));
-      const newBudget = unwrapResult(resultAction); // Obtener el budget creado desde la respuesta
+      const newBudget = unwrapResult(resultAction);
 
-      console.log("Presupuesto creado exitosamente por backend:", newBudget);
+      console.log("✅ Presupuesto creado exitosamente:", newBudget);
 
-     
+      // ✅ MOSTRAR PROGRESO: Completado
+      setSubmissionProgress('¡Presupuesto creado exitosamente!');
 
-      // Guardar la información del budget creado (incluyendo la URL del PDF)
+      // Guardar la información del budget creado
       setCreatedBudgetInfo(newBudget);
 
-      alert(`Presupuesto #${newBudget.idBudget} creado exitosamente.`);
-      // Opcional: No navegar inmediatamente, permitir descargar primero
-       navigate('/budgets');
+      // ✅ MOSTRAR NOTIFICACIÓN DE ÉXITO
+      await Swal.fire({
+        title: '¡Éxito!',
+        text: `Presupuesto #${newBudget.idBudget} creado exitosamente.`,
+        icon: 'success',
+        timer: 3000,
+        showConfirmButton: false
+      });
+
+      // Esperar un momento antes de navegar
+      setTimeout(() => {
+        navigate('/budgets');
+      }, 1500);
 
     } catch (error) {
-      console.error("Error al crear el presupuesto:", error);
-      // Mostrar mensaje de error más detallado si viene del backend
+      console.error("❌ Error al crear el presupuesto:", error);
+      
+      // ✅ RESETEAR PROGRESO EN CASO DE ERROR
+      setSubmissionProgress('');
+      
+      // Mostrar mensaje de error más detallado
       const errorMsg = error?.error || error?.message || "Error desconocido al crear el presupuesto.";
-      alert(`Error al crear el presupuesto: ${errorMsg}`);
+      
+      await Swal.fire({
+        title: 'Error',
+        text: `Error al crear el presupuesto: ${errorMsg}`,
+        icon: 'error',
+        confirmButtonText: 'Intentar de nuevo'
+      });
+      
     } finally {
-      setIsSubmitting(false); // Habilitar botón de nuevo
+      // ✅ SIEMPRE RESETEAR EL ESTADO DE ENVÍO
+      setIsSubmitting(false);
+      
+      // Limpiar el progreso después de un tiempo si no hay error
+      setTimeout(() => {
+        setSubmissionProgress('');
+      }, 3000);
     }
   };
 
@@ -1041,19 +1090,65 @@ const customCategoryOrder = [
       
        <div className="mt-10 border-t border-gray-200 pt-8">
               {!createdBudgetInfo ? (
-                <button
-                  type="submit"
-                  className="w-full bg-indigo-600 text-white py-2.5 px-4 rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed transition-colors font-medium"
-                  disabled={isSubmitting || isLoading || formData.lineItems.length === 0 || !selectedPermit}
-                >
-                  {isSubmitting ? 'Creando Presupuesto...' : "Crear Presupuesto"}
-                </button>
+                <div className="space-y-3">
+                  {/* ✅ MOSTRAR PROGRESO SI ESTÁ DISPONIBLE */}
+                  {submissionProgress && (
+                    <div className="text-center p-3 bg-blue-50 border border-blue-300 rounded-md">
+                      <div className="flex items-center justify-center space-x-2">
+                        <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span className="text-sm font-medium text-blue-700">{submissionProgress}</span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <button
+                    type="submit"
+                    className="w-full bg-indigo-600 text-white py-2.5 px-4 rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed transition-colors font-medium relative"
+                    disabled={isSubmitting || isLoading || formData.lineItems.length === 0 || !selectedPermit}
+                  >
+                    {/* ✅ MOSTRAR SPINNER CUANDO ESTÁ ENVIANDO */}
+                    {isSubmitting && (
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    )}
+                    {isSubmitting ? 'Creando Presupuesto...' : "Crear Presupuesto"}
+                  </button>
+                  
+                  {/* ✅ MENSAJE DE ADVERTENCIA DURANTE ENVÍO */}
+                  {isSubmitting && (
+                    <div className="text-center p-2 bg-yellow-50 border border-yellow-300 rounded-md">
+                      <p className="text-xs text-yellow-700">
+                        ⚠️ Por favor no cierre esta página ni haga clic nuevamente mientras se procesa la solicitud
+                      </p>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="text-center p-4 bg-green-50 border border-green-300 rounded-md">
-                  <p className="text-lg font-semibold text-green-700">¡Presupuesto creado exitosamente!</p>
-                  <p className="text-sm text-gray-600 mt-1">ID del Presupuesto: {createdBudgetInfo.idBudget}</p> {/* Assuming idBudget from your previous code */}
+                  <div className="flex items-center justify-center space-x-2 mb-2">
+                    <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    <p className="text-lg font-semibold text-green-700">¡Presupuesto creado exitosamente!</p>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-1">ID del Presupuesto: {createdBudgetInfo.idBudget}</p>
                   <p className="text-sm text-gray-600">Fecha de Creación: {new Date(createdBudgetInfo.createdAt).toLocaleDateString()}</p>
-                  {/* You might want to add a button to view the budget or navigate away */}
+                  
+                  {/* ✅ BOTÓN PARA IR A VER EL PRESUPUESTO */}
+                  <div className="mt-4 space-y-2">
+                    <button
+                      onClick={() => navigate('/budgets')}
+                      className="w-full bg-green-600 text-white py-2 px-4 rounded-md shadow-sm hover:bg-green-700 transition-colors font-medium text-sm"
+                    >
+                      Ver Lista de Presupuestos
+                    </button>
+                    <p className="text-xs text-gray-500">Redirigiendo automáticamente en unos segundos...</p>
+                  </div>
                 </div>
                
               )}

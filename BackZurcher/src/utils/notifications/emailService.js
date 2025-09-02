@@ -10,45 +10,86 @@ const transporter = nodemailer.createTransport({
     user: process.env.SMTP_USER, // Tu correo de Gmail
     pass: process.env.SMTP_PASSWORD, // Tu contraseña de aplicación
   },
+  // ✅ AGREGAR TIMEOUTS Y CONFIGURACIONES DE RENDIMIENTO
+  connectionTimeout: 60000, // 60 segundos para conectar
+  greetingTimeout: 30000,   // 30 segundos para el saludo
+  socketTimeout: 60000,     // 60 segundos para inactividad
+  pool: true,               // Usar pool de conexiones
+  maxConnections: 5,        // Máximo 5 conexiones concurrentes
+  maxMessages: 100,         // Máximo 100 mensajes por conexión
+  rateDelta: 1000,          // 1 segundo entre mensajes
+  rateLimit: 5              // Máximo 5 mensajes por rateDelta
 });
+
+// Verificar la configuración del transporter
 transporter.verify((error, success) => {
   if (error) {
-    console.error('Error al verificar la configuración SMTP:', error);
+    console.error('❌ Error al verificar la configuración SMTP:', error);
   } else {
-    console.log('Servidor SMTP listo para enviar correos');
+    console.log('✅ Servidor SMTP listo para enviar correos');
   }
 });
 
 // Función para enviar el correo
 const sendEmail = async (mailOptions) => {
+  const startTime = Date.now();
   try {
     // *** LOG DETALLADO ***
-    console.log('Opciones de correo recibidas en sendEmail:', mailOptions); 
+    console.log('📧 Iniciando envío de email a:', mailOptions?.to); 
     
     if (!mailOptions || !mailOptions.to || !mailOptions.to.includes('@')) {
-       console.error('Error en sendEmail: Destinatario inválido o faltante:', mailOptions?.to);
-       // Puedes decidir lanzar un error aquí o simplemente no enviar
-       // throw new Error(`Destinatario inválido o faltante: ${mailOptions?.to}`); 
-       return; // No intentar enviar si el 'to' es inválido
+       console.error('❌ Error en sendEmail: Destinatario inválido o faltante:', mailOptions?.to);
+       return { success: false, error: 'Destinatario inválido' }; // Retornar resultado en lugar de throw
     }
 
-    // Asegúrate de que el 'from' esté configurado, ya sea aquí o en las opciones por defecto del transporter
+    // Asegúrate de que el 'from' esté configurado
     const optionsToSend = {
-      from: `"ZURCHER CONSTRUCTION" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`, // Dirección 'from'
-      ...mailOptions, // Incluye 'to', 'subject', 'text', 'attachments', etc.
+      from: `"ZURCHER CONSTRUCTION" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+      ...mailOptions,
     };
 
-    // *** LOG DETALLADO ***
-    console.log('Opciones finales pasadas a transporter.sendMail:', optionsToSend);
+    console.log(`📤 Enviando email a ${optionsToSend.to} con subject: "${optionsToSend.subject}"`);
 
-    let info = await transporter.sendMail(optionsToSend);
-    console.log('Correo enviado: %s', info.messageId);
-    return info;
+    // ✅ AGREGAR TIMEOUT WRAPPER
+    const sendWithTimeout = new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Email timeout después de 45 segundos'));
+      }, 45000); // 45 segundos timeout
+
+      transporter.sendMail(optionsToSend)
+        .then(result => {
+          clearTimeout(timeout);
+          resolve(result);
+        })
+        .catch(error => {
+          clearTimeout(timeout);
+          reject(error);
+        });
+    });
+
+    const info = await sendWithTimeout;
+    const duration = Date.now() - startTime;
+    
+    console.log(`✅ Email enviado exitosamente en ${duration}ms. MessageId: ${info.messageId}`);
+    return { success: true, messageId: info.messageId, duration };
+    
   } catch (error) {
-    // *** LOG DETALLADO ***
-    console.error('Error DETALLADO dentro de sendEmail:', error);
-    // Propagar el error para que notificationManager lo capture si es necesario
-    throw error; 
+    const duration = Date.now() - startTime;
+    console.error(`❌ Error enviando email después de ${duration}ms:`, {
+      error: error.message,
+      to: mailOptions?.to,
+      subject: mailOptions?.subject,
+      stack: error.stack
+    });
+    
+    // ✅ RETORNAR ERROR EN LUGAR DE LANZARLO PARA NO ROMPER EL PROCESO
+    return { 
+      success: false, 
+      error: error.message, 
+      duration,
+      to: mailOptions?.to 
+    };
   }
 };
+
 module.exports = { sendEmail };

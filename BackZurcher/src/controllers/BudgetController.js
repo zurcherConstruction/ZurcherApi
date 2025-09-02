@@ -164,91 +164,8 @@ const BudgetController = {
       await transaction.commit();
       console.log(`--- Transacción principal para crear Budget ID ${newBudgetId} confirmada. ---`);
 
-
-      // --- Generar PDF y Actualizar Ruta (Fuera de la transacción original) ---
-      let generatedPdfPath = null;
-      try {
-        console.log(`Intentando generar PDF post-creación para Budget ID ${newBudgetId}...`);
-        // Necesitamos los datos completos del budget recién creado
-        const budgetForPdf = await Budget.findByPk(newBudgetId, {
-          attributes: [
-            'idBudget',
-            'propertyAddress',
-            'applicantName',
-            'date',
-            'expirationDate',
-            'initialPayment',
-            'status',
-            'paymentInvoice',
-            'paymentProofType',
-            'discountDescription',
-            'discountAmount',
-            'subtotalPrice',
-            'totalPrice',
-            'generalNotes',
-            'pdfPath',
-            'PermitIdPermit',
-            'createdAt',
-            'updatedAt',
-            'initialPaymentPercentage' // <-- Asegúrate de incluir este campo
-          ],
-          include: [
-            { model: Permit, attributes: ['idPermit', 'propertyAddress', 'applicantEmail', 'applicantName', 'permitNumber', 'lot', 'block'] },
-            // No necesitamos incluir lineItems aquí, ya los tenemos en createdLineItemsForPdf
-          ]
-        });
-
-        if (!budgetForPdf) throw new Error("No se encontró el budget recién creado para generar PDF.");
-        // --- DEBUG CONTROLLER ---
-        console.log('DEBUG CONTROLLER - Datos leídos de BD para PDF:', budgetForPdf.toJSON ? budgetForPdf.toJSON() : budgetForPdf);
-        // --- FIN DEBUG ---
-
-        const budgetDataForPdf = {
-          ...budgetForPdf.toJSON(),
-          lineItems: createdLineItemsForPdf // Usar los datos planos guardados
-        };
-        // --- DEBUG CONTROLLER 2 ---
-        console.log('DEBUG CONTROLLER - Datos FINALES pasados a PDF Gen:', budgetDataForPdf);
-        // --- FIN DEBUG ---
-        generatedPdfPath = await generateAndSaveBudgetPDF(budgetDataForPdf);
-
-        // ✅ CONVERTIR RUTA LOCAL A URL PÚBLICA
-        const pdfPublicUrl = getPublicPdfUrl(generatedPdfPath, req);
-
-        console.log(`PDF generado en: ${generatedPdfPath}`);
-        console.log(`URL pública: ${pdfPublicUrl}`);
-
-        // Actualizar el registro Budget con la URL pública
-        await budgetForPdf.update({ pdfPath: pdfPublicUrl });
-        console.log("Ruta del PDF actualizada para Budget ID", budgetForPdf.idBudget);
-
-        const attachments = [];
-        if (generatedPdfPath && fs.existsSync(generatedPdfPath)) {
-          attachments.push({
-            filename: `Budget_${newBudgetId}.pdf`,
-            path: generatedPdfPath,
-            contentType: 'application/pdf'
-          });
-        }
-        const budgetLink = "https://www.zurcherseptic.com/budgets";
-        const notificationDetails = {
-          propertyAddress: permit.propertyAddress,
-          idBudget: newBudgetId,
-          applicantEmail: permit.applicantEmail || null,
-          budgetLink,
-          attachments // <--- ahora sí, el PDF va adjunto
-        };
-        await sendNotifications('budgetCreated', notificationDetails, null, req.io);
-        console.log(`Notificaciones 'budgetCreated' enviadas para Budget ID ${newBudgetId}.`);
-
-      } catch (pdfError) {
-        console.error(`Error al generar o guardar PDF para Budget ID ${newBudgetId} (post-creación):`, pdfError);
-        // No revertimos, solo loggeamos el error. El presupuesto ya existe.
-        // Considera enviar una notificación de error si es necesario.
-      }
-
-      // --- Responder al Frontend ---
-      // Volver a buscar para obtener la ruta del PDF actualizada
+      // ✅ RESPONDER INMEDIATAMENTE AL FRONTEND SIN ESPERAR PDF NI EMAILS
+      // Volver a buscar para obtener los datos completos para la respuesta
       const finalBudgetResponseData = await Budget.findByPk(newBudgetId, {
         include: [
           { model: Permit, attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'applicantName', 'lot', 'block'] },
@@ -257,28 +174,106 @@ const BudgetController = {
       });
 
       if (!finalBudgetResponseData) {
-        // Esto sería muy raro
-        return res.status(404).json({ error: 'Presupuesto creado pero no encontrado para la respuesta final.' });
+        throw new Error('No se pudo recuperar el presupuesto recién creado para la respuesta.');
       }
 
       const responseData = finalBudgetResponseData.toJSON();
+      
       // Añadir URLs dinámicas
       if (responseData.Permit) {
         const baseUrl = `${req.protocol}://${req.get('host')}/permits`;
         responseData.Permit.pdfDataUrl = `${baseUrl}/${responseData.Permit.idPermit}/view/pdf`;
         responseData.Permit.optionalDocsUrl = `${baseUrl}/${responseData.Permit.idPermit}/view/optional`;
       }
-      // Añadir URL del PDF del budget si se generó
-      if (responseData.pdfPath && fs.existsSync(responseData.pdfPath)) {
-        responseData.budgetPdfUrl = `${req.protocol}://${req.get('host')}/budgets/${newBudgetId}/pdf`; // Ruta para descargar
-      } else if (generatedPdfPath) {
-        // Si se generó pero fs.existsSync falla (raro), intentar construir la URL igualmente
-        responseData.budgetPdfUrl = `${req.protocol}://${req.get('host')}/budgets/${newBudgetId}/pdf`;
-      }
 
+      // ✅ RESPONDER INMEDIATAMENTE - PDF se generará en background
+      console.log(`Enviando respuesta exitosa para Budget ID ${newBudgetId} - PDF se generará en background`);
+      res.status(201).json({
+        ...responseData,
+        message: 'Presupuesto creado exitosamente. El PDF se está generando en segundo plano.',
+        budgetPdfUrl: `${req.protocol}://${req.get('host')}/budgets/${newBudgetId}/pdf`
+      });
 
-      console.log(`Enviando respuesta exitosa para Budget ID ${newBudgetId}`);
-      res.status(201).json(responseData);
+      // ✅ GENERAR PDF Y ENVIAR NOTIFICACIONES EN BACKGROUND (NO BLOQUEAR RESPUESTA)
+      setImmediate(async () => {
+        try {
+          console.log(`🔄 Iniciando proceso en background para Budget ID ${newBudgetId}...`);
+          
+          // Necesitamos los datos completos del budget recién creado
+          const budgetForPdf = await Budget.findByPk(newBudgetId, {
+            attributes: [
+              'idBudget', 'propertyAddress', 'applicantName', 'date', 'expirationDate',
+              'initialPayment', 'status', 'paymentInvoice', 'paymentProofType',
+              'discountDescription', 'discountAmount', 'subtotalPrice', 'totalPrice',
+              'generalNotes', 'pdfPath', 'PermitIdPermit', 'createdAt', 'updatedAt',
+              'initialPaymentPercentage'
+            ],
+            include: [
+              { model: Permit, attributes: ['idPermit', 'propertyAddress', 'applicantEmail', 'applicantName', 'permitNumber', 'lot', 'block'] }
+            ]
+          });
+
+          if (!budgetForPdf) {
+            throw new Error("No se encontró el budget para generar PDF en background.");
+          }
+
+          const budgetDataForPdf = {
+            ...budgetForPdf.toJSON(),
+            lineItems: createdLineItemsForPdf
+          };
+
+          console.log(`📄 Generando PDF para Budget ID ${newBudgetId}...`);
+          const generatedPdfPath = await generateAndSaveBudgetPDF(budgetDataForPdf);
+          
+          // ✅ CONVERTIR RUTA LOCAL A URL PÚBLICA
+          const pdfPublicUrl = getPublicPdfUrl(generatedPdfPath, req);
+          console.log(`✅ PDF generado: ${generatedPdfPath}`);
+          console.log(`🔗 URL pública: ${pdfPublicUrl}`);
+
+          // Actualizar el registro Budget con la URL pública
+          await budgetForPdf.update({ pdfPath: pdfPublicUrl });
+          console.log(`💾 Ruta del PDF actualizada para Budget ID ${newBudgetId}`);
+
+          // ✅ PREPARAR Y ENVIAR NOTIFICACIONES
+          const attachments = [];
+          if (generatedPdfPath && fs.existsSync(generatedPdfPath)) {
+            attachments.push({
+              filename: `Budget_${newBudgetId}.pdf`,
+              path: generatedPdfPath,
+              contentType: 'application/pdf'
+            });
+          }
+
+          const budgetLink = "https://www.zurcherseptic.com/budgets";
+          const notificationDetails = {
+            propertyAddress: permit.propertyAddress,
+            idBudget: newBudgetId,
+            applicantEmail: permit.applicantEmail || null,
+            budgetLink,
+            attachments
+          };
+
+          console.log(`📧 Enviando notificaciones para Budget ID ${newBudgetId}...`);
+          await sendNotifications('budgetCreated', notificationDetails, null, req.io);
+          console.log(`✅ Proceso en background completado para Budget ID ${newBudgetId}`);
+
+        } catch (backgroundError) {
+          console.error(`❌ Error en proceso background para Budget ID ${newBudgetId}:`, backgroundError);
+          
+          // ✅ ENVIAR NOTIFICACIÓN DE ERROR AL STAFF
+          try {
+            const errorNotificationDetails = {
+              propertyAddress: permit.propertyAddress,
+              idBudget: newBudgetId,
+              error: backgroundError.message,
+              applicantEmail: permit.applicantEmail || null
+            };
+            await sendNotifications('budgetPdfError', errorNotificationDetails, null, req.io);
+          } catch (notifError) {
+            console.error(`❌ Error enviando notificación de error:`, notifError);
+          }
+        }
+      });
 
     } catch (error) {
       console.error("Error FATAL durante createBudget:", error);
