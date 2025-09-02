@@ -14,7 +14,8 @@ const DynamicCategorySection = ({
     marca: '',
     capacity: '',
     description: '',
-    quantity: ''
+    quantity: '',
+    supplierName: '' // Only used for SAND
   });
   const [customItem, setCustomItem] = useState({
     name: '',
@@ -22,7 +23,8 @@ const DynamicCategorySection = ({
     capacity: '',
     description: '',
     unitPrice: '',
-    quantity: ''
+    quantity: '',
+    supplierName: '' // Only used for SAND
   });
 
   // Obtener todos los items de esta categoría
@@ -72,7 +74,16 @@ const DynamicCategorySection = ({
   
 
 
-  // Para MATERIALES: lista única de items por name+description, para el dropdown especial
+  // Para SAND: lista única de supplierName según selección
+  const uniqueSandSuppliers = useMemo(() => {
+    if (category.toUpperCase() !== 'SAND') return [];
+    // Filtrar por name/capacity/description seleccionados
+    let filtered = categoryItems;
+    if (selection.name) filtered = filtered.filter(i => i.name === selection.name);
+    if (selection.capacity) filtered = filtered.filter(i => i.capacity === selection.capacity);
+    if (selection.description) filtered = filtered.filter(i => i.description === selection.description);
+    return [...new Set(filtered.map(i => i.supplierName).filter(Boolean))].sort();
+  }, [category, categoryItems, selection.name, selection.capacity, selection.description]);
   const materialDropdownItems = useMemo(() => {
     if (category.toString().toUpperCase() !== 'MATERIALES') return [];
     // Unicos por name+description
@@ -149,7 +160,7 @@ const DynamicCategorySection = ({
   }, [categoryItems, selection.name, selection.marca, selection.capacity, fieldAnalysis.hasDescriptions, fieldAnalysis.hasMarcas, fieldAnalysis.hasCapacities]);
 
 
- const handleSelectionChange = (e) => {
+const handleSelectionChange = (e) => {
   const { name, value } = e.target;
   
   if (name === 'quantity') {
@@ -162,7 +173,11 @@ const DynamicCategorySection = ({
     }
     return;
   }
-  
+  // For supplierName, just update
+  if (name === 'supplierName') {
+    setSelection(prev => ({ ...prev, supplierName: value }));
+    return;
+  }
   // Para otros campos, mantener la lógica original
   setSelection(prev => {
     const newState = { ...prev, [name]: value };
@@ -170,6 +185,7 @@ const DynamicCategorySection = ({
       if (fieldAnalysis.hasMarcas) newState.marca = '';
       if (fieldAnalysis.hasCapacities) newState.capacity = '';
       if (fieldAnalysis.hasDescriptions) newState.description = '';
+      if (category.toUpperCase() === 'SAND') newState.supplierName = '';
     }
     if (name === 'marca') {
       if (fieldAnalysis.hasCapacities) newState.capacity = '';
@@ -182,14 +198,17 @@ const DynamicCategorySection = ({
   });
 
   if (value !== 'OTROS') {
-    setCustomItem({ name: '', marca: '', capacity: '', description: '', unitPrice: '', quantity: '' });
+    setCustomItem({ name: '', marca: '', capacity: '', description: '', unitPrice: '', quantity: '', supplierName: '' });
   }
 };
 
 const handleCustomChange = (e) => {
   const { name, value } = e.target;
   const isNumeric = ['unitPrice', 'quantity'].includes(name);
-  
+  if (name === 'supplierName') {
+    setCustomItem(prev => ({ ...prev, supplierName: value }));
+    return;
+  }
   if (isNumeric) {
     // Permitir valores vacíos y números válidos
     if (value === '' || (!isNaN(value) && parseFloat(value) >= 0)) {
@@ -234,10 +253,11 @@ const handleCustomChange = (e) => {
       unitPrice: unitPrice,
       quantity: quantity,
       notes: 'Item Personalizado',
+      supplierName: category.toUpperCase() === 'SAND' ? customItem.supplierName : undefined
     });
 
-    setCustomItem({ name: '', marca: '', capacity: '', description: '', unitPrice: '', quantity: '' });
-    setSelection({ name: '', marca: '', capacity: '', description: '', quantity: '' });
+    setCustomItem({ name: '', marca: '', capacity: '', description: '', unitPrice: '', quantity: '', supplierName: '' });
+    setSelection({ name: '', marca: '', capacity: '', description: '', quantity: '', supplierName: '' });
   } else {
     if (!selection.name) {
       alert("Por favor seleccione un item.");
@@ -293,9 +313,10 @@ const handleCustomChange = (e) => {
       description: foundItem.description || '',
       imageUrl: foundItem.imageUrl || foundItem.imageurl || '',
       quantity: quantity, // Usar el valor parseado
+      supplierName: category.toUpperCase() === 'SAND' ? selection.supplierName : undefined
     });
 
-    setSelection({ name: '', marca: '', capacity: '', description: '', quantity: '' });
+    setSelection({ name: '', marca: '', capacity: '', description: '', quantity: '', supplierName: '' });
   }
 };
 
@@ -508,6 +529,25 @@ const handleCustomChange = (e) => {
               </div>
             )}
 
+            {/* SAND: Supplier select */}
+            {category.toUpperCase() === 'SAND' && selection.name !== 'OTROS' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Proveedor <span className="text-red-500">*</span>
+                </label>
+                <select
+                  name="supplierName"
+                  value={selection.supplierName}
+                  onChange={handleSelectionChange}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="">-- Seleccionar Proveedor --</option>
+                  {uniqueSandSuppliers.map(sup => (
+                    <option key={sup} value={sup}>{sup}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Cantidad <span className="text-red-500">*</span>
@@ -549,7 +589,22 @@ const handleCustomChange = (e) => {
                       className="w-full px-3 py-2 text-sm border border-yellow-300 rounded-md focus:ring-1 focus:ring-yellow-500"
                     />
                   </div>
-                  
+                  {/* SAND: Supplier input in personalizado */}
+                  {category.toUpperCase() === 'SAND' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Proveedor
+                      </label>
+                      <input
+                        type="text"
+                        name="supplierName"
+                        placeholder="Nombre del proveedor"
+                        value={customItem.supplierName}
+                        onChange={handleCustomChange}
+                        className="w-full px-3 py-2 text-sm border border-yellow-300 rounded-md focus:ring-1 focus:ring-yellow-500"
+                      />
+                    </div>
+                  )}
                   {fieldAnalysis.hasMarcas && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -565,7 +620,6 @@ const handleCustomChange = (e) => {
                       />
                     </div>
                   )}
-
                   {fieldAnalysis.hasCapacities && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -581,7 +635,6 @@ const handleCustomChange = (e) => {
                       />
                     </div>
                   )}
-
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Precio Unitario ($) <span className="text-red-500">*</span>
@@ -597,7 +650,6 @@ const handleCustomChange = (e) => {
                       className="w-full px-3 py-2 text-sm border border-yellow-300 rounded-md focus:ring-1 focus:ring-yellow-500"
                     />
                   </div>
-
                   {fieldAnalysis.hasDescriptions && (
                     <div className="sm:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">

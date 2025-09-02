@@ -36,27 +36,23 @@ const DEFAULT_INCLUDED_ITEMS = [
 const CONDITIONAL_INCLUDED_ITEMS = {
   // La clave (ej: "ATU") es lo que buscaremos en el nombre del item "System Type"
   "ATU": [
-    {
-      name: "SYSTEM PARTS & ELECTRICAL INSTALLATION",
-      description: "FULL INSTALLATION OF PIPES, ACCESORIES, AND ELECTRICAL WORK FOR THE SEPTIC SYSTEM",
+
+     {
+      name: "KIT TANK ATU",
+      description: "TREATMENT SYSTEM PANEL CONTROL/BLOW AIR",
       qty: "1",
       rate: 0.00,
       amount: "INCLUDED"
     },
+    
     {
       name: "SERVICE MAINTENANCE CONTRACT",
       description: "2 YEAR CONTRACT WITH SERVICE EVERY 6 MONTHS",
       qty: "1",
       rate: 0.00,
       amount: "INCLUDED"
-    },
-    {
-      name: "KIT TANK ATU",
-      description: "TREATMENT SYSTEM PANEL CONTROL/BLOW AIR",
-      qty: "1",
-      rate: 0.00,
-      amount: "INCLUDED"
     }
+   
   ],
   // Puedes agregar más reglas aquí, por ejemplo:
   // "REGULAR TANK": [ { ... otro item ... } ]
@@ -379,55 +375,111 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   doc.text(`$${mainItemRate.toFixed(2)}`, xAmountText, currentItemY, { width: wAmount, align: 'right' });
   doc.moveDown(3.5);
 
-   // ✅ 2. MOSTRAR LOS lineItems QUE VIENEN DEL PRESUPUESTO (COMO "INCLUDED")
+  // ✅ 2. FUNCIÓN PARA ORDENAR ITEMS SEGÚN EL ORDEN DESEADO
+  function getItemSortOrder(item) {
+    const name = (item.name || '').toUpperCase();
+    const category = (item.category || '').toUpperCase();
+    
+    // Orden específico para septic system
+   
+    if (name.includes('TANK') || category.includes('TANK')) return 1;
+    if (name.includes('ATU') && (name.includes('KIT') || name.includes('TREATMENT'))) return 2;
+    if (name.includes('CHAMBER') || category.includes('CHAMBER')) return 3;
+    if (name.includes('SYSTEM PARTS') || name.includes('ELECTRICAL') || category.includes('ELECTRICAL')) return 4;
+    if (name.includes('EXCAVATION') || category.includes('EXCAVATION')) return 5;
+    if (name.includes('SAND') || category.includes('SAND')) return 6;
+    if (name.includes('DIRT') || name.includes('COVER') || category.includes('DIRT')) return 7;
+    if (name.includes('ROCK') || name.includes('REMOVAL') || category.includes('ROCK')) return 8;
+    if (name.includes('INSPECTION') || category.includes('INSPECTION')) return 9;
+    if (name.includes('WARRANTY') || category.includes('WARRANTY')) return 10;
+    if (name.includes('SERVICE') || name.includes('MAINTENANCE') || category.includes('SERVICE')) return 11;
+    
+    // Cualquier otro item va al final
+    return 99;
+  }
+
+  // 2. Render each line item in the correct order
   if (lineItems && lineItems.length > 0) {
-    // Filtrar para no mostrar "LABOR FEE" ni "ZURCHER CONSTRUCTION"
-    lineItems
+    const filteredAndSortedItems = lineItems
       .filter(item => {
         const name = item.name?.toUpperCase() || '';
-        return name !== 'ZURCHER CONSTRUCTION' && name !== 'LABOR FEE';
+        return name !== 'ZURCHER CONSTRUCTION' && name !== 'LABOR FEE' && item.name !== 'END CAP';
       })
-      .forEach((item) => {
-        const itemQty = parseInt(item.quantity) || 1;
+      .sort((a, b) => getItemSortOrder(a) - getItemSortOrder(b));
+
+    filteredAndSortedItems.forEach((item) => {
+      const itemQty = parseInt(item.quantity) || 1;
+      let fullDescription = item.name || 'N/A';
+      if (item.description && item.description.trim() !== '') {
+        fullDescription += ` - ${item.description}`;
+      }
+      if (item.marca && item.marca.trim() !== '') {
+        fullDescription += ` [Marca: ${item.marca}]`;
+      }
+      if (item.capacity && item.capacity.trim() !== '') {
+        fullDescription += ` [Capacidad: ${item.capacity}]`;
+      }
+      const estimatedItemHeight = Math.max(doc.heightOfString(fullDescription, { width: wDesc }), 25);
+      checkPageBreak(estimatedItemHeight);
+      currentItemY = doc.y;
+      doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
+      doc.text((item.name || 'Component').toUpperCase(), xIncludedText, currentItemY, { width: wIncluded });
+      const yBeforeDesc = doc.y;
+      doc.text(item.description, xDescText, currentItemY, { width: wDesc });
+      const yAfterDesc = doc.y;
+      doc.text(itemQty.toString(), xQtyText, currentItemY, { width: wQty, align: 'right' });
+      doc.text("$0.00", xRateText, currentItemY, { width: wRate, align: 'right' });
+      doc.font(FONT_FAMILY_MONO_BOLD).text("INCLUDED", xAmountText, currentItemY, { width: wAmount, align: 'right' });
+      doc.font(FONT_FAMILY_MONO);
+      doc.y = yAfterDesc;
+      doc.moveDown(3.0);
+
+      // ✅ SI ES UN TANK ATU, INMEDIATAMENTE DESPUÉS RENDERIZAR EL KIT
+      if (item.category === 'System Type' && item.name && item.name.toUpperCase().includes('ATU')) {
+        // Buscar el KIT en los items incluidos y renderizarlo aquí
+        const kitItem = CONDITIONAL_INCLUDED_ITEMS["ATU"]?.find(conditionalItem => 
+          conditionalItem.name.toUpperCase().includes('KIT')
+        );
         
-        let fullDescription = item.name || 'N/A';
-        if (item.description && item.description.trim() !== '') {
-          fullDescription += ` - ${item.description}`;
+        if (kitItem) {
+          const estimatedKitHeight = doc.heightOfString(kitItem.description, { width: wDesc });
+          const estimatedRowHeight = Math.max(estimatedKitHeight + 20, 35);
+          checkPageBreak(estimatedRowHeight);
+
+          currentItemY = doc.y;
+          doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
+          doc.text(kitItem.name.toUpperCase(), xIncludedText, currentItemY, { width: wIncluded });
+          
+          const yBeforeKitDesc = doc.y;
+          doc.text(kitItem.description, xDescText, currentItemY, { width: wDesc });
+          const yAfterKitDesc = doc.y;
+
+          doc.text(kitItem.qty.toString(), xQtyText, currentItemY, { width: wQty, align: 'right' });
+          doc.text(`$${kitItem.rate.toFixed(2)}`, xRateText, currentItemY, { width: wRate, align: 'right' });
+          doc.font(FONT_FAMILY_MONO_BOLD).text(kitItem.amount, xAmountText, currentItemY, { width: wAmount, align: 'right' });
+          doc.font(FONT_FAMILY_MONO);
+
+          doc.y = yAfterKitDesc;
+          doc.moveDown(3.0);
         }
-        if (item.marca && item.marca.trim() !== '') {
-          fullDescription += ` [Marca: ${item.marca}]`;
-        }
-        if (item.capacity && item.capacity.trim() !== '') {
-          fullDescription += ` [Capacidad: ${item.capacity}]`;
-        }
-
-        const estimatedItemHeight = Math.max(doc.heightOfString(fullDescription, { width: wDesc }), 25);
-        checkPageBreak(estimatedItemHeight);
-
-        currentItemY = doc.y;
-        doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
-        doc.text((item.name || 'Component').toUpperCase(), xIncludedText, currentItemY, { width: wIncluded });
-        
-        const yBeforeDesc = doc.y;
-        doc.text(item.description, xDescText, currentItemY, { width: wDesc });
-        const yAfterDesc = doc.y;
-
-        // LÓGICA ORIGINAL RESTAURADA: Se muestra como incluido, sin precio individual.
-        doc.text(itemQty.toString(), xQtyText, currentItemY, { width: wQty, align: 'right' });
-        doc.text("$0.00", xRateText, currentItemY, { width: wRate, align: 'right' });
-        doc.font(FONT_FAMILY_MONO_BOLD).text("INCLUDED", xAmountText, currentItemY, { width: wAmount, align: 'right' });
-        doc.font(FONT_FAMILY_MONO);
-
-        doc.y = yAfterDesc;
-        doc.moveDown(3.0);
-      });
+      }
+    });
   }
 
   // ✅ 3. GENERAR Y MOSTRAR ITEMS INCLUIDOS ADICIONALES (Warranty, etc.)
+  // PERO EXCLUIR EL KIT SI YA SE RENDERIZÓ CON EL TANK ATU
   const includedItems = _generateIncludedItems(budgetData.lineItems);
+  const hasATUTank = budgetData.lineItems?.some(item => 
+    item.category === 'System Type' && item.name && item.name.toUpperCase().includes('ATU')
+  );
 
   if (includedItems && includedItems.length > 0) {
     includedItems.forEach(item => {
+      // ✅ SI YA RENDERIZAMOS EL KIT CON EL TANK ATU, NO LO VOLVEMOS A RENDERIZAR
+      if (hasATUTank && item.name.toUpperCase().includes('KIT')) {
+        return; // Saltar este item
+      }
+
       const estimatedDescHeight = doc.heightOfString(item.description, { width: wDesc });
       const estimatedRowHeight = Math.max(estimatedDescHeight + 20, 35);
       checkPageBreak(estimatedRowHeight);
@@ -478,11 +530,11 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
     .text("PAYMENT INFORMATION", NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(0.3);
   doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
-  doc.text("BANK: BANK OF AMERICA".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.text("BANK: CHASE".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(0.3);
-  doc.text("ACCOUNT NUMBER: 898138399808".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.text("ACCOUNT NUMBER: 686125371".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(0.3);
-  doc.text("ROUTING NUMBER: 063100277".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.text("ROUTING NUMBER: 267084131".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(0.3);
   doc.text("CREDIT CARD + 3%".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(0.3);
@@ -729,6 +781,10 @@ function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formatt
         "Soil: between $250 and $300, depending on the location of the project.",
         "Sand: between $370 and $450, depending on the location of the project."
       ]
+    },
+    {
+      title: "NOTE:",
+      content: "Attorneys' Fees and Costs. In the event of any dispute, claim, or litigation arising out of, or related in any way to, this Agreement or the transaction contemplated herein, the prevailing party shall be entitled to recover from the non-prevailing party all attorneys' fees, court costs, expert witness fees, and expenses actually incurred, whether before or after the filing of a lawsuit, and including any appeals, arbitration, mediation, or bankruptcy proceedings."
     },
     { 
       // Este no tiene número, solo título y contenido.

@@ -42,7 +42,6 @@ const PdfReceipt = () => {
 
   const [expirationWarning, setExpirationWarning] = useState({ type: "", message: "" });
   const [excavationUnit, setExcavationUnit] = useState("INCH"); 
-  const [uploadType, setUploadType] = useState("main"); // "main" o "optional"
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
 
   useEffect(() => {
@@ -396,56 +395,58 @@ const PdfReceipt = () => {
         <span className="text-base font-normal text-gray-400">Document & Data Management</span>
       </h1>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Panel PDF */}
+        {/* Panel PDF reorganizado por tab */}
         <div className="bg-white shadow-xl rounded-2xl p-6 col-span-2 flex flex-col">
-          {/* Barra de acciones arriba con select y un solo input */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-            <div className="flex gap-2">
-              <button onClick={() => setCurrentPage(1)} className={`py-2 px-2 rounded-lg font-semibold transition-all duration-200 ${currentPage === 1 ? "bg-blue-700 text-white shadow" : "bg-gray-100 text-blue-700 hover:bg-blue-50"}`}>Permit</button>
-              <button onClick={() => setCurrentPage(2)} className={`py-2 px-2 rounded-lg font-semibold transition-all duration-200 ${currentPage === 2 ? "bg-blue-700 text-white shadow" : "bg-gray-100 text-blue-700 hover:bg-blue-50"}`}>Site Plan</button>
-            </div>
-            <div className="flex flex-col md:flex-row md:items-center gap-2 w-full md:w-auto">
-             
-              <select
-                value={uploadType}
-                onChange={e => setUploadType(e.target.value)}
-                className="border border-gray-300 rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-              >
-                <option value="main">Permit</option>
-                <option value="optional">Site Plane</option>
-              </select>
-              {uploadType === "main" ? (
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={handleFileUpload}
-                  className="block border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white p-2 w-full md:w-auto"
-                />
-              ) : (
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={handleOptionalDocUpload}
-                  className="block border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white p-2 w-full md:w-auto"
-                />
-              )}
-            </div>
+          {/* Tabs de vista arriba */}
+          <div className="flex gap-2 mb-6 justify-center">
+            <button onClick={() => setCurrentPage(1)} className={`py-2 px-4 rounded-lg font-semibold transition-all duration-200 ${currentPage === 1 ? "bg-blue-700 text-white shadow" : "bg-gray-100 text-blue-700 hover:bg-blue-50"}`}>Permit</button>
+            <button onClick={() => setCurrentPage(2)} className={`py-2 px-4 rounded-lg font-semibold transition-all duration-200 ${currentPage === 2 ? "bg-blue-700 text-white shadow" : "bg-gray-100 text-blue-700 hover:bg-blue-50"}`}>Site Plan</button>
           </div>
-          <div className="flex-1 flex flex-col">
-            {currentPage === 1 && pdfPreview ? (
-              <div className="overflow-y-auto max-h-[600px] border border-gray-200 rounded-lg shadow-inner bg-gray-50">
-                <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
-                  <Viewer fileUrl={pdfPreview} plugins={[defaultLayoutPluginInstance]} />
-                </Worker>
-              </div>
-            ) : currentPage === 2 && optionalDocPreview ? (
-              <div className="overflow-y-auto max-h-[600px] border border-gray-200 rounded-lg shadow-inner bg-gray-50">
-                <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
-                  <Viewer fileUrl={optionalDocPreview} plugins={[defaultLayoutPluginInstance]} />
-                </Worker>
-              </div>
-            ) : (
-              <div className="flex-1 flex items-center justify-center text-gray-400 text-lg min-h-[200px]">{currentPage === 1 ? "No main PDF uploaded." : "No optional document uploaded."}</div>
+          {/* Sección de carga y preview según tab activo */}
+          <div className="flex-1 flex flex-col items-center justify-start">
+            {currentPage === 1 && (
+              <>
+                <label className="block mb-2 w-full max-w-md">
+                  <span className="text-xs text-gray-500">Cargar Permit PDF</span>
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    onChange={handleFileUpload}
+                    className="block border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white p-2 w-full"
+                  />
+                </label>
+                {pdfPreview ? (
+                  <div className="overflow-y-auto max-h-[600px] border border-gray-200 rounded-lg shadow-inner bg-gray-50 w-full max-w-2xl">
+                    <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+                      <Viewer fileUrl={pdfPreview} plugins={[defaultLayoutPluginInstance]} />
+                    </Worker>
+                  </div>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center text-gray-400 text-lg min-h-[200px]">No main PDF uploaded.</div>
+                )}
+              </>
+            )}
+            {currentPage === 2 && (
+              <>
+                <label className="block mb-2 w-full max-w-md">
+                  <span className="text-xs text-gray-500">Cargar Site Plan (opcional)</span>
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    onChange={handleOptionalDocUpload}
+                    className="block border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 bg-white p-2 w-full"
+                  />
+                </label>
+                {optionalDocPreview ? (
+                  <div className="overflow-y-auto max-h-[600px] border border-gray-200 rounded-lg shadow-inner bg-gray-50 w-full max-w-2xl">
+                    <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+                      <Viewer fileUrl={optionalDocPreview} plugins={[defaultLayoutPluginInstance]} />
+                    </Worker>
+                  </div>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center text-gray-400 text-lg min-h-[200px]">No optional document uploaded.</div>
+                )}
+              </>
             )}
           </div>
         </div>
