@@ -128,6 +128,13 @@ const stateNotificationMap = {
     roles: ['admin', 'owner'],
     message: (work) => `El presupuesto para la dirección ${work.propertyAddress} está listo para ser enviado al cliente.`,
   },
+  
+  // ✅ NUEVA NOTIFICACIÓN PARA ERRORES DE PDF
+  budgetPdfError: {
+    roles: ['admin', 'owner'], // Admin y owner reciben errores de PDF
+    message: (budget) => `⚠️ ERROR: No se pudo generar el PDF para el presupuesto ${budget?.idBudget} en ${budget?.propertyAddress}. Error: ${budget?.error}. Se requiere intervención manual.`,
+  },
+  
   budgetSent: {
     roles: ['admin', 'owner'],
     message: (work) => `El presupuesto para la dirección ${work.propertyAddress} ha sido enviado al cliente.`,
