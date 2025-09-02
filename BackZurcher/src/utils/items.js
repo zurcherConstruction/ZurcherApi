@@ -2,49 +2,63 @@ const { BudgetItem } = require('../data');
 
 const defaultItems = [
   // SYSTEM TYPE
-  { category: "System Type", name: "TANK ATU 500 GDP", marca: "Fuji", capacity: "500 gal", description: "FUJI IM1530P/2, 500GAL DBL COMP,  SEPTIC TANK", unitPrice: 1000, supplierName: "", supplierLocation: "" },
-  { category: "System Type", name: "TANK ATU 700 GDP", marca: "Fuji", capacity: "700 gal", description: "FUJI IM1530P/2, 700GAL DBL COMP,  SEPTIC TANK", unitPrice: 2000, supplierName: "", supplierLocation: "" },
-  { category: "System Type", name: "TANK ATU 1000 GDP", marca: "Fuji", capacity: "1000 gal", description: "FUJI IM1530P/2, 1000GAL DBL COMP,  SEPTIC TANK", unitPrice: 3000, supplierName: "", supplierLocation: "" },
-  { category: "System Type", name: "TANK ATU 500 GDP", marca: "Infiltrator", capacity: "500 gal", description: "INFILTRATOR IM1530P/2, 500GAL DBL COMP,  SEPTIC TANK", unitPrice: 5285.17, supplierName: "", supplierLocation: "" },
-  { category: "System Type", name: "TANK ATU 750 GDP", marca: "Infiltrator", capacity: "750 gal", description: "INFILTRATOR IM1530P/2, 750GAL DBL COMP,  SEPTIC TANK", unitPrice: 6407.48, supplierName: "", supplierLocation: "" },
-  { category: "System Type", name: "TANK ATU 1000 GDP", marca: "Infiltrator", capacity: "1000 gal", description: "INFILTRATOR IM1530P/2, 1000GAL DBL COMP,  SEPTIC TANK", unitPrice: 8119.12, supplierName: "", supplierLocation: "" },
-  { category: "System Type", name: "TANK REGULAR 1060 GDP", marca: "Infiltrator", capacity: "1060 gal", description: "INFILTRATOR CM1060P/2 1060G 2 COMP SEPTIC TANK", unitPrice: 1197.39, supplierName: "", supplierLocation: "" },
-  { category: "System Type", name: "TANK REGULAR 1250 GDP", marca: "Infiltrator", capacity: "1250 gal", description: "INFILTRATOR IM1250/P2 1250GAL DBL COMP SEPTIC TANK ", unitPrice: 1541.19, supplierName: "", supplierLocation: "" },
-  { category: "System Type", name: "TANK REGULAR 1530 GDP", marca: "Infiltrator", capacity: "1530 gal", description: "INFILTRATOR IM1530P/2 1530GAL DBL COMP SEPTIC TANK", unitPrice: 1841.88, supplierName: "", supplierLocation: "" },
-  { category: "System Type", name: "TANK REGULAR 1530 GDP", marca: "Infiltrator", capacity: "540 gal", description: "INFILTRATOR IM540P/1 540GAL SIN COMP SEPTIC TANK C4", unitPrice: 714.64, supplierName: "", supplierLocation: "" },
-  { category: "System Type", name: "TANK REGULAR 1530 GDP", marca: "Infiltrator", capacity: "300 gal", description: "INFILTRATOR IM300P SING COMP SEPTIC TANK C4 IM300P/1/11-P11", unitPrice: 483.21, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "TANK ATU 500 GPD", marca: "Fuji", capacity: "500 gal", description: "FUJI IM1530P/2, 500GPD DBL COMP,  SEPTIC TANK", unitPrice: 1000, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "TANK ATU 700 GPD", marca: "Fuji", capacity: "700 gal", description: "FUJI IM1530P/2, 700GPD DBL COMP,  SEPTIC TANK", unitPrice: 2000, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "TANK ATU 1000 GPD", marca: "Fuji", capacity: "1000 gal", description: "FUJI IM1530P/2, 1000GPD DBL COMP,  SEPTIC TANK", unitPrice: 3000, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "TANK ATU 500 GPD", marca: "Infiltrator", capacity: "500 gal", description: "INFILTRATOR IM1530P/2, 500GPD DBL COMP,  SEPTIC TANK", unitPrice: 5285.17, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "TANK ATU 750 GPD", marca: "Infiltrator", capacity: "750 gal", description: "INFILTRATOR IM1530P/2, 750GPD DBL COMP,  SEPTIC TANK", unitPrice: 6407.48, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "TANK ATU 1000 GPD", marca: "Infiltrator", capacity: "1000 gal", description: "INFILTRATOR IM1530P/2, 1000GPD DBL COMP,  SEPTIC TANK", unitPrice: 8119.12, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "TANK REGULAR 1060 GPD", marca: "Infiltrator", capacity: "1060 gal", description: "INFILTRATOR CM1060P/2 1060GPD 2 COMP SEPTIC TANK", unitPrice: 1197.39, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "TANK REGULAR 1250 GPD", marca: "Infiltrator", capacity: "1250 gal", description: "INFILTRATOR IM1250/P2 1250GPD DBL COMP SEPTIC TANK ", unitPrice: 1541.19, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "TANK REGULAR 1530 GPD", marca: "Infiltrator", capacity: "1530 gal", description: "INFILTRATOR IM1530P/2 1530GPD DBL COMP SEPTIC TANK", unitPrice: 1841.88, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "TANK REGULAR 1530 GPD", marca: "Infiltrator", capacity: "540 gal", description: "INFILTRATOR IM540P/1 540GPD SIN COMP SEPTIC TANK C4", unitPrice: 714.64, supplierName: "", supplierLocation: "" },
+  { category: "System Type", name: "TANK REGULAR 1530 GPD", marca: "Infiltrator", capacity: "300 gal", description: "INFILTRATOR IM300P SING COMP SEPTIC TANK C4 IM300P/1/11-P11", unitPrice: 483.21, supplierName: "", supplierLocation: "" },
   
   // SISTEMA CHAMBERS
-  { category: "Sistema Chambers", imageUrl: "https://res.cloudinary.com/dt4ah1jmy/image/upload/v1755881149/budget_items/iwwpgtpyuanrwd1wtd64.png", name: "CHAMBERS", marca: "", capacity: "", description: "INFILTRATOR Q4+E QUICK4 PLUS FLAT END CAP", unitPrice: 10.78, supplierName: "", supplierLocation: "" },
+  { category: "Sistema Chambers", imageUrl: "https://res.cloudinary.com/dt4ah1jmy/image/upload/v1755881149/budget_items/iwwpgtpyuanrwd1wtd64.png", name: "END CAP", marca: "", capacity: "", description: "INFILTRATOR Q4+E QUICK4 PLUS FLAT END CAP", unitPrice: 10.78, supplierName: "", supplierLocation: "" },
   { category: "Sistema Chambers", imageUrl: "https://res.cloudinary.com/dt4ah1jmy/image/upload/v1755880904/raaf4rthwtan9sufd123.png", name: "CHAMBERS", marca: "", capacity: "", description: "INFILTRATOR Q4+EQ36LP QUICK4 PLUS EQLZR 36 LOW PROFILE CHAMBER", unitPrice: 29.76, supplierName: "", supplierLocation: "" },
   { category: "Sistema Chambers", imageUrl: "https://res.cloudinary.com/dt4ah1jmy/image/upload/v1755880985/w0z76fqnazt25twcfct4.png", name: "CHAMBERS", marca: "", capacity: "", description: "INFILTRATOR 2412BD3-PP ARC 24 CHAMBER", unitPrice: 40.38, supplierName: "", supplierLocation: "" },
-  { category: "Sistema Chambers", imageUrl: "https://res.cloudinary.com/dt4ah1jmy/image/upload/v1755881222/budget_items/caiwzhoiwzndrx3zghrd.png", name: "CHAMBERS", marca: "", capacity: "", description: "INFILTRATOR Q4+A1E QUICK4 PLUS ALL IN ONE END CAP", unitPrice: 16.27, supplierName: "", supplierLocation: "" },
-  { category: "Sistema Chambers", imageUrl:"", name: "CHAMBERS", marca: "", capacity: "", description: "INFILTRATOR 2402BD3 ARC 24 STD END CAP", unitPrice: 12.60, supplierName: "", supplierLocation: "" },
+  { category: "Sistema Chambers", imageUrl: "https://res.cloudinary.com/dt4ah1jmy/image/upload/v1755881222/budget_items/caiwzhoiwzndrx3zghrd.png", name: "END CAP", marca: "", capacity: "", description: "INFILTRATOR Q4+A1E QUICK4 PLUS ALL IN ONE END CAP", unitPrice: 16.27, supplierName: "", supplierLocation: "" },
+  { category: "Sistema Chambers", imageUrl:"", name: "END CAP", marca: "", capacity: "", description: "INFILTRATOR 2402BD3 ARC 24 STD END CAP", unitPrice: 12.60, supplierName: "", supplierLocation: "" },
 
   // PUMP
   { category: "Pump", name: "PUMP TANK LIFT STATION", marca: "", capacity: "300 gal", description: "TANK 300 GAL", unitPrice: 100, supplierName: "", supplierLocation: "" },
   { category: "Pump", name: "PUMP TANK LIFT STATION", marca: "", capacity: "500 gal", description: "TANK 500 GAL", unitPrice: 50, supplierName: "", supplierLocation: "" },
 
   // MATERIALES
-  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "7 ALL INCLUDED", description: "LOADS SAND INCLUDED", unitPrice: 1500, supplierName: "", supplierLocation: "" },
-  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "4", description: "4 SAND INCLUDED", unitPrice: 1000, supplierName: "", supplierLocation: "" },
+  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "7 ALL INCLUDED", description: "LOADS SAND INCLUDED", unitPrice: 2590, supplierName: "Lehigh acres", supplierLocation: "" },
+  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "4", description: "4 SAND INCLUDED", unitPrice: 1480, supplierName: "Lehigh acres", supplierLocation: "" },
 
-  { category: "Accesorios", name: "HYDRAPRO 4", marca: "", capacity: "", description: "HYDRAPRO 4 HXH S&D D3304 1/4 SHORT BEND 90 EQUALS P204 NV3304", unitPrice: 15, supplierName: "", supplierLocation: "" },
-  { category: "Accesorios", name: "HYDRAPRO 4 ", marca: "", capacity: "", description: "HYDRAPRO 4 HXHXH S&D D3034 STRAIGHT TEE EQUALS P104 NV804", unitPrice: 10, supplierName: "", supplierLocation: "" },
-  { category: "Accesorios", name: "4x10 3034", marca: "", capacity: "", description: "4X10 3034 SDR35 PVC BOE PLAS PIPE", unitPrice: 12, supplierName: "", supplierLocation: "" },
+  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "7 ALL INCLUDED", description: "LOADS SAND INCLUDED", unitPrice: 2800, supplierName: "Cape Coral", supplierLocation: "" },
+  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "4", description: "4 SAND INCLUDED", unitPrice: 1600, supplierName: "Cape Coral", supplierLocation: "" },
+
+  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "7 ALL INCLUDED", description: "LOADS SAND INCLUDED", unitPrice: 1820, supplierName: "Sebring", supplierLocation: "" },
+  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "4", description: "4 SAND INCLUDED", unitPrice: 1040, supplierName: "Sebring", supplierLocation: "" },
+
+  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "7 ALL INCLUDED", description: "LOADS SAND INCLUDED", unitPrice: 3010, supplierName: "North Port", supplierLocation: "" },
+  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "4", description: "4 SAND INCLUDED", unitPrice: 1720, supplierName: "North Port", supplierLocation: "" },
+
+  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "7 ALL INCLUDED", description: "LOADS SAND INCLUDED", unitPrice: 3010, supplierName: "Porth Charlotte", supplierLocation: "" },
+  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "4", description: "4 SAND INCLUDED", unitPrice: 1720, supplierName: "Porth Charlotte", supplierLocation: "" },
+
+  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "7 ALL INCLUDED", description: "LOADS SAND INCLUDED", unitPrice: 2660, supplierName: "Deltona", supplierLocation: "" },
+  { category: "Sand", name: "SAND TRUCK", marca: "", capacity: "4", description: "4 SAND INCLUDED", unitPrice: 1520, supplierName: "Deltona", supplierLocation: "" },
+
+  { category: "Accesorios", name: "SYSTEM PARTS & ELECTRICAL INSTALLATION (IF THIS INCLUDES)", marca: "", capacity: "", description: "FULL INSTALLATION OF PIPES, ACCESORIES, AND ELECTRICAL WORK FOR THE SEPTIC SYSTEM", unitPrice: 250, supplierName: "", supplierLocation: "" },
+
 
   // INSPECTION
   { category: "Inspection", name: "PRIVATE INSPECTION", marca: "", capacity: "", description: "FIRST & FINAL INSPECTION", unitPrice: 500, supplierName: "", supplierLocation: "" },
   { category: "Inspection", name: "PRIVATE INSPECTION", marca: "", capacity: "", description: "FIRST INSPECTION", unitPrice: 200, supplierName: "", supplierLocation: "" },
-  { category: "Inspection", name: "PRIVATE INSPECTION", marca: "", capacity: "", description: "FINAL INSPECTION", unitPrice: 300, supplierName: "", supplierLocation: "" },
-  { category: "Inspection", name: "HEALTH DEPARTMENT INSPECTION", marca: "", capacity: "", description: "FIRST INSPECTION", unitPrice: 200, supplierName: "", supplierLocation: "" },
-  { category: "Inspection", name: "HEALTH DEPARTMENT INSPECTION", marca: "", capacity: "", description: "FINAL INSPECTION", unitPrice: 200, supplierName: "", supplierLocation: "" },
+  { category: "Inspection", name: "PRIVATE INSPECTION", marca: "", capacity: "", description: "NOT INCLUDED", unitPrice: 0, supplierName: "", supplierLocation: "" },
+
 
   // LABOR
-  { category: "Labor Fee", name: "ZURCHER CONSTRUCTION", marca: "", capacity: "", description: "", unitPrice: 6000, supplierName: "", supplierLocation: "" },
+  { category: "Labor Fee", name: "ZURCHER CONSTRUCTION", marca: "", capacity: "", description: "", unitPrice: 4500, supplierName: "", supplierLocation: "" },
  
   { category: "Rock", name: "ROCK REMOVAL", marca: "", capacity: "", description: "INCLUDED AT NO ADDITIONALCOST IF REQUIRED DURING INSTALLATION", unitPrice: 0, supplierName: "", supplierLocation: "" },
   { category: "Dirt", name: "DIR TRUCK FOR COVER", marca: "", capacity: "", description: "LOADS OF DIRT INCLUDED", unitPrice: 0, supplierName: "", supplierLocation: "" },
+   { category: "Dirt", name: "DIR TRUCK FOR COVER", marca: "", capacity: "", description: "LOADS OF DIRT NOT INCLUDED", unitPrice: 0, supplierName: "", supplierLocation: "" },
   
 
   { category: "MATERIALES", imageUrl:"https://res.cloudinary.com/dt4ah1jmy/image/upload/v1751459910/Captura_de_pantalla_2025-07-02_093333_opymib.png", name: "13161", marca: "", capacity: "", description: "4X10 3034 SDR35 PVC BOE PLAS PIPE", unitPrice: 17.20, supplierName: "", supplierLocation: "" },
