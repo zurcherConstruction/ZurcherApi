@@ -782,6 +782,10 @@ function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formatt
         "Sand: between $370 and $450, depending on the location of the project."
       ]
     },
+    {
+      title: "NOTE:",
+      content: "Attorneys' Fees and Costs. In the event of any dispute, claim, or litigation arising out of, or related in any way to, this Agreement or the transaction contemplated herein, the prevailing party shall be entitled to recover from the non-prevailing party all attorneys' fees, court costs, expert witness fees, and expenses actually incurred, whether before or after the filing of a lawsuit, and including any appeals, arbitration, mediation, or bankruptcy proceedings."
+    },
     { 
       // Este no tiene número, solo título y contenido.
       title: "Client Acknowledgment:",
