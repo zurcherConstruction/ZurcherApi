@@ -36,27 +36,23 @@ const DEFAULT_INCLUDED_ITEMS = [
 const CONDITIONAL_INCLUDED_ITEMS = {
   // La clave (ej: "ATU") es lo que buscaremos en el nombre del item "System Type"
   "ATU": [
-    {
-      name: "SYSTEM PARTS & ELECTRICAL INSTALLATION",
-      description: "FULL INSTALLATION OF PIPES, ACCESORIES, AND ELECTRICAL WORK FOR THE SEPTIC SYSTEM",
+
+     {
+      name: "KIT TANK ATU",
+      description: "TREATMENT SYSTEM PANEL CONTROL/BLOW AIR",
       qty: "1",
       rate: 0.00,
       amount: "INCLUDED"
     },
+    
     {
       name: "SERVICE MAINTENANCE CONTRACT",
       description: "2 YEAR CONTRACT WITH SERVICE EVERY 6 MONTHS",
       qty: "1",
       rate: 0.00,
       amount: "INCLUDED"
-    },
-    {
-      name: "KIT TANK ATU",
-      description: "TREATMENT SYSTEM PANEL CONTROL/BLOW AIR",
-      qty: "1",
-      rate: 0.00,
-      amount: "INCLUDED"
     }
+   
   ],
   // Puedes agregar más reglas aquí, por ejemplo:
   // "REGULAR TANK": [ { ... otro item ... } ]
@@ -379,17 +375,15 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   doc.text(`$${mainItemRate.toFixed(2)}`, xAmountText, currentItemY, { width: wAmount, align: 'right' });
   doc.moveDown(3.5);
 
-   // ✅ 2. MOSTRAR LOS lineItems QUE VIENEN DEL PRESUPUESTO (COMO "INCLUDED")
+  // 2. Render each line item and, if it triggers conditional items, render those right after
   if (lineItems && lineItems.length > 0) {
-    // Filtrar para no mostrar "LABOR FEE" ni "ZURCHER CONSTRUCTION"
     lineItems
       .filter(item => {
         const name = item.name?.toUpperCase() || '';
-        return name !== 'ZURCHER CONSTRUCTION' && name !== 'LABOR FEE';
+        return name !== 'ZURCHER CONSTRUCTION' && name !== 'LABOR FEE' && item.name !== 'END CAP';
       })
       .forEach((item) => {
         const itemQty = parseInt(item.quantity) || 1;
-        
         let fullDescription = item.name || 'N/A';
         if (item.description && item.description.trim() !== '') {
           fullDescription += ` - ${item.description}`;
@@ -400,24 +394,18 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
         if (item.capacity && item.capacity.trim() !== '') {
           fullDescription += ` [Capacidad: ${item.capacity}]`;
         }
-
         const estimatedItemHeight = Math.max(doc.heightOfString(fullDescription, { width: wDesc }), 25);
         checkPageBreak(estimatedItemHeight);
-
         currentItemY = doc.y;
         doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
         doc.text((item.name || 'Component').toUpperCase(), xIncludedText, currentItemY, { width: wIncluded });
-        
         const yBeforeDesc = doc.y;
         doc.text(item.description, xDescText, currentItemY, { width: wDesc });
         const yAfterDesc = doc.y;
-
-        // LÓGICA ORIGINAL RESTAURADA: Se muestra como incluido, sin precio individual.
         doc.text(itemQty.toString(), xQtyText, currentItemY, { width: wQty, align: 'right' });
         doc.text("$0.00", xRateText, currentItemY, { width: wRate, align: 'right' });
         doc.font(FONT_FAMILY_MONO_BOLD).text("INCLUDED", xAmountText, currentItemY, { width: wAmount, align: 'right' });
         doc.font(FONT_FAMILY_MONO);
-
         doc.y = yAfterDesc;
         doc.moveDown(3.0);
       });
@@ -478,11 +466,11 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
     .text("PAYMENT INFORMATION", NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(0.3);
   doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
-  doc.text("BANK: BANK OF AMERICA".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.text("BANK: CHASE".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(0.3);
-  doc.text("ACCOUNT NUMBER: 898138399808".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.text("ACCOUNT NUMBER: 686125371".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(0.3);
-  doc.text("ROUTING NUMBER: 063100277".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.text("ROUTING NUMBER: 267084131".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(0.3);
   doc.text("CREDIT CARD + 3%".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(0.3);
