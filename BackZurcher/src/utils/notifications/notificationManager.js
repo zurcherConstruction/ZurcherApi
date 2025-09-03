@@ -21,10 +21,20 @@ const sendNotifications = async (status, work, budget, io) => {
         }
         try {
           console.log(`📧 Enviando correo a: ${staff.email}`);
-          // Detectar si es notificación de rechazo de inspección rápida
-          const isQuickRejection = status === 'initial_inspection_rejected' && work.resultDocumentUrl;
-          const isBudgetCreated = status === 'budgetCreated' || status === 'budgetSentToSignNow';
-          let htmlContent;
+          
+          // ✅ ESTRATEGIA DE REINTENTOS PARA PRODUCCIÓN
+          const maxRetries = process.env.NODE_ENV === 'production' ? 2 : 1;
+          let emailSent = false;
+          let lastError = null;
+          
+          for (let attempt = 1; attempt <= maxRetries && !emailSent; attempt++) {
+            try {
+              console.log(`📤 Intento ${attempt}/${maxRetries} para ${staff.email}`);
+              
+              // Detectar si es notificación de rechazo de inspección rápida
+              const isQuickRejection = status === 'initial_inspection_rejected' && work.resultDocumentUrl;
+              const isBudgetCreated = status === 'budgetCreated' || status === 'budgetSentToSignNow';
+              let htmlContent;
           if (isQuickRejection) {
             // Mostrar la imagen/PDF como enlace y/o vista previa si es imagen
             const isImage = work.resultDocumentUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i);
@@ -71,12 +81,39 @@ const sendNotifications = async (status, work, budget, io) => {
             attachments: work.attachments || (work.notificationDetails && work.notificationDetails.attachments) || [],
           });
           
-          // ✅ VERIFICAR EL RESULTADO
+          // ✅ VERIFICAR EL RESULTADO Y MARCAR COMO ENVIADO
           if (emailResult.success) {
             console.log(`✅ Email enviado exitosamente a ${staff.email} en ${emailResult.duration}ms`);
+            emailSent = true; // Marcar como exitoso
           } else {
-            console.error(`❌ Error enviando email a ${staff.email}: ${emailResult.error}`);
+            lastError = new Error(emailResult.error);
+            console.error(`❌ Intento ${attempt}/${maxRetries} falló para ${staff.email}: ${emailResult.error}`);
+            
+            // ✅ ESPERAR ANTES DEL SIGUIENTE INTENTO
+            if (attempt < maxRetries) {
+              const delayMs = attempt * 2000; // 2s, 4s, etc.
+              console.log(`⏳ Esperando ${delayMs}ms antes del siguiente intento...`);
+              await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
           }
+          
+        } catch (attemptError) {
+          lastError = attemptError;
+          console.error(`❌ Error en intento ${attempt}/${maxRetries} para ${staff.email}:`, attemptError.message);
+          
+          // ✅ ESPERAR ANTES DEL SIGUIENTE INTENTO
+          if (attempt < maxRetries) {
+            const delayMs = attempt * 2000;
+            console.log(`⏳ Esperando ${delayMs}ms antes del siguiente intento...`);
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+          }
+        }
+      }
+      
+      // ✅ LOG FINAL DEL RESULTADO
+      if (!emailSent) {
+        console.error(`❌ Falló el envío de email a ${staff.email} después de ${maxRetries} intentos. Último error:`, lastError?.message);
+      }
           
         } catch (error) {
           console.error(`❌ Error general enviando correo a ${staff.email}:`, error.message);
