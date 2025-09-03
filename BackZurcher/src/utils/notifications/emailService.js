@@ -4,26 +4,27 @@ require('dotenv').config();
 // Configurar el transporte de Nodemailer
 const createTransporter = () => {
   if (process.env.NODE_ENV === 'production') {
-    // ✅ CONFIGURACIÓN OPTIMIZADA PARA GMAIL EN PRODUCCIÓN
+    // 🚀 CONFIGURACIÓN ULTRA AGRESIVA PARA RAILWAY
     return nodemailer.createTransport({
-      service: 'gmail', // Usar servicio predefinido de Gmail
+      service: 'gmail',
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASSWORD
       },
-      // ✅ CONFIGURACIONES AGRESIVAS PARA PRODUCCIÓN
-      connectionTimeout: 15000,  // 15 segundos
-      greetingTimeout: 10000,    // 10 segundos
-      socketTimeout: 15000,      // 15 segundos
-      pool: true,
-      maxConnections: 2,         // Solo 2 conexiones
-      maxMessages: 10,           // Pocos mensajes por conexión
-      rateDelta: 1000,           // 1 segundo entre mensajes
-      rateLimit: 1,              // 1 mensaje por segundo
+      // 🔥 TIMEOUTS EXTREMADAMENTE CORTOS PARA RAILWAY
+      connectionTimeout: 8000,   // 8 segundos máximo
+      greetingTimeout: 5000,     // 5 segundos máximo  
+      socketTimeout: 8000,       // 8 segundos máximo
+      pool: false,               // Sin pool - conexión directa
+      maxConnections: 1,         // Solo 1 conexión
+      maxMessages: 1,            // 1 mensaje por conexión
       logger: false,
       debug: false,
+      secure: true,              // Forzar SSL
+      requireTLS: true,          // Requerir TLS
       tls: {
-        rejectUnauthorized: false
+        rejectUnauthorized: false,
+        minVersion: 'TLSv1.2'
       }
     });
   } else {
@@ -77,8 +78,8 @@ const sendEmail = async (mailOptions) => {
 
     console.log(`📤 Enviando email a ${optionsToSend.to} con subject: "${optionsToSend.subject}"`);
 
-    // ✅ TIMEOUT MÁS AGRESIVO PARA PRODUCCIÓN
-    const timeoutMs = process.env.NODE_ENV === 'production' ? 15000 : 45000; // 15s en prod, 45s en dev
+    // 🚀 TIMEOUT ULTRA AGRESIVO PARA RAILWAY
+    const timeoutMs = process.env.NODE_ENV === 'production' ? 10000 : 45000; // 10s en prod, 45s en dev
     
     // ✅ FUNCIÓN PARA ENVIAR CON TIMEOUT Y TRANSPORTER ESPECÍFICO
     const sendWithTimeoutAndTransporter = (transporterToUse, attempt = 1) => {
@@ -109,23 +110,51 @@ const sendEmail = async (mailOptions) => {
     } catch (firstError) {
       console.log(`⚠️ Primer intento falló, intentando con configuración alternativa...`);
       
-      // ✅ SEGUNDO INTENTO CON CONFIGURACIÓN ALTERNATIVA MÁS SIMPLE
+      // 🚀 SEGUNDO INTENTO CON CONFIGURACIÓN EXTREMA PARA RAILWAY
       const fallbackTransporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
           user: process.env.SMTP_USER,
           pass: process.env.SMTP_PASSWORD
         },
-        // ✅ CONFIGURACIÓN MÍNIMA PARA MÁXIMA VELOCIDAD
-        pool: false, // Sin pool para conexión directa
-        connectionTimeout: 10000,
-        greetingTimeout: 5000,
-        socketTimeout: 10000,
+        // 🔥 CONFIGURACIÓN ULTRA MINIMALISTA
+        pool: false,               // Sin pool - conexión directa
+        connectionTimeout: 5000,   // Solo 5 segundos
+        greetingTimeout: 3000,     // Solo 3 segundos
+        socketTimeout: 5000,       // Solo 5 segundos
         logger: false,
         debug: false
       });
       
-      info = await sendWithTimeoutAndTransporter(fallbackTransporter, 2);
+      try {
+        info = await sendWithTimeoutAndTransporter(fallbackTransporter, 2);
+      } catch (secondError) {
+        console.log(`⚠️ Segundo intento falló, probando SMTP directo como último recurso...`);
+        
+        // 🆘 TERCER INTENTO CON SMTP DIRECTO (último recurso)
+        const directTransporter = nodemailer.createTransport({
+          host: 'smtp.gmail.com',
+          port: 587,
+          secure: false,
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASSWORD
+          },
+          // 💀 CONFIGURACIÓN DESESPERADA
+          pool: false,
+          connectionTimeout: 3000,   // Solo 3 segundos
+          greetingTimeout: 2000,     // Solo 2 segundos
+          socketTimeout: 3000,       // Solo 3 segundos
+          logger: false,
+          debug: false,
+          requireTLS: true,
+          tls: {
+            rejectUnauthorized: false
+          }
+        });
+        
+        info = await sendWithTimeoutAndTransporter(directTransporter, 3);
+      }
     }
 
     const duration = Date.now() - startTime;
