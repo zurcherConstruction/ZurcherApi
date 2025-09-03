@@ -2021,54 +2021,23 @@ async optionalDocs(req, res) {
     try {
       console.log('🔍 Iniciando diagnóstico de email...');
       
-      // ✅ VERIFICAR VARIABLES DE ENTORNO
-      const smtpConfig = {
-        host: process.env.SMTP_HOST,
-        port: process.env.SMTP_PORT,
-        secure: process.env.SMTP_SECURE,
-        user: process.env.SMTP_USER ? '***configurado***' : 'NO CONFIGURADO',
-        pass: process.env.SMTP_PASSWORD ? '***configurado***' : 'NO CONFIGURADO',
-        from: process.env.SMTP_FROM,
-        nodeEnv: process.env.NODE_ENV
-      };
+      // ✅ USAR LA NUEVA FUNCIÓN DE DIAGNÓSTICO
+      const { diagnoseEmailService } = require('../utils/notifications/emailService');
+      const result = await diagnoseEmailService();
       
-      console.log('📋 Configuración SMTP:', smtpConfig);
-      
-      // ✅ PROBAR CONEXIÓN
-      const { sendEmail } = require('../utils/notifications/emailService');
-      
-      const testEmail = {
-        to: 'zurcher44@gmail.com', // Email del owner
-        subject: 'Test de diagnóstico SMTP - ZurcherAPI',
-        text: `Test de diagnóstico realizado en ${new Date().toISOString()}\n\nConfiguración:\n${JSON.stringify(smtpConfig, null, 2)}`,
-        html: `
-          <h2>🔧 Test de Diagnóstico SMTP</h2>
-          <p><strong>Fecha:</strong> ${new Date().toISOString()}</p>
-          <p><strong>Entorno:</strong> ${process.env.NODE_ENV}</p>
-          <p><strong>Host:</strong> ${process.env.SMTP_HOST}</p>
-          <p><strong>Puerto:</strong> ${process.env.SMTP_PORT}</p>
-          <p><strong>Seguro:</strong> ${process.env.SMTP_SECURE}</p>
-        `
-      };
-      
-      console.log('📤 Enviando email de prueba...');
-      const result = await sendEmail(testEmail);
+      console.log('� Resultado del diagnóstico:', result);
       
       if (result.success) {
-        console.log('✅ Email de diagnóstico enviado exitosamente');
         res.json({
           success: true,
-          message: 'Diagnóstico completado exitosamente',
-          config: smtpConfig,
-          testResult: result
+          message: 'Servicio de email funcionando correctamente',
+          diagnostics: result
         });
       } else {
-        console.error('❌ Falló el email de diagnóstico:', result.error);
         res.status(500).json({
           success: false,
-          message: 'Falló el envío del email de diagnóstico',
-          config: smtpConfig,
-          error: result.error
+          message: 'Problemas detectados en el servicio de email',
+          diagnostics: result
         });
       }
       

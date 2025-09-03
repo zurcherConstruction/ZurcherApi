@@ -54,16 +54,8 @@ const createTransporter = () => {
   }
 };
 
-const transporter = createTransporter();
-
-// Verificar la configuración del transporter
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('❌ Error al verificar la configuración SMTP:', error);
-  } else {
-    console.log('✅ Servidor SMTP listo para enviar correos');
-  }
-});
+// ✅ NO CREAR TRANSPORTER AL CARGAR EL MÓDULO
+// Lo crearemos dinámicamente cuando sea necesario
 
 // Función para enviar el correo
 const sendEmail = async (mailOptions) => {
@@ -111,8 +103,9 @@ const sendEmail = async (mailOptions) => {
 
     let info;
     try {
-      // ✅ PRIMER INTENTO CON TRANSPORTER PRINCIPAL
-      info = await sendWithTimeoutAndTransporter(transporter, 1);
+      // ✅ PRIMER INTENTO - CREAR TRANSPORTER DINÁMICAMENTE
+      const primaryTransporter = createTransporter();
+      info = await sendWithTimeoutAndTransporter(primaryTransporter, 1);
     } catch (firstError) {
       console.log(`⚠️ Primer intento falló, intentando con configuración alternativa...`);
       
@@ -159,4 +152,47 @@ const sendEmail = async (mailOptions) => {
   }
 };
 
-module.exports = { sendEmail };
+// ✅ FUNCIÓN DE DIAGNÓSTICO PARA PRODUCCIÓN
+const diagnoseEmailService = async () => {
+  console.log('🔍 Iniciando diagnóstico del servicio de email...');
+  
+  try {
+    // Crear transporter dinámicamente
+    const transporter = createTransporter();
+    
+    console.log('📧 Verificando conexión SMTP...');
+    const isConnected = await new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        resolve(false);
+      }, 10000); // 10 segundos de timeout
+      
+      transporter.verify((error, success) => {
+        clearTimeout(timeout);
+        if (error) {
+          console.error('❌ Error de verificación SMTP:', error.message);
+          resolve(false);
+        } else {
+          console.log('✅ Conexión SMTP verificada exitosamente');
+          resolve(true);
+        }
+      });
+    });
+    
+    return {
+      success: isConnected,
+      environment: process.env.NODE_ENV,
+      smtpUser: process.env.SMTP_USER ? '✅ Configurado' : '❌ Faltante',
+      smtpPass: process.env.SMTP_PASSWORD ? '✅ Configurado' : '❌ Faltante',
+      connection: isConnected ? '✅ Exitosa' : '❌ Falló'
+    };
+  } catch (error) {
+    console.error('❌ Error en diagnóstico:', error.message);
+    return {
+      success: false,
+      error: error.message,
+      environment: process.env.NODE_ENV
+    };
+  }
+};
+
+module.exports = { sendEmail, diagnoseEmailService };
