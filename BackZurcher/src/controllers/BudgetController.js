@@ -1275,10 +1275,15 @@ async optionalDocs(req, res) {
 
             try {
               console.log(`Intentando enviar correo con PDF e información de SignNow al cliente: ${budget.Permit.applicantEmail}`);
-              await sendEmail(clientMailOptions);
-              console.log(`Correo con PDF e información de SignNow enviado exitosamente al cliente.`);
+              const clientEmailResult = await sendEmail(clientMailOptions);
+              
+              if (clientEmailResult.success) {
+                console.log(`✅ Correo con PDF e información de SignNow enviado exitosamente al cliente en ${clientEmailResult.duration}ms.`);
+              } else {
+                console.error(`❌ Error al enviar correo con PDF al cliente: ${clientEmailResult.error}`);
+              }
             } catch (clientEmailError) {
-              console.error(`Error al enviar correo con PDF al cliente ${budget.Permit.applicantEmail}:`, clientEmailError);
+              console.error(`❌ Error al enviar correo con PDF al cliente ${budget.Permit.applicantEmail}:`, clientEmailError);
             }
           }
         }
