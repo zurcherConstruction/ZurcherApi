@@ -4,27 +4,26 @@ require('dotenv').config();
 // Configurar el transporte de Nodemailer
 const createTransporter = () => {
   if (process.env.NODE_ENV === 'production') {
-    // 🚀 CONFIGURACIÓN ULTRA AGRESIVA PARA RAILWAY
+    // ✅ CONFIGURACIÓN OPTIMIZADA PARA GMAIL EN PRODUCCIÓN
     return nodemailer.createTransport({
-      service: 'gmail',
+      service: 'gmail', // Usar servicio predefinido de Gmail
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASSWORD
       },
-      // 🔥 TIMEOUTS EXTREMADAMENTE CORTOS PARA RAILWAY
-      connectionTimeout: 8000,   // 8 segundos máximo
-      greetingTimeout: 5000,     // 5 segundos máximo  
-      socketTimeout: 8000,       // 8 segundos máximo
-      pool: false,               // Sin pool - conexión directa
-      maxConnections: 1,         // Solo 1 conexión
-      maxMessages: 1,            // 1 mensaje por conexión
+      // ✅ CONFIGURACIONES AGRESIVAS PARA PRODUCCIÓN
+      connectionTimeout: 15000,  // 15 segundos
+      greetingTimeout: 10000,    // 10 segundos
+      socketTimeout: 15000,      // 15 segundos
+      pool: true,
+      maxConnections: 2,         // Solo 2 conexiones
+      maxMessages: 10,           // Pocos mensajes por conexión
+      rateDelta: 1000,           // 1 segundo entre mensajes
+      rateLimit: 1,              // 1 mensaje por segundo
       logger: false,
       debug: false,
-      secure: true,              // Forzar SSL
-      requireTLS: true,          // Requerir TLS
       tls: {
-        rejectUnauthorized: false,
-        minVersion: 'TLSv1.2'
+        rejectUnauthorized: false
       }
     });
   } else {
@@ -55,8 +54,16 @@ const createTransporter = () => {
   }
 };
 
-// ✅ NO CREAR TRANSPORTER AL CARGAR EL MÓDULO
-// Lo crearemos dinámicamente cuando sea necesario
+const transporter = createTransporter();
+
+// Verificar la configuración del transporter
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('❌ Error al verificar la configuración SMTP:', error);
+  } else {
+    console.log('✅ Servidor SMTP listo para enviar correos');
+  }
+});
 
 // Función para enviar el correo
 const sendEmail = async (mailOptions) => {
@@ -78,8 +85,8 @@ const sendEmail = async (mailOptions) => {
 
     console.log(`📤 Enviando email a ${optionsToSend.to} con subject: "${optionsToSend.subject}"`);
 
-    // 🚀 TIMEOUT ULTRA AGRESIVO PARA RAILWAY
-    const timeoutMs = process.env.NODE_ENV === 'production' ? 10000 : 45000; // 10s en prod, 45s en dev
+    // ✅ TIMEOUT MÁS AGRESIVO PARA PRODUCCIÓN
+    const timeoutMs = process.env.NODE_ENV === 'production' ? 15000 : 45000; // 15s en prod, 45s en dev
     
     // ✅ FUNCIÓN PARA ENVIAR CON TIMEOUT Y TRANSPORTER ESPECÍFICO
     const sendWithTimeoutAndTransporter = (transporterToUse, attempt = 1) => {
@@ -104,124 +111,45 @@ const sendEmail = async (mailOptions) => {
 
     let info;
     try {
-      // ✅ PRIMER INTENTO - CREAR TRANSPORTER DINÁMICAMENTE
-      const primaryTransporter = createTransporter();
-      info = await sendWithTimeoutAndTransporter(primaryTransporter, 1);
+      // ✅ PRIMER INTENTO CON TRANSPORTER PRINCIPAL
+      info = await sendWithTimeoutAndTransporter(transporter, 1);
     } catch (firstError) {
       console.log(`⚠️ Primer intento falló, intentando con configuración alternativa...`);
       
-      // 🚀 SEGUNDO INTENTO CON CONFIGURACIÓN EXTREMA PARA RAILWAY
+      // ✅ SEGUNDO INTENTO CON CONFIGURACIÓN ALTERNATIVA MÁS SIMPLE
       const fallbackTransporter = nodemailer.createTransport({
         service: 'gmail',
         auth: {
           user: process.env.SMTP_USER,
           pass: process.env.SMTP_PASSWORD
         },
-        // 🔥 CONFIGURACIÓN ULTRA MINIMALISTA
-        pool: false,               // Sin pool - conexión directa
-        connectionTimeout: 5000,   // Solo 5 segundos
-        greetingTimeout: 3000,     // Solo 3 segundos
-        socketTimeout: 5000,       // Solo 5 segundos
+        // ✅ CONFIGURACIÓN MÍNIMA PARA MÁXIMA VELOCIDAD
+        pool: false, // Sin pool para conexión directa
+        connectionTimeout: 10000,
+        greetingTimeout: 5000,
+        socketTimeout: 10000,
         logger: false,
         debug: false
       });
       
-      try {
-        info = await sendWithTimeoutAndTransporter(fallbackTransporter, 2);
-      } catch (secondError) {
-        console.log(`⚠️ Segundo intento falló, probando SMTP directo como último recurso...`);
-        
-        // 🆘 TERCER INTENTO CON SMTP DIRECTO (último recurso)
-        const directTransporter = nodemailer.createTransport({
-          host: 'smtp.gmail.com',
-          port: 587,
-          secure: false,
-          auth: {
-            user: process.env.SMTP_USER,
-            pass: process.env.SMTP_PASSWORD
-          },
-          // 💀 CONFIGURACIÓN DESESPERADA
-          pool: false,
-          connectionTimeout: 3000,   // Solo 3 segundos
-          greetingTimeout: 2000,     // Solo 2 segundos
-          socketTimeout: 3000,       // Solo 3 segundos
-          logger: false,
-          debug: false,
-          requireTLS: true,
-          tls: {
-            rejectUnauthorized: false
-          }
-        });
-        
-        info = await sendWithTimeoutAndTransporter(directTransporter, 3);
-      }
+      info = await sendWithTimeoutAndTransporter(fallbackTransporter, 2);
     }
 
     const duration = Date.now() - startTime;
     
     console.log(`✅ Email enviado exitosamente en ${duration}ms. MessageId: ${info.messageId}`);
-    return { success: true, messageId: info.messageId, duration };
+    return { success: true, info, duration };
     
   } catch (error) {
     const duration = Date.now() - startTime;
-    console.error(`❌ Error enviando email después de ${duration}ms:`, {
-      error: error.message,
+    console.error(`❌ Error al enviar email después de ${duration}ms:`, {
       to: mailOptions?.to,
       subject: mailOptions?.subject,
+      error: error.message,
       stack: error.stack
     });
-    
-    // ✅ RETORNAR ERROR EN LUGAR DE LANZARLO PARA NO ROMPER EL PROCESO
-    return { 
-      success: false, 
-      error: error.message, 
-      duration,
-      to: mailOptions?.to 
-    };
+    return { success: false, error: error.message, duration };
   }
 };
 
-// ✅ FUNCIÓN DE DIAGNÓSTICO PARA PRODUCCIÓN
-const diagnoseEmailService = async () => {
-  console.log('🔍 Iniciando diagnóstico del servicio de email...');
-  
-  try {
-    // Crear transporter dinámicamente
-    const transporter = createTransporter();
-    
-    console.log('📧 Verificando conexión SMTP...');
-    const isConnected = await new Promise((resolve) => {
-      const timeout = setTimeout(() => {
-        resolve(false);
-      }, 10000); // 10 segundos de timeout
-      
-      transporter.verify((error, success) => {
-        clearTimeout(timeout);
-        if (error) {
-          console.error('❌ Error de verificación SMTP:', error.message);
-          resolve(false);
-        } else {
-          console.log('✅ Conexión SMTP verificada exitosamente');
-          resolve(true);
-        }
-      });
-    });
-    
-    return {
-      success: isConnected,
-      environment: process.env.NODE_ENV,
-      smtpUser: process.env.SMTP_USER ? '✅ Configurado' : '❌ Faltante',
-      smtpPass: process.env.SMTP_PASSWORD ? '✅ Configurado' : '❌ Faltante',
-      connection: isConnected ? '✅ Exitosa' : '❌ Falló'
-    };
-  } catch (error) {
-    console.error('❌ Error en diagnóstico:', error.message);
-    return {
-      success: false,
-      error: error.message,
-      environment: process.env.NODE_ENV
-    };
-  }
-};
-
-module.exports = { sendEmail, diagnoseEmailService };
+module.exports = { sendEmail };
