@@ -10,15 +10,24 @@ const transporter = nodemailer.createTransport({
     user: process.env.SMTP_USER, // Tu correo de Gmail
     pass: process.env.SMTP_PASSWORD, // Tu contraseña de aplicación
   },
-  // ✅ AGREGAR TIMEOUTS Y CONFIGURACIONES DE RENDIMIENTO
-  connectionTimeout: 60000, // 60 segundos para conectar
-  greetingTimeout: 30000,   // 30 segundos para el saludo
-  socketTimeout: 60000,     // 60 segundos para inactividad
-  pool: true,               // Usar pool de conexiones
-  maxConnections: 5,        // Máximo 5 conexiones concurrentes
-  maxMessages: 100,         // Máximo 100 mensajes por conexión
-  rateDelta: 1000,          // 1 segundo entre mensajes
-  rateLimit: 5              // Máximo 5 mensajes por rateDelta
+  // ✅ OPTIMIZACIONES PARA PRODUCCIÓN
+  connectionTimeout: 30000,  // 30 segundos (reducido)
+  greetingTimeout: 15000,    // 15 segundos (reducido)
+  socketTimeout: 30000,      // 30 segundos (reducido)
+  pool: true,                // Usar pool de conexiones
+  maxConnections: 3,         // Reducido para Railway
+  maxMessages: 50,           // Reducido para Railway
+  rateDelta: 500,            // 0.5 segundos entre mensajes
+  rateLimit: 3,              // Máximo 3 mensajes por rateDelta
+  // ✅ CONFIGURACIONES ADICIONALES PARA GMAIL EN PRODUCCIÓN
+  requireTLS: true,          // Requerir TLS
+  logger: false,             // Desactivar logging detallado
+  debug: false,              // Desactivar debug en producción
+  // ✅ CONFIGURACIONES ESPECÍFICAS PARA GMAIL
+  service: process.env.NODE_ENV === 'production' ? 'gmail' : undefined,
+  tls: {
+    rejectUnauthorized: false // Para servidores con certificados self-signed
+  }
 });
 
 // Verificar la configuración del transporter
@@ -50,12 +59,15 @@ const sendEmail = async (mailOptions) => {
 
     console.log(`📤 Enviando email a ${optionsToSend.to} con subject: "${optionsToSend.subject}"`);
 
-    // ✅ AGREGAR TIMEOUT WRAPPER
+    // ✅ TIMEOUT REDUCIDO PARA PRODUCCIÓN
+    const timeoutMs = process.env.NODE_ENV === 'production' ? 25000 : 45000; // 25s en prod, 45s en dev
     const sendWithTimeout = new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
-        reject(new Error('Email timeout después de 45 segundos'));
-      }, 45000); // 45 segundos timeout
+        reject(new Error(`Email timeout después de ${timeoutMs/1000} segundos`));
+      }, timeoutMs);
 
+      console.log(`⏱️ Enviando email con timeout de ${timeoutMs/1000}s...`);
+      
       transporter.sendMail(optionsToSend)
         .then(result => {
           clearTimeout(timeout);
