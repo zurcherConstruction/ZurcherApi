@@ -10,16 +10,6 @@ const transporter = nodemailer.createTransport({
     user: process.env.SMTP_USER, // Tu correo de Gmail
     pass: process.env.SMTP_PASSWORD, // Tu contraseña de aplicación
   },
-  // ✅ Timeouts más cortos para Railway
-  connectionTimeout: 30000, // 30 segundos
-  greetingTimeout: 15000,   // 15 segundos
-  socketTimeout: 30000,     // 30 segundos
-  pool: true,
-  maxConnections: 3,
-  maxMessages: 50,
-  tls: {
-    rejectUnauthorized: false
-  }
 });
 transporter.verify((error, success) => {
   if (error) {
@@ -31,45 +21,34 @@ transporter.verify((error, success) => {
 
 // Función para enviar el correo
 const sendEmail = async (mailOptions) => {
-  const startTime = Date.now();
   try {
     // *** LOG DETALLADO ***
-    console.log('📧 Iniciando envío de email a:', mailOptions?.to); 
+    console.log('Opciones de correo recibidas en sendEmail:', mailOptions); 
     
     if (!mailOptions || !mailOptions.to || !mailOptions.to.includes('@')) {
-       console.error('❌ Error en sendEmail: Destinatario inválido o faltante:', mailOptions?.to);
-       return { success: false, error: 'Destinatario inválido' };
+       console.error('Error en sendEmail: Destinatario inválido o faltante:', mailOptions?.to);
+       // Puedes decidir lanzar un error aquí o simplemente no enviar
+       // throw new Error(`Destinatario inválido o faltante: ${mailOptions?.to}`); 
+       return; // No intentar enviar si el 'to' es inválido
     }
 
-    // Asegúrate de que el 'from' esté configurado
+    // Asegúrate de que el 'from' esté configurado, ya sea aquí o en las opciones por defecto del transporter
     const optionsToSend = {
-      from: `"ZURCHER CONSTRUCTION" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
-      ...mailOptions,
+      from: `"ZURCHER CONSTRUCTION" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`, // Dirección 'from'
+      ...mailOptions, // Incluye 'to', 'subject', 'text', 'attachments', etc.
     };
 
-    console.log(`📤 Enviando email a ${optionsToSend.to} con subject: "${optionsToSend.subject}"`);
+    // *** LOG DETALLADO ***
+    console.log('Opciones finales pasadas a transporter.sendMail:', optionsToSend);
 
-    // ✅ Envío con timeout personalizado
-    const emailPromise = transporter.sendMail(optionsToSend);
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Email timeout después de 45 segundos')), 45000);
-    });
-
-    const info = await Promise.race([emailPromise, timeoutPromise]);
-    const duration = Date.now() - startTime;
-    
-    console.log(`✅ Email enviado exitosamente en ${duration}ms. MessageId: ${info.messageId}`);
-    return { success: true, info, duration };
-    
+    let info = await transporter.sendMail(optionsToSend);
+    console.log('Correo enviado: %s', info.messageId);
+    return info;
   } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error(`❌ Error al enviar email después de ${duration}ms:`, {
-      to: mailOptions?.to,
-      subject: mailOptions?.subject,
-      error: error.message,
-      stack: error.stack
-    });
-    return { success: false, error: error.message, duration };
+    // *** LOG DETALLADO ***
+    console.error('Error DETALLADO dentro de sendEmail:', error);
+    // Propagar el error para que notificationManager lo capture si es necesario
+    throw error; 
   }
 };
 module.exports = { sendEmail };
