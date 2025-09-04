@@ -16,93 +16,60 @@ const sendNotifications = async (status, work, budget, io) => {
 
       for (const staff of staffToNotify) {
         if (!staff.email || !staff.email.includes('@')) {
-          console.error(`❌ Usuario ${staff.id} no tiene email válido: ${staff.email}`);
+          console.error(`El usuario ${staff.id} no tiene un correo electrónico válido: ${staff.email}`);
           continue;
         }
         try {
-          console.log(`📧 Enviando correo a: ${staff.email}`);
-          
-          // ✅ ESTRATEGIA SIMPLIFICADA - SOLO 1 INTENTO PARA ACELERAR
-          const maxRetries = 1; // Solo 1 intento para evitar demoras
-          let emailSent = false;
-          let lastError = null;
-          
-          for (let attempt = 1; attempt <= maxRetries && !emailSent; attempt++) {
-            try {
-              console.log(`📤 Intento ${attempt}/${maxRetries} para ${staff.email}`);
-              
-              // Detectar si es notificación de rechazo de inspección rápida
-              const isQuickRejection = status === 'initial_inspection_rejected' && work.resultDocumentUrl;
-              const isBudgetCreated = status === 'budgetCreated' || status === 'budgetSentToSignNow';
-              let htmlContent;
-              if (isQuickRejection) {
-                // Mostrar la imagen/PDF como enlace y/o vista previa si es imagen
-                const isImage = work.resultDocumentUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i);
-                htmlContent = `
-                  <div style=\"font-family: Arial, sans-serif; color: #333;\">
-                    <h2 style=\"color: #1a365d;\">${work.propertyAddress}</h2>
-                    <p>${message.replace(work.resultDocumentUrl, '')}</p>
-                    <p><strong>Documento de rechazo:</strong></p>
-                    ${isImage ? `<img src=\"${work.resultDocumentUrl}\" alt=\"Documento de rechazo\" style=\"max-width:400px;max-height:400px;display:block;margin-bottom:10px;\" />` : ''}
-                    <a href=\"${work.resultDocumentUrl}\" target=\"_blank\" style=\"color:#1a365d;word-break:break-all;\">${work.resultDocumentUrl}</a>
-                  </div>
-                `;
-              } else if (isBudgetCreated) {
-                // Mantener el formato especial SOLO para creación/envío de presupuesto
-                htmlContent = `
-                  <div style=\"font-family: Arial, sans-serif; color: #333;\">
-                    <h2 style=\"color: #1a365d;\">Presupuesto listo para revisión</h2>
-                    <p>${message}</p>
-                    ${work.budgetLink || (work.notificationDetails && work.notificationDetails.budgetLink) ? `
-                      <a href=\"${work.budgetLink || (work.notificationDetails && work.notificationDetails.budgetLink)}\" 
-                         style=\"display:inline-block;margin:20px 0;padding:12px 24px;background:#1a365d;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;\">
-                        Ver presupuestos
-                      </a>
-                    ` : ''}
-                    ${work.attachments || (work.notificationDetails && work.notificationDetails.attachments) ? `<p>Adjunto encontrarás el PDF del presupuesto para revisión.</p>` : ''}
-                  </div>
-                `;
-              } else {
-                // Para todas las demás notificaciones, usar la dirección como título
-                htmlContent = `
-                  <div style=\"font-family: Arial, sans-serif; color: #333;\">
-                    <h2 style=\"color: #1a365d;\">${work.propertyAddress}</h2>
-                    <p>${message}</p>
-                  </div>
-                `;
-              }
-          
-              // ✅ USAR LA NUEVA FUNCIÓN sendEmail QUE RETORNA RESULTADO
-              const emailResult = await sendEmail({
-                to: staff.email,
-                subject: `${work.propertyAddress}`,
-                text: message,
-                html: htmlContent,
-                attachments: work.attachments || (work.notificationDetails && work.notificationDetails.attachments) || [],
-              });
-          
-              // ✅ VERIFICAR EL RESULTADO Y MARCAR COMO ENVIADO
-              if (emailResult.success) {
-                console.log(`✅ Email enviado exitosamente a ${staff.email} en ${emailResult.duration}ms`);
-                emailSent = true; // Marcar como exitoso
-              } else {
-                lastError = new Error(emailResult.error);
-                console.error(`❌ Falló el envío para ${staff.email}: ${emailResult.error}`);
-              }
-          
-            } catch (attemptError) {
-              lastError = attemptError;
-              console.error(`❌ Error en envío para ${staff.email}:`, attemptError.message);
-            }
+          console.log(`Enviando correo a: ${staff.email}`);
+          // Detectar si es notificación de rechazo de inspección rápida
+          const isQuickRejection = status === 'initial_inspection_rejected' && work.resultDocumentUrl;
+          const isBudgetCreated = status === 'budgetCreated' || status === 'budgetSentToSignNow';
+          let htmlContent;
+          if (isQuickRejection) {
+            // Mostrar la imagen/PDF como enlace y/o vista previa si es imagen
+            const isImage = work.resultDocumentUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+            htmlContent = `
+              <div style=\"font-family: Arial, sans-serif; color: #333;\">
+                <h2 style=\"color: #1a365d;\">${work.propertyAddress}</h2>
+                <p>${message.replace(work.resultDocumentUrl, '')}</p>
+                <p><strong>Documento de rechazo:</strong></p>
+                ${isImage ? `<img src=\"${work.resultDocumentUrl}\" alt=\"Documento de rechazo\" style=\"max-width:400px;max-height:400px;display:block;margin-bottom:10px;\" />` : ''}
+                <a href=\"${work.resultDocumentUrl}\" target=\"_blank\" style=\"color:#1a365d;word-break:break-all;\">${work.resultDocumentUrl}</a>
+              </div>
+            `;
+          } else if (isBudgetCreated) {
+            // Mantener el formato especial SOLO para creación/envío de presupuesto
+            htmlContent = `
+              <div style=\"font-family: Arial, sans-serif; color: #333;\">
+                <h2 style=\"color: #1a365d;\">Presupuesto listo para revisión</h2>
+                <p>${message}</p>
+                ${work.budgetLink || (work.notificationDetails && work.notificationDetails.budgetLink) ? `
+                  <a href=\"${work.budgetLink || (work.notificationDetails && work.notificationDetails.budgetLink)}\" 
+                     style=\"display:inline-block;margin:20px 0;padding:12px 24px;background:#1a365d;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;\">
+                    Ver presupuestos
+                  </a>
+                ` : ''}
+                ${work.attachments || (work.notificationDetails && work.notificationDetails.attachments) ? `<p>Adjunto encontrarás el PDF del presupuesto para revisión.</p>` : ''}
+              </div>
+            `;
+          } else {
+            // Para todas las demás notificaciones, usar la dirección como título
+            htmlContent = `
+              <div style=\"font-family: Arial, sans-serif; color: #333;\">
+                <h2 style=\"color: #1a365d;\">${work.propertyAddress}</h2>
+                <p>${message}</p>
+              </div>
+            `;
           }
-      
-          // ✅ LOG FINAL DEL RESULTADO
-          if (!emailSent) {
-            console.error(`❌ Falló el envío de email a ${staff.email}. Error:`, lastError?.message);
-          }
-          
+          await sendEmail({
+            to: staff.email,
+            subject: `${work.propertyAddress}`,
+            text: message,
+            html: htmlContent,
+            attachments: work.attachments || (work.notificationDetails && work.notificationDetails.attachments) || [],
+          });
         } catch (error) {
-          console.error(`❌ Error general enviando correo a ${staff.email}:`, error.message);
+          console.error(`Error al enviar correo a ${staff.email}:`, error);
         }
       }
     }
