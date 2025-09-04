@@ -1,6 +1,7 @@
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
+// Configurar el transporte de Nodemailer
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: process.env.SMTP_PORT,
@@ -10,12 +11,11 @@ const transporter = nodemailer.createTransport({
     pass: process.env.SMTP_PASSWORD, // Tu contraseña de aplicación
   },
 });
-
 transporter.verify((error, success) => {
   if (error) {
-    console.error('❌ Error al verificar la configuración SMTP:', error);
+    console.error('Error al verificar la configuración SMTP:', error);
   } else {
-    console.log('✅ Servidor SMTP listo para enviar correos');
+    console.log('Servidor SMTP listo para enviar correos');
   }
 });
 
@@ -41,11 +41,9 @@ const sendEmail = async (mailOptions) => {
     // *** LOG DETALLADO ***
     console.log('Opciones finales pasadas a transporter.sendMail:', optionsToSend);
 
-
     let info = await transporter.sendMail(optionsToSend);
     console.log('Correo enviado: %s', info.messageId);
     return info;
-
   } catch (error) {
     // *** LOG DETALLADO ***
     console.error('Error DETALLADO dentro de sendEmail:', error);
@@ -53,5 +51,4 @@ const sendEmail = async (mailOptions) => {
     throw error; 
   }
 };
-
 module.exports = { sendEmail };
