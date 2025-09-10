@@ -2,17 +2,19 @@ const { BudgetItem } = require('../data');
 
 const defaultItems = [
   // SYSTEM TYPE
-  { category: "System Type", name: "TANK ATU 500 GPD", marca: "Fuji", capacity: "500 gal", description: "FUJI IM1530P/2, 500GPD DBL COMP,  SEPTIC TANK", unitPrice: 1000, supplierName: "FORT MYERS", supplierLocation: "" },
-  { category: "System Type", name: "TANK ATU 700 GPD", marca: "Fuji", capacity: "700 gal", description: "FUJI IM1530P/2, 700GPD DBL COMP,  SEPTIC TANK", unitPrice: 2000, supplierName: "FORT MYERS", supplierLocation: "" },
-  { category: "System Type", name: "TANK ATU 1000 GPD", marca: "Fuji", capacity: "1000 gal", description: "FUJI IM1530P/2, 1000GPD DBL COMP,  SEPTIC TANK", unitPrice: 3000, supplierName: "FORT MYERS", supplierLocation: "" },
-  { category: "System Type", name: "TANK ATU 500 GPD", marca: "Infiltrator", capacity: "500 gal", description: "INFILTRATOR IM1530P/2, 500GPD DBL COMP,  SEPTIC TANK", unitPrice: 5285.17, supplierName: "FORT MYERS", supplierLocation: "" },
-  { category: "System Type", name: "TANK ATU 750 GPD", marca: "Infiltrator", capacity: "750 gal", description: "INFILTRATOR IM1530P/2, 750GPD DBL COMP,  SEPTIC TANK", unitPrice: 6407.48, supplierName: "FORT MYERS", supplierLocation: "" },
-  { category: "System Type", name: "TANK ATU 1000 GPD", marca: "Infiltrator", capacity: "1000 gal", description: "INFILTRATOR IM1530P/2, 1000GPD DBL COMP,  SEPTIC TANK", unitPrice: 8119.12, supplierName: "FORT MYERS", supplierLocation: "" },
-  { category: "System Type", name: "TANK REGULAR 1060 GPD", marca: "Infiltrator", capacity: "1060 gal", description: "INFILTRATOR CM1060P/2 1060GPD 2 COMP SEPTIC TANK", unitPrice: 1197.39, supplierName: "FORT MYERS", supplierLocation: "" },
-  { category: "System Type", name: "TANK REGULAR 1250 GPD", marca: "Infiltrator", capacity: "1250 gal", description: "INFILTRATOR IM1250/P2 1250GPD DBL COMP SEPTIC TANK ", unitPrice: 1541.19, supplierName: "FORT MYERS", supplierLocation: "" },
-  { category: "System Type", name: "TANK REGULAR 1530 GPD", marca: "Infiltrator", capacity: "1530 gal", description: "INFILTRATOR IM1530P/2 1530GPD DBL COMP SEPTIC TANK", unitPrice: 1841.88, supplierName: "FORT MYERS", supplierLocation: "" },
-  { category: "System Type", name: "TANK REGULAR 1530 GPD", marca: "Infiltrator", capacity: "540 gal", description: "INFILTRATOR IM540P/1 540GPD SIN COMP SEPTIC TANK C4", unitPrice: 714.64, supplierName: "FORT MYERS", supplierLocation: "" },
-  { category: "System Type", name: "TANK REGULAR 1530 GPD", marca: "Infiltrator", capacity: "300 gal", description: "INFILTRATOR IM300P SING COMP SEPTIC TANK C4 IM300P/1/11-P11", unitPrice: 483.21, supplierName: "FORT MYERS", supplierLocation: "" },
+
+  { category: "System Type", name: "TANK ATU 500 GPD", marca: "Fuji", capacity: "500 gpd", description: "FUJI IM1530P/2, 500GPD DBL COMP,  SEPTIC TANK", unitPrice: 1000, supplierName: "FORT MYERS", supplierLocation: "" },
+  { category: "System Type", name: "TANK ATU 700 GPD", marca: "Fuji", capacity: "700 gpd", description: "FUJI IM1530P/2, 700GPD DBL COMP,  SEPTIC TANK", unitPrice: 2000, supplierName: "FORT MYERS", supplierLocation: "" },
+  { category: "System Type", name: "TANK ATU 1000 GPD", marca: "Fuji", capacity: "1000 gpd", description: "FUJI IM1530P/2, 1000GPD DBL COMP,  SEPTIC TANK", unitPrice: 3000, supplierName: "FORT MYERS", supplierLocation: "" },
+  { category: "System Type", name: "TANK ATU 500 GPD", marca: "Infiltrator", capacity: "500 gpd", description: "INFILTRATOR IM1530P/2, 500GPD DBL COMP,  SEPTIC TANK", unitPrice: 5285.17, supplierName: "FORT MYERS", supplierLocation: "" },
+  { category: "System Type", name: "TANK ATU 750 GPD", marca: "Infiltrator", capacity: "750 gpd", description: "INFILTRATOR IM1530P/2, 750GPD DBL COMP,  SEPTIC TANK", unitPrice: 6407.48, supplierName: "FORT MYERS", supplierLocation: "" },
+  { category: "System Type", name: "TANK ATU 1000 GPD", marca: "Infiltrator", capacity: "1000 gpd", description: "INFILTRATOR IM1530P/2, 1000GPD DBL COMP,  SEPTIC TANK", unitPrice: 8119.12, supplierName: "FORT MYERS", supplierLocation: "" },
+  { category: "System Type", name: "TANK REGULAR 1060 GPD", marca: "Infiltrator", capacity: "1060 gpd", description: "INFILTRATOR CM1060P/2 1060GPD 2 COMP SEPTIC TANK", unitPrice: 1197.39, supplierName: "FORT MYERS", supplierLocation: "" },
+  { category: "System Type", name: "TANK REGULAR 1250 GPD", marca: "Infiltrator", capacity: "1250 gpd", description: "INFILTRATOR IM1250/P2 1250GPD DBL COMP SEPTIC TANK ", unitPrice: 1541.19, supplierName: "FORT MYERS", supplierLocation: "" },
+  { category: "System Type", name: "TANK REGULAR 1530 GPD", marca: "Infiltrator", capacity: "1530 gpd", description: "INFILTRATOR IM1530P/2 1530GPD DBL COMP SEPTIC TANK", unitPrice: 1841.88, supplierName: "FORT MYERS", supplierLocation: "" },
+  { category: "System Type", name: "TANK REGULAR 1530 GPD", marca: "Infiltrator", capacity: "540 gpd", description: "INFILTRATOR IM540P/1 540GPD SIN COMP SEPTIC TANK C4", unitPrice: 714.64, supplierName: "FORT MYERS", supplierLocation: "" },
+  { category: "System Type", name: "TANK REGULAR 1530 GPD", marca: "Infiltrator", capacity: "300 gpd", description: "INFILTRATOR IM300P SING COMP SEPTIC TANK C4 IM300P/1/11-P11", unitPrice: 483.21, supplierName: "FORT MYERS", supplierLocation: "" },
+
   
   // SISTEMA CHAMBERS
   { category: "Sistema Chambers", imageUrl: "https://res.cloudinary.com/dt4ah1jmy/image/upload/v1755881149/budget_items/iwwpgtpyuanrwd1wtd64.png", name: "END CAP", marca: "", capacity: "", description: "INFILTRATOR Q4+E QUICK4 PLUS FLAT END CAP", unitPrice: 10.78, supplierName: "FORT MYERS", supplierLocation: "" },
