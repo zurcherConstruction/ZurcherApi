@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   fetchBudgetItems,
   createBudgetItem,
   updateBudgetItem,
   deleteBudgetItem,
+  exportBudgetItems,
+  importBudgetItems,
 } from "../../Redux/Actions/budgetItemActions";
 
 const ItemsBudgets = () => {
@@ -28,6 +30,7 @@ const ItemsBudgets = () => {
   const [newCategory, setNewCategory] = useState("");
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const fileInputRef = useRef(null);
 
   const uniqueCategories = useMemo(() => {
     if (!items || items.length === 0) return [];
@@ -158,6 +161,70 @@ const handleCreateOrUpdate = (e) => {
     }
   };
 
+  // --- FUNCIONES DE IMPORTACIÓN/EXPORTACIÓN ---
+  const handleExportItems = async (format = 'excel') => {
+    try {
+      await dispatch(exportBudgetItems(format));
+      alert(`✅ Items exportados exitosamente en formato ${format.toUpperCase()}`);
+    } catch (error) {
+      console.error('Error al exportar:', error);
+      alert(`❌ Error al exportar items: ${error.message}`);
+    }
+  };
+
+
+
+
+  const handleImportItems = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Validar tipo de archivo
+    const validTypes = [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+      'application/vnd.ms-excel', // .xls
+      'text/csv' // .csv
+    ];
+
+    if (!validTypes.includes(file.type) && !file.name.toLowerCase().endsWith('.xlsx') && !file.name.toLowerCase().endsWith('.csv')) {
+      alert('❌ Por favor selecciona un archivo Excel (.xlsx) o CSV (.csv)');
+      event.target.value = ''; 
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      alert('❌ El archivo es demasiado grande. Máximo 10MB');
+      event.target.value = '';
+      return;
+    }
+
+    try {
+      const result = await dispatch(importBudgetItems(file));
+      
+      // Mostrar resultados detallados
+      const { summary, results } = result.data;
+      let message = `🎉 IMPORTACIÓN COMPLETADA:\n\n`;
+      message += `✅ Creados: ${summary.created}\n`;
+      message += `🔄 Actualizados: ${summary.updated}\n`;
+      message += `❌ Errores: ${summary.errors}\n`;
+
+      if (results.errors.length > 0) {
+        message += `\n📝 ERRORES DETALLADOS:\n`;
+        results.errors.forEach(error => {
+          message += `- Fila ${error.row}: ${error.error}\n`;
+        });
+      }
+
+      alert(message);
+    } catch (error) {
+      console.error('Error al importar:', error);
+      alert(`❌ Error al importar items: ${error.message}`);
+    }
+
+    // Clear input para permitir seleccionar el mismo archivo de nuevo
+    event.target.value = '';
+  };
+
   if (loading && items.length === 0) {
     return <div className="container mx-auto p-8 text-center text-lg text-blue-700 animate-pulse">Loading items...</div>;
   }
@@ -261,7 +328,55 @@ const handleCreateOrUpdate = (e) => {
         </div>
         {/* Right Column: List */}
         <div className="bg-white shadow-xl rounded-2xl p-6 border border-blue-100 max-h-[80vh] overflow-y-auto">
-          <h3 className="text-xl font-bold mb-6 sticky top-0 bg-white pb-2 z-10 text-blue-800 border-b border-blue-100">Item List ({items.length})</h3>
+          <div className="sticky top-0 bg-white pb-2 z-10 border-b border-blue-100 mb-6">
+            <h3 className="text-xl font-bold text-blue-800 mb-4">Item List ({items.length})</h3>
+            
+            {/* Import/Export Buttons */}
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => handleExportItems('excel')}
+                disabled={loading || items.length === 0}
+                className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Export Excel
+              </button>
+              
+              <button
+                onClick={() => handleExportItems('csv')}
+                disabled={loading || items.length === 0}
+                className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Export CSV
+              </button>
+              
+              <div className="relative">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleImportItems}
+                  accept=".xlsx,.csv"
+                  className="hidden"
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={loading}
+                  className="flex items-center gap-2 px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                  </svg>
+                  Import Items
+                </button>
+              </div>
+            </div>
+          </div>
+          
           {items.length === 0 && !loading && !error ? (
             <p className="text-gray-400 text-center">No budget items created yet.</p>
           ) : (
