@@ -84,3 +84,88 @@ export const deleteBudgetItem = (itemId) => async (dispatch) => {
     dispatch(deleteBudgetItemFailure(errorMessage));
   }
 };
+
+// --- Acción para exportar items ---
+export const exportBudgetItems = (format = 'excel') => async (dispatch) => {
+  try {
+    const response = await api.get(`/budget-item/export/items`, {
+      params: { format },
+      responseType: 'blob', // Importante para descargar archivos
+    });
+
+    // Crear un enlace de descarga
+    const blob = new Blob([response.data]);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    
+    // Determinar el nombre del archivo y extensión
+    const extension = format === 'csv' ? 'csv' : 'xlsx';
+    const filename = `budget_items_${new Date().toISOString().split('T')[0]}.${extension}`;
+    
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    
+    return { success: true, message: 'Items exported successfully' };
+  } catch (error) {
+    const errorMessage = error.response?.data?.error || 'Error al exportar items';
+    throw new Error(errorMessage);
+  }
+};
+
+// --- Acción para descargar template ---
+export const downloadBudgetItemTemplate = () => async (dispatch) => {
+  try {
+    const response = await api.get('/budget-item/export/template', {
+      responseType: 'blob',
+    });
+
+    // Crear un enlace de descarga
+    const blob = new Blob([response.data]);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'budget_items_template.xlsx');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    
+    return { success: true, message: 'Template downloaded successfully' };
+  } catch (error) {
+    const errorMessage = error.response?.data?.error || 'Error al descargar template';
+    throw new Error(errorMessage);
+  }
+};
+
+// --- Acción para importar items ---
+export const importBudgetItems = (file) => async (dispatch) => {
+  dispatch(createBudgetItemRequest()); // Reutilizamos el loading state
+  
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await api.post('/budget-item/import/items', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    // Después de importar exitosamente, refrescar la lista
+    dispatch(fetchBudgetItems());
+    
+    return {
+      success: true,
+      message: response.data.message,
+      data: response.data
+    };
+  } catch (error) {
+    const errorMessage = error.response?.data?.error || 'Error al importar items';
+    dispatch(createBudgetItemFailure(errorMessage));
+    throw new Error(errorMessage);
+  }
+};

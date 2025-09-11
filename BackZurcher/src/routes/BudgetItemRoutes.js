@@ -10,6 +10,7 @@ const router = express.Router();
 
 // POST /api/budget-items - Crear un nuevo item (con imagen opcional)
 const { upload } = require('../middleware/multer');
+const { uploadImport } = require('../middleware/multerImport');
 router.post(
     '/',
     verifyToken,
@@ -80,6 +81,33 @@ router.delete(
     verifyToken,
     allowRoles(['admin', 'owner']), // Solo admin/owner pueden desactivar items
     budgetItemController.deleteBudgetItem
+);
+
+// --- RUTAS DE IMPORTACIÓN/EXPORTACIÓN ---
+
+// GET /api/budget-items/export/items - Exportar todos los items a Excel/CSV
+router.get(
+    '/export/items',
+    verifyToken,
+    allowRoles(['admin', 'owner']),
+    budgetItemController.exportItems
+);
+
+// GET /api/budget-items/export/template - Descargar template de importación
+router.get(
+    '/export/template',
+    verifyToken,
+    allowRoles(['admin', 'owner']),
+    budgetItemController.generateTemplate
+);
+
+// POST /api/budget-items/import/items - Importar items desde Excel/CSV
+router.post(
+    '/import/items',
+    verifyToken,
+    allowRoles(['admin', 'owner']),
+    uploadImport.single('file'), // Campo 'file' para el archivo Excel/CSV
+    budgetItemController.importItems
 );
 
 module.exports = router;
