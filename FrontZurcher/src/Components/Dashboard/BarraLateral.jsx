@@ -18,7 +18,8 @@ import {
   FaUpload,
   FaArchive,
   FaBoxes,
-  FaReceipt
+  FaReceipt,
+  FaWrench
 } from "react-icons/fa";
 
 const BarraLateral = () => {
@@ -49,6 +50,7 @@ const BarraLateral = () => {
         { name: "Tracking Work", path: "/check", icon: FaClipboardCheck },
         { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
         { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
+        { name: "Maintenance", path: "/maintenance", icon: FaWrench },
       ],
     },
     {

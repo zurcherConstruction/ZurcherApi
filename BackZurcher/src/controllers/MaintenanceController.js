@@ -207,8 +207,229 @@ const deleteMaintenanceMedia = async (req, res) => {
 };
 
 
+// --- Programar visitas de mantenimiento manualmente ---
+const scheduleMaintenanceVisits = async (req, res) => {
+  try {
+    const { workId } = req.params;
+    const { startDate, forceReschedule } = req.body; // Agregar flag para forzar reprogramación
+    
+    const work = await Work.findByPk(workId);
+    if (!work) {
+      return res.status(404).json({ error: true, message: 'Obra no encontrada.' });
+    }
+
+    // Verificar si ya existen visitas
+    const existingVisitsCount = await MaintenanceVisit.count({ where: { workId } });
+    
+    if (existingVisitsCount > 0) {
+      if (!forceReschedule) {
+        return res.status(400).json({ 
+          error: true, 
+          message: 'Ya existen visitas programadas para esta obra. Use forceReschedule=true para reprogramar.',
+          existingVisits: existingVisitsCount 
+        });
+      }
+      
+      // Si forceReschedule es true, eliminar visitas existentes
+      await MaintenanceVisit.destroy({ where: { workId } });
+      console.log(`Eliminadas ${existingVisitsCount} visitas existentes para reprogramar.`);
+    }
+
+    // Usar la fecha proporcionada o la fecha actual
+    const baseDate = startDate ? new Date(startDate) : new Date();
+    
+    // Crear las 4 visitas de mantenimiento
+    const visits = [];
+    for (let i = 1; i <= 4; i++) {
+      const scheduledDateForVisit = addMonths(baseDate, i * 6);
+      const formattedScheduledDate = format(scheduledDateForVisit, 'yyyy-MM-dd');
+      
+      const newVisit = await MaintenanceVisit.create({
+        workId,
+        visitNumber: i,
+        scheduledDate: formattedScheduledDate,
+        status: 'pending_scheduling',
+      });
+      visits.push(newVisit);
+    }
+
+    // Actualizar la fecha de inicio de mantenimiento en la obra si se proporcionó
+    if (startDate && !work.maintenanceStartDate) {
+      work.maintenanceStartDate = startDate;
+      await work.save();
+    }
+
+    res.status(201).json({ 
+      message: 'Visitas de mantenimiento programadas correctamente.', 
+      visits,
+      work: work,
+      rescheduled: existingVisitsCount > 0
+    });
+  } catch (error) {
+    console.error('Error al programar visitas de mantenimiento:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor.' });
+  }
+};
+
+// --- Inicializar mantenimiento histórico para obras antiguas ---
+const initializeHistoricalMaintenance = async (req, res) => {
+  try {
+    const { workId } = req.params;
+    const { completionDate, generatePastVisits } = req.body;
+    
+    const work = await Work.findByPk(workId);
+    if (!work) {
+      return res.status(404).json({ error: true, message: 'Obra no encontrada.' });
+    }
+
+    // Verificar si ya existen visitas
+    const existingVisitsCount = await MaintenanceVisit.count({ where: { workId } });
+    if (existingVisitsCount > 0) {
+      return res.status(400).json({ 
+        error: true, 
+        message: 'Ya existen visitas para esta obra. Use la función de reprogramar en su lugar.' 
+      });
+    }
+
+    const completionDateObj = new Date(completionDate);
+    const currentDate = new Date();
+    
+    // Calcular cuántas visitas deberían haber ocurrido
+    const monthsSinceCompletion = Math.floor(
+      (currentDate - completionDateObj) / (1000 * 60 * 60 * 24 * 30)
+    );
+    const visitsDue = Math.min(Math.floor(monthsSinceCompletion / 6), 4);
+    
+    const visits = [];
+    
+    // Si generatePastVisits es true, crear visitas históricas como "overdue"
+    if (generatePastVisits && visitsDue > 0) {
+      for (let i = 1; i <= visitsDue; i++) {
+        const scheduledDateForVisit = addMonths(completionDateObj, i * 6);
+        const formattedScheduledDate = format(scheduledDateForVisit, 'yyyy-MM-dd');
+        
+        const newVisit = await MaintenanceVisit.create({
+          workId,
+          visitNumber: i,
+          scheduledDate: formattedScheduledDate,
+          status: 'overdue', // Estado especial para visitas vencidas
+        });
+        visits.push(newVisit);
+      }
+    }
+    
+    // Crear las visitas futuras restantes
+    const remainingVisits = 4 - visitsDue;
+    for (let i = visitsDue + 1; i <= 4; i++) {
+      const scheduledDateForVisit = addMonths(completionDateObj, i * 6);
+      const formattedScheduledDate = format(scheduledDateForVisit, 'yyyy-MM-dd');
+      
+      const newVisit = await MaintenanceVisit.create({
+        workId,
+        visitNumber: i,
+        scheduledDate: formattedScheduledDate,
+        status: 'pending_scheduling',
+      });
+      visits.push(newVisit);
+    }
+
+    // Actualizar la fecha de inicio de mantenimiento en la obra
+    work.maintenanceStartDate = completionDate;
+    await work.save();
+
+    res.status(201).json({ 
+      message: 'Mantenimiento histórico inicializado correctamente.', 
+      visits,
+      work: work,
+      visitsDue,
+      overdueVisits: generatePastVisits ? visitsDue : 0
+    });
+  } catch (error) {
+    console.error('Error al inicializar mantenimiento histórico:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor.' });
+  }
+};
+
+// --- Crear una visita individual ---
+const createMaintenanceVisit = async (req, res) => {
+  try {
+    const { workId } = req.params;
+    const { scheduledDate, visitNumber, notes, assignedStaffId } = req.body;
+    const currentUserId = req.staff.id; // Usuario que está creando la visita
+    
+    const work = await Work.findByPk(workId);
+    if (!work) {
+      return res.status(404).json({ error: true, message: 'Obra no encontrada.' });
+    }
+
+    // Verificar si ya existe una visita con ese número
+    if (visitNumber) {
+      const existingVisit = await MaintenanceVisit.findOne({ 
+        where: { workId, visitNumber } 
+      });
+      if (existingVisit) {
+        return res.status(400).json({ 
+          error: true, 
+          message: `Ya existe una visita con el número ${visitNumber}.` 
+        });
+      }
+    }
+
+    // Determinar quién será asignado a la visita
+    let finalAssignedStaffId = assignedStaffId;
+    
+    if (assignedStaffId) {
+      // Si se proporcionó un staff específico, verificar que existe
+      const staffMember = await Staff.findByPk(assignedStaffId);
+      if (!staffMember) {
+        return res.status(400).json({ 
+          error: true, 
+          message: 'El miembro del staff seleccionado no existe.' 
+        });
+      }
+    } else {
+      // Si no se proporcionó staff, usar el usuario actual
+      finalAssignedStaffId = currentUserId;
+      console.log(`Asignando visita al usuario actual: ${currentUserId}`);
+    }
+
+    // Calcular el siguiente número de visita si no se proporciona
+    const maxVisitNumber = await MaintenanceVisit.max('visitNumber', { where: { workId } }) || 0;
+    const nextVisitNumber = visitNumber || (maxVisitNumber + 1);
+
+    const newVisit = await MaintenanceVisit.create({
+      workId,
+      visitNumber: nextVisitNumber,
+      scheduledDate: scheduledDate || null,
+      assignedStaffId: finalAssignedStaffId,
+      status: 'pending_scheduling',
+      notes: notes || null,
+    });
+
+    // Obtener la visita creada con las asociaciones
+    const createdVisit = await MaintenanceVisit.findByPk(newVisit.id, {
+      include: [
+        { model: MaintenanceMedia, as: 'mediaFiles' },
+        { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] }
+      ]
+    });
+
+    res.status(201).json({ 
+      message: 'Visita de mantenimiento creada correctamente.', 
+      visit: createdVisit,
+      assignedToCurrentUser: !assignedStaffId // Indicar si se asignó al usuario actual
+    });
+  } catch (error) {
+    console.error('Error al crear visita de mantenimiento:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor.' });
+  }
+};
+
 module.exports = {
   scheduleInitialMaintenanceVisits, // Exportar para uso interno
+  scheduleMaintenanceVisits, // Nueva función para programar manualmente
+  initializeHistoricalMaintenance, // Nueva función para mantenimiento histórico
+  createMaintenanceVisit, // Nueva función para crear visita individual
   getMaintenanceVisitsForWork,
   updateMaintenanceVisit,
   addMediaToMaintenanceVisit,

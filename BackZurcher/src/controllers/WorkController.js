@@ -1058,6 +1058,35 @@ const validateStatusChangeOnly = async (req, res) => {
   }
 };
 
+// Obtener obras en estado de mantenimiento
+const getWorksInMaintenance = async (req, res) => {
+  try {
+    const works = await Work.findAll({
+      where: { status: 'maintenance' },
+      include: [
+        {
+          model: MaintenanceVisit,
+          as: 'maintenanceVisits',
+          include: [
+            { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] }
+          ]
+        },
+        { 
+          model: Budget, 
+          as: 'budget', 
+          attributes: ['applicantName', 'propertyAddress'] 
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.status(200).json(works);
+  } catch (error) {
+    console.error('Error al obtener obras en mantenimiento:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor' });
+  }
+};
+
 
 
 
@@ -1077,5 +1106,5 @@ module.exports = {
   getMaintenanceOverviewWorks,
   changeWorkStatus,
   validateStatusChangeOnly,
- 
+  getWorksInMaintenance,
 };
