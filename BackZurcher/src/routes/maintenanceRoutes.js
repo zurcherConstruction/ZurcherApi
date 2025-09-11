@@ -6,6 +6,27 @@ const { upload } = require('../middleware/multer'); // Tu config de Multer
 
 const router = express.Router();
 
+// Programar visitas de mantenimiento manualmente
+router.post('/work/:workId/schedule', 
+    verifyToken, 
+    allowRoles(['admin', 'owner']), // Solo admin y owner pueden programar visitas
+    MaintenanceController.scheduleMaintenanceVisits
+);
+
+// Inicializar mantenimiento histórico para obras antiguas
+router.post('/work/:workId/initialize-historical', 
+    verifyToken, 
+    allowRoles(['admin', 'owner']), // Solo admin y owner pueden inicializar mantenimiento histórico
+    MaintenanceController.initializeHistoricalMaintenance
+);
+
+// Crear una visita individual de mantenimiento
+router.post('/work/:workId/visit', 
+    verifyToken, 
+    allowRoles(['admin', 'owner']), // Solo admin y owner pueden crear visitas
+    MaintenanceController.createMaintenanceVisit
+);
+
 // Obtener todas las visitas de mantenimiento para una obra específica
 router.get('/work/:workId', 
     verifyToken, 

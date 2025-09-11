@@ -14,6 +14,14 @@ router.get(
   allowRoles(['admin', 'owner', 'worker']), // Ajusta los roles según quién puede ver esta lista
   WorkController.getMaintenanceOverviewWorks
 );
+
+// Ruta para obtener obras en mantenimiento
+router.get(
+  '/maintenance',
+  verifyToken,
+  allowRoles(['admin', 'owner', 'worker']),
+  WorkController.getWorksInMaintenance
+);
 // Crear una obra (solo administradores)
 router.post('/', verifyToken, allowRoles(['admin', 'recept', 'owner']), WorkController.createWork);
 router.get('/assigned', verifyToken, allowRoles(['owner', 'worker']), WorkController.getAssignedWorks);

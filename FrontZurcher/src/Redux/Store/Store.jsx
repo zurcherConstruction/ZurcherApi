@@ -15,8 +15,9 @@ import balanceReducer from '../Reducer/balanceReducer';
 import uiReducer from '../Reducer/uiReducer';
 import systemReducer from '../Reducer/SystemReducer';
 import budgetItemReducer from '../Reducer/budgetItemReducer';
-import finalInvoiceReducer from '../Reducer/finalInvoiceReducer'; // Asegúrate de importar el reducer correcto
+import finalInvoiceReducer from '../Reducer/finalInvoiceReducer';
 import contactReducer from '../Reducer/contactReducer';
+import maintenanceReducer from '../Reducer/maintenanceReducer';
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -35,6 +36,7 @@ const rootReducer = combineReducers({
   budgetItems: budgetItemReducer,
   finalInvoice: finalInvoiceReducer,
   contact: contactReducer,
+  maintenance: maintenanceReducer,
 });
 
 export const store = configureStore({

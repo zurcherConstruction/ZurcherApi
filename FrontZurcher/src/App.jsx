@@ -51,6 +51,8 @@ import LandingClients from "./Components/Landing/LandingClients";
 import ThankYou from "./Components/Landing/ThankYou";
 import ChangeOrderResponsePage from "./Components/Landing/ChangeOrderResponsePage";
 import PrivacyPolicy from "./Components/PrivacyPolicy";
+// Importar componentes de Mantenimiento
+import MaintenanceList from "./Components/Maintenance/MaintenanceList";
 
 
 function App() {
@@ -313,6 +315,17 @@ function App() {
                 </PrivateRoute>
               }
             />
+
+            {/* Rutas de Mantenimiento */}
+            <Route
+              path="/maintenance"
+              element={
+                <PrivateRoute allowedRoles={["owner", "admin", "worker"]}>
+                  <MaintenanceList />
+                </PrivateRoute>
+              }
+            />
+
             {/* Rutas de autenticación */}
             <Route path="/login" element={<Login />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
