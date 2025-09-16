@@ -1257,9 +1257,9 @@ async optionalDocs(req, res) {
               
               <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #dee2e6; text-align: center;">
                 <div style="color: #6c757d; font-size: 14px;">
-                  <strong style="color: #1a365d;">Zurcher Construction</strong><br>
+                  <strong style="color: #1a365d;">Zurcher Septic</strong><br>
                   SEPTIC TANK DIVISION - CFC1433240<br>
-                  📧 Contact: [zurcherseptic@gmail.com] | 📞 [+1 (407) 419-4495]<br>
+                  📧 Contact: [admin@zurcherseptic.com] | 📞 [+1 (407) 419-4495]<br>
                   🌐 Professional Septic Installation & Maintenance
                 </div>
               </div>
@@ -2063,7 +2063,7 @@ async optionalDocs(req, res) {
       const { sendEmail } = require('../utils/notifications/emailService');
       
       const testEmail = {
-        to: 'zurcher44@gmail.com', // Email del owner
+        to: process.env.OWNER_EMAIL || 'damian@zurcherseptic.com', // Email corporativo del owner
         subject: 'Test de diagnóstico SMTP - ZurcherAPI',
         text: `Test de diagnóstico realizado en ${new Date().toISOString()}\n\nConfiguración:\n${JSON.stringify(smtpConfig, null, 2)}`,
         html: `

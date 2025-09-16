@@ -1,6 +1,24 @@
 const { Staff } = require('../../data');
 const { Op } = require('sequelize'); // Asegúrate de importar Op para usar operadores de Sequelize
- // Asegúrate de importar el modelo Budget si lo necesitas
+
+// 📧 MAPEO PROFESIONAL DE ROLES A CORREOS CORPORATIVOS
+const CORPORATE_EMAIL_MAP = {
+  'owner': 'damian@zurcherseptic.com',
+  'admin': 'admin@zurcherseptic.com',
+  'worker': 'installers.zurcherseptic@gmail.com', // Gmail para installers (no corporativo)
+  'recept': 'purchasing@zurcherseptic.com',
+  'finance': 'finance@zurcherseptic.com', // Nuevo rol para finanzas
+  'maintenance': 'maintenance@zurcherseptic.com'
+};
+
+// 🔧 Función helper para obtener correos corporativos por roles
+const getCorporateEmailsByRoles = (roles) => {
+  return roles.map(role => ({
+    role: role,
+    email: CORPORATE_EMAIL_MAP[role] || `${role}@zurcherseptic.com`,
+    name: role.charAt(0).toUpperCase() + role.slice(1) // Capitalizar nombre del rol
+  })).filter(staff => staff.email); // Filtrar solo los que tienen email válido
+};
 
 // Mapeo de estados a roles y mensajes
 const stateNotificationMap = {
@@ -27,8 +45,8 @@ const stateNotificationMap = {
     message: (work, context) => `El trabajo con dirección ${work.propertyAddress} ha sido rechazado en la inspección final (registro rápido). Inspección ID: ${context?.inspectionId || 'N/A'}. Notas: ${context?.notes || 'Sin notas.'}`,
   },
   pending: {
-    roles: ['owner', 'recept'], 
-    message: (work) => `El trabajo con dirección ${work.propertyAddress} ya fue confirmado. Por favor, compra los materiales necesarios  para la fecha ${work.startDate}.`,
+    roles: ['owner', 'recept'], // Finance debe saber sobre compras pendientes 
+    message: (work) => `El trabajo con dirección ${work.propertyAddress} ya fue confirmado. Por favor, compra los materiales necesarios para la fecha ${work.startDate}.`,
   },
   assigned: {
     roles: ['owner', 'recept'], // Roles que reciben email
@@ -97,11 +115,11 @@ const stateNotificationMap = {
     message: (work) => `El trabajo con dirección ${work.propertyAddress} esta listo para ser tapado.`,
   },
   covered: {
-    roles: ['owner', 'admin'], 
+    roles: ['owner', 'admin'], // Finance debe saber cuando está listo para facturar
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido Tapado. Por favor, revisa los detalles y envía el Invoice Final.`,
   },
   invoiceFinal: {
-    roles: ['owner', 'admin'], 
+    roles: ['owner', 'admin', 'finance'], // Finance debe saber cuando se envía factura final
     message: (work) => `La factura final del trabajo con dirección ${work.propertyAddress} ha sido enviada al cliente. Esperando pago.`,
   },
   finalInspectionPending: {
@@ -125,7 +143,7 @@ const stateNotificationMap = {
     message: (work) => `El trabajo con dirección ${work.propertyAddress} está en mantenimiento. Por favor, realiza las tareas asignadas.`,
   },
   budgetCreated: {
-    roles: ['admin', 'owner'],
+    roles: ['admin', 'owner'], // Incluir finance en presupuestos
     message: (work) => `El presupuesto para la dirección ${work.propertyAddress} está listo para ser enviado al cliente.`,
   },
   
@@ -136,15 +154,15 @@ const stateNotificationMap = {
   },
   
   budgetSent: {
-    roles: ['admin', 'owner'],
+    roles: ['admin', 'owner'], // Incluir finance cuando se envía presupuesto
     message: (work) => `El presupuesto para la dirección ${work.propertyAddress} ha sido enviado al cliente.`,
   },
    budgetSentToSignNow: {
-    roles: ['admin', 'owner'],
+    roles: ['admin', 'owner'], // Incluir finance en firmas de presupuesto
     message: (data) => `El presupuesto #${data.idBudget} para la dirección ${data.propertyAddress} ha sido enviado a ${data.applicantName} (${data.applicantEmail}) para su firma digital a través de SignNow.`
   },
   incomeCreated: {
-    roles: ['admin', 'owner'],
+    roles: ['admin', 'owner', 'finance'], // Finance debe estar en todos los pagos
     // 'income' ahora tiene las propiedades extra añadidas
     message: (income) => {
       const paymentReceived = parseFloat(income.amount || 0);
@@ -179,12 +197,14 @@ const getNotificationDetails = async (status, work) => {
   const roles = notificationConfig.roles;
   const message = notificationConfig.message(work);
 
-  // Obtener usuarios con los roles especificados
-  const staffToNotify = await Staff.findAll({
-    where: { role: { [Op.in]: roles } },
-  });
+  // 🔧 USAR CORREOS CORPORATIVOS EN LUGAR DE BASE DE DATOS
+  // Esto asegura que siempre usemos los correos profesionales actualizados
+  const staffToNotify = getCorporateEmailsByRoles(roles);
+  
+  console.log(`📧 Notificación para roles [${roles.join(', ')}] usando correos corporativos:`, 
+              staffToNotify.map(s => s.email).join(', '));
 
   return { staffToNotify, message };
 };
 
-module.exports = { getNotificationDetails };
+module.exports = { getNotificationDetails, getCorporateEmailsByRoles, CORPORATE_EMAIL_MAP };
