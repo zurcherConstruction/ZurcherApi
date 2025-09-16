@@ -1237,9 +1237,9 @@ async optionalDocs(req, res) {
               
               <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #dee2e6; text-align: center;">
                 <div style="color: #6c757d; font-size: 14px;">
-                  <strong style="color: #1a365d;">Zurcher Construction</strong><br>
+                  <strong style="color: #1a365d;">Zurcher Septic</strong><br>
                   SEPTIC TANK DIVISION - CFC1433240<br>
-                  📧 Contact: [zurcherseptic@gmail.com] | 📞 [+1 (407) 419-4495]<br>
+                  📧 Contact: [admin@zurcherseptic.com] | 📞 [+1 (407) 419-4495]<br>
                   🌐 Professional Septic Installation & Maintenance
                 </div>
               </div>
@@ -2022,39 +2022,7 @@ async optionalDocs(req, res) {
   },
 
   // ✅ MÉTODO DE DIAGNÓSTICO PARA SMTP EN PRODUCCIÓN
-  async diagnoseEmail(req, res) {
-    try {
-      console.log('🔍 Iniciando diagnóstico de email...');
-      
-      // ✅ USAR LA NUEVA FUNCIÓN DE DIAGNÓSTICO
-      const { diagnoseEmailService } = require('../utils/notifications/emailService');
-      const result = await diagnoseEmailService();
-      
-      console.log('� Resultado del diagnóstico:', result);
-      
-      if (result.success) {
-        res.json({
-          success: true,
-          message: 'Servicio de email funcionando correctamente',
-          diagnostics: result
-        });
-      } else {
-        res.status(500).json({
-          success: false,
-          message: 'Problemas detectados en el servicio de email',
-          diagnostics: result
-        });
-      }
-      
-    } catch (error) {
-      console.error('❌ Error en diagnóstico de email:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Error en diagnóstico',
-        error: error.message
-      });
-    }
-  }
+
 
 }
 

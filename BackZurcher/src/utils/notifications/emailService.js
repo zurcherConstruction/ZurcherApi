@@ -23,30 +23,30 @@ transporter.verify((error, success) => {
 const sendEmail = async (mailOptions) => {
   try {
     // *** LOG DETALLADO ***
-    console.log('Opciones de correo recibidas en sendEmail:', mailOptions); 
+    console.log('📧 ENVIANDO CORREO:');
+    console.log('  → Destinatario:', mailOptions?.to);
+    console.log('  → Asunto:', mailOptions?.subject);
+    console.log('  → Desde:', `"Zurcher Septic " <${process.env.SMTP_USER}>`);
     
     if (!mailOptions || !mailOptions.to || !mailOptions.to.includes('@')) {
-       console.error('Error en sendEmail: Destinatario inválido o faltante:', mailOptions?.to);
-       // Puedes decidir lanzar un error aquí o simplemente no enviar
-       // throw new Error(`Destinatario inválido o faltante: ${mailOptions?.to}`); 
+       console.error('❌ Error: Destinatario inválido o faltante:', mailOptions?.to);
        return; // No intentar enviar si el 'to' es inválido
     }
 
-    // Asegúrate de que el 'from' esté configurado, ya sea aquí o en las opciones por defecto del transporter
+    // Asegúrate de que el 'from' esté configurado con correo corporativo profesional
     const optionsToSend = {
-      from: `"ZURCHER CONSTRUCTION" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`, // Dirección 'from'
+      from: `"Zurcher Septic " <${process.env.SMTP_USER}>`, // Usar el Gmail que funciona
       ...mailOptions, // Incluye 'to', 'subject', 'text', 'attachments', etc.
     };
 
-    // *** LOG DETALLADO ***
-    console.log('Opciones finales pasadas a transporter.sendMail:', optionsToSend);
-
     let info = await transporter.sendMail(optionsToSend);
-    console.log('Correo enviado: %s', info.messageId);
+    console.log('✅ Correo enviado exitosamente a:', mailOptions.to);
+    console.log('   Message ID:', info.messageId);
     return info;
   } catch (error) {
     // *** LOG DETALLADO ***
-    console.error('Error DETALLADO dentro de sendEmail:', error);
+    console.error('❌ Error DETALLADO al enviar correo a:', mailOptions?.to);
+    console.error('   Error:', error.message);
     // Propagar el error para que notificationManager lo capture si es necesario
     throw error; 
   }
