@@ -5,13 +5,13 @@ const {allowRoles, isOwner, isAdmin, isRecept, isStaff } = require('../middlewar
 
 const router = express.Router();
 
-// Crear un material (solo administradores)
-router.post('/', verifyToken,allowRoles(['admin', 'recept', 'owner']), MaterialController.createMaterialSet);
+// Crear un material (administradores, maintenance y workers)
+router.post('/', verifyToken,allowRoles(['admin', 'recept', 'owner', 'maintenance', 'worker']), MaterialController.createMaterialSet);
 
 // Obtener materiales por obra (personal del hotel)
-router.get('/work/:workId', verifyToken, isStaff, MaterialController.getMaterialsByWork);
+router.get('/work/:workId', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker', 'maintenance']), MaterialController.getMaterialsByWork);
 
-// Actualizar un material (solo administradores)
-router.put('/:id', verifyToken, allowRoles(['admin', 'recept', 'owner']), MaterialController.updateMaterial);
+// Actualizar un material (administradores, maintenance y workers)
+router.put('/:id', verifyToken, allowRoles(['admin', 'recept', 'owner', 'maintenance', 'worker']), MaterialController.updateMaterial);
 
 module.exports = router;

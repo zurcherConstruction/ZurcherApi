@@ -1,6 +1,7 @@
-const { Expense, Staff, Receipt } = require('../data'); // Agregar Staff y Receipt
+const { Expense, Staff, Receipt, Work } = require('../data'); // Agregar Work para las notificaciones
 const { Op } = require('sequelize'); // Agregar para las consultas
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader');
+const { sendNotifications } = require('../utils/notifications/notificationManager'); // Importar notificaciones
 
 // Crear un nuevo gasto
 const createExpense = async (req, res) => {
@@ -31,6 +32,31 @@ const createExpense = async (req, res) => {
         mimeType: req.file.mimetype,
         originalName: req.file.originalname
       });
+    }
+
+    // 3. Enviar notificaciones al equipo de finanzas
+    try {
+      // Obtener información adicional para la notificación
+      const expenseWithDetails = await Expense.findByPk(newExpense.idExpense, {
+        include: [
+          { model: Staff, as: 'Staff', attributes: ['id', 'name', 'email'] },
+          { model: Work, as: 'Work', attributes: ['idWork', 'propertyAddress'] }
+        ]
+      });
+
+      // Preparar datos para la notificación
+      const notificationData = {
+        ...expenseWithDetails.toJSON(),
+        // Agregar propiedades adicionales si no están en las relaciones
+        propertyAddress: expenseWithDetails.Work?.propertyAddress || 'Obra no especificada'
+      };
+
+      // Enviar notificación
+      await sendNotifications('expenseCreated', notificationData);
+      console.log(`✅ Notificación de gasto enviada: $${amount} - ${typeExpense}`);
+    } catch (notificationError) {
+      console.error('❌ Error enviando notificación de gasto:', notificationError.message);
+      // No fallar la creación del gasto por error de notificación
     }
 
     // Devolver ambos si corresponde
@@ -132,7 +158,32 @@ const updateExpense = async (req, res) => {
     const expense = await Expense.findByPk(id);
     if (!expense) return res.status(404).json({ message: 'Gasto no encontrado' });
 
+    // Actualizar el gasto
     await expense.update({ date, amount, typeExpense, notes, workId, staffId }); // Incluir staffId
+    
+    // Enviar notificación de actualización
+    try {
+      // Obtener información actualizada para la notificación
+      const expenseWithDetails = await Expense.findByPk(id, {
+        include: [
+          { model: Staff, as: 'Staff', attributes: ['id', 'name', 'email'] },
+          { model: Work, as: 'Work', attributes: ['idWork', 'propertyAddress'] }
+        ]
+      });
+
+      // Preparar datos para la notificación
+      const notificationData = {
+        ...expenseWithDetails.toJSON(),
+        propertyAddress: expenseWithDetails.Work?.propertyAddress || 'Obra no especificada'
+      };
+
+      // Enviar notificación
+      await sendNotifications('expenseUpdated', notificationData);
+      console.log(`✅ Notificación de actualización de gasto enviada: $${amount} - ${typeExpense}`);
+    } catch (notificationError) {
+      console.error('❌ Error enviando notificación de actualización de gasto:', notificationError.message);
+    }
+    
     res.status(200).json(expense);
   } catch (error) {
     res.status(500).json({ message: 'Error al actualizar el gasto', error: error.message });

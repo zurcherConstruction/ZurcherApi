@@ -28,8 +28,28 @@ const isRecept = (req, res, next) => {
   next();
 };
 
+const isFinance = (req, res, next) => {
+  if (req.staff.role !== 'finance') {
+    return res.status(403).json({
+      error: true,
+      message: 'Acceso permitido solo para personal de finanzas'
+    });
+  }
+  next();
+};
+
+const isMaintenance = (req, res, next) => {
+  if (req.staff.role !== 'maintenance') {
+    return res.status(403).json({
+      error: true,
+      message: 'Acceso permitido solo para personal de mantenimiento'
+    });
+  }
+  next();
+};
+
 const isStaff = (req, res, next) => {
-  const staffRoles = ['owner', 'admin', 'recept', 'worker'];
+  const staffRoles = ['owner', 'admin', 'recept', 'worker', 'finance', 'maintenance'];
   if (!staffRoles.includes(req.staff.role)) {
     return res.status(403).json({
       error: true,
@@ -57,6 +77,8 @@ module.exports = {
   isOwner,
   isAdmin,
   isRecept,
+  isFinance,
+  isMaintenance,
   isStaff,
   allowRoles
 };

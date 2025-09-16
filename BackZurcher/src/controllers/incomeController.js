@@ -1,13 +1,36 @@
-const { Income, Staff, Receipt } = require('../data');
-const { Op } = require('sequelize');// Importa el modelo Income
-
-
+const { Income, Staff, Receipt, Work } = require('../data'); // Agregar Work
+const { Op } = require('sequelize');
+const { sendNotifications } = require('../utils/notifications/notificationManager'); // Importar notificaciones
 
 // Crear un nuevo ingreso
 const createIncome = async (req, res) => {
   const { date, amount, typeIncome, notes, workId, staffId } = req.body;
   try {
     const newIncome = await Income.create({ date, amount, typeIncome, notes, workId, staffId });
+    
+    // Enviar notificaciones al equipo de finanzas
+    try {
+      // Obtener información adicional para la notificación
+      const incomeWithDetails = await Income.findByPk(newIncome.idIncome, {
+        include: [
+          { model: Staff, as: 'Staff', attributes: ['id', 'name', 'email'] },
+          { model: Work, as: 'Work', attributes: ['idWork', 'propertyAddress'] }
+        ]
+      });
+
+      // Preparar datos para la notificación
+      const notificationData = {
+        ...incomeWithDetails.toJSON(),
+        propertyAddress: incomeWithDetails.Work?.propertyAddress || 'Obra no especificada'
+      };
+
+      // Enviar notificación
+      await sendNotifications('incomeRegistered', notificationData);
+      console.log(`✅ Notificación de ingreso enviada: $${amount} - ${typeIncome}`);
+    } catch (notificationError) {
+      console.error('❌ Error enviando notificación de ingreso:', notificationError.message);
+    }
+    
     res.status(201).json(newIncome);
   } catch (error) {
     res.status(500).json({ message: 'Error al crear el ingreso', error: error.message });
@@ -100,7 +123,42 @@ const updateIncome = async (req, res) => {
     const income = await Income.findByPk(id);
     if (!income) return res.status(404).json({ message: 'Ingreso no encontrado' });
 
+    // Actualizar el ingreso
     await income.update({ date, amount, typeIncome, notes, workId, staffId }); // Incluir staffId
+    
+    // Enviar notificación de actualización (opcional - solo para cambios importantes)
+    try {
+      // Solo notificar si es un cambio significativo en el monto
+      const originalAmount = parseFloat(income._previousDataValues?.amount || 0);
+      const newAmount = parseFloat(amount || 0);
+      const amountChanged = Math.abs(originalAmount - newAmount) > 0.01; // Cambio mayor a 1 centavo
+      
+      if (amountChanged) {
+        // Obtener información actualizada para la notificación
+        const incomeWithDetails = await Income.findByPk(id, {
+          include: [
+            { model: Staff, as: 'Staff', attributes: ['id', 'name', 'email'] },
+            { model: Work, as: 'Work', attributes: ['idWork', 'propertyAddress'] }
+          ]
+        });
+
+        // Preparar datos para la notificación
+        const notificationData = {
+          ...incomeWithDetails.toJSON(),
+          propertyAddress: incomeWithDetails.Work?.propertyAddress || 'Obra no especificada',
+          // Agregar información del cambio
+          previousAmount: originalAmount,
+          newAmount: newAmount
+        };
+
+        // Usar el mismo tipo de notificación que para registros nuevos
+        await sendNotifications('incomeRegistered', notificationData);
+        console.log(`✅ Notificación de actualización de ingreso enviada: $${originalAmount} → $${newAmount}`);
+      }
+    } catch (notificationError) {
+      console.error('❌ Error enviando notificación de actualización de ingreso:', notificationError.message);
+    }
+    
     res.status(200).json(income);
   } catch (error) {
     res.status(500).json({ message: 'Error al actualizar el ingreso', error: error.message });

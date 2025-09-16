@@ -1,6 +1,7 @@
 const { Receipt, FinalInvoice, Work, Income, conn } = require('../data');
 const { cloudinary } = require('../utils/cloudinaryConfig'); // Asegúrate de importar la configuración de Cloudinary
 const { Op } = require('sequelize'); 
+const { sendNotifications } = require('../utils/notifications/notificationManager'); // Importar notificaciones 
 
 const createReceipt = async (req, res) => {
   console.log('-----------------------------------------');
@@ -149,6 +150,37 @@ const createReceipt = async (req, res) => {
               const createdIncome = await Income.create(incomeDataForFinalInvoice, { transaction });
               createdIncomeId = createdIncome.idIncome;
               console.log('[ReceiptController] Income para pago de FinalInvoice creado exitosamente.');
+              
+              // 🚀 ENVIAR NOTIFICACIÓN DE INGRESO DESDE RECEIPT
+              try {
+                // Obtener información completa del ingreso para la notificación
+                const incomeWithDetails = await Income.findByPk(createdIncomeId, {
+                  include: [
+                    { model: Work, as: 'Work', attributes: ['idWork', 'propertyAddress'] }
+                  ],
+                  transaction
+                });
+
+                if (incomeWithDetails) {
+                  const notificationData = {
+                    ...incomeWithDetails.toJSON(),
+                    propertyAddress: incomeWithDetails.Work?.propertyAddress || 'Obra no especificada',
+                    Staff: { name: 'Sistema - Pago Final' } // Identificar que viene del sistema
+                  };
+
+                  // Enviar notificación (sin esperar, para no bloquear la transacción)
+                  setImmediate(async () => {
+                    try {
+                      await sendNotifications('incomeRegistered', notificationData);
+                      console.log(`✅ Notificación de pago final enviada: $${numericAmountPaidForIncome} - Factura Final`);
+                    } catch (notificationError) {
+                      console.error('❌ Error enviando notificación de pago final:', notificationError.message);
+                    }
+                  });
+                }
+              } catch (notificationError) {
+                console.error('❌ Error preparando notificación de pago final:', notificationError.message);
+              }
             }
           }
           // --- FIN LÓGICA ESPECIAL PARA FinalInvoice (Actualizaciones) ---

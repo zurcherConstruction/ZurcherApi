@@ -83,7 +83,7 @@ const stateNotificationMap = {
     }
 },
   inProgress: {
-    roles: ['worker', 'recept', 'owner'], 
+    roles: ['worker', 'owner'], 
     message: (work) => `Los materiales ya fueron comprados para la dirección ${work.propertyAddress}, La fecha de Instalación es el día: ${work.startDate} .`,
   },
   installed: {
@@ -119,7 +119,7 @@ const stateNotificationMap = {
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido Tapado. Por favor, revisa los detalles y envía el Invoice Final.`,
   },
   invoiceFinal: {
-    roles: ['owner', 'admin', 'finance'], // Finance debe saber cuando se envía factura final
+    roles: ['owner', 'admin'], // Finance debe saber cuando se envía factura final
     message: (work) => `La factura final del trabajo con dirección ${work.propertyAddress} ha sido enviada al cliente. Esperando pago.`,
   },
   finalInspectionPending: {
@@ -180,7 +180,45 @@ const stateNotificationMap = {
              `Total Presupuesto: $${budgetTotal.toFixed(2)}. ` +
              `Restante (${remainingPercentage}%): $${remainingAmount.toFixed(2)}.`;
     }
-},
+  },
+  
+  // ✅ NUEVAS NOTIFICACIONES FINANCIERAS
+  expenseCreated: {
+    roles: ['admin', 'owner', 'finance'],
+    message: (expense) => {
+      const amount = parseFloat(expense.amount || 0);
+      const expenseType = expense.typeExpense || 'Gasto';
+      const staffName = expense.Staff?.name || 'Staff desconocido';
+      const workAddress = expense.Work?.propertyAddress || expense.propertyAddress || 'Obra no especificada';
+      
+      return `💰 Nuevo gasto registrado: $${amount.toFixed(2)} - ${expenseType}. ` +
+             `Registrado por: ${staffName}. Obra: ${workAddress}`;
+    }
+  },
+  
+  incomeRegistered: {
+    roles: ['admin', 'owner', 'finance'],
+    message: (income) => {
+      const amount = parseFloat(income.amount || 0);
+      const incomeType = income.typeIncome || 'Ingreso';
+      const staffName = income.Staff?.name || 'Staff desconocido';
+      const workAddress = income.Work?.propertyAddress || income.propertyAddress || 'Obra no especificada';
+      
+      return `💵 Nuevo ingreso registrado: $${amount.toFixed(2)} - ${incomeType}. ` +
+             `Registrado por: ${staffName}. Obra: ${workAddress}`;
+    }
+  },
+  
+  expenseUpdated: {
+    roles: ['admin', 'owner', 'finance'],
+    message: (expense) => {
+      const amount = parseFloat(expense.amount || 0);
+      const expenseType = expense.typeExpense || 'Gasto';
+      const workAddress = expense.Work?.propertyAddress || expense.propertyAddress || 'Obra no especificada';
+      
+      return `📝 Gasto actualizado: $${amount.toFixed(2)} - ${expenseType}. Obra: ${workAddress}`;
+    }
+  },
   workApproved: {
     roles: ['owner', 'admin'], // Solo notificar al owner
     message: (work) => `El trabajo para la dirección ${work.propertyAddress} (Work ID: ${work.idWork}) ha sido aprobado y está listo para ser agendado.`,

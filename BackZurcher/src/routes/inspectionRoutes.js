@@ -44,11 +44,11 @@ router.post(
   );
   router.post(
     '/reinspection/:workId',
-    verifyToken, allowRoles(['owner', 'admin', 'staff']), upload.array('attachments', 5), InspectionController.requestReinspection
+    verifyToken, allowRoles(['owner', 'admin', 'staff', 'maintenance']), upload.array('attachments', 5), InspectionController.requestReinspection
 );
 router.post(
   '/:inspectionId/mark-corrected',
-  verifyToken, allowRoles(['owner', 'admin', 'staff', 'worker']),
+  verifyToken, allowRoles(['owner', 'admin', 'staff', 'worker', 'maintenance']),
  
   InspectionController.markCorrectionByWorker
 );
@@ -56,13 +56,13 @@ router.post(
   // Rutas para obtener inspecciones
   router.get(
     '/work/:workId', 
-    verifyToken, allowRoles(['admin', 'recept', 'owner']), 
+    verifyToken, allowRoles(['admin', 'recept', 'owner', 'maintenance']), 
     InspectionController.getInspectionsByWork
   );
   
   router.get(
     '/:inspectionId', 
-    verifyToken, allowRoles(['admin', 'recept', 'owner']), 
+    verifyToken, allowRoles(['admin', 'recept', 'owner', 'maintenance']), 
     InspectionController.getInspectionById
   );
 
