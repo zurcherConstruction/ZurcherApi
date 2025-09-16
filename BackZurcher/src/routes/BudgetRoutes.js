@@ -8,21 +8,21 @@ const router = express.Router();
 
 
 // Rutas con validación de token y roles
-router.post('/',  allowRoles(['admin', 'recept', 'owner']), BudgetController.createBudget); // Solo administradores pueden crear presupuestos
+router.post('/',  allowRoles(['admin', 'recept', 'owner', 'finance']), BudgetController.createBudget); // Incluir finance en creación de presupuestos
 router.get('/all', verifyToken, isStaff, BudgetController.getBudgets); // Personal del hotel puede ver presupuestos
 
 
 router.post(
     '/:idBudget/upload',
     verifyToken,
-    allowRoles(['admin', 'recept', 'owner']),
+    allowRoles(['admin', 'recept', 'owner', 'finance']),
     upload.single('file'), // Middleware correcto
     BudgetController.uploadInvoice
   );
   router.post(
     '/:idBudget/upload-pdf',
     verifyToken,
-    allowRoles(['admin', 'recept', 'owner']), // Roles permitidos
+    allowRoles(['admin', 'recept', 'owner', 'finance']), // Roles permitidos
     upload.single('file'), // Middleware para manejar el archivo
     BudgetController.uploadBudgetPDF // Controlador para manejar la lógica
 );
@@ -63,7 +63,7 @@ router.get(
 router.post(
   '/:idBudget/send-to-signnow',
   verifyToken,
-  allowRoles(['admin', 'recept', 'owner']),
+  allowRoles(['admin', 'recept', 'owner', 'finance']),
   BudgetController.sendBudgetToSignNow
 );
 
@@ -71,7 +71,7 @@ router.post(
 router.get(
   '/:idBudget/signature-status',
   verifyToken,
-  allowRoles(['admin', 'recept', 'owner', 'staff']), // Staff también puede consultar estado
+  allowRoles(['admin', 'recept', 'owner', 'finance', 'staff']), // Staff y Finance también pueden consultar estado
   BudgetController.checkSignatureStatus
 );
 

@@ -9,42 +9,42 @@ const router = express.Router();
 // Programar visitas de mantenimiento manualmente
 router.post('/work/:workId/schedule', 
     verifyToken, 
-    allowRoles(['admin', 'owner']), // Solo admin y owner pueden programar visitas
+    allowRoles(['admin', 'owner', 'maintenance']), // Solo admin, owner y maintenance pueden programar visitas
     MaintenanceController.scheduleMaintenanceVisits
 );
 
 // Inicializar mantenimiento histórico para obras antiguas
 router.post('/work/:workId/initialize-historical', 
     verifyToken, 
-    allowRoles(['admin', 'owner']), // Solo admin y owner pueden inicializar mantenimiento histórico
+    allowRoles(['admin', 'owner', 'maintenance']), // Solo admin, owner y maintenance pueden inicializar mantenimiento histórico
     MaintenanceController.initializeHistoricalMaintenance
 );
 
 // Crear una visita individual de mantenimiento
 router.post('/work/:workId/visit', 
     verifyToken, 
-    allowRoles(['admin', 'owner']), // Solo admin y owner pueden crear visitas
+    allowRoles(['admin', 'owner', 'maintenance']), // Solo admin, owner y maintenance pueden crear visitas
     MaintenanceController.createMaintenanceVisit
 );
 
 // Obtener todas las visitas de mantenimiento para una obra específica
 router.get('/work/:workId', 
     verifyToken, 
-    allowRoles(['admin', 'owner',  'worker']), // Ajusta roles
+    allowRoles(['admin', 'owner', 'worker', 'maintenance']), // Ajusta roles
     MaintenanceController.getMaintenanceVisitsForWork
 );
 
 // Actualizar una visita de mantenimiento (registrar fecha, notas, estado)
 router.put('/:visitId', 
     verifyToken, 
-    allowRoles(['admin', 'owner',  'worker']), // Ajusta roles
+    allowRoles(['admin', 'owner', 'worker', 'maintenance']), // Ajusta roles
     MaintenanceController.updateMaintenanceVisit
 );
 
 // Añadir media a una visita de mantenimiento
 router.post('/:visitId/media', 
     verifyToken, 
-    allowRoles(['admin', 'owner',  'worker']), // Ajusta roles
+    allowRoles(['admin', 'owner', 'worker', 'maintenance']), // Ajusta roles
     upload.array('maintenanceFiles', 10), // 'maintenanceFiles' es el fieldname, permite hasta 10 archivos
     MaintenanceController.addMediaToMaintenanceVisit
 );
@@ -52,7 +52,7 @@ router.post('/:visitId/media',
 // Eliminar un archivo multimedia de una visita
 router.delete('/media/:mediaId',
     verifyToken,
-    allowRoles(['admin', 'owner',  'staff']), // Ajusta roles
+    allowRoles(['admin', 'owner', 'maintenance']), // Solo admin, owner y maintenance pueden eliminar archivos
     MaintenanceController.deleteMaintenanceMedia
 );
 

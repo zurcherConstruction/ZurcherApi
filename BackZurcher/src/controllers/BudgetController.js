@@ -1402,7 +1402,7 @@ async optionalDocs(req, res) {
 
           try {
             console.log(`Creando nuevo Income para Work ID: ${workRecord.idWork}`);
-            await Income.create({
+            const createdIncome = await Income.create({
               date: new Date(),
               amount: actualInitialPaymentAmount,
               typeIncome: 'Factura Pago Inicial Budget',
@@ -1411,6 +1411,21 @@ async optionalDocs(req, res) {
               staffId: req.staff?.id  // Cambiar req.user por req.staff
             }, { transaction });
             console.log(`Nuevo Income creado exitosamente.`);
+            
+            // 🚀 NOTIFICACIÓN DE INGRESO DESDE BUDGET
+            setImmediate(async () => {
+              try {
+                const notificationData = {
+                  ...createdIncome.toJSON(),
+                  propertyAddress: budget.propertyAddress || workRecord.propertyAddress || 'Obra no especificada',
+                  Staff: { name: 'Sistema - Aprobación Budget' }
+                };
+                await sendNotifications('incomeRegistered', notificationData);
+                console.log(`✅ Notificación de pago inicial enviada: $${actualInitialPaymentAmount} - Budget #${budget.idBudget}`);
+              } catch (notificationError) {
+                console.error('❌ Error enviando notificación de pago inicial:', notificationError.message);
+              }
+            });
           } catch (incomeError) {
             console.error(`Error CRÍTICO al crear Income para nuevo Work ID ${workRecord.idWork}:`, incomeError);
             throw new Error("Fallo al crear el registro de ingreso asociado al nuevo Work.");
@@ -1433,7 +1448,7 @@ async optionalDocs(req, res) {
           if (!existingIncome) {
             console.warn(`Advertencia: Work ${workRecord.idWork} existía pero no se encontró Income inicial. Creando ahora.`);
             try {
-              await Income.create({
+              const createdLateIncome = await Income.create({
                 date: new Date(),
                 amount: actualInitialPaymentAmount,
                 typeIncome: 'Factura Pago Inicial Budget',
@@ -1442,6 +1457,21 @@ async optionalDocs(req, res) {
                 staffId: req.staff?.id // Cambiar req.user por req.staff
               }, { transaction });
               console.log(`Income (tardío) creado exitosamente.`);
+              
+              // 🚀 NOTIFICACIÓN DE INGRESO TARDÍO DESDE BUDGET
+              setImmediate(async () => {
+                try {
+                  const notificationData = {
+                    ...createdLateIncome.toJSON(),
+                    propertyAddress: budget.propertyAddress || workRecord.propertyAddress || 'Obra no especificada',
+                    Staff: { name: 'Sistema - Budget Tardío' }
+                  };
+                  await sendNotifications('incomeRegistered', notificationData);
+                  console.log(`✅ Notificación de pago tardío enviada: $${actualInitialPaymentAmount} - Budget #${budget.idBudget}`);
+                } catch (notificationError) {
+                  console.error('❌ Error enviando notificación de pago tardío:', notificationError.message);
+                }
+              });
             } catch (lateIncomeError) {
               console.error(`Error CRÍTICO al crear Income (tardío) para Work ID ${workRecord.idWork}:`, lateIncomeError);
               throw new Error("Fallo al crear el registro de ingreso (tardío) asociado.");
@@ -1658,6 +1688,21 @@ async optionalDocs(req, res) {
             }, { transaction });
 
             console.log(`Nuevo Income creado: ${relatedIncome.idIncome}`);
+            
+            // 🚀 NOTIFICACIÓN DE INCOME RECREADO DESDE BUDGET
+            setImmediate(async () => {
+              try {
+                const notificationData = {
+                  ...relatedIncome.toJSON(),
+                  propertyAddress: budget.propertyAddress || existingWork.propertyAddress || 'Obra no especificada',
+                  Staff: { name: 'Sistema - Budget Recreación' }
+                };
+                await sendNotifications('incomeRegistered', notificationData);
+                console.log(`✅ Notificación de income recreado enviada: $${amountForIncome} - Budget #${budget.idBudget}`);
+              } catch (notificationError) {
+                console.error('❌ Error enviando notificación de income recreado:', notificationError.message);
+              }
+            });
           } else {
             // ✅ ACTUALIZAR Income existente si el monto cambió
             const newAmount = parsedUploadedAmount || relatedIncome.amount;
