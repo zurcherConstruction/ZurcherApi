@@ -37,7 +37,7 @@ const createStaff = async (req, res, next) => { // Añadido next para manejo de 
 const lowercasedEmail = email.toLowerCase();
 
         // Validar rol permitido
-        const allowedRoles = ['recept', 'admin', 'owner', 'worker'];
+        const allowedRoles = ['recept', 'admin', 'owner', 'worker', 'finance', 'maintenance'];
         if (!role || !allowedRoles.includes(role)) { // Asegúrate que 'role' venga en req.body
             throw new CustomError('Rol no válido o no proporcionado para staff', 400);
         }
@@ -130,7 +130,7 @@ const updateStaff = async (req, res, next) => { // Añadido next
             staffToUpdate.email = email;
         }
 
-        const allowedRoles = ['admin', 'recept', 'worker', 'owner'];
+        const allowedRoles = ['admin', 'recept', 'worker', 'owner', 'finance', 'maintenance'];
         if (role && !allowedRoles.includes(role)) {
             throw new CustomError('Rol no válido para staff', 400);
         }
