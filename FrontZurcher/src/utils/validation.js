@@ -30,7 +30,7 @@ export const validateEmail = (email) => {
   
   // Validar rol
   export const validateRole = (role) => {
-    const validRoles = ["admin", "worker", "recept", "owner"];
+    const validRoles = ["admin", "worker", "recept", "owner", "finance", "maintenance"];
     if (!role) return "El rol es obligatorio.";
     if (!validRoles.includes(role)) return "El rol no es válido.";
     return null;
