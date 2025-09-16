@@ -36,9 +36,13 @@ const createStaff = async (req, res, next) => { // Añadido next para manejo de 
 
 const lowercasedEmail = email.toLowerCase();
 
+        // Normalizar el rol a minúsculas para evitar problemas de caso
+        const normalizedRole = role ? role.toLowerCase().trim() : null;
+
         // Validar rol permitido
         const allowedRoles = ['recept', 'admin', 'owner', 'worker', 'finance', 'maintenance'];
-        if (!role || !allowedRoles.includes(role)) { // Asegúrate que 'role' venga en req.body
+        
+        if (!normalizedRole || !allowedRoles.includes(normalizedRole)) {
             throw new CustomError('Rol no válido o no proporcionado para staff', 400);
         }
 
@@ -69,7 +73,7 @@ const lowercasedEmail = email.toLowerCase();
             name,
             email: lowercasedEmail,
             password: hashedPassword,
-            role,
+            role: normalizedRole, // Usar el rol normalizado
             phone,
             address, // Guardar dirección
             idFrontUrl,
@@ -131,10 +135,15 @@ const updateStaff = async (req, res, next) => { // Añadido next
         }
 
         const allowedRoles = ['admin', 'recept', 'worker', 'owner', 'finance', 'maintenance'];
-        if (role && !allowedRoles.includes(role)) {
-            throw new CustomError('Rol no válido para staff', 400);
+        if (role) {
+            // Normalizar el rol para la actualización también
+            const normalizedUpdateRole = role.toLowerCase().trim();
+            
+            if (!allowedRoles.includes(normalizedUpdateRole)) {
+                throw new CustomError('Rol no válido para staff', 400);
+            }
+            staffToUpdate.role = normalizedUpdateRole;
         }
-        if(role) staffToUpdate.role = role;
 
 
         if (password) {
