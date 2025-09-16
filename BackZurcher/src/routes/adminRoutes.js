@@ -13,7 +13,7 @@ const { upload } = require('../middleware/multer');
 router.use(verifyToken);
 
 // Staff management routes with role-based access
-router.get("/staff", allowRoles(['admin', 'recept', 'owner', 'worker']), getAllStaff);
+router.get("/staff", allowRoles(['admin', 'recept', 'owner', 'worker', 'finance', 'maintenance']), getAllStaff);
 router.post(
   "/staff",
   allowRoles(['owner']), // Primero el control de roles
