@@ -90,7 +90,7 @@ router.get(
 
 router.delete('/:idBudget', verifyToken, isOwner, BudgetController.deleteBudget); // Solo el dueño puede eliminar presupuestos
 
-// ✅ RUTA DE DIAGNÓSTICO SMTP
-router.get('/diagnostic/email', verifyToken, isOwner, BudgetController.diagnoseEmail); // Solo el owner puede hacer diagnósticos
+// // ✅ RUTA DE DIAGNÓSTICO SMTP
+// router.get('/diagnostic/email', verifyToken, isOwner, BudgetController.diagnoseEmail); // Solo el owner puede hacer diagnósticos
 
 module.exports = router;
