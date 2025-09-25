@@ -44,7 +44,7 @@ function _addFinalInvoiceHeader(doc, invoiceData, workData, budgetData, formatte
     .text("ZURCHER CONSTRUCTION", companyInfoX, currentYLeft, { width: companyInfoWidth });
   doc.font(FONT_FAMILY_MONO).fontSize(12).fillColor(COLOR_TEXT_MEDIUM);
   doc.text("SEPTIC TANK DIVISION - CFC1433240", companyInfoX, doc.y, { width: companyInfoWidth });
-  doc.text("zurcherseptic@gmail.com", companyInfoX, doc.y, { width: companyInfoWidth });
+  doc.text("admin@zurcherseptic.com", companyInfoX, doc.y, { width: companyInfoWidth });
   doc.text("+1 (407) 419-4495", companyInfoX, doc.y, { width: companyInfoWidth });
   const finalYLeftTop = doc.y;
 
