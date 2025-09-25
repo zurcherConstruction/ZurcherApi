@@ -53,68 +53,69 @@ const BudgetController = {
       });
       if (!permit) throw new Error(`Permit con ID ${permitId} no encontrado.`);
 
+      // --- Obtener el último idBudget existente ---
+      let nextBudgetId = null;
+      const lastBudget = await Budget.findOne({
+        order: [['idBudget', 'DESC']],
+        attributes: ['idBudget'],
+        transaction
+      });
+      if (!lastBudget) {
+        nextBudgetId = 2246;
+      } else {
+        nextBudgetId = lastBudget.idBudget + 1;
+      }
+      console.log(`ID para el nuevo presupuesto: ${nextBudgetId}`);
+
       // --- Procesar Items y Calcular Subtotal ---
       let calculatedSubtotal = 0;
       const lineItemsDataForCreation = [];
       for (const incomingItem of lineItems) {
-        console.log("Procesando incomingItem:", incomingItem); // Log para depurar
-
-        // *** 1. Parsear y Validar Quantity PRIMERO ***
+        console.log("Procesando incomingItem:", incomingItem);
         const quantityNum = parseFloat(incomingItem.quantity);
         if (isNaN(quantityNum) || quantityNum <= 0) {
           console.error("Error de validación de cantidad:", incomingItem);
           throw new Error(`Item inválido: quantity (${incomingItem.quantity}) debe ser un número positivo.`);
         }
-
-        // *** 2. Inicializar itemDataForCreation con datos básicos y quantity validada ***
         let itemDataForCreation = {
-          quantity: quantityNum, // Usar el número parseado y validado
+          quantity: quantityNum,
           notes: incomingItem.notes || null,
           marca: incomingItem.marca || null,
           capacity: incomingItem.capacity || null,
           description: null,
-          // budgetId se añadirá después
         };
-
-        // *** 3. Determinar Precio y otros detalles ***
         let priceAtTime = 0;
-        if (incomingItem.budgetItemId) { // Item del catálogo
+        if (incomingItem.budgetItemId) {
           const budgetItemDetails = await BudgetItem.findByPk(incomingItem.budgetItemId, { transaction });
           if (!budgetItemDetails || !budgetItemDetails.isActive) throw new Error(`Item base ID ${incomingItem.budgetItemId} no encontrado o inactivo.`);
           priceAtTime = parseFloat(budgetItemDetails.unitPrice);
           itemDataForCreation.budgetItemId = incomingItem.budgetItemId;
-          itemDataForCreation.name = incomingItem.name || budgetItemDetails.name; // Usar nombre del catálogo como base
-          itemDataForCreation.category = incomingItem.category || budgetItemDetails.category; // Usar categoría del catálogo como base
+          itemDataForCreation.name = incomingItem.name || budgetItemDetails.name;
+          itemDataForCreation.category = incomingItem.category || budgetItemDetails.category;
           itemDataForCreation.description = incomingItem.description || budgetItemDetails.description || null;
-        } else if (incomingItem.name && incomingItem.category && incomingItem.unitPrice !== undefined) { // Item manual
+        } else if (incomingItem.name && incomingItem.category && incomingItem.unitPrice !== undefined) {
           const manualPrice = parseFloat(incomingItem.unitPrice);
           if (isNaN(manualPrice) || manualPrice < 0) throw new Error(`Item manual inválido (${incomingItem.name}): unitPrice debe ser un número no negativo.`);
           priceAtTime = manualPrice;
           itemDataForCreation.budgetItemId = null;
-          itemDataForCreation.name = incomingItem.name; // Usar nombre manual
-          itemDataForCreation.category = incomingItem.category; // Usar categoría manual
+          itemDataForCreation.name = incomingItem.name;
+          itemDataForCreation.category = incomingItem.category;
           itemDataForCreation.description = incomingItem.description || null;
         } else {
           console.error("Datos insuficientes para item:", incomingItem);
           throw new Error(`Item inválido: falta info (budgetItemId o name/category/unitPrice).`);
         }
-
-        // *** 4. Asignar precios y calcular total de línea ***
         itemDataForCreation.unitPrice = priceAtTime;
-        itemDataForCreation.priceAtTimeOfBudget = priceAtTime; // Guardar precio histórico
-        itemDataForCreation.lineTotal = priceAtTime * itemDataForCreation.quantity; // Calcular total de línea
-
-        // *** 5. Acumular subtotal y guardar datos para creación ***
+        itemDataForCreation.priceAtTimeOfBudget = priceAtTime;
+        itemDataForCreation.lineTotal = priceAtTime * itemDataForCreation.quantity;
         calculatedSubtotal += parseFloat(itemDataForCreation.lineTotal || 0);
-        lineItemsDataForCreation.push(itemDataForCreation); // Guardar datos completos para crear después
+        lineItemsDataForCreation.push(itemDataForCreation);
       }
       console.log(`${lineItemsDataForCreation.length} items procesados. Subtotal calculado: ${calculatedSubtotal}`);
-      // --- Calcular Totales Finales ---
       const finalDiscount = parseFloat(discountAmount) || 0;
       const finalTotal = calculatedSubtotal - finalDiscount;
 
-      // *** CORRECCIÓN: Interpretar initialPaymentPercentageInput ***
-      let actualPercentage = 60; // Valor por defecto
+      let actualPercentage = 60;
       if (initialPaymentPercentageInput === 'total') {
         actualPercentage = 100;
       } else {
@@ -122,17 +123,14 @@ const BudgetController = {
         if (!isNaN(parsedPercentage)) {
           actualPercentage = parsedPercentage;
         }
-        // Si no es 'total' ni un número válido, se queda con el default 60
       }
       console.log(`Porcentaje de pago inicial interpretado: ${actualPercentage}%`);
-      // *** FIN CORRECCIÓN ***
-
-      // *** Usar actualPercentage para el cálculo ***
       const calculatedInitialPayment = finalTotal * (actualPercentage / 100);
       console.log(`Totales calculados: Subtotal=${calculatedSubtotal}, Total=${finalTotal}, InitialPayment=${calculatedInitialPayment}`);
 
       // --- Crear Budget ---
       const newBudget = await Budget.create({
+        idBudget: nextBudgetId,
         PermitIdPermit: permit.idPermit,
         date: date || new Date(),
         expirationDate: expirationDate || null,
@@ -146,21 +144,19 @@ const BudgetController = {
         subtotalPrice: calculatedSubtotal,
         totalPrice: finalTotal,
         initialPayment: calculatedInitialPayment,
-        // pdfPath se actualizará después
       }, { transaction });
-      newBudgetId = newBudget.idBudget; // Guardar ID para usar fuera del try/catch
+      newBudgetId = newBudget.idBudget;
       console.log(`Budget base creado con ID: ${newBudgetId}. Estado: ${status}`);
 
       // --- Crear BudgetLineItems ---
-      const createdLineItemsForPdf = []; // Guardar datos planos para PDF
+      const createdLineItemsForPdf = [];
       for (const itemDataForCreation of lineItemsDataForCreation) {
         itemDataForCreation.budgetId = newBudgetId;
         const createdItem = await BudgetLineItem.create(itemDataForCreation, { transaction });
-        createdLineItemsForPdf.push(createdItem.toJSON()); // Guardar para PDF
+        createdLineItemsForPdf.push(createdItem.toJSON());
       }
       console.log(`${lineItemsDataForCreation.length} BudgetLineItems creados.`);
 
-      // --- Confirmar la Transacción Principal ---
       await transaction.commit();
       console.log(`--- Transacción principal para crear Budget ID ${newBudgetId} confirmada. ---`);
 
