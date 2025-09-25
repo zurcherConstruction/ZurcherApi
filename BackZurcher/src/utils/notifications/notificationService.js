@@ -235,11 +235,16 @@ const getNotificationDetails = async (status, work) => {
   const roles = notificationConfig.roles;
   const message = notificationConfig.message(work);
 
-  // 🔧 USAR CORREOS CORPORATIVOS EN LUGAR DE BASE DE DATOS
-  // Esto asegura que siempre usemos los correos profesionales actualizados
-  const staffToNotify = getCorporateEmailsByRoles(roles);
-  
-  console.log(`📧 Notificación para roles [${roles.join(', ')}] usando correos corporativos:`, 
+  // 🔧 USAR SOLO CORREOS DE STAFF (BASE DE DATOS), NO CORPORATIVOS
+  // Buscar staff en la base de datos por roles
+  const staffToNotify = await Staff.findAll({
+    where: {
+      role: roles,
+      email: { [Op.ne]: null }
+    },
+    attributes: ['email', 'name', 'role']
+  });
+  console.log(`📧 Notificación para roles [${roles.join(', ')}] usando correos de staff:`, 
               staffToNotify.map(s => s.email).join(', '));
 
   return { staffToNotify, message };
