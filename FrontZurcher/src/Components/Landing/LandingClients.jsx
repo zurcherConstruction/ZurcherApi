@@ -12,10 +12,10 @@ import { Link } from 'react-router-dom';
 import LoginPopup from '../Auth/LoginPopup';
 import ContactMapForm from './ContactMapForm';
 
-const whatsappNumber = "14074194495";
+const whatsappNumber = "19546368200";
 const whatsappMessage = "Hello, I'm interested in your septic system services.";
-const email = "zurcherseptic@gmail.com";
-const phone = "+1 (407) 419-4495";
+const email = "admin@zurcherseptic.com";
+const phone = "+1 (954) 636-8200";
 
 const LandingClients = () => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);

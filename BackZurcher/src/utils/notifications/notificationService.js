@@ -46,45 +46,70 @@ const stateNotificationMap = {
   },
   pending: {
     roles: ['owner', 'recept'], // Finance debe saber sobre compras pendientes 
-    message: (work) => `El trabajo con dirección ${work.propertyAddress} ya fue confirmado. Por favor, compra los materiales necesarios para la fecha ${work.startDate}.`,
+        message: (work) => {
+          let startDateFormatted = 'fecha no definida';
+          if (work?.startDate && /^\d{4}-\d{2}-\d{2}$/.test(work.startDate)) {
+            const [year, month, day] = work.startDate.split('-');
+            startDateFormatted = `${day}/${month}/${year}`;
+          } else if (work?.startDate) {
+            startDateFormatted = work.startDate;
+          }
+          return `El trabajo con dirección ${work.propertyAddress} ya fue confirmado. Por favor, compra los materiales necesarios para la fecha ${startDateFormatted}.<br><a href="https://www.zurcherseptic.com/materiales" style="background:#1976d2;color:#fff;padding:8px 16px;border-radius:4px;text-decoration:none;display:inline-block;margin-top:8px;">Ir a la compra de materiales</a>`;
+        },
   },
-  assigned: {
-    roles: ['owner', 'recept'], // Roles que reciben email
-    subject: (work) => `Trabajo Asignado: ${work?.propertyAddress || 'Dirección desconocida'}`,
+ assigned: {
+  roles: ['owner', 'recept'], // Roles que reciben email
+  subject: (work) => `Trabajo Asignado: ${work?.propertyAddress || 'Dirección desconocida'}`,
     message: (work) => {
-        // Asumiendo que el Staff asignado se incluye en la consulta o se busca después
-        const assignedName = work?.Staff?.name || `ID ${work?.staffId || 'desconocido'}`;
-        const startDateFormatted = work?.startDate
-            ? new Date(work.startDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })
-            : 'fecha no definida';
-
-        // Mensaje más detallado para email
-        return `Se ha asignado el trabajo en ${work?.propertyAddress || 'Dirección desconocida'} a ${assignedName}.\n` +
-               `La fecha de inicio programada es: ${startDateFormatted}.\n\n` +
-               `Por favor, coordinar la compra de materiales necesarios para esta fecha.\n\n` 
-               
-    },
-    // Ajusta getStaff si es necesario para incluir al trabajador asignado y a los roles de gestión
-    getStaff: async (work) => {
-        if (!work?.staffId) {
-             // Si no hay asignado, notificar solo a admin/owner/recept
-             return await Staff.findAll({ where: { role: ['owner', 'admin', 'recept'] } });
-        }
-        // Buscar al trabajador asignado Y a los roles de gestión
-        const staff = await Staff.findAll({
-            where: {
-                [Op.or]: [
-                    { id: work.staffId }, // El trabajador asignado
-                    { role: ['owner', 'admin', 'recept'] } // Los roles de gestión
-                ]
-            }
-        });
-        return staff;
+    let assignedDisplay = 'desconocido';
+    if (work?.Staff?.name) {
+      assignedDisplay = work.Staff.name;
+    } else if (work?.Staff?.email) {
+      assignedDisplay = work.Staff.email;
+    } else if (work?.staffId) {
+      assignedDisplay = `ID ${work.staffId}`;
     }
+    let startDateFormatted = 'fecha no definida';
+    if (work?.startDate && /^\d{4}-\d{2}-\d{2}$/.test(work.startDate)) {
+      const [year, month, day] = work.startDate.split('-');
+      startDateFormatted = `${day}/${month}/${year}`;
+    } else if (work?.startDate) {
+      startDateFormatted = work.startDate;
+    }
+    return `Se ha asignado el trabajo en ${work?.propertyAddress || 'Dirección desconocida'} a ${assignedDisplay}.<br>` +
+      `La fecha de inicio programada es: ${startDateFormatted}.<br>` +
+      `Por favor, coordinar la compra de materiales necesarios para esta fecha.<br>` +
+      `<a href="https://www.zurcherseptic.com/materiales" style="background:#1976d2;color:#fff;padding:8px 16px;border-radius:4px;text-decoration:none;display:inline-block;margin-top:8px;">Ir a la compra de materiales</a>`;
+  },
+  getStaff: async (work) => {
+    if (!work?.staffId) {
+      // Si no hay asignado, notificar solo a admin/owner/recept
+      return await Staff.findAll({ where: { role: ['owner', 'admin', 'recept'] } });
+    }
+    // Buscar al trabajador asignado Y a los roles de gestión
+    const staff = await Staff.findAll({
+      where: {
+        [Op.or]: [
+          { id: work.staffId }, // El trabajador asignado
+          { role: ['owner', 'admin', 'recept'] } // Los roles de gestión
+        ]
+      }
+    });
+    return staff;
+  }
 },
   inProgress: {
     roles: ['worker', 'owner'], 
-    message: (work) => `Los materiales ya fueron comprados para la dirección ${work.propertyAddress}, La fecha de Instalación es el día: ${work.startDate} .`,
+        message: (work) => {
+          let startDateFormatted = 'fecha no definida';
+          if (work?.startDate && /^\d{4}-\d{2}-\d{2}$/.test(work.startDate)) {
+            const [year, month, day] = work.startDate.split('-');
+            startDateFormatted = `${day}/${month}/${year}`;
+          } else if (work?.startDate) {
+            startDateFormatted = work.startDate;
+          }
+          return `Los materiales ya fueron comprados para la dirección ${work.propertyAddress}, La fecha de Instalación es el día: ${startDateFormatted}.`;
+        },
   },
   installed: {
     roles: ['admin', 'owner'], 
@@ -235,11 +260,16 @@ const getNotificationDetails = async (status, work) => {
   const roles = notificationConfig.roles;
   const message = notificationConfig.message(work);
 
-  // 🔧 USAR CORREOS CORPORATIVOS EN LUGAR DE BASE DE DATOS
-  // Esto asegura que siempre usemos los correos profesionales actualizados
-  const staffToNotify = getCorporateEmailsByRoles(roles);
-  
-  console.log(`📧 Notificación para roles [${roles.join(', ')}] usando correos corporativos:`, 
+  // 🔧 USAR SOLO CORREOS DE STAFF (BASE DE DATOS), NO CORPORATIVOS
+  // Buscar staff en la base de datos por roles
+  const staffToNotify = await Staff.findAll({
+    where: {
+      role: roles,
+      email: { [Op.ne]: null }
+    },
+    attributes: ['email', 'name', 'role']
+  });
+  console.log(`📧 Notificación para roles [${roles.join(', ')}] usando correos de staff:`, 
               staffToNotify.map(s => s.email).join(', '));
 
   return { staffToNotify, message };

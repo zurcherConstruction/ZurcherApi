@@ -390,10 +390,17 @@ const updateWork = async (req, res) => {
 
     await workInstance.save();
 
+    // Volver a buscar la obra incluyendo el Staff asignado
+    const workWithStaff = await Work.findByPk(workInstance.idWork, {
+      include: [
+        { model: Staff, attributes: ['name', 'email', 'id'] }
+      ]
+    });
+
     // --- Notificaciones ---
     if (statusChanged) {
       try {
-        await sendNotifications(workInstance.status, workInstance, req.app.get('io'));
+        await sendNotifications(workInstance.status, workWithStaff, req.app.get('io'));
       } catch (notificationError) {
         console.error(`Error sending notifications for work ${idWork} status ${workInstance.status}:`, notificationError);
       }
@@ -401,7 +408,7 @@ const updateWork = async (req, res) => {
     // Notificar si cambia asignación aunque el estado no cambie
     if (assignmentChanged) {
       try {
-        await sendNotifications('assigned', workInstance, req.app.get('io'));
+        await sendNotifications('assigned', workWithStaff, req.app.get('io'));
       } catch (notificationError) {
         console.error(`Error sending assignment notifications for work ${idWork}:`, notificationError);
       }
