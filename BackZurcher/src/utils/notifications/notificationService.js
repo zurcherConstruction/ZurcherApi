@@ -46,7 +46,16 @@ const stateNotificationMap = {
   },
   pending: {
     roles: ['owner', 'recept'], // Finance debe saber sobre compras pendientes 
-    message: (work) => `El trabajo con dirección ${work.propertyAddress} ya fue confirmado. Por favor, compra los materiales necesarios para la fecha ${work.startDate}.`,
+        message: (work) => {
+          let startDateFormatted = 'fecha no definida';
+          if (work?.startDate && /^\d{4}-\d{2}-\d{2}$/.test(work.startDate)) {
+            const [year, month, day] = work.startDate.split('-');
+            startDateFormatted = `${day}/${month}/${year}`;
+          } else if (work?.startDate) {
+            startDateFormatted = work.startDate;
+          }
+          return `El trabajo con dirección ${work.propertyAddress} ya fue confirmado. Por favor, compra los materiales necesarios para la fecha ${startDateFormatted}.<br><a href="https://www.zurcherseptic.com/materiales" style="background:#1976d2;color:#fff;padding:8px 16px;border-radius:4px;text-decoration:none;display:inline-block;margin-top:8px;">Ir a la compra de materiales</a>`;
+        },
   },
  assigned: {
   roles: ['owner', 'recept'], // Roles que reciben email
@@ -91,7 +100,16 @@ const stateNotificationMap = {
 },
   inProgress: {
     roles: ['worker', 'owner'], 
-    message: (work) => `Los materiales ya fueron comprados para la dirección ${work.propertyAddress}, La fecha de Instalación es el día: ${work.startDate} .`,
+        message: (work) => {
+          let startDateFormatted = 'fecha no definida';
+          if (work?.startDate && /^\d{4}-\d{2}-\d{2}$/.test(work.startDate)) {
+            const [year, month, day] = work.startDate.split('-');
+            startDateFormatted = `${day}/${month}/${year}`;
+          } else if (work?.startDate) {
+            startDateFormatted = work.startDate;
+          }
+          return `Los materiales ya fueron comprados para la dirección ${work.propertyAddress}, La fecha de Instalación es el día: ${startDateFormatted}.`;
+        },
   },
   installed: {
     roles: ['admin', 'owner'], 
