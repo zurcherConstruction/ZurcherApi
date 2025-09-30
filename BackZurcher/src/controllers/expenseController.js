@@ -40,7 +40,7 @@ const createExpense = async (req, res) => {
       const expenseWithDetails = await Expense.findByPk(newExpense.idExpense, {
         include: [
           { model: Staff, as: 'Staff', attributes: ['id', 'name', 'email'] },
-          { model: Work, as: 'Work', attributes: ['idWork', 'propertyAddress'] }
+          { model: Work, as: 'work', attributes: ['idWork', 'propertyAddress'] }
         ]
       });
 

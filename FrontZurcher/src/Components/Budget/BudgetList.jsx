@@ -107,7 +107,8 @@ const BudgetList = () => {
   const [isLoadingPdfInModal, setIsLoadingPdfInModal] = useState(null);
 
   useEffect(() => {
-    dispatch(fetchBudgets(currentPage, pageSize || 10));
+    // fetchBudgets expects an options object: { page, pageSize, ... }
+    dispatch(fetchBudgets({ page: currentPage, pageSize: pageSize || 10 }));
   }, [dispatch, currentPage, pageSize]);
 
   const totalPages = Math.ceil((total || 0) / (pageSize || 10));
