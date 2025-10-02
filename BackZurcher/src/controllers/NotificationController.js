@@ -125,7 +125,7 @@ const markAllAsRead = async (req, res) => {
   try {
     const { staffId } = req.params;
 
-    console.log('markAllAsRead called with staffId:', staffId); // Debug log
+
 
     // Validar que staffId sea un UUID
     if (!/^[0-9a-fA-F-]{36}$/.test(staffId)) {

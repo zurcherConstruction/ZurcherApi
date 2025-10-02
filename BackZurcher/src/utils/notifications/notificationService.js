@@ -1,24 +1,8 @@
 const { Staff } = require('../../data');
 const { Op } = require('sequelize'); // Asegúrate de importar Op para usar operadores de Sequelize
 
-// 📧 MAPEO PROFESIONAL DE ROLES A CORREOS CORPORATIVOS
-const CORPORATE_EMAIL_MAP = {
-  'owner': 'damian@zurcherseptic.com',
-  'admin': 'admin@zurcherseptic.com',
-  'worker': 'installers.zurcherseptic@gmail.com', // Gmail para installers (no corporativo)
-  'recept': 'purchasing@zurcherseptic.com',
-  'finance': 'finance@zurcherseptic.com', // Nuevo rol para finanzas
-  'maintenance': 'maintenance@zurcherseptic.com'
-};
-
-// 🔧 Función helper para obtener correos corporativos por roles
-const getCorporateEmailsByRoles = (roles) => {
-  return roles.map(role => ({
-    role: role,
-    email: CORPORATE_EMAIL_MAP[role] || `${role}@zurcherseptic.com`,
-    name: role.charAt(0).toUpperCase() + role.slice(1) // Capitalizar nombre del rol
-  })).filter(staff => staff.email); // Filtrar solo los que tienen email válido
-};
+// NOTE: We intentionally do NOT use a hard-coded corporate email map here.
+// Recipient selection will rely on the Staff DB (preferred) and per-state getStaff overrides.
 
 // Mapeo de estados a roles y mensajes
 const stateNotificationMap = {
@@ -175,7 +159,7 @@ const stateNotificationMap = {
   // ✅ NUEVA NOTIFICACIÓN PARA ERRORES DE PDF
   budgetPdfError: {
     roles: ['admin', 'owner'], // Admin y owner reciben errores de PDF
-    message: (budget) => `⚠️ ERROR: No se pudo generar el PDF para el presupuesto ${budget?.idBudget} en ${budget?.propertyAddress}. Error: ${budget?.error}. Se requiere intervención manual.`,
+    message: (budget) => `⚠️ ERROR: No se pudo generar el PDF para el presupuesto ${budget?.idBudget || budget?.id || 'N/A'} en ${budget?.propertyAddress || budget?.address || 'Dirección desconocida'}. Error: ${budget?.error || 'sin detalle'}. Se requiere intervención manual.`,
   },
   
   budgetSent: {
@@ -184,7 +168,13 @@ const stateNotificationMap = {
   },
    budgetSentToSignNow: {
     roles: ['admin', 'owner'], // Incluir finance en firmas de presupuesto
-    message: (data) => `El presupuesto #${data.idBudget} para la dirección ${data.propertyAddress} ha sido enviado a ${data.applicantName} (${data.applicantEmail}) para su firma digital a través de SignNow.`
+    message: (data) => {
+      const id = data?.idBudget || data?.id || 'N/A';
+      const addr = data?.propertyAddress || data?.address || 'Dirección desconocida';
+      const applicantName = data?.applicantName || data?.applicant || 'solicitante';
+      const applicantEmail = data?.applicantEmail || data?.applicantEmailAddress || 'N/A';
+      return `El presupuesto #${id} para la dirección ${addr} ha sido enviado a ${applicantName} (${applicantEmail}) para su firma digital a través de SignNow.`;
+    }
   },
   incomeCreated: {
     roles: ['admin', 'owner', 'finance'], // Finance debe estar en todos los pagos
@@ -246,33 +236,104 @@ const stateNotificationMap = {
   },
   workApproved: {
     roles: ['owner', 'admin'], // Solo notificar al owner
-    message: (work) => `El trabajo para la dirección ${work.propertyAddress} (Work ID: ${work.idWork}) ha sido aprobado y está listo para ser agendado.`,
+    message: (work) => `El trabajo para la dirección ${work.propertyAddress || 'Dirección desconocida'} (Work ID: ${work?.idWork || work?.id || 'N/A'}) ha sido aprobado y está listo para ser agendado.`,
+  },
+  // ------------------ Estados faltantes agregados ------------------
+  final_invoice_received: {
+    roles: ['admin', 'owner'],
+    message: (work, context) => {
+      const invoiceUrl = context?.invoiceUrl || context?.invoiceFromInspectorUrl || 'Sin URL';
+      return `Se recibió la factura del inspector para la obra en ${work?.propertyAddress || 'Dirección desconocida'}. Inspección ID: ${context?.inspectionId || 'N/A'}. URL: ${invoiceUrl}`;
+    }
+  },
+  final_invoice_sent_to_client: {
+    roles: ['admin', 'owner'],
+    message: (work, context) => {
+      const clientEmail = context?.clientEmail || 'cliente@desconocido';
+      return `La factura final ha sido enviada al cliente (${clientEmail}) para la obra en ${work?.propertyAddress || 'Dirección desconocida'}. Inspección ID: ${context?.inspectionId || 'N/A'}.`;
+    }
+  },
+  budgetSigned: {
+    roles: ['admin', 'owner'],
+    message: (data) => {
+      const id = data?.idBudget || data?.id || 'N/A';
+      const addr = data?.propertyAddress || data?.address || 'Dirección desconocida';
+      const signer = data?.signedBy || data?.signedByName || 'firmante';
+      return `El presupuesto #${id} para ${addr} ha sido firmado por ${signer}.`;
+    }
+  },
+  customEmail: {
+    // customEmail debe recibir { staff: [...], message: '...' }
+    roles: [],
+    getStaff: async (data) => {
+      // Si el caller pasó un arreglo 'staff' con emails, devolverlo tal cual para notificar
+      if (Array.isArray(data?.staff) && data.staff.length) {
+        // Mapear al formato mínimo esperado
+        return data.staff.map(s => ({ id: s.id || null, email: s.email || s, name: s.name || null, role: s.role || null, pushToken: s.pushToken || null }));
+      }
+      // Fallback: no staff especificado -> notificar a admin/owner
+      return await Staff.findAll({ where: { role: ['admin', 'owner'] } });
+    },
+    message: (data) => data?.message || 'Mensaje personalizado',
   },
 };
 
 // Función para obtener los empleados a notificar y el mensaje
-const getNotificationDetails = async (status, work) => {
+// Ahora: si el estado define `getStaff`, lo usamos (permite incluir al trabajador asignado).
+// Siempre normalizamos y deduplicamos emails (lowercase + trim) y devolvemos optional `subject`.
+const getNotificationDetails = async (status, work, context = {}) => {
   const notificationConfig = stateNotificationMap[status];
   if (!notificationConfig) {
     throw new Error(`Estado de notificación no configurado: ${status}`);
   }
 
-  const roles = notificationConfig.roles;
-  const message = notificationConfig.message(work);
+  const roles = notificationConfig.roles || [];
+  const message = typeof notificationConfig.message === 'function'
+    ? notificationConfig.message(work, context)
+    : (notificationConfig.message || '');
 
-  // 🔧 USAR SOLO CORREOS DE STAFF (BASE DE DATOS), NO CORPORATIVOS
-  // Buscar staff en la base de datos por roles
-  const staffToNotify = await Staff.findAll({
-    where: {
-      role: roles,
-      email: { [Op.ne]: null }
-    },
-    attributes: ['email', 'name', 'role']
-  });
-  console.log(`📧 Notificación para roles [${roles.join(', ')}] usando correos de staff:`, 
-              staffToNotify.map(s => s.email).join(', '));
+  const subject = notificationConfig.subject
+    ? (typeof notificationConfig.subject === 'function' ? notificationConfig.subject(work, context) : notificationConfig.subject)
+    : null;
 
-  return { staffToNotify, message };
+  // 1) Obtener candidatas/os desde getStaff si existe, sino por roles desde la tabla Staff
+  let staffRecords = [];
+  if (typeof notificationConfig.getStaff === 'function') {
+    try {
+      staffRecords = await notificationConfig.getStaff(work, context) || [];
+    } catch (err) {
+      console.error('Error ejecutando getStaff para estado', status, err);
+      staffRecords = [];
+    }
+  } else {
+    staffRecords = await Staff.findAll({
+      where: {
+        role: roles,
+        email: { [Op.ne]: null }
+      },
+      attributes: ['id', 'email', 'name', 'role', 'pushToken']
+    });
+  }
+
+  // 2) Normalizar y deduplicar por email (lowercase + trim)
+  const byEmail = new Map();
+  for (const s of (staffRecords || [])) {
+    const rawEmail = (s && (s.email || s?.dataValues?.email)) || '';
+    const email = String(rawEmail || '').toLowerCase().trim();
+    if (!email || !email.includes('@')) continue; // saltar entradas sin email válido
+    if (!byEmail.has(email)) {
+      // preservar id/name/role/pushToken cuando existan
+      const id = s.id || (s.dataValues && s.dataValues.id) || null;
+      const name = s.name || (s.dataValues && s.dataValues.name) || null;
+      const role = s.role || (s.dataValues && s.dataValues.role) || null;
+      const pushToken = s.pushToken || (s.dataValues && s.dataValues.pushToken) || null;
+      byEmail.set(email, { id, email, name, role, pushToken });
+    }
+  }
+
+  const staffToNotify = Array.from(byEmail.values());
+
+  return { staffToNotify, message, subject };
 };
 
-module.exports = { getNotificationDetails, getCorporateEmailsByRoles, CORPORATE_EMAIL_MAP };
+module.exports = { getNotificationDetails };

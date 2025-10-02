@@ -118,14 +118,14 @@ const extractData = async (text) => {
 ---------------------------------------------------------------------- */
 const debugExtraction = (text) => {
   const lines = text.split("\n");
-  console.log("\n=== INICIO DEBUG EXTRACCIÓN ===");
+
   lines.forEach((line, index) => {
     const trimmed = line.trim();
     if (trimmed) {
       console.log(`Línea ${index + 1}: "${trimmed}"`);
     }
   });
-  console.log("=== FIN DEBUG EXTRACCIÓN ===\n");
+
 };
 
 /* ----------------------------------------------------------------------

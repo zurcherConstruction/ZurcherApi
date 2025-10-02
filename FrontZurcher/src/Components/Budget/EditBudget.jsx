@@ -5,9 +5,10 @@ import { fetchBudgets, fetchBudgetById, updateBudget, } from "../../Redux/Action
 // ✅ AGREGAR ESTAS IMPORTACIONES:
 import { fetchBudgetItems } from "../../Redux/Actions/budgetItemActions";
 import DynamicCategorySection from './DynamicCategorySection';
+import EditClientDataModal from './EditClientDataModal';
 import { parseISO, format } from 'date-fns';
 import { unwrapResult } from '@reduxjs/toolkit';
-import { ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
+import { ArrowTopRightOnSquareIcon, PencilIcon } from '@heroicons/react/24/outline';
 import api from "../../utils/axios";
 
 // --- Helper para generar IDs temporales ---
@@ -45,6 +46,7 @@ const EditBudget = () => {
   const [formData, setFormData] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [viewingFile, setViewingFile] = useState(false);
+  const [showClientDataModal, setShowClientDataModal] = useState(false);
 
   const [manualItemData, setManualItemData] = useState({
     category: "",
@@ -147,6 +149,8 @@ const editableBudgets = useMemo(() => {
           permitNumber: permitData.permitNumber || "",
           propertyAddress: currentBudget.propertyAddress || "",
           applicantName: currentBudget.applicantName || "",
+          applicantEmail: permitData.applicantEmail || "",
+          applicantPhone: permitData.applicantPhone || "",
           lot: permitData.lot || "",
           block: permitData.block || "",
           date: currentBudget.date ? currentBudget.date.split('T')[0] : "",
@@ -426,8 +430,6 @@ const editableBudgets = useMemo(() => {
       discountAmount: parseFloat(formData.discountAmount) || 0,
       generalNotes: formData.generalNotes,
       initialPaymentPercentage: parseFloat(formData.initialPaymentPercentage) || 60,
-      applicantName: formData.applicantName,
-      propertyAddress: formData.propertyAddress,
     };
 
     const lineItemsPayload = formData.lineItems.map(item => ({
@@ -488,6 +490,29 @@ const editableBudgets = useMemo(() => {
       setIsSubmitting(false);
      
     }
+  };
+
+  // --- Handler para actualizar datos de cliente ---
+  const handleClientDataUpdated = (updatedData) => {
+    console.log('🔄 Datos recibidos en handleClientDataUpdated:', updatedData);
+    
+    // Actualizar formData con los nuevos datos del budget y permit
+    setFormData(prev => {
+      const newFormData = {
+        ...prev,
+        applicantName: updatedData.budget?.applicantName || prev.applicantName,
+        propertyAddress: updatedData.budget?.propertyAddress || prev.propertyAddress,
+        // Actualizar también los campos del permit
+        applicantEmail: updatedData.permit?.applicantEmail || prev.applicantEmail,
+        applicantPhone: updatedData.permit?.applicantPhone || prev.applicantPhone,
+      };
+      
+      console.log('🔄 FormData actualizado:', newFormData);
+      return newFormData;
+    });
+
+    // También refrescar los datos desde el servidor para asegurar sincronización
+    dispatch(fetchBudgetById(selectedBudgetId));
   };
 
   // --- Renderizado ---
@@ -552,19 +577,37 @@ const editableBudgets = useMemo(() => {
               <h3 className="text-2xl font-bold border-b border-gray-200 pb-3 mb-6 text-blue-900">Edit Budget #{selectedBudgetId}</h3>
               {/* --- Datos del Permit (No editables) --- */}
               <fieldset className="border border-gray-200 p-4 rounded-lg mb-6">
-                <legend className="text-lg font-semibold text-blue-800 px-2">Permit Information</legend>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <legend className="flex items-center justify-between">
+                  <span className="text-lg font-semibold text-blue-800 px-2">Permit Information</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowClientDataModal(true)}
+                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                  >
+                    <PencilIcon className="h-4 w-4 mr-1" />
+                    Editar Cliente
+                  </button>
+                </legend>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Permit #</label>
                     <p className="mt-1 text-base text-gray-900 font-semibold">{formData.permitNumber || 'N/A'}</p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500">Address</label>
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-gray-500">Property Address</label>
                     <p className="mt-1 text-base text-gray-900 font-semibold">{formData.propertyAddress || 'N/A'}</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-500">Applicant</label>
+                    <label className="block text-sm font-medium text-gray-500">Applicant Name</label>
                     <p className="mt-1 text-base text-gray-900 font-semibold">{formData.applicantName || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500">Email</label>
+                    <p className="mt-1 text-base text-gray-900 font-semibold">{formData.applicantEmail || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500">Phone</label>
+                    <p className="mt-1 text-base text-gray-900 font-semibold">{formData.applicantPhone || 'N/A'}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Lot / Block</label>
@@ -782,6 +825,15 @@ const editableBudgets = useMemo(() => {
           )}
         </>
       )}
+
+      {/* Modal para editar datos de cliente */}
+      <EditClientDataModal
+        isOpen={showClientDataModal}
+        onClose={() => setShowClientDataModal(false)}
+        budgetId={selectedBudgetId}
+        onDataUpdated={handleClientDataUpdated}
+      />
+
       <style>{`.input-style { border: 1px solid #d1d5db; border-radius: 0.5rem; padding: 0.75rem 1rem; width: 100%; box-sizing: border-box; font-size: 1rem; } .input-style:focus { outline: 2px solid transparent; outline-offset: 2px; border-color: #2563eb; box-shadow: 0 0 0 2px #bfdbfe; }`}</style>
     </div>
   );

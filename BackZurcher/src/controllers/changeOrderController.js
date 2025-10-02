@@ -313,7 +313,7 @@ const handleClientChangeOrderResponse = async (req, res) => {
     const { token, decision, coId } = req.query;
 
     // ✅ LOGS DETALLADOS
-    console.log('🔍 === DEBUGGING CHANGE ORDER RESPONSE (PRODUCTION) ===');
+
     console.log('📍 Environment:', process.env.NODE_ENV || 'development');
     console.log('📧 Query params:', req.query);
     console.log('📊 Headers:', {
