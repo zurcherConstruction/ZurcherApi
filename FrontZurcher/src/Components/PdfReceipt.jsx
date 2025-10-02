@@ -42,7 +42,54 @@ const PdfReceipt = () => {
 
   const [expirationWarning, setExpirationWarning] = useState({ type: "", message: "" });
   const [excavationUnit, setExcavationUnit] = useState("INCH"); 
+  const [displayDate, setDisplayDate] = useState(""); // Para mostrar fecha en formato MM-DD-YYYY
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
+
+  // Función helper para formatear fecha en formato MM-DD-YYYY
+  const formatDateUSA = (dateString) => {
+    if (!dateString) return '';
+    const dateParts = dateString.split('-');
+    if (dateParts.length === 3) {
+      const year = dateParts[0];
+      const month = dateParts[1];
+      const day = dateParts[2];
+      return `${month}-${day}-${year}`;
+    }
+    return dateString;
+  };
+
+  // Función para convertir MM-DD-YYYY a YYYY-MM-DD
+  const convertUSAtoISO = (usaDate) => {
+    if (!usaDate) return '';
+    const parts = usaDate.split(/[-\/]/); // Acepta tanto - como /
+    if (parts.length === 3) {
+      const month = parts[0].padStart(2, '0');
+      const day = parts[1].padStart(2, '0');
+      const year = parts[2];
+      return `${year}-${month}-${day}`;
+    }
+    return '';
+  };
+
+  // Manejar cambios en el input de fecha personalizado
+  const handleDateChange = (e) => {
+    const value = e.target.value;
+    setDisplayDate(value);
+    
+    // Convertir a formato ISO para el estado interno
+    const isoDate = convertUSAtoISO(value);
+    if (isoDate) {
+      setFormData(prev => ({
+        ...prev,
+        expirationDate: isoDate
+      }));
+    } else if (value === '') {
+      setFormData(prev => ({
+        ...prev,
+        expirationDate: ''
+      }));
+    }
+  };
 
   useEffect(() => {
     if (formData.expirationDate) {
@@ -69,11 +116,14 @@ const PdfReceipt = () => {
         const thirtyDaysFromNow = new Date(today);
         thirtyDaysFromNow.setDate(today.getDate() + 30);
 
+        // Formatear fecha en formato USA para mostrar en mensajes
+        const dateUSAFormat = formatDateUSA(formData.expirationDate);
+
         if (expDate < today) {
-          const msg = `¡Vencido! La fecha (${expDate.toLocaleDateString()}) ya pasó.`;
+          const msg = `¡Vencido! La fecha (${dateUSAFormat}) ya pasó.`;
           setExpirationWarning({ type: "error", message: msg });
         } else if (expDate <= thirtyDaysFromNow) {
-          const msg = `Próximo a vencer: La fecha (${expDate.toLocaleDateString()}) es en menos de 30 días.`;
+          const msg = `Próximo a vencer: La fecha (${dateUSAFormat}) es en menos de 30 días.`;
           setExpirationWarning({ type: "warning", message: msg });
         } else {
           setExpirationWarning({ type: "", message: "" }); // Válido y no próximo a vencer
@@ -143,6 +193,11 @@ const PdfReceipt = () => {
            expirationDate: finalExpirationDate || prevFormData.expirationDate, 
          }));
          setExcavationUnit(detectedUnit);
+         
+         // Actualizar displayDate con el formato USA
+         if (finalExpirationDate) {
+           setDisplayDate(formatDateUSA(finalExpirationDate));
+         }
 
         } else if (action.error) {
             console.error("Error al procesar PDF:", action.error);
@@ -155,10 +210,14 @@ const PdfReceipt = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prevFormData) => ({
-      ...prevFormData,
-      [name]: value,
-    }));
+    
+    // Para otros campos que no sean expirationDate
+    if (name !== 'expirationDate') {
+      setFormData((prevFormData) => ({
+        ...prevFormData,
+        [name]: value,
+      }));
+    }
   };
 
   const handleOptionalDocUpload = (e) => {
@@ -514,6 +573,21 @@ const PdfReceipt = () => {
                         <option value="FEET">FEET</option>
                       </select>
                     </div>
+                  ) : key === "expirationDate" ? (
+                    <input
+                      type="text"
+                      name="expirationDate"
+                      value={displayDate}
+                      onChange={handleDateChange}
+                      placeholder="MM-DD-YYYY"
+                      className={`mt-1 block w-full border ${
+                        expirationWarning.type === "error"
+                          ? "border-red-500 bg-red-100 text-red-700 placeholder-red-700"
+                          : expirationWarning.type === "warning"
+                          ? "border-yellow-500 bg-yellow-100 text-yellow-700 placeholder-yellow-700"
+                          : "border-gray-300 bg-gray-50"
+                      } rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm`}
+                    />
                   ) : (
                     <input
                       type={
@@ -521,33 +595,34 @@ const PdfReceipt = () => {
                           ? "email"
                           : key === "applicantPhone"
                           ? "tel"
-                          : key === "expirationDate"
-                          ? "date"
                           : "text"
                       }
                       name={key}
                       value={formData[key] ?? ""}
                       onChange={handleInputChange}
-                      className={`mt-1 block w-full border ${
-                        key === "expirationDate" && expirationWarning.type === "error"
-                          ? "border-red-500 bg-red-100 text-red-700 placeholder-red-700"
-                          : key === "expirationDate" && expirationWarning.type === "warning"
-                          ? "border-yellow-500 bg-yellow-100 text-yellow-700 placeholder-yellow-700"
-                          : "border-gray-300 bg-gray-50"
-                      } rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm`}
+                      className="mt-1 block w-full border border-gray-300 bg-gray-50 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                       required={key === "applicantName" || key === "propertyAddress"}
                     />
                   )}
-                  {key === "expirationDate" && expirationWarning.message && (
-                    <p
-                      className={`text-xs mt-1 ${
-                        expirationWarning.type === "error"
-                          ? "text-red-600 font-semibold"
-                          : "text-yellow-600 font-semibold"
-                      }`}
-                    >
-                      {expirationWarning.message}
-                    </p>
+                  {key === "expirationDate" && (
+                    <>
+                      {/* Ayuda de formato */}
+                      <p className="text-xs mt-1 text-gray-500">
+                        Ejemplo: 12-25-2024 (MM-DD-YYYY)
+                      </p>
+                      {/* Mostrar advertencias de expiración */}
+                      {expirationWarning.message && (
+                        <p
+                          className={`text-xs mt-1 ${
+                            expirationWarning.type === "error"
+                              ? "text-red-600 font-semibold"
+                              : "text-yellow-600 font-semibold"
+                          }`}
+                        >
+                          {expirationWarning.message}
+                        </p>
+                      )}
+                    </>
                   )}
                   {/* --- FIN RENDERIZADO CONDICIONAL --- */}
                 </div>

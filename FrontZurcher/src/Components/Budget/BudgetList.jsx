@@ -13,31 +13,84 @@ import {
   XMarkIcon,
   ExclamationTriangleIcon,
   PaperClipIcon,
+  UserIcon,
 } from "@heroicons/react/24/outline"; // Icono para descarga
 //import BudgetPDF from "./BudgetPDF";
 import { parseISO, format } from "date-fns";
 import api from "../../utils/axios";
+import EditClientDataModal from './EditClientDataModal';
 
 const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
-  if (!isOpen || !pdfUrl) return null;
+  console.log('🎭 PdfModal called with:', { isOpen, pdfUrl: !!pdfUrl, title });
+  
+  if (!isOpen || !pdfUrl) {
+    console.log('🚫 PdfModal early return:', { isOpen, hasPdfUrl: !!pdfUrl });
+    return null;
+  }
 
-  // Detect if it's a mobile device
-  const isMobile = window.innerWidth < 997;
+  // Detect device type with better breakpoints
+  const screenWidth = window.innerWidth;
+  const screenHeight = window.innerHeight;
+  const isMobile = screenWidth < 768;
+  const isTablet = screenWidth >= 768 && screenWidth < 1024;
+  const isLarge = screenWidth >= 1024;
+  
+  // Específico para iPad Pro detection
+  const isIPadPro = (screenWidth === 1024 && screenHeight === 1366) || 
+                    (screenWidth === 1366 && screenHeight === 1024) ||
+                    navigator.userAgent.includes('iPad');
+  
+  // Debug log for iPad Pro detection
+  console.log('🖥️ Modal Screen Info:', { 
+    screenWidth, 
+    screenHeight, 
+    isMobile, 
+    isTablet, 
+    isLarge,
+    isIPadPro,
+    userAgent: navigator.userAgent.includes('iPad') ? 'iPad' : 'Other'
+  });
+  
+  console.log('✅ PdfModal will render!');
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[95vh] sm:h-[90vh] flex flex-col">
-        <div className="flex justify-between items-center p-3 sm:p-4 border-b">
-          <h3 className="text-sm sm:text-lg font-semibold text-gray-700 truncate pr-2">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[9999] modal-overlay"
+      style={{ 
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 9999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: isIPadPro ? '20px' : (isMobile ? '8px' : '16px')
+      }}
+    >
+      <div 
+        className="bg-white rounded-lg shadow-2xl flex flex-col overflow-hidden"
+        style={{
+          width: isIPadPro ? '90vw' : (isLarge ? '85vw' : isTablet ? '85vw' : '95vw'),
+          height: isIPadPro ? '85vh' : (isLarge ? '80vh' : isTablet ? '88vh' : '96vh'),
+          maxWidth: 'none',
+          maxHeight: 'none',
+          margin: 'auto'
+        }}
+      >
+        {/* Header con mejor responsive */}
+        <div className="flex justify-between items-center p-3 sm:p-4 md:p-5 lg:p-6 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+          <h3 className="text-sm sm:text-base md:text-lg lg:text-xl font-semibold text-gray-800 truncate pr-2 max-w-[70%]">
             {title || "Vista Previa del PDF"}
           </h3>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {isMobile && (
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            {(isMobile || isTablet) && (
               <a
                 href={pdfUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800 text-xs sm:text-sm underline"
+                className="text-blue-600 hover:text-blue-800 text-xs sm:text-sm md:text-base underline whitespace-nowrap font-medium"
                 title="Abrir en nueva pestaña"
               >
                 Nueva pestaña
@@ -45,35 +98,53 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
             )}
             <button
               onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 p-1"
+              className="text-gray-500 hover:text-gray-700 hover:bg-gray-200 p-1.5 sm:p-2 rounded-full transition-colors"
               title="Cerrar"
             >
-              <XMarkIcon className="h-5 w-5 sm:h-6 sm:w-6" />
+              <XMarkIcon className="h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7" />
             </button>
           </div>
         </div>
-        <div className="flex-grow overflow-auto">
-          {" "}
-          {/* Cambiado overflow-hidden a overflow-auto */}
+        
+        {/* PDF Content area con mejor altura */}
+        <div 
+          className="flex-grow overflow-hidden relative"
+          style={{
+            position: 'relative',
+            flex: '1 1 auto',
+            overflow: 'hidden'
+          }}
+        >
           <iframe
             src={pdfUrl}
             title={title || "PDF Viewer"}
-            className="w-full h-full border-none"
+            className="absolute top-0 left-0 w-full h-full border-none"
             style={{
-              minHeight: "100%",
-              WebkitOverflowScrolling: "touch", // Improve scrolling on iOS
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              border: 'none',
+              WebkitOverflowScrolling: "touch",
+              scrollbarWidth: "thin",
+              backgroundColor: 'white'
             }}
+            onLoad={() => console.log('📄 PDF iframe loaded successfully')}
+            onError={(e) => console.error('❌ PDF iframe error:', e)}
           />
         </div>
-        {isMobile && (
-          <div className="p-2 sm:p-3 bg-gray-50 border-t text-xs sm:text-sm text-gray-600 text-center">
-            <p>
-              Para mejor navegación en móvil,{" "}
+        
+        {/* Footer para dispositivos móviles/tablet/iPad */}
+        {(isMobile || isTablet || isIPadPro) && (
+          <div className="p-3 sm:p-4 bg-gray-50 border-t border-gray-200 text-xs sm:text-sm text-gray-600 text-center flex-shrink-0">
+            <p className="leading-relaxed">
+              Para mejor navegación,{" "}
               <a
                 href={pdfUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 underline"
+                className="text-blue-600 underline font-medium hover:text-blue-800"
               >
                 abrir en nueva pestaña
               </a>
@@ -105,6 +176,10 @@ const BudgetList = () => {
   const [pdfUrlForModal, setPdfUrlForModal] = useState("");
   const [pdfTitleForModal, setPdfTitleForModal] = useState("");
   const [isLoadingPdfInModal, setIsLoadingPdfInModal] = useState(null);
+
+  // --- ESTADOS PARA EDITAR DATOS DE CLIENTE ---
+  const [showClientDataModal, setShowClientDataModal] = useState(false);
+  const [selectedBudgetIdForClient, setSelectedBudgetIdForClient] = useState(null);
 
   useEffect(() => {
     // fetchBudgets expects an options object: { page, pageSize, ... }
@@ -274,6 +349,7 @@ const BudgetList = () => {
   };
   // --- FUNCIÓN PARA MOSTRAR PDF DE PERMISO/OPCIONAL EN MODAL ---
   const handleShowPermitPdfInModal = async (budget, pdfType) => {
+    console.log('🔍 Opening PDF Modal:', { budgetId: budget.idBudget, pdfType });
     
     const loadingKey = `${budget.idBudget}-${pdfType}`;
     setIsLoadingPdfInModal(loadingKey);
@@ -299,14 +375,29 @@ const BudgetList = () => {
       return;
     }
 
+    console.log('📡 Making API call to:', endpoint);
+
     try {
       const response = await api.get(endpoint, { responseType: "blob" });
       const objectUrl = URL.createObjectURL(
         new Blob([response.data], { type: "application/pdf" })
       );
+      
+      console.log('✅ PDF loaded successfully, setting modal state:', {
+        objectUrl,
+        title,
+        modalWillOpen: true
+      });
+      
       setPdfUrlForModal(objectUrl);
       setPdfTitleForModal(title);
       setIsModalOpen(true);
+      
+      console.log('🎯 Modal state updated. Current states:', {
+        isModalOpen: true,
+        pdfUrlForModal: objectUrl,
+        pdfTitleForModal: title
+      });
      
     } catch (e) {
       console.error("Error obteniendo el PDF desde el backend:", e);
@@ -323,6 +414,17 @@ const BudgetList = () => {
     }
     setPdfUrlForModal("");
     setPdfTitleForModal("");
+  };
+
+  // --- HANDLERS PARA EDITAR DATOS DE CLIENTE ---
+  const handleEditClientData = (budgetId) => {
+    setSelectedBudgetIdForClient(budgetId);
+    setShowClientDataModal(true);
+  };
+
+  const handleClientDataUpdated = (updatedData) => {
+    // Recargar la lista de presupuestos para mostrar los datos actualizados
+    dispatch(fetchBudgets(currentPage, pageSize));
   };
 
   useEffect(() => {
@@ -356,8 +458,8 @@ const BudgetList = () => {
   };
 
   return (
-    <div className="w-full min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="w-full min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-2 sm:p-4 md:p-6 lg:p-8 overflow-x-hidden">
+      <div className="max-w-full sm:max-w-7xl mx-auto px-2 sm:px-0">
         <h1 className="text-2xl md:text-3xl font-bold mb-8 text-blue-900 flex items-center gap-3">
           <span className="inline-block bg-blue-100 text-blue-700 rounded-full px-3 py-1 text-lg font-semibold">
             Monthly Budgets
@@ -371,8 +473,9 @@ const BudgetList = () => {
         {!loading && !error && (
           <>
             {/* Tabla optimizada para tablets/desktop */}
-            <div className="hidden lg:block overflow-x-auto shadow-2xl rounded-2xl mb-8">
-              <table className="min-w-full table-auto border-collapse bg-white rounded-2xl overflow-hidden">
+            <div className="hidden md:block overflow-x-auto shadow-2xl rounded-2xl mb-8 max-w-full">
+              <div className="min-w-[1200px] lg:min-w-0">
+                <table className="w-full table-auto border-collapse bg-white rounded-2xl overflow-hidden">
                 <thead>
                   <tr className="bg-blue-50 text-xs lg:text-sm text-blue-800 uppercase tracking-wider">
                     <th className="border border-gray-200 px-4 py-3 text-left">
@@ -836,11 +939,12 @@ const BudgetList = () => {
                     })}
                 </tbody>
               </table>
+              </div>
             </div>
 
             {/* Vista de cards optimizada para tablet/móvil */}
-            <div className="block lg:hidden space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="block md:hidden space-y-4 sm:space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 {budgets &&
                   budgets.map((budget) => {
                     let paymentLabel = `Pay ${
@@ -897,12 +1001,15 @@ const BudgetList = () => {
                     // Variables para la lógica de los botones PDF (igual que en la tabla)
                     const permitId = budget.Permit?.idPermit;
                     const hasPermitPdfData = !!(
-                      budget.Permit && budget.Permit.pdfData
+                      budget.Permit && budget.Permit.hasPermitPdfData
                     );
                     const hasPermitOptionalDocs = !!(
-                      budget.Permit && budget.Permit.optionalDocs
+                      budget.Permit && budget.Permit.hasOptionalDocs
                     );
                     const hasBudgetPdfItself = !!budget.pdfPath;
+                    
+                    // Debug log solo para el budget que se está abriendo
+                    // console.log('📋 Budget PDF Data Check:', { budgetId: budget.idBudget, permitId, hasPermitPdfData });
 
                     return (
                       <div
@@ -1205,12 +1312,13 @@ const BudgetList = () => {
                                 )}
                                 {permitId && hasPermitPdfData && (
                                   <button
-                                    onClick={() =>
+                                    onClick={() => {
+                                      console.log('🖱️ PDF Button clicked:', { budgetId: budget.idBudget, pdfType: 'pdfData' });
                                       handleShowPermitPdfInModal(
                                         budget,
                                         "pdfData"
-                                      )
-                                    }
+                                      );
+                                    }}
                                     disabled={
                                       isLoadingPdfInModal ===
                                       `${budget.idBudget}-pdfData`
@@ -1285,6 +1393,15 @@ const BudgetList = () => {
                                 )}
                               </div>
                             )}
+
+                            {/* Botón para editar datos de cliente */}
+                            <button
+                              onClick={() => handleEditClientData(budget.idBudget)}
+                              className="w-full flex items-center justify-center bg-indigo-600 text-white px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
+                            >
+                              <UserIcon className="h-4 w-4 mr-2" />
+                              Edit Client Data
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -1319,9 +1436,98 @@ const BudgetList = () => {
               pdfUrl={pdfUrlForModal}
               title={pdfTitleForModal}
             />
+
+            {/* Modal para editar datos de cliente */}
+            {showClientDataModal && (
+              <EditClientDataModal
+                isOpen={showClientDataModal}
+                onClose={() => setShowClientDataModal(false)}
+                budgetId={selectedBudgetIdForClient}
+                onDataUpdated={handleClientDataUpdated}
+              />
+            )}
           </>
         )}
       </div>
+      
+      {/* CSS adicional para mejorar responsividad en tablets - SIN jsx */}
+      <style>{`
+        @media (min-width: 768px) and (max-width: 1023px) {
+          .tablet-scroll {
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+          }
+        }
+        
+        @media (min-width: 1024px) and (max-width: 1366px) {
+          .modal-content {
+            max-width: 85vw !important;
+            max-height: 90vh !important;
+          }
+        }
+        
+        .modal-overlay {
+          z-index: 9999 !important;
+        }
+        
+        /* Específico para iPad Pro Portrait */
+        @media screen and (width: 1024px) and (height: 1366px) {
+          .modal-overlay {
+            padding: 20px !important;
+          }
+          .modal-overlay > div {
+            width: 90vw !important;
+            height: 85vh !important;
+            max-width: none !important;
+            max-height: none !important;
+          }
+          .modal-overlay iframe {
+            width: 100% !important;
+            height: 100% !important;
+            border: none !important;
+            background-color: white !important;
+          }
+        }
+        
+        /* Específico para iPad Pro Landscape */
+        @media screen and (width: 1366px) and (height: 1024px) {
+          .modal-overlay {
+            padding: 15px !important;
+          }
+          .modal-overlay > div {
+            width: 92vw !important;
+            height: 88vh !important;
+            max-width: none !important;
+            max-height: none !important;
+          }
+          .modal-overlay iframe {
+            width: 100% !important;
+            height: 100% !important;
+            border: none !important;
+            background-color: white !important;
+          }
+        }
+        
+        /* Fallback para cualquier iPad */
+        @media screen and (-webkit-min-device-pixel-ratio: 1) and (orientation: portrait) {
+          .modal-overlay iframe {
+            -webkit-transform: translateZ(0) !important;
+            transform: translateZ(0) !important;
+          }
+        }
+        
+        /* Asegurar que el modal overlay esté visible */
+        .modal-overlay {
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          right: 0 !important;
+          bottom: 0 !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+        }
+      `}</style>
     </div>
   );
 };

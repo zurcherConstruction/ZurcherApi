@@ -1,7 +1,7 @@
 const { Staff } = require('../../data');
 const { Op } = require('sequelize');
 
-const getNotificationDetailsApp = async (newStatus, work, budget) => {
+const getNotificationDetailsApp = async (newStatus, work, budget, context = {}) => {
     let staffToNotify = [];
     let message = '';
     const targetObject = work || budget;
@@ -103,13 +103,22 @@ const getNotificationDetailsApp = async (newStatus, work, budget) => {
 
 
              default:
-                console.warn(`Estado no manejado para notificaciones push: ${newStatus}`);
-                // Devuelve vacío para que no intente enviar nada
+                // Estado no configurado para push notifications
                 return { staffToNotify: [], message: '' };
-                // break; // No es necesario después de return
         }
     
-        // Asegúrate de devolver siempre la misma estructura
-        return { staffToNotify: staffToNotify || [], message };
-    };
+    // Deduplicar por pushToken o id para evitar push duplicados
+    const byTokenOrId = new Map();
+    for (const s of (staffToNotify || [])) {
+        const key = s.pushToken || s.id;
+        if (key && !byTokenOrId.has(key)) {
+            byTokenOrId.set(key, s);
+        }
+    }
+    
+    const deduplicatedStaff = Array.from(byTokenOrId.values());
+    
+    // Asegúrate de devolver siempre la misma estructura
+    return { staffToNotify: deduplicatedStaff, message };
+};
 module.exports = { getNotificationDetailsApp };

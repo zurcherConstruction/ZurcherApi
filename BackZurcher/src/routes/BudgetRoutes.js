@@ -90,6 +90,24 @@ router.get(
 
 router.delete('/:idBudget', verifyToken, isOwner, BudgetController.deleteBudget); // Solo el dueño puede eliminar presupuestos
 
+// ========== RUTAS PARA EDITAR DATOS DE CLIENTE ==========
+
+// Obtener datos de cliente de un presupuesto
+router.get(
+  '/:idBudget/client-data',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner', 'finance']),
+  BudgetController.getClientData
+);
+
+// Actualizar datos de cliente de un presupuesto (actualiza tanto Budget como Permit)
+router.patch(
+  '/:idBudget/client-data',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner']), // Solo roles administrativos pueden editar
+  BudgetController.updateClientData
+);
+
 // // ✅ RUTA DE DIAGNÓSTICO SMTP
 // router.get('/diagnostic/email', verifyToken, isOwner, BudgetController.diagnoseEmail); // Solo el owner puede hacer diagnósticos
 

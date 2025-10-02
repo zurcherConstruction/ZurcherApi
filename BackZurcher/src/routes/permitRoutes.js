@@ -54,4 +54,14 @@ router.get('/:idPermit/view/optional', allowRoles(['admin', 'recept', 'owner']),
 // Actualizar un permiso (permitido solo para admin)
 router.put('/:idPermit', verifyToken, allowRoles(['admin', 'recept', 'owner']), PermitController.updatePermit);
 
+// ========== RUTAS PARA EDITAR DATOS DE CLIENTE ==========
+
+// Actualizar datos de cliente de un permiso
+router.patch(
+  '/:idPermit/client-data',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner']), // Solo roles administrativos pueden editar
+  PermitController.updatePermitClientData
+);
+
 module.exports = router;

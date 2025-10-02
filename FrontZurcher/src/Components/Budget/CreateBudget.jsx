@@ -36,6 +36,19 @@ const formatDateMMDDYYYY = (isoDateString) => {
     return ''; // Devuelve vacío en caso de error
   }
 };
+
+// --- Helper para convertir MM-DD-YYYY a YYYY-MM-DD ---
+const convertUSAtoISO = (usaDate) => {
+  if (!usaDate) return '';
+  const parts = usaDate.split(/[-\/]/); // Acepta tanto - como /
+  if (parts.length === 3) {
+    const month = parts[0].padStart(2, '0');
+    const day = parts[1].padStart(2, '0');
+    const year = parts[2];
+    return `${year}-${month}-${day}`;
+  }
+  return '';
+};
 // --- Hook para leer Query Params ---
 function useQuery() {
   return new URLSearchParams(useLocation().search);
@@ -104,6 +117,16 @@ const CreateBudget = () => {
   const [isSubmitting, setIsSubmitting] = useState(false); // Estado para deshabilitar botón
   const [submissionProgress, setSubmissionProgress] = useState(''); // Estado para mostrar progreso
   const [createdBudgetInfo, setCreatedBudgetInfo] = useState(null); // Para guardar info del budget creado
+  
+  // Estados para manejar fechas en formato USA
+  const [displayDate, setDisplayDate] = useState(() => {
+    const today = new Date();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const year = today.getFullYear();
+    return `${month}-${day}-${year}`;
+  }); // Para mostrar fecha en formato MM-DD-YYYY
+  const [displayExpirationDate, setDisplayExpirationDate] = useState(""); // Para mostrar expiration date en formato MM-DD-YYYY
  
   // Define standard input classes for reuse
   const standardInputClasses = "mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm";
@@ -165,6 +188,15 @@ const CreateBudget = () => {
     drainfieldDepth: "",
     systemType: "",
   });
+
+  // --- useEffect para sincronizar displayDate con formData.date ---
+  useEffect(() => {
+    if (formData.date) {
+      setDisplayDate(formatDateMMDDYYYY(formData.date));
+    } else {
+      setDisplayDate('');
+    }
+  }, [formData.date]);
 
   // --- Cargar Datos Iniciales (Catálogo y Permit) ---
   useEffect(() => {
@@ -243,7 +275,7 @@ const CreateBudget = () => {
         const expDatePermit = new Date(selectedPermit.expirationDate + 'T00:00:00Z');
         if (!isNaN(expDatePermit.getTime())) {
             if (expDatePermit < today) {
-                 setPermitExpirationAlert({type: "error", message: `El permiso asociado expiró el ${expDatePermit.toLocaleDateString()}.`});
+                 setPermitExpirationAlert({type: "error", message: `El permiso asociado expiró el ${formatDateMMDDYYYY(selectedPermit.expirationDate)}.`});
             }
         }
       }
@@ -304,17 +336,23 @@ const CreateBudget = () => {
           if (expirationString !== formData.expirationDate) {
             setFormData(prev => ({ ...prev, expirationDate: expirationString }));
           }
+          setDisplayExpirationDate(formatDateMMDDYYYY(expirationString));
         } else if (formData.expirationDate !== "") {
           setFormData(prev => ({ ...prev, expirationDate: "" }));
+          setDisplayExpirationDate("");
         }
       } catch (error) {
         console.error("Error calculating expiration date:", error);
         if (formData.expirationDate !== "") {
           setFormData(prev => ({ ...prev, expirationDate: "" }));
         }
+        setDisplayExpirationDate("");
       }
-    } else if (formData.expirationDate !== "") {
-      setFormData(prev => ({ ...prev, expirationDate: "" }));
+    } else {
+      if (formData.expirationDate !== "") {
+        setFormData(prev => ({ ...prev, expirationDate: "" }));
+      }
+      setDisplayExpirationDate("");
     }
   }, [formData.date, formData.expirationDate]); // Añadida dependencia expirationDate
 
@@ -325,6 +363,7 @@ const CreateBudget = () => {
 const handleGeneralInputChange = (e) => {
   const { name, value } = e.target;
   const isNumeric = ['discountAmount'].includes(name);
+  const isDateField = ['date', 'expirationDate'].includes(name);
   
   if (isNumeric) {
     // Permitir valores vacíos y números válidos
@@ -333,6 +372,27 @@ const handleGeneralInputChange = (e) => {
         ...prev,
         [name]: value // Mantener como string
       }));
+    }
+  } else if (isDateField) {
+    // Manejar campos de fecha con formato US
+    if (value) {
+      const isoDate = convertUSAtoISO(value);
+      setFormData(prev => ({
+        ...prev,
+        [name]: isoDate
+      }));
+      // Actualizar displayDate si está disponible
+      if (name === 'date') {
+        setDisplayDate(value);
+      }
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+      if (name === 'date') {
+        setDisplayDate('');
+      }
     }
   } else {
     setFormData(prev => ({
@@ -844,11 +904,21 @@ const customCategoryOrder = [
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                   <div>
                     <label htmlFor="budget_date" className="block text-sm font-medium text-gray-700">Date</label>
-                    <input id="budget_date" type="date" name="date" value={formData.date} onChange={handleGeneralInputChange} required className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+                    <input 
+                      id="budget_date" 
+                      type="text" 
+                      name="date" 
+                      value={displayDate} 
+                      onChange={handleGeneralInputChange} 
+                      placeholder="MM-DD-YYYY"
+                      pattern="^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])-\d{4}$"
+                      required 
+                      className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" 
+                    />
                   </div>
                   <div>
                     <label htmlFor="budget_expiration" className="block text-sm font-medium text-gray-700">Expiration Date</label>
-                    <input id="budget_expiration" type="text" name="expirationDate" value={formatDateMMDDYYYY(formData.expirationDate)} className="mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm sm:text-sm cursor-default" readOnly />
+                    <input id="budget_expiration" type="text" name="expirationDate" value={displayExpirationDate} className="mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm sm:text-sm cursor-default" readOnly />
                   </div>
                 </div>
               </div>
@@ -1137,7 +1207,7 @@ const customCategoryOrder = [
                     <p className="text-lg font-semibold text-green-700">¡Presupuesto creado exitosamente!</p>
                   </div>
                   <p className="text-sm text-gray-600 mt-1">ID del Presupuesto: {createdBudgetInfo.idBudget}</p>
-                  <p className="text-sm text-gray-600">Fecha de Creación: {new Date(createdBudgetInfo.createdAt).toLocaleDateString()}</p>
+                  <p className="text-sm text-gray-600">Fecha de Creación: {formatDateMMDDYYYY(createdBudgetInfo.createdAt.split('T')[0])}</p>
                   
                   {/* ✅ BOTÓN PARA IR A VER EL PRESUPUESTO */}
                   <div className="mt-4 space-y-2">

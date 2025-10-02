@@ -14,8 +14,7 @@ require('dotenv').config();
 function getPublicPdfUrl(localPath, req) {
   if (!localPath) return null;
 
-  // 🧪 TEST: Verificar que API_URL se lee correctamente
-  console.log('🔍 DEBUG: process.env.API_URL =', process.env.API_URL);
+
 
   // Extraer la parte relativa de la ruta
   const relativePath = localPath.replace(path.join(__dirname, '../'), '');
@@ -24,7 +23,7 @@ function getPublicPdfUrl(localPath, req) {
   const baseUrl = process.env.API_URL || `${req.protocol}://${req.get('host')}`;
   const publicUrl = `${baseUrl}/${relativePath.replace(/\\/g, '/')}`;
 
-  console.log('🔗 DEBUG: URL generada =', publicUrl);
+
 
   return publicUrl;
 }
@@ -896,7 +895,7 @@ async optionalDocs(req, res) {
         include: [
           {
             model: Permit,
-            attributes: ['idPermit', 'propertyAddress', 'applicantEmail', 'applicantName', 'permitNumber', 'lot', 'block', 'expirationDate'] // Incluir campos necesarios para PDF
+            attributes: ['idPermit', 'propertyAddress', 'applicantEmail', 'applicantName', 'applicantPhone', 'permitNumber', 'lot', 'block', 'expirationDate'] // Incluir campos necesarios para PDF
           },
           {
             model: BudgetLineItem, // Incluir para recalcular y generar PDF
@@ -919,6 +918,8 @@ async optionalDocs(req, res) {
         expirationDate,
         status,
         applicantName,
+        applicantEmail,
+        applicantPhone,
         propertyAddress,
         discountDescription,
         discountAmount,
@@ -928,7 +929,7 @@ async optionalDocs(req, res) {
       } = req.body;
 
       // --- 3. Validaciones Preliminares ---
-      const hasGeneralUpdates = date || expirationDate !== undefined || status || applicantName || propertyAddress || discountDescription !== undefined || discountAmount !== undefined || generalNotes !== undefined || initialPaymentPercentageInput !== undefined; // Corregido: initialPaymentPercentageInput
+      const hasGeneralUpdates = date || expirationDate !== undefined || status || applicantName || applicantEmail || applicantPhone || propertyAddress || discountDescription !== undefined || discountAmount !== undefined || generalNotes !== undefined || initialPaymentPercentageInput !== undefined; // Corregido: initialPaymentPercentageInput
       const hasLineItemUpdates = lineItems && Array.isArray(lineItems);
 
       if (!hasGeneralUpdates && !hasLineItemUpdates) {
@@ -979,6 +980,29 @@ async optionalDocs(req, res) {
       await budget.update(generalUpdateData, { transaction });
       console.log(`Campos generales para Budget ID ${idBudget} actualizados en BD.`);
 
+      // --- 4.5. Actualizar Permit asociado si es necesario ---
+      if (applicantName || applicantEmail || applicantPhone || propertyAddress) {
+        const permitUpdateData = {};
+        if (applicantName) permitUpdateData.applicantName = applicantName;
+        if (applicantEmail) permitUpdateData.applicantEmail = applicantEmail;
+        if (applicantPhone) permitUpdateData.applicantPhone = applicantPhone;
+        if (propertyAddress) permitUpdateData.propertyAddress = propertyAddress;
+
+        // Buscar el Permit asociado si no está incluido en el budget
+        if (!budget.Permit) {
+          const budgetWithPermit = await Budget.findByPk(idBudget, {
+            include: [{ model: Permit }],
+            transaction
+          });
+          budget.Permit = budgetWithPermit?.Permit;
+        }
+
+        if (budget.Permit && Object.keys(permitUpdateData).length > 0) {
+          await budget.Permit.update(permitUpdateData, { transaction });
+          console.log(`✅ Permit ${budget.Permit.idPermit} actualizado desde updateBudget:`, permitUpdateData);
+        }
+      }
+
       // --- 5. Sincronizar BudgetLineItems (Eliminar y Recrear si se enviaron nuevos) ---
       let calculatedSubtotal = 0;
       let finalLineItemsForPdf = []; // Array para guardar los items que irán al PDF
@@ -990,7 +1014,7 @@ async optionalDocs(req, res) {
 
         const createdLineItems = [];
         for (const incomingItem of lineItems) {
-          console.log("=== DEBUGGING INCOMING ITEM ===");
+
           console.log("incomingItem:", incomingItem);
           console.log("incomingItem.budgetItemId:", incomingItem.budgetItemId);
 
@@ -1056,7 +1080,7 @@ async optionalDocs(req, res) {
           console.log("itemDataForCreation FINAL antes de crear:", itemDataForCreation);
           const newItem = await BudgetLineItem.create(itemDataForCreation, { transaction });
           console.log("newItem creado:", newItem.toJSON());
-          console.log("=== FIN DEBUG ITEM ===");
+
 
           calculatedSubtotal += parseFloat(newItem.lineTotal || 0);
           createdLineItems.push(newItem);
@@ -1087,9 +1111,7 @@ async optionalDocs(req, res) {
       const finalTotal = calculatedSubtotal - finalDiscount;
       // *** CORRECCIÓN: Usar el porcentaje actualizado en memoria para el cálculo ***
       const percentageForCalculation = parseFloat(budget.initialPaymentPercentage) || 60; // Lee el valor ya actualizado (o el original si no se actualizó)
-      console.log(`DEBUG: Calculando Initial Payment con: finalTotal=${finalTotal}, Percentage=${percentageForCalculation}`);
       const calculatedInitialPayment = finalTotal * (percentageForCalculation / 100);
-      console.log(`DEBUG: Initial Payment Calculado = ${calculatedInitialPayment}`);
       // *** FIN CORRECCIÓN ***
 
       // ...
@@ -2128,6 +2150,163 @@ async optionalDocs(req, res) {
   //     });
   //   }
   // }
+
+
+  // ========== NUEVOS MÉTODOS PARA EDITAR DATOS DE CLIENTE ==========
+
+  /**
+   * Método para actualizar datos de cliente en Budget y Permit asociado
+   * PATCH /api/budgets/:idBudget/client-data
+   */
+  async updateClientData(req, res) {
+    const transaction = await conn.transaction();
+    
+    try {
+      const { idBudget } = req.params;
+      const { applicantName, applicantEmail, applicantPhone, propertyAddress } = req.body;
+
+      // Validaciones básicas
+      if (!applicantName && !applicantEmail && !applicantPhone && !propertyAddress) {
+        return res.status(400).json({
+          error: true,
+          message: 'Se requiere al menos un campo para actualizar (applicantName, applicantEmail, applicantPhone, propertyAddress)'
+        });
+      }
+
+      // Buscar el Budget con su Permit asociado
+      const budget = await Budget.findByPk(idBudget, {
+        include: [{
+          model: Permit,
+          attributes: ['idPermit', 'applicantName', 'applicantEmail', 'applicantPhone', 'propertyAddress']
+        }],
+        transaction
+      });
+
+      if (!budget) {
+        await transaction.rollback();
+        return res.status(404).json({
+          error: true,
+          message: 'Presupuesto no encontrado'
+        });
+      }
+
+      // Preparar datos para actualizar en Budget
+      const budgetUpdateData = {};
+      if (applicantName) budgetUpdateData.applicantName = applicantName;
+      if (propertyAddress) budgetUpdateData.propertyAddress = propertyAddress;
+
+      // Preparar datos para actualizar en Permit
+      const permitUpdateData = {};
+      if (applicantName) permitUpdateData.applicantName = applicantName;
+      if (applicantEmail) permitUpdateData.applicantEmail = applicantEmail;
+      if (applicantPhone) permitUpdateData.applicantPhone = applicantPhone;
+      if (propertyAddress) permitUpdateData.propertyAddress = propertyAddress;
+
+      // Actualizar Budget si es necesario
+      if (Object.keys(budgetUpdateData).length > 0) {
+        await budget.update(budgetUpdateData, { transaction });
+        console.log(`✅ Budget ${idBudget} actualizado:`, budgetUpdateData);
+      }
+
+      // Actualizar Permit si es necesario y existe
+      if (budget.Permit && Object.keys(permitUpdateData).length > 0) {
+        await budget.Permit.update(permitUpdateData, { transaction });
+        console.log(`✅ Permit ${budget.Permit.idPermit} actualizado:`, permitUpdateData);
+      }
+
+      await transaction.commit();
+
+      // Obtener el budget actualizado con los datos del permit
+      const updatedBudget = await Budget.findByPk(idBudget, {
+        include: [{
+          model: Permit,
+          attributes: ['idPermit', 'applicantName', 'applicantEmail', 'applicantPhone', 'propertyAddress', 'permitNumber']
+        }]
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Datos de cliente actualizados correctamente',
+        data: {
+          budget: {
+            idBudget: updatedBudget.idBudget,
+            applicantName: updatedBudget.applicantName,
+            propertyAddress: updatedBudget.propertyAddress
+          },
+          permit: updatedBudget.Permit ? {
+            idPermit: updatedBudget.Permit.idPermit,
+            applicantName: updatedBudget.Permit.applicantName,
+            applicantEmail: updatedBudget.Permit.applicantEmail,
+            applicantPhone: updatedBudget.Permit.applicantPhone,
+            propertyAddress: updatedBudget.Permit.propertyAddress
+          } : null
+        }
+      });
+
+    } catch (error) {
+      await transaction.rollback();
+      console.error('❌ Error al actualizar datos de cliente:', error);
+      res.status(500).json({
+        error: true,
+        message: 'Error interno del servidor al actualizar datos de cliente',
+        details: error.message
+      });
+    }
+  },
+
+  /**
+   * Método para obtener datos actuales de cliente de un Budget
+   * GET /api/budgets/:idBudget/client-data
+   */
+  async getClientData(req, res) {
+    try {
+      const { idBudget } = req.params;
+
+      const budget = await Budget.findByPk(idBudget, {
+        attributes: ['idBudget', 'applicantName', 'propertyAddress', 'status', 'date'],
+        include: [{
+          model: Permit,
+          attributes: ['idPermit', 'applicantName', 'applicantEmail', 'applicantPhone', 'propertyAddress', 'permitNumber']
+        }]
+      });
+
+      if (!budget) {
+        return res.status(404).json({
+          error: true,
+          message: 'Presupuesto no encontrado'
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          budget: {
+            idBudget: budget.idBudget,
+            applicantName: budget.applicantName,
+            propertyAddress: budget.propertyAddress,
+            status: budget.status,
+            date: budget.date
+          },
+          permit: budget.Permit ? {
+            idPermit: budget.Permit.idPermit,
+            applicantName: budget.Permit.applicantName,
+            applicantEmail: budget.Permit.applicantEmail,
+            applicantPhone: budget.Permit.applicantPhone,
+            propertyAddress: budget.Permit.propertyAddress,
+            permitNumber: budget.Permit.permitNumber
+          } : null
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error al obtener datos de cliente:', error);
+      res.status(500).json({
+        error: true,
+        message: 'Error interno del servidor al obtener datos de cliente',
+        details: error.message
+      });
+    }
+  }
 
 
 }

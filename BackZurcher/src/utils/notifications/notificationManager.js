@@ -5,14 +5,13 @@ const { Notification, Staff } = require('../../data');
 const { Expo } = require('expo-server-sdk');
 let expo = new Expo();
 
-const sendNotifications = async (status, work, budget, io) => {
+const sendNotifications = async (status, work, budget, io, context = {}) => {
   try {
     // Obtener detalles para notificaciones por correo
-    const emailDetails = await getNotificationDetails(status, work || budget);
-    console.log('Detalles de correo:', emailDetails);
+    const emailDetails = await getNotificationDetails(status, work || budget, context);
 
     if (emailDetails) {
-      const { staffToNotify, message } = emailDetails;
+      const { staffToNotify, message, subject } = emailDetails;
 
       for (const staff of staffToNotify) {
         if (!staff.email || !staff.email.includes('@')) {
@@ -20,7 +19,6 @@ const sendNotifications = async (status, work, budget, io) => {
           continue;
         }
         try {
-          console.log(`Enviando correo a: ${staff.email}`);
           // Detectar si es notificación de rechazo de inspección rápida
           const isQuickRejection = status === 'initial_inspection_rejected' && work.resultDocumentUrl;
           const isBudgetCreated = status === 'budgetCreated' || status === 'budgetSentToSignNow';
@@ -63,7 +61,7 @@ const sendNotifications = async (status, work, budget, io) => {
           }
           await sendEmail({
             to: staff.email,
-            subject: `${work.propertyAddress}`,
+            subject: subject || `${(work || budget)?.propertyAddress || 'Notificación'}`,
             text: message,
             html: htmlContent,
             attachments: work.attachments || (work.notificationDetails && work.notificationDetails.attachments) || [],
@@ -75,8 +73,7 @@ const sendNotifications = async (status, work, budget, io) => {
     }
 
     // --- Notificaciones Push ---
-    const appDetails = await getNotificationDetailsApp(status, work, budget);
-    console.log('Detalles de notificaciones push:', appDetails);
+    const appDetails = await getNotificationDetailsApp(status, work, budget, context);
 
     if (appDetails && appDetails.staffToNotify.length > 0) {
       const { staffToNotify, message: pushMessageBase } = appDetails;
@@ -96,7 +93,6 @@ const sendNotifications = async (status, work, budget, io) => {
 
           // 2. Emitir por Socket.IO
           if (io) {
-            console.log(`Emitiendo notificación Socket.IO a: ${staffMember.id}`);
             io.to(staffMember.id).emit('newNotification', notificationRecord);
           }
 
@@ -108,8 +104,6 @@ const sendNotifications = async (status, work, budget, io) => {
             const unreadCount = await Notification.count({
               where: { staffId: staffMember.id, isRead: false }
             });
-
-            console.log(`Preparando push para ${staffMember.id} (Token: ${pushToken}), Badge: ${unreadCount}`);
 
             messagesToSend.push({
               to: pushToken,
@@ -146,13 +140,11 @@ const sendNotifications = async (status, work, budget, io) => {
 
       // 4. Enviar los mensajes push en lotes
       if (messagesToSend.length > 0) {
-        console.log(`Enviando ${messagesToSend.length} notificaciones push...`);
         let chunks = expo.chunkPushNotifications(messagesToSend);
         let tickets = [];
         for (let chunk of chunks) {
           try {
             let ticketChunk = await expo.sendPushNotificationsAsync(chunk);
-            console.log('Tickets recibidos:', ticketChunk);
             tickets.push(...ticketChunk);
           } catch (error) {
             console.error('Error enviando chunk de notificaciones push:', error);

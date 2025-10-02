@@ -399,7 +399,76 @@ const getPermitOptionalDocInline = async (req, res) => {
   }
 };
 
+// ========== NUEVO MÉTODO PARA EDITAR DATOS DE CLIENTE ==========
 
+/**
+ * Método para actualizar datos de cliente en Permit
+ * PATCH /api/permits/:idPermit/client-data
+ */
+const updatePermitClientData = async (req, res) => {
+  try {
+    const { idPermit } = req.params;
+    const { applicantName, applicantEmail, applicantPhone, propertyAddress } = req.body;
+
+    // Validaciones básicas
+    if (!applicantName && !applicantEmail && !applicantPhone && !propertyAddress) {
+      return res.status(400).json({
+        error: true,
+        message: 'Se requiere al menos un campo para actualizar (applicantName, applicantEmail, applicantPhone, propertyAddress)'
+      });
+    }
+
+    // Buscar el Permit
+    const permit = await Permit.findByPk(idPermit);
+
+    if (!permit) {
+      return res.status(404).json({
+        error: true,
+        message: 'Permiso no encontrado'
+      });
+    }
+
+    // Preparar datos para actualizar
+    const updateData = {};
+    if (applicantName) updateData.applicantName = applicantName;
+    if (applicantEmail) updateData.applicantEmail = applicantEmail;
+    if (applicantPhone) updateData.applicantPhone = applicantPhone;
+    if (propertyAddress) updateData.propertyAddress = propertyAddress;
+
+    // Actualizar el Permit
+    await permit.update(updateData);
+
+    console.log(`✅ Permit ${idPermit} datos de cliente actualizados:`, updateData);
+
+    // Obtener el permit actualizado
+    const updatedPermit = await Permit.findByPk(idPermit, {
+      attributes: ['idPermit', 'applicantName', 'applicantEmail', 'applicantPhone', 'propertyAddress', 'permitNumber']
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Datos de cliente del permiso actualizados correctamente',
+      data: {
+        permit: {
+          idPermit: updatedPermit.idPermit,
+          applicantName: updatedPermit.applicantName,
+          applicantEmail: updatedPermit.applicantEmail,
+          applicantPhone: updatedPermit.applicantPhone,
+          propertyAddress: updatedPermit.propertyAddress,
+          permitNumber: updatedPermit.permitNumber
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error al actualizar datos de cliente del permiso:', error);
+    res.status(500).json({
+      error: true,
+      message: 'Error interno del servidor al actualizar datos de cliente del permiso',
+      details: error.message
+    });
+  }
+};
 
 module.exports = {
   createPermit,
@@ -410,5 +479,6 @@ module.exports = {
   getPermitPdfInline, 
   getPermitOptionalDocInline,
   getContactList,
-  checkPermitByPropertyAddress, // NUEVO MÉTODO
+  checkPermitByPropertyAddress,
+  updatePermitClientData, // NUEVO MÉTODO
 };
