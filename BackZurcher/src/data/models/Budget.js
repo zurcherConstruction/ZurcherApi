@@ -112,6 +112,27 @@ module.exports = (sequelize) => {
     },
     onUpdate: 'CASCADE', // Opcional: qué hacer si el idPermit cambia
     onDelete: 'SET NULL' // Opcional: qué hacer si el Permit se borra (SET NULL, CASCADE, RESTRICT)
+  },
+  
+  // --- IDENTIFICADOR DE TRABAJO IMPORTADO ---
+  isLegacy: {
+    type: DataTypes.BOOLEAN,
+    allowNull: true,
+    defaultValue: false,
+    comment: 'Indica si este presupuesto fue importado desde sistema externo'
+  },
+  
+  // --- PDF FIRMADO PARA TRABAJOS LEGACY ---
+  legacySignedPdfUrl: {
+    type: DataTypes.STRING(500),
+    allowNull: true,
+    comment: 'URL de Cloudinary del PDF del presupuesto firmado para trabajos legacy'
+  },
+  
+  legacySignedPdfPublicId: {
+    type: DataTypes.STRING(200),
+    allowNull: true,
+    comment: 'Public ID de Cloudinary para poder eliminar el archivo si es necesario'
   }
     
     

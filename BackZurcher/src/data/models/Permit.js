@@ -128,6 +128,14 @@ optionalDocs: {
       type: DataTypes.BLOB, 
       allowNull: true,
     },
+    
+    // --- IDENTIFICADOR DE PERMIT IMPORTADO ---
+    isLegacy: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: false,
+      comment: 'Indica si este permit fue importado desde sistema externo'
+    }
   }, {
     timestamps: true
   });

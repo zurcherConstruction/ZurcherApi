@@ -358,11 +358,34 @@ const getPermitPdfInline = async (req, res) => {
   try {
     const { idPermit } = req.params;
     const permit = await Permit.findByPk(idPermit, {
-      attributes: ['pdfData'] // Solo necesitamos el BLOB principal
+      attributes: ['pdfData', 'isLegacy'] // Necesitamos el BLOB principal y flag legacy
     });
 
     if (!permit || !permit.pdfData) {
       return res.status(404).send('PDF principal no encontrado'); // Enviar texto simple para errores
+    }
+
+    // --- DETECTAR SI ES LEGACY Y MANEJAR CLOUDINARY URLs ---
+    const isLegacy = permit.isLegacy;
+    
+    if (isLegacy) {
+      // Si es legacy y pdfData es una URL de Cloudinary (string o Buffer), redirigir
+      let cloudinaryUrl = null;
+      
+      if (typeof permit.pdfData === 'string' && permit.pdfData.includes('cloudinary.com')) {
+        cloudinaryUrl = permit.pdfData;
+      } else if (Buffer.isBuffer(permit.pdfData)) {
+        // Convertir Buffer a string para ver si es una URL de Cloudinary
+        const bufferString = permit.pdfData.toString('utf8');
+        if (bufferString.includes('cloudinary.com')) {
+          cloudinaryUrl = bufferString;
+        }
+      }
+      
+      if (cloudinaryUrl) {
+        console.log(`🔗 Redirigiendo a Cloudinary URL para permit PDF: ${cloudinaryUrl}`);
+        return res.redirect(cloudinaryUrl);
+      }
     }
 
     res.setHeader('Content-Type', 'application/pdf');
@@ -381,11 +404,34 @@ const getPermitOptionalDocInline = async (req, res) => {
   try {
     const { idPermit } = req.params;
     const permit = await Permit.findByPk(idPermit, {
-      attributes: ['optionalDocs'] // Solo necesitamos el BLOB opcional
+      attributes: ['optionalDocs', 'isLegacy'] // Necesitamos el BLOB opcional y flag legacy
     });
 
     if (!permit || !permit.optionalDocs) {
       return res.status(404).send('Documento opcional no encontrado'); // Enviar texto simple
+    }
+
+    // --- DETECTAR SI ES LEGACY Y MANEJAR CLOUDINARY URLs ---
+    const isLegacy = permit.isLegacy;
+    
+    if (isLegacy) {
+      // Si es legacy y optionalDocs es una URL de Cloudinary (string o Buffer), redirigir
+      let cloudinaryUrl = null;
+      
+      if (typeof permit.optionalDocs === 'string' && permit.optionalDocs.includes('cloudinary.com')) {
+        cloudinaryUrl = permit.optionalDocs;
+      } else if (Buffer.isBuffer(permit.optionalDocs)) {
+        // Convertir Buffer a string para ver si es una URL de Cloudinary
+        const bufferString = permit.optionalDocs.toString('utf8');
+        if (bufferString.includes('cloudinary.com')) {
+          cloudinaryUrl = bufferString;
+        }
+      }
+      
+      if (cloudinaryUrl) {
+        console.log(`🔗 Redirigiendo a Cloudinary URL para permit optional docs: ${cloudinaryUrl}`);
+        return res.redirect(cloudinaryUrl);
+      }
     }
 
     res.setHeader('Content-Type', 'application/pdf');

@@ -72,6 +72,14 @@ module.exports = (sequelize) => {
       type: DataTypes.DATE,
       allowNull: true, // Permite nulo si la obra no está o nunca ha estado en mantenimiento
     },
+    
+    // --- IDENTIFICADOR DE TRABAJO IMPORTADO ---
+    isLegacy: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: false,
+      comment: 'Indica si este trabajo fue importado desde sistema externo'
+    }
 
   });
 };

@@ -191,8 +191,8 @@ const BudgetController = {
 
       // ✅ GENERAR PDF Y ENVIAR NOTIFICACIONES EN BACKGROUND (NO BLOQUEAR RESPUESTA)
       setImmediate(async () => {
-        try {
-          console.log(`🔄 Iniciando proceso en background para Budget ID ${newBudgetId}...`);
+          try {
+            console.log(`🔄 Iniciando proceso en background para Budget ID ${newBudgetId}...`);
           
           // Necesitamos los datos completos del budget recién creado
           const budgetForPdf = await Budget.findByPk(newBudgetId, {
@@ -721,7 +721,10 @@ async getBudgets(req, res) {
       offset,
       attributes: [
         'idBudget', 'date', 'expirationDate', 'status', 'applicantName', 'propertyAddress',
-        'subtotalPrice', 'totalPrice', 'initialPayment', 'initialPaymentPercentage', 'pdfPath'
+        'subtotalPrice', 'totalPrice', 'initialPayment', 'initialPaymentPercentage', 'pdfPath',
+        'isLegacy', // Campo para identificar legacy budgets
+        'legacySignedPdfUrl', // URL de Cloudinary del PDF firmado para trabajos legacy
+        'legacySignedPdfPublicId' // Public ID de Cloudinary
       ]
     });
 
@@ -775,12 +778,50 @@ async getBudgets(req, res) {
           budgetJson.Permit.expirationMessage = "";
         }
 
-        if (budgetJson.Permit) {
+        // DEBUG: Log para verificar contenido ANTES de procesar
+  if (budgetJson.isLegacy) {
+    console.log(`🔍 DEBUG Legacy Budget ${budgetJson.idBudget} (ANTES):`, {
+      hasPermit: !!budgetJson.Permit,
+      permitKeys: budgetJson.Permit ? Object.keys(budgetJson.Permit) : 'NO_PERMIT',
+      pdfData: budgetJson.Permit?.pdfData ? `HAS_URL(${typeof budgetJson.Permit.pdfData})` : 'NO_DATA',
+      optionalDocs: budgetJson.Permit?.optionalDocs ? `HAS_URL(${typeof budgetJson.Permit.optionalDocs})` : 'NO_DATA',
+      pdfPath: budgetJson.pdfPath ? 'HAS_PATH' : 'NO_PATH',
+      legacySignedPdfUrl: budgetJson.legacySignedPdfUrl ? `HAS_LEGACY_URL(${budgetJson.legacySignedPdfUrl})` : 'NO_LEGACY_URL'
+    });
+  }
+
+  if (budgetJson.Permit) {
+    // Para legacy budgets, también considerar archivos PDF en el sistema
+    // Para legacy budgets, pdfData y optionalDocs contienen rutas de archivos
+    // Para budgets normales, contienen datos binarios BLOB
+    
     budgetJson.Permit.hasPermitPdfData = !!budgetJson.Permit.pdfData;
     budgetJson.Permit.hasOptionalDocs = !!budgetJson.Permit.optionalDocs;
+    
     // Opcional: eliminar los campos pesados si por error llegan
     delete budgetJson.Permit.pdfData;
     delete budgetJson.Permit.optionalDocs;
+  }
+
+  // Para presupuestos legacy, marcar si tiene PDF firmado
+  if (budgetJson.isLegacy) {
+    console.log(`✅ LEGACY BUDGET DETECTADO: ${budgetJson.idBudget}`, {
+      applicantName: budgetJson.applicantName,
+      propertyAddress: budgetJson.propertyAddress,
+      status: budgetJson.status,
+      hasLegacyPdfUrl: !!budgetJson.legacySignedPdfUrl,
+      legacyPdfUrl: budgetJson.legacySignedPdfUrl,
+      isLegacy: budgetJson.isLegacy
+    });
+    budgetJson.hasLegacySignedPdf = !!budgetJson.legacySignedPdfUrl;
+    // Mantener la URL para que el frontend pueda acceder directamente
+    // No eliminamos legacySignedPdfUrl porque es solo una URL
+    
+    console.log(`🔗 Enviando al frontend:`, {
+      budgetId: budgetJson.idBudget,
+      hasLegacySignedPdf: budgetJson.hasLegacySignedPdf,
+      legacySignedPdfUrl: budgetJson.legacySignedPdfUrl ? 'URL_PRESENTE' : 'URL_AUSENTE'
+    });
   }
 
         // Transformar pdfPath a budgetPdfUrl
@@ -809,7 +850,8 @@ async permitPdf(req, res) {
   try {
     const { idBudget } = req.params;
     const budget = await Budget.findByPk(idBudget, {
-      include: [{ model: Permit, attributes: ['pdfData', 'idPermit'] }]
+      include: [{ model: Permit, attributes: ['pdfData', 'idPermit', 'isLegacy'] }],
+      attributes: ['idBudget', 'isLegacy']
     });
 
     if (!budget || !budget.Permit) {
@@ -821,6 +863,61 @@ async permitPdf(req, res) {
       return res.status(404).json({ error: 'No hay PDF de permiso asociado a este presupuesto.' });
     }
 
+    // --- DETECTAR SI ES RUTA DE ARCHIVO (LEGACY) O BLOB (NORMAL) ---
+    const isLegacy = budget.isLegacy || budget.Permit.isLegacy;
+    
+    // DEBUG: Log para permitPdf
+    console.log(`🔍 DEBUG permitPdf Budget ${budget.idBudget}:`, {
+      isLegacy,
+      pdfDataType: typeof pdfData,
+      pdfDataPreview: typeof pdfData === 'string' ? pdfData.substring(0, 100) : 'BUFFER_OR_OTHER'
+    });
+    
+    // Si es legacy y pdfData es una URL de Cloudinary (string o Buffer), redirigir
+    let cloudinaryUrl = null;
+    
+    if (isLegacy && typeof pdfData === 'string' && pdfData.includes('cloudinary.com')) {
+      cloudinaryUrl = pdfData;
+    } else if (isLegacy && Buffer.isBuffer(pdfData)) {
+      // Convertir Buffer a string para ver si es una URL de Cloudinary
+      const bufferString = pdfData.toString('utf8');
+      if (bufferString.includes('cloudinary.com')) {
+        cloudinaryUrl = bufferString;
+      }
+    }
+    
+    if (cloudinaryUrl) {
+      console.log(`🔗 Redirigiendo a Cloudinary URL para permitPdf: ${cloudinaryUrl}`);
+      return res.redirect(cloudinaryUrl);
+    }
+    
+    if (isLegacy && typeof pdfData === 'string' && !pdfData.startsWith('data:')) {
+      // Es un legacy budget con ruta de archivo
+      const fs = require('fs');
+      const path = require('path');
+      
+      try {
+        // Construir la ruta completa del archivo
+        const fullPath = path.resolve(pdfData);
+        
+        // Verificar que el archivo existe
+        if (!fs.existsSync(fullPath)) {
+          return res.status(404).json({ error: 'Archivo PDF no encontrado en el sistema.' });
+        }
+        
+        // Leer el archivo y enviarlo
+        const fileBuffer = fs.readFileSync(fullPath);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="permit_${budget.idBudget}.pdf"`);
+        return res.send(fileBuffer);
+        
+      } catch (fileError) {
+        console.error('Error al leer archivo PDF:', fileError);
+        return res.status(500).json({ error: 'Error al acceder al archivo PDF.' });
+      }
+    }
+    
+    // --- LÓGICA PARA BUDGETS NORMALES (BLOB) ---
     // Determinar el tipo de dato y devolver como PDF
     let buffer;
     if (Buffer.isBuffer(pdfData)) {
@@ -847,7 +944,8 @@ async optionalDocs(req, res) {
   try {
     const { idBudget } = req.params;
     const budget = await Budget.findByPk(idBudget, {
-      include: [{ model: Permit, attributes: ['optionalDocs', 'idPermit'] }]
+      include: [{ model: Permit, attributes: ['optionalDocs', 'idPermit', 'isLegacy'] }],
+      attributes: ['idBudget', 'isLegacy']
     });
 
     if (!budget || !budget.Permit) {
@@ -858,6 +956,73 @@ async optionalDocs(req, res) {
     if (!optionalDocs) {
       return res.status(404).json({ error: 'No hay documentos opcionales asociados a este presupuesto.' });
     }
+
+    // --- DETECTAR SI ES RUTA DE ARCHIVO (LEGACY) O BLOB (NORMAL) ---
+    const isLegacy = budget.isLegacy || budget.Permit.isLegacy;
+    
+    // DEBUG: Log para optionalDocs
+    console.log(`🔍 DEBUG optionalDocs Budget ${budget.idBudget}:`, {
+      isLegacy,
+      optionalDocsType: typeof optionalDocs,
+      optionalDocsPreview: typeof optionalDocs === 'string' ? optionalDocs.substring(0, 100) : 'BUFFER_OR_OTHER',
+      optionalDocsValue: optionalDocs,
+      isCloudinaryString: typeof optionalDocs === 'string' && optionalDocs.includes('cloudinary.com')
+    });
+    
+    // Si es legacy y optionalDocs es una URL de Cloudinary (string o Buffer), redirigir
+    let cloudinaryUrl = null;
+    
+    if (isLegacy && typeof optionalDocs === 'string' && optionalDocs.includes('cloudinary.com')) {
+      cloudinaryUrl = optionalDocs;
+    } else if (isLegacy && Buffer.isBuffer(optionalDocs)) {
+      // Convertir Buffer a string para ver si es una URL de Cloudinary
+      const bufferString = optionalDocs.toString('utf8');
+      if (bufferString.includes('cloudinary.com')) {
+        cloudinaryUrl = bufferString;
+      }
+    }
+    
+    if (cloudinaryUrl) {
+      console.log(`🔗 Redirigiendo a Cloudinary URL para optionalDocs: ${cloudinaryUrl}`);
+      return res.redirect(cloudinaryUrl);
+    }
+    
+    if (isLegacy && typeof optionalDocs === 'string' && !optionalDocs.startsWith('data:')) {
+      // Es un legacy budget con información JSON de archivos
+      const fs = require('fs');
+      const path = require('path');
+      
+      try {
+        // optionalDocs contiene un JSON string: [{ name, path, type }]
+        const optionalDocsArray = JSON.parse(optionalDocs);
+        
+        // Por simplicidad, tomar el primer documento (puedes expandir para múltiples)
+        const firstDoc = optionalDocsArray[0];
+        if (!firstDoc || !firstDoc.path) {
+          return res.status(404).json({ error: 'No hay documentos opcionales válidos.' });
+        }
+        
+        // Construir la ruta completa del archivo
+        const fullPath = path.resolve(firstDoc.path);
+        
+        // Verificar que el archivo existe
+        if (!fs.existsSync(fullPath)) {
+          return res.status(404).json({ error: 'Archivo PDF opcional no encontrado en el sistema.' });
+        }
+        
+        // Leer el archivo y enviarlo
+        const fileBuffer = fs.readFileSync(fullPath);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${firstDoc.name || `optional_${budget.idBudget}.pdf`}"`);
+        return res.send(fileBuffer);
+        
+      } catch (fileError) {
+        console.error('Error al leer archivo PDF opcional:', fileError);
+        return res.status(500).json({ error: 'Error al acceder al archivo PDF opcional.' });
+      }
+    }
+    
+    // --- LÓGICA PARA BUDGETS NORMALES (BLOB) ---
 
     // Determinar el tipo de dato y devolver como PDF
     let buffer;
@@ -2303,6 +2468,413 @@ async optionalDocs(req, res) {
       res.status(500).json({
         error: true,
         message: 'Error interno del servidor al obtener datos de cliente',
+        details: error.message
+      });
+    }
+  },
+
+  // === 📥 IMPORTAR TRABAJO EXISTENTE (SIMPLIFICADO) ===
+  async createLegacyBudget(req, res) {
+    // Usar la función simplificada del ImportWorkController
+    const { importExistingWork } = require('./ImportWorkController');
+    return await importExistingWork(req, res);
+  },
+
+  // 🆕 FUNCIÓN LEGACY ANTERIOR (por si acaso se necesita)
+  async createLegacyBudgetOLD(req, res) {
+    const transaction = await conn.transaction();
+    
+    try {
+      console.log("--- Iniciando createLegacyBudget (Migración de trabajos antiguos) ---");
+      
+      // Manejar archivos subidos y guardarlos temporalmente en disco
+      const fs = require('fs');
+      const path = require('path');
+      
+      const uploadedFiles = {
+        permitPdf: req.files?.permitPdf?.[0] || null,
+        budgetPdf: req.files?.budgetPdf?.[0] || null,
+        optionalDocs: req.files?.optionalDocs?.[0] || null
+      };
+      
+      console.log("📁 Archivos recibidos:", {
+        permitPdf: !!uploadedFiles.permitPdf,
+        budgetPdf: !!uploadedFiles.budgetPdf,
+        optionalDocs: !!uploadedFiles.optionalDocs
+      });
+      
+      // Función para guardar archivo de memoria a disco
+      const saveBufferToFile = (file, subfolder) => {
+        if (!file || !file.buffer) return null;
+        
+        const uploadsDir = path.join(__dirname, '../uploads/legacy', subfolder);
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        
+        const timestamp = Date.now();
+        const sanitizedName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const filename = `${timestamp}_${sanitizedName}`;
+        const filepath = path.join(uploadsDir, filename);
+        
+        fs.writeFileSync(filepath, file.buffer);
+        return filepath;
+      };
+      
+      // Guardar archivos en disco y generar rutas
+      const filePaths = {
+        permitPdfPath: uploadedFiles.permitPdf ? saveBufferToFile(uploadedFiles.permitPdf, 'permits') : null,
+        budgetPdfPath: uploadedFiles.budgetPdf ? saveBufferToFile(uploadedFiles.budgetPdf, 'budgets') : null,
+        optionalDocsPath: uploadedFiles.optionalDocs ? saveBufferToFile(uploadedFiles.optionalDocs, 'optional') : null
+      };
+      
+      console.log("📁 Rutas de archivos generadas:", filePaths);
+      
+      const {
+        // Datos del Permit
+        permitNumber,
+        propertyAddress,
+        applicantName,
+        applicantEmail,
+        applicantPhone,
+        lot,
+        block,
+        systemType,
+        
+        // Datos del Budget
+        date,
+        expirationDate,
+        status = 'signed', // Por defecto firmado
+        discountDescription,
+        discountAmount = 0,
+        generalNotes,
+        initialPaymentPercentage = 60,
+        lineItems,
+        
+        // 🆕 MODALIDAD SIMPLE (Presupuesto Firmado)
+        isSimpleMode = false, // true = solo datos básicos, false = completo con items
+        manualBudgetNumber, // Numeración manual para presupuestos firmados
+        totalAmount, // Monto total cuando no hay line items
+        
+        // 🆕 CAMPOS PARA CONTINUAR EL FLUJO
+        paymentProofAmount, // Monto ya pagado por el cliente
+        paymentInvoice, // URL del comprobante de pago (opcional)
+        paymentProofType, // 'pdf' o 'image'
+        
+        // Metadata de migración
+        legacyId, // ID del sistema anterior (opcional)
+        migrationNotes, // Notas sobre la migración
+        isCompleted = false, // Si el trabajo ya fue completado
+        
+        // 🆕 ESTADO DEL TRABAJO (para trabajos en progreso)
+        workStatus, // Estado del work si ya está en progreso
+        workStartDate, // Fecha de inicio del trabajo (si aplica)
+        workEndDate, // Fecha de finalización (si aplica)
+        workNotes, // Notas específicas del trabajo
+        
+        // 🆕 CAMPOS PARA DOCUMENTOS LEGACY
+        legacyPdfPath, // Ruta del PDF del presupuesto original
+        legacyPermitPdfPath, // Ruta del PDF del permit
+        legacyOptionalDocs // Array de documentos opcionales
+      } = req.body;
+
+      // Validaciones básicas
+      if (!permitNumber) throw new Error('Número de permiso es requerido para trabajos legacy');
+      if (!propertyAddress) throw new Error('Dirección de propiedad es requerida');
+      if (!applicantName) throw new Error('Nombre del solicitante es requerido');
+      
+      // Validaciones según modalidad
+      if (isSimpleMode) {
+        // Modalidad simple: solo requiere monto total
+        if (!totalAmount || parseFloat(totalAmount) <= 0) {
+          throw new Error('Monto total es requerido para modalidad simple');
+        }
+      } else {
+        // Modalidad completa: requiere line items
+        if (!lineItems || !Array.isArray(lineItems) || lineItems.length === 0) {
+          throw new Error('Se requiere al menos un item en lineItems para modalidad completa');
+        }
+      }
+
+      console.log("✅ Validaciones básicas pasadas");
+
+      // 1. Crear el Permit primero
+      const newPermit = await Permit.create({
+        permitNumber,
+        propertyAddress,
+        applicantName,
+        applicantEmail: applicantEmail || '',
+        applicantPhone: applicantPhone || '',
+        lot: lot || '',
+        block: block || '',
+        systemType: systemType || 'Legacy System',
+        // Usar campos existentes para PDFs legacy
+        pdfData: filePaths.permitPdfPath, // Ruta del archivo en lugar de BLOB
+        optionalDocs: filePaths.optionalDocsPath ? JSON.stringify([{ 
+          name: uploadedFiles.optionalDocs.originalname, 
+          path: filePaths.optionalDocsPath, 
+          type: uploadedFiles.optionalDocs.mimetype 
+        }]) : null, // JSON string en lugar de BLOB
+        // Campos específicos para migración
+        isLegacy: true,
+        migrationDate: new Date(),
+        migrationNotes: migrationNotes || 'Migrado desde sistema anterior'
+      }, { transaction });
+
+      console.log("✅ Permit legacy creado:", newPermit.idPermit);
+
+      // 2. Calcular totales según modalidad
+      let subtotalPrice = 0;
+      let totalPrice = 0;
+      let processedLineItems = [];
+
+      if (isSimpleMode) {
+        // 📄 MODALIDAD SIMPLE: usar monto total directo
+        const discountAmountNum = parseFloat(discountAmount) || 0;
+        subtotalPrice = parseFloat(totalAmount);
+        totalPrice = subtotalPrice - discountAmountNum;
+        processedLineItems = []; // Sin line items en modalidad simple
+        
+        console.log("✅ Modalidad Simple - Cálculos:", { subtotalPrice, totalPrice, discount: discountAmountNum });
+      } else {
+        // 📋 MODALIDAD COMPLETA: calcular desde line items  
+        for (const item of lineItems) {
+          const quantity = parseInt(item.quantity) || 0;
+          const unitPrice = parseFloat(item.unitPrice) || 0;
+          const lineTotal = quantity * unitPrice;
+          subtotalPrice += lineTotal;
+
+          processedLineItems.push({
+            ...item,
+            quantity,
+            unitPrice,
+            lineTotal
+          });
+        }
+
+        const discountAmountNum = parseFloat(discountAmount) || 0;
+        totalPrice = subtotalPrice - discountAmountNum;
+        
+        console.log("✅ Modalidad Completa - Cálculos:", { subtotalPrice, totalPrice, itemsCount: processedLineItems.length });
+      }
+
+      const initialPaymentNum = (totalPrice * (parseFloat(initialPaymentPercentage) / 100));
+      const discountAmountNum = parseFloat(discountAmount) || 0; // Definir aquí para ambas modalidades
+
+      // 3. Crear el Budget con datos de pago si existen
+      const newBudget = await Budget.create({
+        PermitIdPermit: newPermit.idPermit,
+        propertyAddress,
+        applicantName,
+        date: date || new Date(),
+        expirationDate: expirationDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 días por defecto
+        status,
+        discountDescription: discountDescription || '',
+        discountAmount: discountAmountNum,
+        generalNotes: generalNotes || '',
+        initialPaymentPercentage: parseFloat(initialPaymentPercentage),
+        subtotalPrice,
+        totalPrice,
+        initialPayment: initialPaymentNum,
+        
+        // 🆕 CAMPOS DE PAGO PARA CONTINUAR EL FLUJO
+        paymentProofAmount: parseFloat(paymentProofAmount) || null,
+        paymentInvoice: paymentInvoice || null,
+        paymentProofType: paymentProofType || null,
+        
+        // Usar campo existente para PDF del budget
+        pdfPath: filePaths.budgetPdfPath,
+        
+        // Campos específicos para migración
+        isLegacy: true,
+        legacyId: legacyId || null,
+        migrationDate: new Date(),
+        migrationNotes: migrationNotes || 'Presupuesto migrado desde sistema anterior',
+        
+        // 🆕 NUMERACIÓN MANUAL (no afecta consecutivo)
+        manualBudgetNumber: manualBudgetNumber || null
+      }, { transaction });
+
+      console.log("✅ Budget legacy creado:", newBudget.idBudget);
+
+      // 4. Crear los BudgetLineItems (solo en modalidad completa)
+      if (!isSimpleMode && processedLineItems.length > 0) {
+        for (const item of processedLineItems) {
+          await BudgetLineItem.create({
+            budgetId: newBudget.idBudget,
+            budgetItemId: item.budgetItemId || null, // Puede ser null para items legacy
+            quantity: item.quantity,
+            priceAtTimeOfBudget: item.unitPrice,
+            notes: item.notes || '',
+            // Para items legacy sin budgetItemId, guardar la info directamente
+            legacyItemName: item.budgetItemId ? null : item.name,
+            legacyItemDescription: item.budgetItemId ? null : item.description,
+            legacyItemCategory: item.budgetItemId ? null : item.category
+          }, { transaction });
+        }
+        console.log("✅ Line items creados (modalidad completa)");
+      } else {
+        console.log("✅ Sin line items (modalidad simple)");
+      }
+
+      // 5. Crear Work record según el estado del trabajo
+      let newWork = null;
+      if (isCompleted || workStatus) {
+        // Determinar el estado del work
+        let workStatusFinal = 'paymentReceived'; // Por defecto completado (usando estado válido del enum)
+        
+        if (workStatus) {
+          // Si se especifica un estado particular, usarlo
+          workStatusFinal = workStatus;
+        }
+        
+        newWork = await Work.create({
+          budgetId: newBudget.idBudget,
+          propertyAddress,
+          workDescription: workNotes || `Trabajo legacy - ${applicantName}`,
+          startDate: workStartDate || date || new Date(),
+          endDate: workEndDate || (isCompleted ? new Date() : null),
+          status: workStatusFinal,
+          isLegacy: true,
+          migrationNotes: migrationNotes || 'Trabajo migrado desde sistema anterior'
+        }, { transaction });
+
+        console.log("✅ Work record creado:", {
+          idWork: newWork.idWork,
+          status: workStatusFinal,
+          isCompleted: isCompleted
+        });
+      }
+
+      await transaction.commit();
+      console.log("✅ Transacción completada exitosamente");
+
+      // 6. 🆕 DETERMINAR PRÓXIMOS PASOS EN EL FLUJO
+      const nextSteps = [];
+      const canGenerateFinalInvoice = paymentProofAmount && paymentProofAmount >= initialPaymentNum;
+      
+      if (status === 'signed' && !paymentProofAmount) {
+        nextSteps.push('Cargar comprobante de pago inicial');
+      }
+      
+      if (canGenerateFinalInvoice && !newWork) {
+        nextSteps.push('Crear registro de trabajo (Work)');
+      }
+      
+      if (newWork && newWork.status === 'completed' && canGenerateFinalInvoice) {
+        nextSteps.push('Generar factura final (Final Invoice)');
+      }
+      
+      if (newWork && ['pending', 'assigned', 'inProgress'].includes(newWork.status)) {
+        nextSteps.push(`Continuar trabajo desde estado: ${newWork.status}`);
+      }
+
+      // 7. Respuesta con los datos creados y próximos pasos
+      const responseData = {
+        success: true,
+        message: isCompleted ? 
+          'Trabajo legacy creado exitosamente como completado' : 
+          'Presupuesto legacy creado exitosamente',
+        data: {
+          budget: {
+            idBudget: newBudget.idBudget,
+            permitId: newPermit.idPermit,
+            applicantName,
+            propertyAddress,
+            status,
+            totalPrice,
+            initialPayment: initialPaymentNum,
+            paymentProofAmount: parseFloat(paymentProofAmount) || null,
+            isLegacy: true,
+            migrationDate: newBudget.migrationDate
+          },
+          permit: {
+            idPermit: newPermit.idPermit,
+            permitNumber,
+            propertyAddress,
+            applicantName,
+            applicantEmail,
+            applicantPhone,
+            isLegacy: true
+          },
+          work: newWork ? {
+            idWork: newWork.idWork,
+            status: newWork.status,
+            message: `Trabajo creado con estado: ${newWork.status}`
+          } : null,
+          
+          // 🆕 INFORMACIÓN DEL FLUJO
+          flowStatus: {
+            canGenerateFinalInvoice,
+            hasInitialPayment: !!paymentProofAmount,
+            readyForWork: status === 'signed' && paymentProofAmount >= initialPaymentNum,
+            nextSteps
+          }
+        }
+      };
+
+      console.log("🎉 Legacy budget/work creado exitosamente");
+      res.status(201).json(responseData);
+
+    } catch (error) {
+      await transaction.rollback();
+      console.error('❌ Error en createLegacyBudget:', error);
+      
+      res.status(500).json({
+        error: true,
+        message: 'Error al crear presupuesto/trabajo legacy',
+        details: error.message
+      });
+    }
+  },
+
+  // === 🆕 MÉTODO PARA MOSTRAR PDF DEL PRESUPUESTO LEGACY ===
+  async legacyBudgetPdf(req, res) {
+    try {
+      const { idBudget } = req.params;
+      
+      console.log(`🔍 DEBUG legacyBudgetPdf Budget ${idBudget}:`);
+
+      // Buscar el presupuesto legacy
+      const budget = await Budget.findByPk(idBudget);
+      
+      if (!budget) {
+        return res.status(404).json({
+          error: true,
+          message: 'Presupuesto no encontrado'
+        });
+      }
+
+      if (!budget.isLegacy) {
+        return res.status(400).json({
+          error: true,
+          message: 'Este presupuesto no es legacy. Use la ruta normal de PDF.'
+        });
+      }
+
+      console.log({
+        isLegacy: budget.isLegacy,
+        legacySignedPdfUrl: budget.legacySignedPdfUrl,
+        hasCloudinaryUrl: !!budget.legacySignedPdfUrl
+      });
+
+      // Verificar que tenga la URL del PDF
+      if (!budget.legacySignedPdfUrl) {
+        return res.status(404).json({
+          error: true,
+          message: 'Este presupuesto legacy no tiene PDF firmado cargado'
+        });
+      }
+
+      // Redirigir directamente a la URL de Cloudinary
+      console.log(`🔗 Redirigiendo a URL de Cloudinary: ${budget.legacySignedPdfUrl}`);
+      res.redirect(budget.legacySignedPdfUrl);
+
+    } catch (error) {
+      console.error('❌ Error al obtener PDF legacy:', error);
+      res.status(500).json({
+        error: true,
+        message: 'Error al cargar el PDF del presupuesto legacy',
         details: error.message
       });
     }
