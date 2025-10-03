@@ -112,26 +112,125 @@ const UploadScreen = () => {
   ];
 
  const handleOpenPdf = async (pdfSource) => {
+
     try {
       let fileUri;
       let isDownloadedTempFile = false;
 
-      // Verificar si pdfSource es una URL
+      // � DEBUG: Ver estructura completa del pdfSource
+      console.log('🔍 pdfSource tipo:', typeof pdfSource);
+      console.log('🔍 pdfSource es Buffer?', Buffer.isBuffer(pdfSource));
+      console.log('🔍 pdfSource.data existe?', !!pdfSource?.data);
+      console.log('🔍 pdfSource.data es Buffer?', Buffer.isBuffer(pdfSource?.data));
+      if (pdfSource?.data) {
+        console.log('🔍 pdfSource.data tipo:', typeof pdfSource.data);
+        console.log('🔍 pdfSource.data es Array?', Array.isArray(pdfSource.data));
+        console.log('🔍 pdfSource.data primeros elementos:', pdfSource.data.slice ? pdfSource.data.slice(0, 10) : 'No tiene slice');
+      }
+
+      // �🔄 DETECTAR URL LEGACY: Primero intentar convertir Buffer a string para ver si es URL
+      let urlToOpen = null;
+      
+      // Caso 1: String directo que es URL
       if (typeof pdfSource === 'string' && (pdfSource.startsWith('http://') || pdfSource.startsWith('https://'))) {
-        const tempFileName = `temp_download_${Date.now()}.pdf`; // Asegurar extensión .pdf
-        fileUri = `${FileSystem.cacheDirectory}${tempFileName}`;
-        console.log(`Intentando descargar PDF desde: ${pdfSource} a ${fileUri}`);
+        urlToOpen = pdfSource;
+      }
+      // Caso 2: Buffer que contiene URL (PDFs Legacy)
+      else if (pdfSource?.data && Buffer.isBuffer(pdfSource.data)) {
+        try {
+          const bufferString = pdfSource.data.toString('utf8');
+          console.log('🔍 Buffer.data contenido (primeros 100 chars):', bufferString.substring(0, 100));
+          if (bufferString.startsWith('http://') || bufferString.startsWith('https://')) {
+            urlToOpen = bufferString;
+            console.log('🔄 PDF Legacy detectado en Buffer:', urlToOpen);
+          }
+        } catch (error) {
+          console.log('No es una URL en Buffer, es PDF binario tradicional');
+        }
+      }
+      // Caso 2b: Array de bytes que contiene URL (PDFs Legacy formato Sequelize)
+      else if (pdfSource?.data && Array.isArray(pdfSource.data)) {
+        try {
+          // Convertir array de bytes a Buffer y luego a string
+          const buffer = Buffer.from(pdfSource.data);
+          const bufferString = buffer.toString('utf8');
+
+          if (bufferString.startsWith('http://') || bufferString.startsWith('https://')) {
+            urlToOpen = bufferString;
+
+          }
+        } catch (error) {
+          console.log('No es una URL en Array, es PDF binario tradicional');
+        }
+      }
+      // Caso 3: Buffer directo que puede contener URL (sin .data wrapper)
+      else if (Buffer.isBuffer(pdfSource)) {
+        try {
+          const bufferString = pdfSource.toString('utf8');
+          if (bufferString.startsWith('http://') || bufferString.startsWith('https://')) {
+            urlToOpen = bufferString;
+          }
+        } catch (error) {
+          // No es una URL en Buffer directo, continuar con lógica normal
+        }
+      }
+
+      // Si encontramos una URL, procesarla
+      if (urlToOpen) {
+
         
-        const downloadResult = await FileSystem.downloadAsync(pdfSource, fileUri);
+        // 🌐 PARA WEB: Abrir directamente en nueva ventana
+        if (Platform.OS === 'web') {
+
+          window.open(urlToOpen, '_blank');
+          return;
+        }
+        
+        // 📱 PARA iOS/ANDROID: Descargar y mostrar en visor interno
+        const tempFileName = `temp_legacy_${Date.now()}.pdf`;
+        fileUri = `${FileSystem.cacheDirectory}${tempFileName}`;
+        
+        const downloadResult = await FileSystem.downloadAsync(urlToOpen, fileUri);
         
         if (downloadResult.status !== 200) {
-          throw new Error(`Error al descargar PDF (status ${downloadResult.status}).`);
+          throw new Error(`Error al descargar PDF legacy (status ${downloadResult.status}).`);
         }
-        console.log('PDF descargado exitosamente:', downloadResult.uri);
-        isDownloadedTempFile = true; 
-        // fileUri ya es la URI del archivo descargado
+        isDownloadedTempFile = true;
       } else {
-        // Lógica existente para base64
+
+        // 🌐 PARA WEB: Crear URL blob y abrir
+        if (Platform.OS === 'web') {
+          const base64Pdf =
+            pdfSource?.data
+              ? Buffer.from(pdfSource.data).toString("base64")
+              : typeof pdfSource === 'string' && pdfSource.startsWith("data:application/pdf;base64,")
+                ? pdfSource.split(",")[1]
+                : typeof pdfSource === 'string'
+                  ? pdfSource
+                  : null;
+
+          if (!base64Pdf) {
+            throw new Error("El PDF no está en un formato válido para web.");
+          }
+
+          // Convertir base64 a Blob y crear URL
+          const byteCharacters = atob(base64Pdf);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: 'application/pdf' });
+          const blobUrl = URL.createObjectURL(blob);
+          
+          window.open(blobUrl, '_blank');
+          
+          // Limpiar la URL del blob después de un tiempo
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+          return;
+        }
+
+        // 📱 PARA MÓVIL: Lógica existente para base64
         const base64Pdf =
           pdfSource?.data // Si viene de currentWork.Permit.pdfData (objeto con Buffer)
             ? Buffer.from(pdfSource.data).toString("base64")
@@ -152,15 +251,18 @@ const UploadScreen = () => {
         isDownloadedTempFile = true; // También es un archivo temporal
       }
 
-      setSelectedPdfUri(fileUri);
-      setPdfViewerVisible(true);
+      // Solo para móvil: usar el visor interno
+      if (Platform.OS !== 'web') {
+        setSelectedPdfUri(fileUri);
+        setPdfViewerVisible(true);
+      }
       // No eliminamos el archivo aquí, PdfViewer lo hará en su onClose
 
     } catch (error) {
       console.error("Error en handleOpenPdf:", error);
       Alert.alert("Error al abrir PDF", `${error.message}. Asegúrate de que la URL sea accesible y el archivo sea un PDF válido.`);
-      // Si hubo un error y se descargó un archivo, intentar limpiarlo
-      if (fileUri && isDownloadedTempFile) {
+      // Limpiar archivo temporal si hubo error en móvil
+      if (fileUri && isDownloadedTempFile && Platform.OS !== 'web') {
         FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(delError => console.error("Error al limpiar archivo temporal tras fallo en handleOpenPdf:", delError));
       }
     }
@@ -718,6 +820,9 @@ const UploadScreen = () => {
     console.log("UploadScreen: currentWork no está listo o no coincide con idWork", currentWork);
      return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text>Esperando datos del trabajo...</Text></View>;
   }
+  
+
+  
   return (
     <>
       <ScrollView className="flex-1  bg-gray-100 p-5">
