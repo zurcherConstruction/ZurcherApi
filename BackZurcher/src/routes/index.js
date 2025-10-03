@@ -24,6 +24,7 @@ const adobeRoutes = require('./adobeRoutes'); // Asegúrate de que la ruta sea c
 
 const signNowRoutes = require('./signNowRoutes'); // Asegúrate de que la ruta sea correcta
 const contactRoutes = require('./contactRoutes'); // Asegúrate de que la ruta sea correcta
+const importRoutes = require('./importRoutes'); // Rutas para importar trabajos legacy
 
 
 router.use('/auth', authRoutes); // Registro y login no requieren token
@@ -53,5 +54,6 @@ router.use('/expense', expenseRoutes); // Ruta para gastos
 router.use('/system', systemRoutes); // Ruta para comprobantes
 router.use('/final-invoice', finalInvoiceRoutes); // Ruta para comprobantes
 router.use('/maintenance', maintenanceRoutes); // Ruta para visitas de mantenimiento
+router.use('/import', importRoutes); // Ruta para importar trabajos legacy
 
 module.exports = router;

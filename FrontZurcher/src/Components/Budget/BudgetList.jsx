@@ -264,6 +264,54 @@ const BudgetList = () => {
     }
   };
 
+  // *** FUNCIÓN para manejar la vista del PDF LEGACY ***
+  const handleViewLegacyBudgetPdf = async (budgetId, directUrl = null) => {
+    console.log(`🔍 handleViewLegacyBudgetPdf called:`, { budgetId, directUrl });
+    setViewingPdfId(budgetId); // Indicar que se está cargando la vista previa
+
+    // Limpiar modal anterior si existe
+    if (pdfUrlForModal) {
+      console.log("Revocando URL de modal anterior:", pdfUrlForModal);
+      URL.revokeObjectURL(pdfUrlForModal);
+      setPdfUrlForModal("");
+    }
+
+    try {
+      // Si tenemos URL directa de Cloudinary, usarla directamente
+      if (directUrl && directUrl.includes('cloudinary.com')) {
+        console.log(`🎯 Using direct Cloudinary URL: ${directUrl}`);
+        setPdfUrlForModal(directUrl);
+        setPdfTitleForModal(`🏷️ Presupuesto Legacy - ${budgetId}`);
+        setIsModalOpen(true);
+        setViewingPdfId(null);
+        return;
+      }
+
+      // Fallback: usar endpoint del backend (debería redirigir)
+      console.log(`🔄 Using backend endpoint for budget ${budgetId}`);
+      const response = await api.get(`/budget/${budgetId}/legacy-budget-pdf`, {
+        responseType: "blob", // Obtener como Blob
+      });
+
+      // Crear una URL temporal para el Blob
+      const objectUrl = window.URL.createObjectURL(
+        new Blob([response.data], { type: "application/pdf" })
+      );
+
+      // Configurar el modal
+      setPdfUrlForModal(objectUrl);
+      setPdfTitleForModal(`🏷️ Presupuesto Legacy - ${budgetId}`);
+      setIsModalOpen(true);
+    } catch (error) {
+      console.error("Error fetching Legacy PDF for viewing:", error);
+      alert(
+        "Error al obtener el PDF legacy para visualizar. Verifique que exista y tenga permisos."
+      );
+    } finally {
+      setViewingPdfId(null); // Dejar de indicar carga
+    }
+  };
+
   // --- NUEVAS FUNCIONES PARA MANEJAR LA EDICIÓN DE NOTAS ---
 
   const handleEditNoteClick = (budget) => {
@@ -521,6 +569,21 @@ const BudgetList = () => {
                         budget.Permit && budget.Permit.hasOptionalDocs
                       );
                       const hasBudgetPdfItself = !!budget.pdfPath;
+                      
+                      // Variables for legacy budget detection
+                      const isLegacyBudget = budget.isLegacy === true;
+                      const hasLegacyBudgetPdf = isLegacyBudget && !!budget.hasLegacySignedPdf;
+
+                      // 🔍 DEBUGGING: Ver qué datos llegan del backend para presupuesto legacy
+                      if (budget.idBudget === 17) {
+                        console.log('🔍 DEBUGGING BUDGET 17 (LEGACY):');
+                        console.log('- budget.isLegacy:', budget.isLegacy);
+                        console.log('- budget.hasLegacySignedPdf:', budget.hasLegacySignedPdf);
+                        console.log('- budget.legacySignedPdfUrl:', budget.legacySignedPdfUrl);
+                        console.log('- isLegacyBudget:', isLegacyBudget);
+                        console.log('- hasLegacyBudgetPdf:', hasLegacyBudgetPdf);
+                        console.log('- Full budget object:', budget);
+                      }
 
                      
 
@@ -932,6 +995,36 @@ const BudgetList = () => {
                                   )}
                                 </button>
                               )}
+                              
+                              {/* Botón para ver PDF Legacy */}
+                              {hasLegacyBudgetPdf && (
+                                <button
+                                  onClick={() =>
+                                    handleViewLegacyBudgetPdf(budget.idBudget, budget.legacySignedPdfUrl)
+                                  }
+                                  disabled={viewingPdfId === budget.idBudget}
+                                  className="inline-flex items-center justify-center bg-amber-600 text-white px-1 py-0.5 rounded text-[9px] hover:bg-amber-700 disabled:opacity-50 h-6 w-12"
+                                  title="Ver PDF Legacy"
+                                >
+                                  {viewingPdfId === budget.idBudget ? (
+                                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                  ) : (
+                                    <DocumentArrowDownIcon className="h-4 w-4" />
+                                  )}
+                                </button>
+                              )}
+
+                              {/* Botón para editar datos de cliente */}
+                              <button
+                                onClick={() => handleEditClientData(budget.idBudget)}
+                                className="inline-flex items-center justify-center bg-indigo-600 text-white px-1 py-0.5 rounded text-[9px] hover:bg-indigo-700 h-6 w-12"
+                                title="Edit Client Data"
+                              >
+                                <UserIcon className="h-4 w-4" />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -1007,9 +1100,22 @@ const BudgetList = () => {
                       budget.Permit && budget.Permit.hasOptionalDocs
                     );
                     const hasBudgetPdfItself = !!budget.pdfPath;
+                    const isLegacyBudget = !!budget.isLegacy;
+                    const hasLegacyBudgetPdf = isLegacyBudget && !!budget.hasLegacySignedPdf;
                     
-                    // Debug log solo para el budget que se está abriendo
-                    // console.log('📋 Budget PDF Data Check:', { budgetId: budget.idBudget, permitId, hasPermitPdfData });
+                    // Debug para presupuestos legacy
+                    if (isLegacyBudget) {
+                      console.log(`🏷️ FRONTEND Legacy Budget ${budget.idBudget}:`, {
+                        applicantName: budget.applicantName,
+                        isLegacy: budget.isLegacy,
+                        isLegacyBudget,
+                        hasLegacySignedPdf: budget.hasLegacySignedPdf,
+                        legacySignedPdfUrl: budget.legacySignedPdfUrl,
+                        hasLegacyBudgetPdf,
+                        shouldShowBadge: isLegacyBudget,
+                        shouldShowPdfButton: hasLegacyBudgetPdf
+                      });
+                    }
 
                     return (
                       <div
@@ -1060,6 +1166,19 @@ const BudgetList = () => {
                               budget.systemType ||
                               "N/A"}
                           </p>
+                          
+                          {/* Etiqueta Legacy */}
+                          {isLegacyBudget && (
+                            <div className="col-span-2">
+                              {console.log(`🎯 RENDERIZANDO BADGE LEGACY para Budget ${budget.idBudget}`)}
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border-2 border-amber-300">
+                                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                                </svg>
+                                🏷️ TRABAJO LEGACY IMPORTADO
+                              </span>
+                            </div>
+                          )}
                         </div>
 
                         {/* Notes section */}
@@ -1233,11 +1352,13 @@ const BudgetList = () => {
 
                             {/* Botones de PDF (usando grid para mejor distribución si hay varios) */}
                             {(hasBudgetPdfItself ||
+                              hasLegacyBudgetPdf ||
                               (permitId &&
                                 (hasPermitPdfData ||
                                   hasPermitOptionalDocs))) && (
                               <div className="grid grid-cols-2 gap-2 pt-2">
-                                {hasBudgetPdfItself && (
+                                {/* Botón para presupuesto normal */}
+                                {hasBudgetPdfItself && !isLegacyBudget && (
                                   <>
                                     <button
                                       onClick={() =>
@@ -1310,6 +1431,46 @@ const BudgetList = () => {
                                     </button>
                                   </>
                                 )}
+                                
+                                {/* Botón para presupuesto LEGACY */}
+                                {hasLegacyBudgetPdf && (
+                                  <button
+                                    onClick={() =>
+                                      handleViewLegacyBudgetPdf(budget.idBudget, budget.legacySignedPdfUrl)
+                                    }
+                                    disabled={
+                                      viewingPdfId === budget.idBudget
+                                    }
+                                    className="flex items-center justify-center bg-amber-600 text-white px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-amber-700 disabled:opacity-50 transition-colors"
+                                  >
+                                    {viewingPdfId === budget.idBudget ? (
+                                      <svg
+                                        className="animate-spin h-4 w-4 mr-1"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <circle
+                                          className="opacity-25"
+                                          cx="12"
+                                          cy="12"
+                                          r="10"
+                                          stroke="currentColor"
+                                          strokeWidth="4"
+                                        ></circle>
+                                        <path
+                                          className="opacity-75"
+                                          fill="currentColor"
+                                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                        ></path>
+                                      </svg>
+                                    ) : (
+                                      <svg className="h-4 w-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                                      </svg>
+                                    )}
+                                    Legacy PDF
+                                  </button>
+                                )}
+                                
                                 {permitId && hasPermitPdfData && (
                                   <button
                                     onClick={() => {
@@ -1392,6 +1553,27 @@ const BudgetList = () => {
                                   </button>
                                 )}
                               </div>
+                            )}
+
+                            {/* Botón para ver PDF Legacy */}
+                            {hasLegacyBudgetPdf && (
+                              <button
+                                onClick={() =>
+                                  handleViewLegacyBudgetPdf(budget.idBudget, budget.legacySignedPdfUrl)
+                                }
+                                disabled={viewingPdfId === budget.idBudget}
+                                className="w-full flex items-center justify-center bg-amber-600 text-white px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-amber-700 disabled:opacity-50 transition-colors"
+                              >
+                                {viewingPdfId === budget.idBudget ? (
+                                  <svg className="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                ) : (
+                                  <DocumentArrowDownIcon className="h-4 w-4 mr-2" />
+                                )}
+                                🏷️ Ver PDF Legacy
+                              </button>
                             )}
 
                             {/* Botón para editar datos de cliente */}

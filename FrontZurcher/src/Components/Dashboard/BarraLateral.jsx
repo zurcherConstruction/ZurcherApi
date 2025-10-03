@@ -19,7 +19,8 @@ import {
   FaArchive,
   FaBoxes,
   FaReceipt,
-  FaWrench
+  FaWrench,
+  FaHistory
 } from "react-icons/fa";
 
 const BarraLateral = () => {
@@ -60,6 +61,7 @@ const BarraLateral = () => {
       items: [
         { name: "Upload Permits", path: "/pdf", icon: FaUpload },
         { name: "Budgets", path: "/budgets", icon: FaFolderOpen },
+        { name: "Legacy Budgets", path: "/create-legacy-budget", icon: FaHistory },
         { name: "Items Budgets", path: "/itemBudget", icon: FaBoxes },
         { name: "Edit Budgets", path: "/editBudget", icon: FaEdit },
         { name: "Gestion Budgets", path: "/gestionBudgets", icon: FaCog },

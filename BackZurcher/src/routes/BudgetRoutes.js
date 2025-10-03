@@ -9,6 +9,14 @@ const router = express.Router();
 
 // Rutas con validación de token y roles
 router.post('/',  allowRoles(['admin', 'recept', 'owner', 'finance']), BudgetController.createBudget); // Incluir finance en creación de presupuestos
+
+// 🆕 NUEVA RUTA: Crear presupuestos/trabajos legacy (migración)
+router.post('/legacy', verifyToken, allowRoles(['admin', 'owner']), upload.fields([
+  { name: 'permitPdf', maxCount: 1 },
+  { name: 'budgetPdf', maxCount: 1 },
+  { name: 'optionalDocs', maxCount: 1 }
+]), BudgetController.createLegacyBudget); // Solo admin y owner pueden migrar
+
 router.get('/all', verifyToken, isStaff, BudgetController.getBudgets); // Personal del hotel puede ver presupuestos
 
 
@@ -56,6 +64,14 @@ router.get(
   verifyToken,
   isStaff,
   BudgetController.optionalDocs
+);
+
+// === NUEVA RUTA PARA PDF DEL PRESUPUESTO LEGACY ===
+router.get(
+  '/:idBudget/legacy-budget-pdf',
+  verifyToken,
+  isStaff,
+  BudgetController.legacyBudgetPdf
 );
   // ========== RUTAS DE SIGNNOW ==========
 

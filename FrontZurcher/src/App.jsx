@@ -46,6 +46,7 @@ import ItemsBudgets from "./Components/Budget/ItemsBudgets";
 import EditBudget from "./Components/Budget/EditBudget";
 import Summary from "./Components/Summary";
 import GestionBudgets from "./Components/Budget/GestionBudgets";
+import CreateLegacyBudget from "./Components/Budget/CreateLegacyBudget";
 // Importar componentes de la Landing
 import LandingClients from "./Components/Landing/LandingClients";
 import ThankYou from "./Components/Landing/ThankYou";
@@ -223,6 +224,14 @@ function App() {
               element={
                 <PrivateRoute allowedRoles={["owner", "admin"]}>
                   <CreateBudget />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/create-legacy-budget"
+              element={
+                <PrivateRoute allowedRoles={["owner", "admin"]}>
+                  <CreateLegacyBudget />
                 </PrivateRoute>
               }
             />
