@@ -36,6 +36,9 @@ async function runMigration() {
       console.log('   - add-commission-fields');
       console.log('   - add-commission-expense-type');
       console.log('   - complete-enum-migration (⭐ RECOMENDADO - Migración completa)');
+      console.log('   - add-payment-method (💳 Agregar método de pago a Income/Expense)');
+      console.log('   - add-verified-field (✅ Agregar campo de verificación a Income/Expense)');
+      console.log('   - add-payment-proof-method (💳 Agregar método de pago a Budget)');
       process.exit(1);
     }
 
@@ -91,6 +94,35 @@ async function runMigration() {
       console.log('      • Registrar gastos tipo "Comisión Vendedor"');
       console.log('      • Adjuntar comprobantes de comisiones');
       console.log('      • Rastrear comisiones en presupuestos');
+    } else if (migrationName === 'add-payment-method') {
+      console.log('📋 💳 MÉTODO DE PAGO AGREGADO:');
+      console.log('\n   🔹 Incomes:');
+      console.log('      ✅ Nueva columna "paymentMethod" (STRING)');
+      console.log('\n   🔹 Expenses:');
+      console.log('      ✅ Nueva columna "paymentMethod" (STRING)');
+      console.log('\n   💡 Ahora puedes registrar:');
+      console.log('      • Método de pago para cada ingreso (Zelle, Cash, Check, etc.)');
+      console.log('      • Cuenta o método para cada gasto (Credit Card, Bank Transfer, etc.)');
+      console.log('      • Mejor tracking financiero y reconciliación bancaria');
+    } else if (migrationName === 'add-verified-field') {
+      console.log('📋 ✅ CAMPO DE VERIFICACIÓN AGREGADO:');
+      console.log('\n   🔹 Incomes:');
+      console.log('      ✅ Nueva columna "verified" (BOOLEAN, default: false)');
+      console.log('\n   🔹 Expenses:');
+      console.log('      ✅ Nueva columna "verified" (BOOLEAN, default: false)');
+      console.log('\n   💡 Ahora puedes:');
+      console.log('      • Marcar ingresos/gastos como verificados');
+      console.log('      • Identificar visualmente transacciones revisadas');
+      console.log('      • Mejorar control financiero y auditoría');
+      console.log('      • Filtrar por items pendientes de revisión');
+    } else if (migrationName === 'add-payment-proof-method') {
+      console.log('📋 💳 MÉTODO DE PAGO EN BUDGET AGREGADO:');
+      console.log('\n   🔹 Budgets:');
+      console.log('      ✅ Nueva columna "paymentProofMethod" (STRING)');
+      console.log('\n   💡 Ahora puedes:');
+      console.log('      • Guardar método de pago al subir comprobante inicial');
+      console.log('      • Transferir método de pago a Income automáticamente');
+      console.log('      • Mejor tracking de pagos iniciales de presupuestos');
     }
   } catch (error) {
     console.error('\n❌ Error ejecutando migración:', error);

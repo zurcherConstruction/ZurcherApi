@@ -17,10 +17,15 @@ const AccountsReceivable = () => {
   const token = useSelector((state) => state.auth.token);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview'); // overview, works, commissions
+  const [commissionFilter, setCommissionFilter] = useState('all'); // all, paid, pending
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedCommission, setSelectedCommission] = useState(null);
+  const [paymentFile, setPaymentFile] = useState(null);
+  const [paymentNotes, setPaymentNotes] = useState('');
+  const [uploadingPayment, setUploadingPayment] = useState(false);
   const [data, setData] = useState({
     summary: {},
     details: {
-      budgetsWithoutWork: [],
       worksInProgress: [],
       pendingFinalInvoices: [],
       approvedChangeOrders: []
@@ -62,6 +67,117 @@ const AccountsReceivable = () => {
       setCommissionsData(response.data);
     } catch (error) {
       console.error('Error fetching pending commissions:', error);
+    }
+  };
+
+  const handleToggleCommissionPaid = async (budgetId, currentStatus) => {
+    // Abrir modal para subir comprobante
+    const budget = commissionsData.allBudgets.find(b => b.budgetId === budgetId);
+    setSelectedCommission({ budgetId, currentStatus, ...budget });
+    setShowPaymentModal(true);
+  };
+
+  const handleClosePaymentModal = () => {
+    setShowPaymentModal(false);
+    setSelectedCommission(null);
+    setPaymentFile(null);
+    setPaymentNotes('');
+  };
+
+  const handleSubmitPayment = async (e) => {
+    e.preventDefault();
+    
+    if (!selectedCommission) return;
+    
+    const newStatus = !selectedCommission.currentStatus;
+    
+    // Si está marcando como pagada, requiere archivo
+    if (newStatus && !paymentFile) {
+      alert('Por favor adjunta el comprobante de pago de la comisión');
+      return;
+    }
+    
+    setUploadingPayment(true);
+    
+    try {
+      if (newStatus) {
+        // MARCAR COMO PAGADA: Crear gasto + adjuntar comprobante
+        
+        // 1. Crear el gasto de tipo "Comisión Vendedor"
+        const expenseData = {
+          date: new Date().toISOString().split("T")[0],
+          amount: parseFloat(selectedCommission.commissionAmount),
+          notes: paymentNotes || `Pago de comisión - Budget #${selectedCommission.budgetId} - ${selectedCommission.salesRepName}`,
+          typeExpense: "Comisión Vendedor",
+          staffId: selectedCommission.salesRepId, // El vendedor que recibe la comisión
+          // ✅ Asociar al work si existe (trazabilidad por proyecto)
+          ...(selectedCommission.workId ? { workId: selectedCommission.workId } : {}),
+        };
+
+        const response = await axios.post(
+          `${import.meta.env.VITE_API_URL}/expenses`,
+          expenseData,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        const createdExpense = response.data;
+        
+        if (!createdExpense || !createdExpense.idExpense) {
+          throw new Error("No se pudo crear el gasto de comisión");
+        }
+
+        // 2. Adjuntar el comprobante al gasto creado
+        const formData = new FormData();
+        formData.append("file", paymentFile);
+        formData.append("notes", paymentNotes || '');
+        formData.append("type", "Comisión Vendedor");
+        formData.append("relatedModel", "Expense");
+        formData.append("relatedId", createdExpense.idExpense.toString());
+
+        await axios.post(
+          `${import.meta.env.VITE_API_URL}/receipts`,
+          formData,
+          { 
+            headers: { 
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'multipart/form-data'
+            } 
+          }
+        );
+
+        // 3. Marcar la comisión como pagada en el Budget
+        await axios.put(
+          `${import.meta.env.VITE_API_URL}/accounts-receivable/${selectedCommission.budgetId}/commission-paid`,
+          { 
+            paid: true, 
+            paidDate: new Date().toISOString().split('T')[0]
+          },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        alert('✅ Comisión pagada correctamente. Gasto y comprobante registrados.');
+        
+      } else {
+        // MARCAR COMO PENDIENTE: Solo actualizar el estado
+        await axios.put(
+          `${import.meta.env.VITE_API_URL}/accounts-receivable/${selectedCommission.budgetId}/commission-paid`,
+          { paid: false, paidDate: null },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        alert('Comisión marcada como pendiente');
+      }
+      
+      // Refrescar datos
+      await fetchAccountsReceivable();
+      await fetchPendingCommissions();
+      
+      handleClosePaymentModal();
+    } catch (error) {
+      console.error('Error updating commission status:', error);
+      alert('Error al actualizar el estado de la comisión: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setUploadingPayment(false);
     }
   };
 
@@ -118,22 +234,6 @@ const AccountsReceivable = () => {
           </div>
         </div>
 
-        {/* Pending from Budgets */}
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-blue-100 text-sm font-medium">Budgets sin Work</p>
-              <p className="text-3xl font-bold mt-2">
-                {formatCurrency(data.summary.totalPendingFromBudgets)}
-              </p>
-              <p className="text-blue-100 text-xs mt-1">
-                {data.summary.budgetsWithoutWorkCount} budgets
-              </p>
-            </div>
-            <FaFileInvoiceDollar className="text-5xl text-blue-200 opacity-50" />
-          </div>
-        </div>
-
         {/* Works in Progress */}
         <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg shadow-lg p-6 text-white">
           <div className="flex items-center justify-between">
@@ -153,11 +253,19 @@ const AccountsReceivable = () => {
         {/* Pending Commissions */}
         <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-lg p-6 text-white">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-purple-100 text-sm font-medium">Comisiones Pendientes</p>
-              <p className="text-3xl font-bold mt-2">
-                {formatCurrency(commissionsData.summary.totalPendingCommissions)}
-              </p>
+            <div className="w-full">
+              <p className="text-purple-100 text-sm font-medium">Comisiones</p>
+              <div className="flex items-baseline gap-3 mt-2">
+                <p className="text-3xl font-bold">
+                  {formatCurrency(commissionsData.summary.totalPendingCommissions)}
+                </p>
+                <span className="text-purple-200 text-sm">pendientes</span>
+              </div>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-green-200 text-xs font-semibold">
+                  ✓ {formatCurrency(commissionsData.summary.totalPaidCommissions || 0)} pagadas
+                </span>
+              </div>
               <p className="text-purple-100 text-xs mt-1">
                 {commissionsData.summary.totalBudgetsWithCommissions} budgets
               </p>
@@ -211,74 +319,6 @@ const AccountsReceivable = () => {
       {/* Tab Content */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Budgets Without Work */}
-          {data.details.budgetsWithoutWork.length > 0 && (
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <FaExclamationTriangle className="text-yellow-500" />
-                Budgets Aprobados sin Work ({data.details.budgetsWithoutWork.length})
-              </h2>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Budget ID
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Propiedad
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Cliente
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Total
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Pago Inicial
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Pendiente
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Estado
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {data.details.budgetsWithoutWork.map((budget) => (
-                      <tr key={budget.budgetId} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
-                          #{budget.budgetId}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900">
-                          {budget.propertyAddress}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900">
-                          {budget.clientName}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                          {formatCurrency(budget.totalPrice)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600">
-                          {formatCurrency(budget.initialPayment)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-red-600">
-                          {formatCurrency(budget.amountPending)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                            {budget.status}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
           {/* Pending Final Invoices */}
           {data.details.pendingFinalInvoices.length > 0 && (
             <div className="bg-white rounded-lg shadow-md p-6">
@@ -364,11 +404,11 @@ const AccountsReceivable = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                  {/* <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Work ID
-                  </th>
+                  </th> */}
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Propiedad
+                    Work
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Cliente
@@ -386,6 +426,15 @@ const AccountsReceivable = () => {
                     Total por Cobrar
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Comisión
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Vendedor
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Estado Work
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Estado Final Invoice
                   </th>
                 </tr>
@@ -393,9 +442,9 @@ const AccountsReceivable = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {data.details.worksInProgress.map((work) => (
                   <tr key={work.workId} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                    {/* <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
                       {work.workId}
-                    </td>
+                    </td> */}
                     <td className="px-6 py-4 text-sm text-gray-900">
                       {work.propertyAddress}
                     </td>
@@ -429,6 +478,37 @@ const AccountsReceivable = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-red-600">
                       {formatCurrency(work.amountPending)}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-purple-600">
+                          {formatCurrency(work.commissionAmount)}
+                        </span>
+                        {work.commissionPaid && (
+                          <FaCheckCircle className="text-green-500" title={`Pagada: ${formatDate(work.commissionPaidDate)}`} />
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-700">
+                      {work.salesRepName}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                        work.status === 'completed'
+                          ? 'bg-green-100 text-green-800'
+                          : work.status === 'in_progress'
+                          ? 'bg-blue-100 text-blue-800'
+                          : work.status === 'pending'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : work.status === 'on_hold'
+                          ? 'bg-orange-100 text-orange-800'
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {work.status === 'in_progress' ? 'En Progreso' :
+                         work.status === 'completed' ? 'Completado' :
+                         work.status === 'pending' ? 'Pendiente' :
+                         work.status === 'on_hold' ? 'En Espera' : work.status}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                         work.finalInvoiceStatus === 'paid'
@@ -450,6 +530,43 @@ const AccountsReceivable = () => {
 
       {activeTab === 'commissions' && (
         <div className="space-y-6">
+          {/* Filtro de Comisiones */}
+          <div className="bg-white rounded-lg shadow-md p-4">
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-semibold text-gray-700">Filtrar:</span>
+              <button
+                onClick={() => setCommissionFilter('all')}
+                className={`px-4 py-2 rounded-md text-sm font-medium ${
+                  commissionFilter === 'all'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Todas ({commissionsData.allBudgets?.length || 0})
+              </button>
+              <button
+                onClick={() => setCommissionFilter('pending')}
+                className={`px-4 py-2 rounded-md text-sm font-medium ${
+                  commissionFilter === 'pending'
+                    ? 'bg-yellow-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Pendientes ({commissionsData.allBudgets?.filter(b => !b.commissionPaid).length || 0})
+              </button>
+              <button
+                onClick={() => setCommissionFilter('paid')}
+                className={`px-4 py-2 rounded-md text-sm font-medium ${
+                  commissionFilter === 'paid'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Pagadas ({commissionsData.allBudgets?.filter(b => b.commissionPaid).length || 0})
+              </button>
+            </div>
+          </div>
+
           {/* Commissions by Sales Rep */}
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
@@ -473,6 +590,18 @@ const AccountsReceivable = () => {
                       <span className="text-sm text-gray-600">Total Comisiones:</span>
                       <span className="text-lg font-bold text-purple-600">
                         {formatCurrency(salesRep.totalCommissions)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Pagadas:</span>
+                      <span className="text-sm font-semibold text-green-600">
+                        {formatCurrency(salesRep.totalPaid || 0)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Pendientes:</span>
+                      <span className="text-sm font-semibold text-yellow-600">
+                        {formatCurrency(salesRep.totalPending || 0)}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
@@ -508,6 +637,12 @@ const AccountsReceivable = () => {
                       Comisión
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Estado Pago
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Fecha Pago
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Estado Budget
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -516,11 +651,23 @@ const AccountsReceivable = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Fecha
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Acciones
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {commissionsData.allBudgets.map((budget) => (
-                    <tr key={budget.budgetId} className="hover:bg-gray-50">
+                  {commissionsData.allBudgets
+                    .filter(budget => {
+                      if (commissionFilter === 'all') return true;
+                      if (commissionFilter === 'paid') return budget.commissionPaid;
+                      if (commissionFilter === 'pending') return !budget.commissionPaid;
+                      return true;
+                    })
+                    .map((budget) => (
+                    <tr key={budget.budgetId} className={`hover:bg-gray-50 ${
+                      budget.commissionPaid ? 'bg-green-50' : ''
+                    }`}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
                         #{budget.budgetId}
                       </td>
@@ -535,6 +682,18 @@ const AccountsReceivable = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-green-600">
                         {formatCurrency(budget.commissionAmount)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                          budget.commissionPaid
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {budget.commissionPaid ? 'Pagada' : 'Pendiente'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {budget.commissionPaid ? formatDate(budget.commissionPaidDate) : '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
@@ -553,11 +712,185 @@ const AccountsReceivable = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatDate(budget.date)}
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <button
+                          onClick={() => handleToggleCommissionPaid(budget.budgetId, budget.commissionPaid)}
+                          className={`px-3 py-1 rounded-md text-xs font-semibold ${
+                            budget.commissionPaid
+                              ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                              : 'bg-green-100 text-green-700 hover:bg-green-200'
+                          }`}
+                        >
+                          {budget.commissionPaid ? 'Marcar Pendiente' : 'Marcar Pagada'}
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Modal */}
+      {showPaymentModal && selectedCommission && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-purple-500 to-purple-600 p-6 rounded-t-xl">
+              <div className="flex items-center justify-between">
+                <h3 className="text-2xl font-bold text-white">
+                  {selectedCommission.currentStatus ? '❌ Marcar Comisión como Pendiente' : '💰 Marcar Comisión como Pagada'}
+                </h3>
+                <button
+                  onClick={handleClosePaymentModal}
+                  className="text-white hover:text-gray-200 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleSubmitPayment} className="p-6 space-y-6">
+              {/* Commission Details */}
+              <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                <h4 className="font-semibold text-purple-800 mb-3">Detalles de la Comisión</h4>
+                <div className="space-y-2 text-sm">
+                  <p className="text-gray-700">
+                    <span className="font-medium">Budget ID:</span> #{selectedCommission.budgetId}
+                  </p>
+                  <p className="text-gray-700">
+                    <span className="font-medium">Propiedad:</span> {selectedCommission.propertyAddress}
+                  </p>
+                  <p className="text-gray-700">
+                    <span className="font-medium">Vendedor:</span> {selectedCommission.salesRepName}
+                  </p>
+                  <p className="text-gray-700">
+                    <span className="font-medium">Cliente:</span> {selectedCommission.clientName}
+                  </p>
+                  {selectedCommission.workId && (
+                    <p className="text-gray-700">
+                      <span className="font-medium">Work ID:</span> 
+                      <span className="text-blue-600 font-semibold ml-2">{selectedCommission.workId}</span>
+                      <span className="text-xs text-gray-500 ml-2">
+                        (El gasto se asociará a esta obra)
+                      </span>
+                    </p>
+                  )}
+                  {!selectedCommission.workId && (
+                    <p className="text-orange-600 text-xs">
+                      ⚠️ Budget sin Work asociado - El gasto se registrará como general
+                    </p>
+                  )}
+                  <p className="text-gray-700">
+                    <span className="font-medium">Monto de Comisión:</span> 
+                    <span className="text-lg font-bold text-purple-600 ml-2">
+                      {formatCurrency(selectedCommission.commissionAmount)}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              {/* File Upload - Only required when marking as paid */}
+              {!selectedCommission.currentStatus && (
+                <div>
+                  <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                    <svg className="w-5 h-5 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    Comprobante de Pago <span className="text-red-500 ml-1">*</span>
+                  </label>
+                  <input
+                    type="file"
+                    accept="application/pdf, image/jpeg, image/png, image/gif"
+                    onChange={(e) => setPaymentFile(e.target.files[0])}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
+                    required={!selectedCommission.currentStatus}
+                  />
+                  {paymentFile && (
+                    <div className="mt-2 flex items-center space-x-2 text-sm text-gray-600 bg-green-50 p-2 rounded-lg">
+                      <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>Archivo seleccionado: <span className="font-medium">{paymentFile.name}</span></span>
+                    </div>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">
+                    📎 Adjunta el comprobante de transferencia, cheque o recibo de pago de la comisión
+                  </p>
+                </div>
+              )}
+
+              {/* Notes */}
+              <div>
+                <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                  <svg className="w-5 h-5 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Notas (Opcional)
+                </label>
+                <textarea
+                  value={paymentNotes}
+                  onChange={(e) => setPaymentNotes(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                  rows="3"
+                  placeholder="Método de pago, número de cheque, referencia de transferencia, etc..."
+                />
+              </div>
+
+              {/* Warning for unpaid */}
+              {selectedCommission.currentStatus && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="flex items-start space-x-3">
+                    <svg className="w-5 h-5 text-yellow-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <div>
+                      <p className="font-medium text-yellow-800 text-sm">⚠️ Advertencia</p>
+                      <p className="text-yellow-700 text-xs mt-1">
+                        Estás a punto de marcar esta comisión como NO pagada. Esta acción revertirá el estado de pago.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex space-x-3 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={handleClosePaymentModal}
+                  className="flex-1 px-6 py-3 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                  disabled={uploadingPayment}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={uploadingPayment || (!selectedCommission.currentStatus && !paymentFile)}
+                  className={`flex-1 px-6 py-3 rounded-lg font-medium text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                    selectedCommission.currentStatus
+                      ? 'bg-red-500 hover:bg-red-600'
+                      : 'bg-purple-600 hover:bg-purple-700'
+                  }`}
+                >
+                  {uploadingPayment ? (
+                    <div className="flex items-center justify-center space-x-2">
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      <span>Procesando...</span>
+                    </div>
+                  ) : (
+                    <span>
+                      {selectedCommission.currentStatus ? 'Marcar como Pendiente' : 'Confirmar Pago'}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

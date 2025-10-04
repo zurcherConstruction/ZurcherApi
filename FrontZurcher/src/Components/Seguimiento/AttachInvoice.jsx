@@ -63,6 +63,7 @@ const AttachReceipt = () => {
   const [amountPaid, setAmountPaid] = useState(''); // Nuevo estado para el monto pagado
   const [finalInvoiceDetails, setFinalInvoiceDetails] = useState(null);
   const [isGeneralTransaction, setIsGeneralTransaction] = useState(false); // Nuevo estado para marcar si es transacción general
+  const [paymentMethod, setPaymentMethod] = useState(''); // 🆕 Método de pago
 
 
 
@@ -186,6 +187,8 @@ const AttachReceipt = () => {
           ...(isGeneralTransaction ? {} : { workId: selectedWork }),
           staffId: staff?.id,
           ...(isIncome ? { typeIncome: type } : { typeExpense: type }),
+          // 🆕 Agregar método de pago si se especificó
+          ...(paymentMethod ? { paymentMethod } : {}),
         };
 
         console.log('Datos a enviar (Income/Expense):', incomeExpenseData);
@@ -228,6 +231,7 @@ const AttachReceipt = () => {
       setFinalPaymentAmount("");
       setFinalInvoiceDetails(null);
       setIsGeneralTransaction(false);
+      setPaymentMethod(""); // 🆕 Limpiar método de pago
 
     } catch (err) { // Cambiado 'error' a 'err' para evitar colisión con 'worksError'
       console.error("Error al procesar la solicitud:", err);
@@ -594,6 +598,27 @@ const AttachReceipt = () => {
                 </div>
               )}
             </div>
+
+            {/* Payment Method */}
+            {type && type !== "Factura Pago Final Budget" && (
+              <div>
+                <label htmlFor="paymentMethod" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
+                  <CurrencyDollarIcon className="h-5 w-5 mr-2 text-green-500" />
+                  Método de Pago (Opcional)
+                </label>
+                <input
+                  id="paymentMethod"
+                  type="text"
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  placeholder="Ej: Zelle, Cash, Check #1234, Bank Transfer - Chase, Credit Card - Visa"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Especifica cómo se recibió/pagó el dinero para mejor tracking financiero
+                </p>
+              </div>
+            )}
 
             {/* Notes */}
             <div>

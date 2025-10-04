@@ -5,10 +5,10 @@ const { sendNotifications } = require('../utils/notifications/notificationManage
 
 // Crear un nuevo gasto
 const createExpense = async (req, res) => {
-  const { date, amount, typeExpense, notes, workId, staffId } = req.body;
+  const { date, amount, typeExpense, notes, workId, staffId, paymentMethod, verified } = req.body;
   try {
     // 1. Crear el Expense normalmente
-    const newExpense = await Expense.create({ date, amount, typeExpense, notes, workId, staffId });
+    const newExpense = await Expense.create({ date, amount, typeExpense, notes, workId, staffId, paymentMethod, verified: verified || false });
 
     // 2. Si es Inspección Inicial o Inspección Final y hay archivo, crear Receipt asociado
     let createdReceipt = null;
@@ -153,13 +153,13 @@ const getExpenseById = async (req, res) => {
 // Actualizar un gasto
 const updateExpense = async (req, res) => {
   const { id } = req.params;
-  const { date, amount, typeExpense, notes, workId, staffId } = req.body; // Agregar staffId
+  const { date, amount, typeExpense, notes, workId, staffId, paymentMethod, verified } = req.body; // Agregar staffId, paymentMethod y verified
   try {
     const expense = await Expense.findByPk(id);
     if (!expense) return res.status(404).json({ message: 'Gasto no encontrado' });
 
     // Actualizar el gasto
-    await expense.update({ date, amount, typeExpense, notes, workId, staffId }); // Incluir staffId
+    await expense.update({ date, amount, typeExpense, notes, workId, staffId, paymentMethod, verified }); // Incluir staffId, paymentMethod y verified
     
     // Enviar notificación de actualización
     try {

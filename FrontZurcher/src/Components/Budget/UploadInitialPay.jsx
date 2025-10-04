@@ -20,6 +20,7 @@ const UploadInitialPay = () => {
   const [selectedBudgetId, setSelectedBudgetId] = useState('');
   const [file, setFile] = useState(null);
   const [uploadedAmount, setUploadedAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState(''); // 🆕 Método de pago
   const [isLoading, setIsLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
@@ -31,6 +32,7 @@ const UploadInitialPay = () => {
     setSelectedBudgetId(event.target.value);
     setFile(null);
     setUploadedAmount(''); // <--- Resetear monto al cambiar presupuesto
+    setPaymentMethod(''); // 🆕 Resetear método de pago
   };
 
   const handleFileChange = (event) => {
@@ -95,7 +97,7 @@ const UploadInitialPay = () => {
             type: "info",
           });
         }
-      }));
+      }, paymentMethod)); // 🆕 Pasar método de pago
 
       if (!uploadResult?.payload) {
         throw new Error('Error al subir el comprobante');
@@ -127,6 +129,7 @@ const UploadInitialPay = () => {
       setSelectedBudgetId('');
       setFile(null);
       setUploadedAmount('');
+      setPaymentMethod(''); // 🆕 Limpiar método de pago
       setUploadProgress(0);
       const fileInput = document.getElementById('invoice-upload-input');
       if (fileInput) fileInput.value = null;
@@ -153,7 +156,17 @@ const UploadInitialPay = () => {
     }
   };
 
-  const sendBudgets = budgets.filter(b =>b.status === 'send' || b.status === 'sent_for_signature' || b.status === 'signed');
+  // Estados permitidos para carga de pago inicial (sincronizado con backend)
+  const allowedStatesForPayment = [
+    'created',
+    'send', 
+    'sent_for_signature', 
+    'signed',
+    'client_approved',
+    'pending_review'
+  ];
+  
+  const sendBudgets = budgets.filter(b => allowedStatesForPayment.includes(b.status));
 
   if (budgetsLoading) {
     return (
@@ -223,7 +236,7 @@ const UploadInitialPay = () => {
             <div>
               <label htmlFor="budget-select" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
                 <ClipboardDocumentListIcon className="h-5 w-5 mr-2 text-blue-500" />
-                Seleccionar Presupuesto (Estado: Enviado)
+                Seleccionar Presupuesto (Estados permitidos: Created, Enviado, Firmado, Aprobado por Cliente)
               </label>
               <select
                 id="budget-select"
@@ -255,6 +268,17 @@ const UploadInitialPay = () => {
                       </p>
                       <p className="text-sm text-gray-600 mb-2">
                         <span className="font-medium">Dirección:</span> {selectedBudgetDetails.propertyAddress}
+                      </p>
+                      <p className="text-sm text-gray-600 mb-2">
+                        <span className="font-medium">Estado actual:</span>
+                        <span className={`ml-2 px-2 py-1 rounded text-xs font-medium ${
+                          selectedBudgetDetails.status === 'signed' ? 'bg-green-100 text-green-800' :
+                          selectedBudgetDetails.status === 'client_approved' ? 'bg-blue-100 text-blue-800' :
+                          selectedBudgetDetails.status === 'sent_for_signature' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {selectedBudgetDetails.status}
+                        </span>
                       </p>
                       <p className="text-sm text-gray-600">
                         <span className="font-medium">Pago inicial esperado:</span>
@@ -302,6 +326,24 @@ const UploadInitialPay = () => {
                     placeholder="Ej: 1250.50"
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                   />
+                </div>
+
+                {/* 🆕 Payment Method Input */}
+                <div>
+                  <label htmlFor="payment-method-input" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
+                    💳 Método de Pago (Opcional)
+                  </label>
+                  <input
+                    id="payment-method-input"
+                    type="text"
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    placeholder="Ej: Zelle, Cash, Check #1234, Bank Transfer - Chase"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Especifica cómo se recibió el pago para mejor seguimiento financiero
+                  </p>
                 </div>
               </>
             )}

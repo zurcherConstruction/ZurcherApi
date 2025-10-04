@@ -13,43 +13,27 @@ const AccountsReceivableController = {
    */
   async getAccountsReceivableSummary(req, res) {
     try {
-      // 1. BUDGETS APROBADOS/FIRMADOS PERO NO CONVERTIDOS EN WORK
-      const pendingBudgets = await Budget.findAll({
-        where: {
-          status: {
-            [Op.in]: ['approved', 'signed', 'client_approved']
-          }
-        },
-        include: [
-          {
-            model: Work,
-            required: false // Left join para encontrar budgets SIN work
-          }
-        ]
-      });
-
-      // Filtrar solo budgets que NO tienen work asociado
-      const budgetsWithoutWork = pendingBudgets.filter(budget => !budget.Work);
-
-      // Calcular total pendiente de budgets
-      const totalPendingFromBudgets = budgetsWithoutWork.reduce((sum, budget) => {
-        const totalPrice = parseFloat(budget.totalPrice || 0);
-        const initialPayment = parseFloat(budget.paymentProofAmount || 0);
-        const remaining = totalPrice - initialPayment;
-        return sum + remaining;
-      }, 0);
-
-      // 2. OBRAS EN PROGRESO CON FINAL INVOICE PENDIENTE
+      // ✅ CAMBIO: Solo mostrar WORKS (budgets que YA tienen pago inicial y son seguros)
+      // Los budgets sin work NO son seguros, no deberían estar en cuentas por cobrar
+      
+      // 1. OBRAS EN PROGRESO O COMPLETADAS (LO QUE REALMENTE VAMOS A COBRAR)
       const worksInProgress = await Work.findAll({
         where: {
           status: {
-            [Op.in]: ['inProgress', 'finalInspectionPending', 'firstInspectionPending']
+            [Op.in]: ['inProgress', 'finalInspectionPending', 'firstInspectionPending', 'finalApproved', 'paymentReceived']
           }
         },
         include: [
           {
             model: Budget,
-            as: 'budget'
+            as: 'budget',
+            include: [
+              {
+                model: Staff,
+                as: 'createdByStaff', // ✅ Alias correcto según definición en data/index.js
+                attributes: ['id', 'name', 'email']
+              }
+            ]
           },
           {
             model: FinalInvoice,
@@ -109,7 +93,13 @@ const AccountsReceivableController = {
           amountPending,
           finalInvoiceStatus: work.finalInvoice?.status || 'not_created',
           hasChangeOrders: work.changeOrders?.length > 0,
-          changeOrdersCount: work.changeOrders?.length || 0
+          changeOrdersCount: work.changeOrders?.length || 0,
+          // 🆕 Información de comisión
+          commissionAmount: parseFloat(work.budget?.commissionAmount || 0),
+          commissionPaid: work.budget?.commissionPaid || false,
+          commissionPaidDate: work.budget?.commissionPaidDate || null,
+          salesRepName: work.budget?.createdByStaff?.name || 'N/A',
+          salesRepId: work.budget?.createdByStaffId || null
         };
       });
 
@@ -182,32 +172,20 @@ const AccountsReceivableController = {
         };
       });
 
-      // RESUMEN GENERAL
-      const totalAccountsReceivable = totalPendingFromBudgets + totalPendingFromWorks + totalPendingFromFinalInvoices;
+      // ✅ RESUMEN GENERAL (sin budgets sin work)
+      const totalAccountsReceivable = totalPendingFromWorks + totalPendingFromFinalInvoices;
 
       res.status(200).json({
         summary: {
           totalAccountsReceivable,
-          totalPendingFromBudgets,
           totalPendingFromWorks,
           totalPendingFromFinalInvoices,
-          budgetsWithoutWorkCount: budgetsWithoutWork.length,
           worksInProgressCount: worksInProgress.length,
           pendingFinalInvoicesCount: pendingFinalInvoices.length,
           approvedChangeOrdersCount: approvedChangeOrders.length
         },
         details: {
-          budgetsWithoutWork: budgetsWithoutWork.map(b => ({
-            budgetId: b.idBudget,
-            propertyAddress: b.propertyAddress,
-            clientName: b.applicantName || 'N/A',
-            totalPrice: parseFloat(b.totalPrice || 0),
-            initialPayment: parseFloat(b.paymentProofAmount || 0),
-            amountPending: parseFloat(b.totalPrice || 0) - parseFloat(b.paymentProofAmount || 0),
-            status: b.status,
-            date: b.date,
-            expirationDate: b.expirationDate
-          })),
+          // ✅ ELIMINADO: budgetsWithoutWork (no son seguros, no deberían estar aquí)
           worksInProgress: worksPendingDetails,
           pendingFinalInvoices: pendingFinalInvoices.map(fi => ({
             finalInvoiceId: fi.id,
@@ -345,15 +323,13 @@ const AccountsReceivableController = {
    */
   async getPendingCommissions(req, res) {
     try {
+      // ✅ MOSTRAR TODAS LAS COMISIONES (pagadas y pendientes)
       const budgetsWithCommissions = await Budget.findAll({
         where: {
           leadSource: 'sales_rep',
           createdByStaffId: { [Op.ne]: null },
-          salesCommissionAmount: { [Op.gt]: 0 },
-          [Op.or]: [
-            { commissionPaid: false },
-            { commissionPaid: null }
-          ]
+          salesCommissionAmount: { [Op.gt]: 0 }
+          // ❌ REMOVIDO: filtro de commissionPaid para mostrar todas
         },
         include: [
           {
@@ -368,9 +344,18 @@ const AccountsReceivableController = {
         ]
       });
 
-      const totalPendingCommissions = budgetsWithCommissions.reduce((sum, budget) => {
-        return sum + parseFloat(budget.salesCommissionAmount || 0);
-      }, 0);
+      // ✅ Calcular totales de comisiones PAGADAS y PENDIENTES
+      let totalPendingCommissions = 0;
+      let totalPaidCommissions = 0;
+      
+      budgetsWithCommissions.forEach(budget => {
+        const amount = parseFloat(budget.salesCommissionAmount || 0);
+        if (budget.commissionPaid) {
+          totalPaidCommissions += amount;
+        } else {
+          totalPendingCommissions += amount;
+        }
+      });
 
       // Agrupar por vendedor
       const commissionsBySalesRep = {};
@@ -384,20 +369,33 @@ const AccountsReceivableController = {
             staffName,
             staffEmail: budget.createdByStaff?.email,
             totalCommissions: 0,
+            totalPaid: 0,
+            totalPending: 0,
             budgetsCount: 0,
             budgets: []
           };
         }
 
-        commissionsBySalesRep[staffId].totalCommissions += parseFloat(budget.salesCommissionAmount || 0);
+        const amount = parseFloat(budget.salesCommissionAmount || 0);
+        commissionsBySalesRep[staffId].totalCommissions += amount;
+        
+        if (budget.commissionPaid) {
+          commissionsBySalesRep[staffId].totalPaid += amount;
+        } else {
+          commissionsBySalesRep[staffId].totalPending += amount;
+        }
+        
         commissionsBySalesRep[staffId].budgetsCount += 1;
         commissionsBySalesRep[staffId].budgets.push({
           budgetId: budget.idBudget,
           propertyAddress: budget.propertyAddress,
           clientName: budget.applicantName || 'N/A',
-          commissionAmount: parseFloat(budget.salesCommissionAmount || 0),
+          commissionAmount: amount,
+          commissionPaid: budget.commissionPaid || false,
+          commissionPaidDate: budget.commissionPaidDate || null,
           budgetStatus: budget.status,
           workStatus: budget.Work?.status || 'no_work',
+          workId: budget.Work?.idWork || null,
           date: budget.date
         });
       });
@@ -405,6 +403,8 @@ const AccountsReceivableController = {
       res.status(200).json({
         summary: {
           totalPendingCommissions,
+          totalPaidCommissions,
+          totalCommissions: totalPendingCommissions + totalPaidCommissions,
           totalBudgetsWithCommissions: budgetsWithCommissions.length,
           salesRepsCount: Object.keys(commissionsBySalesRep).length
         },
@@ -413,10 +413,14 @@ const AccountsReceivableController = {
           budgetId: b.idBudget,
           propertyAddress: b.propertyAddress,
           salesRepName: b.createdByStaff?.name || 'N/A',
+          salesRepId: b.createdByStaffId || null,
           clientName: b.applicantName || 'N/A',
           commissionAmount: parseFloat(b.salesCommissionAmount || 0),
+          commissionPaid: b.commissionPaid || false,
+          commissionPaidDate: b.commissionPaidDate || null,
           budgetStatus: b.status,
           workStatus: b.Work?.status || 'no_work',
+          workId: b.Work?.idWork || null,
           date: b.date
         }))
       });
@@ -426,6 +430,49 @@ const AccountsReceivableController = {
       res.status(500).json({
         error: true,
         message: 'Error al obtener comisiones pendientes',
+        details: error.message
+      });
+    }
+  },
+
+  /**
+   * 🆕 Marcar comisión como pagada
+   */
+  async markCommissionAsPaid(req, res) {
+    try {
+      const { budgetId } = req.params;
+      const { paid, paidDate } = req.body; // paid: boolean, paidDate: YYYY-MM-DD (opcional)
+
+      const budget = await Budget.findByPk(budgetId);
+      
+      if (!budget) {
+        return res.status(404).json({
+          error: true,
+          message: 'Budget no encontrado'
+        });
+      }
+
+      // Actualizar estado de comisión
+      budget.commissionPaid = paid;
+      budget.commissionPaidDate = paid ? (paidDate || new Date()) : null;
+      
+      await budget.save();
+
+      res.status(200).json({
+        message: `Comisión marcada como ${paid ? 'pagada' : 'no pagada'}`,
+        budget: {
+          idBudget: budget.idBudget,
+          commissionAmount: budget.salesCommissionAmount,
+          commissionPaid: budget.commissionPaid,
+          commissionPaidDate: budget.commissionPaidDate
+        }
+      });
+
+    } catch (error) {
+      console.error('Error actualizando estado de comisión:', error);
+      res.status(500).json({
+        error: true,
+        message: 'Error al actualizar estado de comisión',
         details: error.message
       });
     }
