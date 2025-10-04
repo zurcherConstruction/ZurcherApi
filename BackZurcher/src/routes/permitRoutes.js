@@ -64,4 +64,24 @@ router.patch(
   PermitController.updatePermitClientData
 );
 
+// ========== RUTAS PARA REEMPLAZAR PDFs ==========
+
+// 🆕 Reemplazar PDF principal del permit
+router.put(
+  '/:id/replace-pdf',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner']),
+  upload.single('pdfData'), // Acepta un solo archivo con el nombre 'pdfData'
+  PermitController.replacePermitPdf
+);
+
+// 🆕 Reemplazar documentos opcionales del permit
+router.put(
+  '/:id/replace-optional-docs',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner']),
+  upload.single('optionalDocs'), // Acepta un solo archivo con el nombre 'optionalDocs'
+  PermitController.replaceOptionalDocs
+);
+
 module.exports = router;

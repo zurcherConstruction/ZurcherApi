@@ -1,4 +1,4 @@
-const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, Expense, ChangeOrder, FinalInvoice, MaintenanceVisit } = require('../data');
+const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, Expense, Income, ChangeOrder, FinalInvoice, MaintenanceVisit, MaintenanceMedia } = require('../data');
 
 const convertPdfDataToUrl = require('../utils/convertPdfDataToUrl');
 const { sendNotifications } = require('../utils/notifications/notificationManager');
@@ -481,19 +481,218 @@ const updateWork = async (req, res) => {
 
 // Eliminar una obra
 const deleteWork = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  
   try {
     const { idWork } = req.params;
 
-    const work = await Work.findByPk(idWork);
+    // Buscar el trabajo con todas sus relaciones (excepto Receipts que tiene tipo incompatible)
+    const work = await Work.findByPk(idWork, {
+      include: [
+        { model: Image, as: 'images' },
+        // Receipt excluido - se consulta por separado debido a tipo polimórfico STRING vs UUID
+        { model: Expense, as: 'expenses' },
+        { model: Income, as: 'incomes' },
+        { model: MaterialSet, as: 'MaterialSets' },
+        { model: ChangeOrder, as: 'changeOrders' },
+        { model: MaintenanceVisit, as: 'maintenanceVisits' },
+        { model: Material }, // Sin alias, usa el plural del modelo: Materials
+        { model: Inspection, as: 'inspections' },
+        { model: InstallationDetail, as: 'installationDetails' },
+        { model: FinalInvoice, as: 'finalInvoice' }
+      ],
+      transaction
+    });
+
     if (!work) {
+      await transaction.rollback();
       return res.status(404).json({ error: true, message: 'Obra no encontrada' });
     }
 
-    await work.destroy();
-    res.status(200).json({ message: 'Obra eliminada correctamente' });
+    // Consulta separada para Receipts debido a incompatibilidad de tipos (UUID vs STRING)
+    const workReceipts = await Receipt.findAll({
+      where: {
+        relatedModel: 'Work',
+        relatedId: idWork.toString() // Convertir UUID a string para comparación
+      },
+      transaction
+    });
+
+    console.log(`🗑️ Eliminando Work #${idWork} (${work.address || work.propertyAddress})...`);
+
+    // Contadores para el resumen
+    let deletedCounts = {
+      images: 0,
+      receipts: 0,
+      materials: 0,
+      inspections: 0,
+      incomes: 0,
+      expenses: 0,
+      materialSets: 0,
+      changeOrders: 0,
+      maintenanceVisits: 0
+    };
+
+    // 1. Eliminar imágenes de Cloudinary
+    if (work.images && work.images.length > 0) {
+      deletedCounts.images = work.images.length;
+      console.log(`📸 Eliminando ${deletedCounts.images} imágenes de Cloudinary...`);
+      const imageDeletes = work.images.map(img => 
+        deleteFromCloudinary(img.publicId)
+          .catch(err => console.warn(`⚠️ Error eliminando imagen ${img.publicId}:`, err.message))
+      );
+      await Promise.all(imageDeletes);
+    }
+
+    // 2. Eliminar receipts de Cloudinary y sus datos asociados
+    if (workReceipts && workReceipts.length > 0) {
+      deletedCounts.receipts = workReceipts.length;
+      console.log(`🧾 Eliminando ${deletedCounts.receipts} receipts de Cloudinary...`);
+      const receiptDeletes = workReceipts.map(receipt => 
+        deleteFromCloudinary(receipt.publicId)
+          .catch(err => console.warn(`⚠️ Error eliminando receipt ${receipt.publicId}:`, err.message))
+      );
+      await Promise.all(receiptDeletes);
+    }
+
+    // 3. Eliminar receipts asociados a expenses del work
+    if (work.expenses && work.expenses.length > 0) {
+      deletedCounts.expenses = work.expenses.length;
+      console.log(`💸 Procesando ${deletedCounts.expenses} gastos y sus receipts...`);
+      for (const expense of work.expenses) {
+        const expenseReceipts = await Receipt.findAll({
+          where: {
+            relatedModel: 'Expense',
+            relatedId: expense.idExpense.toString()
+          },
+          transaction
+        });
+        
+        if (expenseReceipts.length > 0) {
+          const expenseReceiptDeletes = expenseReceipts.map(receipt =>
+            deleteFromCloudinary(receipt.publicId)
+              .catch(err => console.warn(`⚠️ Error eliminando expense receipt:`, err.message))
+          );
+          await Promise.all(expenseReceiptDeletes);
+        }
+      }
+    }
+
+    // 4. Procesar Incomes
+    if (work.incomes && work.incomes.length > 0) {
+      deletedCounts.incomes = work.incomes.length;
+      console.log(`💰 Marcando ${deletedCounts.incomes} ingresos para eliminación (CASCADE)...`);
+    }
+
+    // 5. Eliminar MaterialSet invoices de Cloudinary
+    if (work.MaterialSets && work.MaterialSets.length > 0) {
+      deletedCounts.materialSets = work.MaterialSets.length;
+      console.log(`📦 Eliminando invoices de ${deletedCounts.materialSets} MaterialSets...`);
+      for (const matSet of work.MaterialSets) {
+        if (matSet.invoiceFile && matSet.invoiceFile.includes('cloudinary')) {
+          const urlParts = matSet.invoiceFile.split('/');
+          const publicId = urlParts.slice(-2).join('/').split('.')[0];
+          await deleteFromCloudinary(publicId)
+            .catch(err => console.warn(`⚠️ Error eliminando invoice de MaterialSet:`, err.message));
+        }
+      }
+    }
+
+    // 6. Eliminar PDFs de ChangeOrders
+    if (work.changeOrders && work.changeOrders.length > 0) {
+      deletedCounts.changeOrders = work.changeOrders.length;
+      console.log(`📝 Eliminando PDFs de ${deletedCounts.changeOrders} ChangeOrders...`);
+      for (const co of work.changeOrders) {
+        if (co.pdfPath && fs.existsSync(co.pdfPath)) {
+          fs.unlinkSync(co.pdfPath);
+          console.log(`  ✓ Eliminado: ${co.pdfPath}`);
+        }
+      }
+    }
+
+    // 7. Eliminar MaintenanceVisit media files
+    if (work.maintenanceVisits && work.maintenanceVisits.length > 0) {
+      deletedCounts.maintenanceVisits = work.maintenanceVisits.length;
+      console.log(`🔧 Eliminando media de ${deletedCounts.maintenanceVisits} MaintenanceVisits...`);
+      for (const visit of work.maintenanceVisits) {
+        const mediaFiles = await MaintenanceMedia.findAll({
+          where: { maintenanceVisitId: visit.idMaintenanceVisit },
+          transaction
+        });
+        
+        if (mediaFiles.length > 0) {
+          const mediaDeletes = mediaFiles.map(media =>
+            deleteFromCloudinary(media.publicId)
+              .catch(err => console.warn(`⚠️ Error eliminando maintenance media:`, err.message))
+          );
+          await Promise.all(mediaDeletes);
+        }
+      }
+    }
+
+    // 8. Contar Materials e Inspections antes de eliminar
+    if (work.Materials) deletedCounts.materials = work.Materials.length;
+    if (work.inspections) deletedCounts.inspections = work.inspections.length;
+
+    // 9. Limpiar campos de pago del Budget asociado (si existe)
+    if (work.idBudget) {
+      const budget = await Budget.findByPk(work.idBudget, { transaction });
+      if (budget && (budget.paymentProofAmount || budget.paymentInvoice)) {
+        console.log(`💳 Limpiando información de pago del Budget #${work.idBudget}...`);
+        await budget.update({
+          paymentProofAmount: null,
+          paymentProofMethod: null,
+          paymentInvoice: null,
+          paymentProofType: null
+        }, { transaction });
+        console.log(`   ✓ Campos de pago del Budget limpiados`);
+      }
+    }
+
+    // 10. CASCADE en DB eliminará automáticamente:
+    //    - Materials ✅
+    //    - MaterialSets ✅
+    //    - Inspections ✅
+    //    - InstallationDetails ✅
+    //    - Images (registros DB) ✅
+    //    - ChangeOrders ✅
+    //    - FinalInvoices ✅
+    //    - MaintenanceVisits ✅
+    //    - Incomes ✅
+    //    - Expenses ✅
+    //    - Receipts ✅
+
+    // 11. Eliminar el Work (trigger CASCADE en DB)
+    await work.destroy({ transaction });
+
+    await transaction.commit();
+    
+    // Resumen detallado de eliminación
+    console.log(`\n✅ Work #${idWork} eliminado exitosamente!`);
+    console.log(`📊 Resumen de eliminación:`);
+    console.log(`   🏠 Dirección: ${work.address || work.propertyAddress}`);
+    console.log(`   📸 Imágenes: ${deletedCounts.images}`);
+    console.log(`   🧾 Receipts: ${deletedCounts.receipts}`);
+    console.log(`   🔨 Materiales: ${deletedCounts.materials}`);
+    console.log(`   🔍 Inspecciones: ${deletedCounts.inspections}`);
+    console.log(`   💰 Ingresos: ${deletedCounts.incomes}`);
+    console.log(`   💸 Gastos: ${deletedCounts.expenses}`);
+    console.log(`   📦 Material Sets: ${deletedCounts.materialSets}`);
+    console.log(`   📝 Change Orders: ${deletedCounts.changeOrders}`);
+    console.log(`   🔧 Mantenimientos: ${deletedCounts.maintenanceVisits}\n`);
+    
+    res.status(200).json({ 
+      success: true,
+      message: `Obra "${work.address || work.propertyAddress}" eliminada exitosamente`,
+      deleted: deletedCounts
+    });
   } catch (error) {
-    console.error('Error al eliminar la obra:', error);
-    res.status(500).json({ error: true, message: 'Error interno del servidor' });
+    await transaction.rollback();
+    console.error('❌ Error al eliminar la obra:', error);
+    res.status(500).json({ 
+      error: true, 
+      message: 'Error al eliminar la obra: ' + error.message 
+    });
   }
 };
 const addInstallationDetail = async (req, res) => {

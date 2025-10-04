@@ -516,6 +516,130 @@ const updatePermitClientData = async (req, res) => {
   }
 };
 
+// 🆕 REEMPLAZAR PDF PRINCIPAL DEL PERMIT
+const replacePermitPdf = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    
+    if (!req.file) {
+      return res.status(400).json({ 
+        error: true, 
+        message: "No se proporcionó ningún archivo PDF" 
+      });
+    }
+
+    const permit = await Permit.findByPk(id);
+    if (!permit) {
+      return res.status(404).json({ 
+        error: true, 
+        message: "Permiso no encontrado" 
+      });
+    }
+
+    // Si es legacy y tiene URL de Cloudinary, eliminar el archivo anterior
+    if (permit.isLegacy && permit.pdfUrl && permit.pdfPublicId) {
+      try {
+        const cloudinary = require('../utils/cloudinaryConfig').cloudinary;
+        await cloudinary.uploader.destroy(permit.pdfPublicId, { resource_type: 'raw' });
+        console.log(`✅ PDF anterior eliminado de Cloudinary: ${permit.pdfPublicId}`);
+      } catch (error) {
+        console.warn('⚠️ Error al eliminar PDF anterior de Cloudinary:', error.message);
+      }
+    }
+
+    // Si tiene pdfData (BLOB), se reemplazará automáticamente
+    const pdfBuffer = req.file.buffer;
+    
+    // Actualizar el permit con el nuevo PDF
+    await permit.update({
+      pdfData: pdfBuffer,
+      pdfUrl: null, // Limpiar URL si existía
+      pdfPublicId: null, // Limpiar publicId si existía
+      isLegacy: false // Ya no es legacy, ahora tiene BLOB
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "PDF del permiso reemplazado exitosamente",
+      permit: {
+        idPermit: permit.idPermit,
+        propertyAddress: permit.propertyAddress,
+        permitNumber: permit.permitNumber
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error al reemplazar PDF del permiso:', error);
+    res.status(500).json({
+      error: true,
+      message: 'Error al reemplazar PDF del permiso',
+      details: error.message
+    });
+  }
+};
+
+// 🆕 REEMPLAZAR DOCUMENTOS OPCIONALES DEL PERMIT
+const replaceOptionalDocs = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    
+    if (!req.file) {
+      return res.status(400).json({ 
+        error: true, 
+        message: "No se proporcionó ningún archivo PDF" 
+      });
+    }
+
+    const permit = await Permit.findByPk(id);
+    if (!permit) {
+      return res.status(404).json({ 
+        error: true, 
+        message: "Permiso no encontrado" 
+      });
+    }
+
+    // Si es legacy y tiene URL de Cloudinary, eliminar el archivo anterior
+    if (permit.isLegacy && permit.optionalDocsUrl && permit.optionalDocsPublicId) {
+      try {
+        const cloudinary = require('../utils/cloudinaryConfig').cloudinary;
+        await cloudinary.uploader.destroy(permit.optionalDocsPublicId, { resource_type: 'raw' });
+        console.log(`✅ OptionalDocs anterior eliminado de Cloudinary: ${permit.optionalDocsPublicId}`);
+      } catch (error) {
+        console.warn('⚠️ Error al eliminar OptionalDocs anterior de Cloudinary:', error.message);
+      }
+    }
+
+    // Si tiene optionalDocs (BLOB), se reemplazará automáticamente
+    const pdfBuffer = req.file.buffer;
+    
+    // Actualizar el permit con los nuevos docs opcionales
+    await permit.update({
+      optionalDocs: pdfBuffer,
+      optionalDocsUrl: null, // Limpiar URL si existía
+      optionalDocsPublicId: null, // Limpiar publicId si existía
+      isLegacy: false // Ya no es legacy, ahora tiene BLOB
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Documentos opcionales reemplazados exitosamente",
+      permit: {
+        idPermit: permit.idPermit,
+        propertyAddress: permit.propertyAddress,
+        permitNumber: permit.permitNumber
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error al reemplazar documentos opcionales:', error);
+    res.status(500).json({
+      error: true,
+      message: 'Error al reemplazar documentos opcionales',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   createPermit,
   getPermits,
@@ -527,4 +651,6 @@ module.exports = {
   getContactList,
   checkPermitByPropertyAddress,
   updatePermitClientData, // NUEVO MÉTODO
+  replacePermitPdf, // 🆕 NUEVO: Reemplazar PDF principal
+  replaceOptionalDocs, // 🆕 NUEVO: Reemplazar documentos opcionales
 };

@@ -1,12 +1,13 @@
 import React, { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchWorks } from "../../Redux/Actions/workActions"; // Acción para obtener los works
+import { fetchWorks, deleteWork } from "../../Redux/Actions/workActions"; // Acción para obtener y eliminar works
 import { useNavigate } from "react-router-dom";
 import { 
   BuildingOfficeIcon, 
   MapPinIcon, 
   EyeIcon,
-  ClockIcon
+  ClockIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 
 const Works = () => {
@@ -37,6 +38,55 @@ const Works = () => {
       case 'pending': return '⏳';
       case 'cancelled': return '❌';
       default: return '📋';
+    }
+  };
+
+  const handleDeleteWork = async (work) => {
+    const confirmMessage = `⚠️ ADVERTENCIA: Eliminación en Cascada\n\n` +
+      `Se eliminará el trabajo "${work.propertyAddress}" y TODOS los registros asociados:\n\n` +
+      `🏗️ Work ID: ${work.idWork}\n` +
+      `📋 Budget asociado (si existe)\n` +
+      `📄 Permit asociado y sus documentos\n` +
+      `🧱 Todos los materiales y sets de materiales\n` +
+      `🔍 Todas las inspecciones\n` +
+      `📸 Todas las imágenes\n` +
+      `💰 Todos los ingresos y gastos\n` +
+      `📎 Todos los comprobantes (Receipts)\n` +
+      `📝 Change Orders y Final Invoice\n` +
+      `🔧 Visitas de mantenimiento\n` +
+      `📊 Detalles de instalación\n\n` +
+      `Esta acción NO se puede deshacer.\n\n` +
+      `¿Estás seguro de que deseas continuar?`;
+    
+    if (window.confirm(confirmMessage)) {
+      try {
+        const result = await dispatch(deleteWork(work.idWork));
+        
+        // Construir mensaje de éxito con el resumen de eliminación
+        if (result && result.deleted) {
+          const { deleted } = result;
+          let successMessage = `✅ Trabajo "${work.propertyAddress}" eliminado exitosamente\n\n📊 Resumen de eliminación:\n\n`;
+          
+          if (deleted.images > 0) successMessage += `📸 Imágenes: ${deleted.images}\n`;
+          if (deleted.receipts > 0) successMessage += `🧾 Receipts: ${deleted.receipts}\n`;
+          if (deleted.materials > 0) successMessage += `🔨 Materiales: ${deleted.materials}\n`;
+          if (deleted.inspections > 0) successMessage += `🔍 Inspecciones: ${deleted.inspections}\n`;
+          if (deleted.incomes > 0) successMessage += `💰 Ingresos: ${deleted.incomes}\n`;
+          if (deleted.expenses > 0) successMessage += `💸 Gastos: ${deleted.expenses}\n`;
+          if (deleted.materialSets > 0) successMessage += `📦 Material Sets: ${deleted.materialSets}\n`;
+          if (deleted.changeOrders > 0) successMessage += `📝 Change Orders: ${deleted.changeOrders}\n`;
+          if (deleted.maintenanceVisits > 0) successMessage += `🔧 Visitas de Mantenimiento: ${deleted.maintenanceVisits}\n`;
+          
+          alert(successMessage);
+        } else {
+          alert('✅ Trabajo y todos sus datos asociados eliminados exitosamente');
+        }
+        
+        dispatch(fetchWorks()); // Recargar la lista
+      } catch (error) {
+        console.error('Error al eliminar work:', error);
+        alert(`❌ Error al eliminar: ${error.message || 'Error desconocido'}`);
+      }
     }
   };
 
@@ -136,13 +186,23 @@ const Works = () => {
                             </span>
                           </td>
                           <td className="px-6 py-4 text-center">
-                            <button
-                              onClick={() => navigate(`/work/${work.idWork}`)}
-                              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-300 font-medium shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-                            >
-                              <EyeIcon className="w-4 h-4" />
-                              View Details
-                            </button>
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => navigate(`/work/${work.idWork}`)}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-300 font-medium shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                              >
+                                <EyeIcon className="w-4 h-4" />
+                                View Details
+                              </button>
+                              <button
+                                onClick={() => handleDeleteWork(work)}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-300 font-medium shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                                title="Eliminar trabajo y todos sus datos"
+                              >
+                                <TrashIcon className="w-4 h-4" />
+                                Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -173,13 +233,22 @@ const Works = () => {
                         </span>
                       </div>
                     </div>
-                    <button
-                      onClick={() => navigate(`/work/${work.idWork}`)}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-300 font-medium shadow-md hover:shadow-lg"
-                    >
-                      <EyeIcon className="w-4 h-4" />
-                      View Details
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => navigate(`/work/${work.idWork}`)}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-300 font-medium shadow-md hover:shadow-lg"
+                      >
+                        <EyeIcon className="w-4 h-4" />
+                        View Details
+                      </button>
+                      <button
+                        onClick={() => handleDeleteWork(work)}
+                        className="px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl hover:from-red-600 hover:to-red-700 transition-all duration-300 font-medium shadow-md hover:shadow-lg"
+                        title="Eliminar trabajo"
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
