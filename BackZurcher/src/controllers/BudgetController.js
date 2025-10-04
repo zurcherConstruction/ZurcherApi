@@ -38,7 +38,8 @@ const BudgetController = {
       // ... (Extracción de req.body, validaciones, búsqueda de Permit) ...
       const {
         permitId, date, expirationDate, status = 'pending', discountDescription,
-        discountAmount = 0, generalNotes, initialPaymentPercentage: initialPaymentPercentageInput, lineItems
+        discountAmount = 0, generalNotes, initialPaymentPercentage: initialPaymentPercentageInput, lineItems,
+        leadSource, createdByStaffId // 🆕 Campos de origen y vendedor
       } = req.body;
 
       if (!permitId) throw new Error('permitId es requerido.');
@@ -134,7 +135,15 @@ const BudgetController = {
       const calculatedInitialPayment = finalTotal * (actualPercentage / 100);
       console.log(`Totales calculados: Subtotal=${calculatedSubtotal}, Total=${finalTotal}, InitialPayment=${calculatedInitialPayment}`);
 
-      // --- Crear Budget ---
+     let salesCommission = 0;
+     let finalTotalWithCommission = finalTotal;
+
+if (leadSource === 'sales_rep' && createdByStaffId) {
+  salesCommission = 500;
+  finalTotalWithCommission = finalTotal + salesCommission;
+  console.log(`Presupuesto con vendedor - Trabajo: $${finalTotal} + Comision: $${salesCommission} = Total cliente: $${finalTotalWithCommission}`);
+}
+
       const newBudget = await Budget.create({
         idBudget: nextBudgetId,
         PermitIdPermit: permit.idPermit,
@@ -148,8 +157,14 @@ const BudgetController = {
         applicantName: permit.applicantName,
         propertyAddress: permit.propertyAddress,
         subtotalPrice: calculatedSubtotal,
-        totalPrice: finalTotal,
-        initialPayment: calculatedInitialPayment,
+        totalPrice: finalTotalWithCommission,
+        initialPayment: finalTotalWithCommission * (actualPercentage / 100),
+        leadSource: leadSource || 'web',
+        createdByStaffId: createdByStaffId || null,
+        salesCommissionAmount: salesCommission,
+        clientTotalPrice: finalTotalWithCommission,
+        commissionAmount: salesCommission,
+        commissionPaid: false,
       }, { transaction });
       newBudgetId = newBudget.idBudget;
       console.log(`Budget base creado con ID: ${newBudgetId}. Estado: ${status}`);

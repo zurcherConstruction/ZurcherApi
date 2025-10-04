@@ -8,6 +8,7 @@ import { unwrapResult } from '@reduxjs/toolkit';
 import { fetchBudgetItems } from "../../Redux/Actions/budgetItemActions";
 import { fetchPermitById } from "../../Redux/Actions/permitActions";
 import { createBudget } from "../../Redux/Actions/budgetActions";
+import { fetchStaff } from "../../Redux/Actions/adminActions";
 import "@react-pdf-viewer/core/lib/styles/index.css";
 import "@react-pdf-viewer/default-layout/lib/styles/index.css";
 import Swal from 'sweetalert2';
@@ -110,6 +111,12 @@ const CreateBudget = () => {
   // --- Estado del Permit seleccionado ---
   const { selectedPermit, loading: loadingPermit, error: errorPermit } = useSelector(state => state.permit) || {};
   console.log("Permit seleccionado:", selectedPermit);
+  
+  // --- 🆕 Estado de Staff (vendedores) ---
+  const { staffList = [], loading: loadingStaff } = useSelector(state => state.admin) || {};
+  const salesReps = staffList.filter(s => s.role === 'sales_rep' && s.isActive);
+  console.log("📋 Staff completo:", staffList);
+  console.log("👔 Vendedores disponibles:", salesReps);
   const [permitExpirationAlert, setPermitExpirationAlert] = useState({ type: "", message: "" });
   const [pdfPreview, setPdfPreview] = useState(null);
   const [optionalDocPreview, setOptionalDocPreview] = useState(null);
@@ -187,6 +194,9 @@ const CreateBudget = () => {
     excavationRequired: "",
     drainfieldDepth: "",
     systemType: "",
+    // 🆕 Campos de origen y vendedor
+    leadSource: 'web',
+    createdByStaffId: '',
   });
 
   // --- useEffect para sincronizar displayDate con formData.date ---
@@ -198,10 +208,11 @@ const CreateBudget = () => {
     }
   }, [formData.date]);
 
-  // --- Cargar Datos Iniciales (Catálogo y Permit) ---
+  // --- Cargar Datos Iniciales (Catálogo, Permit y Staff) ---
   useEffect(() => {
-    // Siempre cargar catálogo
+    // Siempre cargar catálogo y staff
     dispatch(fetchBudgetItems());
+    dispatch(fetchStaff()); // 🆕 Cargar staff para vendedores
 
     // Cargar Permit si hay ID en la query
     if (permitIdFromQuery) {
@@ -303,26 +314,30 @@ const CreateBudget = () => {
     }, 0);
 
     const discountValue = parseFloat(formData.discountAmount) || 0;
-    const total = subtotal - discountValue;
+    let total = subtotal - discountValue;
+
+    // 💰 AGREGAR COMISIÓN SI HAY VENDEDOR
+    const salesCommission = (formData.leadSource === 'sales_rep' && formData.createdByStaffId) ? 500 : 0;
+    const totalWithCommission = total + salesCommission;
 
     let payment = 0;
     const percentage = parseFloat(formData.initialPaymentPercentage);
     if (!isNaN(percentage)) {
-      payment = (total * percentage) / 100;
+      payment = (totalWithCommission * percentage) / 100;
     } else if (formData.initialPaymentPercentage === 'total') {
-      payment = total;
+      payment = totalWithCommission;
     }
 
     // Evitar re-renderizado innecesario si los valores no cambian
-    if (subtotal !== formData.subtotalPrice || total !== formData.totalPrice || payment !== formData.initialPayment) {
+    if (subtotal !== formData.subtotalPrice || totalWithCommission !== formData.totalPrice || payment !== formData.initialPayment) {
       setFormData(prev => ({
         ...prev,
         subtotalPrice: subtotal,
-        totalPrice: total,
+        totalPrice: totalWithCommission,
         initialPayment: payment,
       }));
     }
-  }, [formData.lineItems, formData.discountAmount, formData.initialPaymentPercentage, formData.subtotalPrice, formData.totalPrice, formData.initialPayment]); // Añadidas dependencias calculadas
+  }, [formData.lineItems, formData.discountAmount, formData.initialPaymentPercentage, formData.leadSource, formData.createdByStaffId, formData.subtotalPrice, formData.totalPrice, formData.initialPayment]);
 
   // --- Effect para calcular Expiration Date siempre que Date cambie ---
   useEffect(() => {
@@ -656,6 +671,9 @@ const customCategoryOrder = [
         discountAmount: parseFloat(formData.discountAmount) || 0,
         generalNotes: formData.generalNotes,
         initialPaymentPercentage: formData.initialPaymentPercentage,
+        // 🆕 Campos de origen y vendedor
+        leadSource: formData.leadSource || 'web',
+        createdByStaffId: formData.leadSource === 'sales_rep' ? formData.createdByStaffId : null,
         lineItems: formData.lineItems.map(item => ({
           budgetItemId: item.budgetItemId || null,
           quantity: item.quantity,
@@ -921,6 +939,84 @@ const customCategoryOrder = [
                     <input id="budget_expiration" type="text" name="expirationDate" value={displayExpirationDate} className="mt-1 block w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-md shadow-sm sm:text-sm cursor-default" readOnly />
                   </div>
                 </div>
+
+                {/* --- 🆕 SECCIÓN ORIGEN Y VENDEDOR --- */}
+                <div className="border-t border-gray-200 pt-6">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-4 flex items-center">
+                    <svg className="w-5 h-5 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    Lead Source & Sales Representative
+                  </h4>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                    {/* Lead Source */}
+                    <div>
+                      <label htmlFor="leadSource" className="block text-sm font-medium text-gray-700 mb-1">
+                        Where did the lead come from? <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        id="leadSource"
+                        name="leadSource"
+                        value={formData.leadSource}
+                        onChange={handleGeneralInputChange}
+                        required
+                        className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      >
+                        <option value="web">Website / Web Form</option>
+                        <option value="direct_client">Direct Client (Walk-in/Call)</option>
+                        <option value="social_media">Social Media</option>
+                        <option value="referral">Referral</option>
+                        <option value="sales_rep">Sales Representative</option>
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Select the origin of this budget request
+                      </p>
+                    </div>
+
+                    {/* Sales Rep (solo si leadSource === 'sales_rep') */}
+                    {formData.leadSource === 'sales_rep' && (
+                      <div>
+                        <label htmlFor="createdByStaffId" className="block text-sm font-medium text-gray-700 mb-1">
+                          Sales Representative <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          id="createdByStaffId"
+                          name="createdByStaffId"
+                          value={formData.createdByStaffId}
+                          onChange={handleGeneralInputChange}
+                          required={formData.leadSource === 'sales_rep'}
+                          className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        >
+                          <option value="">Select a sales representative...</option>
+                          {loadingStaff ? (
+                            <option disabled>Loading sales reps...</option>
+                          ) : salesReps.length === 0 ? (
+                            <option disabled>No sales representatives available</option>
+                          ) : (
+                            salesReps.map(rep => (
+                              <option key={rep.id} value={rep.id}>
+                                {rep.name} ({rep.email})
+                              </option>
+                            ))
+                          )}
+                        </select>
+                        <p className="text-xs text-indigo-600 mt-1 font-medium">
+                          💰 Fixed commission: $500 USD (will increase client's total price)
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Mensaje informativo si es vendedor */}
+                  {formData.leadSource === 'sales_rep' && formData.createdByStaffId && (
+                    <div className="mt-4 p-3 bg-indigo-50 border border-indigo-200 rounded-md">
+                      <p className="text-sm text-indigo-800">
+                        <strong>👤 Sales Commission:</strong> A $500 USD commission will be automatically added to the client's total price for the selected sales representative.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
            {/* // --- Sección Items Presupuestables (Collapsible) --- */}
@@ -1138,6 +1234,11 @@ const customCategoryOrder = [
               <p className="text-gray-700">Subtotal: <span className="font-semibold text-gray-900">${formData.subtotalPrice.toFixed(2)}</span></p>
               {(parseFloat(formData.discountAmount) || 0) > 0 && (
                 <p className="text-red-600">Descuento ({formData.discountDescription || 'General'}): <span className="font-semibold">-${(parseFloat(formData.discountAmount) || 0).toFixed(2)}</span></p>
+              )}
+              {formData.leadSource === 'sales_rep' && formData.createdByStaffId && (
+                <p className="text-indigo-600 text-sm italic">
+                  Sales Commission (internal): <span className="font-semibold">+$500.00</span>
+                </p>
               )}
               <p className="text-xl font-bold text-gray-800">Total: <span className="font-semibold text-gray-900">${formData.totalPrice.toFixed(2)}</span></p>
               <div className="flex flex-col sm:flex-row justify-end items-center space-y-3 sm:space-y-0 sm:space-x-4 mt-4 pt-3"> {/* Made payment section responsive */}
