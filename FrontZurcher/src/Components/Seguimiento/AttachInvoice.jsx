@@ -17,7 +17,7 @@ import {
 
 const incomeTypes = [
   "Factura Pago Final Budget",
-  "DiseñoDif",
+  "Diseño",
   "Comprobante Ingreso",
 ];
 
@@ -30,7 +30,20 @@ const expenseTypes = [
   "Workers",
   "Imprevistos",
   "Comprobante Gasto",
-  "Gastos Generales"
+  "Gastos Generales",
+  "Comisión Vendedor"
+];
+
+// Tipos que NO requieren Work (son gastos/ingresos generales)
+const generalExpenseTypes = [
+  "Workers",
+  "Gastos Generales",
+  "Comisión Vendedor",
+  "Comprobante Gasto" // Puede ser general o específico
+];
+
+const generalIncomeTypes = [
+  "Comprobante Ingreso" // Puede ser general o específico
 ];
 
 const AttachReceipt = () => {
@@ -49,6 +62,7 @@ const AttachReceipt = () => {
   const [finalPaymentAmount, setFinalPaymentAmount] = useState(''); // Monto específico para el pago de Factura Final
   const [amountPaid, setAmountPaid] = useState(''); // Nuevo estado para el monto pagado
   const [finalInvoiceDetails, setFinalInvoiceDetails] = useState(null);
+  const [isGeneralTransaction, setIsGeneralTransaction] = useState(false); // Nuevo estado para marcar si es transacción general
 
 
 
@@ -74,9 +88,17 @@ const AttachReceipt = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Determinar si el tipo seleccionado permite transacciones generales
+    const canBeGeneral = generalExpenseTypes.includes(type) || generalIncomeTypes.includes(type);
+
     // Validaciones básicas
-    if (!selectedWork || !type) {
-      toast.error("Por favor, completa la obra y el tipo.");
+    if (!canBeGeneral && !isGeneralTransaction && !selectedWork) {
+      toast.error("Por favor, selecciona una obra o marca como transacción general.");
+      return;
+    }
+
+    if (!type) {
+      toast.error("Por favor, selecciona el tipo de comprobante.");
       return;
     }
 
@@ -160,7 +182,8 @@ const AttachReceipt = () => {
           date: new Date().toISOString().split("T")[0],
           amount: parseFloat(generalAmount),
           notes,
-          workId: selectedWork,
+          // Solo incluir workId si no es transacción general
+          ...(isGeneralTransaction ? {} : { workId: selectedWork }),
           staffId: staff?.id,
           ...(isIncome ? { typeIncome: type } : { typeExpense: type }),
         };
@@ -204,6 +227,7 @@ const AttachReceipt = () => {
       setGeneralAmount("");
       setFinalPaymentAmount("");
       setFinalInvoiceDetails(null);
+      setIsGeneralTransaction(false);
 
     } catch (err) { // Cambiado 'error' a 'err' para evitar colisión con 'worksError'
       console.error("Error al procesar la solicitud:", err);
@@ -216,6 +240,10 @@ const AttachReceipt = () => {
   const calculatedRemainingBalance = finalInvoiceDetails
     ? (parseFloat(finalInvoiceDetails.finalAmountDue || 0) - parseFloat(finalInvoiceDetails.totalAmountPaid || 0)).toFixed(2)
     : "0.00";
+  
+  // Determinar si el tipo actual permite ser general
+  const canBeGeneral = generalExpenseTypes.includes(type) || generalIncomeTypes.includes(type);
+  const requiresWork = type === "Factura Pago Final Budget"; // Los pagos de factura final SIEMPRE requieren work
 
 
   return (
@@ -258,35 +286,98 @@ const AttachReceipt = () => {
         {/* Main Form Card */}
         <div className="bg-white rounded-xl shadow-lg p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Work Selection */}
+            
+            {/* Receipt Type Selection - Moved to top */}
             <div>
-              <label htmlFor="work" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
-                <BuildingOffice2Icon className="h-5 w-5 mr-2 text-blue-500" />
-                Seleccionar Obra
+              <label htmlFor="type" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
+                <DocumentTextIcon className="h-5 w-5 mr-2 text-blue-500" />
+                Tipo de Comprobante
               </label>
               <select
-                id="work"
-                value={selectedWork}
-                onChange={(e) => setSelectedWork(e.target.value)}
+                id="type"
+                value={type}
+                onChange={(e) => {
+                  setType(e.target.value);
+                  // Reset general transaction when type changes
+                  setIsGeneralTransaction(false);
+                }}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
               >
-                <option value="">Seleccione una obra</option>
-                {works && works.map((work) => {
-                  // Mostrar obras que pueden necesitar comprobantes de pago
-                  const canAttachPayment = ['invoiceFinal', 'paymentReceived'].includes(work.status);
-                  const hasUnpaidInvoice = work.finalInvoice && work.finalInvoice.status !== 'paid';
-
-                  // Mostrar todas las obras, pero destacar las relevantes para pagos
-                  return (
-                    <option key={work.idWork} value={work.idWork}>
-                      {work.propertyAddress}
-                      {canAttachPayment && hasUnpaidInvoice ? ' 💰' : ''}
-                      {work.status === 'paymentReceived' ? ' (Pago Recibido)' : ''}
+                <option value="">Seleccione un tipo</option>
+                <optgroup label="💰 Ingresos">
+                  {incomeTypes.map((incomeType) => (
+                    <option key={incomeType} value={incomeType}>
+                      {incomeType}
                     </option>
-                  );
-                })}
+                  ))}
+                </optgroup>
+                <optgroup label="💳 Gastos">
+                  {expenseTypes.map((expenseType) => (
+                    <option key={expenseType} value={expenseType}>
+                      {expenseType}
+                    </option>
+                  ))}
+                </optgroup>
               </select>
             </div>
+
+            {/* General Transaction Toggle - Only show for applicable types */}
+            {type && canBeGeneral && !requiresWork && (
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-200">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isGeneralTransaction}
+                    onChange={(e) => {
+                      setIsGeneralTransaction(e.target.checked);
+                      if (e.target.checked) {
+                        setSelectedWork(""); // Clear work selection if marking as general
+                      }
+                    }}
+                    className="w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-2 focus:ring-purple-500"
+                  />
+                  <span className="ml-3 text-sm font-medium text-gray-700">
+                    💼 Este es un gasto/ingreso general (no asociado a una obra específica)
+                  </span>
+                </label>
+                <p className="ml-8 mt-1 text-xs text-gray-500">
+                  Marca esta opción para gastos como pagos de workers generales, comisiones, o gastos administrativos que no corresponden a una obra en particular.
+                </p>
+              </div>
+            )}
+
+            {/* Work Selection - Only show if not general transaction and type is selected */}
+            {type && !isGeneralTransaction && (
+              <div>
+                <label htmlFor="work" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
+                  <BuildingOffice2Icon className="h-5 w-5 mr-2 text-blue-500" />
+                  Seleccionar Obra {requiresWork && <span className="ml-1 text-red-500">*</span>}
+                </label>
+                <select
+                  id="work"
+                  value={selectedWork}
+                  onChange={(e) => setSelectedWork(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
+                  required={requiresWork}
+                >
+                  <option value="">Seleccione una obra</option>
+                  {works && works.map((work) => {
+                    // Mostrar obras que pueden necesitar comprobantes de pago
+                    const canAttachPayment = ['invoiceFinal', 'paymentReceived'].includes(work.status);
+                    const hasUnpaidInvoice = work.finalInvoice && work.finalInvoice.status !== 'paid';
+
+                    // Mostrar todas las obras, pero destacar las relevantes para pagos
+                    return (
+                      <option key={work.idWork} value={work.idWork}>
+                        {work.propertyAddress}
+                        {canAttachPayment && hasUnpaidInvoice ? ' 💰' : ''}
+                        {work.status === 'paymentReceived' ? ' (Pago Recibido)' : ''}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+            )}
 
             {/* Work Status Card */}
             {selectedWork && currentWorkDetails && (
@@ -379,36 +470,6 @@ const AttachReceipt = () => {
                 )}
               </div>
             )}
-
-            {/* Receipt Type Selection */}
-            <div>
-              <label htmlFor="type" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
-                <DocumentTextIcon className="h-5 w-5 mr-2 text-blue-500" />
-                Tipo de Comprobante
-              </label>
-              <select
-                id="type"
-                value={type}
-                onChange={(e) => setType(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
-              >
-                <option value="">Seleccione un tipo</option>
-                <optgroup label="💰 Ingresos">
-                  {incomeTypes.map((incomeType) => (
-                    <option key={incomeType} value={incomeType}>
-                      {incomeType}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="💳 Gastos">
-                  {expenseTypes.map((expenseType) => (
-                    <option key={expenseType} value={expenseType}>
-                      {expenseType}
-                    </option>
-                  ))}
-                </optgroup>
-              </select>
-            </div>
 
             {/* Final Invoice Details Card */}
             {type === "Factura Pago Final Budget" && finalInvoiceDetails && currentWorkDetails && (

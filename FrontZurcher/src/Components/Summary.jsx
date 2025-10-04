@@ -40,6 +40,7 @@ const expenseTypes = [
   "Imprevistos",
   "Comprobante Gasto",
   "Gastos Generales",
+  "Comisión Vendedor", // 🆕 Para pagos de comisiones a sales_rep
 ];
 
 const Summary = () => {
