@@ -41,6 +41,14 @@ const GestionBudgets = () => {
   const [showSignedPdfModal, setShowSignedPdfModal] = useState(false);
   const [signedPdfUrl, setSignedPdfUrl] = useState(null);
   const [downloadingSignedPdf, setDownloadingSignedPdf] = useState(false);
+  
+  // Estados para reemplazar PDFs del Permit
+  const [showReplacePermitPdfModal, setShowReplacePermitPdfModal] = useState(false);
+  const [showReplaceOptionalDocsModal, setShowReplaceOptionalDocsModal] = useState(false);
+  const [newPermitPdfFile, setNewPermitPdfFile] = useState(null);
+  const [newOptionalDocsFile, setNewOptionalDocsFile] = useState(null);
+  const [uploadingPermitPdf, setUploadingPermitPdf] = useState(false);
+  const [uploadingOptionalDocs, setUploadingOptionalDocs] = useState(false);
 
   // Estados para el modal de edición
   const [editData, setEditData] = useState({
@@ -316,12 +324,41 @@ const handleSaveEdit = async () => {
 };
 
   const handleDelete = async (budgetId) => {
-    if (window.confirm('¿Estás seguro de que quieres eliminar este presupuesto?')) {
+    const budget = budgets.find(b => b.idBudget === budgetId);
+    if (!budget) return;
+    
+    const confirmMessage = `⚠️ ADVERTENCIA: Eliminación de Presupuesto\n\n` +
+      `Se eliminará el presupuesto #${budgetId}:\n\n` +
+      `📋 Presupuesto: ${budget.propertyAddress}\n` +
+      `📄 Permit asociado y sus documentos\n` +
+      `📝 Todos los items del presupuesto (BudgetLineItems)\n\n` +
+      `⚠️ NOTA: Si este presupuesto tiene Works (proyectos) asociados,\n` +
+      `NO se podrá eliminar. Primero debes eliminar los Works.\n\n` +
+      `Esta acción NO se puede deshacer.\n\n` +
+      `¿Estás seguro de que deseas continuar?`;
+    
+    if (window.confirm(confirmMessage)) {
       try {
         await dispatch(deleteBudget(budgetId));
+        alert('✅ Presupuesto y todos sus datos asociados eliminados exitosamente');
         dispatch(fetchBudgets()); // Refrescar la lista
       } catch (error) {
         console.error('Error al eliminar budget:', error);
+        
+        // Manejar error específico de Works asociados
+        if (error.response?.data?.workCount) {
+          const works = error.response.data.works || [];
+          let worksList = works.map((w, i) => `  ${i + 1}. Work #${w.idWork}: ${w.address} (${w.status})`).join('\n');
+          
+          alert(
+            `❌ No se puede eliminar el presupuesto\n\n` +
+            `${error.response.data.message}\n\n` +
+            `Works asociados (${error.response.data.workCount}):\n${worksList}\n\n` +
+            `💡 Solución: Elimina primero los Works asociados, luego podrás eliminar el presupuesto.`
+          );
+        } else {
+          alert(`❌ Error al eliminar: ${error.response?.data?.error || error.message || 'Error desconocido'}`);
+        }
       }
     }
   };
@@ -349,9 +386,10 @@ const handleSaveEdit = async () => {
   const canEdit = (budget) => {
     return !['approved', 'signed'].includes(budget.status);
   };
-  // Nueva función para verificar si se puede eliminar
+  
+  // 🧪 TESTING MODE: Permitir eliminar cualquier estado para pruebas
   const canDelete = (budget) => {
-    return !['approved', 'signed'].includes(budget.status);
+    return true; // ⚠️ TODO: Restaurar a !['approved', 'signed'].includes(budget.status) en producción
   };
 
   // Nueva función para mostrar detalles
@@ -388,6 +426,68 @@ const handleSaveEdit = async () => {
       alert('No se pudo descargar el PDF firmado.');
     }
     setDownloadingSignedPdf(false);
+  };
+
+  // Handler para reemplazar PDF del Permit
+  const handleReplacePermitPdf = async () => {
+    if (!newPermitPdfFile || !selectedBudget?.PermitIdPermit) {
+      alert('Por favor selecciona un archivo PDF');
+      return;
+    }
+
+    setUploadingPermitPdf(true);
+    try {
+      const formData = new FormData();
+      formData.append('pdfData', newPermitPdfFile);
+
+      await api.put(`/permit/${selectedBudget.PermitIdPermit}/replace-pdf`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      alert('PDF del Permit reemplazado exitosamente');
+      setShowReplacePermitPdfModal(false);
+      setNewPermitPdfFile(null);
+      
+      // Refrescar datos del budget
+      dispatch(fetchBudgetById(selectedBudget.idBudget));
+      dispatch(fetchBudgets());
+    } catch (err) {
+      console.error('Error al reemplazar PDF del Permit:', err);
+      alert(err.response?.data?.error || 'Error al reemplazar el PDF del Permit');
+    } finally {
+      setUploadingPermitPdf(false);
+    }
+  };
+
+  // Handler para reemplazar Optional Docs del Permit
+  const handleReplaceOptionalDocs = async () => {
+    if (!newOptionalDocsFile || !selectedBudget?.PermitIdPermit) {
+      alert('Por favor selecciona un archivo PDF');
+      return;
+    }
+
+    setUploadingOptionalDocs(true);
+    try {
+      const formData = new FormData();
+      formData.append('optionalDocs', newOptionalDocsFile);
+
+      await api.put(`/permit/${selectedBudget.PermitIdPermit}/replace-optional-docs`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      alert('Optional Docs del Permit reemplazados exitosamente');
+      setShowReplaceOptionalDocsModal(false);
+      setNewOptionalDocsFile(null);
+      
+      // Refrescar datos del budget
+      dispatch(fetchBudgetById(selectedBudget.idBudget));
+      dispatch(fetchBudgets());
+    } catch (err) {
+      console.error('Error al reemplazar Optional Docs del Permit:', err);
+      alert(err.response?.data?.error || 'Error al reemplazar los Optional Docs del Permit');
+    } finally {
+      setUploadingOptionalDocs(false);
+    }
   };
 
   if (loading) {
@@ -801,7 +901,27 @@ const handleSaveEdit = async () => {
               <div className="space-y-6">
                 {/* Información del Permit (Solo lectura) */}
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="text-lg font-semibold text-gray-900 mb-3">Información del Permiso</h4>
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="text-lg font-semibold text-gray-900">Información del Permiso</h4>
+                    {selectedBudget.PermitIdPermit && (
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowReplacePermitPdfModal(true)}
+                          className="px-3 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        >
+                          📄 Reemplazar PDF
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowReplaceOptionalDocsModal(true)}
+                          className="px-3 py-1 text-xs font-medium text-green-600 bg-green-50 border border-green-200 rounded-md hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+                        >
+                          📎 Reemplazar Docs
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <span className="text-sm font-medium text-gray-600">Permit #:</span>
@@ -1101,6 +1221,126 @@ const handleSaveEdit = async () => {
                   <Viewer fileUrl={signedPdfUrl} />
                 </Worker>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para reemplazar PDF del Permit */}
+      {showReplacePermitPdfModal && (
+        <div className="fixed inset-0 bg-gray-700 bg-opacity-60 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6 relative">
+            <button
+              onClick={() => {
+                setShowReplacePermitPdfModal(false);
+                setNewPermitPdfFile(null);
+              }}
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <h2 className="text-lg font-bold mb-4 text-center text-indigo-900">Reemplazar PDF del Permit</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Seleccionar nuevo PDF
+                </label>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={(e) => setNewPermitPdfFile(e.target.files[0])}
+                  className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none"
+                />
+                {newPermitPdfFile && (
+                  <p className="mt-2 text-sm text-green-600">✓ {newPermitPdfFile.name}</p>
+                )}
+              </div>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                <p className="text-xs text-yellow-800">
+                  ⚠️ Este archivo reemplazará el PDF actual del Permit. Esta acción no se puede deshacer.
+                </p>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setShowReplacePermitPdfModal(false);
+                    setNewPermitPdfFile(null);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+                  disabled={uploadingPermitPdf}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleReplacePermitPdf}
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                  disabled={!newPermitPdfFile || uploadingPermitPdf}
+                >
+                  {uploadingPermitPdf ? 'Subiendo...' : 'Reemplazar PDF'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para reemplazar Optional Docs del Permit */}
+      {showReplaceOptionalDocsModal && (
+        <div className="fixed inset-0 bg-gray-700 bg-opacity-60 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6 relative">
+            <button
+              onClick={() => {
+                setShowReplaceOptionalDocsModal(false);
+                setNewOptionalDocsFile(null);
+              }}
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <h2 className="text-lg font-bold mb-4 text-center text-green-900">Reemplazar Optional Docs</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Seleccionar nuevo PDF
+                </label>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={(e) => setNewOptionalDocsFile(e.target.files[0])}
+                  className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none"
+                />
+                {newOptionalDocsFile && (
+                  <p className="mt-2 text-sm text-green-600">✓ {newOptionalDocsFile.name}</p>
+                )}
+              </div>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                <p className="text-xs text-yellow-800">
+                  ⚠️ Este archivo reemplazará los Optional Docs actuales. Esta acción no se puede deshacer.
+                </p>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setShowReplaceOptionalDocsModal(false);
+                    setNewOptionalDocsFile(null);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+                  disabled={uploadingOptionalDocs}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleReplaceOptionalDocs}
+                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 disabled:opacity-50"
+                  disabled={!newOptionalDocsFile || uploadingOptionalDocs}
+                >
+                  {uploadingOptionalDocs ? 'Subiendo...' : 'Reemplazar Docs'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

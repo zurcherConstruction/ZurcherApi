@@ -39,6 +39,9 @@ async function runMigration() {
       console.log('   - add-payment-method (💳 Agregar método de pago a Income/Expense)');
       console.log('   - add-verified-field (✅ Agregar campo de verificación a Income/Expense)');
       console.log('   - add-payment-proof-method (💳 Agregar método de pago a Budget)');
+      console.log('   - add-cascade-delete (🗑️ Habilitar eliminación en cascada)');
+      console.log('   - make-permit-nullable (🔓 Hacer PermitIdPermit nullable)');
+      console.log('   - add-unique-constraints (🔒 Agregar constraints de unicidad)');
       process.exit(1);
     }
 
@@ -123,6 +126,27 @@ async function runMigration() {
       console.log('      • Guardar método de pago al subir comprobante inicial');
       console.log('      • Transferir método de pago a Income automáticamente');
       console.log('      • Mejor tracking de pagos iniciales de presupuestos');
+    } else if (migrationName === 'add-cascade-delete') {
+      console.log('📋 🗑️ ELIMINACIÓN EN CASCADA HABILITADA:');
+      console.log('\n   🔹 Budget CASCADE:');
+      console.log('      ✅ BudgetLineItems se eliminan automáticamente');
+      console.log('      ✅ Work.idBudget se pone NULL (Work no se elimina)');
+      console.log('\n   🔹 Work CASCADE:');
+      console.log('      ✅ Materials se eliminan automáticamente');
+      console.log('      ✅ MaterialSets se eliminan automáticamente');
+      console.log('      ✅ Inspections se eliminan automáticamente');
+      console.log('      ✅ InstallationDetails se eliminan automáticamente');
+      console.log('      ✅ Images se eliminan automáticamente');
+      console.log('      ✅ ChangeOrders se eliminan automáticamente');
+      console.log('      ✅ FinalInvoices se eliminan automáticamente');
+      console.log('      ✅ MaintenanceVisits se eliminan automáticamente');
+      console.log('\n   💡 Ahora puedes:');
+      console.log('      • Eliminar Works de prueba sin borrar todo manualmente');
+      console.log('      • Eliminar Budgets sin orphan records');
+      console.log('      • Limpiar datos de testing fácilmente');
+      console.log('\n   ⚠️  IMPORTANTE:');
+      console.log('      • Receipts, Incomes y Expenses NO se eliminan (usar lógica de aplicación)');
+      console.log('      • Permits NO se eliminan (pueden estar asociados a múltiples Works)');
     }
   } catch (error) {
     console.error('\n❌ Error ejecutando migración:', error);

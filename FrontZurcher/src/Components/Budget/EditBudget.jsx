@@ -48,6 +48,14 @@ const EditBudget = () => {
   const [viewingFile, setViewingFile] = useState(false);
   const [showClientDataModal, setShowClientDataModal] = useState(false);
 
+  // Estados para reemplazar PDFs del Permit
+  const [showReplacePermitPdfModal, setShowReplacePermitPdfModal] = useState(false);
+  const [showReplaceOptionalDocsModal, setShowReplaceOptionalDocsModal] = useState(false);
+  const [newPermitPdfFile, setNewPermitPdfFile] = useState(null);
+  const [newOptionalDocsFile, setNewOptionalDocsFile] = useState(null);
+  const [uploadingPermitPdf, setUploadingPermitPdf] = useState(false);
+  const [uploadingOptionalDocs, setUploadingOptionalDocs] = useState(false);
+
   const [manualItemData, setManualItemData] = useState({
     category: "",
     customCategory: "",
@@ -74,6 +82,7 @@ const EditBudget = () => {
   // Actualiza el filtro en la línea ~45:
 const editableBudgets = useMemo(() => {
   // ✅ INCLUIR TODOS LOS ESTADOS EDITABLES (incluye rejected y pending_review)
+  // 🧪 TESTING MODE: Permitir editar Budgets en cualquier estado (incluyendo con Works)
   const allowedStatus = [
     "created",           // Recién creado
     "send",              // Marcado para enviar
@@ -82,7 +91,9 @@ const editableBudgets = useMemo(() => {
     "pending_review",    // 🆕 En revisión del cliente
     "rejected",          // 🆕 Rechazado (para reenvío)
     "notResponded",      // Sin respuesta
-    "sent_for_signature" // Enviado para firma
+    "sent_for_signature",// Enviado para firma
+    "signed",            // ⚠️ Firmado (agregado para testing - editar Permits)
+    "approved"           // ⚠️ Aprobado (agregado para testing - editar Permits)
   ];
   return (budgets || []).filter(budget => allowedStatus.includes(budget.status));
 }, [budgets]);
@@ -117,6 +128,12 @@ const editableBudgets = useMemo(() => {
       .filter(Boolean);
     return [...new Set(addresses)].sort();
   }, [editableBudgets]);
+
+  // ⚠️ Determinar si el Budget está en un estado que solo permite editar cliente y PDFs
+  const isBudgetLocked = useMemo(() => {
+    if (!currentBudget) return false;
+    return ['signed', 'approved'].includes(currentBudget.status);
+  }, [currentBudget]);
 
   // --- Filtrar Budgets basado en searchTerm (desde los editables) ---
   useEffect(() => {
@@ -526,6 +543,66 @@ const editableBudgets = useMemo(() => {
     dispatch(fetchBudgetById(selectedBudgetId));
   };
 
+  // Handler para reemplazar PDF del Permit
+  const handleReplacePermitPdf = async () => {
+    if (!newPermitPdfFile || !currentBudget?.PermitIdPermit) {
+      alert('Por favor selecciona un archivo PDF');
+      return;
+    }
+
+    setUploadingPermitPdf(true);
+    try {
+      const formDataToSend = new FormData();
+      formDataToSend.append('pdfData', newPermitPdfFile);
+
+      await api.put(`/permit/${currentBudget.PermitIdPermit}/replace-pdf`, formDataToSend, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      alert('PDF del Permit reemplazado exitosamente');
+      setShowReplacePermitPdfModal(false);
+      setNewPermitPdfFile(null);
+      
+      // Refrescar datos del budget
+      dispatch(fetchBudgetById(selectedBudgetId));
+    } catch (err) {
+      console.error('Error al reemplazar PDF del Permit:', err);
+      alert(err.response?.data?.error || 'Error al reemplazar el PDF del Permit');
+    } finally {
+      setUploadingPermitPdf(false);
+    }
+  };
+
+  // Handler para reemplazar Optional Docs del Permit
+  const handleReplaceOptionalDocs = async () => {
+    if (!newOptionalDocsFile || !currentBudget?.PermitIdPermit) {
+      alert('Por favor selecciona un archivo PDF');
+      return;
+    }
+
+    setUploadingOptionalDocs(true);
+    try {
+      const formDataToSend = new FormData();
+      formDataToSend.append('optionalDocs', newOptionalDocsFile);
+
+      await api.put(`/permit/${currentBudget.PermitIdPermit}/replace-optional-docs`, formDataToSend, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      alert('Optional Docs del Permit reemplazados exitosamente');
+      setShowReplaceOptionalDocsModal(false);
+      setNewOptionalDocsFile(null);
+      
+      // Refrescar datos del budget
+      dispatch(fetchBudgetById(selectedBudgetId));
+    } catch (err) {
+      console.error('Error al reemplazar Optional Docs del Permit:', err);
+      alert(err.response?.data?.error || 'Error al reemplazar los Optional Docs del Permit');
+    } finally {
+      setUploadingOptionalDocs(false);
+    }
+  };
+
   // --- Renderizado ---
   return (
     <div className="max-w-4xl mx-auto p-4 min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -586,18 +663,57 @@ const editableBudgets = useMemo(() => {
           {formData && (
             <form onSubmit={handleSubmit} className="space-y-8 bg-white shadow-2xl rounded-2xl p-8 border border-gray-200">
               <h3 className="text-2xl font-bold border-b border-gray-200 pb-3 mb-6 text-blue-900">Edit Budget #{selectedBudgetId}</h3>
+              
+              {/* ⚠️ Mensaje de Advertencia si el Budget está bloqueado */}
+              {isBudgetLocked && (
+                <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm text-amber-700">
+                        <span className="font-semibold">Presupuesto en estado {currentBudget?.status}:</span> Solo puedes editar datos del cliente y reemplazar PDFs del Permit. Los campos del presupuesto están bloqueados.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* --- Datos del Permit (No editables) --- */}
               <fieldset className="border border-gray-200 p-4 rounded-lg mb-6">
-                <legend className="flex items-center justify-between">
-                  <span className="text-lg font-semibold text-blue-800 px-2">Permit Information</span>
-                  <button
-                    type="button"
-                    onClick={() => setShowClientDataModal(true)}
-                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-                  >
-                    <PencilIcon className="h-4 w-4 mr-1" />
-                    Editar Cliente
-                  </button>
+                <legend className="flex items-center justify-between w-full px-2">
+                  <span className="text-lg font-semibold text-blue-800">Permit Information</span>
+                  <div className="flex items-center gap-2">
+                    {currentBudget?.PermitIdPermit && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setShowReplacePermitPdfModal(true)}
+                          className="inline-flex items-center px-3 py-2 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                        >
+                          📄 Reemplazar PDF
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowReplaceOptionalDocsModal(true)}
+                          className="inline-flex items-center px-3 py-2 text-xs font-medium text-green-600 bg-green-50 border border-green-200 rounded-md hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                        >
+                          📎 Reemplazar Docs
+                        </button>
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setShowClientDataModal(true)}
+                      className="inline-flex items-center px-3 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
+                    >
+                      <PencilIcon className="h-4 w-4 mr-1" />
+                      Editar Cliente
+                    </button>
+                  </div>
                 </legend>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
@@ -627,20 +743,23 @@ const editableBudgets = useMemo(() => {
                 </div>
               </fieldset>
               {/* --- Datos Generales del Presupuesto (Editables) --- */}
-              <fieldset className="border border-gray-200 p-4 rounded-lg mb-6">
-                <legend className="text-lg font-semibold text-blue-800 px-2">Budget Details</legend>
+              <fieldset className="border border-gray-200 p-4 rounded-lg mb-6" disabled={isBudgetLocked}>
+                <legend className="text-lg font-semibold text-blue-800 px-2">
+                  Budget Details
+                  {isBudgetLocked && <span className="ml-2 text-xs text-amber-600">(🔒 Bloqueado)</span>}
+                </legend>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="date" className="block text-sm font-medium text-gray-700">Date</label>
-                    <input type="date" id="date" name="date" value={formData.date} onChange={handleGeneralInputChange} className="input-style mt-1" />
+                    <input type="date" id="date" name="date" value={formData.date} onChange={handleGeneralInputChange} className="input-style mt-1" disabled={isBudgetLocked} />
                   </div>
                   <div>
                     <label htmlFor="expirationDate" className="block text-sm font-medium text-gray-700">Expiration Date</label>
-                    <input type="date" id="expirationDate" name="expirationDate" value={formData.expirationDate} onChange={handleGeneralInputChange} className="input-style mt-1" />
+                    <input type="date" id="expirationDate" name="expirationDate" value={formData.expirationDate} onChange={handleGeneralInputChange} className="input-style mt-1" disabled={isBudgetLocked} />
                   </div>
                   <div>
                     <label htmlFor="status" className="block text-sm font-medium text-gray-700">Status</label>
-                    <select id="status" name="status" value={formData.status} onChange={handleGeneralInputChange} className="input-style mt-1">
+                    <select id="status" name="status" value={formData.status} onChange={handleGeneralInputChange} className="input-style mt-1" disabled={isBudgetLocked}>
                       <option value="created">Created</option>
                       <option value="send">Send</option>
                       <option value="sent">Sent</option>
@@ -659,8 +778,8 @@ const editableBudgets = useMemo(() => {
                 </div>
               </fieldset>
               {/* --- Líneas de Items (Editables: Cantidad y Notas) --- */}
-              <fieldset className="border border-gray-200 p-4 rounded-lg mb-6">
-                <legend className="text-lg font-semibold text-blue-800 px-2">Budget Items</legend>
+              <fieldset className="border border-gray-200 p-4 rounded-lg mb-6" disabled={isBudgetLocked}>
+                <legend className="text-lg font-semibold text-blue-800 px-2">Budget Items {isBudgetLocked && <span className="text-xs text-orange-600">(🔒 Bloqueado)</span>}</legend>
                 <div className="space-y-4">
                   {formData.lineItems.map((item, index) => (
                     <div key={item._tempId || item.id || index} className="border-b border-gray-100 pb-4 last:border-b-0">
@@ -683,6 +802,7 @@ const editableBudgets = useMemo(() => {
                             className="input-style mt-1 text-sm"
                             min="0"
                             step="0.01"
+                            disabled={isBudgetLocked}
                           />
                         </div>
                         <div className="md:col-span-2">
@@ -693,15 +813,17 @@ const editableBudgets = useMemo(() => {
                             value={item.notes}
                             onChange={(e) => handleLineItemChange(index, 'notes', e.target.value)}
                             className="input-style mt-1 text-sm"
+                            disabled={isBudgetLocked}
                           />
                         </div>
                       </div>
-                      <button type="button" onClick={() => handleRemoveLineItem(index)} className="text-red-500 text-xs mt-1 hover:underline">Remove Item</button>
+                      <button type="button" onClick={() => handleRemoveLineItem(index)} className="text-red-500 text-xs mt-1 hover:underline" disabled={isBudgetLocked}>Remove Item</button>
                     </div>
                   ))}
                 </div>
               </fieldset>
               {/* --- Agregar Items del Catálogo --- */}
+              {!isBudgetLocked && (
               <fieldset className="border border-gray-200 p-4 rounded-lg mb-6">
                 <legend className="text-lg font-semibold text-blue-800 px-2">Add Catalog Items</legend>
                 
@@ -733,7 +855,9 @@ const editableBudgets = useMemo(() => {
                   <p className="text-sm text-gray-500">No hay categorías disponibles en el catálogo.</p>
                 )}
               </fieldset>
+              )}
               {/* --- Añadir Item Manualmente --- */}
+              {!isBudgetLocked && (
               <fieldset className="border border-gray-200 p-4 rounded-lg mb-6">
                 <legend className="text-lg font-semibold text-blue-800 px-2">Add Manual Item</legend>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -802,17 +926,18 @@ const editableBudgets = useMemo(() => {
                   </button>
                 </div>
               </fieldset>
+              )}
               {/* --- Descuento y Totales --- */}
-              <fieldset className="border border-gray-200 p-4 rounded-lg mb-6">
-                <legend className="text-lg font-semibold text-blue-800 px-2">Financial Summary</legend>
+              <fieldset className="border border-gray-200 p-4 rounded-lg mb-6" disabled={isBudgetLocked}>
+                <legend className="text-lg font-semibold text-blue-800 px-2">Financial Summary {isBudgetLocked && <span className="text-xs text-orange-600">(🔒 Bloqueado)</span>}</legend>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="discountDescription" className="block text-sm font-medium text-gray-700">Discount Description</label>
-                    <input type="text" id="discountDescription" name="discountDescription" value={formData.discountDescription} onChange={handleGeneralInputChange} className="input-style mt-1" />
+                    <input type="text" id="discountDescription" name="discountDescription" value={formData.discountDescription} onChange={handleGeneralInputChange} className="input-style mt-1" disabled={isBudgetLocked} />
                   </div>
                   <div>
                     <label htmlFor="discountAmount" className="block text-sm font-medium text-gray-700">Discount Amount ($)</label>
-                    <input type="number" id="discountAmount" name="discountAmount" value={formData.discountAmount} onChange={handleGeneralInputChange} className="input-style mt-1" min="0" step="0.01" />
+                    <input type="number" id="discountAmount" name="discountAmount" value={formData.discountAmount} onChange={handleGeneralInputChange} className="input-style mt-1" min="0" step="0.01" disabled={isBudgetLocked} />
                   </div>
                 </div>
                 <div className="mt-4 space-y-2 text-right">
@@ -847,6 +972,126 @@ const editableBudgets = useMemo(() => {
         budgetId={selectedBudgetId}
         onDataUpdated={handleClientDataUpdated}
       />
+
+      {/* Modal para reemplazar PDF del Permit */}
+      {showReplacePermitPdfModal && (
+        <div className="fixed inset-0 bg-gray-700 bg-opacity-60 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6 relative">
+            <button
+              onClick={() => {
+                setShowReplacePermitPdfModal(false);
+                setNewPermitPdfFile(null);
+              }}
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <h2 className="text-lg font-bold mb-4 text-center text-indigo-900">Reemplazar PDF del Permit</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Seleccionar nuevo PDF
+                </label>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={(e) => setNewPermitPdfFile(e.target.files[0])}
+                  className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none"
+                />
+                {newPermitPdfFile && (
+                  <p className="mt-2 text-sm text-green-600">✓ {newPermitPdfFile.name}</p>
+                )}
+              </div>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                <p className="text-xs text-yellow-800">
+                  ⚠️ Este archivo reemplazará el PDF actual del Permit. Esta acción no se puede deshacer.
+                </p>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setShowReplacePermitPdfModal(false);
+                    setNewPermitPdfFile(null);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+                  disabled={uploadingPermitPdf}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleReplacePermitPdf}
+                  className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                  disabled={!newPermitPdfFile || uploadingPermitPdf}
+                >
+                  {uploadingPermitPdf ? 'Subiendo...' : 'Reemplazar PDF'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para reemplazar Optional Docs del Permit */}
+      {showReplaceOptionalDocsModal && (
+        <div className="fixed inset-0 bg-gray-700 bg-opacity-60 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6 relative">
+            <button
+              onClick={() => {
+                setShowReplaceOptionalDocsModal(false);
+                setNewOptionalDocsFile(null);
+              }}
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <h2 className="text-lg font-bold mb-4 text-center text-green-900">Reemplazar Optional Docs</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Seleccionar nuevo PDF
+                </label>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={(e) => setNewOptionalDocsFile(e.target.files[0])}
+                  className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none"
+                />
+                {newOptionalDocsFile && (
+                  <p className="mt-2 text-sm text-green-600">✓ {newOptionalDocsFile.name}</p>
+                )}
+              </div>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3">
+                <p className="text-xs text-yellow-800">
+                  ⚠️ Este archivo reemplazará los Optional Docs actuales. Esta acción no se puede deshacer.
+                </p>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setShowReplaceOptionalDocsModal(false);
+                    setNewOptionalDocsFile(null);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+                  disabled={uploadingOptionalDocs}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleReplaceOptionalDocs}
+                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 disabled:opacity-50"
+                  disabled={!newOptionalDocsFile || uploadingOptionalDocs}
+                >
+                  {uploadingOptionalDocs ? 'Subiendo...' : 'Reemplazar Docs'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`.input-style { border: 1px solid #d1d5db; border-radius: 0.5rem; padding: 0.75rem 1rem; width: 100%; box-sizing: border-box; font-size: 1rem; } .input-style:focus { outline: 2px solid transparent; outline-offset: 2px; border-color: #2563eb; box-shadow: 0 0 0 2px #bfdbfe; }`}</style>
     </div>

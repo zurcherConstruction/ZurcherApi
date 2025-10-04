@@ -2161,17 +2161,126 @@ async optionalDocs(req, res) {
 
 
   async deleteBudget(req, res) {
+    const transaction = await conn.transaction();
+    
     try {
       const { idBudget } = req.params;
 
-      // Eliminar presupuesto
-      const deleted = await Budget.destroy({ where: { idBudget } });
-      if (!deleted) {
+      // Diferir la verificación de constraints FK hasta el commit
+      await conn.query('SET CONSTRAINTS ALL DEFERRED', { transaction });
+
+      // Buscar el presupuesto con todas sus relaciones incluyendo Permit
+      const budget = await Budget.findByPk(idBudget, {
+        include: [
+          { model: BudgetLineItem, as: 'lineItems' },
+          { model: Work },
+          { model: Permit, as: 'Permit' } // 🆕 Incluir Permit
+        ],
+        transaction
+      });
+
+      if (!budget) {
+        await transaction.rollback();
         return res.status(404).json({ error: 'Presupuesto no encontrado' });
       }
 
-      res.status(204).send();
+      // 🆕 VALIDACIÓN: Si tiene Works asociados, NO permitir eliminación directa
+      if (budget.Works && budget.Works.length > 0) {
+        await transaction.rollback();
+        return res.status(400).json({ 
+          error: 'No se puede eliminar el presupuesto porque tiene proyectos (Works) asociados',
+          message: 'Para eliminar este presupuesto, primero debes eliminar todos los proyectos (Works) asociados a él.',
+          workCount: budget.Works.length,
+          works: budget.Works.map(w => ({
+            idWork: w.idWork,
+            address: w.address,
+            status: w.status
+          }))
+        });
+      }
+
+      console.log(`🗑️ Eliminando Budget #${idBudget}...`);
+
+      // 1. Eliminar PDFs de Cloudinary si existen
+      const cloudinaryDeletes = [];
+      
+      if (budget.legacySignedPdfPublicId) {
+        console.log(`Eliminando PDF legacy de Cloudinary: ${budget.legacySignedPdfPublicId}`);
+        cloudinaryDeletes.push(
+          cloudinary.uploader.destroy(budget.legacySignedPdfPublicId, { resource_type: 'raw' })
+            .catch(err => console.warn(`Error eliminando PDF legacy:`, err.message))
+        );
+      }
+
+      // 2. Eliminar comprobante de pago inicial de Cloudinary si existe
+      if (budget.paymentInvoice && budget.paymentInvoice.includes('cloudinary')) {
+        const publicId = budget.paymentInvoice.split('/').slice(-2).join('/').split('.')[0];
+        console.log(`Eliminando comprobante de pago de Cloudinary: ${publicId}`);
+        cloudinaryDeletes.push(
+          cloudinary.uploader.destroy(publicId, { 
+            resource_type: budget.paymentProofType === 'pdf' ? 'raw' : 'image' 
+          }).catch(err => console.warn(`Error eliminando comprobante:`, err.message))
+        );
+      }
+
+      // 🆕 3. Eliminar PDFs del Permit de Cloudinary si existen (si es legacy)
+      if (budget.Permit && budget.Permit.isLegacy) {
+        if (budget.Permit.pdfPublicId) {
+          console.log(`Eliminando PDF del Permit de Cloudinary: ${budget.Permit.pdfPublicId}`);
+          cloudinaryDeletes.push(
+            cloudinary.uploader.destroy(budget.Permit.pdfPublicId, { resource_type: 'raw' })
+              .catch(err => console.warn(`Error eliminando PDF del Permit:`, err.message))
+          );
+        }
+        if (budget.Permit.optionalDocsPublicId) {
+          console.log(`Eliminando OptionalDocs del Permit de Cloudinary: ${budget.Permit.optionalDocsPublicId}`);
+          cloudinaryDeletes.push(
+            cloudinary.uploader.destroy(budget.Permit.optionalDocsPublicId, { resource_type: 'raw' })
+              .catch(err => console.warn(`Error eliminando OptionalDocs del Permit:`, err.message))
+          );
+        }
+      }
+
+      await Promise.all(cloudinaryDeletes);
+
+      // 4. Eliminar archivos locales si existen
+      if (budget.pdfPath && fs.existsSync(budget.pdfPath)) {
+        fs.unlinkSync(budget.pdfPath);
+        console.log(`Archivo local eliminado: ${budget.pdfPath}`);
+      }
+
+      if (budget.signedPdfPath && fs.existsSync(budget.signedPdfPath)) {
+        fs.unlinkSync(budget.signedPdfPath);
+        console.log(`PDF firmado eliminado: ${budget.signedPdfPath}`);
+      }
+
+      // 🆕 5. Guardar el ID del Permit para eliminarlo después
+      const permitIdToDelete = budget.PermitIdPermit;
+
+      // 6. Eliminar el Budget primero (trigger CASCADE para BudgetLineItems)
+      // Nota: Esto NO eliminará Works porque Work.idBudget tiene ON DELETE SET NULL
+      await budget.destroy({ transaction });
+      console.log(`✅ Budget #${idBudget} eliminado`);
+
+      // 7. Eliminar el Permit ahora que el Budget ya no existe
+      if (permitIdToDelete) {
+        console.log(`Eliminando Permit asociado: ${permitIdToDelete}`);
+        await Permit.destroy({
+          where: { idPermit: permitIdToDelete },
+          transaction
+        });
+        console.log(`✅ Permit ${permitIdToDelete} eliminado exitosamente`);
+      }
+
+      await transaction.commit();
+      console.log(`✅ Budget #${idBudget} y Permit eliminados exitosamente`);
+      
+      res.status(200).json({ 
+        success: true, 
+        message: `Presupuesto #${idBudget} eliminado junto con ${budget.lineItems?.length || 0} items${permitIdToDelete ? ' y su Permit asociado' : ''}` 
+      });
     } catch (error) {
+      await transaction.rollback();
       console.error('Error al eliminar el presupuesto:', error);
       res.status(500).json({ error: error.message });
     }

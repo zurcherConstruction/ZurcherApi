@@ -151,12 +151,15 @@ export const updateWork = (idWork, workData) => async (dispatch) => {
 export const deleteWork = (idWork) => async (dispatch) => {
   dispatch(deleteWorkRequest());
   try {
-    await api.delete(`/work/${idWork}`); // Ruta del backend
+    const response = await api.delete(`/work/${idWork}`); // Ruta del backend
     dispatch(deleteWorkSuccess(idWork));
+    // Retornar el detalle de la eliminación para mostrarlo en el frontend
+    return response.data;
   } catch (error) {
     const errorMessage =
       error.response?.data?.message || 'Error al eliminar la obra';
     dispatch(deleteWorkFailure(errorMessage));
+    throw error; // Re-lanzar el error para que el componente lo capture
   }
 };
 export const addInstallationDetail = (idWork, installationData) => async (dispatch) => {

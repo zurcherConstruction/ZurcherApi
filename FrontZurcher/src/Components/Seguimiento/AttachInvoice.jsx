@@ -125,7 +125,13 @@ const AttachReceipt = () => {
 
         // ACTUALIZAR ESTA VALIDACIÓN - Permitir también 'paymentReceived'
         if (finalInvoiceDetails.status === 'paid') {
-          toast.warn("La Factura Final para esta obra ya está marcada como pagada.");
+          toast.error("❌ La Factura Final para esta obra ya está completamente pagada. No se pueden agregar más pagos.");
+          return;
+        }
+
+        // ✅ VALIDAR SI EL FINAL INVOICE ESTÁ CANCELADO
+        if (finalInvoiceDetails.status === 'cancelled') {
+          toast.error("❌ Esta Factura Final está cancelada. No se pueden registrar pagos.");
           return;
         }
 
@@ -149,7 +155,8 @@ const AttachReceipt = () => {
         const numericTotalAmountPaidPreviously = parseFloat(finalInvoiceDetails.totalAmountPaid || 0);
         const currentRemainingBalance = numericFinalAmountDue - numericTotalAmountPaidPreviously;
 
-        if (numericAmountPaid > currentRemainingBalance + 0.001) {
+        // ✅ Permitir umbral de $0.05 para evitar validaciones estrictas con centavos
+        if (numericAmountPaid > currentRemainingBalance + 0.05) {
           toast.error(`El monto pagado ($${numericAmountPaid.toFixed(2)}) no puede exceder el saldo pendiente ($${currentRemainingBalance.toFixed(2)}).`);
           return;
         }
@@ -158,6 +165,9 @@ const AttachReceipt = () => {
         formData.append("relatedId", finalInvoiceDetails.id.toString());
         formData.append("amountPaid", numericAmountPaid.toString());
         formData.append("workId", selectedWork);
+        if (paymentMethod) {
+          formData.append("paymentMethod", paymentMethod); // ✅ Agregar método de pago
+        }
 
         console.log('Enviando FormData para Receipt (Pago Final Factura):', Object.fromEntries(formData));
         await dispatch(createReceipt(formData));
@@ -435,21 +445,17 @@ const AttachReceipt = () => {
                   </div>
                 )}
 
-                {/* Alert for Incorrect Status */}
-                {type === "Factura Pago Final Budget" && currentWorkDetails.finalInvoice && 
-                 !['invoiceFinal', 'paymentReceived'].includes(currentWorkDetails.status) && (
-                  <div className="mt-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                {/* Alert for Cancelled Final Invoice */}
+                {type === "Factura Pago Final Budget" && currentWorkDetails.finalInvoice?.status === 'cancelled' && (
+                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
                     <div className="flex items-start space-x-3">
-                      <InformationCircleIcon className="h-5 w-5 text-orange-500 mt-0.5 flex-shrink-0" />
+                      <InformationCircleIcon className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
                       <div className="flex-1">
-                        <p className="font-medium text-orange-800 text-sm">
-                          ℹ️ Estado no óptimo para pago
+                        <p className="font-medium text-red-800 text-sm">
+                          ❌ Factura Final Cancelada
                         </p>
-                        <p className="text-orange-700 text-xs mt-1">
-                          La obra debería estar en estado <strong>"Factura Final"</strong> o <strong>"Pago Recibido"</strong> para procesar pagos.
-                        </p>
-                        <p className="text-orange-600 text-xs mt-1">
-                          Estado actual: <strong>{currentWorkDetails.status}</strong>
+                        <p className="text-red-700 text-xs mt-1">
+                          Esta Factura Final está cancelada y no puede recibir pagos.
                         </p>
                       </div>
                     </div>
@@ -600,7 +606,7 @@ const AttachReceipt = () => {
             </div>
 
             {/* Payment Method */}
-            {type && type !== "Factura Pago Final Budget" && (
+            {type && (
               <div>
                 <label htmlFor="paymentMethod" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
                   <CurrencyDollarIcon className="h-5 w-5 mr-2 text-green-500" />
@@ -639,7 +645,7 @@ const AttachReceipt = () => {
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (type === "Factura Pago Final Budget" && ['paid', 'cancelled'].includes(finalInvoiceDetails?.status))}
               className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
             >
               {loading ? (
@@ -650,7 +656,14 @@ const AttachReceipt = () => {
               ) : (
                 <div className="flex items-center justify-center space-x-2">
                   <PaperClipIcon className="h-5 w-5" />
-                  <span>Adjuntar Comprobante</span>
+                  <span>
+                    {type === "Factura Pago Final Budget" && finalInvoiceDetails?.status === 'paid' 
+                      ? 'Factura completamente pagada' 
+                      : type === "Factura Pago Final Budget" && finalInvoiceDetails?.status === 'cancelled'
+                      ? 'Factura cancelada - No se permiten pagos'
+                      : 'Adjuntar Comprobante'
+                    }
+                  </span>
                 </div>
               )}
             </button>

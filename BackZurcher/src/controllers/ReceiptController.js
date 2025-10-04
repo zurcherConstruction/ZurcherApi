@@ -1,4 +1,4 @@
-const { Receipt, FinalInvoice, Work, Income, conn } = require('../data');
+const { Receipt, FinalInvoice, Work, Income, Staff, conn } = require('../data');
 const { cloudinary } = require('../utils/cloudinaryConfig'); // Asegúrate de importar la configuración de Cloudinary
 const { Op } = require('sequelize'); 
 const { sendNotifications } = require('../utils/notifications/notificationManager'); // Importar notificaciones 
@@ -74,6 +74,31 @@ const createReceipt = async (req, res) => {
               });
               return res.status(404).json({ error: true, message: 'Factura Final no encontrada.' });
             }
+
+            // ✅ VALIDAR SI EL FINAL INVOICE YA ESTÁ COMPLETAMENTE PAGADO
+            if (localFinalInvoiceInstance.status === 'paid') {
+              await transaction.rollback();
+              cloudinary.uploader.destroy(result.public_id, (destroyError) => {
+                if (destroyError) console.error('[ReceiptController] Error al borrar archivo de Cloudinary tras error:', destroyError);
+              });
+              return res.status(400).json({ 
+                error: true, 
+                message: 'Esta Factura Final ya está completamente pagada. No se pueden agregar más pagos.' 
+              });
+            }
+
+            // ✅ VALIDAR SI EL FINAL INVOICE ESTÁ CANCELADO
+            if (localFinalInvoiceInstance.status === 'cancelled') {
+              await transaction.rollback();
+              cloudinary.uploader.destroy(result.public_id, (destroyError) => {
+                if (destroyError) console.error('[ReceiptController] Error al borrar archivo de Cloudinary tras error:', destroyError);
+              });
+              return res.status(400).json({ 
+                error: true, 
+                message: 'Esta Factura Final está cancelada. No se pueden agregar pagos.' 
+              });
+            }
+
             finalInvoiceInstanceForUpdate = localFinalInvoiceInstance; // Asignar para uso posterior
 
             const numericFinalAmountDue = parseFloat(localFinalInvoiceInstance.finalAmountDue);
@@ -88,7 +113,8 @@ const createReceipt = async (req, res) => {
               return res.status(400).json({ error: true, message: 'El monto pagado debe ser mayor a cero.' });
             }
             
-            if (numericAmountPaidForIncome > currentRemainingBalance + 0.001) { 
+            // ✅ Permitir umbral de $0.05 para evitar pagos de centavos residuales
+            if (numericAmountPaidForIncome > currentRemainingBalance + 0.05) { 
               await transaction.rollback();
               cloudinary.uploader.destroy(result.public_id, (destroyError) => {
                 if (destroyError) console.error('[ReceiptController] Error al borrar archivo de Cloudinary tras error:', destroyError);
@@ -101,7 +127,8 @@ const createReceipt = async (req, res) => {
 
             localFinalInvoiceInstance.totalAmountPaid = parseFloat((numericTotalAmountPaidPreviously + numericAmountPaidForIncome).toFixed(2));
             
-            if (localFinalInvoiceInstance.totalAmountPaid >= numericFinalAmountDue - 0.001) {
+            // ✅ Si queda menos de $0.05, considerar como pagado completamente (evita pagos de centavos)
+            if (localFinalInvoiceInstance.totalAmountPaid >= numericFinalAmountDue - 0.05) {
               localFinalInvoiceInstance.status = 'paid';
               if (!localFinalInvoiceInstance.paymentDate) {
                   localFinalInvoiceInstance.paymentDate = new Date();
@@ -139,6 +166,9 @@ const createReceipt = async (req, res) => {
                 workId: finalInvoiceInstanceForUpdate.workId,
                 typeIncome: 'Factura Pago Final Budget',
                 notes: `Pago para Factura Final ID: ${finalInvoiceInstanceForUpdate.id}.`,
+                staffId: req.user?.id || null, // ✅ Usar staffId del usuario autenticado
+                paymentMethod: req.body.paymentMethod || 'Sin especificar', // ✅ Agregar método de pago
+                verified: false // El pago aún no ha sido verificado
               };
 
               const workForStaff = await Work.findByPk(finalInvoiceInstanceForUpdate.workId, { attributes: ['staffId'], transaction });
@@ -156,7 +186,8 @@ const createReceipt = async (req, res) => {
                 // Obtener información completa del ingreso para la notificación
                 const incomeWithDetails = await Income.findByPk(createdIncomeId, {
                   include: [
-                    { model: Work, as: 'Work', attributes: ['idWork', 'propertyAddress'] }
+                    { model: Work, as: 'work', attributes: ['idWork', 'propertyAddress'] }, // ✅ Corregido: 'work' en minúscula
+                    { model: Staff, as: 'Staff', attributes: ['name', 'role'] } // ✅ Incluir Staff del usuario autenticado
                   ],
                   transaction
                 });
