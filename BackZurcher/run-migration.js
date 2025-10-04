@@ -35,6 +35,7 @@ async function runMigration() {
       console.log('   - add-sales-rep-role');
       console.log('   - add-commission-fields');
       console.log('   - add-commission-expense-type');
+      console.log('   - complete-enum-migration (⭐ RECOMENDADO - Migración completa)');
       process.exit(1);
     }
 
@@ -68,6 +69,28 @@ async function runMigration() {
       console.log('   - Works: isLegacy');
       console.log('📈 Índices creados para mejorar performance');
       console.log('🔗 Los PDFs ahora se almacenan en Cloudinary (URLs) en lugar de BLOB');
+    } else if (migrationName === 'complete-enum-migration') {
+      console.log('📋 ⭐ MIGRACIÓN COMPLETA APLICADA:');
+      console.log('\n   🔹 Staff.role:');
+      console.log('      ✅ Agregado valor "sales_rep"');
+      console.log('\n   🔹 Expense.typeExpense:');
+      console.log('      ✅ Agregado valor "Comisión Vendedor"');
+      console.log('\n   🔹 Receipt.type:');
+      console.log('      ✅ Agregado valor "Comisión Vendedor"');
+      console.log('\n   🔹 Budget (8 nuevas columnas):');
+      console.log('      ✅ leadSource (ENUM)');
+      console.log('      ✅ createdByStaffId (UUID)');
+      console.log('      ✅ salesCommissionAmount (DECIMAL)');
+      console.log('      ✅ clientTotalPrice (DECIMAL)');
+      console.log('      ✅ commissionPercentage (DECIMAL)');
+      console.log('      ✅ commissionAmount (DECIMAL)');
+      console.log('      ✅ commissionPaid (BOOLEAN)');
+      console.log('      ✅ commissionPaidDate (DATE)');
+      console.log('\n   💡 Ahora puedes:');
+      console.log('      • Crear usuarios con rol "sales_rep"');
+      console.log('      • Registrar gastos tipo "Comisión Vendedor"');
+      console.log('      • Adjuntar comprobantes de comisiones');
+      console.log('      • Rastrear comisiones en presupuestos');
     }
   } catch (error) {
     console.error('\n❌ Error ejecutando migración:', error);
