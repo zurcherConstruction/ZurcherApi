@@ -177,6 +177,17 @@ Budget.belongsTo(Permit, { foreignKey: 'PermitIdPermit' });
 
 Budget.hasOne(Work, { foreignKey: 'idBudget' }); // O hasMany si un budget puede tener varios works
 Work.belongsTo(Budget, { foreignKey: 'idBudget', as: 'budget' });
+
+// Relación Budget - Staff (para vendedores/sales_rep)
+Budget.belongsTo(Staff, {
+  foreignKey: 'createdByStaffId',
+  as: 'createdByStaff'
+});
+Staff.hasMany(Budget, {
+  foreignKey: 'createdByStaffId',
+  as: 'budgetsCreated'
+});
+
 // ...
 // Relación lógica con Income
 Income.hasMany(Receipt, { foreignKey: 'relatedId', constraints: false, scope: { relatedModel: 'Income' }, as: 'Receipts' }); // Añadir alias

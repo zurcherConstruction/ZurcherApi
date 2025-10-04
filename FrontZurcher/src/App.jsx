@@ -45,6 +45,7 @@ import PriceBudgetManagement from "./Components/Budget/PriceBudgetManagement";
 import ItemsBudgets from "./Components/Budget/ItemsBudgets";
 import EditBudget from "./Components/Budget/EditBudget";
 import Summary from "./Components/Summary";
+import AccountsReceivable from "./Components/AccountsReceivable";
 import GestionBudgets from "./Components/Budget/GestionBudgets";
 import CreateLegacyBudget from "./Components/Budget/CreateLegacyBudget";
 // 🆕 Importar página de revisión de presupuesto (pública)
@@ -327,6 +328,15 @@ function App() {
               element={
                 <PrivateRoute allowedRoles={["owner"]}>
                   <Summary />
+                </PrivateRoute>
+              }
+            />
+
+            <Route
+              path="/accounts-receivable"
+              element={
+                <PrivateRoute allowedRoles={["admin", "owner", "finance"]}>
+                  <AccountsReceivable />
                 </PrivateRoute>
               }
             />

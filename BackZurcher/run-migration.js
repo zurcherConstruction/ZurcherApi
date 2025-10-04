@@ -32,6 +32,9 @@ async function runMigration() {
       console.log('   - add-review-fields');
       console.log('   - add-supplier-name-to-line-items');
       console.log('   - add-legacy-fields');
+      console.log('   - add-sales-rep-role');
+      console.log('   - add-commission-fields');
+      console.log('   - add-commission-expense-type');
       process.exit(1);
     }
 

@@ -35,6 +35,7 @@ module.exports = (sequelize) => {
             'Materiales Iniciales',
             'Inspección Inicial',
             'Inspección Final',
+            'Comisión Vendedor', // 🆕 Nuevo tipo para comisiones
         ),
         allowNull: false,
     },

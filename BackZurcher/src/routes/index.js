@@ -19,6 +19,7 @@ const budgetItemRoutes = require('./BudgetItemRoutes'); // Asegúrate de que la 
 const finalInvoiceRoutes = require('./finalInvoiceRutes'); // Asegúrate de que la ruta sea correcta
 const changeOrdersRoutes = require('./changeOrderRoutes'); // Asegúrate de que la ruta sea correcta
 const maintenanceRoutes = require('./maintenanceRoutes'); // Asegúrate de que la ruta sea correcta
+const accountsReceivableRoutes = require('./accountsReceivableRoutes'); // 🆕 Cuentas por cobrar
 //const adobeWebhookRoutes = require('./adobeWebhookRoutes'); // Asegúrate de que la ruta sea correcta
 const adobeRoutes = require('./adobeRoutes'); // Asegúrate de que la ruta sea correcta
 
@@ -59,6 +60,7 @@ router.use('/expense', expenseRoutes); // Ruta para gastos
 router.use('/system', systemRoutes); // Ruta para comprobantes
 router.use('/final-invoice', finalInvoiceRoutes); // Ruta para comprobantes
 router.use('/maintenance', maintenanceRoutes); // Ruta para visitas de mantenimiento
+router.use('/accounts-receivable', accountsReceivableRoutes); // 🆕 Ruta para cuentas por cobrar
 router.use('/import', importRoutes); // Ruta para importar trabajos legacy
 
 module.exports = router;
