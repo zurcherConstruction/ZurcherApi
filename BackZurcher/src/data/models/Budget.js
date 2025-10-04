@@ -32,8 +32,20 @@ module.exports = (sequelize) => {
       allowNull: false,
     },
     status: {
-      type: DataTypes.ENUM("created","send", "approved", "notResponded", "rejected", "sent_for_signature", "signed", "sent"),
+      type: DataTypes.ENUM(
+        "draft",              // 🆕 NUEVO: Borrador inicial (no enviado) - OPCIONAL
+        "pending_review",     // 🆕 NUEVO: Enviado para revisión del cliente (sin firma) - OPCIONAL
+        "client_approved",    // 🆕 NUEVO: Cliente aprobó, listo para firma - OPCIONAL
+        "created",            // ✅ Estado original y DEFAULT
+        "send",               // Enviado (legacy)
+        "sent_for_signature", // Enviado a SignNow para firma
+        "signed",             // Firmado por el cliente
+        "approved",           // Aprobado (después de firma y/o pago)
+        "notResponded",       // Cliente no respondió
+        "rejected"            // Rechazado por el cliente
+      ),
       allowNull: false,
+      defaultValue: "created"   // ✅ MANTENER el default original
     },
     paymentProofAmount:{
       type: DataTypes.DECIMAL(10, 2),
@@ -118,21 +130,103 @@ module.exports = (sequelize) => {
   isLegacy: {
     type: DataTypes.BOOLEAN,
     allowNull: true,
-    defaultValue: false,
-    comment: 'Indica si este presupuesto fue importado desde sistema externo'
+    defaultValue: false
   },
   
   // --- PDF FIRMADO PARA TRABAJOS LEGACY ---
   legacySignedPdfUrl: {
     type: DataTypes.STRING(500),
-    allowNull: true,
-    comment: 'URL de Cloudinary del PDF del presupuesto firmado para trabajos legacy'
+    allowNull: true
   },
   
   legacySignedPdfPublicId: {
     type: DataTypes.STRING(200),
+    allowNull: true
+  },
+  
+  // --- 🆕 SISTEMA DE VENDEDORES Y COMISIONES ---
+  
+  // Fuente del presupuesto (de dónde vino el lead)
+  leadSource: {
+    type: DataTypes.ENUM(
+      'web',              // Desde el sitio web
+      'direct_client',    // Cliente directo (sin intermediarios)
+      'social_media',     // Redes sociales
+      'referral',         // Referido
+      'sales_rep'         // Vendedor/Representante de ventas
+    ),
     allowNull: true,
-    comment: 'Public ID de Cloudinary para poder eliminar el archivo si es necesario'
+    defaultValue: 'web'
+  },
+  
+  // ID del vendedor (solo si leadSource = 'sales_rep')
+  createdByStaffId: {
+    type: DataTypes.UUID,
+    allowNull: true,
+    references: {
+      model: 'Staffs',
+      key: 'id'
+    },
+    onUpdate: 'CASCADE',
+    onDelete: 'SET NULL'
+  },
+  
+  // Comisión fija para vendedores ($500 USD)
+  salesCommissionAmount: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: true,
+    defaultValue: 0.00
+  },
+  
+  // Total mostrado al cliente (incluye comisión si aplica)
+  clientTotalPrice: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: true
+  },
+  
+  // Porcentaje de comisión (para futuros casos variables)
+  commissionPercentage: {
+    type: DataTypes.DECIMAL(5, 2),
+    allowNull: true,
+    defaultValue: 0.00
+  },
+  
+  commissionAmount: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: true,
+    defaultValue: 0.00
+  },
+  
+  commissionPaid: {
+    type: DataTypes.BOOLEAN,
+    allowNull: true,
+    defaultValue: false
+  },
+  
+  commissionPaidDate: {
+    type: DataTypes.DATEONLY,
+    allowNull: true
+  },
+  
+  // --- 🆕 SISTEMA DE REVISIÓN PREVIA (OPCIONAL) ---
+  
+  // Token único para que el cliente pueda aprobar/rechazar sin autenticación
+  reviewToken: {
+    type: DataTypes.STRING(64),
+    allowNull: true,
+    unique: true
+  },
+  
+  // Fecha en que se envió para revisión
+  sentForReviewAt: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  
+  // Fecha en que el cliente respondió
+  reviewedAt: {
+    type: DataTypes.DATE,
+    allowNull: true
   }
     
     
