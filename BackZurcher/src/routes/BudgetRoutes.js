@@ -1,14 +1,17 @@
 const express = require('express');
 const BudgetController = require('../controllers/BudgetController');
 const { verifyToken } = require('../middleware/isAuth');
-const { allowRoles, isOwner, isAdmin, isRecept, isStaff } = require('../middleware/byRol'); // Ajusta el nombre del archivo si es necesario
-const { upload } = require('../middleware/multer'); // Asegúrate de que la ruta sea correcta    
+const { allowRoles, isOwner, isAdmin, isRecept, isStaff } = require('../middleware/byRol');
+const { upload } = require('../middleware/multer');
 const router = express.Router();
 
+// ========== NOTA: Las rutas públicas están en BudgetPublicRoutes.js ==========
+// Se movieron a un archivo separado para evitar que el middleware verifyToken las bloquee
 
+// ========== RUTAS CON AUTENTICACIÓN ==========
 
 // Rutas con validación de token y roles
-router.post('/',  allowRoles(['admin', 'recept', 'owner', 'finance']), BudgetController.createBudget); // Incluir finance en creación de presupuestos
+router.post('/',  allowRoles(['admin', 'recept', 'owner', 'finance']), BudgetController.createBudget);
 
 // 🆕 NUEVA RUTA: Crear presupuestos/trabajos legacy (migración)
 router.post('/legacy', verifyToken, allowRoles(['admin', 'owner']), upload.fields([
@@ -73,7 +76,16 @@ router.get(
   isStaff,
   BudgetController.legacyBudgetPdf
 );
-  // ========== RUTAS DE SIGNNOW ==========
+
+// 🆕 Enviar presupuesto para REVISIÓN del cliente (sin firma, solo lectura)
+router.post(
+  '/:idBudget/send-for-review',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner', 'finance']),
+  BudgetController.sendBudgetForReview
+);
+
+// ========== RUTAS DE SIGNNOW ==========
 
 // Enviar presupuesto a SignNow para firma
 router.post(

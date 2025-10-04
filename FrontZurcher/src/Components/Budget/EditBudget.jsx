@@ -73,8 +73,17 @@ const EditBudget = () => {
 
   // Actualiza el filtro en la línea ~45:
 const editableBudgets = useMemo(() => {
-  // ✅ CORREGIDO: Incluir más estados editables
-  const allowedStatus = ["created", "send","sent", "pending", "notResponded", "rejected", "sent_for_signature"];
+  // ✅ INCLUIR TODOS LOS ESTADOS EDITABLES (incluye rejected y pending_review)
+  const allowedStatus = [
+    "created",           // Recién creado
+    "send",              // Marcado para enviar
+    "sent",              // Enviado
+    "pending",           // Pendiente
+    "pending_review",    // 🆕 En revisión del cliente
+    "rejected",          // 🆕 Rechazado (para reenvío)
+    "notResponded",      // Sin respuesta
+    "sent_for_signature" // Enviado para firma
+  ];
   return (budgets || []).filter(budget => allowedStatus.includes(budget.status));
 }, [budgets]);
   // ✅ AGREGAR LÓGICA PARA NORMALIZAR CATÁLOGO:
@@ -88,7 +97,9 @@ const editableBudgets = useMemo(() => {
         marca: item.marca || '',
         capacity: item.capacity || '',
         unitPrice: parseFloat(item.unitPrice) || 0,
-        description: item.description || '', // ✅ Incluir description
+        description: item.description || '',
+        supplierName: item.supplierName || '', // ✅ Incluir supplierName
+        imageUrl: item.imageUrl || item.imageurl || '', // ✅ Incluir imageUrl
       }));
   }, [budgetItemsCatalog]);
 
@@ -171,8 +182,8 @@ const editableBudgets = useMemo(() => {
             marca: item.itemDetails?.marca || item.marca || '',
             capacity: item.itemDetails?.capacity || item.capacity || '',
             unitPrice: parseFloat(item.priceAtTimeOfBudget || item.itemDetails?.unitPrice || item.unitPrice || 0),
-            // ✅ AGREGAR DESCRIPTION:
             description: item.itemDetails?.description || item.description || '',
+            supplierName: item.itemDetails?.supplierName || item.supplierName || '', // ✅ AGREGAR SUPPLIERNAME
           })),
           pdfDataUrl: permitData.pdfDataUrl || null,
           optionalDocsUrl: permitData.optionalDocsUrl || null,
@@ -442,8 +453,8 @@ const editableBudgets = useMemo(() => {
       notes: item.notes,
       marca: item.marca,
       capacity: item.capacity,
-      // ✅ INCLUIR DESCRIPTION EN PAYLOAD:
       description: item.description,
+      supplierName: item.supplierName || undefined, // ✅ INCLUIR SUPPLIERNAME EN PAYLOAD
     }));
 
     let payload;
@@ -655,6 +666,9 @@ const editableBudgets = useMemo(() => {
                     <div key={item._tempId || item.id || index} className="border-b border-gray-100 pb-4 last:border-b-0">
                       <p className="font-medium text-blue-900">{item.name} <span className="text-xs text-gray-500">({item.category})</span></p>
                       <p className="text-sm text-gray-600">Brand: {item.marca || 'N/A'} | Capacity: {item.capacity || 'N/A'} | Unit Price: ${item.unitPrice.toFixed(2)}</p>
+                      {item.supplierName && (
+                        <p className="text-sm text-indigo-600 font-medium">Supplier: {item.supplierName}</p>
+                      )}
                       {item.description && (
                         <p className="text-sm text-gray-500 italic">Description: {item.description}</p>
                       )}

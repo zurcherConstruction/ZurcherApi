@@ -176,6 +176,46 @@ const stateNotificationMap = {
       return `El presupuesto #${id} para la dirección ${addr} ha sido enviado a ${applicantName} (${applicantEmail}) para su firma digital a través de SignNow.`;
     }
   },
+  
+  // 🆕 NUEVAS NOTIFICACIONES PARA WORKFLOW DE REVISIÓN
+  budgetSentForReview: {
+    roles: ['admin', 'owner'],
+    message: (data) => {
+      const id = data?.idBudget || 'N/A';
+      const addr = data?.propertyAddress || 'Dirección desconocida';
+      const applicantName = data?.applicantName || 'cliente';
+      const applicantEmail = data?.applicantEmail || 'N/A';
+      const isResend = data?.isResend || false;
+      
+      if (isResend) {
+        return `🔄 El presupuesto #${id} para ${addr} ha sido ACTUALIZADO y REENVIADO a ${applicantName} (${applicantEmail}) para revisión preliminar.`;
+      }
+      
+      return `📧 El presupuesto #${id} para ${addr} ha sido enviado a ${applicantName} (${applicantEmail}) para revisión preliminar (sin firma).`;
+    }
+  },
+  
+  budgetApprovedByClient: {
+    roles: ['admin', 'owner', 'finance'],
+    message: (data) => {
+      const id = data?.idBudget || 'N/A';
+      const addr = data?.propertyAddress || 'Dirección desconocida';
+      const applicantName = data?.applicantName || 'El cliente';
+      return `✅ ${applicantName} ha APROBADO el presupuesto #${id} para ${addr}. Ahora puede enviarse para firma digital.`;
+    }
+  },
+  
+  budgetRejectedByClient: {
+    roles: ['admin', 'owner'],
+    message: (data) => {
+      const id = data?.idBudget || 'N/A';
+      const addr = data?.propertyAddress || 'Dirección desconocida';
+      const applicantName = data?.applicantName || 'El cliente';
+      const reason = data?.reason || 'No especificada';
+      return `❌ ${applicantName} ha RECHAZADO el presupuesto #${id} para ${addr}. Razón: ${reason}`;
+    }
+  },
+  
   incomeCreated: {
     roles: ['admin', 'owner', 'finance'], // Finance debe estar en todos los pagos
     // 'income' ahora tiene las propiedades extra añadidas

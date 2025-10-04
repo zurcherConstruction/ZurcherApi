@@ -366,6 +366,8 @@ const BudgetList = () => {
     const validTransitions = {
       created: ["send"],
       pending: ["send"],
+      pending_review: [], // No se puede cambiar manualmente, solo el cliente
+      client_approved: [], // No se cambia con handleUpdateStatus, usa handleSendToSignNow
       send: ["rejected", "notResponded"], // Puede ser rechazado o sin respuesta
       sent_for_signature: ["rejected", "signed"], // Desde SignNow puede ser rechazado o firmado
       approved: [], // No se puede cambiar desde aquí
@@ -395,6 +397,59 @@ const BudgetList = () => {
         );
       });
   };
+  
+  // 🆕 NUEVA FUNCIÓN: Enviar presupuesto para revisión del cliente (sin firma)
+  const handleSendForReview = async (budget) => {
+    if (!window.confirm(
+      `¿Enviar presupuesto #${budget.idBudget} para revisión del cliente?\n\n` +
+      `Se enviará un email a ${budget.Permit?.applicantEmail || budget.applicantEmail} ` +
+      `con el presupuesto para revisión preliminar (SIN firma digital).`
+    )) {
+      return;
+    }
+
+    try {
+      const response = await api.post(`/budget/${budget.idBudget}/send-for-review`);
+      
+      if (response.data.success) {
+        alert(`✅ Presupuesto enviado para revisión a ${budget.Permit?.applicantEmail || budget.applicantEmail}`);
+        dispatch(fetchBudgets()); // Recargar lista
+      }
+    } catch (error) {
+      console.error('Error al enviar presupuesto para revisión:', error);
+      alert(
+        'Error al enviar el presupuesto para revisión: ' + 
+        (error.response?.data?.error || error.message)
+      );
+    }
+  };
+  
+  // 🆕 NUEVA FUNCIÓN: Enviar presupuesto aprobado a SignNow
+  const handleSendToSignNow = async (budget) => {
+    if (!window.confirm(
+      `¿Enviar presupuesto #${budget.idBudget} a SignNow?\n\n` +
+      `El cliente ya aprobó este presupuesto. Se enviará para firma digital y pago.`
+    )) {
+      return;
+    }
+
+    try {
+      // Usar el endpoint existente de SignNow
+      const response = await api.post(`/budget/${budget.idBudget}/send-to-signnow`);
+      
+      if (response.data.success || response.data.message) {
+        alert(`✅ Presupuesto enviado a SignNow para firma digital`);
+        dispatch(fetchBudgets()); // Recargar lista
+      }
+    } catch (error) {
+      console.error('Error al enviar a SignNow:', error);
+      alert(
+        'Error al enviar a SignNow: ' + 
+        (error.response?.data?.error || error.message)
+      );
+    }
+  };
+  
   // --- FUNCIÓN PARA MOSTRAR PDF DE PERMISO/OPCIONAL EN MODAL ---
   const handleShowPermitPdfInModal = async (budget, pdfType) => {
     console.log('🔍 Opening PDF Modal:', { budgetId: budget.idBudget, pdfType });
@@ -729,22 +784,64 @@ const BudgetList = () => {
                             <div className="flex flex-row items-center justify-center space-x-1 min-w-[120px]">
                               {" "}
                               {/* Cambio: flex-row y space-x-1 */}
-                              {/* ESTADO: CREATED - Botón Send */}
+                              {/* ESTADO: CREATED - Botones Send y Send for Review */}
                               {budget.status === "created" && (
-                                <button
-                                  onClick={() =>
-                                    handleUpdateStatus(
-                                      budget.idBudget,
-                                      "send",
-                                      budget
-                                    )
-                                  }
-                                  className="inline-flex items-center justify-center bg-yellow-500 text-white px-2 py-0.5 rounded text-[10px] hover:bg-yellow-600 w-16 h-6"
-                                  title="Send Budget"
-                                >
-                                  Send
-                                </button>
+                                <div className="flex flex-col gap-1 w-full">
+                                  {/* Botón: Enviar para Revisión (NUEVO) */}
+                                  <button
+                                    onClick={() => handleSendForReview(budget)}
+                                    className="inline-flex items-center justify-center bg-blue-500 text-white px-2 py-0.5 rounded text-[10px] hover:bg-blue-600 w-full h-6"
+                                    title="Send for Client Review (No Signature)"
+                                  >
+                                    📧 Review
+                                  </button>
+                                  
+                                  {/* Botón: Send (Original) */}
+                                  <button
+                                    onClick={() =>
+                                      handleUpdateStatus(
+                                        budget.idBudget,
+                                        "send",
+                                        budget
+                                      )
+                                    }
+                                    className="inline-flex items-center justify-center bg-yellow-500 text-white px-2 py-0.5 rounded text-[10px] hover:bg-yellow-600 w-full h-6"
+                                    title="Send Budget"
+                                  >
+                                    Send
+                                  </button>
+                                </div>
                               )}
+                              
+                              {/* 🆕 ESTADO: PENDING_REVIEW - Esperando aprobación del cliente */}
+                              {budget.status === "pending_review" && (
+                                <div className="text-center">
+                                  <p className="text-blue-700 text-[10px] font-semibold bg-blue-100 px-1 py-0.5 rounded leading-tight">
+                                    📧 In Review
+                                  </p>
+                                  <p className="text-gray-600 text-[8px] mt-0.5">
+                                    Awaiting client
+                                  </p>
+                                </div>
+                              )}
+                              
+                              {/* 🆕 ESTADO: CLIENT_APPROVED - Cliente aprobó, listo para firma */}
+                              {budget.status === "client_approved" && (
+                                <div className="flex flex-col gap-1 w-full">
+                                  <p className="text-green-700 text-[10px] font-semibold bg-green-100 px-1 py-0.5 rounded leading-tight text-center">
+                                    ✅ Approved
+                                  </p>
+                                  {/* Botón: Send to SignNow */}
+                                  <button
+                                    onClick={() => handleSendToSignNow(budget)}
+                                    className="inline-flex items-center justify-center bg-purple-500 text-white px-2 py-0.5 rounded text-[10px] hover:bg-purple-600 w-full h-6"
+                                    title="Send to SignNow for Signature & Payment"
+                                  >
+                                    📝 SignNow
+                                  </button>
+                                </div>
+                              )}
+                              
                               {/* ESTADO: SEND - Estado + botón reject horizontalmente */}
                               {budget.status === "send" && (
                                 <>
@@ -810,11 +907,21 @@ const BudgetList = () => {
                                   Signed
                                 </p>
                               )}
-                              {/* ESTADO: REJECTED */}
+                              {/* ESTADO: REJECTED - Puede reenviarse para revisión */}
                               {budget.status === "rejected" && (
-                                <p className="text-red-700 text-[10px] font-semibold bg-red-100 px-1 py-0.5 rounded text-center w-16 leading-tight">
-                                  Rejected
-                                </p>
+                                <div className="flex flex-col gap-1 w-full">
+                                  <p className="text-red-700 text-[10px] font-semibold bg-red-100 px-1 py-0.5 rounded text-center leading-tight">
+                                    ❌ Rejected
+                                  </p>
+                                  {/* Botón: Reenviar para Revisión */}
+                                  <button
+                                    onClick={() => handleSendForReview(budget)}
+                                    className="inline-flex items-center justify-center bg-blue-500 text-white px-2 py-0.5 rounded text-[10px] hover:bg-blue-600 w-full h-6"
+                                    title="Resend for Client Review (After Editing)"
+                                  >
+                                    🔄 Resend
+                                  </button>
+                                </div>
                               )}
                               {/* ESTADO: NOT RESPONDED - Estado + botón reject horizontalmente */}
                               {budget.status === "notResponded" && (
@@ -1241,18 +1348,62 @@ const BudgetList = () => {
                           <div className="space-y-3">
                             {/* Status action buttons */}
                             {budget.status === "created" && (
-                              <button
-                                onClick={() =>
-                                  handleUpdateStatus(
-                                    budget.idBudget,
-                                    "send",
-                                    budget
-                                  )
-                                }
-                                className="w-full bg-yellow-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-yellow-600 transition-colors"
-                              >
-                                Send Budget
-                              </button>
+                              <div className="w-full space-y-2">
+                                {/* 🆕 Botón: Enviar para Revisión */}
+                                <button
+                                  onClick={() => handleSendForReview(budget)}
+                                  className="w-full bg-blue-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
+                                >
+                                  📧 Send for Review
+                                </button>
+                                
+                                {/* Botón Original: Send */}
+                                <button
+                                  onClick={() =>
+                                    handleUpdateStatus(
+                                      budget.idBudget,
+                                      "send",
+                                      budget
+                                    )
+                                  }
+                                  className="w-full bg-yellow-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-yellow-600 transition-colors"
+                                >
+                                  Send Budget
+                                </button>
+                              </div>
+                            )}
+                            
+                            {/* 🆕 ESTADO: PENDING_REVIEW */}
+                            {budget.status === "pending_review" && (
+                              <div className="w-full text-center p-3 border rounded-lg bg-blue-50">
+                                <p className="text-sm font-semibold text-blue-700">
+                                  📧 In Review
+                                </p>
+                                <p className="text-xs text-gray-600 mt-1">
+                                  Awaiting client approval
+                                </p>
+                              </div>
+                            )}
+                            
+                            {/* 🆕 ESTADO: CLIENT_APPROVED */}
+                            {budget.status === "client_approved" && (
+                              <div className="w-full space-y-2">
+                                <div className="text-center p-3 border rounded-lg bg-green-50">
+                                  <p className="text-sm font-semibold text-green-700">
+                                    ✅ Approved by Client
+                                  </p>
+                                  <p className="text-xs text-gray-600 mt-1">
+                                    Ready to send for signature
+                                  </p>
+                                </div>
+                                {/* Botón: Send to SignNow */}
+                                <button
+                                  onClick={() => handleSendToSignNow(budget)}
+                                  className="w-full bg-purple-500 text-white py-2 rounded-lg text-sm font-semibold hover:bg-purple-600"
+                                >
+                                  📝 Send to SignNow
+                                </button>
+                              </div>
                             )}
 
                             {/* ESTADO: SEND - Estado + botón reject horizontalmente */}
@@ -1323,8 +1474,20 @@ const BudgetList = () => {
                             )}
 
                             {budget.status === "rejected" && (
-                              <div className="w-full text-center text-red-700 text-xs font-semibold p-2 border rounded bg-red-50">
-                                Rejected
+                              <div className="w-full space-y-2">
+                                <div className="text-center p-2 border rounded bg-red-50">
+                                  <p className="text-xs font-semibold text-red-700">
+                                    ❌ Rejected
+                                  </p>
+                                </div>
+                                {/* Botón: Reenviar para Revisión */}
+                                <button
+                                  onClick={() => handleSendForReview(budget)}
+                                  className="w-full inline-flex items-center justify-center bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-md"
+                                  title="Resend for Client Review (After Editing)"
+                                >
+                                  🔄 Resend for Review
+                                </button>
                               </div>
                             )}
 

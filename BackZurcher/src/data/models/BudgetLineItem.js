@@ -63,6 +63,10 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING,
       allowNull: true,
     },
+    supplierName: { // ✅ Nombre del proveedor (especialmente para SAND)
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   }, {
     timestamps: true,
   });

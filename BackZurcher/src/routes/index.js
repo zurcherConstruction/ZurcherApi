@@ -25,14 +25,19 @@ const adobeRoutes = require('./adobeRoutes'); // Asegúrate de que la ruta sea c
 const signNowRoutes = require('./signNowRoutes'); // Asegúrate de que la ruta sea correcta
 const contactRoutes = require('./contactRoutes'); // Asegúrate de que la ruta sea correcta
 const importRoutes = require('./importRoutes'); // Rutas para importar trabajos legacy
-
+const budgetPublicRoutes = require('./BudgetPublicRoutes');
 
 router.use('/auth', authRoutes); // Registro y login no requieren token
-router.use('/change-orders',changeOrdersRoutes); // Ruta para comprobantes
+router.use('/change-orders',changeOrdersRoutes); // Ruta para change orders (incluye rutas públicas)
 
 //router.use('/webhooks-adobe-sign', adobeWebhookRoutes); 
 router.use('/signnow', signNowRoutes);
 router.use('/contact', contactRoutes); // Ruta pública para formulario de contacto
+
+// 🆕 RUTAS PÚBLICAS DE BUDGETS (antes del verifyToken)
+// Estas rutas permiten a los clientes revisar presupuestos sin autenticación
+
+router.use('/budgets', budgetPublicRoutes); // Rutas públicas de presupuestos
 
 // Rutas protegidas (requieren token)
 const { verifyToken } = require('../middleware/isAuth');

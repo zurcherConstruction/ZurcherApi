@@ -47,6 +47,8 @@ import EditBudget from "./Components/Budget/EditBudget";
 import Summary from "./Components/Summary";
 import GestionBudgets from "./Components/Budget/GestionBudgets";
 import CreateLegacyBudget from "./Components/Budget/CreateLegacyBudget";
+// 🆕 Importar página de revisión de presupuesto (pública)
+import BudgetReviewPage from "./Components/Budget/BudgetReviewPage";
 // Importar componentes de la Landing
 import LandingClients from "./Components/Landing/LandingClients";
 import ThankYou from "./Components/Landing/ThankYou";
@@ -87,7 +89,8 @@ function App() {
 
   // Determinar si estamos en una ruta pública de la landing
   const publicLandingRoutes = ["/", "/thank-you", "/change-order-response", "/privacy-policy"];
-  const isPublicLandingRoute = publicLandingRoutes.includes(location.pathname);
+  const isBudgetReviewRoute = location.pathname.startsWith("/budget-review/");
+  const isPublicLandingRoute = publicLandingRoutes.includes(location.pathname) || isBudgetReviewRoute;
   
   // Determinar si mostrar header y sidebar
   const shouldShowLayout = isAuthenticated && !isPublicLandingRoute;
@@ -107,6 +110,9 @@ function App() {
             <Route path="/thank-you" element={<ThankYou />} />
             <Route path="/change-order-response" element={<ChangeOrderResponsePage />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            
+            {/* 🆕 Ruta pública para revisión de presupuestos */}
+            <Route path="/budget-review/:budgetId/:reviewToken" element={<BudgetReviewPage />} />
            
             {/* Rutas privadas */}
             <Route

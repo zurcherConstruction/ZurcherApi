@@ -82,6 +82,7 @@ const BudgetController = {
           marca: incomingItem.marca || null,
           capacity: incomingItem.capacity || null,
           description: null,
+          supplierName: incomingItem.supplierName || null, // ✅ AGREGAR SUPPLIERNAME
         };
         let priceAtTime = 0;
         if (incomingItem.budgetItemId) {
@@ -92,6 +93,12 @@ const BudgetController = {
           itemDataForCreation.name = incomingItem.name || budgetItemDetails.name;
           itemDataForCreation.category = incomingItem.category || budgetItemDetails.category;
           itemDataForCreation.description = incomingItem.description || budgetItemDetails.description || null;
+          // ✅ Priorizar supplierName del incoming (puede ser seleccionado manualmente), sino del catálogo
+          if (incomingItem.supplierName) {
+            itemDataForCreation.supplierName = incomingItem.supplierName;
+          } else if (budgetItemDetails.supplierName) {
+            itemDataForCreation.supplierName = budgetItemDetails.supplierName;
+          }
         } else if (incomingItem.name && incomingItem.category && incomingItem.unitPrice !== undefined) {
           const manualPrice = parseFloat(incomingItem.unitPrice);
           if (isNaN(manualPrice) || manualPrice < 0) throw new Error(`Item manual inválido (${incomingItem.name}): unitPrice debe ser un número no negativo.`);
@@ -342,17 +349,36 @@ const BudgetController = {
         console.log(`ℹ️  Usando ruta de PDF local existente: ${localPdfPath}`);
       }
 
-      // Verificar que el archivo PDF existe físicamente
-      if (!fs.existsSync(budget.pdfPath)) {
-        console.error(`❌ ERROR: Archivo PDF no existe en la ruta: ${budget.pdfPath}`);
-        await transaction.rollback();
-        return res.status(400).json({
-          error: true,
-          message: 'El archivo PDF no existe en el servidor'
-        });
+      // Verificar que el archivo PDF existe físicamente, si no, generarlo
+      if (!fs.existsSync(localPdfPath)) {
+        console.warn(`⚠️  ADVERTENCIA: Archivo PDF no existe en la ruta: ${localPdfPath}`);
+        console.log('🔄 Generando PDF antes de enviar a SignNow...');
+        
+        try {
+          const regeneratedPdfPath = await generateAndSaveBudgetPDF(budget.toJSON());
+          console.log(`✅ PDF regenerado exitosamente: ${regeneratedPdfPath}`);
+          
+          // Actualizar la ruta del PDF en la base de datos
+          await budget.update({ pdfPath: regeneratedPdfPath }, { transaction });
+          
+          // Actualizar localPdfPath para usarlo en SignNow
+          if (regeneratedPdfPath.startsWith('http')) {
+            const newPdfFileName = regeneratedPdfPath.split('/').pop();
+            localPdfPath = path.join(__dirname, '..', 'uploads', 'budgets', newPdfFileName);
+          } else {
+            localPdfPath = regeneratedPdfPath;
+          }
+        } catch (pdfError) {
+          console.error('❌ ERROR al generar PDF:', pdfError);
+          await transaction.rollback();
+          return res.status(500).json({
+            error: true,
+            message: 'Error al generar el archivo PDF para firma'
+          });
+        }
       }
 
-      console.log(`✅ Archivo PDF existe, tamaño: ${fs.statSync(budget.pdfPath).size} bytes`);
+      console.log(`✅ Archivo PDF existe, tamaño: ${fs.statSync(localPdfPath).size} bytes`);
 
       // Verificar que existe información del solicitante
       if (!budget.Permit?.applicantEmail) {
@@ -370,6 +396,109 @@ const BudgetController = {
       console.log(`   - Nombre: ${budget.Permit.applicantName}`);
       console.log(`   - Dirección: ${budget.Permit.propertyAddress}`);
 
+      // 📧 ENVIAR EMAIL AL CLIENTE CON PDF Y LINK DE PAGO
+      console.log('📧 Enviando email al cliente con presupuesto y link de pago...');
+      
+      if (budget.Permit.applicantEmail.includes('@')) {
+        const clientMailOptions = {
+          to: budget.Permit.applicantEmail,
+          subject: `Budget Proposal #${idBudget} for ${budget.Permit.propertyAddress || budget.propertyAddress}`,
+          text: `Dear ${budget.Permit.applicantName || 'Customer'},\n\nPlease find attached the budget proposal #${idBudget} for the property located at ${budget.Permit.propertyAddress || budget.propertyAddress}.\n\nExpiration Date: ${budget.expirationDate ? new Date(budget.expirationDate).toLocaleDateString() : 'N/A'}\nTotal Amount: $${parseFloat(budget.totalPrice || 0).toFixed(2)}\nInitial Payment (${budget.initialPaymentPercentage || 60}%): $${parseFloat(budget.initialPayment || 0).toFixed(2)}\n\n${budget.generalNotes ? 'Notes:\n' + budget.generalNotes + '\n\n' : ''}NEXT STEPS:\n- Review the attached PDF carefully\n- You will receive a separate email from SignNow to digitally sign the document\n- After signing, you can proceed with the initial payment\n- If you have any questions, please contact us\n\nBest regards,\nZurcher Construction`,
+          html: `
+      <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #1a365d; margin-bottom: 20px;">Budget Proposal Ready for Review</h2>
+          
+          <p style="font-size: 16px; margin-bottom: 20px;">
+            Dear ${budget.Permit?.applicantName || 'Valued Customer'},
+          </p>
+          
+          <p style="margin-bottom: 20px;">
+            Please find attached your budget proposal <strong>#${idBudget}</strong> for the property located at <strong>${budget.Permit?.propertyAddress || budget.propertyAddress}</strong>.
+          </p>
+          
+          <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="color: #1a365d; margin-top: 0; margin-bottom: 15px;">Budget Details:</h3>
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; border-bottom: 1px solid #dee2e6;"><strong>Expiration Date:</strong></td>
+                <td style="padding: 8px 0; border-bottom: 1px solid #dee2e6; text-align: right;">${budget.expirationDate ? new Date(budget.expirationDate).toLocaleDateString() : 'N/A'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; border-bottom: 1px solid #dee2e6;"><strong>Total Amount:</strong></td>
+                <td style="padding: 8px 0; border-bottom: 1px solid #dee2e6; text-align: right; color: #28a745; font-weight: bold;">$${parseFloat(budget.totalPrice || 0).toFixed(2)}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0;"><strong>Initial Payment (${budget.initialPaymentPercentage || 60}%):</strong></td>
+                <td style="padding: 8px 0; text-align: right; color: #007bff; font-weight: bold;">$${parseFloat(budget.initialPayment || 0).toFixed(2)}</td>
+              </tr>
+            </table>
+          </div>
+          
+          ${budget.generalNotes ? `
+          <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+            <h4 style="color: #856404; margin-top: 0;">Additional Notes:</h4>
+            <p style="margin-bottom: 0; color: #856404;">${budget.generalNotes}</p>
+          </div>
+          ` : ''}
+          
+          <div style="background-color: #e6f3ff; padding: 20px; border-radius: 8px; margin: 25px 0; border-left: 4px solid #007bff;">
+            <h3 style="color: #1a365d; margin-top: 0; margin-bottom: 15px;">📋 Next Steps:</h3>
+            <div style="margin-bottom: 12px;">
+              <span style="display: inline-block; width: 20px; color: #007bff;">1.</span>
+              <strong>Review the attached PDF carefully</strong>
+            </div>
+            <div style="margin-bottom: 12px;">
+              <span style="display: inline-block; width: 20px; color: #007bff;">2.</span>
+              <strong>You will receive a separate email from SignNow</strong> to digitally sign the document
+            </div>
+            <div style="margin-bottom: 12px;">
+              <span style="display: inline-block; width: 20px; color: #007bff;">3.</span>
+              <strong>After signing, you can proceed with the initial payment</strong>
+            </div>
+            <div style="margin-bottom: 0;">
+              <span style="display: inline-block; width: 20px; color: #007bff;">4.</span>
+              <strong>Contact us</strong> if you have any questions
+            </div>
+          </div>
+          
+          <p style="margin-top: 30px; margin-bottom: 30px;">
+            Thank you for choosing <strong>Zurcher Construction</strong>!
+          </p>
+          
+          <div style="margin-top: 40px; padding-top: 20px; border-top: 2px solid #dee2e6; text-align: center;">
+            <div style="color: #6c757d; font-size: 14px;">
+              <strong style="color: #1a365d;">Zurcher Septic</strong><br>
+              SEPTIC TANK DIVISION - CFC1433240<br>
+              📧 Contact: [admin@zurcherseptic.com] | 📞 [+1 (407) 419-4495]<br>
+              🌐 Professional Septic Installation & Maintenance
+            </div>
+          </div>
+        </div>
+      </div>
+    `,
+          attachments: [{
+            filename: `budget_${idBudget}.pdf`,
+            path: localPdfPath,
+            contentType: 'application/pdf'
+          }],
+        };
+
+        try {
+          console.log(`Intentando enviar correo con PDF al cliente: ${budget.Permit.applicantEmail}`);
+          const clientEmailResult = await sendEmail(clientMailOptions);
+          
+          if (clientEmailResult.success) {
+            console.log(`✅ Correo con PDF enviado exitosamente al cliente en ${clientEmailResult.duration}ms.`);
+          } else {
+            console.error(`❌ Error al enviar correo con PDF al cliente: ${clientEmailResult.error}`);
+          }
+        } catch (clientEmailError) {
+          console.error(`❌ Error al enviar correo con PDF al cliente ${budget.Permit.applicantEmail}:`, clientEmailError);
+          // No fallar la operación, continuar con SignNow
+        }
+      }
+
       // Inicializar servicio de SignNow
       console.log('🔧 Inicializando servicio SignNow...');
       const SignNowService = require('../services/ServiceSignNow');
@@ -384,7 +513,7 @@ const BudgetController = {
       // Enviar documento para firma
       console.log('📤 Enviando documento a SignNow...');
       const signNowResult = await signNowService.sendBudgetForSignature(
-        budget.pdfPath,
+        localPdfPath,
         fileName,
         budget.Permit.applicantEmail,
         budget.Permit.applicantName || 'Valued Client'
@@ -1217,6 +1346,7 @@ async optionalDocs(req, res) {
             itemDataForCreation.name = incomingItem.name || budgetItemDetails.name;
             itemDataForCreation.category = incomingItem.category || budgetItemDetails.category;
             itemDataForCreation.description = incomingItem.description || budgetItemDetails.description || null;
+            itemDataForCreation.supplierName = incomingItem.supplierName || budgetItemDetails.supplierName || null; // ✅ AGREGAR SUPPLIERNAME
             console.log("itemDataForCreation después de asignar budgetItemId:", itemDataForCreation);
           } else if (incomingItem.name && incomingItem.category && incomingItem.unitPrice !== undefined) {
             // Item manual
@@ -1230,6 +1360,7 @@ async optionalDocs(req, res) {
             itemDataForCreation.name = incomingItem.name;
             itemDataForCreation.category = incomingItem.category;
             itemDataForCreation.description = incomingItem.description || null;
+            itemDataForCreation.supplierName = incomingItem.supplierName || null; // ✅ AGREGAR SUPPLIERNAME PARA ITEMS MANUALES
           } else {
             // Item inválido
             console.error("Error: Item inválido, falta información:", incomingItem);
@@ -2876,6 +3007,508 @@ async optionalDocs(req, res) {
         error: true,
         message: 'Error al cargar el PDF del presupuesto legacy',
         details: error.message
+      });
+    }
+  },
+
+  // ========== 🆕 MÉTODOS PARA WORKFLOW DE REVISIÓN PREVIA ==========
+
+  /**
+   * Obtener detalles del presupuesto para revisión (endpoint público)
+   * GET /api/budgets/:idBudget/review/:reviewToken
+   */
+  async getBudgetForReview(req, res) {
+    try {
+      const { idBudget, reviewToken } = req.params;
+      
+      console.log(`🔍 Cliente consultando presupuesto ${idBudget} para revisión...`);
+
+      const budget = await Budget.findByPk(idBudget, {
+        include: [
+          { 
+            model: Permit, 
+            attributes: ['idPermit', 'propertyAddress', 'applicantEmail', 'applicantName', 'lot', 'block'] 
+          },
+          { model: BudgetLineItem, as: 'lineItems' }
+        ]
+      });
+
+      if (!budget) {
+        return res.status(404).json({ error: 'Presupuesto no encontrado' });
+      }
+
+      // Validar token
+      if (budget.reviewToken !== reviewToken) {
+        return res.status(403).json({ error: 'Enlace de revisión inválido o expirado' });
+      }
+
+      // No exponer datos sensibles
+      const budgetData = budget.toJSON();
+      delete budgetData.reviewToken;
+      delete budgetData.signNowDocumentId;
+      delete budgetData.signedPdfPath;
+
+      // Aplanar datos del Permit para facilitar acceso en el frontend
+      if (budgetData.Permit) {
+        budgetData.propertyAddress = budgetData.Permit.propertyAddress;
+        budgetData.applicantName = budgetData.Permit.applicantName;
+        budgetData.applicantEmail = budgetData.Permit.applicantEmail;
+      }
+
+      res.json(budgetData);
+
+    } catch (error) {
+      console.error('❌ Error al obtener presupuesto para revisión:', error);
+      res.status(500).json({ 
+        error: 'Error al cargar el presupuesto',
+        details: error.message 
+      });
+    }
+  },
+
+  /**
+   * Ver PDF del presupuesto (endpoint público con token)
+   * GET /api/budgets/:idBudget/view-pdf/:reviewToken
+   */
+  async viewBudgetPDFPublic(req, res) {
+    try {
+      const { idBudget, reviewToken } = req.params;
+
+      console.log(`📄 Cliente solicitando PDF del presupuesto ${idBudget}...`);
+
+      const budget = await Budget.findByPk(idBudget);
+
+      if (!budget) {
+        return res.status(404).json({ error: 'Presupuesto no encontrado' });
+      }
+
+      // Validar token de revisión
+      if (budget.reviewToken !== reviewToken) {
+        return res.status(403).json({ error: 'Token de revisión inválido' });
+      }
+
+      // Verificar que el PDF existe
+      if (!budget.pdfPath) {
+        return res.status(404).json({ error: 'PDF no encontrado' });
+      }
+
+      // ✅ Convertir URL pública a ruta local
+      let localPdfPath;
+      if (budget.pdfPath.startsWith('http')) {
+        const pdfFileName = budget.pdfPath.split('/').pop();
+        localPdfPath = path.join(__dirname, '..', 'uploads', 'budgets', pdfFileName);
+        console.log(`🔄 Convertido URL a ruta local: ${localPdfPath}`);
+      } else {
+        localPdfPath = budget.pdfPath;
+      }
+
+      // Verificar que el archivo existe físicamente
+      if (!fs.existsSync(localPdfPath)) {
+        console.error(`❌ PDF no encontrado en: ${localPdfPath}`);
+        return res.status(404).json({ error: 'Archivo PDF no encontrado en el servidor' });
+      }
+
+      console.log(`✅ Enviando PDF: ${localPdfPath}`);
+
+      // Enviar el archivo PDF
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="Budget_${budget.idBudget}.pdf"`);
+      
+      const fileStream = fs.createReadStream(localPdfPath);
+      fileStream.pipe(res);
+
+    } catch (error) {
+      console.error('❌ Error al visualizar PDF público:', error);
+      res.status(500).json({ 
+        error: 'Error al cargar el PDF',
+        details: error.message 
+      });
+    }
+  },
+
+  /**
+   * Enviar presupuesto para revisión del cliente (sin firma, solo lectura)
+   * POST /api/budgets/:idBudget/send-for-review
+   */
+  async sendBudgetForReview(req, res) {
+    let pdfPath; // ✅ Declarar aquí para disponibilidad en finally (patrón Change Order)
+    try {
+      const { idBudget } = req.params;
+      
+      console.log(`📧 Enviando presupuesto ${idBudget} para revisión...`);
+
+      // Buscar el presupuesto con sus datos completos
+      const budget = await Budget.findByPk(idBudget, {
+        include: [
+          { 
+            model: Permit, 
+            attributes: ['idPermit', 'propertyAddress', 'applicantEmail', 'applicantName', 'lot', 'block'] 
+          },
+          { model: BudgetLineItem, as: 'lineItems' }
+        ]
+      });
+
+      if (!budget) {
+        return res.status(404).json({ error: 'Presupuesto no encontrado' });
+      }
+
+      // ✅ Validaciones - Permitir reenvío de presupuestos rechazados
+      const allowedStatuses = ['created', 'draft', 'rejected'];
+      if (!allowedStatuses.includes(budget.status)) {
+        return res.status(400).json({ 
+          error: `No se puede enviar para revisión un presupuesto con estado "${budget.status}". Solo presupuestos en estado "created", "draft" o "rejected" (para reenvío) pueden enviarse para revisión.`
+        });
+      }
+
+      if (!budget.Permit?.applicantEmail) {
+        return res.status(400).json({ 
+          error: 'El presupuesto no tiene un email de cliente asociado'
+        });
+      }
+
+      // Generar token único para revisión (si no existe o si es reenvío)
+      const crypto = require('crypto');
+      const isResend = budget.status === 'rejected'; // Detectar si es un reenvío
+      const reviewToken = budget.reviewToken || crypto.randomBytes(32).toString('hex');
+
+      // Actualizar presupuesto
+      await budget.update({
+        status: 'pending_review',
+        reviewToken: reviewToken,
+        sentForReviewAt: new Date()
+      });
+
+      // ✅ GENERAR PDF USANDO LA FUNCIÓN EXISTENTE (patrón Budget/Change Order)
+      console.log(`📄 Generando PDF del presupuesto ${idBudget}...`);
+      pdfPath = await generateAndSaveBudgetPDF(budget.toJSON());
+
+      if (!pdfPath || !fs.existsSync(pdfPath)) {
+        throw new Error('No se pudo generar el PDF del presupuesto');
+      }
+
+      console.log(`✅ PDF generado exitosamente: ${pdfPath}`);
+
+      // Construir URL pública para revisión
+      const frontendUrl = process.env.FRONTEND_URL || 'https://zurcherseptic.com';
+      const reviewUrl = `${frontendUrl}/budget-review/${idBudget}/${reviewToken}`;
+
+      // ✅ CONSTRUIR EMAIL HTML - Diferente si es reenvío
+      const emailSubject = isResend 
+        ? `Updated Budget for Review - ${budget.Permit.propertyAddress}` 
+        : `Budget Proposal for Review - ${budget.Permit.propertyAddress}`;
+      
+      const emailHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background-color: #2563eb; color: white; padding: 20px; text-align: center; }
+            .content { background-color: #f9fafb; padding: 30px; border-radius: 8px; margin: 20px 0; }
+            .button { display: inline-block; padding: 16px 32px; text-align: center; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 18px; letter-spacing: 1px; margin: 10px; }
+            .btn-approve { background-color: #28a745; color: white; }
+            .btn-reject { background-color: #dc3545; color: white; }
+            .details { background-color: white; padding: 20px; border-left: 4px solid #2563eb; margin: 20px 0; }
+            .resend-notice { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; }
+            .footer { text-align: center; color: #6b7280; font-size: 14px; margin-top: 30px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>📋 ${isResend ? 'Updated Budget for Review' : 'Budget Proposal for Review'}</h1>
+            </div>
+            
+            <div class="content">
+              <p>Dear <strong>${budget.Permit.applicantName}</strong>,</p>
+              
+              ${isResend ? `
+              <div class="resend-notice">
+                <p><strong>🔄 This is an updated version of the budget.</strong></p>
+                <p>We have reviewed your feedback and made the necessary adjustments. Please review the updated proposal below.</p>
+              </div>
+              ` : ''}
+              
+              <p>Please find attached the ${isResend ? 'updated ' : ''}budget estimate for your project at <strong>${budget.Permit.propertyAddress}</strong> for your review.</p>
+              
+              <div class="details">
+                <h3>Budget Details:</h3>
+                <p><strong>Budget ID:</strong> #${budget.idBudget}</p>
+                <p><strong>Property Address:</strong> ${budget.Permit.propertyAddress}</p>
+                <p><strong>Total:</strong> $${parseFloat(budget.totalPrice).toFixed(2)}</p>
+                <p><strong>Initial Payment (${budget.initialPaymentPercentage}%):</strong> $${parseFloat(budget.initialPayment).toFixed(2)}</p>
+                ${budget.expirationDate ? `<p><strong>Valid Until:</strong> ${new Date(budget.expirationDate).toLocaleDateString()}</p>` : ''}
+              </div>
+              
+              <p><strong>⚠️ This is a preliminary budget for your review.</strong> It does not include digital signature or payment at this stage.</p>
+              
+              <p>Please review the attached budget PDF and let us know if you have any questions or if you wish to proceed:</p>
+              
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${reviewUrl}?action=approve" class="button btn-approve">✅ APPROVE BUDGET</a>
+                <a href="${reviewUrl}?action=reject" class="button btn-reject">❌ PROVIDE FEEDBACK</a>
+              </div>
+              
+              <p><em>If you approve the budget, we will proceed to send you the official document for digital signature and payment coordination.</em></p>
+            </div>
+            
+            <div class="footer">
+              <p><strong>Zurcher Septic</strong></p>
+              <p>Professional Septic Installation & Maintenance | License CFC1433240</p>
+              <p>📧 admin@zurcherseptic.com | 📞 +1 (407) 419-4495</p>
+              <p style="margin-top: 10px; font-size: 12px;">For any questions, please contact us by replying to this email.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      // ✅ ENVIAR EMAIL CON PDF ADJUNTO (patrón exacto de Change Order)
+      await sendEmail({
+        to: budget.Permit.applicantEmail,
+        subject: emailSubject,
+        html: emailHtml,
+        text: `Alternative text: ${emailSubject}`,
+        attachments: [
+          { 
+            filename: `Budget_${budget.idBudget}.pdf`, 
+            path: pdfPath 
+          }
+        ]
+      });
+
+      console.log(`✅ Email de revisión enviado a ${budget.Permit.applicantEmail}`);
+
+      // Notificar al equipo interno
+      await sendNotifications('budgetSentForReview', {
+        idBudget: budget.idBudget,
+        propertyAddress: budget.Permit.propertyAddress,
+        applicantName: budget.Permit.applicantName,
+        applicantEmail: budget.Permit.applicantEmail,
+        isResend: isResend // 🆕 Indicar si es un reenvío
+      });
+
+      res.json({
+        success: true,
+        message: isResend 
+          ? `Presupuesto actualizado y reenviado para revisión a ${budget.Permit.applicantEmail}`
+          : `Presupuesto enviado para revisión a ${budget.Permit.applicantEmail}`,
+        budget: {
+          idBudget: budget.idBudget,
+          status: 'pending_review',
+          sentForReviewAt: budget.sentForReviewAt,
+          reviewUrl,
+          isResend: isResend
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error al enviar presupuesto para revisión:', error);
+      res.status(500).json({ 
+        error: 'Error al enviar el presupuesto para revisión',
+        details: error.message 
+      });
+    } finally {
+      // ✅ LIMPIAR PDF TEMPORAL (patrón exacto de Change Order)
+      if (pdfPath && fs.existsSync(pdfPath)) {
+        try {
+          fs.unlinkSync(pdfPath);
+          console.log(`🗑️  PDF temporal eliminado: ${pdfPath}`);
+        } catch (cleanupError) {
+          console.warn(`⚠️  No se pudo eliminar el PDF temporal: ${cleanupError.message}`);
+        }
+      }
+    }
+  },
+
+  /**
+   * Cliente aprueba el presupuesto (endpoint público)
+   * POST /api/budgets/:idBudget/approve-review/:reviewToken
+   */
+  async approveReview(req, res) {
+    try {
+      const { idBudget, reviewToken } = req.params;
+      
+      console.log(`✅ Cliente aprobando presupuesto ${idBudget}...`);
+
+      const budget = await Budget.findByPk(idBudget, {
+        include: [{ model: Permit, attributes: ['applicantName', 'propertyAddress', 'applicantEmail'] }]
+      });
+
+      if (!budget) {
+        return res.status(404).json({ error: 'Presupuesto no encontrado' });
+      }
+
+      // Validar token
+      if (budget.reviewToken !== reviewToken) {
+        return res.status(403).json({ error: 'Token de revisión inválido' });
+      }
+
+      // Validar estado
+      if (budget.status !== 'pending_review') {
+        return res.status(400).json({ 
+          error: `Este presupuesto ya no está en revisión (estado actual: ${budget.status})`
+        });
+      }
+
+      // Actualizar presupuesto
+      await budget.update({
+        status: 'client_approved',
+        reviewedAt: new Date()
+      });
+
+      console.log(`✅ Presupuesto ${idBudget} aprobado por el cliente`);
+
+      // Notificar al equipo
+      await sendNotifications('budgetApprovedByClient', {
+        idBudget: budget.idBudget,
+        propertyAddress: budget.Permit?.propertyAddress || budget.propertyAddress,
+        applicantName: budget.Permit?.applicantName || budget.applicantName
+      });
+
+      // Email de confirmación al cliente
+      await sendEmail({
+        to: budget.Permit?.applicantEmail || budget.applicantEmail,
+        subject: `Presupuesto Aprobado - ${budget.Permit?.propertyAddress || budget.propertyAddress}`,
+        html: `
+          <h2>✅ Presupuesto Aprobado</h2>
+          <p>Gracias por aprobar el presupuesto #${budget.idBudget}.</p>
+          <p>Nos pondremos en contacto con usted en breve para coordinar la firma digital del documento y el proceso de pago.</p>
+          <p><strong>Zurcher Septic & Construction Services</strong></p>
+        `
+      });
+
+      res.json({
+        success: true,
+        message: 'Presupuesto aprobado exitosamente',
+        budget: {
+          idBudget: budget.idBudget,
+          status: 'client_approved',
+          reviewedAt: budget.reviewedAt
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error al aprobar presupuesto:', error);
+      res.status(500).json({ 
+        error: 'Error al aprobar el presupuesto',
+        details: error.message 
+      });
+    }
+  },
+
+  /**
+   * Cliente rechaza el presupuesto (endpoint público)
+   * POST /api/budgets/:idBudget/reject-review/:reviewToken
+   */
+  async rejectReview(req, res) {
+    try {
+      const { idBudget, reviewToken } = req.params;
+      const { reason } = req.body;
+      
+      console.log(`❌ Cliente rechazando presupuesto ${idBudget}...`);
+
+      const budget = await Budget.findByPk(idBudget, {
+        include: [{ model: Permit, attributes: ['applicantName', 'propertyAddress', 'applicantEmail'] }]
+      });
+
+      if (!budget) {
+        return res.status(404).json({ error: 'Presupuesto no encontrado' });
+      }
+
+      // Validar token
+      if (budget.reviewToken !== reviewToken) {
+        return res.status(403).json({ error: 'Token de revisión inválido' });
+      }
+
+      // Validar estado
+      if (budget.status !== 'pending_review') {
+        return res.status(400).json({ 
+          error: `Este presupuesto ya no está en revisión (estado actual: ${budget.status})`
+        });
+      }
+
+      // Actualizar presupuesto
+      await budget.update({
+        status: 'rejected',
+        reviewedAt: new Date(),
+        generalNotes: budget.generalNotes 
+          ? `${budget.generalNotes}\n\nRazón de rechazo (cliente): ${reason || 'No especificada'}`
+          : `Razón de rechazo (cliente): ${reason || 'No especificada'}`
+      });
+
+      console.log(`❌ Presupuesto ${idBudget} rechazado por el cliente`);
+
+      // Notificar al equipo
+      await sendNotifications('budgetRejectedByClient', {
+        idBudget: budget.idBudget,
+        propertyAddress: budget.Permit?.propertyAddress || budget.propertyAddress,
+        applicantName: budget.Permit?.applicantName || budget.applicantName,
+        reason: reason || 'No especificada'
+      });
+
+      // Email de confirmación al cliente
+      await sendEmail({
+        to: budget.Permit?.applicantEmail || budget.applicantEmail,
+        subject: `Budget Proposal Feedback Received - ${budget.Permit?.propertyAddress || budget.propertyAddress}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%); padding: 30px; text-align: center;">
+              <h1 style="color: white; margin: 0;">Thank You for Your Feedback</h1>
+            </div>
+            
+            <div style="padding: 30px; background: #f8f9fa;">
+              <p style="font-size: 16px; color: #333;">Dear ${budget.Permit?.applicantName || 'Valued Customer'},</p>
+              
+              <p style="font-size: 16px; color: #333;">
+                We have received your decision regarding Budget Proposal <strong>#${budget.idBudget}</strong> for 
+                <strong>${budget.Permit?.propertyAddress || budget.propertyAddress}</strong>.
+              </p>
+              
+              ${reason ? `
+              <div style="background: white; padding: 20px; border-left: 4px solid #dc2626; margin: 20px 0;">
+                <p style="margin: 0; color: #666;"><strong>Your Feedback:</strong></p>
+                <p style="margin: 10px 0 0 0; color: #333;">${reason}</p>
+              </div>
+              ` : ''}
+              
+              <p style="font-size: 16px; color: #333;">
+                Your feedback is valuable to us. Our team will review your comments and reach out to discuss possible 
+                modifications or alternative solutions that better meet your needs.
+              </p>
+              
+              <div style="background: white; padding: 20px; margin: 20px 0; border-radius: 8px;">
+                <h3 style="color: #1e3a8a; margin-top: 0;">Contact Us</h3>
+                <p style="margin: 5px 0;">📧 Email: <a href="mailto:admin@zurcherseptic.com">admin@zurcherseptic.com</a></p>
+                <p style="margin: 5px 0;">📞 Phone: <a href="tel:+14074194495">+1 (407) 419-4495</a></p>
+              </div>
+              
+              <p style="font-size: 14px; color: #666; margin-top: 30px;">
+                <strong>Zurcher Septic</strong><br>
+                Professional Septic Installation & Maintenance<br>
+                License CFC1433240
+              </p>
+            </div>
+          </div>
+        `
+      });
+
+      res.json({
+        success: true,
+        message: 'Presupuesto rechazado',
+        budget: {
+          idBudget: budget.idBudget,
+          status: 'rejected',
+          reviewedAt: budget.reviewedAt
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error al rechazar presupuesto:', error);
+      res.status(500).json({ 
+        error: 'Error al rechazar el presupuesto',
+        details: error.message 
       });
     }
   }
