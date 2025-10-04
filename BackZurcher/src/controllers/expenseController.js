@@ -48,7 +48,7 @@ const createExpense = async (req, res) => {
       const notificationData = {
         ...expenseWithDetails.toJSON(),
         // Agregar propiedades adicionales si no están en las relaciones
-        propertyAddress: expenseWithDetails.Work?.propertyAddress || 'Obra no especificada'
+        propertyAddress: expenseWithDetails.work?.propertyAddress || null
       };
 
       // Enviar notificación
@@ -167,14 +167,14 @@ const updateExpense = async (req, res) => {
       const expenseWithDetails = await Expense.findByPk(id, {
         include: [
           { model: Staff, as: 'Staff', attributes: ['id', 'name', 'email'] },
-          { model: Work, as: 'Work', attributes: ['idWork', 'propertyAddress'] }
+          { model: Work, as: 'work', attributes: ['idWork', 'propertyAddress'] }
         ]
       });
 
       // Preparar datos para la notificación
       const notificationData = {
         ...expenseWithDetails.toJSON(),
-        propertyAddress: expenseWithDetails.Work?.propertyAddress || 'Obra no especificada'
+        propertyAddress: expenseWithDetails.work?.propertyAddress || null
       };
 
       // Enviar notificación
