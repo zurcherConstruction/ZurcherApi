@@ -51,6 +51,10 @@ module.exports = (sequelize) => {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: true,
     },
+    paymentProofMethod: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
 
     //  systemType: {
     //   type: DataTypes.TEXT,

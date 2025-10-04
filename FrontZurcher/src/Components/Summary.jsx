@@ -51,6 +51,7 @@ const Summary = () => {
     typeIncome: "",
     typeExpense: "",
     staffId: "",
+    verified: "", // 🆕 Filtro por verificación: "" (todos), "true" (verificados), "false" (no verificados)
   });
   const [movements, setMovements] = useState([]);
   const [staffList, setStaffList] = useState([]);
@@ -213,6 +214,8 @@ const Summary = () => {
       date: mov.date,
       typeIncome: mov.typeIncome || "",
       typeExpense: mov.typeExpense || "",
+      paymentMethod: mov.paymentMethod || "", // 🆕 Campo de método de pago
+      verified: mov.verified || false, // 🆕 Campo de verificación
     });
     
     // Inicializar estados de comprobantes
@@ -267,6 +270,31 @@ const Summary = () => {
     setNewReceipt(null);
   };
 
+  // 🆕 Toggle verificación rápida (sin abrir el modal)
+  const handleToggleVerified = async (mov) => {
+    try {
+      const newVerifiedState = !mov.verified;
+      
+      if (mov.movimiento === "Ingreso") {
+        await incomeActions.update(mov.idIncome, {
+          verified: newVerifiedState
+        });
+      } else {
+        await expenseActions.update(mov.idExpense, {
+          verified: newVerifiedState
+        });
+      }
+      
+      // Recargar datos
+      await fetchMovements();
+      
+      toast.success(`Movimiento marcado como ${newVerifiedState ? 'verificado' : 'no verificado'}`);
+    } catch (error) {
+      console.error('Error al actualizar verificación:', error);
+      toast.error('Error al actualizar el estado de verificación');
+    }
+  };
+
   // Guardar edición
   const handleEditSave = async () => {
     const mov = editModal.movement;
@@ -280,6 +308,8 @@ const Summary = () => {
           notes: editData.notes,
           date: editData.date,
           typeIncome: editData.typeIncome,
+          paymentMethod: editData.paymentMethod, // 🆕 Incluir método de pago
+          verified: editData.verified, // 🆕 Incluir verificación
         });
       } else {
         await expenseActions.update(mov.idExpense, {
@@ -287,6 +317,8 @@ const Summary = () => {
           notes: editData.notes,
           date: editData.date,
           typeExpense: editData.typeExpense,
+          paymentMethod: editData.paymentMethod, // 🆕 Incluir método de pago
+          verified: editData.verified, // 🆕 Incluir verificación
         });
       }
 
@@ -400,6 +432,9 @@ const Summary = () => {
     if (filters.staffId && mov.Staff && mov.Staff.id !== filters.staffId)
       return false;
     if (filters.staffId && !mov.Staff) return false;
+    // 🆕 Filtro por verificación
+    if (filters.verified === "true" && !mov.verified) return false;
+    if (filters.verified === "false" && mov.verified) return false;
     return true;
   });
 
@@ -419,7 +454,7 @@ const Summary = () => {
           </div>
 
           {/* Filtros */}
-          <form className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4" onSubmit={handleFilter}>
+          <form className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4" onSubmit={handleFilter}>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <CalendarDaysIcon className="h-4 w-4 inline mr-1" />
@@ -525,7 +560,24 @@ const Summary = () => {
               </select>
             </div>
 
-            <div className="md:col-span-2 lg:col-span-3 xl:col-span-6 flex gap-3">
+            {/* 🆕 Filtro de Verificación */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                ✅ Estado de Verificación
+              </label>
+              <select
+                name="verified"
+                value={filters.verified}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              >
+                <option value="">Todos</option>
+                <option value="true">✅ Verificados</option>
+                <option value="false">⏳ Pendientes de Verificación</option>
+              </select>
+            </div>
+
+            <div className="md:col-span-2 lg:col-span-3 xl:col-span-7 flex gap-3">
               <button
                 type="submit"
                 className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center space-x-2"
@@ -543,6 +595,7 @@ const Summary = () => {
                     typeIncome: "",
                     typeExpense: "",
                     staffId: "",
+                    verified: "", // 🆕 Limpiar filtro de verificación
                   });
                   fetchMovements();
                 }}
@@ -572,6 +625,9 @@ const Summary = () => {
             <table key={`movements-table-${movements.length}-${refreshKey}`} className="w-full min-w-full table-auto">
               <thead className="bg-gray-50 sticky top-0 z-10">
                 <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
+                    Verificado
+                  </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
                     Fecha
                   </th>
@@ -588,6 +644,9 @@ const Summary = () => {
                     Notas / Dirección
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
+                    Método de Pago
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
                     Usuario
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
@@ -601,7 +660,7 @@ const Summary = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {loading ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center">
+                    <td colSpan={10} className="px-6 py-12 text-center">
                       <div className="flex items-center justify-center space-x-2">
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                         <span className="text-gray-500">Cargando movimientos...</span>
@@ -610,7 +669,7 @@ const Summary = () => {
                   </tr>
                 ) : filteredMovements.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-6 py-12 text-center">
+                    <td colSpan={10} className="px-6 py-12 text-center">
                       <div className="text-center">
                         <ChartBarIcon className="mx-auto h-12 w-12 text-gray-400" />
                         <h3 className="mt-2 text-sm font-medium text-gray-900">Sin movimientos</h3>
@@ -622,7 +681,23 @@ const Summary = () => {
                   </tr>
                 ) : (
                   filteredMovements.map((mov) => (
-                    <tr key={mov.idIncome || mov.idExpense} className="hover:bg-gray-50 transition-colors">
+                    <tr key={mov.idIncome || mov.idExpense} className={`hover:bg-gray-50 transition-colors ${
+                      mov.verified 
+                        ? mov.movimiento === 'Ingreso' 
+                          ? 'bg-green-50' 
+                          : 'bg-blue-50'
+                        : ''
+                    }`}>
+                      {/* 🆕 Columna de Verificación */}
+                      <td className="px-4 py-4 whitespace-nowrap text-center">
+                        <input
+                          type="checkbox"
+                          checked={mov.verified || false}
+                          onChange={() => handleToggleVerified(mov)}
+                          className="w-5 h-5 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2 cursor-pointer"
+                          title={mov.verified ? 'Marcar como no verificado' : 'Marcar como verificado'}
+                        />
+                      </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                         {new Date(mov.date).toLocaleDateString('es-ES')}
                       </td>
@@ -673,6 +748,17 @@ const Summary = () => {
                             </div>
                           )}
                         </div>
+                      </td>
+                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {mov.paymentMethod ? (
+                          <div className="flex items-center space-x-1">
+                            <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-medium">
+                              💳 {mov.paymentMethod}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-xs italic">Sin especificar</span>
+                        )}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div className="flex items-center">
@@ -834,6 +920,47 @@ const Summary = () => {
                     </select>
                   </div>
                 )}
+
+                {/* 🆕 Campo de Método de Pago */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    💳 Método de Pago (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={editData.paymentMethod || ''}
+                    onChange={(e) =>
+                      setEditData({ ...editData, paymentMethod: e.target.value })
+                    }
+                    placeholder="Ej: Zelle, Cash, Check #1234, Bank Transfer - Chase"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Especifica cómo se recibió/pagó el dinero para mejor seguimiento
+                  </p>
+                </div>
+
+                {/* 🆕 Campo de Verificación */}
+                <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-200 rounded-lg p-4">
+                  <label className="flex items-center space-x-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editData.verified || false}
+                      onChange={(e) =>
+                        setEditData({ ...editData, verified: e.target.checked })
+                      }
+                      className="w-5 h-5 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2"
+                    />
+                    <div className="flex-1">
+                      <span className="text-sm font-medium text-gray-700">
+                        ✅ Marcar como Verificado
+                      </span>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Indica que este {editModal.movement.movimiento.toLowerCase()} ha sido revisado y validado por finanzas
+                      </p>
+                    </div>
+                  </label>
+                </div>
 
                 {/* Sección de gestión de comprobantes */}
                 <div className="border-t pt-4">

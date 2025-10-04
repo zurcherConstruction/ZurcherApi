@@ -33,4 +33,12 @@ router.get(
   AccountsReceivableController.getPendingCommissions
 );
 
+// Marcar comisión como pagada o no pagada
+router.put(
+  '/:budgetId/commission-paid',
+  verifyToken,
+  allowRoles(['admin', 'owner', 'finance']),
+  AccountsReceivableController.markCommissionAsPaid
+);
+
 module.exports = router;

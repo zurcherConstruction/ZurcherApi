@@ -40,6 +40,19 @@ module.exports = (sequelize) => {
     workId: { // Add workId to Income model
       type: DataTypes.UUID,
       allowNull: true, // or false, depending on your requirements
+    },
+    // 🆕 Método/Cuenta de pago
+    paymentMethod: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Método de pago o cuenta por la que ingresó el dinero (ej: Zelle, Cash, Check #1234, Bank Transfer - Chase, etc.)'
+    },
+    // 🆕 Campo de verificación/revisión
+    verified: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      comment: 'Indica si el ingreso ha sido verificado/revisado por el equipo de finanzas'
     }
   });
 

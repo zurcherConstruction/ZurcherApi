@@ -4,9 +4,9 @@ const { sendNotifications } = require('../utils/notifications/notificationManage
 
 // Crear un nuevo ingreso
 const createIncome = async (req, res) => {
-  const { date, amount, typeIncome, notes, workId, staffId } = req.body;
+  const { date, amount, typeIncome, notes, workId, staffId, paymentMethod, verified } = req.body;
   try {
-    const newIncome = await Income.create({ date, amount, typeIncome, notes, workId, staffId });
+    const newIncome = await Income.create({ date, amount, typeIncome, notes, workId, staffId, paymentMethod, verified: verified || false });
     
     // Enviar notificaciones al equipo de finanzas
     try {
@@ -118,13 +118,13 @@ const getIncomeById = async (req, res) => {
 // Actualizar un ingreso
 const updateIncome = async (req, res) => {
   const { id } = req.params;
-  const { date, amount, typeIncome, notes, workId, staffId } = req.body; // Agregar staffId
+  const { date, amount, typeIncome, notes, workId, staffId, paymentMethod, verified } = req.body; // Agregar staffId, paymentMethod y verified
   try {
     const income = await Income.findByPk(id);
     if (!income) return res.status(404).json({ message: 'Ingreso no encontrado' });
 
     // Actualizar el ingreso
-    await income.update({ date, amount, typeIncome, notes, workId, staffId }); // Incluir staffId
+    await income.update({ date, amount, typeIncome, notes, workId, staffId, paymentMethod, verified }); // Incluir staffId, paymentMethod y verified
     
     // Enviar notificación de actualización (opcional - solo para cambios importantes)
     try {

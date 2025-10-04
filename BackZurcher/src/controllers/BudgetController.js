@@ -1254,7 +1254,8 @@ async optionalDocs(req, res) {
         discountAmount,
         generalNotes,
         initialPaymentPercentage: initialPaymentPercentageInput,
-        lineItems
+        lineItems,
+        paymentMethod // 🆕 Extraer método de pago
       } = req.body;
 
       // --- 3. Validaciones Preliminares ---
@@ -1757,9 +1758,16 @@ async optionalDocs(req, res) {
               typeIncome: 'Factura Pago Inicial Budget',
               notes: `Pago inicial registrado al aprobar Budget #${budget.idBudget}`,
               workId: workRecord.idWork,
-              staffId: req.staff?.id  // Cambiar req.user por req.staff
+              staffId: req.staff?.id,  // Cambiar req.user por req.staff
+              paymentMethod: budget.paymentProofMethod || paymentMethod || null, // 🆕 Usar método del Budget
+              verified: false // 🆕 Por defecto no verificado
             }, { transaction });
-            console.log(`Nuevo Income creado exitosamente.`);
+            console.log(`Nuevo Income creado exitosamente con datos:`, {
+              idIncome: createdIncome.idIncome,
+              amount: createdIncome.amount,
+              paymentMethod: createdIncome.paymentMethod,
+              verified: createdIncome.verified
+            });
             
             // 🚀 NOTIFICACIÓN DE INGRESO DESDE BUDGET
             setImmediate(async () => {
@@ -1803,7 +1811,9 @@ async optionalDocs(req, res) {
                 typeIncome: 'Factura Pago Inicial Budget',
                 notes: `Pago inicial (tardío) registrado al aprobar Budget #${budget.idBudget}`,
                 workId: workRecord.idWork,
-                staffId: req.staff?.id // Cambiar req.user por req.staff
+                staffId: req.staff?.id, // Cambiar req.user por req.staff
+                paymentMethod: budget.paymentProofMethod || paymentMethod || null, // 🆕 Usar método del Budget
+                verified: false // 🆕 Por defecto no verificado
               }, { transaction });
               console.log(`Income (tardío) creado exitosamente.`);
               
@@ -1902,12 +1912,13 @@ async optionalDocs(req, res) {
 
     try {
       const { idBudget } = req.params;
-      const { uploadedAmount } = req.body; // <--- Nuevo: Obtener el monto del cuerpo de la solicitud
+      const { uploadedAmount, paymentMethod } = req.body; // 🆕 Agregar paymentMethod
 
       // Verificar si el archivo fue recibido
       console.log("ID del presupuesto recibido:", idBudget);
       console.log("Archivo recibido:", req.file);
       console.log("Monto del comprobante recibido (uploadedAmount):", uploadedAmount); // <--- Nuevo log
+      console.log("Método de pago recibido (paymentMethod):", paymentMethod); // 🆕 Nuevo log
 
       if (!req.file) {
         await transaction.rollback();
@@ -1978,6 +1989,32 @@ async optionalDocs(req, res) {
         return res.status(404).json({ error: 'Presupuesto no encontrado' });
       }
 
+      // ✅ VALIDAR: Estados permitidos para carga de comprobante de pago inicial
+      const allowedStatesForPayment = [
+        'created',
+        'send',
+        'sent_for_signature',
+        'signed',
+        'client_approved',
+        'pending_review'
+      ];
+
+      if (!allowedStatesForPayment.includes(budget.status)) {
+        console.warn(`Intento de cargar comprobante en estado no permitido: ${budget.status}`);
+        try {
+          await cloudinary.uploader.destroy(uploadResult.public_id, {
+            resource_type: uploadResult.resource_type || (proofType === 'pdf' ? 'raw' : 'image')
+          });
+        } catch (e) {
+          console.error("Error al eliminar archivo de Cloudinary:", e);
+        }
+        await transaction.rollback();
+        return res.status(400).json({ 
+          error: `No se puede cargar el comprobante de pago en el estado actual: "${budget.status}". Estados permitidos: ${allowedStatesForPayment.join(', ')}` 
+        });
+      }
+      console.log(`✅ Estado del presupuesto válido para carga de pago: ${budget.status}`);
+
       // ✅ PERMITIR: Eliminar comprobante anterior de Cloudinary si existe
       if (budget.paymentInvoice) {
         console.log("Comprobante anterior encontrado, eliminando de Cloudinary...");
@@ -1999,6 +2036,11 @@ async optionalDocs(req, res) {
       if (parsedUploadedAmount !== null) {
         budget.paymentProofAmount = parsedUploadedAmount;
         console.log("Monto del comprobante guardado:", parsedUploadedAmount);
+      }
+      // 🆕 GUARDAR MÉTODO DE PAGO
+      if (paymentMethod) {
+        budget.paymentProofMethod = paymentMethod;
+        console.log("Método de pago guardado en Budget:", paymentMethod);
       }
       await budget.save({ transaction });
       console.log("Presupuesto actualizado con comprobante y monto (si aplica):", budget.toJSON());
@@ -2033,7 +2075,9 @@ async optionalDocs(req, res) {
               typeIncome: 'Factura Pago Inicial Budget',
               notes: `Pago inicial para Budget #${budget.idBudget}`,
               workId: existingWork.idWork,
-              staffId: req.user?.id
+              staffId: req.user?.id,
+              paymentMethod: paymentMethod || null, // 🆕 Agregar método de pago
+              verified: false // 🆕 Por defecto no verificado
             }, { transaction });
 
             console.log(`Nuevo Income creado: ${relatedIncome.idIncome}`);
@@ -2060,9 +2104,16 @@ async optionalDocs(req, res) {
                 amount: newAmount,
                 date: new Date(),
                 notes: `Pago inicial actualizado para Budget #${budget.idBudget}`,
-                staffId: req.user?.id
+                staffId: req.user?.id,
+                paymentMethod: paymentMethod || relatedIncome.paymentMethod // 🆕 Actualizar método de pago si se proporciona
               }, { transaction });
               console.log(`Income actualizado con nuevo monto: ${newAmount}`);
+            } else if (paymentMethod && paymentMethod !== relatedIncome.paymentMethod) {
+              // 🆕 Actualizar solo el método de pago si cambió
+              await relatedIncome.update({
+                paymentMethod: paymentMethod
+              }, { transaction });
+              console.log(`Income actualizado con nuevo método de pago: ${paymentMethod}`);
             }
           }
 

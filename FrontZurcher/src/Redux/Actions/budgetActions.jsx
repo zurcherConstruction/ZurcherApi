@@ -151,11 +151,14 @@ export const fetchArchivedBudgets = () => async (dispatch) => {
   }
 };
 
-export const uploadInvoice = (budgetId, file, uploadedAmount, onProgress) => async (dispatch) => {
+export const uploadInvoice = (budgetId, file, uploadedAmount, onProgress, paymentMethod) => async (dispatch) => {
   try {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('uploadedAmount', uploadedAmount); // <--- AÑADIR ESTA LÍNEA
+    if (paymentMethod) {
+      formData.append('paymentMethod', paymentMethod); // 🆕 Agregar método de pago
+    }
 
     const response = await api.post(`/budget/${budgetId}/upload`, formData, {
       headers: {
