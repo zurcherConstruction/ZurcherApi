@@ -244,10 +244,29 @@ const stateNotificationMap = {
       const amount = parseFloat(expense.amount || 0);
       const expenseType = expense.typeExpense || 'Gasto';
       const staffName = expense.Staff?.name || 'Staff desconocido';
-      const workAddress = expense.Work?.propertyAddress || expense.propertyAddress || 'Obra no especificada';
+      const paymentMethod = expense.paymentMethod || 'No especificado';
+      const notes = expense.notes || '';
       
-      return `💰 Nuevo gasto registrado: $${amount.toFixed(2)} - ${expenseType}. ` +
-             `Registrado por: ${staffName}. Obra: ${workAddress}`;
+      // Si está asociado a un Work, mostrar dirección
+      if (expense.work?.propertyAddress || expense.propertyAddress) {
+        const workAddress = expense.work?.propertyAddress || expense.propertyAddress;
+        return `💰 <strong>Nuevo Gasto Registrado</strong><br><br>` +
+               `<strong>Monto:</strong> $${amount.toFixed(2)}<br>` +
+               `<strong>Tipo:</strong> ${expenseType}<br>` +
+               `<strong>Método de Pago:</strong> ${paymentMethod}<br>` +
+               `<strong>Registrado por:</strong> ${staffName}<br>` +
+               `<strong>Proyecto:</strong> ${workAddress}<br>` +
+               (notes ? `<strong>Notas:</strong> ${notes}<br>` : '');
+      }
+      
+      // Si NO está asociado a un Work, mostrar tipo y método
+      return `💰 <strong>Nuevo Gasto Registrado</strong><br><br>` +
+             `<strong>Monto:</strong> $${amount.toFixed(2)}<br>` +
+             `<strong>Tipo de Gasto:</strong> ${expenseType}<br>` +
+             `<strong>Método de Pago:</strong> ${paymentMethod}<br>` +
+             `<strong>Registrado por:</strong> ${staffName}<br>` +
+             (notes ? `<strong>Notas:</strong> ${notes}<br>` : '') +
+             `<em>(No asociado a proyecto específico)</em>`;
     }
   },
   
@@ -257,10 +276,29 @@ const stateNotificationMap = {
       const amount = parseFloat(income.amount || 0);
       const incomeType = income.typeIncome || 'Ingreso';
       const staffName = income.Staff?.name || 'Staff desconocido';
-      const workAddress = income.Work?.propertyAddress || income.propertyAddress || 'Obra no especificada';
+      const paymentMethod = income.paymentMethod || 'No especificado';
+      const notes = income.notes || '';
       
-      return `💵 Nuevo ingreso registrado: $${amount.toFixed(2)} - ${incomeType}. ` +
-             `Registrado por: ${staffName}. Obra: ${workAddress}`;
+      // Si está asociado a un Work, mostrar dirección
+      if (income.work?.propertyAddress || income.propertyAddress) {
+        const workAddress = income.work?.propertyAddress || income.propertyAddress;
+        return `💵 <strong>Nuevo Ingreso Registrado</strong><br><br>` +
+               `<strong>Monto:</strong> $${amount.toFixed(2)}<br>` +
+               `<strong>Tipo:</strong> ${incomeType}<br>` +
+               `<strong>Método de Pago:</strong> ${paymentMethod}<br>` +
+               `<strong>Registrado por:</strong> ${staffName}<br>` +
+               `<strong>Proyecto:</strong> ${workAddress}<br>` +
+               (notes ? `<strong>Notas:</strong> ${notes}<br>` : '');
+      }
+      
+      // Si NO está asociado a un Work, mostrar tipo y método
+      return `💵 <strong>Nuevo Ingreso Registrado</strong><br><br>` +
+             `<strong>Monto:</strong> $${amount.toFixed(2)}<br>` +
+             `<strong>Tipo de Ingreso:</strong> ${incomeType}<br>` +
+             `<strong>Método de Pago:</strong> ${paymentMethod}<br>` +
+             `<strong>Registrado por:</strong> ${staffName}<br>` +
+             (notes ? `<strong>Notas:</strong> ${notes}<br>` : '') +
+             `<em>(No asociado a proyecto específico)</em>`;
     }
   },
   
@@ -269,9 +307,27 @@ const stateNotificationMap = {
     message: (expense) => {
       const amount = parseFloat(expense.amount || 0);
       const expenseType = expense.typeExpense || 'Gasto';
-      const workAddress = expense.Work?.propertyAddress || expense.propertyAddress || 'Obra no especificada';
+      const paymentMethod = expense.paymentMethod || 'No especificado';
+      const notes = expense.notes || '';
       
-      return `📝 Gasto actualizado: $${amount.toFixed(2)} - ${expenseType}. Obra: ${workAddress}`;
+      // Si está asociado a un Work
+      if (expense.work?.propertyAddress || expense.propertyAddress) {
+        const workAddress = expense.work?.propertyAddress || expense.propertyAddress;
+        return `📝 <strong>Gasto Actualizado</strong><br><br>` +
+               `<strong>Monto:</strong> $${amount.toFixed(2)}<br>` +
+               `<strong>Tipo:</strong> ${expenseType}<br>` +
+               `<strong>Método de Pago:</strong> ${paymentMethod}<br>` +
+               `<strong>Proyecto:</strong> ${workAddress}<br>` +
+               (notes ? `<strong>Notas:</strong> ${notes}<br>` : '');
+      }
+      
+      // Si NO está asociado a un Work
+      return `📝 <strong>Gasto Actualizado</strong><br><br>` +
+             `<strong>Monto:</strong> $${amount.toFixed(2)}<br>` +
+             `<strong>Tipo de Gasto:</strong> ${expenseType}<br>` +
+             `<strong>Método de Pago:</strong> ${paymentMethod}<br>` +
+             (notes ? `<strong>Notas:</strong> ${notes}<br>` : '') +
+             `<em>(No asociado a proyecto específico)</em>`;
     }
   },
   workApproved: {

@@ -21,7 +21,7 @@ const createIncome = async (req, res) => {
       // Preparar datos para la notificación
       const notificationData = {
         ...incomeWithDetails.toJSON(),
-        propertyAddress: incomeWithDetails.Work?.propertyAddress || 'Obra no especificada'
+        propertyAddress: incomeWithDetails.work?.propertyAddress || null
       };
 
       // Enviar notificación

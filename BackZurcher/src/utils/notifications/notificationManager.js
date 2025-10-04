@@ -52,16 +52,32 @@ const sendNotifications = async (status, work, budget, io, context = {}) => {
             `;
           } else {
             // Para todas las demás notificaciones, usar la dirección como título
+            // Si no hay dirección, usar un título genérico basado en el tipo de notificación
+            const titleText = (work || budget)?.propertyAddress || 
+                            (status === 'expenseCreated' ? 'Nuevo Gasto Registrado' :
+                             status === 'incomeRegistered' ? 'Nuevo Ingreso Registrado' :
+                             status === 'expenseUpdated' ? 'Gasto Actualizado' : 
+                             'Notificación del Sistema');
+            
             htmlContent = `
               <div style=\"font-family: Arial, sans-serif; color: #333;\">
-                <h2 style=\"color: #1a365d;\">${work.propertyAddress}</h2>
+                <h2 style=\"color: #1a365d;\">${titleText}</h2>
                 <p>${message}</p>
               </div>
             `;
           }
+          
+          // Generar asunto del correo
+          const emailSubject = subject || 
+                              (work || budget)?.propertyAddress || 
+                              (status === 'expenseCreated' ? 'Nuevo Gasto Registrado' :
+                               status === 'incomeRegistered' ? 'Nuevo Ingreso Registrado' :
+                               status === 'expenseUpdated' ? 'Gasto Actualizado' : 
+                               'Notificación del Sistema');
+          
           await sendEmail({
             to: staff.email,
-            subject: subject || `${(work || budget)?.propertyAddress || 'Notificación'}`,
+            subject: emailSubject,
             text: message,
             html: htmlContent,
             attachments: work.attachments || (work.notificationDetails && work.notificationDetails.attachments) || [],
