@@ -49,7 +49,7 @@ const isMaintenance = (req, res, next) => {
 };
 
 const isStaff = (req, res, next) => {
-  const staffRoles = ['owner', 'admin', 'recept', 'worker', 'finance', 'maintenance'];
+  const staffRoles = ['owner', 'admin', 'recept', 'worker', 'finance', 'maintenance', 'sales_rep'];
   if (!staffRoles.includes(req.staff.role)) {
     return res.status(403).json({
       error: true,

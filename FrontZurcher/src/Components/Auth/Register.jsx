@@ -209,6 +209,7 @@ const Register = () => {
                   <option value="owner">Owner</option>
                   <option value="finance">Finance</option>
                   <option value="maintenance">Maintenance</option>
+                  <option value="sales_rep">Sales Representative</option>
                 </select>
               </div>
               {editingStaff && (
