@@ -70,7 +70,13 @@ const AccountsReceivable = () => {
     }
   };
 
-  const handleToggleCommissionPaid = async (budgetId, currentStatus) => {
+  const handleToggleCommissionPaid = async (budgetId, currentStatus, workId) => {
+    // Validar que exista Work antes de permitir marcar como pagada
+    if (!currentStatus && !workId) {
+      alert('❌ No se puede pagar la comisión porque este presupuesto no se ha convertido en Work (proyecto confirmado). Solo se pagan comisiones de presupuestos aprobados que se convirtieron en trabajos activos.');
+      return;
+    }
+    
     // Abrir modal para subir comprobante
     const budget = commissionsData.allBudgets.find(b => b.budgetId === budgetId);
     setSelectedCommission({ budgetId, currentStatus, ...budget });
@@ -115,7 +121,7 @@ const AccountsReceivable = () => {
         };
 
         const response = await axios.post(
-          `${import.meta.env.VITE_API_URL}/expenses`,
+          `${import.meta.env.VITE_API_URL}/expense`,
           expenseData,
           { headers: { Authorization: `Bearer ${token}` } }
         );
@@ -135,7 +141,7 @@ const AccountsReceivable = () => {
         formData.append("relatedId", createdExpense.idExpense.toString());
 
         await axios.post(
-          `${import.meta.env.VITE_API_URL}/receipts`,
+          `${import.meta.env.VITE_API_URL}/receipt`,
           formData,
           { 
             headers: { 
@@ -701,25 +707,49 @@ const AccountsReceivable = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          budget.workStatus === 'no_work'
-                            ? 'bg-gray-100 text-gray-600'
-                            : 'bg-blue-100 text-blue-800'
-                        }`}>
-                          {budget.workStatus}
-                        </span>
+                        {budget.workStatus === 'no_work' ? (
+                          <div className="flex items-center gap-1">
+                            <span className="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">
+                              {budget.workStatus}
+                            </span>
+                            {!budget.commissionPaid && (
+                              <span className="text-orange-500" title="No se puede pagar sin Work confirmado">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                              {budget.workStatus}
+                            </span>
+                            {!budget.commissionPaid && (
+                              <span className="text-green-500" title="Work confirmado - Comisión puede pagarse">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatDate(budget.date)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <button
-                          onClick={() => handleToggleCommissionPaid(budget.budgetId, budget.commissionPaid)}
-                          className={`px-3 py-1 rounded-md text-xs font-semibold ${
-                            budget.commissionPaid
-                              ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                              : 'bg-green-100 text-green-700 hover:bg-green-200'
+                          onClick={() => handleToggleCommissionPaid(budget.budgetId, budget.commissionPaid, budget.workId)}
+                          disabled={!budget.commissionPaid && !budget.workId}
+                          className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                            !budget.commissionPaid && !budget.workId
+                              ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                              : budget.commissionPaid
+                                ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                                : 'bg-green-100 text-green-700 hover:bg-green-200'
                           }`}
+                          title={!budget.commissionPaid && !budget.workId ? 'No se puede pagar: presupuesto sin Work confirmado' : ''}
                         >
                           {budget.commissionPaid ? 'Marcar Pendiente' : 'Marcar Pagada'}
                         </button>
@@ -776,15 +806,23 @@ const AccountsReceivable = () => {
                     <p className="text-gray-700">
                       <span className="font-medium">Work ID:</span> 
                       <span className="text-blue-600 font-semibold ml-2">{selectedCommission.workId}</span>
-                      <span className="text-xs text-gray-500 ml-2">
-                        (El gasto se asociará a esta obra)
+                      <span className="text-xs text-green-600 ml-2 font-medium">
+                        ✓ Presupuesto confirmado como trabajo
                       </span>
                     </p>
                   )}
                   {!selectedCommission.workId && (
-                    <p className="text-orange-600 text-xs">
-                      ⚠️ Budget sin Work asociado - El gasto se registrará como general
-                    </p>
+                    <div className="bg-orange-50 border-l-4 border-orange-400 p-3 rounded">
+                      <p className="text-orange-700 text-sm font-medium flex items-start gap-2">
+                        <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <span>
+                          ⚠️ Este presupuesto NO se ha convertido en Work confirmado. 
+                          Solo se pueden pagar comisiones de presupuestos aprobados que se convirtieron en trabajos activos.
+                        </span>
+                      </p>
+                    </div>
                   )}
                   <p className="text-gray-700">
                     <span className="font-medium">Monto de Comisión:</span> 

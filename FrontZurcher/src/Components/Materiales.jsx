@@ -188,7 +188,15 @@ const formatDate = (isoDate) => {
 
 
   const permitPdfUrl = useMemo(() => {
-    if (selectedAddress && work?.Permit?.pdfData?.data) { // Verificación más robusta
+    if (!selectedAddress || !work?.Permit) return null;
+    
+    // Si es legacy, usar URL de Cloudinary directamente
+    if (work.Permit.isLegacy && work.Permit.pdfUrl) {
+      return work.Permit.pdfUrl;
+    }
+    
+    // Si no es legacy, crear Blob desde pdfData
+    if (work.Permit.pdfData?.data) {
       try {
         return URL.createObjectURL(new Blob([new Uint8Array(work.Permit.pdfData.data)], { type: "application/pdf" }));
       } catch (e) {
@@ -196,11 +204,20 @@ const formatDate = (isoDate) => {
         return null;
       }
     }
+    
     return null;
-  }, [selectedAddress, work?.Permit?.pdfData]);
+  }, [selectedAddress, work?.Permit]);
 
-  const optionalDocsUrl = useMemo(() => { // Renombrado para claridad
-    if (selectedAddress && work?.Permit?.optionalDocs?.data) { // Verificación más robusta
+  const optionalDocsUrl = useMemo(() => {
+    if (!selectedAddress || !work?.Permit) return null;
+    
+    // Si es legacy, usar URL de Cloudinary directamente
+    if (work.Permit.isLegacy && work.Permit.optionalDocsUrl) {
+      return work.Permit.optionalDocsUrl;
+    }
+    
+    // Si no es legacy, crear Blob desde optionalDocs
+    if (work.Permit.optionalDocs?.data) {
       try {
         return URL.createObjectURL(new Blob([new Uint8Array(work.Permit.optionalDocs.data)], { type: "application/pdf" }));
       } catch (e) {
@@ -208,8 +225,9 @@ const formatDate = (isoDate) => {
         return null;
       }
     }
+    
     return null;
-  }, [selectedAddress, work?.Permit?.optionalDocs]);
+  }, [selectedAddress, work?.Permit]);
 
   const handleNewMaterialChange = (e) => {
     const { name, value } = e.target;
