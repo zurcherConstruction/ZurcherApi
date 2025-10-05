@@ -65,7 +65,12 @@ export const fetchBudgets = ({
     if (month && month !== 'all') params.append('month', month);
     if (year && year !== 'all') params.append('year', year);
 
-    const response = await api.get(`/budget/all?${params.toString()}`);
+    const response = await api.get(`/budget/all?${params.toString()}`, {
+      headers: {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      }
+    });
     dispatch(fetchBudgetsSuccess(response.data)); // { budgets, total, page, pageSize }
   } catch (error) {
     const errorMessage =

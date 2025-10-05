@@ -86,6 +86,7 @@ app.use(passport.initialize());
 
 
 // Session
+
 // ==== CORS CONFIGURACIÓN CORRECTA ====
 const allowedOrigins = [
   'https://www.zurcherseptic.com', // Producción
@@ -105,6 +106,23 @@ app.use(cors({
   methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
+app.use(cors({
+  origin: '*', // Permitir cualquier origen
+  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE', 'PATCH'], // Métodos permitidos
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma'], // Encabezados permitidos
+  credentials: true, // Permitir el uso de credenciales
+}));
+
+// CORS Headers
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*'); 
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE', 'PATCH');
+  next();
+});
+
 
 // **AQUÍ AGREGAR LA INICIALIZACIÓN DE LA BASE DE DATOS**
 const initializeDatabase = async () => {

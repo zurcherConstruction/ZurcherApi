@@ -26,12 +26,19 @@ const GestionBudgets = () => {
     budgets,
     loading,
     error,
-    currentBudget  // Agregar este selector
+    currentBudget,  // Agregar este selector
+    total: totalRecords,     // ✅ Total de registros del backend (renombrado para evitar conflicto)
+    page: currentPage,           // ✅ Página actual del backend
+    pageSize: currentPageSize    // ✅ Tamaño de página del backend
   } = useSelector(state => state.budget);
 
+  // ✅ Estados para paginación local
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Estados para filtros y búsqueda
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(''); // ✅ Debounced search
   const [statusFilter, setStatusFilter] = useState('all');
   const [monthFilter, setMonthFilter] = useState('all');
   const [yearFilter, setYearFilter] = useState('all');
@@ -70,9 +77,34 @@ const GestionBudgets = () => {
     notes: ""
   });
 
+  // ✅ useEffect para debounce del searchTerm (esperar 500ms después de que el usuario deje de escribir)
   useEffect(() => {
-    dispatch(fetchBudgets());
-  }, [dispatch]);
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+      setPage(1); // Resetear a primera página al buscar
+    }, 500);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [searchTerm]);
+
+  // ✅ useEffect para resetear a página 1 cuando cambien los filtros
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, monthFilter, yearFilter]);
+
+  // ✅ useEffect para cargar budgets con paginación y filtros
+  useEffect(() => {
+    dispatch(fetchBudgets({
+      page,
+      pageSize,
+      search: debouncedSearchTerm,
+      status: statusFilter,
+      month: monthFilter,
+      year: yearFilter
+    }));
+  }, [dispatch, page, pageSize, debouncedSearchTerm, statusFilter, monthFilter, yearFilter]);
 
   // Obtener años únicos de los budgets
   const availableYears = useMemo(() => {
@@ -81,51 +113,26 @@ const GestionBudgets = () => {
     return years.sort((a, b) => b - a);
   }, [budgets]);
 
-  // Filtrar budgets
-  const filteredBudgets = useMemo(() => {
-    if (!budgets) return [];
+  // ✅ Los budgets ya vienen filtrados del backend, no necesitamos filtrado local
+  const filteredBudgets = budgets || [];
 
-    return budgets.filter(budget => {
-      // Filtro por dirección
-      const matchesSearch = budget.propertyAddress
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-        budget.applicantName
-          ?.toLowerCase()
-          .includes(searchTerm.toLowerCase());
-
-      // Filtro por estado
-      const matchesStatus = statusFilter === 'all' || budget.status === statusFilter;
-
-      // Filtro por mes
-      const budgetDate = new Date(budget.date);
-      const matchesMonth = monthFilter === 'all' ||
-        budgetDate.getMonth() === parseInt(monthFilter);
-
-      // Filtro por año
-      const matchesYear = yearFilter === 'all' ||
-        budgetDate.getFullYear() === parseInt(yearFilter);
-
-      return matchesSearch && matchesStatus && matchesMonth && matchesYear;
-    });
-  }, [budgets, searchTerm, statusFilter, monthFilter, yearFilter]);
-
-  // Estadísticas de budgets
+  // Estadísticas de budgets (página actual)
   const budgetStats = useMemo(() => {
-    if (!budgets) return {};
+    if (!budgets) return { total: 0 };
 
     return {
-      total: budgets.length,
+      total: totalRecords || budgets.length, // ✅ Usar totalRecords del backend (todos los registros)
+      currentPageTotal: budgets.length, // Total en la página actual
       pending: budgets.filter(b => b.status === 'pending').length,
       approved: budgets.filter(b => b.status === 'approved').length,
       rejected: budgets.filter(b => b.status === 'rejected').length,
       created: budgets.filter(b => b.status === 'created').length,
-      send: budgets.filter(b => b.status === 'send').length, // ✅ Mantener "send" para emails enviados
-      sentForSignature: budgets.filter(b => b.status === 'sent_for_signature').length, // ✅ NUEVO
-      signed: budgets.filter(b => b.status === 'signed').length, // ✅ NUEVO
-      notResponded: budgets.filter(b => b.status === 'notResponded').length, // ✅ NUEVO
+      send: budgets.filter(b => b.status === 'send').length,
+      sentForSignature: budgets.filter(b => b.status === 'sent_for_signature').length,
+      signed: budgets.filter(b => b.status === 'signed').length,
+      notResponded: budgets.filter(b => b.status === 'notResponded').length,
     };
-  }, [budgets]);
+  }, [budgets, totalRecords]);
 
   const handleEdit = (budget) => {
     setSelectedBudget(budget);
@@ -304,7 +311,7 @@ const handleSaveEdit = async () => {
     await dispatch(updateBudget(selectedBudget.idBudget, dataToSend));
     setShowEditModal(false);
     setSelectedBudget(null);
-    dispatch(fetchBudgets());
+    refreshBudgets(); // ✅ Refrescar con parámetros actuales
     
     // ✅ Mensajes de éxito más específicos
     if (dataToSend.status === 'send') {
@@ -341,7 +348,7 @@ const handleSaveEdit = async () => {
       try {
         await dispatch(deleteBudget(budgetId));
         alert('✅ Presupuesto y todos sus datos asociados eliminados exitosamente');
-        dispatch(fetchBudgets()); // Refrescar la lista
+        refreshBudgets(); // ✅ Refrescar la lista con parámetros actuales
       } catch (error) {
         console.error('Error al eliminar budget:', error);
         
@@ -450,7 +457,7 @@ const handleSaveEdit = async () => {
       
       // Refrescar datos del budget
       dispatch(fetchBudgetById(selectedBudget.idBudget));
-      dispatch(fetchBudgets());
+      refreshBudgets(); // ✅ Refrescar con parámetros actuales
     } catch (err) {
       console.error('Error al reemplazar PDF del Permit:', err);
       alert(err.response?.data?.error || 'Error al reemplazar el PDF del Permit');
@@ -481,7 +488,7 @@ const handleSaveEdit = async () => {
       
       // Refrescar datos del budget
       dispatch(fetchBudgetById(selectedBudget.idBudget));
-      dispatch(fetchBudgets());
+      refreshBudgets(); // ✅ Refrescar con parámetros actuales
     } catch (err) {
       console.error('Error al reemplazar Optional Docs del Permit:', err);
       alert(err.response?.data?.error || 'Error al reemplazar los Optional Docs del Permit');
@@ -489,6 +496,32 @@ const handleSaveEdit = async () => {
       setUploadingOptionalDocs(false);
     }
   };
+
+  // ✅ Funciones de paginación
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handlePageSizeChange = (e) => {
+    setPageSize(Number(e.target.value));
+    setPage(1); // Resetear a primera página al cambiar tamaño
+  };
+
+  // ✅ Función helper para refrescar con parámetros actuales
+  const refreshBudgets = () => {
+    dispatch(fetchBudgets({
+      page,
+      pageSize,
+      search: debouncedSearchTerm,
+      status: statusFilter,
+      month: monthFilter,
+      year: yearFilter
+    }));
+  };
+
+  // Calcular total de páginas
+  const totalPages = totalRecords ? Math.ceil(totalRecords / pageSize) : 1;
 
   if (loading) {
     return (
@@ -719,6 +752,108 @@ const handleSaveEdit = async () => {
             <p className="mt-1 text-sm text-gray-500">
               No se encontraron presupuestos con los filtros aplicados.
             </p>
+          </div>
+        )}
+
+        {/* ✅ Paginación */}
+        {filteredBudgets.length > 0 && totalPages > 1 && (
+          <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 mt-4 rounded-b-lg">
+            <div className="flex-1 flex justify-between sm:hidden">
+              <button
+                onClick={() => handlePageChange(page - 1)}
+                disabled={page === 1}
+                className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Anterior
+              </button>
+              <button
+                onClick={() => handlePageChange(page + 1)}
+                disabled={page === totalPages}
+                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Siguiente
+              </button>
+            </div>
+            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+              <div className="flex items-center space-x-4">
+                <p className="text-sm text-gray-700">
+                  Mostrando <span className="font-medium">{((page - 1) * pageSize) + 1}</span> a{' '}
+                  <span className="font-medium">{Math.min(page * pageSize, totalRecords)}</span> de{' '}
+                  <span className="font-medium">{totalRecords}</span> resultados
+                </p>
+                <div className="flex items-center space-x-2">
+                  <label htmlFor="pageSize" className="text-sm text-gray-700">
+                    Por página:
+                  </label>
+                  <select
+                    id="pageSize"
+                    value={pageSize}
+                    onChange={handlePageSizeChange}
+                    className="border border-gray-300 rounded-md text-sm py-1 px-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                  <button
+                    onClick={() => handlePageChange(page - 1)}
+                    disabled={page === 1}
+                    className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="sr-only">Anterior</span>
+                    <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  
+                  {/* Números de página */}
+                  {[...Array(Math.min(totalPages, 7))].map((_, idx) => {
+                    let pageNumber;
+                    
+                    if (totalPages <= 7) {
+                      pageNumber = idx + 1;
+                    } else if (page <= 4) {
+                      pageNumber = idx + 1;
+                    } else if (page >= totalPages - 3) {
+                      pageNumber = totalPages - 6 + idx;
+                    } else {
+                      pageNumber = page - 3 + idx;
+                    }
+
+                    return (
+                      <button
+                        key={pageNumber}
+                        onClick={() => handlePageChange(pageNumber)}
+                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                          page === pageNumber
+                            ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                            : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        {pageNumber}
+                      </button>
+                    );
+                  })}
+                  
+                  <button
+                    onClick={() => handlePageChange(page + 1)}
+                    disabled={page === totalPages}
+                    className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span className="sr-only">Siguiente</span>
+                    <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </nav>
+              </div>
+            </div>
           </div>
         )}
       </div>
