@@ -158,10 +158,26 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
 
 const BudgetList = () => {
   const dispatch = useDispatch();
-  const { budgets, loading, error, total, pageSize } = useSelector(
-    (state) => state.budget
-  );
-  const [currentPage, setCurrentPage] = useState(1);
+  const { 
+    budgets, 
+    loading, 
+    error, 
+    total: totalRecords,      // ✅ Renombrado para evitar conflictos
+    pageSize: currentPageSize  // ✅ Del Redux
+  } = useSelector((state) => state.budget);
+  
+
+  
+  // ✅ Estados para paginación local
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  
+  // ✅ Estados para filtros y búsqueda
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [monthFilter, setMonthFilter] = useState('all');
+  const [yearFilter, setYearFilter] = useState('all');
 
   const [editingBudgetId, setEditingBudgetId] = useState(null); // ID del budget en edición
   const [currentNote, setCurrentNote] = useState(""); // Valor actual de la nota en el editor
@@ -181,16 +197,60 @@ const BudgetList = () => {
   const [showClientDataModal, setShowClientDataModal] = useState(false);
   const [selectedBudgetIdForClient, setSelectedBudgetIdForClient] = useState(null);
 
+  // ✅ useEffect para debounce del searchTerm (esperar 500ms después de que el usuario deje de escribir)
   useEffect(() => {
-    // fetchBudgets expects an options object: { page, pageSize, ... }
-    dispatch(fetchBudgets({ page: currentPage, pageSize: pageSize || 10 }));
-  }, [dispatch, currentPage, pageSize]);
+    const handler = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+      setPage(1); // Resetear a primera página al buscar
+    }, 500);
 
-  const totalPages = Math.ceil((total || 0) / (pageSize || 10));
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [searchTerm]);
 
-  // Cuando cambias de página:
-  const handlePageChange = (pageNumber) => {
-    setCurrentPage(pageNumber);
+  // ✅ useEffect para resetear a página 1 cuando cambien los filtros
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, monthFilter, yearFilter]);
+
+  // ✅ useEffect para cargar budgets con paginación y filtros
+  useEffect(() => {
+    dispatch(fetchBudgets({
+      page,
+      pageSize,
+      search: debouncedSearchTerm,
+      status: statusFilter,
+      month: monthFilter,
+      year: yearFilter
+    }));
+  }, [dispatch, page, pageSize, debouncedSearchTerm, statusFilter, monthFilter, yearFilter]);
+
+  // ✅ Calcular total de páginas
+  const totalPages = totalRecords ? Math.ceil(totalRecords / pageSize) : 1;
+
+  // ✅ Función para cambiar de página
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // ✅ Función para cambiar tamaño de página
+  const handlePageSizeChange = (e) => {
+    setPageSize(Number(e.target.value));
+    setPage(1);
+  };
+
+  // ✅ Función helper para refrescar con parámetros actuales
+  const refreshBudgets = () => {
+    dispatch(fetchBudgets({
+      page,
+      pageSize,
+      search: debouncedSearchTerm,
+      status: statusFilter,
+      month: monthFilter,
+      year: yearFilter
+    }));
   };
 
   // Función para manejar la descarga del PDF
@@ -387,8 +447,7 @@ const BudgetList = () => {
 
     dispatch(updateBudget(idBudget, payload))
       .then(() => {
-       
-        dispatch(fetchBudgets());
+        refreshBudgets(); // ✅ Refrescar con parámetros actuales
       })
       .catch((error) => {
         console.error("Error al actualizar el estado:", error);
@@ -413,7 +472,7 @@ const BudgetList = () => {
       
       if (response.data.success) {
         alert(`✅ Presupuesto enviado para revisión a ${budget.Permit?.applicantEmail || budget.applicantEmail}`);
-        dispatch(fetchBudgets()); // Recargar lista
+        refreshBudgets(); // ✅ Refrescar con parámetros actuales
       }
     } catch (error) {
       console.error('Error al enviar presupuesto para revisión:', error);
@@ -527,7 +586,7 @@ const BudgetList = () => {
 
   const handleClientDataUpdated = (updatedData) => {
     // Recargar la lista de presupuestos para mostrar los datos actualizados
-    dispatch(fetchBudgets(currentPage, pageSize));
+    refreshBudgets(); // ✅ Refrescar con parámetros actuales
   };
 
   useEffect(() => {
@@ -571,6 +630,97 @@ const BudgetList = () => {
             Overview & Management
           </span>
         </h1>
+
+        {/* Filter Section */}
+        <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Search Input */}
+            <div className="sm:col-span-2 lg:col-span-1">
+              <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-2">
+                Search
+              </label>
+              <input
+                id="search"
+                type="text"
+                placeholder="Search budgets..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            {/* Status Filter */}
+            <div>
+              <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-2">
+                Status
+              </label>
+              <select
+                id="status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Statuses</option>
+                <option value="draft">Draft</option>
+                <option value="pending_review">Pending Review</option>
+                <option value="client_approved">Client Approved</option>
+                <option value="created">Created</option>
+                <option value="send">Send</option>
+                <option value="sent_for_signature">Sent for Signature</option>
+                <option value="signed">Signed</option>
+                <option value="approved">Approved</option>
+                <option value="notResponded">Not Responded</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </div>
+
+            {/* Month Filter */}
+            <div>
+              <label htmlFor="month" className="block text-sm font-medium text-gray-700 mb-2">
+                Month
+              </label>
+              <select
+                id="month"
+                value={monthFilter}
+                onChange={(e) => setMonthFilter(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Months</option>
+                <option value="1">January</option>
+                <option value="2">February</option>
+                <option value="3">March</option>
+                <option value="4">April</option>
+                <option value="5">May</option>
+                <option value="6">June</option>
+                <option value="7">July</option>
+                <option value="8">August</option>
+                <option value="9">September</option>
+                <option value="10">October</option>
+                <option value="11">November</option>
+                <option value="12">December</option>
+              </select>
+            </div>
+
+            {/* Year Filter */}
+            <div>
+              <label htmlFor="year" className="block text-sm font-medium text-gray-700 mb-2">
+                Year
+              </label>
+              <select
+                id="year"
+                value={yearFilter}
+                onChange={(e) => setYearFilter(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Years</option>
+                <option value="2024">2024</option>
+                <option value="2025">2025</option>
+                <option value="2026">2026</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         {loading && <p className="text-blue-500">Loading Budgets...</p>}
         {error && <p className="text-red-500">Error: {error}</p>}
         {!loading && !error && (
@@ -1755,22 +1905,136 @@ const BudgetList = () => {
               </div>
             </div>
 
-            {/* Paginación */}
-            <div className="flex justify-center mt-10 pb-4">
-              <div className="flex flex-wrap justify-center gap-2">
-                {Array.from({ length: totalPages }, (_, index) => (
-                  <button
-                    key={`page-${index + 1}`}
-                    onClick={() => handlePageChange(index + 1)}
-                    className={`px-4 py-2 text-base rounded-xl font-semibold transition-colors shadow-sm border ${
-                      currentPage === index + 1
-                        ? "bg-blue-700 text-white shadow-md border-blue-700"
-                        : "bg-white text-blue-700 hover:bg-blue-50 border-gray-300"
-                    }`}
-                  >
-                    {index + 1}
-                  </button>
-                ))}
+            {/* Paginación - Mobile */}
+            <div className="md:hidden mt-6 pb-4">
+              <div className="flex items-center justify-between px-4">
+                <button
+                  onClick={() => handlePageChange(page - 1)}
+                  disabled={page === 1}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
+                >
+                  Previous
+                </button>
+                <span className="text-sm text-gray-700">
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  onClick={() => handlePageChange(page + 1)}
+                  disabled={page === totalPages}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+
+            {/* Paginación - Desktop */}
+            <div className="hidden md:flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pb-4 px-4">
+              {/* Info de resultados */}
+              <div className="text-sm text-gray-700">
+                Showing{" "}
+                <span className="font-medium">
+                  {totalRecords === 0 ? 0 : (page - 1) * pageSize + 1}
+                </span>{" "}
+                to{" "}
+                <span className="font-medium">
+                  {Math.min(page * pageSize, totalRecords || 0)}
+                </span>{" "}
+                of <span className="font-medium">{totalRecords || 0}</span> results
+              </div>
+
+              {/* Controles de paginación */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handlePageChange(page - 1)}
+                  disabled={page === 1}
+                  className="px-3 py-1 bg-white border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                >
+                  Previous
+                </button>
+
+                {/* Números de página con lógica de ellipsis */}
+                {(() => {
+                  const pageNumbers = [];
+                  const maxButtons = 7;
+                  
+                  if (totalPages <= maxButtons) {
+                    // Mostrar todos los números si son pocos
+                    for (let i = 1; i <= totalPages; i++) {
+                      pageNumbers.push(i);
+                    }
+                  } else {
+                    // Lógica de ellipsis para muchas páginas
+                    if (page <= 4) {
+                      // Cerca del inicio
+                      for (let i = 1; i <= 5; i++) pageNumbers.push(i);
+                      pageNumbers.push('...');
+                      pageNumbers.push(totalPages);
+                    } else if (page >= totalPages - 3) {
+                      // Cerca del final
+                      pageNumbers.push(1);
+                      pageNumbers.push('...');
+                      for (let i = totalPages - 4; i <= totalPages; i++) pageNumbers.push(i);
+                    } else {
+                      // En el medio
+                      pageNumbers.push(1);
+                      pageNumbers.push('...');
+                      for (let i = page - 1; i <= page + 1; i++) pageNumbers.push(i);
+                      pageNumbers.push('...');
+                      pageNumbers.push(totalPages);
+                    }
+                  }
+
+                  return pageNumbers.map((num, idx) => {
+                    if (num === '...') {
+                      return (
+                        <span key={`ellipsis-${idx}`} className="px-2 text-gray-500">
+                          ...
+                        </span>
+                      );
+                    }
+                    return (
+                      <button
+                        key={`page-${num}`}
+                        onClick={() => handlePageChange(num)}
+                        className={`px-3 py-1 rounded-lg transition-colors ${
+                          page === num
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-white border border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {num}
+                      </button>
+                    );
+                  });
+                })()}
+
+                <button
+                  onClick={() => handlePageChange(page + 1)}
+                  disabled={page === totalPages}
+                  className="px-3 py-1 bg-white border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+
+              {/* Selector de tamaño de página */}
+              <div className="flex items-center gap-2">
+                <label htmlFor="pageSize" className="text-sm text-gray-700">
+                  Show:
+                </label>
+                <select
+                  id="pageSize"
+                  value={pageSize}
+                  onChange={handlePageSizeChange}
+                  className="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
               </div>
             </div>
 

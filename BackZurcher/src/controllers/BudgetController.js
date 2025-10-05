@@ -870,10 +870,8 @@ async getBudgets(req, res) {
       }
     }
 
-    console.log('🔍 Filtros aplicados:', { search, status, month, year });
-    console.log('🔍 Where clause:', whereClause);
-
     const { rows: budgetsInstances, count: totalBudgets } = await Budget.findAndCountAll({
+      where: whereClause, // ✅ AGREGAR EL WHERE CLAUSE
       include: [
         {
           model: Permit,
