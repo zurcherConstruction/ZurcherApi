@@ -171,3 +171,4 @@ io.on('connection', (socket) => {
 });
 
 module.exports =  { app, server, io };
+//viendo que paso
