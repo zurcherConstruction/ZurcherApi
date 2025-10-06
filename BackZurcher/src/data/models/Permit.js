@@ -10,7 +10,13 @@ module.exports = (sequelize) => {
     },
     permitNumber: {
       type: DataTypes.TEXT,
-      allowNull: true
+      allowNull: false, // ✅ Ahora es obligatorio
+      unique: true, // ✅ Único en la base de datos
+      validate: {
+        notEmpty: {
+          msg: 'Permit number is required'
+        }
+      }
     },
     applicationNumber: {
       type: DataTypes.TEXT,
@@ -60,6 +66,32 @@ module.exports = (sequelize) => {
     systemType: {
       type: DataTypes.TEXT,
       allowNull: true
+    },
+    // 🆕 NUEVO: Indicador si el sistema ATU también es PBTS
+    isPBTS: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: false,
+      comment: 'Indica si el sistema ATU también incluye PBTS (Pretreatment Biological Treatment System)'
+    },
+    // 🆕 NUEVO: Correos adicionales para notificaciones (vendedores, etc)
+    notificationEmails: {
+      type: DataTypes.ARRAY(DataTypes.STRING),
+      allowNull: true,
+      defaultValue: [],
+      validate: {
+        isValidEmailArray(value) {
+          if (value && Array.isArray(value)) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            for (const email of value) {
+              if (!emailRegex.test(email)) {
+                throw new Error(`Invalid email in notificationEmails: ${email}`);
+              }
+            }
+          }
+        }
+      },
+
     },
     configuration: {
       type: DataTypes.TEXT,
