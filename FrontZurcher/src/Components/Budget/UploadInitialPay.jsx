@@ -25,7 +25,10 @@ const UploadInitialPay = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
 
   useEffect(() => {
-    dispatch(fetchBudgets());
+    // 🆕 Cargar TODOS los presupuestos elegibles para pago (sin paginación)
+    dispatch(fetchBudgets({ 
+      pageSize: 1000 // Traer muchos presupuestos para asegurar que se muestren todos los elegibles
+    }));
   }, [dispatch]);
 
   const handleBudgetSelect = (event) => {
@@ -134,9 +137,13 @@ const UploadInitialPay = () => {
       const fileInput = document.getElementById('invoice-upload-input');
       if (fileInput) fileInput.value = null;
 
-      // Recargar datos y navegar
-      await dispatch(fetchBudgets());
-      navigate('/dashboard');
+      // Recargar datos con pageSize grande para incluir todos los presupuestos
+      await dispatch(fetchBudgets({ pageSize: 1000 }));
+      
+      // Pequeño delay para asegurar que Redux se actualice
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 300);
 
     } catch (error) {
       console.error("Error durante la carga:", error);
@@ -156,17 +163,24 @@ const UploadInitialPay = () => {
     }
   };
 
-  // Estados permitidos para carga de pago inicial (sincronizado con backend)
-  const allowedStatesForPayment = [
-    'created',
-    'send', 
-    'sent_for_signature', 
-    'signed',
-    'client_approved',
-    'pending_review'
-  ];
-  
-  const sendBudgets = budgets.filter(b => allowedStatesForPayment.includes(b.status));
+  // 🆕 Filtrar presupuestos que NO tengan comprobante cargado
+  // Excluir estado "approved" (significa que YA se cargó el comprobante)
+  // Excluir presupuestos con paymentInvoice o paymentProofAmount
+  const sendBudgets = budgets.filter(b => {
+    // Excluir si el estado es "approved" (ya tiene comprobante)
+    if (b.status === 'approved') return false;
+    // Excluir si tiene paymentInvoice (URL del comprobante)
+    if (b.paymentInvoice && b.paymentInvoice.trim() !== '') return false;
+    // Excluir si tiene paymentProofAmount (monto registrado)
+    if (b.paymentProofAmount && parseFloat(b.paymentProofAmount) > 0) return false;
+    // Incluir el presupuesto si no cumple ninguna de las condiciones anteriores
+    return true;
+  });
+
+  // 🔍 Debug: Mostrar cuántos presupuestos se filtraron
+  console.log(`📊 Total de presupuestos: ${budgets.length}`);
+  console.log(`✅ Presupuestos SIN comprobante: ${sendBudgets.length}`);
+  console.log(`❌ Presupuestos CON comprobante (o approved): ${budgets.length - sendBudgets.length}`);
 
   if (budgetsLoading) {
     return (
@@ -205,8 +219,10 @@ const UploadInitialPay = () => {
         <div className="max-w-md mx-auto px-4">
           <div className="bg-white rounded-xl shadow-lg p-8 text-center">
             <ClipboardDocumentListIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500 font-medium">No hay presupuestos pendientes</p>
-            <p className="text-gray-400 text-sm mt-1">No hay presupuestos pendientes de comprobante.</p>
+            <p className="text-gray-500 font-medium">No hay presupuestos pendientes de comprobante</p>
+            <p className="text-gray-400 text-sm mt-1">
+              Todos los presupuestos ya tienen su comprobante de pago inicial cargado.
+            </p>
           </div>
         </div>
       </div>
@@ -236,7 +252,7 @@ const UploadInitialPay = () => {
             <div>
               <label htmlFor="budget-select" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
                 <ClipboardDocumentListIcon className="h-5 w-5 mr-2 text-blue-500" />
-                Seleccionar Presupuesto (Estados permitidos: Created, Enviado, Firmado, Aprobado por Cliente)
+                Seleccionar Presupuesto (Sin comprobante de pago)
               </label>
               <select
                 id="budget-select"
@@ -247,7 +263,7 @@ const UploadInitialPay = () => {
                 <option value="">-- Seleccionar Presupuesto --</option>
                 {sendBudgets.map((budget) => (
                   <option key={budget.idBudget} value={budget.idBudget}>
-                    {budget.applicantName} - {budget.propertyAddress}
+                    ID {budget.idBudget} - {budget.applicantName} - {budget.propertyAddress} ({budget.status})
                   </option>
                 ))}
               </select>
