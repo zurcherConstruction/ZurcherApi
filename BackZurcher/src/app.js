@@ -87,7 +87,7 @@ app.use(passport.initialize());
 
 // Session
 
-// ==== CORS CONFIGURACIÓN CORRECTA ====
+// ==== CORS CONFIGURACIÓN ====
 const allowedOrigins = [
   'https://www.zurcherseptic.com', // Producción
   'http://localhost:5173' // Desarrollo local (ajusta si usas otro puerto)
@@ -104,22 +104,15 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
-
-app.use(cors({
-  origin: '*', // Permitir cualquier origen
-  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE', 'PATCH'], // Métodos permitidos
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma'], // Encabezados permitidos
-  credentials: true, // Permitir el uso de credenciales
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma'], // ✅ Agregados Cache-Control y Pragma
 }));
 
 // CORS Headers
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*'); 
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*'); 
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE', 'PATCH');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE, PATCH');
   next();
 });
 
