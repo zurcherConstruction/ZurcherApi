@@ -85,6 +85,14 @@ router.post(
   BudgetController.sendBudgetForReview
 );
 
+// 🆕 CONVERTIR DRAFT A INVOICE DEFINITIVO
+router.post(
+  '/:idBudget/convert-to-invoice',
+  verifyToken,
+  allowRoles(['admin', 'owner', 'finance']),
+  BudgetController.convertDraftToInvoice
+);
+
 // ========== RUTAS DE SIGNNOW ==========
 
 // Enviar presupuesto a SignNow para firma

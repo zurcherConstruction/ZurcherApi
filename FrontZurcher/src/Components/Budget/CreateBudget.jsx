@@ -183,7 +183,7 @@ const CreateBudget = () => {
     date: new Date().toISOString().split('T')[0],
     expirationDate: "", // Se calculará automáticamente
     initialPayment: 0,
-    status: "created", // Estado inicial por defecto
+    status: "draft", // 🆕 CAMBIO: Por defecto crear como DRAFT
     discountDescription: "",
     discountAmount: "", // Cambiar de 0 a string vacío
     generalNotes: "",
@@ -198,6 +198,10 @@ const CreateBudget = () => {
     leadSource: 'web',
     createdByStaffId: '',
   });
+
+  // 🆕 NUEVO: Estado para tipo de presupuesto (Draft vs Invoice directo)
+  // 🆕 SIEMPRE CREAR COMO DRAFT (simplificado)
+  const budgetType = 'draft'; // Siempre draft, no hay selector
 
   // --- useEffect para sincronizar displayDate con formData.date ---
   useEffect(() => {
@@ -661,12 +665,15 @@ const customCategoryOrder = [
       setSubmissionProgress('Validando información...');
       await new Promise(resolve => setTimeout(resolve, 500)); // Pequeña pausa para mostrar el progreso
 
+      // 🆕 DETERMINAR EL STATUS SEGÚN EL TIPO DE PRESUPUESTO
+      const budgetStatus = budgetType === 'draft' ? 'draft' : 'created';
+
       // Preparar datos para la creación del presupuesto
       const dataToSend = {
         permitId: permitIdFromQuery,
         date: formData.date,
         expirationDate: formData.expirationDate || null,
-        status: formData.status,
+        status: budgetStatus, // 🆕 USAR EL STATUS DETERMINADO POR budgetType
         discountDescription: formData.discountDescription,
         discountAmount: parseFloat(formData.discountAmount) || 0,
         generalNotes: formData.generalNotes,
@@ -692,7 +699,7 @@ const customCategoryOrder = [
       console.log("📤 Enviando al backend para CREAR:", dataToSend);
 
       // ✅ MOSTRAR PROGRESO: Enviando al servidor
-      setSubmissionProgress('Enviando al servidor...');
+      setSubmissionProgress(budgetType === 'draft' ? 'Creando borrador...' : 'Creando presupuesto...');
       
       // Llamar a la acción createBudget
       const resultAction = await dispatch(createBudget(dataToSend));
@@ -847,6 +854,23 @@ const customCategoryOrder = [
             
             <form onSubmit={handleSubmit} className="space-y-6">
 
+              {/* 🆕 NOTA INFORMATIVA: Siempre se crea como DRAFT */}
+              <div className="border border-blue-200 rounded-lg shadow-sm bg-blue-50 p-4">
+                <div className="flex items-start gap-3">
+                  <svg className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-blue-900 mb-1 flex items-center gap-2">
+                      📝 Presupuesto tipo DRAFT
+                    </h4>
+                    <p className="text-sm text-blue-800 leading-relaxed">
+                      Los presupuestos se crean como <strong>DRAFT</strong> para revisión del cliente. 
+                      Después de la aprobación, se convertirán automáticamente a <strong>INVOICE</strong> con número único.
+                    </p>
+                  </div>
+                </div>
+              </div>
           
             {/* --- Sección Información General (Reestructurada) --- */}
             <div className="border border-gray-200 rounded-lg shadow-sm">

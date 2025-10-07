@@ -92,7 +92,12 @@ function _addPageHeader_v2(doc, budgetData, pageType, documentIdOrTitle, formatt
   const headerStartY = NEW_PAGE_MARGIN;
   const contentWidth = doc.page.width - NEW_PAGE_MARGIN * 2;
 
-  const { applicantName, propertyAddress, Permit } = budgetData;
+  const { applicantName, propertyAddress, Permit, status, invoiceNumber, idBudget } = budgetData;
+  
+  // 🆕 DETERMINAR SI ES DRAFT O INVOICE DEFINITIVO
+  const isDraft = status === 'draft' || status === 'pending_review' || !invoiceNumber;
+  const documentNumber = isDraft ? idBudget : invoiceNumber;
+  const documentLabel = isDraft ? 'BUDGET' : 'INVOICE';
 
   if (pageType === "INVOICE") {
     // --- INVOICE HEADER LOGIC (EXACTO DEL ORIGINAL) ---
@@ -121,8 +126,9 @@ function _addPageHeader_v2(doc, budgetData, pageType, documentIdOrTitle, formatt
     const finalYLeftTop = doc.y;
 
     let currentYRight = headerStartY + 5;
-    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(20).fillColor('#063260') // Tamaño de INVOICE #
-      .text(`INVOICE #${documentIdOrTitle}`, invoiceInfoX, currentYRight, { width: invoiceInfoWidth, align: 'right' });
+    // 🆕 USAR documentLabel (BUDGET o INVOICE) y documentNumber
+    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(20).fillColor('#063260')
+      .text(`${documentLabel} #${documentNumber}`, invoiceInfoX, currentYRight, { width: invoiceInfoWidth, align: 'right' });
     currentYRight = doc.y + 45;
 
     // ✅ ALINEACIÓN PERFECTA - TODOS LOS TEXTOS EMPIEZAN EN LA MISMA POSICIÓN X
@@ -535,12 +541,14 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   doc.text("ACCOUNT NUMBER: 686125371".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(0.3);
   doc.text("ROUTING NUMBER: 267084131".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.moveDown(0.5);
+ 
+  doc.text("Zelle: zurcherconstruction.fl@gmail.com".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(0.3);
-  doc.text("CREDIT CARD + 3%".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+   doc.text("CREDIT CARD + 3%".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(0.3);
   doc.text("ASK ABOUT PAYMENT METHODS. ".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-  doc.moveDown(0.3);
-  doc.text("EMAIL: ADMIN@ZURCHERSEPTIC.COM".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+  doc.moveDown(1.5);
 
   const yAfterPaymentInfo = doc.y;
 
@@ -612,29 +620,46 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
     .stroke();
   doc.moveDown(1.2); // ✅ ESPACIO DESPUÉS DE LA LÍNEA
 
-  // ✅ BALANCE DUE - empieza en totalsStartX
+  // ✅ BALANCE DUE (Total) - texto pequeño y menos prominente
   currentTotalY = doc.y;
-  doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_DARK);
+  doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
   doc.text("BALANCE DUE", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
-  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(14).fillColor(COLOR_TEXT_DARK);
+  doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
   doc.text(`$${priceAfterDiscountAlreadyApplied.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+  doc.moveDown(0.8);
+
+  // ✅ INITIAL PAYMENT - PROMINENTE Y RESALTADO
+  currentTotalY = doc.y;
+  const initialPaymentPct = budgetData.initialPaymentPercentage || 100;
+  const initialPaymentAmt = budgetData.initialPayment || priceAfterDiscountAlreadyApplied;
+  const percentageText = parseFloat(initialPaymentPct) === 100 
+    ? "INITIAL PAYMENT (TOTAL)" 
+    : `INITIAL PAYMENT (${parseFloat(initialPaymentPct)}%)`;
+  
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(12).fillColor(COLOR_TEXT_DARK);
+  doc.text(percentageText, totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(16).fillColor(COLOR_TEXT_DARK);
+  doc.text(`$${parseFloat(initialPaymentAmt).toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
   const yAfterTotals = doc.y;
   doc.y = Math.max(yAfterPaymentInfo, yAfterTotals);
   doc.moveDown(2);
 
-  // STRIPE PAYMENT BUTTON (con 3% fee)
+  // 🆕 SOLO INCLUIR BOTÓN DE PAGO SI NO ES DRAFT
+  const isDraft = budgetData.status === 'draft' || budgetData.status === 'pending_review' || !budgetData.invoiceNumber;
+
+  // STRIPE PAYMENT BUTTON (con 3% fee) - SOLO PARA INVOICES DEFINITIVOS
   let paymentLinkUrl = null;
-  const paymentAmountForStripe = parseFloat(initialPayment);
+  const paymentAmountForStripe = parseFloat(initialPaymentAmt);
   const paymentAmountWithFee = Math.round(paymentAmountForStripe * 1.03 * 100); // suma el 3% y convierte a centavos
 
-  if (paymentAmountForStripe > 0 && process.env.STRIPE_SECRET_KEY) {
+  if (!isDraft && paymentAmountForStripe > 0 && process.env.STRIPE_SECRET_KEY) {
     try {
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: [{
           price_data: {
             currency: 'usd',
-            product_data: { name: `Invoice #${budgetData.idBudget} - ${budgetData.applicantName}` },
+            product_data: { name: `Invoice #${budgetData.invoiceNumber || budgetData.idBudget} - ${budgetData.applicantName}` },
             unit_amount: paymentAmountWithFee
           },
           quantity: 1,
@@ -678,7 +703,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   }
 }
 
-function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formattedExpirationDate) {
+function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formattedExpirationDate, isDraft = false) {
   _addPageHeader_v2(doc, budgetData, "TERMS", "TERMS_AND_CONDITIONS", formattedDate, formattedExpirationDate);
   const contentWidth = doc.page.width - NEW_PAGE_MARGIN * 2;
 
@@ -866,42 +891,45 @@ function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formatt
 
   // ✅ CÓDIGO REDUNDANTE ELIMINADO DE AQUÍ. El "Client Acknowledgment" ya se imprime con el bucle de arriba.
 
-  let signatureY = doc.y + 20;
-  if (signatureY + 80 > doc.page.height - NEW_PAGE_MARGIN) {
-    doc.addPage();
-    doc.y = NEW_PAGE_MARGIN;
-    signatureY = doc.y + 20;
+  // 🆕 SECCIÓN DE FIRMA: Solo mostrar si NO es draft
+  if (!isDraft) {
+    let signatureY = doc.y + 20;
+    if (signatureY + 80 > doc.page.height - NEW_PAGE_MARGIN) {
+      doc.addPage();
+      doc.y = NEW_PAGE_MARGIN;
+      signatureY = doc.y + 20;
+    }
+    doc.y = signatureY;
+
+    const sigFieldWidth = (contentWidth / 2) - 10;
+    const sigLineFullWidth = sigFieldWidth - 80;
+    const dateLineFullWidth = sigFieldWidth - 110;
+
+    doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_DARK);
+
+    let currentLineY = doc.y;
+    doc.text("Client Signature:", NEW_PAGE_MARGIN, currentLineY, { width: 75 });
+    doc.moveTo(NEW_PAGE_MARGIN + 75, currentLineY + 8).lineTo(NEW_PAGE_MARGIN + 75 + sigLineFullWidth, currentLineY + 8)
+      .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+
+    doc.text("Date:", NEW_PAGE_MARGIN + sigFieldWidth + 10, currentLineY, { width: 30 });
+    doc.moveTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30, currentLineY + 8)
+      .lineTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30 + dateLineFullWidth, currentLineY + 8)
+      .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+    doc.moveDown(2.5);
+
+    currentLineY = doc.y;
+    doc.text("Provider Representative:", NEW_PAGE_MARGIN, currentLineY, { width: 110 });
+    doc.moveTo(NEW_PAGE_MARGIN + 110, currentLineY + 8)
+      .lineTo(NEW_PAGE_MARGIN + 110 + (sigLineFullWidth - 30), currentLineY + 8)
+      .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+
+    doc.text("Date:", NEW_PAGE_MARGIN + sigFieldWidth + 10, currentLineY, { width: 30 });
+    doc.moveTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30, currentLineY + 8)
+      .lineTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30 + dateLineFullWidth, currentLineY + 8)
+      .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+    doc.moveDown(1.5);
   }
-  doc.y = signatureY;
-
-  const sigFieldWidth = (contentWidth / 2) - 10;
-  const sigLineFullWidth = sigFieldWidth - 80;
-  const dateLineFullWidth = sigFieldWidth - 110;
-
-  doc.font(FONT_FAMILY_REGULAR).fontSize(8).fillColor(COLOR_TEXT_DARK);
-
-  let currentLineY = doc.y;
-  doc.text("Client Signature:", NEW_PAGE_MARGIN, currentLineY, { width: 75 });
-  doc.moveTo(NEW_PAGE_MARGIN + 75, currentLineY + 8).lineTo(NEW_PAGE_MARGIN + 75 + sigLineFullWidth, currentLineY + 8)
-    .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
-
-  doc.text("Date:", NEW_PAGE_MARGIN + sigFieldWidth + 10, currentLineY, { width: 30 });
-  doc.moveTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30, currentLineY + 8)
-    .lineTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30 + dateLineFullWidth, currentLineY + 8)
-    .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
-  doc.moveDown(2.5);
-
-  currentLineY = doc.y;
-  doc.text("Provider Representative:", NEW_PAGE_MARGIN, currentLineY, { width: 110 });
-  doc.moveTo(NEW_PAGE_MARGIN + 110, currentLineY + 8)
-    .lineTo(NEW_PAGE_MARGIN + 110 + (sigLineFullWidth - 30), currentLineY + 8)
-    .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
-
-  doc.text("Date:", NEW_PAGE_MARGIN + sigFieldWidth + 10, currentLineY, { width: 30 });
-  doc.moveTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30, currentLineY + 8)
-    .lineTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30 + dateLineFullWidth, currentLineY + 8)
-    .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
-  doc.moveDown(1.5);
 }
 
 // --- FUNCIÓN PRINCIPAL ---
@@ -924,9 +952,12 @@ async function generateAndSaveBudgetPDF(budgetData) {
       doc.addPage();
       await _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExpirationDate, clientEmailFromPermit);
 
+      // 🆕 Determinar si es DRAFT o INVOICE
+      const isDraft = budgetData.status === 'draft' || budgetData.status === 'pending_review' || !budgetData.invoiceNumber;
+
       // --- PÁGINA 2: TÉRMINOS Y CONDICIONES ESTILIZADOS ---
       doc.addPage();
-      _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formattedExpirationDate);
+      _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formattedExpirationDate, isDraft);
 
       doc.end();
 

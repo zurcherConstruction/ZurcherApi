@@ -191,3 +191,23 @@ export const uploadInvoice = (budgetId, file, uploadedAmount, onProgress, paymen
     };
   }
 };
+
+// 🆕 NUEVA ACCIÓN: Convertir Draft a Invoice Definitivo
+export const convertDraftToInvoice = (idBudget) => async (dispatch) => {
+  dispatch(updateBudgetRequest()); // Reutilizar los mismos estados de loading
+  try {
+    const response = await api.post(`/budget/${idBudget}/convert-to-invoice`);
+    dispatch(updateBudgetSuccess(response.data.budget)); // Actualizar con el budget modificado
+    return {
+      type: 'CONVERT_DRAFT_TO_INVOICE_SUCCESS',
+      payload: response.data
+    };
+  } catch (error) {
+    const errorMessage = error.response?.data?.error || 'Error al convertir el presupuesto a invoice';
+    dispatch(updateBudgetFailure(errorMessage));
+    return {
+      type: 'CONVERT_DRAFT_TO_INVOICE_FAILURE',
+      payload: errorMessage
+    };
+  }
+};
