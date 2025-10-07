@@ -58,9 +58,15 @@ function useQuery() {
 const CreateBudget = () => {
   const query = useQuery();
   const permitIdFromQuery = query.get("permitId");
+  const pbtsFromQuery = query.get("pbts"); // 🆕 Leer parámetro PBTS
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  
+  // 🆕 Estado para almacenar el valor PBTS
+  const [pbtsValue, setPbtsValue] = useState(pbtsFromQuery || null);
+  
+  console.log("📋 PBTS recibido:", pbtsFromQuery);
   const defaultLayoutPluginInstance = defaultLayoutPlugin({
     renderToolbar: (Toolbar) => (
       <Toolbar>
@@ -655,6 +661,28 @@ const customCategoryOrder = [
       return;
     }
 
+    // 🆕 VALIDAR LEAD SOURCE
+    if (!formData.leadSource || formData.leadSource.trim() === '') {
+      await Swal.fire({
+        title: 'Lead Source Required',
+        text: 'Please select where this lead came from before submitting the budget.',
+        icon: 'warning',
+        confirmButtonColor: '#f59e0b' // Color amarillo
+      });
+      return;
+    }
+
+    // 🆕 VALIDAR SALES REP SI ES NECESARIO
+    if (formData.leadSource === 'sales_rep' && (!formData.createdByStaffId || formData.createdByStaffId.trim() === '')) {
+      await Swal.fire({
+        title: 'Sales Representative Required',
+        text: 'Please select a sales representative when the lead source is "Sales Representative".',
+        icon: 'warning',
+        confirmButtonColor: '#f59e0b'
+      });
+      return;
+    }
+
     // ✅ INICIAR PROCESO DE ENVÍO
     setIsSubmitting(true);
     setSubmissionProgress('Preparando datos...');
@@ -939,6 +967,23 @@ const customCategoryOrder = [
                   </div>
                 )}
 
+                {/* 🆕 Mensaje informativo si hay PBTS */}
+                {pbtsValue && (
+                  <div className="border-l-4 border-blue-400 bg-blue-50 p-4 rounded">
+                    <p className="font-semibold text-sm flex items-center text-blue-800">
+                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      ATU System Information
+                    </p>
+                    <p className="text-sm mt-1 pl-7 text-blue-700">
+                      {pbtsValue === 'YES' 
+                        ? '✅ This ATU system INCLUDES PBTS (Pretreatment Before Treatment System)'
+                        : '❌ This ATU system DOES NOT include PBTS'}
+                    </p>
+                  </div>
+                )}
+
                 {/* --- Línea Divisoria --- */}
                 <div className="border-t border-gray-200"></div>
 
@@ -965,13 +1010,15 @@ const customCategoryOrder = [
                 </div>
 
                 {/* --- 🆕 SECCIÓN ORIGEN Y VENDEDOR --- */}
-                <div className="border-t border-gray-200 pt-6">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-4 flex items-center">
-                    <svg className="w-5 h-5 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="border-2 border-yellow-400 rounded-lg p-6 bg-gradient-to-r from-yellow-50 to-amber-50 shadow-lg">
+                  <h4 className="text-lg font-bold text-gray-900 mb-2 flex items-center">
+                    <svg className="w-6 h-6 mr-2 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                     </svg>
                     Lead Source & Sales Representative
+                    <span className="ml-2 text-red-600 font-bold">*REQUIRED</span>
                   </h4>
+                  <p className="text-sm text-gray-700 mb-4 font-medium">⚠️ You must select where this lead came from before submitting the budget.</p>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                     {/* Lead Source */}
@@ -985,12 +1032,11 @@ const customCategoryOrder = [
                         value={formData.leadSource}
                         onChange={handleGeneralInputChange}
                         required
-                        className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        className="mt-1 block w-full px-3 py-2.5 bg-white border-2 border-yellow-500 rounded-md shadow-md focus:outline-none focus:ring-2 focus:ring-yellow-600 focus:border-yellow-600 sm:text-sm font-semibold"
                       >
                         <option value="web">Website / Web Form</option>
                         <option value="direct_client">Direct Client (Walk-in/Call)</option>
                         <option value="social_media">Social Media</option>
-                        <option value="referral">Referral</option>
                         <option value="sales_rep">Sales Representative</option>
                       </select>
                       <p className="text-xs text-gray-500 mt-1">

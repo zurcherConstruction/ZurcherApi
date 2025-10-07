@@ -32,6 +32,10 @@ router.post(
 );
 
 router.get('/check-by-address', verifyToken, allowRoles(['admin', 'recept', 'owner']), PermitController.checkPermitByPropertyAddress);
+
+// 🆕 Verificar si un número de permit ya existe
+router.get('/check-permit-number/:permitNumber', verifyToken, allowRoles(['admin', 'recept', 'owner']), PermitController.checkPermitNumber);
+
 // Obtener todos los permisos (permitido para staff)
 router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker']), PermitController.getPermits);
 

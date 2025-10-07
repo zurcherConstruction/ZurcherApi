@@ -681,6 +681,42 @@ const replaceOptionalDocs = async (req, res, next) => {
   }
 };
 
+// 🆕 NUEVO MÉTODO: Verificar si un número de permit ya existe
+const checkPermitNumber = async (req, res, next) => {
+  try {
+    const { permitNumber } = req.params;
+
+    if (!permitNumber || permitNumber.trim() === '') {
+      return res.status(400).json({ 
+        error: true, 
+        message: "Permit number is required" 
+      });
+    }
+
+    const permit = await Permit.findOne({
+      where: { permitNumber: permitNumber.trim() },
+      attributes: ['idPermit', 'permitNumber', 'propertyAddress']
+    });
+
+    if (permit) {
+      return res.status(200).json({
+        exists: true,
+        permitId: permit.idPermit,
+        permitNumber: permit.permitNumber,
+        propertyAddress: permit.propertyAddress
+      });
+    } else {
+      return res.status(200).json({
+        exists: false
+      });
+    }
+
+  } catch (error) {
+    console.error("Error al verificar permit number:", error);
+    next(error);
+  }
+};
+
 module.exports = {
   createPermit,
   getPermits,
@@ -691,6 +727,7 @@ module.exports = {
   getPermitOptionalDocInline,
   getContactList,
   checkPermitByPropertyAddress,
+  checkPermitNumber, // 🆕 NUEVO
   updatePermitClientData, // NUEVO MÉTODO
   replacePermitPdf, // 🆕 NUEVO: Reemplazar PDF principal
   replaceOptionalDocs, // 🆕 NUEVO: Reemplazar documentos opcionales

@@ -15,6 +15,7 @@ import Swal from 'sweetalert2';
 const PdfReceipt = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const token = useSelector((state) => state.auth.token);
   const [pdfPreview, setPdfPreview] = useState(null);
   const [optionalDocPreview, setOptionalDocPreview] = useState(null);
   const [file, setFile] = useState(null);
@@ -40,10 +41,67 @@ const PdfReceipt = () => {
     applicantPhone: "",
   });
 
+  const [isPBTS, setIsPBTS] = useState(""); // Estado para PBTS (YES/NO)
+  const [showPBTSField, setShowPBTSField] = useState(false); // Mostrar campo PBTS solo si es ATU
+  
+  // 🆕 Estados para validación de permit number en tiempo real
+  const [permitNumberValidation, setPermitNumberValidation] = useState({ 
+    status: 'idle', // idle, checking, valid, duplicate, error
+    message: '' 
+  });
+  const [permitNumberCheckTimeout, setPermitNumberCheckTimeout] = useState(null);
+  const [lastValidatedPermitNumber, setLastValidatedPermitNumber] = useState(''); // 🆕 Guardar último número validado
+
   const [expirationWarning, setExpirationWarning] = useState({ type: "", message: "" });
   const [excavationUnit, setExcavationUnit] = useState("INCH"); 
   const [displayDate, setDisplayDate] = useState(""); // Para mostrar fecha en formato MM-DD-YYYY
   const defaultLayoutPluginInstance = defaultLayoutPlugin();
+
+  // 🆕 Función centralizada para validar permit number
+  const validatePermitNumber = async (permitNumber) => {
+    // Si el campo está vacío, resetear validación
+    if (!permitNumber || permitNumber.trim() === '') {
+      setPermitNumberValidation({ status: 'idle', message: '' });
+      setLastValidatedPermitNumber('');
+      return;
+    }
+
+    const trimmedNumber = permitNumber.trim();
+
+    // Mostrar estado "checking"
+    setPermitNumberValidation({ status: 'checking', message: 'Verificando...' });
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/permit/check-permit-number/${encodeURIComponent(trimmedNumber)}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+
+      if (data.exists) {
+        setPermitNumberValidation({ 
+          status: 'duplicate', 
+          message: `❌ Este número de permit ya existe (ID: ${data.permitId})` 
+        });
+      } else {
+        setPermitNumberValidation({ 
+          status: 'valid', 
+          message: '✅ Número de permit disponible' 
+        });
+      }
+      
+      // Guardar el número validado
+      setLastValidatedPermitNumber(trimmedNumber);
+    } catch (error) {
+      console.error('Error validating permit number:', error);
+      setPermitNumberValidation({ 
+        status: 'error', 
+        message: '⚠️ Error al verificar el número' 
+      });
+      setLastValidatedPermitNumber('');
+    }
+  };
 
   // Función helper para formatear fecha en formato MM-DD-YYYY
   const formatDateUSA = (dateString) => {
@@ -136,6 +194,23 @@ const PdfReceipt = () => {
     }
   }, [formData.expirationDate]);
   
+  // 🆕 Validar permit number automáticamente cuando cambia (ej. por extracción de PDF o autocompletar)
+  useEffect(() => {
+    const currentNumber = formData.permitNumber?.trim() || '';
+    
+    // Solo validar si:
+    // 1. El número tiene valor
+    // 2. El número es diferente al último validado
+    if (currentNumber && currentNumber !== lastValidatedPermitNumber) {
+      // Validar el nuevo número
+      validatePermitNumber(currentNumber);
+    } else if (!currentNumber) {
+      // Si el campo está vacío, resetear validación
+      setPermitNumberValidation({ status: 'idle', message: '' });
+      setLastValidatedPermitNumber('');
+    }
+  }, [formData.permitNumber]); // Se ejecuta cuando permitNumber cambia
+
   const handleFileUpload = (e) => {
     const uploadedFile = e.target.files[0];
     console.log("Archivo seleccionado:", uploadedFile);
@@ -194,6 +269,11 @@ const PdfReceipt = () => {
          }));
          setExcavationUnit(detectedUnit);
          
+         // 🆕 Detectar si el systemType extraído incluye ATU
+         if (extractedData.systemType && extractedData.systemType.toUpperCase().includes('ATU')) {
+           setShowPBTSField(true);
+         }
+         
          // Actualizar displayDate con el formato USA
          if (finalExpirationDate) {
            setDisplayDate(formatDateUSA(finalExpirationDate));
@@ -217,6 +297,39 @@ const PdfReceipt = () => {
         ...prevFormData,
         [name]: value,
       }));
+
+      // 🆕 Detectar si systemType incluye "ATU" para mostrar campo PBTS
+      if (name === 'systemType') {
+        const includesATU = value.toUpperCase().includes('ATU');
+        setShowPBTSField(includesATU);
+        if (!includesATU) {
+          setIsPBTS(""); // Reset PBTS si no es ATU
+        }
+      }
+
+      // 🆕 Validar permit number en tiempo real con debounce
+      if (name === 'permitNumber') {
+        // Limpiar timeout anterior
+        if (permitNumberCheckTimeout) {
+          clearTimeout(permitNumberCheckTimeout);
+        }
+
+        // Si el campo está vacío, resetear validación
+        if (!value || value.trim() === '') {
+          setPermitNumberValidation({ status: 'idle', message: '' });
+          return;
+        }
+
+        // Mostrar estado "checking"
+        setPermitNumberValidation({ status: 'checking', message: 'Verificando...' });
+
+        // Configurar nuevo timeout para verificar después de 800ms
+        const timeout = setTimeout(() => {
+          validatePermitNumber(value);
+        }, 800);
+
+        setPermitNumberCheckTimeout(timeout);
+      }
     }
   };
 
@@ -244,6 +357,33 @@ const PdfReceipt = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // 🆕 VALIDAR PERMIT NUMBER ANTES DE CONTINUAR
+    // Forzar validación si el estado no es 'valid' o 'duplicate'
+    if (formData.permitNumber && permitNumberValidation.status !== 'valid' && permitNumberValidation.status !== 'duplicate') {
+      toast.info('Validando permit number...');
+      await validatePermitNumber(formData.permitNumber);
+      // Esperar un poco para que se complete la validación
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    // 🆕 VALIDAR PERMIT NUMBER - Si hay duplicado, no permitir continuar
+    if (permitNumberValidation.status === 'duplicate') {
+      await Swal.fire({
+        title: 'Permit Number Duplicado',
+        text: permitNumberValidation.message,
+        icon: 'error',
+        confirmButtonColor: '#d33'
+      });
+      return;
+    }
+
+    // 🆕 Si está verificando, esperar un momento
+    if (permitNumberValidation.status === 'checking') {
+      toast.info('Esperando validación del permit number...');
+      return;
+    }
+
     const confirmationResult = await Swal.fire({
       title: '¿Plano Cargado?',
       text: "Si este permit requiere un plano (documento opcional), ¿ya lo has cargado?",
@@ -296,8 +436,57 @@ const PdfReceipt = () => {
       toast.warn("El campo 'Name' (Applicant Name) es obligatorio.");
       return;
     }
+    if (!formData.applicantEmail) {
+      toast.warn("El campo 'Email' es obligatorio.");
+      return;
+    }
+    if (!formData.applicantPhone) {
+      toast.warn("El campo 'Phone' es obligatorio.");
+      return;
+    }
     if (!formData.propertyAddress) {
       toast.warn("El campo 'Property Address' es obligatorio.");
+      return;
+    }
+    if (!formData.permitNumber) {
+      toast.warn("El campo 'Permit Number' es obligatorio.");
+      return;
+    }
+    if (!formData.systemType) {
+      toast.warn("El campo 'System Type' es obligatorio.");
+      return;
+    }
+    if (!formData.expirationDate) {
+      toast.warn("El campo 'Expiration Date' es obligatorio.");
+      return;
+    }
+    if (!formData.lot || String(formData.lot).trim() === '') {
+      toast.warn("El campo 'Lot' es obligatorio.");
+      return;
+    }
+    if (!formData.block || String(formData.block).trim() === '') {
+      toast.warn("El campo 'Block' es obligatorio.");
+      return;
+    }
+    if (!formData.gpdCapacity || String(formData.gpdCapacity).trim() === '') {
+      toast.warn("El campo 'GPD Capacity' es obligatorio.");
+      return;
+    }
+    if (!formData.drainfieldDepth || String(formData.drainfieldDepth).trim() === '') {
+      toast.warn("El campo 'Drainfield Depth' es obligatorio.");
+      return;
+    }
+    if (!formData.excavationRequired || String(formData.excavationRequired).trim() === '') {
+      toast.warn("El campo 'Excavation Required' es obligatorio.");
+      return;
+    }
+    if (!formData.pump || String(formData.pump).trim() === '') {
+      toast.warn("El campo 'Pump' es obligatorio.");
+      return;
+    }
+    // 🆕 Validar PBTS si el systemType incluye ATU
+    if (showPBTSField && !isPBTS) {
+      toast.warn("Por favor seleccione si el sistema ATU es PBTS o NO.");
       return;
     }
     if (!file) {
@@ -337,7 +526,9 @@ const PdfReceipt = () => {
 
           if (continueWithExisting.isConfirmed) {
             // Navegar a la creación del budget usando el ID del permit existente
-            navigate(`/createBudget?permitId=${existingPermitCheck.permit.idPermit}`);
+            // 🆕 Incluir PBTS si aplica
+            const pbtsParam = showPBTSField && isPBTS ? `&pbts=${isPBTS}` : '';
+            navigate(`/createBudget?permitId=${existingPermitCheck.permit.idPermit}${pbtsParam}`);
             return; // Detener el proceso actual
           } else {
             return; // El usuario decidió no continuar
@@ -392,7 +583,9 @@ const PdfReceipt = () => {
       if (newPermitId) {
         console.log("Permiso creado con ID:", newPermitId);
         toast.success("¡Permit creado correctamente!");
-        navigate(`/createBudget?permitId=${newPermitId}`);
+        // 🆕 Incluir PBTS si aplica
+        const pbtsParam = showPBTSField && isPBTS ? `&pbts=${isPBTS}` : '';
+        navigate(`/createBudget?permitId=${newPermitId}${pbtsParam}`);
       } else {
         console.error("Respuesta de éxito inesperada:", permitData);
         toast.error("Éxito, pero no se recibió el ID del permiso.");
@@ -534,6 +727,8 @@ const PdfReceipt = () => {
                       ? "Phone"
                       : key === "propertyAddress"
                       ? "Property Address"
+                      : key === "permitNumber"
+                      ? "Permit Number"
                       : key === "systemType"
                       ? "System Type"
                       : key === "lot"
@@ -551,6 +746,11 @@ const PdfReceipt = () => {
                       : key === "pump"
                       ? "Pump"
                       : key.replace(/([A-Z])/g, " $1").trim()}
+                    {(key === "applicantName" || key === "applicantEmail" || key === "applicantPhone" || 
+                      key === "propertyAddress" || key === "permitNumber" || key === "systemType" || 
+                      key === "expirationDate" || key === "lot" || key === "block" || 
+                      key === "gpdCapacity" || key === "drainfieldDepth" || key === "excavationRequired" || 
+                      key === "pump") && <span className="text-red-500 ml-1">*</span>}
                   </label>
                   {/* --- RENDERIZADO CONDICIONAL --- */}
                   {key === "excavationRequired" ? (
@@ -562,6 +762,7 @@ const PdfReceipt = () => {
                         onChange={handleInputChange}
                         className="block w-2/3 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-gray-50"
                         placeholder="Value or description"
+                        required
                       />
                       <select
                         name="excavationUnit"
@@ -588,6 +789,49 @@ const PdfReceipt = () => {
                           : "border-gray-300 bg-gray-50"
                       } rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm`}
                     />
+                  ) : key === "permitNumber" ? (
+                    <div>
+                      <input
+                        type="text"
+                        name="permitNumber"
+                        value={formData.permitNumber ?? ""}
+                        onChange={handleInputChange}
+                        onBlur={(e) => {
+                          // Validar cuando pierde el foco (cubre autocompletar)
+                          if (e.target.value && e.target.value.trim() !== '') {
+                            // Cancelar cualquier timeout pendiente
+                            if (permitNumberCheckTimeout) {
+                              clearTimeout(permitNumberCheckTimeout);
+                            }
+                            // Validar inmediatamente
+                            validatePermitNumber(e.target.value);
+                          }
+                        }}
+                        className={`mt-1 block w-full border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
+                          permitNumberValidation.status === "duplicate"
+                            ? "border-red-500 bg-red-50"
+                            : permitNumberValidation.status === "valid"
+                            ? "border-green-500 bg-green-50"
+                            : permitNumberValidation.status === "checking"
+                            ? "border-blue-500 bg-blue-50"
+                            : "border-gray-300 bg-gray-50"
+                        }`}
+                        required
+                      />
+                      {permitNumberValidation.message && (
+                        <p className={`mt-1 text-xs ${
+                          permitNumberValidation.status === "duplicate"
+                            ? "text-red-600"
+                            : permitNumberValidation.status === "valid"
+                            ? "text-green-600"
+                            : permitNumberValidation.status === "checking"
+                            ? "text-blue-600"
+                            : "text-gray-600"
+                        }`}>
+                          {permitNumberValidation.message}
+                        </p>
+                      )}
+                    </div>
                   ) : (
                     <input
                       type={
@@ -601,8 +845,55 @@ const PdfReceipt = () => {
                       value={formData[key] ?? ""}
                       onChange={handleInputChange}
                       className="mt-1 block w-full border border-gray-300 bg-gray-50 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                      required={key === "applicantName" || key === "propertyAddress"}
+                      required={
+                        key === "applicantName" || 
+                        key === "applicantEmail" || 
+                        key === "applicantPhone" || 
+                        key === "propertyAddress" || 
+                        key === "permitNumber" || 
+                        key === "systemType" || 
+                        key === "lot" || 
+                        key === "block" || 
+                        key === "gpdCapacity" || 
+                        key === "drainfieldDepth" || 
+                        key === "excavationRequired" || 
+                        key === "pump"
+                      }
                     />
+                  )}
+                  {/* 🆕 Mostrar campo PBTS si systemType incluye ATU */}
+                  {key === "systemType" && showPBTSField && (
+                    <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                      <label className="block text-xs font-medium text-gray-700 mb-2">
+                        ¿El sistema ATU incluye PBTS?
+                      </label>
+                      <div className="flex gap-4">
+                        <label className="flex items-center cursor-pointer">
+                          <input
+                            type="radio"
+                            name="pbts"
+                            value="YES"
+                            checked={isPBTS === "YES"}
+                            onChange={(e) => setIsPBTS(e.target.value)}
+                            className="mr-2"
+                            required
+                          />
+                          <span className="text-sm">Sí, incluye PBTS</span>
+                        </label>
+                        <label className="flex items-center cursor-pointer">
+                          <input
+                            type="radio"
+                            name="pbts"
+                            value="NO"
+                            checked={isPBTS === "NO"}
+                            onChange={(e) => setIsPBTS(e.target.value)}
+                            className="mr-2"
+                            required
+                          />
+                          <span className="text-sm">No incluye PBTS</span>
+                        </label>
+                      </div>
+                    </div>
                   )}
                   {key === "expirationDate" && (
                     <>
