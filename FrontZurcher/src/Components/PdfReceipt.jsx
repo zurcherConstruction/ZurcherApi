@@ -52,6 +52,11 @@ const PdfReceipt = () => {
   const [permitNumberCheckTimeout, setPermitNumberCheckTimeout] = useState(null);
   const [lastValidatedPermitNumber, setLastValidatedPermitNumber] = useState(''); // 🆕 Guardar último número validado
 
+  // 🆕 Estados para emails adicionales (notificationEmails)
+  const [notificationEmails, setNotificationEmails] = useState([]);
+  const [newNotificationEmail, setNewNotificationEmail] = useState('');
+  const [emailError, setEmailError] = useState('');
+
   const [expirationWarning, setExpirationWarning] = useState({ type: "", message: "" });
   const [excavationUnit, setExcavationUnit] = useState("INCH"); 
   const [displayDate, setDisplayDate] = useState(""); // Para mostrar fecha en formato MM-DD-YYYY
@@ -100,6 +105,51 @@ const PdfReceipt = () => {
         message: '⚠️ Error al verificar el número' 
       });
       setLastValidatedPermitNumber('');
+    }
+  };
+
+  // 🆕 Funciones para manejar emails adicionales
+  const isValidEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const handleAddNotificationEmail = () => {
+    const trimmedEmail = newNotificationEmail.trim();
+    
+    if (!trimmedEmail) {
+      setEmailError('Por favor ingresa un email');
+      return;
+    }
+
+    if (!isValidEmail(trimmedEmail)) {
+      setEmailError('Por favor ingresa un email válido');
+      return;
+    }
+
+    if (trimmedEmail.toLowerCase() === formData.applicantEmail.toLowerCase()) {
+      setEmailError('Este email ya es el email principal');
+      return;
+    }
+
+    if (notificationEmails.some(email => email.toLowerCase() === trimmedEmail.toLowerCase())) {
+      setEmailError('Este email ya está en la lista');
+      return;
+    }
+
+    setNotificationEmails([...notificationEmails, trimmedEmail]);
+    setNewNotificationEmail('');
+    setEmailError('');
+  };
+
+  const handleRemoveNotificationEmail = (emailToRemove) => {
+    setNotificationEmails(notificationEmails.filter(email => email !== emailToRemove));
+  };
+
+  const handleNotificationEmailKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddNotificationEmail();
     }
   };
 
@@ -570,6 +620,16 @@ const PdfReceipt = () => {
         formDataToSend.append(key, valueToSend);
       });
 
+      // 🆕 Agregar isPBTS si aplica (ATU system)
+      if (showPBTSField && isPBTS) {
+        formDataToSend.append('isPBTS', isPBTS === 'YES');
+      }
+
+      // 🆕 Agregar emails adicionales (notificationEmails)
+      if (notificationEmails.length > 0) {
+        formDataToSend.append('notificationEmails', JSON.stringify(notificationEmails));
+      }
+
       console.log("Enviando datos para crear el permiso...");
       loadingToastId = toast.loading("Guardando permiso...");
 
@@ -918,6 +978,78 @@ const PdfReceipt = () => {
                   {/* --- FIN RENDERIZADO CONDICIONAL --- */}
                 </div>
               ))}
+
+            {/* 🆕 SECCIÓN: Emails Adicionales para Notificaciones */}
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <h3 className="text-sm font-semibold text-blue-800 mb-3">
+                📧 Emails Adicionales para Notificaciones
+              </h3>
+              <p className="text-xs text-gray-600 mb-3">
+                El email principal ({formData.applicantEmail || 'sin especificar'}) se usa para invoices y firma de documentos. 
+                Aquí puedes agregar emails adicionales que recibirán notificaciones (vendedores, etc.).
+              </p>
+
+              {/* Input para agregar nuevo email */}
+              <div className="flex gap-2 mb-3">
+                <div className="flex-1">
+                  <input
+                    type="email"
+                    value={newNotificationEmail}
+                    onChange={(e) => {
+                      setNewNotificationEmail(e.target.value);
+                      setEmailError('');
+                    }}
+                    onKeyPress={handleNotificationEmailKeyPress}
+                    placeholder="ejemplo@email.com"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  {emailError && (
+                    <p className="mt-1 text-xs text-red-600">{emailError}</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddNotificationEmail}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 whitespace-nowrap"
+                >
+                  + Agregar
+                </button>
+              </div>
+
+              {/* Lista de emails adicionales */}
+              {notificationEmails.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-gray-700">
+                    Emails adicionales ({notificationEmails.length}):
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {notificationEmails.map((email, index) => (
+                      <div
+                        key={index}
+                        className="inline-flex items-center gap-2 px-3 py-1 bg-white border border-blue-300 rounded-full text-sm"
+                      >
+                        <span className="text-gray-700">{email}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveNotificationEmail(email)}
+                          className="text-red-500 hover:text-red-700 font-bold text-lg leading-none"
+                          title="Eliminar email"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {notificationEmails.length === 0 && (
+                <p className="text-xs text-gray-500 italic">
+                  No hay emails adicionales. Solo se usará el email principal.
+                </p>
+              )}
+            </div>
+
             <button
               type="submit"
               className="bg-blue-700 text-white py-3 px-4 rounded-lg font-bold shadow hover:bg-blue-800 transition-all duration-200 mt-2"
