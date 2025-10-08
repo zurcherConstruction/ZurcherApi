@@ -6,6 +6,7 @@ import { fetchBudgets, fetchBudgetById, updateBudget, } from "../../Redux/Action
 import { fetchBudgetItems } from "../../Redux/Actions/budgetItemActions";
 import DynamicCategorySection from './DynamicCategorySection';
 import EditClientDataModal from './EditClientDataModal';
+import EditPermitFieldsModal from './EditPermitFieldsModal'; // 🆕 NUEVO
 import { parseISO, format } from 'date-fns';
 import { unwrapResult } from '@reduxjs/toolkit';
 import { ArrowTopRightOnSquareIcon, PencilIcon } from '@heroicons/react/24/outline';
@@ -47,6 +48,8 @@ const EditBudget = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [viewingFile, setViewingFile] = useState(false);
   const [showClientDataModal, setShowClientDataModal] = useState(false);
+  const [showEditPermitFieldsModal, setShowEditPermitFieldsModal] = useState(false); // 🆕 NUEVO
+  const [forceFormDataRefresh, setForceFormDataRefresh] = useState(0); // 🆕 Para forzar actualización
 
   // Estados para reemplazar PDFs del Permit
   const [showReplacePermitPdfModal, setShowReplacePermitPdfModal] = useState(false);
@@ -175,18 +178,28 @@ const editableBudgets = useMemo(() => {
   useEffect(() => {
    
 
-    if (currentBudget && currentBudget.idBudget === selectedBudgetId && (!formData || formData.idBudget !== selectedBudgetId)) {
+    if (currentBudget && currentBudget.idBudget === selectedBudgetId && (!formData || formData.idBudget !== selectedBudgetId || forceFormDataRefresh > 0)) {
       
 
       try {
         const permitData = currentBudget.Permit || {};
         const lineItemsData = currentBudget.lineItems || [];
 
+        console.log('🔄 Recreando formData con datos actualizados del Permit:', permitData);
+        console.log('📝 Valores clave:', {
+          permitNumber: permitData.permitNumber,
+          applicantName: permitData.applicantName,
+          applicantPhone: permitData.applicantPhone,
+          propertyAddress: permitData.propertyAddress,
+          lot: permitData.lot,
+          block: permitData.block
+        });
+
         const newFormData = {
           idBudget: currentBudget.idBudget,
           permitNumber: permitData.permitNumber || "",
-          propertyAddress: currentBudget.propertyAddress || "",
-          applicantName: currentBudget.applicantName || "",
+          propertyAddress: permitData.propertyAddress || currentBudget.propertyAddress || "",
+          applicantName: permitData.applicantName || currentBudget.applicantName || "",
           applicantEmail: permitData.applicantEmail || "",
           applicantPhone: permitData.applicantPhone || "",
           lot: permitData.lot || "",
@@ -222,6 +235,11 @@ const editableBudgets = useMemo(() => {
         };
        
         setFormData(newFormData);
+        
+        // 🆕 Resetear el flag de forzar refresh después de recrear
+        if (forceFormDataRefresh > 0) {
+          setForceFormDataRefresh(0);
+        }
        
 
       } catch (error) {
@@ -235,7 +253,7 @@ const editableBudgets = useMemo(() => {
       else if (formData && formData.idBudget === selectedBudgetId) console.log('Condition not met: formData already exists for this budgetId.');
       else console.log('Condition not met: Unknown reason.');
     }
-  }, [currentBudget, selectedBudgetId, formData]);
+  }, [currentBudget, selectedBudgetId, formData, forceFormDataRefresh]); // 🆕 Agregado forceFormDataRefresh
 
   // --- Recalcular Totales ---
   useEffect(() => {
@@ -704,14 +722,14 @@ const editableBudgets = useMemo(() => {
                           onClick={() => setShowReplacePermitPdfModal(true)}
                           className="inline-flex items-center px-3 py-2 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
                         >
-                          📄 Reemplazar PDF
+                          📄 Reemplazar Permit
                         </button>
                         <button
                           type="button"
                           onClick={() => setShowReplaceOptionalDocsModal(true)}
                           className="inline-flex items-center px-3 py-2 text-xs font-medium text-green-600 bg-green-50 border border-green-200 rounded-md hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
                         >
-                          📎 Reemplazar Docs
+                          📎 Reemplazar Site Plan
                         </button>
                       </>
                     )}
@@ -722,6 +740,13 @@ const editableBudgets = useMemo(() => {
                     >
                       <PencilIcon className="h-4 w-4 mr-1" />
                       Editar Cliente
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowEditPermitFieldsModal(true)}
+                      className="inline-flex items-center px-3 py-2 text-sm font-medium text-purple-600 bg-purple-50 border border-purple-200 rounded-md hover:bg-purple-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors"
+                    >
+                      🔧 Editar Permit
                     </button>
                   </div>
                 </legend>
@@ -1101,6 +1126,36 @@ const editableBudgets = useMemo(() => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 🆕 MODAL: Editar Campos del Permit */}
+      {showEditPermitFieldsModal && currentBudget?.PermitIdPermit && (
+        <EditPermitFieldsModal
+          permitId={currentBudget.PermitIdPermit}
+          onClose={() => setShowEditPermitFieldsModal(false)}
+          onSuccess={(updatedPermit) => {
+            console.log('✅ Permit actualizado, recargando datos...', updatedPermit);
+            
+            // 1. Forzar recreación de formData con datos actualizados
+            setForceFormDataRefresh(prev => prev + 1);
+            
+            // 2. Recargar budget completo desde el servidor
+            // NOTA: fetchBudgetById actualiza TANTO currentBudget como el budget en la lista global
+            // (Ver BudgetReducer.jsx línea 51-53: actualiza state.budgets[index])
+            dispatch(fetchBudgetById(selectedBudgetId));
+            
+            // 3. 🆕 Limpiar búsqueda para forzar nueva búsqueda con valores actualizados
+            setSearchTerm("");
+            setSearchResults([]);
+            console.log('🔍 Búsqueda limpiada - busca de nuevo con los valores actualizados');
+            
+            // 4. Cerrar modal después de un delay
+            setTimeout(() => {
+              setShowEditPermitFieldsModal(false);
+              console.log('✅ Datos recargados y modal cerrado');
+            }, 1000);
+          }}
+        />
       )}
 
       <style>{`.input-style { border: 1px solid #d1d5db; border-radius: 0.5rem; padding: 0.75rem 1rem; width: 100%; box-sizing: border-box; font-size: 1rem; } .input-style:focus { outline: 2px solid transparent; outline-offset: 2px; border-color: #2563eb; box-shadow: 0 0 0 2px #bfdbfe; }`}</style>

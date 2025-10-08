@@ -3319,7 +3319,7 @@ async optionalDocs(req, res) {
         include: [
           { 
             model: Permit, 
-            attributes: ['idPermit', 'propertyAddress', 'applicantEmail', 'applicantName', 'lot', 'block'] 
+            attributes: ['idPermit', 'propertyAddress', 'applicantEmail', 'applicantName', 'lot', 'block', 'notificationEmails'] 
           },
           { model: BudgetLineItem, as: 'lineItems' }
         ]
@@ -3369,12 +3369,55 @@ async optionalDocs(req, res) {
       const frontendUrl = process.env.FRONTEND_URL || 'https://zurcherseptic.com';
       const reviewUrl = `${frontendUrl}/budget-review/${idBudget}/${reviewToken}`;
 
+      // 🆕 Obtener y parsear emails adicionales del Permit
+      let notificationEmails = budget.Permit.notificationEmails || [];
+      
+      // 🔧 PARSEAR correctamente si viene como JSON string
+      if (Array.isArray(notificationEmails) && notificationEmails.length > 0) {
+        // Si el primer elemento es un string que parece JSON, parsearlo
+        if (typeof notificationEmails[0] === 'string' && notificationEmails[0].trim().startsWith('[')) {
+          try {
+            notificationEmails = JSON.parse(notificationEmails[0]);
+          } catch (e) {
+            console.warn('⚠️  No se pudo parsear notificationEmails del array:', e.message);
+          }
+        }
+      } else if (typeof notificationEmails === 'string' && notificationEmails.trim().startsWith('[')) {
+        // Si es un string directamente
+        try {
+          notificationEmails = JSON.parse(notificationEmails);
+        } catch (e) {
+          console.warn('⚠️  No se pudo parsear notificationEmails del string:', e.message);
+          notificationEmails = [];
+        }
+      }
+      
+      // Asegurar que sea un array válido y limpiar valores
+      if (!Array.isArray(notificationEmails)) {
+        notificationEmails = [];
+      }
+      
+      // Limpiar cada email (remover comillas, espacios, etc.)
+      notificationEmails = notificationEmails
+        .map(email => typeof email === 'string' ? email.trim().replace(/^["'\[]|["'\]]$/g, '') : email)
+        .filter(email => email && email.includes('@'));
+      
+      const hasNotificationEmails = notificationEmails.length > 0;
+      
+      console.log(`📋 Datos del Permit:`, {
+        applicantEmail: budget.Permit.applicantEmail,
+        notificationEmails: notificationEmails,
+        hasNotificationEmails: hasNotificationEmails,
+        totalEmails: hasNotificationEmails ? 1 + notificationEmails.length : 1
+      });
+
       // ✅ CONSTRUIR EMAIL HTML - Diferente si es reenvío
       const emailSubject = isResend 
         ? `Updated Budget for Review - ${budget.Permit.propertyAddress}` 
         : `Budget Proposal for Review - ${budget.Permit.propertyAddress}`;
       
-      const emailHtml = `
+      // 🆕 FUNCIÓN HELPER: Generar HTML del email
+      const generateEmailHtml = (includeActionButtons = true) => `
         <!DOCTYPE html>
         <html>
         <head>
@@ -3388,6 +3431,7 @@ async optionalDocs(req, res) {
             .btn-reject { background-color: #dc3545; color: white; }
             .details { background-color: white; padding: 20px; border-left: 4px solid #2563eb; margin: 20px 0; }
             .resend-notice { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; }
+            .info-notice { background-color: #d1ecf1; border-left: 4px solid #0c5460; padding: 15px; margin: 20px 0; }
             .footer { text-align: center; color: #6b7280; font-size: 14px; margin-top: 30px; }
           </style>
         </head>
@@ -3398,16 +3442,24 @@ async optionalDocs(req, res) {
             </div>
             
             <div class="content">
+              ${includeActionButtons ? `
               <p>Dear <strong>${budget.Permit.applicantName}</strong>,</p>
+              ` : `
+              <p>Hello,</p>
+              <div class="info-notice">
+                <p><strong>ℹ️ This is a notification copy for your information.</strong></p>
+                <p>The client (${budget.Permit.applicantEmail}) has received this budget for review and approval.</p>
+              </div>
+              `}
               
-              ${isResend ? `
+              ${isResend && includeActionButtons ? `
               <div class="resend-notice">
                 <p><strong>🔄 This is an updated version of the budget.</strong></p>
                 <p>We have reviewed your feedback and made the necessary adjustments. Please review the updated proposal below.</p>
               </div>
               ` : ''}
               
-              <p>Please find attached the ${isResend ? 'updated ' : ''}budget estimate for your project at <strong>${budget.Permit.propertyAddress}</strong> for your review.</p>
+              <p>${includeActionButtons ? 'Please find attached the' : 'Attached is the'} ${isResend ? 'updated ' : ''}budget estimate for ${includeActionButtons ? 'your project' : 'the project'} at <strong>${budget.Permit.propertyAddress}</strong> ${includeActionButtons ? 'for your review' : 'for reference'}.</p>
               
               <div class="details">
                 <h3>Budget Details:</h3>
@@ -3418,6 +3470,7 @@ async optionalDocs(req, res) {
                 ${budget.expirationDate ? `<p><strong>Valid Until:</strong> ${new Date(budget.expirationDate).toLocaleDateString()}</p>` : ''}
               </div>
               
+              ${includeActionButtons ? `
               <p><strong>⚠️ This is a preliminary budget for your review.</strong> It does not include digital signature or payment at this stage.</p>
               
               <p>Please review the attached budget PDF and let us know if you have any questions or if you wish to proceed:</p>
@@ -3428,11 +3481,14 @@ async optionalDocs(req, res) {
               </div>
               
               <p><em>If you approve the budget, we will proceed to send you the official document for digital signature and payment coordination.</em></p>
+              ` : `
+              <p><em>This is an informational copy only. The client will review and approve the budget.</em></p>
+              `}
             </div>
             
             <div class="footer">
               <p><strong>Zurcher Septic</strong></p>
-              <p>Professional Septic Installation & Maintenance | License CFC1433240</p>
+              <p><strong>Professional Septic Installation & Maintenance | License CFC1433240</p>
               <p>📧 admin@zurcherseptic.com | 📞 +1 (407) 419-4495</p>
               <p style="margin-top: 10px; font-size: 12px;">For any questions, please contact us by replying to this email.</p>
             </div>
@@ -3441,11 +3497,12 @@ async optionalDocs(req, res) {
         </html>
       `;
 
-      // ✅ ENVIAR EMAIL CON PDF ADJUNTO (patrón exacto de Change Order)
+      // ✅ ENVIAR EMAIL AL CLIENTE PRINCIPAL CON BOTONES DE ACCIÓN
+      console.log(`📧 Enviando email principal a ${budget.Permit.applicantEmail} con botones de acción...`);
       await sendEmail({
         to: budget.Permit.applicantEmail,
         subject: emailSubject,
-        html: emailHtml,
+        html: generateEmailHtml(true), // CON botones de aprobación
         text: `Alternative text: ${emailSubject}`,
         attachments: [
           { 
@@ -3455,7 +3512,43 @@ async optionalDocs(req, res) {
         ]
       });
 
-      console.log(`✅ Email de revisión enviado a ${budget.Permit.applicantEmail}`);
+      console.log(`✅ Email principal enviado a ${budget.Permit.applicantEmail}`);
+
+      // 🆕 ENVIAR EMAILS INFORMATIVOS A EMAILS ADICIONALES (SIN BOTONES)
+      if (hasNotificationEmails) {
+        console.log(`📧 Enviando emails informativos a ${notificationEmails.length} email(s) adicional(es)...`);
+        
+        const emailSubjectNotification = `[Info] ${emailSubject}`;
+        
+        for (const email of notificationEmails) {
+          try {
+            await sendEmail({
+              to: email,
+              subject: emailSubjectNotification,
+              html: generateEmailHtml(false), // SIN botones de aprobación
+              text: `Alternative text: ${emailSubjectNotification}`,
+              attachments: [
+                { 
+                  filename: `Budget_${budget.idBudget}.pdf`, 
+                  path: pdfPath 
+                }
+              ]
+            });
+            console.log(`✅ Email informativo enviado a ${email}`);
+          } catch (emailError) {
+            console.error(`❌ Error al enviar email a ${email}:`, emailError.message);
+            // Continuar con los demás emails aunque uno falle
+          }
+        }
+        
+        console.log(`✅ Todos los emails informativos enviados`);
+      }
+
+      console.log(`✅ Proceso de envío completo`);
+      console.log(`📧 Email principal: ${budget.Permit.applicantEmail} (con botones de acción)`);
+      if (hasNotificationEmails) {
+        console.log(`📧 Emails adicionales (${notificationEmails.length}): ${notificationEmails.join(', ')} (solo información)`);
+      }
 
       // Notificar al equipo interno
       await sendNotifications('budgetSentForReview', {
@@ -3463,20 +3556,33 @@ async optionalDocs(req, res) {
         propertyAddress: budget.Permit.propertyAddress,
         applicantName: budget.Permit.applicantName,
         applicantEmail: budget.Permit.applicantEmail,
+        notificationEmails: notificationEmails,
         isResend: isResend // 🆕 Indicar si es un reenvío
       });
 
+      // 🆕 Construir mensaje de respuesta detallado
+      let responseMessage = isResend 
+        ? `Presupuesto actualizado y reenviado para revisión a ${budget.Permit.applicantEmail}`
+        : `Presupuesto enviado para revisión a ${budget.Permit.applicantEmail}`;
+      
+      if (hasNotificationEmails) {
+        responseMessage += ` y ${notificationEmails.length} email(s) adicional(es) como copia informativa`;
+      }
+
       res.json({
         success: true,
-        message: isResend 
-          ? `Presupuesto actualizado y reenviado para revisión a ${budget.Permit.applicantEmail}`
-          : `Presupuesto enviado para revisión a ${budget.Permit.applicantEmail}`,
+        message: responseMessage,
         budget: {
           idBudget: budget.idBudget,
           status: 'pending_review',
           sentForReviewAt: budget.sentForReviewAt,
           reviewUrl,
-          isResend: isResend
+          isResend: isResend,
+          emailsSent: {
+            primary: budget.Permit.applicantEmail,
+            additional: notificationEmails,
+            total: 1 + notificationEmails.length
+          }
         }
       });
 
@@ -3622,20 +3728,21 @@ async optionalDocs(req, res) {
                 });
 
                 // 🆕 ENVIAR EMAIL ADICIONAL CON PDF Y BOTÓN DE PAGO
+                // Preparar datos que se usarán tanto para el cliente como para finance
+                const pdfAttachment = {
+                  filename: fileName,
+                  path: newPdfPath,
+                  contentType: 'application/pdf'
+                };
+
+                const totalAmount = parseFloat(updatedBudget.totalPrice || 0);
+                const initialPaymentPercentage = parseFloat(updatedBudget.initialPaymentPercentage || 100);
+                const initialPaymentAmount = parseFloat(updatedBudget.initialPayment || totalAmount);
+                const hasInitialPayment = initialPaymentPercentage < 100;
+
+                // 📧 ENVIAR EMAIL AL CLIENTE
                 try {
                   console.log(`📧 Enviando email adicional con botón de pago a ${updatedBudget.Permit.applicantEmail}...`);
-                  
-                  const pdfAttachment = {
-                    filename: fileName,
-                    path: newPdfPath,
-                    contentType: 'application/pdf'
-                  };
-
-                  // Calcular información de pago
-                  const totalAmount = parseFloat(updatedBudget.totalPrice || 0);
-                  const initialPaymentPercentage = parseFloat(updatedBudget.initialPaymentPercentage || 100);
-                  const initialPaymentAmount = parseFloat(updatedBudget.initialPayment || totalAmount);
-                  const hasInitialPayment = initialPaymentPercentage < 100;
 
                   // Construir sección de montos
                   let paymentInfoHtml = '';
@@ -3712,6 +3819,111 @@ async optionalDocs(req, res) {
 
                   console.log(`✅ Email con botón de pago enviado exitosamente`);
 
+                  // 💰 ENVIAR COPIA DEL INVOICE AL EQUIPO DE FINANZAS
+                  try {
+                    console.log(`💰 Enviando copia del Invoice #${invoiceNumber} al equipo de finanzas...`);
+                    
+                    // Obtener staff con role 'finance'
+                    const { Staff } = require('../data');
+                    
+                    const financeStaff = await Staff.findAll({
+                      where: {
+                        role: 'finance',
+                        email: {
+                          [Op.ne]: null,
+                          [Op.ne]: ''
+                        }
+                      },
+                      attributes: ['email', 'name']
+                    });
+
+                    if (financeStaff && financeStaff.length > 0) {
+                      const financeEmailAddresses = financeStaff.map(staff => staff.email);
+                      
+                      console.log(`📧 Enviando a ${financeEmailAddresses.length} miembro(s) del equipo de finanzas:`, financeEmailAddresses);
+
+                      // Email para el equipo de finanzas con el mismo PDF que recibió el cliente
+                      await sendEmail({
+                        to: financeEmailAddresses.join(', '), // ✅ Convertir array a string separado por comas
+                        subject: `[Accounts Receivable] Invoice #${invoiceNumber} - ${propertyAddress}`,
+                        html: `
+                          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                            <div style="background-color: #1a365d; color: white; padding: 20px; text-align: center;">
+                              <h2 style="margin: 0;">💰 New Account Receivable</h2>
+                            </div>
+                            
+                            <div style="padding: 20px; background-color: #f9fafb;">
+                              <p>A new invoice has been generated and sent to the client for approval and payment.</p>
+                              
+                              <div style="background-color: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #1a365d;">
+                                <h3 style="margin-top: 0; color: #1a365d;">Invoice Details</h3>
+                                <table style="width: 100%; border-collapse: collapse;">
+                                  <tr>
+                                    <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;"><strong>Invoice Number:</strong></td>
+                                    <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">#${invoiceNumber}</td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;"><strong>Property Address:</strong></td>
+                                    <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">${propertyAddress}</td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;"><strong>Client Name:</strong></td>
+                                    <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">${updatedBudget.Permit.applicantName || 'N/A'}</td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;"><strong>Client Email:</strong></td>
+                                    <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">${updatedBudget.Permit.applicantEmail}</td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;"><strong>Total Amount:</strong></td>
+                                    <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right; color: #2563eb; font-weight: bold; font-size: 18px;">$${totalAmount.toFixed(2)}</td>
+                                  </tr>
+                                  <tr>
+                                    <td style="padding: 8px 0;"><strong>Initial Payment (${initialPaymentPercentage}%):</strong></td>
+                                    <td style="padding: 8px 0; text-align: right; color: #059669; font-weight: bold; font-size: 16px;">$${initialPaymentAmount.toFixed(2)}</td>
+                                  </tr>
+                                </table>
+                              </div>
+
+                              <div style="background-color: #fef3c7; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; margin: 20px 0;">
+                                <p style="margin: 0; color: #92400e;">
+                                  <strong>⚠️ Action Required:</strong> This invoice has been sent to the client for signature and payment. Please track this account receivable and follow up if payment is not received within the expected timeframe.
+                                </p>
+                              </div>
+
+                              <div style="margin: 30px 0;">
+                                <h4 style="color: #1a365d; margin-bottom: 10px;">Client Actions:</h4>
+                                <ul style="line-height: 1.8; color: #4b5563;">
+                                  <li>✅ Client approved the budget</li>
+                                  <li>📧 Digital signature request sent via SignNow</li>
+                                  <li>💳 Payment link included in the invoice PDF</li>
+                                  <li>📄 Invoice attached to this email for your records</li>
+                                </ul>
+                              </div>
+
+                              <p style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px;">
+                                The complete invoice document is attached to this email for your records. The client has also received this document with payment instructions.
+                              </p>
+
+                              <p style="margin-top: 20px; font-size: 12px; color: #9ca3af; text-align: center;">
+                                This is an automated notification from Zurcher Septic Management System
+                              </p>
+                            </div>
+                          </div>
+                        `,
+                        attachments: [pdfAttachment]
+                      });
+
+                      console.log(`✅ Invoice enviado al equipo de finanzas (${financeEmailAddresses.length} destinatario(s))`);
+                    } else {
+                      console.warn(`⚠️ No se encontraron usuarios con role 'finance' para notificar`);
+                    }
+
+                  } catch (financeEmailError) {
+                    console.error(`⚠️ Error al enviar email al equipo de finanzas:`, financeEmailError);
+                    // No fallar el proceso principal
+                  }
+
                 } catch (emailError) {
                   console.error(`⚠️ Error al enviar email con botón de pago:`, emailError);
                   // No fallar el proceso principal
@@ -3727,7 +3939,7 @@ async optionalDocs(req, res) {
                   invoiceNumber: invoiceNumber
                 });
 
-                console.log(`✅ Proceso completo: Invoice #${invoiceNumber} aprobado, PDF regenerado, enviado a SignNow y email con pago enviado`);
+                console.log(`✅ Proceso completo: Invoice #${invoiceNumber} aprobado, PDF regenerado, enviado a SignNow, email con pago enviado al cliente y notificación enviada al equipo de finanzas`);
 
               } catch (signNowError) {
                 console.error(`❌ Error al enviar Invoice #${invoiceNumber} a SignNow:`, signNowError);

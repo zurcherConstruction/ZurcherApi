@@ -955,7 +955,7 @@ const BudgetList = () => {
                                     className="inline-flex items-center justify-center bg-blue-500 text-white px-2 py-0.5 rounded text-[10px] hover:bg-blue-600 w-full h-6"
                                     title="Send for Client Review"
                                   >
-                                    📧 Send Review
+                                    📧 Send Quote
                                   </button>
                                 </div>
                               )}

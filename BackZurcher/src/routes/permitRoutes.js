@@ -68,6 +68,14 @@ router.patch(
   PermitController.updatePermitClientData
 );
 
+// 🆕 NUEVO: Actualizar campos completos del Permit (técnicos + contacto + emails)
+router.patch(
+  '/:idPermit/fields',
+  verifyToken,
+  allowRoles(['admin', 'owner']),
+  PermitController.updatePermitFields
+);
+
 // ========== RUTAS PARA REEMPLAZAR PDFs ==========
 
 // 🆕 Reemplazar PDF principal del permit

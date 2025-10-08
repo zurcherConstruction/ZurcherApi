@@ -717,6 +717,172 @@ const checkPermitNumber = async (req, res, next) => {
   }
 };
 
+// 🆕 NUEVO: Actualizar campos editables del Permit (completo)
+const updatePermitFields = async (req, res, next) => {
+  try {
+    const { idPermit } = req.params;
+    const {
+      permitNumber,
+      lot,
+      block,
+      systemType,
+      isPBTS,
+      drainfieldDepth,
+      expirationDate,
+      gpdCapacity,
+      excavationRequired,
+      squareFeetSystem,
+      pump,
+      applicantEmail, // Email principal
+      notificationEmails, // Emails secundarios
+      applicantName,
+      applicantPhone,
+      propertyAddress
+    } = req.body;
+
+    console.log(`🔧 Actualizando Permit ${idPermit}...`);
+    console.log('📋 Datos recibidos:', req.body);
+
+    // Buscar el permit
+    const permit = await Permit.findByPk(idPermit);
+
+    if (!permit) {
+      return res.status(404).json({
+        error: true,
+        message: 'Permit no encontrado'
+      });
+    }
+
+    const { Op } = require('sequelize');
+
+    // 🔍 Validar permitNumber único si se está cambiando
+    if (permitNumber && permitNumber.trim() !== permit.permitNumber) {
+      const existingPermit = await Permit.findOne({
+        where: { 
+          permitNumber: permitNumber.trim(),
+          idPermit: { [Op.ne]: idPermit } // Excluir el actual
+        }
+      });
+
+      if (existingPermit) {
+        return res.status(400).json({
+          error: true,
+          message: `El número de permit '${permitNumber}' ya está en uso`,
+          field: 'permitNumber'
+        });
+      }
+    }
+
+    // 🔍 Validar propertyAddress única si se está cambiando
+    if (propertyAddress && propertyAddress.trim() !== permit.propertyAddress) {
+      const existingPermitByAddress = await Permit.findOne({
+        where: { 
+          propertyAddress: propertyAddress.trim(),
+          idPermit: { [Op.ne]: idPermit } // Excluir el actual
+        }
+      });
+
+      if (existingPermitByAddress) {
+        return res.status(400).json({
+          error: true,
+          message: `La dirección '${propertyAddress}' ya existe en otro permit`,
+          field: 'propertyAddress'
+        });
+      }
+    }
+
+    // 🔍 Procesar notificationEmails (puede venir como string o array)
+    let processedNotificationEmails = permit.notificationEmails || [];
+    if (notificationEmails !== undefined) {
+      if (typeof notificationEmails === 'string') {
+        try {
+          processedNotificationEmails = JSON.parse(notificationEmails);
+        } catch (e) {
+          // Si no es JSON, separar por comas
+          processedNotificationEmails = notificationEmails
+            .split(',')
+            .map(email => email.trim())
+            .filter(email => email.length > 0);
+        }
+      } else if (Array.isArray(notificationEmails)) {
+        processedNotificationEmails = notificationEmails.filter(email => email && email.trim().length > 0);
+      }
+    }
+
+    // 📝 Actualizar campos
+    const updateData = {};
+
+    if (permitNumber !== undefined) updateData.permitNumber = permitNumber.trim();
+    if (lot !== undefined) updateData.lot = lot;
+    if (block !== undefined) updateData.block = block;
+    if (systemType !== undefined) updateData.systemType = systemType;
+    if (isPBTS !== undefined) updateData.isPBTS = isPBTS === 'true' || isPBTS === true;
+    if (drainfieldDepth !== undefined) updateData.drainfieldDepth = drainfieldDepth;
+    if (expirationDate !== undefined) updateData.expirationDate = expirationDate || null;
+    if (gpdCapacity !== undefined) updateData.gpdCapacity = gpdCapacity;
+    if (excavationRequired !== undefined) updateData.excavationRequired = excavationRequired;
+    if (squareFeetSystem !== undefined) updateData.squareFeetSystem = squareFeetSystem;
+    if (pump !== undefined) updateData.pump = pump;
+    if (applicantEmail !== undefined) updateData.applicantEmail = applicantEmail;
+    if (applicantName !== undefined) updateData.applicantName = applicantName;
+    if (applicantPhone !== undefined) updateData.applicantPhone = applicantPhone;
+    if (propertyAddress !== undefined) updateData.propertyAddress = propertyAddress;
+    if (notificationEmails !== undefined) updateData.notificationEmails = processedNotificationEmails;
+
+    // Aplicar actualizaciones
+    Object.assign(permit, updateData);
+    await permit.save();
+
+    console.log(`✅ Permit ${idPermit} actualizado correctamente`);
+    console.log('📧 Email principal:', permit.applicantEmail);
+    console.log('📧 Emails adicionales:', permit.notificationEmails);
+
+    // 🆕 SINCRONIZAR CAMPOS RELACIONADOS EN BUDGET
+    // Actualizar también los campos del Budget que están denormalizados
+    const { Budget } = require('../data');
+    
+    const budgetUpdateData = {};
+    if (applicantName !== undefined) budgetUpdateData.applicantName = applicantName;
+    if (propertyAddress !== undefined) budgetUpdateData.propertyAddress = propertyAddress;
+
+    // Solo actualizar Budget si hay cambios en campos relevantes
+    if (Object.keys(budgetUpdateData).length > 0) {
+      const updatedBudgetsCount = await Budget.update(budgetUpdateData, {
+        where: { PermitIdPermit: idPermit }
+      });
+      
+      console.log(`🔄 Sincronizados ${updatedBudgetsCount[0]} Budget(s) asociados con el Permit`);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Permit actualizado correctamente',
+      permit: permit.get({ plain: true })
+    });
+
+  } catch (error) {
+    console.error('❌ Error al actualizar permit:', error);
+    
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return res.status(400).json({
+        error: true,
+        message: 'El número de permit ya existe',
+        field: 'permitNumber'
+      });
+    }
+
+    if (error.name === 'SequelizeValidationError') {
+      return res.status(400).json({
+        error: true,
+        message: error.errors.map(e => e.message).join(', '),
+        validationErrors: error.errors
+      });
+    }
+
+    next(error);
+  }
+};
+
 module.exports = {
   createPermit,
   getPermits,
@@ -729,6 +895,7 @@ module.exports = {
   checkPermitByPropertyAddress,
   checkPermitNumber, // 🆕 NUEVO
   updatePermitClientData, // NUEVO MÉTODO
+  updatePermitFields, // 🆕 NUEVO: Actualizar campos completos del Permit
   replacePermitPdf, // 🆕 NUEVO: Reemplazar PDF principal
   replaceOptionalDocs, // 🆕 NUEVO: Reemplazar documentos opcionales
 };
