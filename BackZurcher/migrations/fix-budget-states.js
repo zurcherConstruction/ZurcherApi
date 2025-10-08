@@ -141,23 +141,36 @@ async function fixBudgetStates() {
     console.log('✅ BUDGETS VÁLIDOS (tienen comprobante de pago):');
     console.log('─'.repeat(60));
     console.log(`  Total: ${validBudgets.length}`);
+    
+    // Separar budgets que YA tienen invoice number vs los que necesitan uno nuevo
+    const withInvoice = validBudgets.filter(b => b.invoiceNumber !== null);
+    const withoutInvoice = validBudgets.filter(b => b.invoiceNumber === null);
+    
+    console.log(`  Con invoice number: ${withInvoice.length}`);
+    console.log(`  Sin invoice number (nuevos): ${withoutInvoice.length}`);
     console.log('\n');
 
     // 5. PASO 3: Reasignar invoice numbers secuenciales
     console.log('📋 PASO 3: Reasignando invoice numbers secuenciales...');
     console.log('─'.repeat(60));
     
-    // Primero, limpiar TODOS los invoice numbers existentes para evitar conflictos
-    await conn.query(`
-      UPDATE "Budgets"
-      SET "invoiceNumber" = NULL
+    // Obtener el máximo invoice number existente (de budgets con pago)
+    const maxInvoice = await conn.query(`
+      SELECT COALESCE(MAX("invoiceNumber"), 0) as max_invoice
+      FROM "Budgets"
       WHERE "invoiceNumber" IS NOT NULL
-    `, { type: QueryTypes.UPDATE, transaction });
+        AND "paymentInvoice" IS NOT NULL
+    `, { type: QueryTypes.SELECT, transaction });
     
-    console.log('  🧹 Invoice numbers actuales limpiados para reasignación\n');
+    const startFrom = maxInvoice[0].max_invoice + 1;
+    console.log(`  📊 Último invoice number válido: ${maxInvoice[0].max_invoice}`);
+    console.log(`  🆕 Nuevos budgets comenzarán desde: ${startFrom}`);
+    console.log(`  ✅ Budgets existentes con invoice: ${withInvoice.length} (se mantienen)`);
+    console.log(`  🔢 Budgets nuevos a numerar: ${withoutInvoice.length}\n`);
     
-    let invoiceCounter = 1;
-    for (const budget of validBudgets) {
+    // Asignar invoice numbers SOLO a budgets sin invoice number
+    let invoiceCounter = startFrom;
+    for (const budget of withoutInvoice) {
       await conn.query(`
         UPDATE "Budgets"
         SET 
@@ -180,8 +193,27 @@ async function fixBudgetStates() {
       console.log(`  ✅ Budget #${budget.idBudget} → Invoice #${invoiceCounter} (tiene pago de $${budget.paymentProofAmount || 'N/A'})`);
       invoiceCounter++;
     }
+    
+    // Asegurar que budgets QUE YA TIENEN invoice number estén en approved
+    if (withInvoice.length > 0) {
+      console.log(`\n  🔄 Asegurando estado 'approved' para budgets con invoice existente...`);
+      for (const budget of withInvoice) {
+        await conn.query(`
+          UPDATE "Budgets"
+          SET "status" = 'approved'
+          WHERE "idBudget" = :budgetId
+            AND "status" != 'approved'
+        `, {
+          replacements: { budgetId: budget.idBudget },
+          type: QueryTypes.UPDATE,
+          transaction
+        });
+        console.log(`  ✅ Budget #${budget.idBudget} → Invoice #${budget.invoiceNumber} (mantenido)`);
+      }
+    }
 
-    console.log(`\n  ✅ ${validBudgets.length} budgets con invoice numbers válidos`);
+    console.log(`\n  ✅ ${withInvoice.length} budgets con invoice numbers existentes mantenidos`);
+    console.log(`  ✅ ${withoutInvoice.length} budgets nuevos numerados (${startFrom} - ${invoiceCounter - 1})`);
     console.log('\n');
 
     // 6. Verificar resultado final
