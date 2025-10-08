@@ -147,6 +147,15 @@ async function fixBudgetStates() {
     console.log('📋 PASO 3: Reasignando invoice numbers secuenciales...');
     console.log('─'.repeat(60));
     
+    // Primero, limpiar TODOS los invoice numbers existentes para evitar conflictos
+    await conn.query(`
+      UPDATE "Budgets"
+      SET "invoiceNumber" = NULL
+      WHERE "invoiceNumber" IS NOT NULL
+    `, { type: QueryTypes.UPDATE, transaction });
+    
+    console.log('  🧹 Invoice numbers actuales limpiados para reasignación\n');
+    
     let invoiceCounter = 1;
     for (const budget of validBudgets) {
       await conn.query(`
