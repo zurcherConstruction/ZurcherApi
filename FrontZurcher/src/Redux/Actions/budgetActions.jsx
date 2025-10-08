@@ -79,6 +79,45 @@ export const fetchBudgets = ({
   }
 };
 
+// 🆕 Buscar presupuestos SIN actualizar Redux global (para componentes con estado local)
+export const searchBudgets = ({
+  page = 1,
+  pageSize = 20,
+  search = '',
+  status = '',
+  month = '',
+  year = ''
+} = {}) => async () => {
+  try {
+    const params = new URLSearchParams();
+    params.append('page', page);
+    params.append('pageSize', pageSize);
+    if (search) params.append('search', search);
+    if (status && status !== 'all') params.append('status', status);
+    if (month && month !== 'all') params.append('month', month);
+    if (year && year !== 'all') params.append('year', year);
+
+    const response = await api.get(`/budget/all?${params.toString()}`, {
+      headers: {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      }
+    });
+    
+    // Retornar los datos directamente sin actualizar Redux
+    return { 
+      success: true,
+      data: response.data // { budgets, total, page, pageSize }
+    };
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || 'Error al obtener los presupuestos';
+    return {
+      success: false,
+      error: errorMessage
+    };
+  }
+};
+
 // Obtener un presupuesto por ID
 export const fetchBudgetById = (idBudget) => async (dispatch) => {
   dispatch(fetchBudgetByIdRequest());
