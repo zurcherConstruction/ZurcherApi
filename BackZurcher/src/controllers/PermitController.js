@@ -46,9 +46,30 @@ const createPermit = async (req, res, next) => {
     console.log("Request body:", req.body);
     console.log("Request files:", req.files);
 
-    // Validaciones básicas
+    // ✅ Validaciones básicas mejoradas
     if (!req.body.applicantName || !req.body.propertyAddress) {
-      return res.status(400).json({ error: true, message: "Faltan campos obligatorios." });
+      return res.status(400).json({ error: true, message: "Faltan campos obligatorios: applicantName y propertyAddress." });
+    }
+    
+    // ✅ NUEVA VALIDACIÓN: Permit Number es obligatorio
+    if (!req.body.permitNumber || req.body.permitNumber.trim() === '') {
+      return res.status(400).json({ 
+        error: true, 
+        message: "Permit Number is required. Please provide a valid permit number." 
+      });
+    }
+    
+    // ✅ NUEVA VALIDACIÓN: Verificar que el Permit Number no exista
+    const existingPermit = await Permit.findOne({
+      where: { permitNumber: req.body.permitNumber.trim() }
+    });
+    
+    if (existingPermit) {
+      return res.status(409).json({ 
+        error: true, 
+        message: `Permit Number '${req.body.permitNumber}' already exists. Please use a different number.`,
+        existingPermitId: existingPermit.idPermit
+      });
     }
 
     const { 
@@ -65,6 +86,8 @@ const createPermit = async (req, res, next) => {
       block,
       propertyId,
       systemType,
+      isPBTS, // 🆕 NUEVO: Indicador PBTS para ATU
+      notificationEmails, // 🆕 NUEVO: Emails adicionales
       configuration,
       locationBenchmark,
       drainfieldDepth,
@@ -76,6 +99,22 @@ const createPermit = async (req, res, next) => {
       other,
       pump,
     } = req.body;
+    
+    // ✅ Procesar notificationEmails (puede venir como string o array)
+    let processedNotificationEmails = [];
+    if (notificationEmails) {
+      if (typeof notificationEmails === 'string') {
+        // Si viene como string separado por comas
+        processedNotificationEmails = notificationEmails
+          .split(',')
+          .map(email => email.trim())
+          .filter(email => email.length > 0);
+      } else if (Array.isArray(notificationEmails)) {
+        processedNotificationEmails = notificationEmails
+          .map(email => email.trim())
+          .filter(email => email.length > 0);
+      }
+    }
 
     let expirationStatus = "valid"; // Estado por defecto
     let expirationMessage = "";
@@ -132,7 +171,7 @@ const createPermit = async (req, res, next) => {
 
     // Crear el permiso en la base de datos
     const permitDataToCreate = {
-      permitNumber,
+      permitNumber: permitNumber.trim(), // ✅ Limpiar espacios
       applicationNumber,
       applicantName,
       applicantEmail,
@@ -145,6 +184,8 @@ const createPermit = async (req, res, next) => {
       block,
       propertyId,
       systemType,
+      isPBTS: isPBTS === 'true' || isPBTS === true, // 🆕 Convertir a boolean
+      notificationEmails: processedNotificationEmails, // 🆕 Emails procesados
       configuration,
       locationBenchmark,
       drainfieldDepth,
@@ -640,6 +681,42 @@ const replaceOptionalDocs = async (req, res, next) => {
   }
 };
 
+// 🆕 NUEVO MÉTODO: Verificar si un número de permit ya existe
+const checkPermitNumber = async (req, res, next) => {
+  try {
+    const { permitNumber } = req.params;
+
+    if (!permitNumber || permitNumber.trim() === '') {
+      return res.status(400).json({ 
+        error: true, 
+        message: "Permit number is required" 
+      });
+    }
+
+    const permit = await Permit.findOne({
+      where: { permitNumber: permitNumber.trim() },
+      attributes: ['idPermit', 'permitNumber', 'propertyAddress']
+    });
+
+    if (permit) {
+      return res.status(200).json({
+        exists: true,
+        permitId: permit.idPermit,
+        permitNumber: permit.permitNumber,
+        propertyAddress: permit.propertyAddress
+      });
+    } else {
+      return res.status(200).json({
+        exists: false
+      });
+    }
+
+  } catch (error) {
+    console.error("Error al verificar permit number:", error);
+    next(error);
+  }
+};
+
 module.exports = {
   createPermit,
   getPermits,
@@ -650,6 +727,7 @@ module.exports = {
   getPermitOptionalDocInline,
   getContactList,
   checkPermitByPropertyAddress,
+  checkPermitNumber, // 🆕 NUEVO
   updatePermitClientData, // NUEVO MÉTODO
   replacePermitPdf, // 🆕 NUEVO: Reemplazar PDF principal
   replaceOptionalDocs, // 🆕 NUEVO: Reemplazar documentos opcionales

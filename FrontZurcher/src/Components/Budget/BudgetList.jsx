@@ -14,6 +14,7 @@ import {
   ExclamationTriangleIcon,
   PaperClipIcon,
   UserIcon,
+  DocumentCheckIcon,
 } from "@heroicons/react/24/outline"; // Icono para descarga
 //import BudgetPDF from "./BudgetPDF";
 import { parseISO, format } from "date-fns";
@@ -21,10 +22,7 @@ import api from "../../utils/axios";
 import EditClientDataModal from './EditClientDataModal';
 
 const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
-  console.log('🎭 PdfModal called with:', { isOpen, pdfUrl: !!pdfUrl, title });
-  
   if (!isOpen || !pdfUrl) {
-    console.log('🚫 PdfModal early return:', { isOpen, hasPdfUrl: !!pdfUrl });
     return null;
   }
 
@@ -39,19 +37,6 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
   const isIPadPro = (screenWidth === 1024 && screenHeight === 1366) || 
                     (screenWidth === 1366 && screenHeight === 1024) ||
                     navigator.userAgent.includes('iPad');
-  
-  // Debug log for iPad Pro detection
-  console.log('🖥️ Modal Screen Info:', { 
-    screenWidth, 
-    screenHeight, 
-    isMobile, 
-    isTablet, 
-    isLarge,
-    isIPadPro,
-    userAgent: navigator.userAgent.includes('iPad') ? 'iPad' : 'Other'
-  });
-  
-  console.log('✅ PdfModal will render!');
 
   return (
     <div 
@@ -130,8 +115,6 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
               scrollbarWidth: "thin",
               backgroundColor: 'white'
             }}
-            onLoad={() => console.log('📄 PDF iframe loaded successfully')}
-            onError={(e) => console.error('❌ PDF iframe error:', e)}
           />
         </div>
         
@@ -509,6 +492,7 @@ const BudgetList = () => {
     }
   };
   
+  // 🆕 FUNCIÓN: Convertir Draft a Invoice
   // --- FUNCIÓN PARA MOSTRAR PDF DE PERMISO/OPCIONAL EN MODAL ---
   const handleShowPermitPdfInModal = async (budget, pdfType) => {
     console.log('🔍 Opening PDF Modal:', { budgetId: budget.idBudget, pdfType });
@@ -599,9 +583,15 @@ const BudgetList = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
+      case "draft":
+        return "bg-gray-100"; // 🆕 Gris claro para borrador
       case "created":
       case "pending":
         return "bg-white"; // Blanco para creado/pendiente
+      case "pending_review":
+        return "bg-blue-50"; // 🆕 Azul muy claro para en revisión
+      case "client_approved":
+        return "bg-green-50"; // 🆕 Verde muy claro para aprobado por cliente
       case "send":
         return "bg-blue-200"; // Amarillo claro para enviado
       case "sent_for_signature":
@@ -833,6 +823,12 @@ const BudgetList = () => {
                         );
                       }
 
+                      // 🆕 Determinar si es Draft o Invoice
+                      const isDraft = !budget.invoiceNumber;
+                      const displayNumber = isDraft 
+                        ? `BUDGET #${budget.idBudget}`
+                        : `INVOICE #${budget.invoiceNumber}`;
+
                       return (
                         <tr
                           key={budget.idBudget}
@@ -841,9 +837,25 @@ const BudgetList = () => {
                           )}`}
                         >
                           <td className="border border-gray-300 px-4 py-2 text-xs">
-                            <div className="flex items-center">
-                              <span>{budget.applicantName}</span>
-                              {permitExpirationAlertIcon}
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{budget.applicantName}</span>
+                                {permitExpirationAlertIcon}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {/* Badge: Draft o Invoice */}
+                                {isDraft ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-200 text-gray-700">
+                                    <DocumentCheckIcon className="h-3 w-3" />
+                                    {displayNumber}
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-200 text-green-800">
+                                    <DocumentCheckIcon className="h-3 w-3" />
+                                    {displayNumber}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </td>
                           <td className="border border-gray-300 px-4 py-2 text-xs">
@@ -934,31 +946,33 @@ const BudgetList = () => {
                             <div className="flex flex-row items-center justify-center space-x-1 min-w-[120px]">
                               {" "}
                               {/* Cambio: flex-row y space-x-1 */}
-                              {/* ESTADO: CREATED - Botones Send y Send for Review */}
-                              {budget.status === "created" && (
+                              {/* ESTADO: DRAFT - Solo enviar para revisión del cliente */}
+                              {budget.status === "draft" && (
                                 <div className="flex flex-col gap-1 w-full">
-                                  {/* Botón: Enviar para Revisión (NUEVO) */}
+                                  {/* Botón: Enviar para Revisión del Cliente */}
                                   <button
                                     onClick={() => handleSendForReview(budget)}
                                     className="inline-flex items-center justify-center bg-blue-500 text-white px-2 py-0.5 rounded text-[10px] hover:bg-blue-600 w-full h-6"
-                                    title="Send for Client Review (No Signature)"
+                                    title="Send for Client Review"
                                   >
-                                    📧 Review
+                                    📧 Send Review
                                   </button>
-                                  
-                                  {/* Botón: Send (Original) */}
+                                </div>
+                              )}
+                              
+                              {/* ESTADO: CREATED (Invoice convertido después de aprobación) */}
+                              {((budget.status === "created" || budget.status === "client_approved") && !isDraft) && (
+                                <div className="flex flex-col gap-1 w-full">
+                                  <p className="text-green-700 text-[10px] font-semibold bg-green-100 px-1 py-0.5 rounded leading-tight text-center">
+                                    ✅ Approved
+                                  </p>
+                                  {/* Botón: Send to SignNow (para firma y pago) */}
                                   <button
-                                    onClick={() =>
-                                      handleUpdateStatus(
-                                        budget.idBudget,
-                                        "send",
-                                        budget
-                                      )
-                                    }
-                                    className="inline-flex items-center justify-center bg-yellow-500 text-white px-2 py-0.5 rounded text-[10px] hover:bg-yellow-600 w-full h-6"
-                                    title="Send Budget"
+                                    onClick={() => handleSendToSignNow(budget)}
+                                    className="inline-flex items-center justify-center bg-purple-500 text-white px-2 py-0.5 rounded text-[10px] hover:bg-purple-600 w-full h-6"
+                                    title="Send to SignNow for Signature & Payment"
                                   >
-                                    Send
+                                    📝 Send SignNow
                                   </button>
                                 </div>
                               )}
@@ -975,13 +989,14 @@ const BudgetList = () => {
                                 </div>
                               )}
                               
-                              {/* 🆕 ESTADO: CLIENT_APPROVED - Cliente aprobó, listo para firma */}
+                              {/* 🆕 ESTADO: CLIENT_APPROVED - Cliente aprobó, ya convertido a Invoice automáticamente */}
                               {budget.status === "client_approved" && (
                                 <div className="flex flex-col gap-1 w-full">
                                   <p className="text-green-700 text-[10px] font-semibold bg-green-100 px-1 py-0.5 rounded leading-tight text-center">
                                     ✅ Approved
                                   </p>
-                                  {/* Botón: Send to SignNow */}
+                                  
+                                  {/* Botón: Send to SignNow (para firma y pago) */}
                                   <button
                                     onClick={() => handleSendToSignNow(budget)}
                                     className="inline-flex items-center justify-center bg-purple-500 text-white px-2 py-0.5 rounded text-[10px] hover:bg-purple-600 w-full h-6"

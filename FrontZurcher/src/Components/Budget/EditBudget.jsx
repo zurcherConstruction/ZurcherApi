@@ -71,7 +71,8 @@ const EditBudget = () => {
 
   // --- Cargar Lista de Budgets para Búsqueda ---
   useEffect(() => {
-    dispatch(fetchBudgets());
+    // Cargar TODOS los presupuestos disponibles (hasta 1000)
+    dispatch(fetchBudgets({ pageSize: 1000, page: 1 }));
   }, [dispatch]);
 
   // ✅ AGREGAR EFECTO PARA CARGAR CATÁLOGO:
@@ -129,10 +130,19 @@ const editableBudgets = useMemo(() => {
     return [...new Set(addresses)].sort();
   }, [editableBudgets]);
 
-  // ⚠️ Determinar si el Budget está en un estado que solo permite editar cliente y PDFs
+  // ⚠️ Determinar si el Budget tiene comprobante de pago cargado
+  // Solo bloquear si ya tiene paymentInvoice o paymentProofAmount (se convirtió en Work)
   const isBudgetLocked = useMemo(() => {
     if (!currentBudget) return false;
-    return ['signed', 'approved'].includes(currentBudget.status);
+    
+    // Bloquear si tiene URL de comprobante
+    if (currentBudget.paymentInvoice && currentBudget.paymentInvoice.trim() !== '') return true;
+    
+    // Bloquear si tiene monto de comprobante registrado
+    if (currentBudget.paymentProofAmount && parseFloat(currentBudget.paymentProofAmount) > 0) return true;
+    
+    // Permitir edición en todos los demás casos
+    return false;
   }, [currentBudget]);
 
   // --- Filtrar Budgets basado en searchTerm (desde los editables) ---
@@ -675,7 +685,7 @@ const editableBudgets = useMemo(() => {
                     </div>
                     <div className="ml-3">
                       <p className="text-sm text-amber-700">
-                        <span className="font-semibold">Presupuesto en estado {currentBudget?.status}:</span> Solo puedes editar datos del cliente y reemplazar PDFs del Permit. Los campos del presupuesto están bloqueados.
+                        <span className="font-semibold">⚠️ Presupuesto con comprobante de pago:</span> Este presupuesto ya tiene un comprobante de pago cargado y se convirtió en Work. Solo puedes editar datos del cliente y reemplazar PDFs del Permit. Los campos del presupuesto están bloqueados para proteger la integridad del trabajo.
                       </p>
                     </div>
                   </div>

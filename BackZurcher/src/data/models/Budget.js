@@ -1,4 +1,4 @@
-const { DataTypes } = require('sequelize');
+const { DataTypes, Op } = require('sequelize');
 
 module.exports = (sequelize) => {
   return sequelize.define("Budget", {
@@ -231,8 +231,37 @@ module.exports = (sequelize) => {
   reviewedAt: {
     type: DataTypes.DATE,
     allowNull: true
+  },
+  
+  // --- 🆕 SISTEMA DE NUMERACIÓN SEPARADA PARA INVOICES ---
+  
+  // Número de Invoice (solo se asigna cuando el budget pasa de draft a definitivo)
+  invoiceNumber: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: 'Número de Invoice definitivo. NULL para borradores (drafts).'
+  },
+  
+  // Fecha de conversión a Invoice definitivo
+  convertedToInvoiceAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    comment: 'Fecha en que el borrador se convirtió en Invoice definitivo.'
   }
     
-    
+  }, {
+    // 🆕 Opciones del modelo - Índices
+    indexes: [
+      {
+        unique: true,
+        fields: ['invoiceNumber'],
+        name: 'budgets_invoice_number_unique',
+        where: {
+          invoiceNumber: {
+            [Op.ne]: null
+          }
+        }
+      }
+    ]
   });
 };

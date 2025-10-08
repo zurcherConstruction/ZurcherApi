@@ -43,6 +43,13 @@ node_modules/
 jspm_packages/
 uploads/
 
+# 🔐 Database backups (NUNCA subir al repositorio)
+backups/
+*.sql
+*.sql.gz
+*.dump
+*.backup
+
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
 

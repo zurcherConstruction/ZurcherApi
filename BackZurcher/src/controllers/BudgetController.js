@@ -866,7 +866,11 @@ async getBudgets(req, res) {
         'subtotalPrice', 'totalPrice', 'initialPayment', 'initialPaymentPercentage', 'pdfPath',
         'isLegacy', // Campo para identificar legacy budgets
         'legacySignedPdfUrl', // URL de Cloudinary del PDF firmado para trabajos legacy
-        'legacySignedPdfPublicId' // Public ID de Cloudinary
+        'legacySignedPdfPublicId', // Public ID de Cloudinary
+        'invoiceNumber', // 🆕 Número de invoice (para diferenciar Draft de Invoice)
+        'reviewedAt', // 🆕 Fecha de aprobación del cliente
+        'convertedToInvoiceAt', // 🆕 Fecha de conversión a invoice
+        'sentForReviewAt' // 🆕 Fecha de envío para revisión
       ]
     });
 
@@ -3500,70 +3504,270 @@ async optionalDocs(req, res) {
    * POST /api/budgets/:idBudget/approve-review/:reviewToken
    */
   async approveReview(req, res) {
+    const transaction = await conn.transaction();
+    
     try {
       const { idBudget, reviewToken } = req.params;
+      const { convertToInvoice = true } = req.body; // Por defecto, convertir a invoice
       
       console.log(`✅ Cliente aprobando presupuesto ${idBudget}...`);
 
       const budget = await Budget.findByPk(idBudget, {
-        include: [{ model: Permit, attributes: ['applicantName', 'propertyAddress', 'applicantEmail'] }]
+        include: [{ model: Permit, attributes: ['applicantName', 'propertyAddress', 'applicantEmail'] }],
+        transaction
       });
 
       if (!budget) {
+        await transaction.rollback();
         return res.status(404).json({ error: 'Presupuesto no encontrado' });
       }
 
       // Validar token
       if (budget.reviewToken !== reviewToken) {
+        await transaction.rollback();
         return res.status(403).json({ error: 'Token de revisión inválido' });
       }
 
       // Validar estado
       if (budget.status !== 'pending_review') {
+        await transaction.rollback();
         return res.status(400).json({ 
           error: `Este presupuesto ya no está en revisión (estado actual: ${budget.status})`
         });
       }
 
-      // Actualizar presupuesto
-      await budget.update({
-        status: 'client_approved',
-        reviewedAt: new Date()
-      });
+      // 🆕 SI SE SOLICITA, CONVERTIR AUTOMÁTICAMENTE A INVOICE
+      let invoiceNumber = null;
+      if (convertToInvoice && !budget.invoiceNumber) {
+        // Obtener el siguiente número de invoice disponible
+        const lastInvoice = await Budget.findOne({
+          where: {
+            invoiceNumber: { [Op.not]: null }
+          },
+          order: [['invoiceNumber', 'DESC']],
+          attributes: ['invoiceNumber'],
+          transaction
+        });
 
-      console.log(`✅ Presupuesto ${idBudget} aprobado por el cliente`);
+        invoiceNumber = lastInvoice?.invoiceNumber ? lastInvoice.invoiceNumber + 1 : 1;
+        
+        console.log(`📋 Asignando Invoice Number: ${invoiceNumber} al aprobar`);
+
+        // Actualizar presupuesto con invoice number
+        await budget.update({
+          status: 'created', // Estado de invoice definitivo
+          reviewedAt: new Date(),
+          invoiceNumber: invoiceNumber,
+          convertedToInvoiceAt: new Date()
+        }, { transaction });
+
+      } else {
+        // Solo aprobar sin convertir a invoice
+        await budget.update({
+          status: 'client_approved',
+          reviewedAt: new Date()
+        }, { transaction });
+      }
+
+      await transaction.commit();
+      console.log(`✅ Presupuesto ${idBudget} aprobado por el cliente${invoiceNumber ? ` y convertido a Invoice #${invoiceNumber}` : ''}`);
+
+      // 🆕 REGENERAR PDF Y ENVIAR A SIGNNOW AUTOMÁTICAMENTE SI SE CONVIRTIÓ A INVOICE
+      if (invoiceNumber) {
+        setImmediate(async () => {
+          try {
+            console.log(`📄 Regenerando PDF para Invoice #${invoiceNumber}...`);
+            
+            const updatedBudget = await Budget.findByPk(idBudget, {
+              include: [
+                { model: Permit, attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'applicantName', 'lot', 'block'] },
+                { model: BudgetLineItem, as: 'lineItems' }
+              ]
+            });
+
+            if (!updatedBudget) {
+              console.error(`❌ No se pudo encontrar el budget ${idBudget} para regenerar PDF`);
+              return;
+            }
+
+            const budgetDataForPdf = updatedBudget.toJSON();
+            const newPdfPath = await generateAndSaveBudgetPDF(budgetDataForPdf);
+            
+            if (newPdfPath) {
+              await updatedBudget.update({ pdfPath: newPdfPath });
+              console.log(`✅ PDF regenerado exitosamente: ${newPdfPath}`);
+
+              // 🆕 ENVIAR AUTOMÁTICAMENTE A SIGNNOW Y EMAIL CON BOTÓN DE PAGO
+              try {
+                console.log(`📤 Enviando Invoice #${invoiceNumber} a SignNow automáticamente...`);
+                
+                const signNowService = new SignNowService();
+                const propertyAddress = updatedBudget.Permit?.propertyAddress || 'Property';
+                const fileName = `Invoice_${invoiceNumber}_${propertyAddress.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+
+                const signNowResult = await signNowService.sendBudgetForSignature(
+                  newPdfPath,
+                  fileName,
+                  updatedBudget.Permit.applicantEmail,
+                  updatedBudget.Permit.applicantName || 'Valued Client'
+                );
+
+                console.log(`✅ Invoice #${invoiceNumber} enviado a SignNow exitosamente`);
+
+                // Actualizar presupuesto con información de SignNow
+                await updatedBudget.update({
+                  signNowDocumentId: signNowResult.documentId,
+                  status: 'sent_for_signature',
+                  sentForSignatureAt: new Date()
+                });
+
+                // 🆕 ENVIAR EMAIL ADICIONAL CON PDF Y BOTÓN DE PAGO
+                try {
+                  console.log(`📧 Enviando email adicional con botón de pago a ${updatedBudget.Permit.applicantEmail}...`);
+                  
+                  const pdfAttachment = {
+                    filename: fileName,
+                    path: newPdfPath,
+                    contentType: 'application/pdf'
+                  };
+
+                  // Calcular información de pago
+                  const totalAmount = parseFloat(updatedBudget.totalPrice || 0);
+                  const initialPaymentPercentage = parseFloat(updatedBudget.initialPaymentPercentage || 100);
+                  const initialPaymentAmount = parseFloat(updatedBudget.initialPayment || totalAmount);
+                  const hasInitialPayment = initialPaymentPercentage < 100;
+
+                  // Construir sección de montos
+                  let paymentInfoHtml = '';
+                  if (hasInitialPayment) {
+                    paymentInfoHtml = `
+                      <div style="background-color: #f0f8ff; padding: 20px; border-radius: 8px; margin: 25px 0;">
+                        <p style="margin: 0 0 10px 0; font-size: 14px; color: #666;">
+                          <strong>Invoice Total:</strong> $${totalAmount.toFixed(2)}
+                        </p>
+                        <p style="margin: 0; font-size: 18px; color: #2c5f2d;">
+                          <strong>Initial Payment Required (${initialPaymentPercentage}%):</strong><br>
+                          <span style="font-size: 24px; font-weight: bold;">$${initialPaymentAmount.toFixed(2)}</span>
+                        </p>
+                        <p style="margin: 10px 0 0 0; font-size: 13px; color: #666; font-style: italic;">
+                          Remaining balance of $${(totalAmount - initialPaymentAmount).toFixed(2)} due upon completion
+                        </p>
+                      </div>
+                    `;
+                  } else {
+                    paymentInfoHtml = `
+                      <div style="background-color: #f0f8ff; padding: 20px; border-radius: 8px; margin: 25px 0; text-align: center;">
+                        <p style="margin: 0 0 5px 0; font-size: 14px; color: #666;">
+                          <strong>Invoice Total:</strong>
+                        </p>
+                        <p style="margin: 0; font-size: 26px; color: #2c5f2d; font-weight: bold;">
+                          $${totalAmount.toFixed(2)}
+                        </p>
+                      </div>
+                    `;
+                  }
+
+                  await sendEmail({
+                    to: updatedBudget.Permit.applicantEmail,
+                    subject: `Invoice #${invoiceNumber} - Payment & Document - ${propertyAddress}`,
+                    html: `
+                      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                        <h2 style="color: #2c5f2d;">✅ Your Budget Has Been Approved!</h2>
+                        
+                        <p>Dear ${updatedBudget.Permit.applicantName || 'Valued Client'},</p>
+                        
+                        <p>Thank you for approving your budget! We have now generated the official <strong>Invoice #${invoiceNumber}</strong> for your project at:</p>
+                        
+                        <p style="background-color: #f5f5f5; padding: 15px; border-left: 4px solid #2c5f2d;">
+                          📍 <strong>${propertyAddress}</strong>
+                        </p>
+
+                        ${paymentInfoHtml}
+
+                        <h3 style="color: #2c5f2d;">📋 Next Steps:</h3>
+                        
+                        <ol style="line-height: 1.8;">
+                          <li><strong>Sign the Document:</strong> You will receive a separate email from SignNow to digitally sign the invoice.</li>
+                          <li><strong>Make Payment:</strong> Use the payment link in the attached PDF to proceed with ${hasInitialPayment ? 'the initial payment' : 'payment'}.</li>
+                        </ol>
+
+                        <p style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px;">
+                          The complete invoice document is attached to this email. You can find the payment link within the PDF.
+                        </p>
+
+                        <p style="margin-top: 20px;">
+                          If you have any questions, please don't hesitate to contact us.
+                        </p>
+
+                        <p style="margin-top: 30px;">
+                          Best regards,<br>
+                          <strong>Zurcher Septic</strong><br>
+                          📞 Phone: +1 (954) 636-8200<br>
+                          📧 Email: admin@zurcherseptic.com
+                        </p>
+                      </div>
+                    `,
+                    attachments: [pdfAttachment]
+                  });
+
+                  console.log(`✅ Email con botón de pago enviado exitosamente`);
+
+                } catch (emailError) {
+                  console.error(`⚠️ Error al enviar email con botón de pago:`, emailError);
+                  // No fallar el proceso principal
+                }
+
+                // Notificar al equipo
+                await sendNotifications('budgetSentToSignNow', {
+                  propertyAddress: updatedBudget.Permit?.propertyAddress,
+                  applicantEmail: updatedBudget.Permit.applicantEmail,
+                  applicantName: updatedBudget.Permit.applicantName,
+                  idBudget: updatedBudget.idBudget,
+                  documentId: signNowResult.documentId,
+                  invoiceNumber: invoiceNumber
+                });
+
+                console.log(`✅ Proceso completo: Invoice #${invoiceNumber} aprobado, PDF regenerado, enviado a SignNow y email con pago enviado`);
+
+              } catch (signNowError) {
+                console.error(`❌ Error al enviar Invoice #${invoiceNumber} a SignNow:`, signNowError);
+                // No fallar todo el proceso, el admin puede reenviar manualmente
+              }
+            }
+
+          } catch (pdfError) {
+            console.error(`❌ Error al regenerar PDF para Invoice #${invoiceNumber}:`, pdfError);
+          }
+        });
+      }
 
       // Notificar al equipo
       await sendNotifications('budgetApprovedByClient', {
         idBudget: budget.idBudget,
         propertyAddress: budget.Permit?.propertyAddress || budget.propertyAddress,
-        applicantName: budget.Permit?.applicantName || budget.applicantName
+        applicantName: budget.Permit?.applicantName || budget.applicantName,
+        invoiceNumber: invoiceNumber
       });
 
-      // Email de confirmación al cliente
-      await sendEmail({
-        to: budget.Permit?.applicantEmail || budget.applicantEmail,
-        subject: `Presupuesto Aprobado - ${budget.Permit?.propertyAddress || budget.propertyAddress}`,
-        html: `
-          <h2>✅ Presupuesto Aprobado</h2>
-          <p>Gracias por aprobar el presupuesto #${budget.idBudget}.</p>
-          <p>Nos pondremos en contacto con usted en breve para coordinar la firma digital del documento y el proceso de pago.</p>
-          <p><strong>Zurcher Septic & Construction Services</strong></p>
-        `
-      });
+      // 🆕 El email al cliente ya se envía automáticamente en el proceso de background
+      // cuando se convierte a invoice y se envía a SignNow (con PDF adjunto y info de pago)
 
       res.json({
         success: true,
-        message: 'Presupuesto aprobado exitosamente',
+        message: `Presupuesto aprobado exitosamente${invoiceNumber ? ` y convertido a Invoice #${invoiceNumber}` : ''}`,
         budget: {
           idBudget: budget.idBudget,
-          status: 'client_approved',
-          reviewedAt: budget.reviewedAt
+          status: invoiceNumber ? 'created' : 'client_approved',
+          reviewedAt: budget.reviewedAt,
+          invoiceNumber: invoiceNumber
         }
       });
 
     } catch (error) {
       console.error('❌ Error al aprobar presupuesto:', error);
+      if (transaction && !transaction.finished) {
+        await transaction.rollback();
+      }
       res.status(500).json({ 
         error: 'Error al aprobar el presupuesto',
         details: error.message 
@@ -3681,6 +3885,142 @@ async optionalDocs(req, res) {
       console.error('❌ Error al rechazar presupuesto:', error);
       res.status(500).json({ 
         error: 'Error al rechazar el presupuesto',
+        details: error.message 
+      });
+    }
+  },
+
+  // ========== 🆕 NUEVO: CONVERTIR DRAFT A INVOICE DEFINITIVO ==========
+
+  /**
+   * Convierte un presupuesto Draft a Invoice definitivo
+   * Asigna número de invoice, regenera PDF, y cambia el estado
+   * POST /api/budgets/:idBudget/convert-to-invoice
+   */
+  async convertDraftToInvoice(req, res) {
+    const transaction = await conn.transaction();
+    let generatedPdfPath = null;
+
+    try {
+      const { idBudget } = req.params;
+      
+      console.log(`🔄 Iniciando conversión de Draft a Invoice para Budget ID: ${idBudget}`);
+
+      // 1. Buscar el presupuesto
+      const budget = await Budget.findByPk(idBudget, {
+        include: [
+          { 
+            model: Permit, 
+            attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'applicantName', 'lot', 'block'] 
+          },
+          { model: BudgetLineItem, as: 'lineItems' }
+        ],
+        transaction
+      });
+
+      if (!budget) {
+        await transaction.rollback();
+        return res.status(404).json({ 
+          error: 'Presupuesto no encontrado' 
+        });
+      }
+
+      // 2. Validar que sea un Draft
+      if (budget.status !== 'draft' && budget.status !== 'pending_review' && budget.status !== 'client_approved') {
+        await transaction.rollback();
+        return res.status(400).json({ 
+          error: 'Solo se pueden convertir presupuestos en estado draft, pending_review o client_approved',
+          currentStatus: budget.status
+        });
+      }
+
+      // 3. Validar que no tenga ya un invoiceNumber
+      if (budget.invoiceNumber) {
+        await transaction.rollback();
+        return res.status(400).json({ 
+          error: 'Este presupuesto ya tiene un número de invoice asignado',
+          invoiceNumber: budget.invoiceNumber
+        });
+      }
+
+      // 4. Obtener el siguiente número de invoice disponible
+      const lastInvoice = await Budget.findOne({
+        where: {
+          invoiceNumber: { [Op.not]: null }
+        },
+        order: [['invoiceNumber', 'DESC']],
+        attributes: ['invoiceNumber'],
+        transaction
+      });
+
+      const nextInvoiceNumber = lastInvoice?.invoiceNumber ? lastInvoice.invoiceNumber + 1 : 1;
+      
+      console.log(`📋 Asignando Invoice Number: ${nextInvoiceNumber}`);
+
+      // 5. Actualizar el presupuesto
+      await budget.update({
+        invoiceNumber: nextInvoiceNumber,
+        status: 'created', // Cambiar a estado "created" (invoice definitivo)
+        convertedToInvoiceAt: new Date()
+      }, { transaction });
+
+      await transaction.commit();
+      console.log(`✅ Budget ${idBudget} convertido a Invoice #${nextInvoiceNumber}`);
+
+      // 6. Regenerar el PDF con el nuevo número de invoice (en background)
+      setImmediate(async () => {
+        try {
+          console.log(`📄 Regenerando PDF para Invoice #${nextInvoiceNumber}...`);
+          
+          // Volver a buscar el budget actualizado con todos los datos
+          const updatedBudget = await Budget.findByPk(idBudget, {
+            include: [
+              { model: Permit, attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'applicantName', 'lot', 'block'] },
+              { model: BudgetLineItem, as: 'lineItems' }
+            ]
+          });
+
+          if (!updatedBudget) {
+            console.error(`❌ No se pudo encontrar el budget ${idBudget} para regenerar PDF`);
+            return;
+          }
+
+          const budgetDataForPdf = updatedBudget.toJSON();
+          const newPdfPath = await generateAndSaveBudgetPDF(budgetDataForPdf);
+          
+          if (newPdfPath) {
+            await updatedBudget.update({ pdfPath: newPdfPath });
+            console.log(`✅ PDF regenerado exitosamente: ${newPdfPath}`);
+          }
+
+        } catch (pdfError) {
+          console.error(`❌ Error al regenerar PDF para Invoice #${nextInvoiceNumber}:`, pdfError);
+        }
+      });
+
+      // 7. Responder inmediatamente
+      const responseData = await Budget.findByPk(idBudget, {
+        include: [
+          { model: Permit, attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'applicantName', 'lot', 'block'] },
+          { model: BudgetLineItem, as: 'lineItems' }
+        ]
+      });
+
+      res.status(200).json({
+        success: true,
+        message: `Presupuesto convertido exitosamente a Invoice #${nextInvoiceNumber}`,
+        budget: responseData,
+        invoiceNumber: nextInvoiceNumber,
+        convertedAt: budget.convertedToInvoiceAt
+      });
+
+    } catch (error) {
+      console.error('❌ Error al convertir Draft a Invoice:', error);
+      if (transaction && !transaction.finished) {
+        await transaction.rollback();
+      }
+      res.status(500).json({ 
+        error: 'Error al convertir el presupuesto',
         details: error.message 
       });
     }
