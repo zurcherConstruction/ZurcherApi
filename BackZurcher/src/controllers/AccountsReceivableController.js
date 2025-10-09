@@ -324,12 +324,23 @@ const AccountsReceivableController = {
   async getPendingCommissions(req, res) {
     try {
       // ✅ MOSTRAR TODAS LAS COMISIONES (pagadas y pendientes)
+      // Incluye tanto sales_rep como external_referral
       const budgetsWithCommissions = await Budget.findAll({
         where: {
-          leadSource: 'sales_rep',
-          createdByStaffId: { [Op.ne]: null },
-          salesCommissionAmount: { [Op.gt]: 0 }
-          // ❌ REMOVIDO: filtro de commissionPaid para mostrar todas
+          [Op.or]: [
+            {
+              // Sales Reps (vendedores internos) - comisión fija $500
+              leadSource: 'sales_rep',
+              createdByStaffId: { [Op.ne]: null },
+              salesCommissionAmount: { [Op.gt]: 0 }
+            },
+            {
+              // External Referrals (referidos externos) - comisión variable
+              leadSource: 'external_referral',
+              externalReferralName: { [Op.ne]: null },
+              commissionAmount: { [Op.gt]: 0 }
+            }
+          ]
         },
         include: [
           {
@@ -349,7 +360,11 @@ const AccountsReceivableController = {
       let totalPaidCommissions = 0;
       
       budgetsWithCommissions.forEach(budget => {
-        const amount = parseFloat(budget.salesCommissionAmount || 0);
+        // Para sales_rep usar salesCommissionAmount, para external_referral usar commissionAmount
+        const amount = budget.leadSource === 'sales_rep' 
+          ? parseFloat(budget.salesCommissionAmount || 0)
+          : parseFloat(budget.commissionAmount || 0);
+        
         if (budget.commissionPaid) {
           totalPaidCommissions += amount;
         } else {
@@ -357,47 +372,98 @@ const AccountsReceivableController = {
         }
       });
 
-      // Agrupar por vendedor
-      const commissionsBySalesRep = {};
+      // Agrupar por vendedor/referido
+      const commissionsBySalesRep = {}; // Incluye sales reps
+      const commissionsByExternalReferral = {}; // Incluye external referrals
+      
       budgetsWithCommissions.forEach(budget => {
-        const staffId = budget.createdByStaffId;
-        const staffName = budget.createdByStaff?.name || 'Unknown';
-        
-        if (!commissionsBySalesRep[staffId]) {
-          commissionsBySalesRep[staffId] = {
-            staffId,
-            staffName,
-            staffEmail: budget.createdByStaff?.email,
-            totalCommissions: 0,
-            totalPaid: 0,
-            totalPending: 0,
-            budgetsCount: 0,
-            budgets: []
-          };
-        }
+        const amount = budget.leadSource === 'sales_rep'
+          ? parseFloat(budget.salesCommissionAmount || 0)
+          : parseFloat(budget.commissionAmount || 0);
 
-        const amount = parseFloat(budget.salesCommissionAmount || 0);
-        commissionsBySalesRep[staffId].totalCommissions += amount;
-        
-        if (budget.commissionPaid) {
-          commissionsBySalesRep[staffId].totalPaid += amount;
-        } else {
-          commissionsBySalesRep[staffId].totalPending += amount;
+        if (budget.leadSource === 'sales_rep') {
+          // Agrupar por vendedor interno (Staff)
+          const staffId = budget.createdByStaffId;
+          const staffName = budget.createdByStaff?.name || 'Unknown';
+          
+          if (!commissionsBySalesRep[staffId]) {
+            commissionsBySalesRep[staffId] = {
+              type: 'sales_rep',
+              staffId,
+              staffName,
+              staffEmail: budget.createdByStaff?.email,
+              totalCommissions: 0,
+              totalPaid: 0,
+              totalPending: 0,
+              budgetsCount: 0,
+              budgets: []
+            };
+          }
+
+          commissionsBySalesRep[staffId].totalCommissions += amount;
+          
+          if (budget.commissionPaid) {
+            commissionsBySalesRep[staffId].totalPaid += amount;
+          } else {
+            commissionsBySalesRep[staffId].totalPending += amount;
+          }
+          
+          commissionsBySalesRep[staffId].budgetsCount += 1;
+          commissionsBySalesRep[staffId].budgets.push({
+            budgetId: budget.idBudget,
+            propertyAddress: budget.propertyAddress,
+            clientName: budget.applicantName || 'N/A',
+            commissionAmount: amount,
+            commissionPaid: budget.commissionPaid || false,
+            commissionPaidDate: budget.commissionPaidDate || null,
+            budgetStatus: budget.status,
+            workStatus: budget.Work?.status || 'no_work',
+            workId: budget.Work?.idWork || null,
+            date: budget.date,
+            leadSource: 'sales_rep'
+          });
+        } else if (budget.leadSource === 'external_referral') {
+          // Agrupar por referido externo (por nombre ya que no tienen ID único)
+          const referralKey = budget.externalReferralName || 'Unknown';
+          
+          if (!commissionsByExternalReferral[referralKey]) {
+            commissionsByExternalReferral[referralKey] = {
+              type: 'external_referral',
+              referralName: budget.externalReferralName,
+              referralEmail: budget.externalReferralEmail,
+              referralPhone: budget.externalReferralPhone,
+              referralCompany: budget.externalReferralCompany,
+              totalCommissions: 0,
+              totalPaid: 0,
+              totalPending: 0,
+              budgetsCount: 0,
+              budgets: []
+            };
+          }
+
+          commissionsByExternalReferral[referralKey].totalCommissions += amount;
+          
+          if (budget.commissionPaid) {
+            commissionsByExternalReferral[referralKey].totalPaid += amount;
+          } else {
+            commissionsByExternalReferral[referralKey].totalPending += amount;
+          }
+          
+          commissionsByExternalReferral[referralKey].budgetsCount += 1;
+          commissionsByExternalReferral[referralKey].budgets.push({
+            budgetId: budget.idBudget,
+            propertyAddress: budget.propertyAddress,
+            clientName: budget.applicantName || 'N/A',
+            commissionAmount: amount,
+            commissionPaid: budget.commissionPaid || false,
+            commissionPaidDate: budget.commissionPaidDate || null,
+            budgetStatus: budget.status,
+            workStatus: budget.Work?.status || 'no_work',
+            workId: budget.Work?.idWork || null,
+            date: budget.date,
+            leadSource: 'external_referral'
+          });
         }
-        
-        commissionsBySalesRep[staffId].budgetsCount += 1;
-        commissionsBySalesRep[staffId].budgets.push({
-          budgetId: budget.idBudget,
-          propertyAddress: budget.propertyAddress,
-          clientName: budget.applicantName || 'N/A',
-          commissionAmount: amount,
-          commissionPaid: budget.commissionPaid || false,
-          commissionPaidDate: budget.commissionPaidDate || null,
-          budgetStatus: budget.status,
-          workStatus: budget.Work?.status || 'no_work',
-          workId: budget.Work?.idWork || null,
-          date: budget.date
-        });
       });
 
       res.status(200).json({
@@ -406,23 +472,39 @@ const AccountsReceivableController = {
           totalPaidCommissions,
           totalCommissions: totalPendingCommissions + totalPaidCommissions,
           totalBudgetsWithCommissions: budgetsWithCommissions.length,
-          salesRepsCount: Object.keys(commissionsBySalesRep).length
+          salesRepsCount: Object.keys(commissionsBySalesRep).length,
+          externalReferralsCount: Object.keys(commissionsByExternalReferral).length
         },
         bySalesRep: Object.values(commissionsBySalesRep),
-        allBudgets: budgetsWithCommissions.map(b => ({
-          budgetId: b.idBudget,
-          propertyAddress: b.propertyAddress,
-          salesRepName: b.createdByStaff?.name || 'N/A',
-          salesRepId: b.createdByStaffId || null,
-          clientName: b.applicantName || 'N/A',
-          commissionAmount: parseFloat(b.salesCommissionAmount || 0),
-          commissionPaid: b.commissionPaid || false,
-          commissionPaidDate: b.commissionPaidDate || null,
-          budgetStatus: b.status,
-          workStatus: b.Work?.status || 'no_work',
-          workId: b.Work?.idWork || null,
-          date: b.date
-        }))
+        byExternalReferral: Object.values(commissionsByExternalReferral),
+        allBudgets: budgetsWithCommissions.map(b => {
+          const amount = b.leadSource === 'sales_rep'
+            ? parseFloat(b.salesCommissionAmount || 0)
+            : parseFloat(b.commissionAmount || 0);
+            
+          return {
+            budgetId: b.idBudget,
+            propertyAddress: b.propertyAddress,
+            leadSource: b.leadSource,
+            // Datos de sales rep (si aplica)
+            salesRepName: b.createdByStaff?.name || null,
+            salesRepId: b.createdByStaffId || null,
+            // Datos de external referral (si aplica)
+            externalReferralName: b.externalReferralName || null,
+            externalReferralEmail: b.externalReferralEmail || null,
+            externalReferralPhone: b.externalReferralPhone || null,
+            externalReferralCompany: b.externalReferralCompany || null,
+            // Datos comunes
+            clientName: b.applicantName || 'N/A',
+            commissionAmount: amount,
+            commissionPaid: b.commissionPaid || false,
+            commissionPaidDate: b.commissionPaidDate || null,
+            budgetStatus: b.status,
+            workStatus: b.Work?.status || 'no_work',
+            workId: b.Work?.idWork || null,
+            date: b.date
+          };
+        })
       });
 
     } catch (error) {

@@ -156,8 +156,9 @@ module.exports = (sequelize) => {
       'web',              // Desde el sitio web
       'direct_client',    // Cliente directo (sin intermediarios)
       'social_media',     // Redes sociales
-      'referral',         // Referido
-      'sales_rep'         // Vendedor/Representante de ventas
+      'referral',         // Referido genérico
+      'sales_rep',        // Vendedor/Representante de ventas (Staff)
+      'external_referral' // 🆕 Referido externo (persona NO staff que envía clientes)
     ),
     allowNull: true,
     defaultValue: 'web'
@@ -173,6 +174,31 @@ module.exports = (sequelize) => {
     },
     onUpdate: 'CASCADE',
     onDelete: 'SET NULL'
+  },
+  
+  // 🆕 CAMPOS PARA REFERIDOS EXTERNOS (leadSource = 'external_referral')
+  externalReferralName: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'Nombre del referido externo (persona que no es staff)'
+  },
+  
+  externalReferralEmail: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'Email del referido externo para contacto'
+  },
+  
+  externalReferralPhone: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'Teléfono del referido externo'
+  },
+  
+  externalReferralCompany: {
+    type: DataTypes.STRING,
+    allowNull: true,
+    comment: 'Empresa o negocio del referido externo (opcional)'
   },
   
   // Comisión fija para vendedores ($500 USD)

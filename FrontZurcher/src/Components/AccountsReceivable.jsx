@@ -34,6 +34,7 @@ const AccountsReceivable = () => {
   const [commissionsData, setCommissionsData] = useState({
     summary: {},
     bySalesRep: [],
+    byExternalReferral: [],
     allBudgets: []
   });
 
@@ -109,13 +110,22 @@ const AccountsReceivable = () => {
       if (newStatus) {
         // MARCAR COMO PAGADA: Crear gasto + adjuntar comprobante
         
+        // Determinar el nombre del receptor y notas
+        const recipientName = selectedCommission.leadSource === 'sales_rep'
+          ? selectedCommission.salesRepName
+          : selectedCommission.externalReferralName;
+        
+        const recipientType = selectedCommission.leadSource === 'sales_rep'
+          ? 'Vendedor Interno (Staff)'
+          : 'Referido Externo';
+        
         // 1. Crear el gasto de tipo "Comisión Vendedor"
         const expenseData = {
           date: new Date().toISOString().split("T")[0],
           amount: parseFloat(selectedCommission.commissionAmount),
-          notes: paymentNotes || `Pago de comisión - Budget #${selectedCommission.budgetId} - ${selectedCommission.salesRepName}`,
+          notes: paymentNotes || `Pago de comisión - Budget #${selectedCommission.budgetId} - ${recipientType}: ${recipientName}`,
           typeExpense: "Comisión Vendedor",
-          staffId: selectedCommission.salesRepId, // El vendedor que recibe la comisión
+          staffId: selectedCommission.leadSource === 'sales_rep' ? selectedCommission.salesRepId : null,
           // ✅ Asociar al work si existe (trazabilidad por proyecto)
           ...(selectedCommission.workId ? { workId: selectedCommission.workId } : {}),
         };
@@ -577,7 +587,7 @@ const AccountsReceivable = () => {
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
               <FaUserTie className="text-purple-500" />
-              Comisiones por Vendedor
+              Comisiones por Vendedor (Staff Interno)
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
               {commissionsData.bySalesRep.map((salesRep) => (
@@ -621,6 +631,63 @@ const AccountsReceivable = () => {
               ))}
             </div>
 
+            {/* Commissions by External Referral */}
+            {commissionsData.byExternalReferral && commissionsData.byExternalReferral.length > 0 && (
+              <>
+                <h2 className="text-xl font-bold text-gray-800 mb-4 mt-8 flex items-center gap-2">
+                  <FaHandHoldingUsd className="text-green-500" />
+                  Comisiones por Referido Externo
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                  {commissionsData.byExternalReferral.map((referral, index) => (
+                    <div key={`external-${index}`} className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-6 border border-green-200">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="bg-green-500 text-white rounded-full w-12 h-12 flex items-center justify-center">
+                          <FaHandHoldingUsd className="text-xl" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-gray-800">{referral.referralName}</h3>
+                          <p className="text-sm text-gray-600">{referral.referralCompany || 'Referido Externo'}</p>
+                          {referral.referralEmail && (
+                            <p className="text-xs text-gray-500">{referral.referralEmail}</p>
+                          )}
+                          {referral.referralPhone && (
+                            <p className="text-xs text-gray-500">{referral.referralPhone}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Total Comisiones:</span>
+                          <span className="text-lg font-bold text-green-600">
+                            {formatCurrency(referral.totalCommissions)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Pagadas:</span>
+                          <span className="text-sm font-semibold text-green-600">
+                            {formatCurrency(referral.totalPaid || 0)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Pendientes:</span>
+                          <span className="text-sm font-semibold text-yellow-600">
+                            {formatCurrency(referral.totalPending || 0)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Budgets:</span>
+                          <span className="text-sm font-semibold text-gray-700">
+                            {referral.budgetsCount}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
             {/* All Budgets with Commissions */}
             <h3 className="text-lg font-semibold text-gray-700 mb-3">Detalle de Comisiones</h3>
             <div className="overflow-x-auto">
@@ -634,7 +701,10 @@ const AccountsReceivable = () => {
                       Propiedad
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Vendedor
+                      Vendedor/Referido
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Tipo
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                       Cliente
@@ -680,8 +750,34 @@ const AccountsReceivable = () => {
                       <td className="px-6 py-4 text-sm text-gray-900">
                         {budget.propertyAddress}
                       </td>
-                      <td className="px-6 py-4 text-sm font-semibold text-purple-600">
-                        {budget.salesRepName}
+                      <td className="px-6 py-4 text-sm">
+                        {budget.leadSource === 'sales_rep' ? (
+                          <div>
+                            <p className="font-semibold text-purple-600">{budget.salesRepName}</p>
+                            <p className="text-xs text-gray-500">Vendedor Interno</p>
+                          </div>
+                        ) : budget.leadSource === 'external_referral' ? (
+                          <div>
+                            <p className="font-semibold text-green-600">{budget.externalReferralName}</p>
+                            <p className="text-xs text-gray-500">
+                              {budget.externalReferralCompany || 'Referido Externo'}
+                            </p>
+                            {budget.externalReferralEmail && (
+                              <p className="text-xs text-gray-400">{budget.externalReferralEmail}</p>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">N/A</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                          budget.leadSource === 'sales_rep'
+                            ? 'bg-purple-100 text-purple-800'
+                            : 'bg-green-100 text-green-800'
+                        }`}>
+                          {budget.leadSource === 'sales_rep' ? 'Staff' : 'Externo'}
+                        </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-900">
                         {budget.clientName}
@@ -787,8 +883,18 @@ const AccountsReceivable = () => {
             {/* Modal Body */}
             <form onSubmit={handleSubmitPayment} className="p-6 space-y-6">
               {/* Commission Details */}
-              <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
-                <h4 className="font-semibold text-purple-800 mb-3">Detalles de la Comisión</h4>
+              <div className={`rounded-lg p-4 border ${
+                selectedCommission.leadSource === 'sales_rep' 
+                  ? 'bg-purple-50 border-purple-200' 
+                  : 'bg-green-50 border-green-200'
+              }`}>
+                <h4 className={`font-semibold mb-3 ${
+                  selectedCommission.leadSource === 'sales_rep' 
+                    ? 'text-purple-800' 
+                    : 'text-green-800'
+                }`}>
+                  Detalles de la Comisión
+                </h4>
                 <div className="space-y-2 text-sm">
                   <p className="text-gray-700">
                     <span className="font-medium">Budget ID:</span> #{selectedCommission.budgetId}
@@ -797,8 +903,41 @@ const AccountsReceivable = () => {
                     <span className="font-medium">Propiedad:</span> {selectedCommission.propertyAddress}
                   </p>
                   <p className="text-gray-700">
-                    <span className="font-medium">Vendedor:</span> {selectedCommission.salesRepName}
+                    <span className="font-medium">Tipo:</span>{' '}
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                      selectedCommission.leadSource === 'sales_rep'
+                        ? 'bg-purple-100 text-purple-800'
+                        : 'bg-green-100 text-green-800'
+                    }`}>
+                      {selectedCommission.leadSource === 'sales_rep' ? 'Vendedor Interno (Staff)' : 'Referido Externo'}
+                    </span>
                   </p>
+                  {selectedCommission.leadSource === 'sales_rep' ? (
+                    <p className="text-gray-700">
+                      <span className="font-medium">Vendedor:</span> {selectedCommission.salesRepName}
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-gray-700">
+                        <span className="font-medium">Referido:</span> {selectedCommission.externalReferralName}
+                      </p>
+                      {selectedCommission.externalReferralCompany && (
+                        <p className="text-gray-700">
+                          <span className="font-medium">Empresa:</span> {selectedCommission.externalReferralCompany}
+                        </p>
+                      )}
+                      {selectedCommission.externalReferralEmail && (
+                        <p className="text-gray-700">
+                          <span className="font-medium">Email:</span> {selectedCommission.externalReferralEmail}
+                        </p>
+                      )}
+                      {selectedCommission.externalReferralPhone && (
+                        <p className="text-gray-700">
+                          <span className="font-medium">Teléfono:</span> {selectedCommission.externalReferralPhone}
+                        </p>
+                      )}
+                    </>
+                  )}
                   <p className="text-gray-700">
                     <span className="font-medium">Cliente:</span> {selectedCommission.clientName}
                   </p>
