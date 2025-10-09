@@ -1,176 +1,228 @@
 /**
- * Migración: Actualizar valores antiguos de paymentMethod a los nuevos valores del ENUM
+ * Migración: Limpiar TODOS los valores antiguos de paymentMethod
  * 
- * Problema: Hay datos existentes con valores como "transferencia cuenta chase"
- * que no coinciden con los nuevos valores del ENUM
+ * Problema: Hay datos con valores como "bank transfer chase" que no coinciden con el ENUM
  * 
- * Solución: Mapear valores antiguos a los nuevos valores válidos del ENUM
+ * Solución: Mapear TODOS los valores posibles a los 12 valores válidos del ENUM
  */
 
 module.exports = {
   up: async (queryInterface, Sequelize) => {
-    console.log('🔄 Actualizando valores de paymentMethod en tablas Income y Expense...');
+    console.log('🔄 Limpiando TODOS los valores de paymentMethod en Incomes y Expenses...\n');
 
-    // Mapeo de valores antiguos a nuevos
+    // Mapeo COMPLETO de valores antiguos a nuevos
     const paymentMethodMapping = {
-      // Valores antiguos -> Nuevos valores del ENUM
-      'transferencia cuenta chase': 'Chase Bank',
-      'transferencia chase': 'Chase Bank',
+      // Variaciones de Chase Bank
       'chase bank': 'Chase Bank',
       'chase': 'Chase Bank',
+      'bank transfer chase': 'Chase Bank',
+      'transferencia chase': 'Chase Bank',
+      'transferencia cuenta chase': 'Chase Bank',
+      'chase transfer': 'Chase Bank',
+      
+      // Cap Trabajos
+      'cap trabajos septic': 'Cap Trabajos Septic',
       'cap trabajos': 'Cap Trabajos Septic',
+      'cap': 'Cap Trabajos Septic',
+      
+      // Capital Proyectos
+      'capital proyectos septic': 'Capital Proyectos Septic',
       'capital proyectos': 'Capital Proyectos Septic',
+      'capital': 'Capital Proyectos Septic',
+      
+      // AMEX
       'amex': 'AMEX',
+      'american express': 'AMEX',
+      
+      // Chase Credit Card
+      'chase credit card': 'Chase Credit Card',
       'chase credit': 'Chase Credit Card',
       'chase card': 'Chase Credit Card',
+      'tarjeta chase': 'Chase Credit Card',
+      
+      // Cheque
       'cheque': 'Cheque',
       'check': 'Cheque',
-      'transferencia': 'Transferencia Bancaria',
+      
+      // Transferencia Bancaria
       'transferencia bancaria': 'Transferencia Bancaria',
+      'transferencia': 'Transferencia Bancaria',
+      'transfer': 'Transferencia Bancaria',
+      'bank transfer': 'Transferencia Bancaria',
+      'wire transfer': 'Transferencia Bancaria',
+      
+      // Efectivo
       'efectivo': 'Efectivo',
       'cash': 'Efectivo',
+      
+      // Zelle
       'zelle': 'Zelle',
-      'tarjeta': 'Tarjeta Débito',
+      
+      // Tarjeta Débito
+      'tarjeta débito': 'Tarjeta Débito',
       'tarjeta debito': 'Tarjeta Débito',
+      'tarjeta': 'Tarjeta Débito',
       'debito': 'Tarjeta Débito',
+      'debit': 'Tarjeta Débito',
+      'debit card': 'Tarjeta Débito',
+      
+      // PayPal
       'paypal': 'PayPal',
+      
+      // Otro
       'otro': 'Otro',
-      'other': 'Otro'
+      'other': 'Otro',
+      'others': 'Otro'
     };
 
-    // Actualizar tabla Expenses
-    console.log('📝 Actualizando tabla Expenses...');
-    
-    for (const [oldValue, newValue] of Object.entries(paymentMethodMapping)) {
-      try {
-        // Usar ILIKE para búsqueda case-insensitive
-        await queryInterface.sequelize.query(`
-          UPDATE "Expenses" 
-          SET "paymentMethod" = :newValue 
-          WHERE LOWER("paymentMethod") = LOWER(:oldValue)
-        `, {
-          replacements: { oldValue, newValue }
-        });
-        
-        const [results] = await queryInterface.sequelize.query(`
-          SELECT COUNT(*) as count 
-          FROM "Expenses" 
-          WHERE "paymentMethod" = :newValue
-        `, {
-          replacements: { newValue }
-        });
-        
-        if (results[0].count > 0) {
-          console.log(`  ✅ "${oldValue}" -> "${newValue}" (${results[0].count} registros)`);
-        }
-      } catch (error) {
-        console.log(`  ⚠️ Error actualizando "${oldValue}":`, error.message);
-      }
-    }
+    try {
+      // 1️⃣ VERIFICAR VALORES EXISTENTES EN INCOMES
+      console.log('📊 Verificando valores actuales en Incomes...');
+      const [incomeValues] = await queryInterface.sequelize.query(`
+        SELECT DISTINCT "paymentMethod"::TEXT as "paymentMethod"
+        FROM "Incomes" 
+        WHERE "paymentMethod" IS NOT NULL
+        ORDER BY "paymentMethod"::TEXT
+      `);
+      
+      console.log('📋 Valores encontrados en Incomes:');
+      incomeValues.forEach(row => {
+        const currentValue = row.paymentMethod;
+        const mappedValue = paymentMethodMapping[currentValue.toLowerCase()];
+        console.log(`   - "${currentValue}" → ${mappedValue ? `"${mappedValue}" ✅` : '❌ NO MAPEADO'}`);
+      });
 
-    // Actualizar tabla Incomes
-    console.log('📝 Actualizando tabla Incomes...');
-    
-    for (const [oldValue, newValue] of Object.entries(paymentMethodMapping)) {
-      try {
-        await queryInterface.sequelize.query(`
+      // 2️⃣ VERIFICAR VALORES EXISTENTES EN EXPENSES
+      console.log('\n📊 Verificando valores actuales en Expenses...');
+      const [expenseValues] = await queryInterface.sequelize.query(`
+        SELECT DISTINCT "paymentMethod"::TEXT as "paymentMethod"
+        FROM "Expenses" 
+        WHERE "paymentMethod" IS NOT NULL
+        ORDER BY "paymentMethod"::TEXT
+      `);
+      
+      console.log('📋 Valores encontrados en Expenses:');
+      expenseValues.forEach(row => {
+        const currentValue = row.paymentMethod;
+        const mappedValue = paymentMethodMapping[currentValue.toLowerCase()];
+        console.log(`   - "${currentValue}" → ${mappedValue ? `"${mappedValue}" ✅` : '❌ NO MAPEADO'}`);
+      });
+
+      // 3️⃣ ACTUALIZAR INCOMES
+      console.log('\n🔄 Actualizando tabla Incomes...');
+      let incomesUpdated = 0;
+      
+      for (const [oldValue, newValue] of Object.entries(paymentMethodMapping)) {
+        const [results] = await queryInterface.sequelize.query(`
           UPDATE "Incomes" 
           SET "paymentMethod" = :newValue 
-          WHERE LOWER("paymentMethod") = LOWER(:oldValue)
+          WHERE LOWER("paymentMethod"::TEXT) = LOWER(:oldValue)
+          RETURNING "idIncome"
         `, {
           replacements: { oldValue, newValue }
         });
         
+        if (results.length > 0) {
+          console.log(`   ✅ "${oldValue}" → "${newValue}" (${results.length} registros)`);
+          incomesUpdated += results.length;
+        }
+      }
+      
+      console.log(`\n📊 Total Incomes actualizados: ${incomesUpdated}`);
+
+      // 4️⃣ ACTUALIZAR EXPENSES
+      console.log('\n🔄 Actualizando tabla Expenses...');
+      let expensesUpdated = 0;
+      
+      for (const [oldValue, newValue] of Object.entries(paymentMethodMapping)) {
         const [results] = await queryInterface.sequelize.query(`
-          SELECT COUNT(*) as count 
-          FROM "Incomes" 
-          WHERE "paymentMethod" = :newValue
+          UPDATE "Expenses" 
+          SET "paymentMethod" = :newValue 
+          WHERE LOWER("paymentMethod"::TEXT) = LOWER(:oldValue)
+          RETURNING "idExpense"
         `, {
-          replacements: { newValue }
+          replacements: { oldValue, newValue }
         });
         
-        if (results[0].count > 0) {
-          console.log(`  ✅ "${oldValue}" -> "${newValue}" (${results[0].count} registros)`);
+        if (results.length > 0) {
+          console.log(`   ✅ "${oldValue}" → "${newValue}" (${results.length} registros)`);
+          expensesUpdated += results.length;
         }
-      } catch (error) {
-        console.log(`  ⚠️ Error actualizando "${oldValue}":`, error.message);
       }
+      
+      console.log(`\n📊 Total Expenses actualizados: ${expensesUpdated}`);
+
+      // 5️⃣ VERIFICACIÓN FINAL
+      console.log('\n🔍 Verificación final de valores inválidos...');
+      
+      const validValues = [
+        'Cap Trabajos Septic',
+        'Capital Proyectos Septic',
+        'Chase Bank',
+        'AMEX',
+        'Chase Credit Card',
+        'Cheque',
+        'Transferencia Bancaria',
+        'Efectivo',
+        'Zelle',
+        'Tarjeta Débito',
+        'PayPal',
+        'Otro'
+      ];
+      
+      const [invalidIncomes] = await queryInterface.sequelize.query(`
+        SELECT "paymentMethod"::TEXT as "paymentMethod", COUNT(*) as count
+        FROM "Incomes"
+        WHERE "paymentMethod" IS NOT NULL
+        AND "paymentMethod"::TEXT NOT IN (${validValues.map((_, i) => `$${i + 1}`).join(', ')})
+        GROUP BY "paymentMethod"::TEXT
+      `, {
+        bind: validValues
+      });
+      
+      const [invalidExpenses] = await queryInterface.sequelize.query(`
+        SELECT "paymentMethod"::TEXT as "paymentMethod", COUNT(*) as count
+        FROM "Expenses"
+        WHERE "paymentMethod" IS NOT NULL
+        AND "paymentMethod"::TEXT NOT IN (${validValues.map((_, i) => `$${i + 1}`).join(', ')})
+        GROUP BY "paymentMethod"::TEXT
+      `, {
+        bind: validValues
+      });
+      
+      if (invalidIncomes.length > 0) {
+        console.log('\n⚠️  VALORES INVÁLIDOS ENCONTRADOS EN INCOMES:');
+        invalidIncomes.forEach(row => {
+          console.log(`   ❌ "${row.paymentMethod}" (${row.count} registros)`);
+          console.log(`      💡 Sugerencia: Agregar mapeo para este valor`);
+        });
+      } else {
+        console.log('\n✅ No se encontraron valores inválidos en Incomes');
+      }
+      
+      if (invalidExpenses.length > 0) {
+        console.log('\n⚠️  VALORES INVÁLIDOS ENCONTRADOS EN EXPENSES:');
+        invalidExpenses.forEach(row => {
+          console.log(`   ❌ "${row.paymentMethod}" (${row.count} registros)`);
+          console.log(`      💡 Sugerencia: Agregar mapeo para este valor`);
+        });
+      } else {
+        console.log('\n✅ No se encontraron valores inválidos en Expenses');
+      }
+
+      console.log('\n✅ Migración completada exitosamente!');
+      console.log(`\n📊 Resumen:`);
+      console.log(`   - Incomes actualizados: ${incomesUpdated}`);
+      console.log(`   - Expenses actualizados: ${expensesUpdated}`);
+      console.log(`   - Valores inválidos restantes: ${invalidIncomes.length + invalidExpenses.length}`);
+
+    } catch (error) {
+      console.error('\n❌ Error durante la migración:', error);
+      throw error;
     }
-
-    // Establecer NULL para valores que no se pueden mapear
-    console.log('🧹 Limpiando valores no reconocidos...');
-    
-    const validValues = [
-      'Cap Trabajos Septic',
-      'Capital Proyectos Septic',
-      'Chase Bank',
-      'AMEX',
-      'Chase Credit Card',
-      'Cheque',
-      'Transferencia Bancaria',
-      'Efectivo',
-      'Zelle',
-      'Tarjeta Débito',
-      'PayPal',
-      'Otro'
-    ];
-
-    // Limpiar Expenses
-    const [expensesInvalid] = await queryInterface.sequelize.query(`
-      UPDATE "Expenses" 
-      SET "paymentMethod" = NULL 
-      WHERE "paymentMethod" IS NOT NULL 
-      AND "paymentMethod" NOT IN (:validValues)
-      RETURNING "idExpense"
-    `, {
-      replacements: { validValues }
-    });
-
-    if (expensesInvalid.length > 0) {
-      console.log(`  ⚠️ Se estableció NULL en ${expensesInvalid.length} registros de Expenses con valores no reconocidos`);
-    }
-
-    // Limpiar Incomes
-    const [incomesInvalid] = await queryInterface.sequelize.query(`
-      UPDATE "Incomes" 
-      SET "paymentMethod" = NULL 
-      WHERE "paymentMethod" IS NOT NULL 
-      AND "paymentMethod" NOT IN (:validValues)
-      RETURNING "idIncome"
-    `, {
-      replacements: { validValues }
-    });
-
-    if (incomesInvalid.length > 0) {
-      console.log(`  ⚠️ Se estableció NULL en ${incomesInvalid.length} registros de Incomes con valores no reconocidos`);
-    }
-
-    // Mostrar resumen
-    const [expensesCount] = await queryInterface.sequelize.query(`
-      SELECT 
-        COUNT(*) as total,
-        COUNT("paymentMethod") as con_metodo,
-        COUNT(*) - COUNT("paymentMethod") as sin_metodo
-      FROM "Expenses"
-    `);
-
-    const [incomesCount] = await queryInterface.sequelize.query(`
-      SELECT 
-        COUNT(*) as total,
-        COUNT("paymentMethod") as con_metodo,
-        COUNT(*) - COUNT("paymentMethod") as sin_metodo
-      FROM "Incomes"
-    `);
-
-    console.log('\n📊 Resumen final:');
-    console.log(`  Expenses: ${expensesCount[0].total} total, ${expensesCount[0].con_metodo} con método, ${expensesCount[0].sin_metodo} sin método`);
-    console.log(`  Incomes: ${incomesCount[0].total} total, ${incomesCount[0].con_metodo} con método, ${incomesCount[0].sin_metodo} sin método`);
-    
-    console.log('\n✅ Migración de datos completada');
   },
 
   down: async (queryInterface, Sequelize) => {
-    console.log('⚠️ Esta migración no tiene rollback automático');
-    console.log('Los valores antiguos se perdieron al hacer el mapeo');
+    console.log('⚠️  No se puede revertir esta migración (los valores antiguos se perdieron)');
   }
 };
