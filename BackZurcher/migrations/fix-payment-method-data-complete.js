@@ -116,7 +116,7 @@ module.exports = {
         const [results] = await queryInterface.sequelize.query(`
           UPDATE "Incomes" 
           SET "paymentMethod" = :newValue 
-          WHERE LOWER("paymentMethod") = LOWER(:oldValue)
+          WHERE LOWER("paymentMethod"::TEXT) = LOWER(:oldValue)
           RETURNING id
         `, {
           replacements: { oldValue, newValue }
@@ -138,7 +138,7 @@ module.exports = {
         const [results] = await queryInterface.sequelize.query(`
           UPDATE "Expenses" 
           SET "paymentMethod" = :newValue 
-          WHERE LOWER("paymentMethod") = LOWER(:oldValue)
+          WHERE LOWER("paymentMethod"::TEXT) = LOWER(:oldValue)
           RETURNING "idExpense"
         `, {
           replacements: { oldValue, newValue }
