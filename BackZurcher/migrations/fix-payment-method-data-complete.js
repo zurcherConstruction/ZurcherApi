@@ -79,10 +79,10 @@ module.exports = {
       // 1️⃣ VERIFICAR VALORES EXISTENTES EN INCOMES
       console.log('📊 Verificando valores actuales en Incomes...');
       const [incomeValues] = await queryInterface.sequelize.query(`
-        SELECT DISTINCT "paymentMethod" 
+        SELECT DISTINCT "paymentMethod"::TEXT as "paymentMethod"
         FROM "Incomes" 
         WHERE "paymentMethod" IS NOT NULL
-        ORDER BY "paymentMethod"
+        ORDER BY "paymentMethod"::TEXT
       `);
       
       console.log('📋 Valores encontrados en Incomes:');
@@ -95,10 +95,10 @@ module.exports = {
       // 2️⃣ VERIFICAR VALORES EXISTENTES EN EXPENSES
       console.log('\n📊 Verificando valores actuales en Expenses...');
       const [expenseValues] = await queryInterface.sequelize.query(`
-        SELECT DISTINCT "paymentMethod" 
+        SELECT DISTINCT "paymentMethod"::TEXT as "paymentMethod"
         FROM "Expenses" 
         WHERE "paymentMethod" IS NOT NULL
-        ORDER BY "paymentMethod"
+        ORDER BY "paymentMethod"::TEXT
       `);
       
       console.log('📋 Valores encontrados en Expenses:');
@@ -117,7 +117,7 @@ module.exports = {
           UPDATE "Incomes" 
           SET "paymentMethod" = :newValue 
           WHERE LOWER("paymentMethod"::TEXT) = LOWER(:oldValue)
-          RETURNING id
+          RETURNING "idIncome"
         `, {
           replacements: { oldValue, newValue }
         });
@@ -171,21 +171,21 @@ module.exports = {
       ];
       
       const [invalidIncomes] = await queryInterface.sequelize.query(`
-        SELECT "paymentMethod", COUNT(*) as count
+        SELECT "paymentMethod"::TEXT as "paymentMethod", COUNT(*) as count
         FROM "Incomes"
         WHERE "paymentMethod" IS NOT NULL
-        AND "paymentMethod" NOT IN (${validValues.map((_, i) => `$${i + 1}`).join(', ')})
-        GROUP BY "paymentMethod"
+        AND "paymentMethod"::TEXT NOT IN (${validValues.map((_, i) => `$${i + 1}`).join(', ')})
+        GROUP BY "paymentMethod"::TEXT
       `, {
         bind: validValues
       });
       
       const [invalidExpenses] = await queryInterface.sequelize.query(`
-        SELECT "paymentMethod", COUNT(*) as count
+        SELECT "paymentMethod"::TEXT as "paymentMethod", COUNT(*) as count
         FROM "Expenses"
         WHERE "paymentMethod" IS NOT NULL
-        AND "paymentMethod" NOT IN (${validValues.map((_, i) => `$${i + 1}`).join(', ')})
-        GROUP BY "paymentMethod"
+        AND "paymentMethod"::TEXT NOT IN (${validValues.map((_, i) => `$${i + 1}`).join(', ')})
+        GROUP BY "paymentMethod"::TEXT
       `, {
         bind: validValues
       });
