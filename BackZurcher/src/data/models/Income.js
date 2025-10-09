@@ -43,9 +43,28 @@ module.exports = (sequelize) => {
     },
     // 🆕 Método/Cuenta de pago
     paymentMethod: {
+      type: DataTypes.ENUM(
+        'Cap Trabajos Septic',
+        'Capital Proyectos Septic',
+        'Chase Bank',
+        'AMEX',
+        'Chase Credit Card',
+        'Cheque',
+        'Transferencia Bancaria',
+        'Efectivo',
+        'Zelle',
+        'Tarjeta Débito',
+        'PayPal',
+        'Otro'
+      ),
+      allowNull: true,
+      
+    },
+    // Detalle adicional del método de pago
+    paymentDetails: {
       type: DataTypes.STRING,
       allowNull: true,
-      comment: 'Método de pago o cuenta por la que ingresó el dinero (ej: Zelle, Cash, Check #1234, Bank Transfer - Chase, etc.)'
+      comment: 'Detalles adicionales del pago (ej: Check #1234, Últimos 4 dígitos: 5678, etc.)'
     },
     // 🆕 Campo de verificación/revisión
     verified: {

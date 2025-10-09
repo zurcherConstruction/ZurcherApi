@@ -78,6 +78,7 @@ const BarraLateral = () => {
         { name: "Upload Vouchers", path: "/attachInvoice", icon: FaReceipt },
         { name: "Balance", path: "/balance", icon: FaChartBar },
         { name: "Income & Expenses", path: "/summary", icon: FaFileInvoiceDollar },
+        { name: "Fixed Expenses", path: "/fixed-expenses", icon: FaDollarSign }, // 🆕 Gastos Fijos
         { name: "Accounts Receivable", path: "/accounts-receivable", icon: FaDollarSign }, // 🆕 Cuentas por cobrar
       ],
     },

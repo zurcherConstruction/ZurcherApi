@@ -22,26 +22,12 @@ import {
   XMarkIcon,
   MagnifyingGlassIcon
 } from "@heroicons/react/24/outline";
+// 🆕 Importar constantes centralizadas
+import { INCOME_TYPES, EXPENSE_TYPES, PAYMENT_METHODS } from "../utils/paymentConstants";
 
-const incomeTypes = [
-  "Factura Pago Inicial Budget",
-  "Factura Pago Final Budget",
-  "DiseñoDif",
-  "Comprobante Ingreso",
-];
-
-const expenseTypes = [
-  "Materiales",
-  "Materiales Iniciales",
-  "Inspección Inicial",
-  "Inspección Final",
-  "Diseño",
-  "Workers",
-  "Imprevistos",
-  "Comprobante Gasto",
-  "Gastos Generales",
-  "Comisión Vendedor", // 🆕 Para pagos de comisiones a sales_rep
-];
+// 🆕 Usar constantes importadas en lugar de hardcodear
+const incomeTypes = INCOME_TYPES;
+const expenseTypes = EXPENSE_TYPES;
 
 const Summary = () => {
   const [filters, setFilters] = useState({

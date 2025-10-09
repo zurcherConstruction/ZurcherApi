@@ -15,24 +15,13 @@ import {
   ArrowUpTrayIcon
 } from "@heroicons/react/24/outline";
 
-const incomeTypes = [
-  "Factura Pago Final Budget",
-  "Diseño",
-  "Comprobante Ingreso",
-];
 
-const expenseTypes = [
-  "Materiales",
-  "Materiales Iniciales",
-  "Inspección Inicial",
-  "Inspección Final",
-  "Diseño",
-  "Workers",
-  "Imprevistos",
-  "Comprobante Gasto",
-  "Gastos Generales",
-  "Comisión Vendedor"
-];
+import api from "../../utils/axios";
+import Swal from "sweetalert2";
+import { PAYMENT_METHODS_GROUPED, INCOME_TYPES, EXPENSE_TYPES } from "../../utils/paymentConstants";
+
+const incomeTypes = INCOME_TYPES;
+const expenseTypes = EXPENSE_TYPES;
 
 // Tipos que NO requieren Work (son gastos/ingresos generales)
 const generalExpenseTypes = [
@@ -64,6 +53,7 @@ const AttachReceipt = () => {
   const [finalInvoiceDetails, setFinalInvoiceDetails] = useState(null);
   const [isGeneralTransaction, setIsGeneralTransaction] = useState(false); // Nuevo estado para marcar si es transacción general
   const [paymentMethod, setPaymentMethod] = useState(''); // 🆕 Método de pago
+  const [paymentDetails, setPaymentDetails] = useState(''); // 🆕 Detalles adicionales del pago
 
 
 
@@ -100,6 +90,12 @@ const AttachReceipt = () => {
 
     if (!type) {
       toast.error("Por favor, selecciona el tipo de comprobante.");
+      return;
+    }
+
+    // 🆕 Validación de método de pago - OBLIGATORIO
+    if (!paymentMethod) {
+      toast.error("⚠️ Por favor, selecciona un método de pago. Este campo es obligatorio para el control financiero.");
       return;
     }
 
@@ -168,6 +164,9 @@ const AttachReceipt = () => {
         if (paymentMethod) {
           formData.append("paymentMethod", paymentMethod); // ✅ Agregar método de pago
         }
+        if (paymentDetails) {
+          formData.append("paymentDetails", paymentDetails); // 🆕 Agregar detalles del pago
+        }
 
         console.log('Enviando FormData para Receipt (Pago Final Factura):', Object.fromEntries(formData));
         await dispatch(createReceipt(formData));
@@ -199,6 +198,8 @@ const AttachReceipt = () => {
           ...(isIncome ? { typeIncome: type } : { typeExpense: type }),
           // 🆕 Agregar método de pago si se especificó
           ...(paymentMethod ? { paymentMethod } : {}),
+          // 🆕 Agregar detalles del pago si se especificó
+          ...(paymentDetails ? { paymentDetails } : {}),
         };
 
         console.log('Datos a enviar (Income/Expense):', incomeExpenseData);
@@ -242,6 +243,7 @@ const AttachReceipt = () => {
       setFinalInvoiceDetails(null);
       setIsGeneralTransaction(false);
       setPaymentMethod(""); // 🆕 Limpiar método de pago
+      setPaymentDetails(""); // 🆕 Limpiar detalles del pago
 
     } catch (err) { // Cambiado 'error' a 'err' para evitar colisión con 'worksError'
       console.error("Error al procesar la solicitud:", err);
@@ -605,24 +607,69 @@ const AttachReceipt = () => {
               )}
             </div>
 
-            {/* Payment Method */}
+            {/* Payment Method - OBLIGATORIO */}
             {type && (
               <div>
                 <label htmlFor="paymentMethod" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
                   <CurrencyDollarIcon className="h-5 w-5 mr-2 text-green-500" />
-                  Método de Pago (Opcional)
+                  Método de Pago <span className="text-red-500 ml-1">*</span>
                 </label>
-                <input
+                <select
                   id="paymentMethod"
-                  type="text"
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                  placeholder="Ej: Zelle, Cash, Check #1234, Bank Transfer - Chase, Credit Card - Visa"
-                />
+                  required
+                >
+                  <option value="">Seleccionar método de pago...</option>
+                  <optgroup label="🏦 Cuentas Bancarias">
+                    {PAYMENT_METHODS_GROUPED.bank.map(method => (
+                      <option key={method.value} value={method.value}>
+                        {method.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="💳 Tarjetas">
+                    {PAYMENT_METHODS_GROUPED.card.map(method => (
+                      <option key={method.value} value={method.value}>
+                        {method.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="💰 Otros Métodos">
+                    {PAYMENT_METHODS_GROUPED.other.map(method => (
+                      <option key={method.value} value={method.value}>
+                        {method.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
                 <p className="mt-1 text-xs text-gray-500">
-                  Especifica cómo se recibió/pagó el dinero para mejor tracking financiero
+                  Especifica la cuenta o método con el que se recibió/pagó el dinero
                 </p>
+              </div>
+            )}
+
+            {/* Payment Details - Campo adicional para detalles */}
+            {paymentMethod && (
+              <div>
+                <label htmlFor="paymentDetails" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
+                  <DocumentTextIcon className="h-5 w-5 mr-2 text-gray-500" />
+                  Detalles del Pago (Opcional)
+                </label>
+                <input
+                  id="paymentDetails"
+                  type="text"
+                  value={paymentDetails}
+                  onChange={(e) => setPaymentDetails(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  placeholder={
+                    paymentMethod === 'Cheque' ? 'Ej: Check #1234' :
+                    paymentMethod.includes('Card') || paymentMethod.includes('Débito') ? 'Ej: Últimos 4 dígitos: 5678' :
+                    paymentMethod === 'Transferencia Bancaria' ? 'Ej: Ref #ABC123' :
+                    'Detalles adicionales...'
+                  }
+                />
               </div>
             )}
 

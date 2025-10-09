@@ -53,7 +53,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -266,6 +266,17 @@ Staff.hasMany(MaintenanceVisit, { // <--- CAMBIO AQUÍ: Usa 'MaintenanceVisit' d
   foreignKey: 'staffId', 
   as: 'maintenanceVisitsAssigned' 
 });
+
+// --- RELACIONES PARA GASTOS FIJOS (FIXED EXPENSES) ---
+Staff.hasMany(FixedExpense, {
+  foreignKey: 'createdByStaffId',
+  as: 'fixedExpensesCreated'
+});
+FixedExpense.belongsTo(Staff, {
+  foreignKey: 'createdByStaffId',
+  as: 'createdBy'
+});
+
 //---------------------------------------------------------------------------------//
 module.exports = {
   ...sequelize.models, // para poder importar los modelos así: const { Product, User } = require('./db.js');

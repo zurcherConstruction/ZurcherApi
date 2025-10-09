@@ -193,3 +193,81 @@ export const balanceActions = {
     }
   }
 };
+
+// 🆕 Actions para FixedExpense (Gastos Fijos)
+export const fixedExpenseActions = {
+  create: async (fixedExpenseData) => {
+    try {
+      const response = await api.post('/fixed-expenses', fixedExpenseData);
+      return response.data;
+    } catch (error) {
+      return handleError(error, 'Error al crear el gasto fijo');
+    }
+  },
+
+  getAll: async (filters = {}) => {
+    try {
+      const response = await api.get('/fixed-expenses', { params: filters });
+      return response.data;
+    } catch (error) {
+      return handleError(error, 'Error al obtener los gastos fijos');
+    }
+  },
+
+  getById: async (id) => {
+    try {
+      const response = await api.get(`/fixed-expenses/${id}`);
+      return response.data;
+    } catch (error) {
+      return handleError(error, 'Error al obtener el gasto fijo');
+    }
+  },
+
+  update: async (id, fixedExpenseData) => {
+    try {
+      const response = await api.patch(`/fixed-expenses/${id}`, fixedExpenseData);
+      return response.data;
+    } catch (error) {
+      return handleError(error, 'Error al actualizar el gasto fijo');
+    }
+  },
+
+  delete: async (id) => {
+    try {
+      const response = await api.delete(`/fixed-expenses/${id}`);
+      return response.data;
+    } catch (error) {
+      return handleError(error, 'Error al eliminar el gasto fijo');
+    }
+  },
+
+  // 🆕 Obtener gastos fijos próximos a vencer
+  getUpcoming: async (days = 7) => {
+    try {
+      const response = await api.get('/fixed-expenses/upcoming', { params: { days } });
+      return response.data;
+    } catch (error) {
+      return handleError(error, 'Error al obtener gastos fijos próximos');
+    }
+  },
+
+  // 🆕 Generar Expense desde un FixedExpense
+  generateExpense: async (fixedExpenseId, expenseData = {}) => {
+    try {
+      const response = await api.post(`/fixed-expenses/${fixedExpenseId}/generate-expense`, expenseData);
+      return response.data;
+    } catch (error) {
+      return handleError(error, 'Error al generar gasto desde gasto fijo');
+    }
+  },
+
+  // 🆕 Toggle activo/inactivo
+  toggleActive: async (id) => {
+    try {
+      const response = await api.patch(`/fixed-expenses/${id}/toggle-status`);
+      return response.data;
+    } catch (error) {
+      return handleError(error, 'Error al cambiar estado del gasto fijo');
+    }
+  },
+};

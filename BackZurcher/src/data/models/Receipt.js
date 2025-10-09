@@ -18,23 +18,24 @@ module.exports = (sequelize) => {
       allowNull: false,
     },
     type: {
-        type: DataTypes.ENUM('Factura Pago Inicial Budget',
-            'Factura Pago Final Budget', 'Materiales',
+        type: DataTypes.ENUM(
+            'Factura Pago Inicial Budget',
+            'Factura Pago Final Budget',
+            'Materiales',
             'Diseño',
             'Workers',
             'Comisión Vendedor',
             'Imprevistos',
-            'Diseño',
             'Comprobante Gasto',
             'Comprobante Ingreso',
             'Gastos Generales',
             'Materiales Iniciales',
             'Inspección Inicial',
-            'Inspección Final'
-
-           ),
+            'Inspección Final',
+            'Gasto Fijo' // 🆕 Para comprobantes de gastos fijos
+        ),
         allowNull: false,
-      },
+    },
        // --- Campos para Cloudinary ---
     fileUrl: {
       type: DataTypes.STRING, // URL segura devuelta por Cloudinary
