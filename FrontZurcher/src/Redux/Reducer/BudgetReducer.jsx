@@ -11,6 +11,7 @@ const initialState = {
   // ✅ NUEVOS ESTADOS PARA MANEJO DE CREACIÓN
   creationStatus: null, // 'creating' | 'success' | 'failed' | null
   lastCreatedBudget: null, // Info del último budget creado
+  stats: null, // 🆕 Estadísticas globales del backend
 };
 
 const budgetSlice = createSlice({
@@ -24,11 +25,12 @@ const budgetSlice = createSlice({
     },
     fetchBudgetsSuccess: (state, action) => {
   state.loading = false;
-  // action.payload es { budgets, total, page, pageSize }
+  // action.payload es { budgets, total, page, pageSize, stats }
   state.budgets = action.payload.budgets;
   state.total = action.payload.total;
   state.page = action.payload.page;
   state.pageSize = action.payload.pageSize;
+  state.stats = action.payload.stats; // 🆕 Guardar estadísticas del backend
 },
     fetchBudgetsFailure: (state, action) => {
       state.loading = false;

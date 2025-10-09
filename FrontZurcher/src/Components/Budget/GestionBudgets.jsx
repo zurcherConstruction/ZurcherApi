@@ -29,7 +29,8 @@ const GestionBudgets = () => {
     currentBudget,  // Agregar este selector
     total: totalRecords,     // ✅ Total de registros del backend (renombrado para evitar conflicto)
     page: currentPage,           // ✅ Página actual del backend
-    pageSize: currentPageSize    // ✅ Tamaño de página del backend
+    pageSize: currentPageSize,   // ✅ Tamaño de página del backend
+    stats: statsFromBackend      // 🆕 Estadísticas desde el backend
   } = useSelector(state => state.budget);
 
   // ✅ Estados para paginación local
@@ -116,23 +117,40 @@ const GestionBudgets = () => {
   // ✅ Los budgets ya vienen filtrados del backend, no necesitamos filtrado local
   const filteredBudgets = budgets || [];
 
-  // Estadísticas de budgets (página actual)
+  // 🆕 Usar estadísticas del backend si están disponibles, sino calcular localmente (fallback)
   const budgetStats = useMemo(() => {
+    // Si tenemos stats del backend, usarlas directamente
+    if (statsFromBackend) {
+      return statsFromBackend;
+    }
+    
+    // Fallback: calcular localmente (solo mostrará stats de la página actual)
     if (!budgets) return { total: 0 };
 
     return {
-      total: totalRecords || budgets.length, // ✅ Usar totalRecords del backend (todos los registros)
-      currentPageTotal: budgets.length, // Total en la página actual
-      pending: budgets.filter(b => b.status === 'pending').length,
-      approved: budgets.filter(b => b.status === 'approved').length,
-      rejected: budgets.filter(b => b.status === 'rejected').length,
+      total: totalRecords || budgets.length,
+      draft: budgets.filter(b => b.status === 'draft').length,
+      pending_review: budgets.filter(b => b.status === 'pending_review').length,
+      client_approved: budgets.filter(b => b.status === 'client_approved').length,
       created: budgets.filter(b => b.status === 'created').length,
       send: budgets.filter(b => b.status === 'send').length,
-      sentForSignature: budgets.filter(b => b.status === 'sent_for_signature').length,
+      sent_for_signature: budgets.filter(b => b.status === 'sent_for_signature').length,
       signed: budgets.filter(b => b.status === 'signed').length,
-      notResponded: budgets.filter(b => b.status === 'notResponded').length,
+      approved: budgets.filter(b => b.status === 'approved').length,
+      rejected: budgets.filter(b => b.status === 'rejected').length,
+      notResponded: budgets.filter(b => b.status === 'notResponded').length
     };
-  }, [budgets, totalRecords]);
+  }, [budgets, totalRecords, statsFromBackend]);
+
+  // ✅ NUEVO: Función para filtrar por estado al hacer click en las tarjetas
+  const handleStatCardClick = (status) => {
+    if (status === 'all') {
+      setStatusFilter('all');
+    } else {
+      setStatusFilter(status);
+    }
+    setPage(1); // Resetear a primera página
+  };
 
   const handleEdit = (budget) => {
     setSelectedBudget(budget);
@@ -372,10 +390,12 @@ const handleSaveEdit = async () => {
 
   const getStatusBadge = (status) => {
     const statusConfig = {
+      'draft': { bg: 'bg-slate-100', text: 'text-slate-800', label: 'Borrador' },
+      'pending_review': { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'En Revisión' },
+      'client_approved': { bg: 'bg-teal-100', text: 'text-teal-800', label: 'Pre-Aprobado' },
       'created': { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Creado' },
       'send': { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Enviado' },
       'sent_for_signature': { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Para Firma' },
-      'pending': { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pendiente' },
       'signed': { bg: 'bg-indigo-100', text: 'text-indigo-800', label: 'Firmado' },
       'approved': { bg: 'bg-green-100', text: 'text-green-800', label: 'Aprobado' },
       'rejected': { bg: 'bg-red-100', text: 'text-red-800', label: 'Rechazado' },
@@ -540,36 +560,124 @@ const handleSaveEdit = async () => {
       </div>
 
       {/* Estadísticas */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-8 gap-4 mb-8">
-        <div className="bg-white p-4 rounded-lg shadow">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+        {/* Total - Clickeable para mostrar todos */}
+        <div 
+          onClick={() => handleStatCardClick('all')}
+          className={`bg-white p-4 rounded-lg shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
+            statusFilter === 'all' ? 'ring-2 ring-gray-900' : ''
+          }`}
+        >
           <div className="text-2xl font-bold text-gray-900">{budgetStats.total}</div>
           <div className="text-sm text-gray-600">Total</div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
+
+        {/* Draft - Borradores */}
+        <div 
+          onClick={() => handleStatCardClick('draft')}
+          className={`bg-white p-4 rounded-lg shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
+            statusFilter === 'draft' ? 'ring-2 ring-slate-600' : ''
+          }`}
+        >
+          <div className="text-2xl font-bold text-slate-600">{budgetStats.draft}</div>
+          <div className="text-sm text-gray-600">Borradores</div>
+        </div>
+
+        {/* Pending Review - En Revisión */}
+        <div 
+          onClick={() => handleStatCardClick('pending_review')}
+          className={`bg-white p-4 rounded-lg shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
+            statusFilter === 'pending_review' ? 'ring-2 ring-yellow-600' : ''
+          }`}
+        >
+          <div className="text-2xl font-bold text-yellow-600">{budgetStats.pending_review}</div>
+          <div className="text-sm text-gray-600">En Revisión</div>
+        </div>
+
+        {/* Client Approved - Aprobado por Cliente */}
+        <div 
+          onClick={() => handleStatCardClick('client_approved')}
+          className={`bg-white p-4 rounded-lg shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
+            statusFilter === 'client_approved' ? 'ring-2 ring-teal-600' : ''
+          }`}
+        >
+          <div className="text-2xl font-bold text-teal-600">{budgetStats.client_approved}</div>
+          <div className="text-sm text-gray-600">Pre-Aprobado</div>
+        </div>
+
+        {/* Created - Creados */}
+        <div 
+          onClick={() => handleStatCardClick('created')}
+          className={`bg-white p-4 rounded-lg shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
+            statusFilter === 'created' ? 'ring-2 ring-gray-600' : ''
+          }`}
+        >
           <div className="text-2xl font-bold text-gray-600">{budgetStats.created}</div>
           <div className="text-sm text-gray-600">Creados</div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
+
+        {/* Send - Enviados */}
+        <div 
+          onClick={() => handleStatCardClick('send')}
+          className={`bg-white p-4 rounded-lg shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
+            statusFilter === 'send' ? 'ring-2 ring-blue-600' : ''
+          }`}
+        >
           <div className="text-2xl font-bold text-blue-600">{budgetStats.send}</div>
           <div className="text-sm text-gray-600">Enviados</div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-2xl font-bold text-purple-600">{budgetStats.sentForSignature}</div>
+
+        {/* Sent for Signature - Para Firma */}
+        <div 
+          onClick={() => handleStatCardClick('sent_for_signature')}
+          className={`bg-white p-4 rounded-lg shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
+            statusFilter === 'sent_for_signature' ? 'ring-2 ring-purple-600' : ''
+          }`}
+        >
+          <div className="text-2xl font-bold text-purple-600">{budgetStats.sent_for_signature}</div>
           <div className="text-sm text-gray-600">Para Firma</div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
+
+        {/* Signed - Firmados */}
+        <div 
+          onClick={() => handleStatCardClick('signed')}
+          className={`bg-white p-4 rounded-lg shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
+            statusFilter === 'signed' ? 'ring-2 ring-indigo-600' : ''
+          }`}
+        >
           <div className="text-2xl font-bold text-indigo-600">{budgetStats.signed}</div>
           <div className="text-sm text-gray-600">Firmados</div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
+
+        {/* Approved - Aprobados */}
+        <div 
+          onClick={() => handleStatCardClick('approved')}
+          className={`bg-white p-4 rounded-lg shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
+            statusFilter === 'approved' ? 'ring-2 ring-green-600' : ''
+          }`}
+        >
           <div className="text-2xl font-bold text-green-600">{budgetStats.approved}</div>
           <div className="text-sm text-gray-600">Aprobados</div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
+
+        {/* Rejected - Rechazados */}
+        <div 
+          onClick={() => handleStatCardClick('rejected')}
+          className={`bg-white p-4 rounded-lg shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
+            statusFilter === 'rejected' ? 'ring-2 ring-red-600' : ''
+          }`}
+        >
           <div className="text-2xl font-bold text-red-600">{budgetStats.rejected}</div>
           <div className="text-sm text-gray-600">Rechazados</div>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
+
+        {/* Not Responded - Sin Respuesta */}
+        <div 
+          onClick={() => handleStatCardClick('notResponded')}
+          className={`bg-white p-4 rounded-lg shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
+            statusFilter === 'notResponded' ? 'ring-2 ring-orange-600' : ''
+          }`}
+        >
           <div className="text-2xl font-bold text-orange-600">{budgetStats.notResponded}</div>
           <div className="text-sm text-gray-600">Sin Respuesta</div>
         </div>
@@ -597,14 +705,16 @@ const handleSaveEdit = async () => {
             className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="all">Todos los estados</option>
+            <option value="draft">Borrador</option>
+            <option value="pending_review">En Revisión</option>
+            <option value="client_approved">Pre-Aprobado</option>
             <option value="created">Creado</option>
             <option value="send">Enviado</option>
-            <option value="pending">Pendiente</option>
+            <option value="sent_for_signature">Para Firma</option>
+            <option value="signed">Firmado</option>
             <option value="approved">Aprobado</option>
             <option value="rejected">Rechazado</option>
             <option value="notResponded">Sin Respuesta</option>
-            <option value="sent_for_signature">Para Firma</option>
-            <option value="signed">Firmado</option>
           </select>
 
           {/* Filtro por Mes */}

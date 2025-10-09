@@ -16,8 +16,15 @@ import {
 const AccountsReceivable = () => {
   const token = useSelector((state) => state.auth.token);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview'); // overview, works, commissions
+  const [activeTab, setActiveTab] = useState('invoices'); // invoices, overview, works, commissions
   const [commissionFilter, setCommissionFilter] = useState('all'); // all, paid, pending
+  const [invoiceFilter, setInvoiceFilter] = useState({
+    status: 'all', // all, pending_payment, partial, initial_only, completed
+    startDate: '',
+    endDate: '',
+    salesRepId: '',
+    searchTerm: ''
+  });
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedCommission, setSelectedCommission] = useState(null);
   const [paymentFile, setPaymentFile] = useState(null);
@@ -31,6 +38,10 @@ const AccountsReceivable = () => {
       approvedChangeOrders: []
     }
   });
+  const [invoicesData, setInvoicesData] = useState({
+    summary: {},
+    invoices: []
+  });
   const [commissionsData, setCommissionsData] = useState({
     summary: {},
     bySalesRep: [],
@@ -41,7 +52,15 @@ const AccountsReceivable = () => {
   useEffect(() => {
     fetchAccountsReceivable();
     fetchPendingCommissions();
+    fetchActiveInvoices();
   }, []);
+
+  useEffect(() => {
+    // Refetch invoices when filter changes
+    if (activeTab === 'invoices') {
+      fetchActiveInvoices();
+    }
+  }, [invoiceFilter]);
 
   const fetchAccountsReceivable = async () => {
     setLoading(true);
@@ -68,6 +87,27 @@ const AccountsReceivable = () => {
       setCommissionsData(response.data);
     } catch (error) {
       console.error('Error fetching pending commissions:', error);
+    }
+  };
+
+  const fetchActiveInvoices = async () => {
+    try {
+      // Build query params from filters
+      const params = new URLSearchParams();
+      if (invoiceFilter.status !== 'all') params.append('status', invoiceFilter.status);
+      if (invoiceFilter.startDate) params.append('startDate', invoiceFilter.startDate);
+      if (invoiceFilter.endDate) params.append('endDate', invoiceFilter.endDate);
+      if (invoiceFilter.salesRepId) params.append('salesRepId', invoiceFilter.salesRepId);
+      if (invoiceFilter.searchTerm) params.append('searchTerm', invoiceFilter.searchTerm);
+
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_URL}/accounts-receivable/active-invoices?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setInvoicesData(response.data);
+    } catch (error) {
+      console.error('Error fetching active invoices:', error);
+      alert('Error al cargar invoices activos');
     }
   };
 
@@ -245,8 +285,27 @@ const AccountsReceivable = () => {
               <p className="text-3xl font-bold mt-2">
                 {formatCurrency(data.summary.totalAccountsReceivable)}
               </p>
+              <p className="text-green-100 text-xs mt-1">
+                Solo Works confirmados
+              </p>
             </div>
             <FaMoneyBillWave className="text-5xl text-green-200 opacity-50" />
+          </div>
+        </div>
+
+        {/* Active Invoices */}
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-sm font-medium">Invoices Activos</p>
+              <p className="text-3xl font-bold mt-2">
+                {formatCurrency(invoicesData.summary.totalExpected || 0)}
+              </p>
+              <p className="text-blue-100 text-xs mt-1">
+                {invoicesData.summary.totalInvoices || 0} budgets aprobados
+              </p>
+            </div>
+            <FaFileInvoiceDollar className="text-5xl text-blue-200 opacity-50" />
           </div>
         </div>
 
@@ -296,6 +355,17 @@ const AccountsReceivable = () => {
         <div className="border-b border-gray-200">
           <nav className="flex -mb-px">
             <button
+              onClick={() => setActiveTab('invoices')}
+              className={`px-6 py-4 text-sm font-medium ${
+                activeTab === 'invoices'
+                  ? 'border-b-2 border-blue-500 text-blue-600'
+                  : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <FaFileInvoiceDollar className="inline mr-2" />
+              Invoices Activos
+            </button>
+            <button
               onClick={() => setActiveTab('overview')}
               className={`px-6 py-4 text-sm font-medium ${
                 activeTab === 'overview'
@@ -333,6 +403,300 @@ const AccountsReceivable = () => {
       </div>
 
       {/* Tab Content */}
+      {activeTab === 'invoices' && (
+        <div className="space-y-6">
+          {/* Filtros */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+              <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+              Filtros
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              {/* Estado de Pago */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Estado de Pago
+                </label>
+                <select
+                  value={invoiceFilter.status}
+                  onChange={(e) => setInvoiceFilter({...invoiceFilter, status: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">Todos</option>
+                  <option value="pending_payment">Sin Pagos</option>
+                  <option value="initial_only">Solo Initial Payment</option>
+                  <option value="partial">Pago Parcial</option>
+                  <option value="completed">Completado</option>
+                </select>
+              </div>
+
+              {/* Fecha Inicio */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Desde
+                </label>
+                <input
+                  type="date"
+                  value={invoiceFilter.startDate}
+                  onChange={(e) => setInvoiceFilter({...invoiceFilter, startDate: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Fecha Fin */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Hasta
+                </label>
+                <input
+                  type="date"
+                  value={invoiceFilter.endDate}
+                  onChange={(e) => setInvoiceFilter({...invoiceFilter, endDate: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              {/* Búsqueda */}
+              <div className="lg:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Buscar (Cliente o Propiedad)
+                </label>
+                <input
+                  type="text"
+                  value={invoiceFilter.searchTerm}
+                  onChange={(e) => setInvoiceFilter({...invoiceFilter, searchTerm: e.target.value})}
+                  placeholder="Buscar por dirección o nombre de cliente..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            {/* Botón de Limpiar Filtros */}
+            <div className="mt-4">
+              <button
+                onClick={() => setInvoiceFilter({
+                  status: 'all',
+                  startDate: '',
+                  endDate: '',
+                  salesRepId: '',
+                  searchTerm: ''
+                })}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium"
+              >
+                Limpiar Filtros
+              </button>
+            </div>
+          </div>
+
+          {/* Summary Cards for Invoices */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6 border border-blue-200">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center">
+                  <FaFileInvoiceDollar className="text-lg" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Total Invoices</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {invoicesData.summary.totalInvoices || 0}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-6 border border-green-200">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="bg-green-500 text-white rounded-full w-10 h-10 flex items-center justify-center">
+                  <FaDollarSign className="text-lg" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Total Esperado</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {formatCurrency(invoicesData.summary.totalExpected || 0)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-6 border border-purple-200">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="bg-purple-500 text-white rounded-full w-10 h-10 flex items-center justify-center">
+                  <FaCheckCircle className="text-lg" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Total Cobrado</p>
+                  <p className="text-2xl font-bold text-purple-600">
+                    {formatCurrency(invoicesData.summary.totalCollected || 0)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-6 border border-orange-200">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="bg-orange-500 text-white rounded-full w-10 h-10 flex items-center justify-center">
+                  <FaExclamationTriangle className="text-lg" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Por Cobrar</p>
+                  <p className="text-2xl font-bold text-orange-600">
+                    {formatCurrency(invoicesData.summary.totalRemaining || 0)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Invoices Table */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+              <FaFileInvoiceDollar className="text-blue-500" />
+              Invoices Activos - Detalle de Cobros
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Invoice #
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Propiedad
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Cliente
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Fecha
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Total Budget
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      C.O.
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Total Esperado
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Initial Payment
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Cobrado
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Restante
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Estado
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Work
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {invoicesData.invoices && invoicesData.invoices.length > 0 ? (
+                    invoicesData.invoices.map((invoice) => (
+                      <tr key={invoice.budgetId} className="hover:bg-gray-50">
+                        <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                          #{invoice.invoiceNumber || invoice.budgetId}
+                        </td>
+                        <td className="px-4 py-4 text-sm text-gray-900 max-w-xs truncate">
+                          {invoice.propertyAddress}
+                        </td>
+                        <td className="px-4 py-4 text-sm text-gray-900">
+                          {invoice.clientName}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {formatDate(invoice.budgetDate)}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold text-gray-700">
+                          {formatCurrency(invoice.budgetTotal)}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm">
+                          {invoice.changeOrdersCount > 0 ? (
+                            <div className="flex flex-col">
+                              <span className="text-blue-600 font-semibold">
+                                +{formatCurrency(invoice.changeOrdersTotal)}
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                ({invoice.changeOrdersCount} C.O.)
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm font-bold text-green-600">
+                          {formatCurrency(invoice.expectedTotal)}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-purple-600">
+                          {formatCurrency(invoice.initialPayment)}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold text-blue-600">
+                          {formatCurrency(invoice.totalCollected)}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm font-bold">
+                          <span className={invoice.remainingAmount > 0 ? 'text-orange-600' : 'text-green-600'}>
+                            {formatCurrency(invoice.remainingAmount)}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            invoice.paymentStatus === 'completed'
+                              ? 'bg-green-100 text-green-800'
+                              : invoice.paymentStatus === 'partial'
+                              ? 'bg-blue-100 text-blue-800'
+                              : invoice.paymentStatus === 'initial_only'
+                              ? 'bg-purple-100 text-purple-800'
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {invoice.paymentStatus === 'completed' ? 'Completo' :
+                             invoice.paymentStatus === 'partial' ? 'Parcial' :
+                             invoice.paymentStatus === 'initial_only' ? 'Solo Initial' :
+                             'Pendiente'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          {invoice.hasWork ? (
+                            <div className="flex flex-col gap-1">
+                              <span className="text-xs text-green-600 font-semibold">
+                                ✓ Work #{invoice.workId}
+                              </span>
+                              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                invoice.workStatus === 'inProgress'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : invoice.workStatus === 'finalApproved'
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {invoice.workStatus}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-gray-400">Sin Work</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="12" className="px-4 py-8 text-center text-gray-500">
+                        No hay invoices activos con los filtros seleccionados
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeTab === 'overview' && (
         <div className="space-y-6">
           {/* Pending Final Invoices */}
@@ -631,59 +995,86 @@ const AccountsReceivable = () => {
               ))}
             </div>
 
-            {/* Commissions by External Referral */}
+            {/* Commissions by External Referral - SUMMARY CARD ONLY */}
             {commissionsData.byExternalReferral && commissionsData.byExternalReferral.length > 0 && (
               <>
                 <h2 className="text-xl font-bold text-gray-800 mb-4 mt-8 flex items-center gap-2">
                   <FaHandHoldingUsd className="text-green-500" />
                   Comisiones por Referido Externo
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-                  {commissionsData.byExternalReferral.map((referral, index) => (
-                    <div key={`external-${index}`} className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-6 border border-green-200">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="bg-green-500 text-white rounded-full w-12 h-12 flex items-center justify-center">
-                          <FaHandHoldingUsd className="text-xl" />
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-gray-800">{referral.referralName}</h3>
-                          <p className="text-sm text-gray-600">{referral.referralCompany || 'Referido Externo'}</p>
-                          {referral.referralEmail && (
-                            <p className="text-xs text-gray-500">{referral.referralEmail}</p>
-                          )}
-                          {referral.referralPhone && (
-                            <p className="text-xs text-gray-500">{referral.referralPhone}</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Total Comisiones:</span>
-                          <span className="text-lg font-bold text-green-600">
-                            {formatCurrency(referral.totalCommissions)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Pagadas:</span>
-                          <span className="text-sm font-semibold text-green-600">
-                            {formatCurrency(referral.totalPaid || 0)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Pendientes:</span>
-                          <span className="text-sm font-semibold text-yellow-600">
-                            {formatCurrency(referral.totalPending || 0)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Budgets:</span>
-                          <span className="text-sm font-semibold text-gray-700">
-                            {referral.budgetsCount}
-                          </span>
-                        </div>
-                      </div>
+                
+                {/* Una sola tarjeta de resumen para todos los external referrals */}
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-6 border border-green-200 mb-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="bg-green-500 text-white rounded-full w-14 h-14 flex items-center justify-center">
+                      <FaHandHoldingUsd className="text-2xl" />
                     </div>
-                  ))}
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-800">Referidos Externos</h3>
+                      <p className="text-sm text-gray-600">
+                        {commissionsData.byExternalReferral.length} referido(s) con comisiones
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-white rounded-lg p-4 border border-green-200">
+                      <p className="text-xs text-gray-500 uppercase mb-1">Total Comisiones</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {formatCurrency(
+                          commissionsData.byExternalReferral.reduce((sum, ref) => sum + ref.totalCommissions, 0)
+                        )}
+                      </p>
+                    </div>
+                    
+                    <div className="bg-white rounded-lg p-4 border border-green-200">
+                      <p className="text-xs text-gray-500 uppercase mb-1">Pagadas</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {formatCurrency(
+                          commissionsData.byExternalReferral.reduce((sum, ref) => sum + (ref.totalPaid || 0), 0)
+                        )}
+                      </p>
+                    </div>
+                    
+                    <div className="bg-white rounded-lg p-4 border border-green-200">
+                      <p className="text-xs text-gray-500 uppercase mb-1">Pendientes</p>
+                      <p className="text-2xl font-bold text-orange-600">
+                        {formatCurrency(
+                          commissionsData.byExternalReferral.reduce((sum, ref) => sum + (ref.totalPending || 0), 0)
+                        )}
+                      </p>
+                    </div>
+                    
+                    <div className="bg-white rounded-lg p-4 border border-green-200">
+                      <p className="text-xs text-gray-500 uppercase mb-1">Total Budgets</p>
+                      <p className="text-2xl font-bold text-gray-700">
+                        {commissionsData.byExternalReferral.reduce((sum, ref) => sum + ref.budgetsCount, 0)}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Lista compacta de referidos */}
+                  <div className="mt-4 pt-4 border-t border-green-200">
+                    <p className="text-sm font-semibold text-gray-700 mb-2">Desglose por Referido:</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {commissionsData.byExternalReferral.map((referral, index) => (
+                        <div key={`external-${index}`} className="bg-white rounded p-3 border border-green-100 text-sm">
+                          <p className="font-semibold text-gray-800 truncate" title={referral.referralName}>
+                            {referral.referralName}
+                          </p>
+                          {referral.referralCompany && (
+                            <p className="text-xs text-gray-500 truncate">{referral.referralCompany}</p>
+                          )}
+                          <div className="flex justify-between mt-2 text-xs">
+                            <span className="text-gray-600">{referral.budgetsCount} budget(s)</span>
+                            <span className="font-semibold text-green-600">
+                              {formatCurrency(referral.totalCommissions)}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </>
             )}

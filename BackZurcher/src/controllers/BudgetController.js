@@ -846,41 +846,54 @@ async getBudgets(req, res) {
 
     const { search, status, month, year } = req.query;
 
+    // 🆕 WHERE CLAUSE BASE (sin filtro de status, para estadísticas globales)
+    const baseWhereClause = {};
     const whereClause = {};
-    const includeWhereClause = {};
 
      if (search && search.trim()) {
-      whereClause[Op.or] = [
-        { applicantName: { [Op.iLike]: `%${search.trim()}%` } },
-        { propertyAddress: { [Op.iLike]: `%${search.trim()}%` } }
-      ];
+      const searchCondition = {
+        [Op.or]: [
+          { applicantName: { [Op.iLike]: `%${search.trim()}%` } },
+          { propertyAddress: { [Op.iLike]: `%${search.trim()}%` } }
+        ]
+      };
+      baseWhereClause[Op.or] = searchCondition[Op.or];
+      whereClause[Op.or] = searchCondition[Op.or];
     }
 
-    // Filtro por status
-    if (status && status !== 'all') {
-      whereClause.status = status;
-    }
-
-    // Filtro por mes
+    // Filtro por mes (aplicar a ambos whereClause)
     if (month && month !== 'all') {
       const monthNum = parseInt(month);
-      if (monthNum >= 1 && monthNum <= 12) {
+      // ✅ El frontend envía 0-11 (JavaScript), convertir a 1-12 (SQL)
+      const sqlMonth = monthNum + 1;
+      if (sqlMonth >= 1 && sqlMonth <= 12) {
+        const monthCondition = literal(`EXTRACT(MONTH FROM "Budget"."date") = ${sqlMonth}`);
+        
+        baseWhereClause[Op.and] = baseWhereClause[Op.and] || [];
+        baseWhereClause[Op.and].push(monthCondition);
+        
         whereClause[Op.and] = whereClause[Op.and] || [];
-        whereClause[Op.and].push(
-          literal(`EXTRACT(MONTH FROM "Budget"."date") = ${monthNum}`)
-        );
+        whereClause[Op.and].push(monthCondition);
       }
     }
 
-    // Filtro por año
+    // Filtro por año (aplicar a ambos whereClause)
     if (year && year !== 'all') {
       const yearNum = parseInt(year);
       if (yearNum > 2020 && yearNum <= new Date().getFullYear() + 1) {
+        const yearCondition = literal(`EXTRACT(YEAR FROM "Budget"."date") = ${yearNum}`);
+        
+        baseWhereClause[Op.and] = baseWhereClause[Op.and] || [];
+        baseWhereClause[Op.and].push(yearCondition);
+        
         whereClause[Op.and] = whereClause[Op.and] || [];
-        whereClause[Op.and].push(
-          literal(`EXTRACT(YEAR FROM "Budget"."date") = ${yearNum}`)
-        );
+        whereClause[Op.and].push(yearCondition);
       }
+    }
+
+    // 🎯 Filtro por status SOLO para whereClause (no para estadísticas)
+    if (status && status !== 'all') {
+      whereClause.status = status;
     }
 
     const { rows: budgetsInstances, count: totalBudgets } = await Budget.findAndCountAll({
@@ -906,6 +919,27 @@ async getBudgets(req, res) {
         'sentForReviewAt' // 🆕 Fecha de envío para revisión
       ]
     });
+
+    // 🆕 CALCULAR ESTADÍSTICAS GLOBALES usando baseWhereClause (SIN filtro de status)
+    // Esto asegura que siempre se muestren todos los estados, sin importar el filtro aplicado
+    const allBudgetsForStats = await Budget.findAll({
+      where: baseWhereClause, // ✅ USAR baseWhereClause en lugar de whereClause
+      attributes: ['status']
+    });
+
+    const stats = {
+      total: allBudgetsForStats.length, // ✅ Total de todos los budgets (sin filtro de status)
+      draft: allBudgetsForStats.filter(b => b.status === 'draft').length,
+      pending_review: allBudgetsForStats.filter(b => b.status === 'pending_review').length,
+      client_approved: allBudgetsForStats.filter(b => b.status === 'client_approved').length,
+      created: allBudgetsForStats.filter(b => b.status === 'created').length,
+      send: allBudgetsForStats.filter(b => b.status === 'send').length,
+      sent_for_signature: allBudgetsForStats.filter(b => b.status === 'sent_for_signature').length,
+      signed: allBudgetsForStats.filter(b => b.status === 'signed').length,
+      approved: allBudgetsForStats.filter(b => b.status === 'approved').length,
+      rejected: allBudgetsForStats.filter(b => b.status === 'rejected').length,
+      notResponded: allBudgetsForStats.filter(b => b.status === 'notResponded').length
+    };
 
     const budgetsWithDetails = budgetsInstances.map(budgetInstance => {
       const budgetJson = budgetInstance.toJSON();
@@ -1016,7 +1050,8 @@ async getBudgets(req, res) {
       budgets: budgetsWithDetails,
       total: totalBudgets,
       page,
-      pageSize
+      pageSize,
+      stats // 🆕 Agregar estadísticas globales
     });
 
   } catch (error) {

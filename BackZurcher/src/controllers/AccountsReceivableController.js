@@ -323,6 +323,8 @@ const AccountsReceivableController = {
    */
   async getPendingCommissions(req, res) {
     try {
+      console.log('🔍 Buscando comisiones pendientes...');
+      
       // ✅ MOSTRAR TODAS LAS COMISIONES (pagadas y pendientes)
       // Incluye tanto sales_rep como external_referral
       const budgetsWithCommissions = await Budget.findAll({
@@ -332,12 +334,12 @@ const AccountsReceivableController = {
               // Sales Reps (vendedores internos) - comisión fija $500
               leadSource: 'sales_rep',
               createdByStaffId: { [Op.ne]: null },
-              salesCommissionAmount: { [Op.gt]: 0 }
+              commissionAmount: { [Op.gt]: 0 } // ✅ CAMBIADO: usar commissionAmount universal
             },
             {
               // External Referrals (referidos externos) - comisión variable
               leadSource: 'external_referral',
-              externalReferralName: { [Op.ne]: null },
+              // ✅ REMOVIDO: externalReferralName requirement - solo verificar commissionAmount
               commissionAmount: { [Op.gt]: 0 }
             }
           ]
@@ -346,24 +348,28 @@ const AccountsReceivableController = {
           {
             model: Staff,
             as: 'createdByStaff',
-            attributes: ['id', 'name', 'email', 'role']
+            attributes: ['id', 'name', 'email', 'role'],
+            required: false // ✅ IMPORTANTE: No requerir Staff para external referrals
           },
           {
             model: Work,
-            attributes: ['idWork', 'status']
+            attributes: ['idWork', 'status'],
+            required: false
           }
         ]
       });
+
+      console.log(`✅ Encontrados ${budgetsWithCommissions.length} budgets con comisiones`);
+      console.log(`   - Sales Reps: ${budgetsWithCommissions.filter(b => b.leadSource === 'sales_rep').length}`);
+      console.log(`   - External Referrals: ${budgetsWithCommissions.filter(b => b.leadSource === 'external_referral').length}`);
 
       // ✅ Calcular totales de comisiones PAGADAS y PENDIENTES
       let totalPendingCommissions = 0;
       let totalPaidCommissions = 0;
       
       budgetsWithCommissions.forEach(budget => {
-        // Para sales_rep usar salesCommissionAmount, para external_referral usar commissionAmount
-        const amount = budget.leadSource === 'sales_rep' 
-          ? parseFloat(budget.salesCommissionAmount || 0)
-          : parseFloat(budget.commissionAmount || 0);
+        // ✅ USAR commissionAmount universal para ambos tipos
+        const amount = parseFloat(budget.commissionAmount || 0);
         
         if (budget.commissionPaid) {
           totalPaidCommissions += amount;
@@ -372,14 +378,16 @@ const AccountsReceivableController = {
         }
       });
 
+      console.log(`💰 Total comisiones pendientes: $${totalPendingCommissions}`);
+      console.log(`✅ Total comisiones pagadas: $${totalPaidCommissions}`);
+
       // Agrupar por vendedor/referido
       const commissionsBySalesRep = {}; // Incluye sales reps
       const commissionsByExternalReferral = {}; // Incluye external referrals
       
       budgetsWithCommissions.forEach(budget => {
-        const amount = budget.leadSource === 'sales_rep'
-          ? parseFloat(budget.salesCommissionAmount || 0)
-          : parseFloat(budget.commissionAmount || 0);
+        // ✅ USAR commissionAmount universal
+        const amount = parseFloat(budget.commissionAmount || 0);
 
         if (budget.leadSource === 'sales_rep') {
           // Agrupar por vendedor interno (Staff)
@@ -424,12 +432,12 @@ const AccountsReceivableController = {
           });
         } else if (budget.leadSource === 'external_referral') {
           // Agrupar por referido externo (por nombre ya que no tienen ID único)
-          const referralKey = budget.externalReferralName || 'Unknown';
+          const referralKey = budget.externalReferralName || `unknown_${budget.idBudget}`;
           
           if (!commissionsByExternalReferral[referralKey]) {
             commissionsByExternalReferral[referralKey] = {
               type: 'external_referral',
-              referralName: budget.externalReferralName,
+              referralName: budget.externalReferralName || 'Sin nombre especificado',
               referralEmail: budget.externalReferralEmail,
               referralPhone: budget.externalReferralPhone,
               referralCompany: budget.externalReferralCompany,
@@ -478,9 +486,8 @@ const AccountsReceivableController = {
         bySalesRep: Object.values(commissionsBySalesRep),
         byExternalReferral: Object.values(commissionsByExternalReferral),
         allBudgets: budgetsWithCommissions.map(b => {
-          const amount = b.leadSource === 'sales_rep'
-            ? parseFloat(b.salesCommissionAmount || 0)
-            : parseFloat(b.commissionAmount || 0);
+          // ✅ USAR commissionAmount universal
+          const amount = parseFloat(b.commissionAmount || 0);
             
           return {
             budgetId: b.idBudget,
@@ -490,7 +497,7 @@ const AccountsReceivableController = {
             salesRepName: b.createdByStaff?.name || null,
             salesRepId: b.createdByStaffId || null,
             // Datos de external referral (si aplica)
-            externalReferralName: b.externalReferralName || null,
+            externalReferralName: b.externalReferralName || 'Sin nombre especificado',
             externalReferralEmail: b.externalReferralEmail || null,
             externalReferralPhone: b.externalReferralPhone || null,
             externalReferralCompany: b.externalReferralCompany || null,
@@ -512,6 +519,201 @@ const AccountsReceivableController = {
       res.status(500).json({
         error: true,
         message: 'Error al obtener comisiones pendientes',
+        details: error.message
+      });
+    }
+  },
+
+  /**
+   * 🆕 Obtener budgets aprobados (invoices activos) con tracking de pagos
+   * Muestra todos los budgets que ya están aprobados/signed y se convirtieron en invoices
+   */
+  async getActiveInvoices(req, res) {
+    try {
+      const { 
+        status, // 'all', 'pending_payment', 'partial', 'completed'
+        startDate, 
+        endDate, 
+        salesRepId,
+        searchTerm 
+      } = req.query;
+
+      // Condiciones base: budgets aprobados/firmados
+      const whereConditions = {
+        status: {
+          [Op.in]: ['signed', 'approved']
+        }
+      };
+
+      // Filtro de fechas
+      if (startDate && endDate) {
+        whereConditions.date = {
+          [Op.between]: [startDate, endDate]
+        };
+      } else if (startDate) {
+        whereConditions.date = {
+          [Op.gte]: startDate
+        };
+      } else if (endDate) {
+        whereConditions.date = {
+          [Op.lte]: endDate
+        };
+      }
+
+      // Filtro por vendedor
+      if (salesRepId) {
+        whereConditions.createdByStaffId = salesRepId;
+      }
+
+      // Filtro de búsqueda (por dirección o cliente)
+      if (searchTerm) {
+        whereConditions[Op.or] = [
+          { propertyAddress: { [Op.iLike]: `%${searchTerm}%` } },
+          { applicantName: { [Op.iLike]: `%${searchTerm}%` } }
+        ];
+      }
+
+      const budgets = await Budget.findAll({
+        where: whereConditions,
+        include: [
+          {
+            model: Staff,
+            as: 'createdByStaff',
+            attributes: ['id', 'name', 'email']
+          },
+          {
+            model: Work,
+            attributes: ['idWork', 'status'],
+            include: [
+              {
+                model: ChangeOrder,
+                as: 'changeOrders',
+                where: { status: 'approved' },
+                required: false
+              },
+              {
+                model: FinalInvoice,
+                as: 'finalInvoice',
+                required: false
+              }
+            ]
+          }
+        ],
+        order: [['date', 'DESC']]
+      });
+
+      const invoicesData = budgets.map(budget => {
+        const budgetTotal = parseFloat(budget.clientTotalPrice || budget.totalPrice || 0);
+        const initialPayment = parseFloat(budget.paymentProofAmount || 0);
+        
+        // Calcular change orders aprobados
+        const changeOrders = budget.Work?.changeOrders || [];
+        const changeOrdersTotal = changeOrders.reduce((sum, co) => {
+          return sum + (parseFloat(co.newTotalPrice || 0) - parseFloat(co.previousTotalPrice || 0));
+        }, 0);
+
+        // Total esperado = Budget + Change Orders
+        const expectedTotal = budgetTotal + changeOrdersTotal;
+        
+        // Total cobrado hasta ahora
+        let totalCollected = initialPayment;
+        
+        // Si hay final invoice pagado, sumarlo
+        if (budget.Work?.finalInvoice?.status === 'paid') {
+          totalCollected += parseFloat(budget.Work.finalInvoice.finalAmountDue || 0);
+        } else if (budget.Work?.finalInvoice?.status === 'partially_paid') {
+          // Si está parcialmente pagado, sumar lo que se haya cobrado
+          totalCollected += parseFloat(budget.Work.finalInvoice.amountPaid || 0);
+        }
+
+        // Monto restante por cobrar
+        const remainingAmount = expectedTotal - totalCollected;
+
+        // Determinar estado de pago
+        let paymentStatus;
+        if (remainingAmount <= 0) {
+          paymentStatus = 'completed'; // Completamente cobrado
+        } else if (totalCollected > initialPayment) {
+          paymentStatus = 'partial'; // Pago parcial (más allá del initial)
+        } else if (initialPayment > 0) {
+          paymentStatus = 'initial_only'; // Solo initial payment
+        } else {
+          paymentStatus = 'pending_payment'; // Sin pagos
+        }
+
+        return {
+          budgetId: budget.idBudget,
+          invoiceNumber: budget.invoiceNumber,
+          propertyAddress: budget.propertyAddress,
+          clientName: budget.applicantName,
+          budgetDate: budget.date,
+          budgetStatus: budget.status,
+          
+          // Información del vendedor/referido
+          leadSource: budget.leadSource,
+          salesRepName: budget.createdByStaff?.name || null,
+          salesRepId: budget.createdByStaffId || null,
+          externalReferralName: budget.externalReferralName || null,
+          externalReferralCompany: budget.externalReferralCompany || null,
+          
+          // Desglose financiero
+          budgetTotal,
+          initialPayment,
+          changeOrdersCount: changeOrders.length,
+          changeOrdersTotal,
+          expectedTotal,
+          totalCollected,
+          remainingAmount,
+          paymentStatus,
+          
+          // Estado del trabajo
+          hasWork: !!budget.Work,
+          workId: budget.Work?.idWork || null,
+          workStatus: budget.Work?.status || 'not_created',
+          
+          // Final Invoice
+          hasFinalInvoice: !!budget.Work?.finalInvoice,
+          finalInvoiceId: budget.Work?.finalInvoice?.id || null,
+          finalInvoiceStatus: budget.Work?.finalInvoice?.status || 'not_created',
+          finalInvoiceAmount: budget.Work?.finalInvoice?.finalAmountDue || 0,
+          
+          // Comisión
+          commissionAmount: parseFloat(budget.commissionAmount || 0),
+          commissionPaid: budget.commissionPaid || false
+        };
+      });
+
+      // Aplicar filtro de estado de pago si se especifica
+      let filteredInvoices = invoicesData;
+      if (status && status !== 'all') {
+        filteredInvoices = invoicesData.filter(inv => inv.paymentStatus === status);
+      }
+
+      // Calcular resumen
+      const summary = {
+        totalInvoices: filteredInvoices.length,
+        totalExpected: filteredInvoices.reduce((sum, inv) => sum + inv.expectedTotal, 0),
+        totalCollected: filteredInvoices.reduce((sum, inv) => sum + inv.totalCollected, 0),
+        totalRemaining: filteredInvoices.reduce((sum, inv) => sum + inv.remainingAmount, 0),
+        
+        byStatus: {
+          completed: filteredInvoices.filter(inv => inv.paymentStatus === 'completed').length,
+          partial: filteredInvoices.filter(inv => inv.paymentStatus === 'partial').length,
+          initial_only: filteredInvoices.filter(inv => inv.paymentStatus === 'initial_only').length,
+          pending_payment: filteredInvoices.filter(inv => inv.paymentStatus === 'pending_payment').length
+        }
+      };
+
+      res.status(200).json({
+        summary,
+        invoices: filteredInvoices
+      });
+
+    } catch (error) {
+      console.error('Error obteniendo invoices activos:', error);
+      res.status(500).json({
+        error: true,
+        message: 'Error al obtener invoices activos',
         details: error.message
       });
     }
