@@ -18,6 +18,7 @@ async function runMigration() {
       console.log('\n📋 Migraciones disponibles:');
       console.log('   - add-budget-workflow-fields');
       console.log('   - add-legacy-fields');
+      console.log('   - add-external-referral-fields  🆕 NEW!');
       process.exit(1);
     }
     

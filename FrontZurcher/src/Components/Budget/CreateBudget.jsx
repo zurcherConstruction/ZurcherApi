@@ -66,6 +66,15 @@ const CreateBudget = () => {
   // 🆕 Estado para almacenar el valor PBTS
   const [pbtsValue, setPbtsValue] = useState(pbtsFromQuery || null);
   
+  // 🆕 Estado para información de referidos externos
+  const [externalReferralInfo, setExternalReferralInfo] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    company: '',
+    commissionAmount: ''
+  });
+  
   console.log("📋 PBTS recibido:", pbtsFromQuery);
   const defaultLayoutPluginInstance = defaultLayoutPlugin({
     renderToolbar: (Toolbar) => (
@@ -326,9 +335,16 @@ const CreateBudget = () => {
     const discountValue = parseFloat(formData.discountAmount) || 0;
     let total = subtotal - discountValue;
 
-    // 💰 AGREGAR COMISIÓN SI HAY VENDEDOR
-    const salesCommission = (formData.leadSource === 'sales_rep' && formData.createdByStaffId) ? 500 : 0;
-    const totalWithCommission = total + salesCommission;
+    // 💰 AGREGAR COMISIÓN
+    let commission = 0;
+    if (formData.leadSource === 'sales_rep' && formData.createdByStaffId) {
+      // Sales rep interno - $500 fijos
+      commission = 500;
+    } else if (formData.leadSource === 'external_referral' && externalReferralInfo.commissionAmount) {
+      // Referido externo - monto variable
+      commission = parseFloat(externalReferralInfo.commissionAmount) || 0;
+    }
+    const totalWithCommission = total + commission;
 
     let payment = 0;
     const percentage = parseFloat(formData.initialPaymentPercentage);
@@ -347,7 +363,7 @@ const CreateBudget = () => {
         initialPayment: payment,
       }));
     }
-  }, [formData.lineItems, formData.discountAmount, formData.initialPaymentPercentage, formData.leadSource, formData.createdByStaffId, formData.subtotalPrice, formData.totalPrice, formData.initialPayment]);
+  }, [formData.lineItems, formData.discountAmount, formData.initialPaymentPercentage, formData.leadSource, formData.createdByStaffId, externalReferralInfo.commissionAmount, formData.subtotalPrice, formData.totalPrice, formData.initialPayment]);
 
   // --- Effect para calcular Expiration Date siempre que Date cambie ---
   useEffect(() => {
@@ -683,6 +699,28 @@ const customCategoryOrder = [
       return;
     }
 
+    // 🆕 VALIDAR EXTERNAL REFERRAL SI ES NECESARIO
+    if (formData.leadSource === 'external_referral') {
+      if (!externalReferralInfo.name || externalReferralInfo.name.trim() === '') {
+        await Swal.fire({
+          title: 'Referral Name Required',
+          text: 'Please enter the name of the external referral.',
+          icon: 'warning',
+          confirmButtonColor: '#10b981'
+        });
+        return;
+      }
+      if (!externalReferralInfo.commissionAmount || parseFloat(externalReferralInfo.commissionAmount) <= 0) {
+        await Swal.fire({
+          title: 'Commission Amount Required',
+          text: 'Please enter a valid commission amount for the external referral.',
+          icon: 'warning',
+          confirmButtonColor: '#10b981'
+        });
+        return;
+      }
+    }
+
     // ✅ INICIAR PROCESO DE ENVÍO
     setIsSubmitting(true);
     setSubmissionProgress('Preparando datos...');
@@ -709,6 +747,12 @@ const customCategoryOrder = [
         // 🆕 Campos de origen y vendedor
         leadSource: formData.leadSource || 'web',
         createdByStaffId: formData.leadSource === 'sales_rep' ? formData.createdByStaffId : null,
+        // 🆕 Campos de referido externo
+        externalReferralName: formData.leadSource === 'external_referral' ? externalReferralInfo.name : null,
+        externalReferralEmail: formData.leadSource === 'external_referral' ? externalReferralInfo.email : null,
+        externalReferralPhone: formData.leadSource === 'external_referral' ? externalReferralInfo.phone : null,
+        externalReferralCompany: formData.leadSource === 'external_referral' ? externalReferralInfo.company : null,
+        customCommissionAmount: formData.leadSource === 'external_referral' ? parseFloat(externalReferralInfo.commissionAmount) : null,
         lineItems: formData.lineItems.map(item => ({
           budgetItemId: item.budgetItemId || null,
           quantity: item.quantity,
@@ -1037,7 +1081,9 @@ const customCategoryOrder = [
                         <option value="web">Website / Web Form</option>
                         <option value="direct_client">Direct Client (Walk-in/Call)</option>
                         <option value="social_media">Social Media</option>
-                        <option value="sales_rep">Sales Representative</option>
+                        <option value="referral">Referral (Generic)</option>
+                        <option value="sales_rep">Sales Representative (Staff)</option>
+                        <option value="external_referral">External Referral (Non-Staff)</option>
                       </select>
                       <p className="text-xs text-gray-500 mt-1">
                         Select the origin of this budget request
@@ -1078,6 +1124,119 @@ const customCategoryOrder = [
                     )}
                   </div>
 
+                  {/* 🆕 External Referral Fields (solo si leadSource === 'external_referral') */}
+                  {formData.leadSource === 'external_referral' && (
+                    <div className="mt-4 p-5 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-lg shadow-sm">
+                      <h5 className="text-sm font-bold text-green-900 mb-4 flex items-center">
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        External Referral Information
+                      </h5>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Nombre del Referido */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Referral Name <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={externalReferralInfo.name}
+                            onChange={(e) => setExternalReferralInfo(prev => ({
+                              ...prev,
+                              name: e.target.value
+                            }))}
+                            className={standardInputClasses}
+                            placeholder="John Doe"
+                            required
+                          />
+                        </div>
+
+                        {/* Email del Referido */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Email
+                          </label>
+                          <input
+                            type="email"
+                            value={externalReferralInfo.email}
+                            onChange={(e) => setExternalReferralInfo(prev => ({
+                              ...prev,
+                              email: e.target.value
+                            }))}
+                            className={standardInputClasses}
+                            placeholder="referral@example.com"
+                          />
+                        </div>
+
+                        {/* Teléfono del Referido */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Phone
+                          </label>
+                          <input
+                            type="tel"
+                            value={externalReferralInfo.phone}
+                            onChange={(e) => setExternalReferralInfo(prev => ({
+                              ...prev,
+                              phone: e.target.value
+                            }))}
+                            className={standardInputClasses}
+                            placeholder="+1 (954) 123-4567"
+                          />
+                        </div>
+
+                        {/* Empresa del Referido */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Company (Optional)
+                          </label>
+                          <input
+                            type="text"
+                            value={externalReferralInfo.company}
+                            onChange={(e) => setExternalReferralInfo(prev => ({
+                              ...prev,
+                              company: e.target.value
+                            }))}
+                            className={standardInputClasses}
+                            placeholder="ABC Company LLC"
+                          />
+                        </div>
+
+                        {/* Monto de Comisión */}
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Commission Amount ($) <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={externalReferralInfo.commissionAmount}
+                            onChange={(e) => setExternalReferralInfo(prev => ({
+                              ...prev,
+                              commissionAmount: e.target.value
+                            }))}
+                            className="mt-1 block w-full md:w-1/2 px-3 py-2 bg-white border-2 border-green-400 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 sm:text-sm font-semibold"
+                            placeholder="250.00"
+                            required
+                          />
+                          <p className="text-xs text-gray-600 mt-1">
+                            This commission will be added to the client's total price
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Mensaje informativo */}
+                      <div className="mt-4 p-3 bg-white border border-green-200 rounded-md">
+                        <p className="text-sm text-green-800">
+                          <strong>💰 External Referral Commission:</strong> ${externalReferralInfo.commissionAmount || '0.00'} USD will be added to the client's total price. This commission must be paid manually to the external referral.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Mensaje informativo si es vendedor */}
                   {formData.leadSource === 'sales_rep' && formData.createdByStaffId && (
                     <div className="mt-4 p-3 bg-indigo-50 border border-indigo-200 rounded-md">
@@ -1085,7 +1244,7 @@ const customCategoryOrder = [
                         <strong>👤 Sales Commission:</strong> A $500 USD commission will be automatically added to the client's total price for the selected sales representative.
                       </p>
                     </div>
-                  )}
+                    )}
                 </div>
               </div>
             </div>

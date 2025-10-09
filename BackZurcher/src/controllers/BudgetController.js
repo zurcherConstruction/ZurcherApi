@@ -39,7 +39,9 @@ const BudgetController = {
       const {
         permitId, date, expirationDate, status = 'pending', discountDescription,
         discountAmount = 0, generalNotes, initialPaymentPercentage: initialPaymentPercentageInput, lineItems,
-        leadSource, createdByStaffId // 🆕 Campos de origen y vendedor
+        leadSource, createdByStaffId, // 🆕 Campos de origen y vendedor interno
+        externalReferralName, externalReferralEmail, externalReferralPhone, // 🆕 Campos de referido externo
+        externalReferralCompany, customCommissionAmount // 🆕 Empresa y comisión personalizada
       } = req.body;
 
       if (!permitId) throw new Error('permitId es requerido.');
@@ -135,13 +137,19 @@ const BudgetController = {
       const calculatedInitialPayment = finalTotal * (actualPercentage / 100);
       console.log(`Totales calculados: Subtotal=${calculatedSubtotal}, Total=${finalTotal}, InitialPayment=${calculatedInitialPayment}`);
 
-     let salesCommission = 0;
+     let commission = 0;
      let finalTotalWithCommission = finalTotal;
 
 if (leadSource === 'sales_rep' && createdByStaffId) {
-  salesCommission = 500;
-  finalTotalWithCommission = finalTotal + salesCommission;
-  console.log(`Presupuesto con vendedor - Trabajo: $${finalTotal} + Comision: $${salesCommission} = Total cliente: $${finalTotalWithCommission}`);
+  // Sales rep interno - $500 fijos
+  commission = 500;
+  finalTotalWithCommission = finalTotal + commission;
+  console.log(`Presupuesto con vendedor interno - Trabajo: $${finalTotal} + Comisión: $${commission} = Total cliente: $${finalTotalWithCommission}`);
+} else if (leadSource === 'external_referral') {
+  // Referido externo - monto variable
+  commission = parseFloat(customCommissionAmount) || 0;
+  finalTotalWithCommission = finalTotal + commission;
+  console.log(`Presupuesto con referido externo - Trabajo: $${finalTotal} + Comisión: $${commission} = Total cliente: $${finalTotalWithCommission}`);
 }
 
       const newBudget = await Budget.create({
@@ -161,9 +169,14 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
         initialPayment: finalTotalWithCommission * (actualPercentage / 100),
         leadSource: leadSource || 'web',
         createdByStaffId: createdByStaffId || null,
-        salesCommissionAmount: salesCommission,
+        // 🆕 Campos de referido externo
+        externalReferralName: leadSource === 'external_referral' ? externalReferralName : null,
+        externalReferralEmail: leadSource === 'external_referral' ? externalReferralEmail : null,
+        externalReferralPhone: leadSource === 'external_referral' ? externalReferralPhone : null,
+        externalReferralCompany: leadSource === 'external_referral' ? externalReferralCompany : null,
+        salesCommissionAmount: leadSource === 'sales_rep' ? 500 : 0, // Solo para sales rep
         clientTotalPrice: finalTotalWithCommission,
-        commissionAmount: salesCommission,
+        commissionAmount: commission, // Universal para ambos tipos
         commissionPaid: false,
       }, { transaction });
       newBudgetId = newBudget.idBudget;
