@@ -88,6 +88,9 @@ const editableBudgets = useMemo(() => {
   // ✅ INCLUIR TODOS LOS ESTADOS EDITABLES (incluye rejected y pending_review)
   // 🧪 TESTING MODE: Permitir editar Budgets en cualquier estado (incluyendo con Works)
   const allowedStatus = [
+    "draft",             // Borrador
+                 // 🆕 NUEVO: Borrador inicial (no enviado) - OPCIONAL
+    "pending_review", 
     "created",           // Recién creado
     "send",              // Marcado para enviar
     "sent",              // Enviado

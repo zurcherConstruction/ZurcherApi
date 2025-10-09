@@ -33,6 +33,14 @@ router.get(
   AccountsReceivableController.getPendingCommissions
 );
 
+// 🆕 Obtener invoices activos (budgets aprobados) con tracking de pagos
+router.get(
+  '/active-invoices',
+  verifyToken,
+  allowRoles(['admin', 'owner', 'finance']),
+  AccountsReceivableController.getActiveInvoices
+);
+
 // Marcar comisión como pagada o no pagada
 router.put(
   '/:budgetId/commission-paid',

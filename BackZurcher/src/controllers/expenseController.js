@@ -5,10 +5,29 @@ const { sendNotifications } = require('../utils/notifications/notificationManage
 
 // Crear un nuevo gasto
 const createExpense = async (req, res) => {
-  const { date, amount, typeExpense, notes, workId, staffId, paymentMethod, verified } = req.body;
+  const { date, amount, typeExpense, notes, workId, staffId, paymentMethod, paymentDetails, verified } = req.body;
+  
   try {
+    // ✅ VALIDACIÓN: paymentMethod es OBLIGATORIO
+    if (!paymentMethod) {
+      return res.status(400).json({
+        error: 'El método de pago es obligatorio',
+        message: 'Debe seleccionar un método de pago para registrar el gasto'
+      });
+    }
+
     // 1. Crear el Expense normalmente
-    const newExpense = await Expense.create({ date, amount, typeExpense, notes, workId, staffId, paymentMethod, verified: verified || false });
+    const newExpense = await Expense.create({ 
+      date, 
+      amount, 
+      typeExpense, 
+      notes, 
+      workId, 
+      staffId, 
+      paymentMethod, 
+      paymentDetails,
+      verified: verified || false 
+    });
 
     // 2. Si es Inspección Inicial o Inspección Final y hay archivo, crear Receipt asociado
     let createdReceipt = null;
@@ -153,13 +172,13 @@ const getExpenseById = async (req, res) => {
 // Actualizar un gasto
 const updateExpense = async (req, res) => {
   const { id } = req.params;
-  const { date, amount, typeExpense, notes, workId, staffId, paymentMethod, verified } = req.body; // Agregar staffId, paymentMethod y verified
+  const { date, amount, typeExpense, notes, workId, staffId, paymentMethod, paymentDetails, verified } = req.body; // Agregar paymentDetails
   try {
     const expense = await Expense.findByPk(id);
     if (!expense) return res.status(404).json({ message: 'Gasto no encontrado' });
 
     // Actualizar el gasto
-    await expense.update({ date, amount, typeExpense, notes, workId, staffId, paymentMethod, verified }); // Incluir staffId, paymentMethod y verified
+    await expense.update({ date, amount, typeExpense, notes, workId, staffId, paymentMethod, paymentDetails, verified }); // Incluir paymentDetails
     
     // Enviar notificación de actualización
     try {

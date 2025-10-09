@@ -4,9 +4,28 @@ const { sendNotifications } = require('../utils/notifications/notificationManage
 
 // Crear un nuevo ingreso
 const createIncome = async (req, res) => {
-  const { date, amount, typeIncome, notes, workId, staffId, paymentMethod, verified } = req.body;
+  const { date, amount, typeIncome, notes, workId, staffId, paymentMethod, paymentDetails, verified } = req.body;
+  
   try {
-    const newIncome = await Income.create({ date, amount, typeIncome, notes, workId, staffId, paymentMethod, verified: verified || false });
+    // ✅ VALIDACIÓN: paymentMethod es OBLIGATORIO
+    if (!paymentMethod) {
+      return res.status(400).json({
+        error: 'El método de pago es obligatorio',
+        message: 'Debe seleccionar un método de pago para registrar el ingreso'
+      });
+    }
+
+    const newIncome = await Income.create({ 
+      date, 
+      amount, 
+      typeIncome, 
+      notes, 
+      workId, 
+      staffId, 
+      paymentMethod, 
+      paymentDetails,
+      verified: verified || false 
+    });
     
     // Enviar notificaciones al equipo de finanzas
     try {
@@ -118,13 +137,13 @@ const getIncomeById = async (req, res) => {
 // Actualizar un ingreso
 const updateIncome = async (req, res) => {
   const { id } = req.params;
-  const { date, amount, typeIncome, notes, workId, staffId, paymentMethod, verified } = req.body; // Agregar staffId, paymentMethod y verified
+  const { date, amount, typeIncome, notes, workId, staffId, paymentMethod, paymentDetails, verified } = req.body; // Agregar paymentDetails
   try {
     const income = await Income.findByPk(id);
     if (!income) return res.status(404).json({ message: 'Ingreso no encontrado' });
 
     // Actualizar el ingreso
-    await income.update({ date, amount, typeIncome, notes, workId, staffId, paymentMethod, verified }); // Incluir staffId, paymentMethod y verified
+    await income.update({ date, amount, typeIncome, notes, workId, staffId, paymentMethod, paymentDetails, verified }); // Incluir paymentDetails
     
     // Enviar notificación de actualización (opcional - solo para cambios importantes)
     try {

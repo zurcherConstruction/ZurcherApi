@@ -36,6 +36,7 @@ module.exports = (sequelize) => {
             'Inspección Inicial',
             'Inspección Final',
             'Comisión Vendedor', // 🆕 Nuevo tipo para comisiones
+            'Gasto Fijo', // 🆕 Para gastos fijos recurrentes (alquiler, servicios, etc.)
         ),
         allowNull: false,
     },
@@ -49,9 +50,28 @@ module.exports = (sequelize) => {
     },
     // 🆕 Método/Cuenta de pago
     paymentMethod: {
+      type: DataTypes.ENUM(
+        'Cap Trabajos Septic',
+        'Capital Proyectos Septic',
+        'Chase Bank',
+        'AMEX',
+        'Chase Credit Card',
+        'Cheque',
+        'Transferencia Bancaria',
+        'Efectivo',
+        'Zelle',
+        'Tarjeta Débito',
+        'PayPal',
+        'Otro'
+      ),
+      allowNull: true,
+      
+    },
+    // Detalle adicional del método de pago (ej: últimos 4 dígitos, número de cheque, etc.)
+    paymentDetails: {
       type: DataTypes.STRING,
       allowNull: true,
-      comment: 'Método de pago o cuenta por la que se realizó el gasto (ej: Zelle, Cash, Check #1234, Bank Transfer - Chase, Credit Card - Visa, etc.)'
+      comment: 'Detalles adicionales del pago (ej: Check #1234, Últimos 4 dígitos: 5678, etc.)'
     },
     // 🆕 Campo de verificación/revisión
     verified: {
@@ -59,6 +79,22 @@ module.exports = (sequelize) => {
       allowNull: false,
       defaultValue: false,
       comment: 'Indica si el gasto ha sido verificado/revisado por el equipo de finanzas'
+    },
+    // 🆕 Relación con Fixed Expense (si este gasto fue generado automáticamente)
+    relatedFixedExpenseId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'FixedExpenses',
+        key: 'idFixedExpense'
+      },
+      comment: 'Referencia al gasto fijo que generó este expense'
+    },
+    // 🆕 Proveedor/Vendor
+    vendor: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Nombre del proveedor/beneficiario del gasto'
     }
   });
 
