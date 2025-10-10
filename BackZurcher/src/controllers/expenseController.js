@@ -223,10 +223,35 @@ const deleteExpense = async (req, res) => {
   }
 };
 
+// Obtener tipos de gasto disponibles (desde el modelo ENUM)
+const getExpenseTypes = async (req, res) => {
+  try {
+    // Los tipos vienen del ENUM definido en el modelo Expense
+    const types = [
+      'Materiales',
+      'Diseño',
+      'Workers',
+      'Imprevistos',
+      'Comprobante Gasto',
+      'Gastos Generales',
+      'Materiales Iniciales',
+      'Inspección Inicial',
+      'Inspección Final',
+      'Comisión Vendedor',
+      'Gasto Fijo'
+    ];
+    
+    res.status(200).json({ types });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener tipos de gasto', error: error.message });
+  }
+};
+
 module.exports = {
   createExpense,
   getAllExpenses,
   getExpenseById,
   updateExpense,
   deleteExpense,
+  getExpenseTypes,
 };

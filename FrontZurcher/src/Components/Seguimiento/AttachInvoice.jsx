@@ -20,7 +20,11 @@ import api from "../../utils/axios";
 import Swal from "sweetalert2";
 import { PAYMENT_METHODS_GROUPED, INCOME_TYPES, EXPENSE_TYPES } from "../../utils/paymentConstants";
 
-const incomeTypes = INCOME_TYPES;
+// 🚫 EXCLUIR solo "Factura Pago Inicial Budget" - se maneja en UploadInitialPay.jsx
+// ✅ "Factura Pago Final Budget" SÍ se maneja aquí (tiene lógica de pagos parciales)
+const incomeTypes = INCOME_TYPES.filter(type => 
+  type !== 'Factura Pago Inicial Budget'
+);
 const expenseTypes = EXPENSE_TYPES;
 
 // Tipos que NO requieren Work (son gastos/ingresos generales)

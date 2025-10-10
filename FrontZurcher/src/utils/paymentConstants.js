@@ -28,26 +28,32 @@ export const PAYMENT_METHODS_GROUPED = {
   other: PAYMENT_METHODS.filter(m => m.category === 'other'),
 };
 
-// Categorías de Gastos Fijos
+// Categorías de Gastos Fijos (sincronizado con FixedExpense.js)
 export const FIXED_EXPENSE_CATEGORIES = [
-  { value: 'Alquiler', label: 'Alquiler' },
-  { value: 'Servicios Públicos', label: 'Servicios Públicos' },
+  { value: 'Renta', label: 'Renta' },
+  { value: 'Servicios', label: 'Servicios (Luz, Agua, Gas, Internet)' },
   { value: 'Seguros', label: 'Seguros' },
   { value: 'Salarios', label: 'Salarios' },
-  { value: 'Suscripciones', label: 'Suscripciones' },
-  { value: 'Mantenimiento', label: 'Mantenimiento' },
+  { value: 'Equipamiento', label: 'Equipamiento' },
+  { value: 'Software/Subscripciones', label: 'Software/Subscripciones' },
+  { value: 'Mantenimiento Vehicular', label: 'Mantenimiento Vehicular' },
+  { value: 'Combustible', label: 'Combustible' },
   { value: 'Impuestos', label: 'Impuestos' },
-  { value: 'Otro', label: 'Otro' },
+  { value: 'Contabilidad/Legal', label: 'Contabilidad/Legal' },
+  { value: 'Marketing', label: 'Marketing' },
+  { value: 'Telefonía', label: 'Telefonía' },
+  { value: 'Otros', label: 'Otros' },
 ];
 
-// Frecuencias de Gastos Fijos
+// Frecuencias de Gastos Fijos (sincronizado con FixedExpense.js)
 export const FIXED_EXPENSE_FREQUENCIES = [
-  { value: 'daily', label: 'Diario' },
   { value: 'weekly', label: 'Semanal' },
+  { value: 'biweekly', label: 'Quincenal' },
   { value: 'monthly', label: 'Mensual' },
   { value: 'quarterly', label: 'Trimestral' },
-  { value: 'yearly', label: 'Anual' },
-  { value: 'one-time', label: 'Único' },
+  { value: 'semiannual', label: 'Semestral' },
+  { value: 'annual', label: 'Anual' },
+  { value: 'one_time', label: 'Único' },
 ];
 
 // Tipos de Ingresos (sincronizado con Income.js)

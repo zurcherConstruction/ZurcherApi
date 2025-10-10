@@ -52,6 +52,16 @@ export const incomeActions = {
       return handleError(error, 'Error al eliminar el ingreso');
     }
   },
+
+  // 🆕 Obtener tipos de ingreso disponibles
+  getTypes: async () => {
+    try {
+      const response = await api.get('/income/types');
+      return response.data;
+    } catch (error) {
+      return handleError(error, 'Error al obtener tipos de ingreso');
+    }
+  },
 };
 
 // Actions para Expense
@@ -98,6 +108,16 @@ export const expenseActions = {
       return response.data;
     } catch (error) {
       return handleError(error, 'Error al eliminar el gasto');
+    }
+  },
+
+  // 🆕 Obtener tipos de gasto disponibles
+  getTypes: async () => {
+    try {
+      const response = await api.get('/expense/types');
+      return response.data;
+    } catch (error) {
+      return handleError(error, 'Error al obtener tipos de gasto');
     }
   },
 };
@@ -262,9 +282,11 @@ export const fixedExpenseActions = {
   },
 
   // 🆕 Toggle activo/inactivo
-  toggleActive: async (id) => {
+  toggleActive: async (id, currentIsActive) => {
     try {
-      const response = await api.patch(`/fixed-expenses/${id}/toggle-status`);
+      const response = await api.patch(`/fixed-expenses/${id}/toggle-status`, {
+        isActive: !currentIsActive
+      });
       return response.data;
     } catch (error) {
       return handleError(error, 'Error al cambiar estado del gasto fijo');

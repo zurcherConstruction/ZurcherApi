@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { uploadInvoice, fetchBudgets, updateBudget } from '../../Redux/Actions/budgetActions';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import { PAYMENT_METHODS_GROUPED } from '../../utils/paymentConstants';
 import {
   DocumentArrowUpIcon,
   CurrencyDollarIcon,
@@ -346,19 +347,34 @@ const UploadInitialPay = () => {
 
                 {/* 🆕 Payment Method Input */}
                 <div>
-                  <label htmlFor="payment-method-input" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
+                  <label htmlFor="payment-method-select" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
                     💳 Método de Pago (Opcional)
                   </label>
-                  <input
-                    id="payment-method-input"
-                    type="text"
+                  <select
+                    id="payment-method-select"
                     value={paymentMethod}
                     onChange={(e) => setPaymentMethod(e.target.value)}
-                    placeholder="Ej: Zelle, Cash, Check #1234, Bank Transfer - Chase"
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                  />
+                  >
+                    <option value="">Seleccionar método de pago (opcional)</option>
+                    <optgroup label="🏦 Cuentas Bancarias">
+                      {PAYMENT_METHODS_GROUPED.bank.map(method => (
+                        <option key={method.value} value={method.value}>{method.label}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="💳 Tarjetas">
+                      {PAYMENT_METHODS_GROUPED.card.map(method => (
+                        <option key={method.value} value={method.value}>{method.label}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="💰 Otros Métodos">
+                      {PAYMENT_METHODS_GROUPED.other.map(method => (
+                        <option key={method.value} value={method.value}>{method.label}</option>
+                      ))}
+                    </optgroup>
+                  </select>
                   <p className="text-xs text-gray-500 mt-1">
-                    Especifica cómo se recibió el pago para mejor seguimiento financiero
+                    Selecciona cómo se recibió el pago para mejor seguimiento financiero
                   </p>
                 </div>
               </>

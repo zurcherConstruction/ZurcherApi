@@ -140,18 +140,24 @@ const getAllFixedExpenses = async (req, res) => {
         let startDate, endDate;
         
         switch (fe.frequency) {
-          case 'daily':
-            startDate = new Date(today.setHours(0, 0, 0, 0));
-            endDate = new Date(today.setHours(23, 59, 59, 999));
-            break;
           case 'weekly':
             startDate = new Date(today);
             startDate.setDate(today.getDate() - today.getDay()); // Inicio de semana
             endDate = new Date(startDate);
             endDate.setDate(startDate.getDate() + 6); // Fin de semana
             break;
+          case 'biweekly':
+            // Quincenal: primeros 15 días o últimos del mes
+            const dayOfMonth = today.getDate();
+            if (dayOfMonth <= 15) {
+              startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+              endDate = new Date(today.getFullYear(), today.getMonth(), 15);
+            } else {
+              startDate = new Date(today.getFullYear(), today.getMonth(), 16);
+              endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            }
+            break;
           case 'monthly':
-          default:
             startDate = new Date(today.getFullYear(), today.getMonth(), 1);
             endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
             break;
@@ -160,14 +166,24 @@ const getAllFixedExpenses = async (req, res) => {
             startDate = new Date(today.getFullYear(), quarter * 3, 1);
             endDate = new Date(today.getFullYear(), quarter * 3 + 3, 0);
             break;
-          case 'yearly':
+          case 'semiannual':
+            // Semestral: enero-junio o julio-diciembre
+            const semester = today.getMonth() < 6 ? 0 : 1;
+            startDate = new Date(today.getFullYear(), semester * 6, 1);
+            endDate = new Date(today.getFullYear(), semester * 6 + 6, 0);
+            break;
+          case 'annual':
             startDate = new Date(today.getFullYear(), 0, 1);
             endDate = new Date(today.getFullYear(), 11, 31);
             break;
-          case 'one-time':
-            // Para one-time, verificar si ya existe algún pago
+          case 'one_time':
+            // Para one_time, verificar si ya existe algún pago
             startDate = new Date(fe.startDate);
             endDate = new Date();
+            break;
+          default:
+            startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+            endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
             break;
         }
 

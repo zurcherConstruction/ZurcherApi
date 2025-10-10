@@ -84,15 +84,25 @@ const FixedExpensesManager = () => {
       const response = await fixedExpenseActions.getAll();
       
       if (response.error) {
-        toast.error('Error al cargar gastos fijos');
-        console.error(response.error);
+        console.error('Error al cargar gastos fijos:', response.error);
+        // No mostrar toast de error si simplemente no hay datos
+        if (!response.error.includes('no encontr')) {
+          toast.error('Error al cargar gastos fijos');
+        }
+        setFixedExpenses([]);
         return;
       }
 
-      setFixedExpenses(response.fixedExpenses || []);
+      // Validar que response.fixedExpenses sea un array
+      const expenses = Array.isArray(response.fixedExpenses) ? response.fixedExpenses : [];
+      setFixedExpenses(expenses);
     } catch (error) {
       console.error('Error loading fixed expenses:', error);
-      toast.error('Error al cargar gastos fijos');
+      setFixedExpenses([]);
+      // Solo mostrar error si es un error real, no si simplemente no hay datos
+      if (error.response?.status !== 404) {
+        toast.error('Error al cargar gastos fijos');
+      }
     } finally {
       setLoading(false);
     }
@@ -104,12 +114,16 @@ const FixedExpensesManager = () => {
       
       if (response.error) {
         console.error('Error loading upcoming expenses:', response.error);
+        setUpcomingExpenses([]);
         return;
       }
 
-      setUpcomingExpenses(response.upcomingExpenses || []);
+      // Validar que response.upcomingExpenses sea un array
+      const upcoming = Array.isArray(response.upcomingExpenses) ? response.upcomingExpenses : [];
+      setUpcomingExpenses(upcoming);
     } catch (error) {
       console.error('Error loading upcoming:', error);
+      setUpcomingExpenses([]);
     }
   };
 
@@ -242,7 +256,7 @@ const FixedExpensesManager = () => {
 
   const handleToggleActive = async (expense) => {
     try {
-      const response = await fixedExpenseActions.toggleActive(expense.idFixedExpense);
+      const response = await fixedExpenseActions.toggleActive(expense.idFixedExpense, expense.isActive);
       
       if (response.error) {
         toast.error('Error al cambiar estado');
@@ -682,16 +696,16 @@ const FixedExpensesManager = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-semibold text-gray-900">
-                        {formatCurrency(expense.amount)}
-                      </span>
-                      {expense.isPaidThisPeriod && (
-                        <div className="mt-1">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                            ✓ Pagado
+                      <div className="flex flex-col gap-1">
+                        <span className="text-sm font-semibold text-gray-900">
+                          {formatCurrency(expense.amount)}
+                        </span>
+                        {expense.isPaidThisPeriod && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 w-fit">
+                            ✓ Generado {expense.lastPaymentDate && `(${expense.lastPaymentDate})`}
                           </span>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                       {getFrequencyLabel(expense.frequency)}
@@ -706,9 +720,19 @@ const FixedExpensesManager = () => {
                       <div className="flex justify-end gap-2">
                         <button
                           onClick={() => openGenerateModal(expense)}
-                          className="text-green-600 hover:text-green-800 p-1 rounded hover:bg-green-50"
-                          title="Generar Gasto"
-                          disabled={!expense.isActive}
+                          className={`p-1 rounded ${
+                            !expense.isActive || expense.isPaidThisPeriod
+                              ? 'text-gray-400 cursor-not-allowed'
+                              : 'text-green-600 hover:text-green-800 hover:bg-green-50'
+                          }`}
+                          title={
+                            expense.isPaidThisPeriod
+                              ? 'Ya generado en este período'
+                              : !expense.isActive
+                              ? 'Gasto inactivo'
+                              : 'Generar Gasto'
+                          }
+                          disabled={!expense.isActive || expense.isPaidThisPeriod}
                         >
                           <ReceiptPercentIcon className="h-5 w-5" />
                         </button>
