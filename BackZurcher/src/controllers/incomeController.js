@@ -198,10 +198,28 @@ const deleteIncome = async (req, res) => {
   }
 };
 
+// Obtener tipos de ingreso disponibles (desde el modelo ENUM)
+const getIncomeTypes = async (req, res) => {
+  try {
+    // Los tipos vienen del ENUM definido en el modelo Income
+    const types = [
+      'Factura Pago Inicial Budget',
+      'Factura Pago Final Budget',
+      'DiseñoDif',
+      'Comprobante Ingreso'
+    ];
+    
+    res.status(200).json({ types });
+  } catch (error) {
+    res.status(500).json({ message: 'Error al obtener tipos de ingreso', error: error.message });
+  }
+};
+
 module.exports = {
   createIncome,
   getAllIncomes,
   getIncomeById,
   updateIncome,
   deleteIncome,
+  getIncomeTypes,
 };

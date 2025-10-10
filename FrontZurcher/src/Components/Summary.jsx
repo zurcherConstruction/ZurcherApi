@@ -23,11 +23,7 @@ import {
   MagnifyingGlassIcon
 } from "@heroicons/react/24/outline";
 // 🆕 Importar constantes centralizadas
-import { INCOME_TYPES, EXPENSE_TYPES, PAYMENT_METHODS } from "../utils/paymentConstants";
-
-// 🆕 Usar constantes importadas en lugar de hardcodear
-const incomeTypes = INCOME_TYPES;
-const expenseTypes = EXPENSE_TYPES;
+import { PAYMENT_METHODS, PAYMENT_METHODS_GROUPED, INCOME_TYPES, EXPENSE_TYPES } from "../utils/paymentConstants";
 
 const Summary = () => {
   const [filters, setFilters] = useState({
@@ -51,6 +47,12 @@ const Summary = () => {
   const [receiptAction, setReceiptAction] = useState('keep'); // 'keep', 'change', 'delete'
   const [receiptLoading, setReceiptLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0); // Para forzar re-render
+  
+  // 🆕 Estados para tipos de ingreso/gasto (con fallback a constantes)
+  const [incomeTypes, setIncomeTypes] = useState(INCOME_TYPES);
+  const [expenseTypes, setExpenseTypes] = useState(EXPENSE_TYPES);
+  const [typesLoading, setTypesLoading] = useState(true);
+  
   const dispatch = useDispatch();
 
   // Obtener movimientos con filtros
@@ -62,14 +64,26 @@ const Summary = () => {
       const incomes = data.list?.incomes || [];
       const expenses = data.list?.expenses || [];
       
+      // Combinar movimientos y eliminar duplicados usando un Map
+      const movementsMap = new Map();
       
+      incomes.forEach((m) => {
+        const key = `income-${m.idIncome}`;
+        if (!movementsMap.has(key)) {
+          movementsMap.set(key, { ...m, movimiento: "Ingreso" });
+        }
+      });
       
-      const allMovements = [
-        ...incomes.map((m) => ({ ...m, movimiento: "Ingreso" })),
-        ...expenses.map((m) => ({ ...m, movimiento: "Gasto" })),
-      ];
+      expenses.forEach((m) => {
+        const key = `expense-${m.idExpense}`;
+        if (!movementsMap.has(key)) {
+          movementsMap.set(key, { ...m, movimiento: "Gasto" });
+        }
+      });
       
+      const allMovements = Array.from(movementsMap.values());
       
+      console.log(`✅ Movimientos cargados: ${incomes.length} ingresos, ${expenses.length} gastos, ${allMovements.length} únicos`);
       
       // Actualizar estado con un pequeño delay para asegurar re-render
       setMovements(allMovements);
@@ -96,7 +110,40 @@ const Summary = () => {
     setLoading(false);
   };
 
+  // 🆕 Cargar tipos de ingreso/gasto desde el backend
+  const fetchTypes = async () => {
+    try {
+      setTypesLoading(true);
+      
+      // Cargar tipos de ingreso
+      const incomeTypesResponse = await incomeActions.getTypes();
+      if (incomeTypesResponse && incomeTypesResponse.types) {
+        setIncomeTypes(incomeTypesResponse.types);
+      } else {
+        console.warn('No se pudieron cargar tipos de ingreso');
+        setIncomeTypes([]);
+      }
+      
+      // Cargar tipos de gasto
+      const expenseTypesResponse = await expenseActions.getTypes();
+      if (expenseTypesResponse && expenseTypesResponse.types) {
+        setExpenseTypes(expenseTypesResponse.types);
+      } else {
+        console.warn('No se pudieron cargar tipos de gasto');
+        setExpenseTypes([]);
+      }
+      
+    } catch (error) {
+      console.error('Error al cargar tipos:', error);
+      setIncomeTypes([]);
+      setExpenseTypes([]);
+    } finally {
+      setTypesLoading(false);
+    }
+  };
+
   useEffect(() => {
+    fetchTypes(); // Cargar tipos primero
     fetchMovements();
     // eslint-disable-next-line
   }, []);
@@ -912,17 +959,32 @@ const Summary = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     💳 Método de Pago (Opcional)
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={editData.paymentMethod || ''}
                     onChange={(e) =>
                       setEditData({ ...editData, paymentMethod: e.target.value })
                     }
-                    placeholder="Ej: Zelle, Cash, Check #1234, Bank Transfer - Chase"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                  />
+                  >
+                    <option value="">Sin especificar</option>
+                    <optgroup label="🏦 Cuentas Bancarias">
+                      {PAYMENT_METHODS_GROUPED.bank.map(method => (
+                        <option key={method.value} value={method.value}>{method.label}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="💳 Tarjetas">
+                      {PAYMENT_METHODS_GROUPED.card.map(method => (
+                        <option key={method.value} value={method.value}>{method.label}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="💰 Otros Métodos">
+                      {PAYMENT_METHODS_GROUPED.other.map(method => (
+                        <option key={method.value} value={method.value}>{method.label}</option>
+                      ))}
+                    </optgroup>
+                  </select>
                   <p className="text-xs text-gray-500 mt-1">
-                    Especifica cómo se recibió/pagó el dinero para mejor seguimiento
+                    Selecciona la cuenta o método con el que se recibió/pagó el dinero
                   </p>
                 </div>
 

@@ -226,3 +226,4 @@ module.exports = {
     console.log('⚠️  No se puede revertir esta migración (los valores antiguos se perdieron)');
   }
 };
+
