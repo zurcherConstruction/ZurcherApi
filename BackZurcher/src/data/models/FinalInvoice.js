@@ -7,6 +7,11 @@ module.exports = (sequelize) => {
       primaryKey: true,
       autoIncrement: true,
     },
+    invoiceNumber: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      comment: 'Número de Invoice unificado compartido con tabla Budgets. Numeración secuencial única.'
+    },
     invoiceDate: {
       type: DataTypes.DATEONLY,
       allowNull: false,

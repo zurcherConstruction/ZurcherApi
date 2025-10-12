@@ -50,7 +50,7 @@ function _addFinalInvoiceHeader(doc, invoiceData, workData, budgetData, formatte
 
   let currentYRight = headerStartY + 5;
   doc.font(FONT_FAMILY_MONO_BOLD).fontSize(20).fillColor('#063260')
-    .text(`FINAL INVOICE`, invoiceInfoX, currentYRight, { width: invoiceInfoWidth, align: 'right' });
+    .text(`FINAL INVOICE #${invoiceNumber}`, invoiceInfoX, currentYRight, { width: invoiceInfoWidth, align: 'right' });
   currentYRight = doc.y + 45;
 
   doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
@@ -140,7 +140,7 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
       
       const { budget: budgetData } = workData;
       const formattedInvoiceDate = formatDateDDMMYYYY(invoiceDate);
-      const invoiceNumber = invoiceId?.toString().substring(0, 8) || 'UNKNOWN';
+      const invoiceNumber = invoiceData.invoiceNumber || invoiceId?.toString().substring(0, 8) || 'UNKNOWN';
       const clientName = budgetData?.applicantName || "Valued Customer";
       const clientEmail = budgetData?.Permit?.applicantEmail || budgetData?.applicantEmail;
 

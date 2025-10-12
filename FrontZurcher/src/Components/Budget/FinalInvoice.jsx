@@ -329,7 +329,7 @@ const handleGeneratePdf = () => {
     <div className="space-y-6">
       {/* Resumen Financiero */}
       <div className="bg-gray-50 p-4 rounded border border-gray-200">
-        <h3 className="text-lg font-semibold mb-3 border-b pb-2">Invoice Final #{currentInvoice.id}</h3>
+        <h3 className="text-lg font-semibold mb-3 border-b pb-2">Invoice Final #{currentInvoice.invoiceNumber || currentInvoice.id}</h3>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
           <span className="text-gray-600">Total Budget:</span>
           <span className="text-right font-medium">${parseFloat(currentInvoice.originalBudgetTotal || 0).toFixed(2)}</span>
