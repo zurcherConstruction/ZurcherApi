@@ -1,9 +1,11 @@
 const { FinalInvoice, WorkExtraItem, Work, Budget, Permit, ChangeOrder, conn } = require('../data'); // Asegúrate que los modelos se exportan correctamente desde data/index.js
 const { Op } = require('sequelize');
- const { generateAndSaveFinalInvoicePDF } = require('../utils/pdfGenerators'); // Necesitarás crear esta función
- const fs = require('fs'); // <-- AÑADIR ESTA LÍNEA
- const path = require('path'); //
+const { generateAndSaveFinalInvoicePDF } = require('../utils/pdfGenerators'); // Necesitarás crear esta función
+const fs = require('fs'); // <-- AÑADIR ESTA LÍNEA
+const path = require('path'); //
 const { sendEmail } = require('../utils/notifications/emailService'); // Asegúrate de tener esta función para enviar correos electrónicos
+const { getNextInvoiceNumber } = require('../utils/invoiceNumberManager'); // 🆕 HELPER DE NUMERACIÓN UNIFICADA
+
 const FinalInvoiceController = {
 
   // Crear la factura final inicial para una obra
@@ -77,9 +79,14 @@ const FinalInvoiceController = {
       const initialSubtotalExtras = subtotalFromChangeOrders;
       const finalAmountDueInitial = originalBudgetTotal + initialSubtotalExtras - actualInitialPaymentMade;
 
+      // 🆕 ASIGNAR NÚMERO DE INVOICE USANDO NUMERACIÓN UNIFICADA
+      const invoiceNumber = await getNextInvoiceNumber(transaction);
+      console.log(`📋 Asignando Invoice Number: ${invoiceNumber} (numeración unificada) a Final Invoice`);
+
       const newFinalInvoice = await FinalInvoice.create({
         workId: work.idWork,
         budgetId: work.budget.idBudget,
+        invoiceNumber: invoiceNumber, // 🆕 NÚMERO DE INVOICE UNIFICADO
         invoiceDate: new Date(),
         originalBudgetTotal: originalBudgetTotal,
         initialPaymentMade: actualInitialPaymentMade,
@@ -586,7 +593,8 @@ async emailFinalInvoicePDF(req, res) {
            return res.status(400).json({ error: true, message: 'No se pudo determinar un correo electrónico válido para el cliente.' });
        }
       
-       const invoiceNumber = finalInvoice.id.toString().substring(0, 8);
+       // 🆕 USAR invoiceNumber REAL EN LUGAR DEL ID
+       const invoiceNumber = finalInvoice.invoiceNumber || finalInvoice.id.toString().substring(0, 8);
 
        // ✅ INICIO: Recalcular el total para que coincida con el PDF
        const { originalBudgetTotal, initialPaymentMade, extraItems } = finalInvoice;

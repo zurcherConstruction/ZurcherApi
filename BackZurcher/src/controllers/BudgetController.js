@@ -9,6 +9,7 @@ const path = require('path');
 const { sendEmail } = require('../utils/notifications/emailService.js');
 const { generateAndSaveBudgetPDF } = require('../utils/pdfGenerators');
 const SignNowService = require('../services/ServiceSignNow');
+const { getNextInvoiceNumber } = require('../utils/invoiceNumberManager'); // 🆕 HELPER DE NUMERACIÓN UNIFICADA
 require('dotenv').config();
 // AGREGAR esta función auxiliar después de los imports:
 function getPublicPdfUrl(localPath, req) {
@@ -3693,19 +3694,10 @@ async optionalDocs(req, res) {
       // 🆕 SI SE SOLICITA, CONVERTIR AUTOMÁTICAMENTE A INVOICE
       let invoiceNumber = null;
       if (convertToInvoice && !budget.invoiceNumber) {
-        // Obtener el siguiente número de invoice disponible
-        const lastInvoice = await Budget.findOne({
-          where: {
-            invoiceNumber: { [Op.not]: null }
-          },
-          order: [['invoiceNumber', 'DESC']],
-          attributes: ['invoiceNumber'],
-          transaction
-        });
-
-        invoiceNumber = lastInvoice?.invoiceNumber ? lastInvoice.invoiceNumber + 1 : 1;
+        // 🔄 USAR NUMERACIÓN UNIFICADA (compartida con FinalInvoices)
+        invoiceNumber = await getNextInvoiceNumber(transaction);
         
-        console.log(`📋 Asignando Invoice Number: ${invoiceNumber} al aprobar`);
+        console.log(`📋 Asignando Invoice Number: ${invoiceNumber} (numeración unificada) al aprobar`);
 
         // Actualizar presupuesto con invoice number
         await budget.update({
@@ -4204,18 +4196,10 @@ async optionalDocs(req, res) {
       }
 
       // 4. Obtener el siguiente número de invoice disponible
-      const lastInvoice = await Budget.findOne({
-        where: {
-          invoiceNumber: { [Op.not]: null }
-        },
-        order: [['invoiceNumber', 'DESC']],
-        attributes: ['invoiceNumber'],
-        transaction
-      });
-
-      const nextInvoiceNumber = lastInvoice?.invoiceNumber ? lastInvoice.invoiceNumber + 1 : 1;
+      // 🔄 USAR NUMERACIÓN UNIFICADA (compartida con FinalInvoices)
+      const nextInvoiceNumber = await getNextInvoiceNumber(transaction);
       
-      console.log(`📋 Asignando Invoice Number: ${nextInvoiceNumber}`);
+      console.log(`📋 Asignando Invoice Number: ${nextInvoiceNumber} (numeración unificada)`);
 
       // 5. Actualizar el presupuesto
       await budget.update({
