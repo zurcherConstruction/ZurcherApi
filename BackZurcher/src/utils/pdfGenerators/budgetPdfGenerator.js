@@ -620,32 +620,49 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
     .stroke();
   doc.moveDown(1.2); // ✅ ESPACIO DESPUÉS DE LA LÍNEA
 
-  // ✅ BALANCE DUE (Total) - texto pequeño y menos prominente
-  currentTotalY = doc.y;
-  doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
-  doc.text("BALANCE DUE", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
-  doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
-  doc.text(`$${priceAfterDiscountAlreadyApplied.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
-  doc.moveDown(0.8);
-
-  // ✅ INITIAL PAYMENT - PROMINENTE Y RESALTADO
-  currentTotalY = doc.y;
+  // 🆕 DETERMINAR SI ES DRAFT O INVOICE Y CALCULAR VALORES
+  const isDraft = budgetData.status === 'draft' || budgetData.status === 'pending_review' || !budgetData.invoiceNumber;
   const initialPaymentPct = budgetData.initialPaymentPercentage || 100;
   const initialPaymentAmt = budgetData.initialPayment || priceAfterDiscountAlreadyApplied;
   const percentageText = parseFloat(initialPaymentPct) === 100 
     ? "INITIAL PAYMENT (TOTAL)" 
     : `INITIAL PAYMENT (${parseFloat(initialPaymentPct)}%)`;
-  
-  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(12).fillColor(COLOR_TEXT_DARK);
-  doc.text(percentageText, totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
-  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(16).fillColor(COLOR_TEXT_DARK);
-  doc.text(`$${parseFloat(initialPaymentAmt).toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+
+  if (isDraft) {
+    // ✅ EN BUDGET (DRAFT): BALANCE DUE ES PROMINENTE Y RESALTADO
+    currentTotalY = doc.y;
+    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(12).fillColor(COLOR_TEXT_DARK);
+    doc.text("BALANCE DUE", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
+    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(16).fillColor(COLOR_TEXT_DARK);
+    doc.text(`$${priceAfterDiscountAlreadyApplied.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+    doc.moveDown(0.8);
+
+    // ✅ INITIAL PAYMENT - TEXTO PEQUEÑO Y MENOS PROMINENTE
+    currentTotalY = doc.y;
+    doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
+    doc.text(percentageText, totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
+    doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
+    doc.text(`$${parseFloat(initialPaymentAmt).toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+  } else {
+    // ✅ EN INVOICE: BALANCE DUE ES TEXTO PEQUEÑO
+    currentTotalY = doc.y;
+    doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
+    doc.text("BALANCE DUE", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
+    doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
+    doc.text(`$${priceAfterDiscountAlreadyApplied.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+    doc.moveDown(0.8);
+
+    // ✅ INITIAL PAYMENT - PROMINENTE Y RESALTADO
+    currentTotalY = doc.y;
+    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(12).fillColor(COLOR_TEXT_DARK);
+    doc.text(percentageText, totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
+    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(16).fillColor(COLOR_TEXT_DARK);
+    doc.text(`$${parseFloat(initialPaymentAmt).toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+  }
+
   const yAfterTotals = doc.y;
   doc.y = Math.max(yAfterPaymentInfo, yAfterTotals);
   doc.moveDown(2);
-
-  // 🆕 SOLO INCLUIR BOTÓN DE PAGO SI NO ES DRAFT
-  const isDraft = budgetData.status === 'draft' || budgetData.status === 'pending_review' || !budgetData.invoiceNumber;
 
   // STRIPE PAYMENT BUTTON (con 3% fee) - SOLO PARA INVOICES DEFINITIVOS
   let paymentLinkUrl = null;

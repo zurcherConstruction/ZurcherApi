@@ -35,6 +35,7 @@ import {
 } from "@heroicons/react/24/outline";
 import DynamicCategorySection from "./Budget/DynamicCategorySection";
 import { fetchBudgetItems } from '../Redux/Actions/budgetItemActions';
+import { PAYMENT_METHODS_GROUPED } from '../utils/paymentConstants';
 
 const Materiales = () => {
   const dispatch = useDispatch();
@@ -70,6 +71,8 @@ const Materiales = () => {
    const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
    // Nuevo estado para el monto del gasto de materiales iniciales
    const [initialMaterialsAmount, setInitialMaterialsAmount] = useState(""); 
+   // 🆕 Nuevo estado para el método de pago de materiales iniciales
+   const [initialPaymentMethod, setInitialPaymentMethod] = useState('');
    
    // Obtener staffId del estado de autenticación (asumiendo que está disponible)
    const staff = useSelector((state) => state.auth.currentStaff);
@@ -400,6 +403,11 @@ const formatDate = (isoDate) => {
       toast.error("Por favor, ingrese un monto válido para el gasto.");
       return;
     }
+    // 🆕 Validar método de pago
+    if (!initialPaymentMethod) {
+      toast.error("⚠️ Por favor, selecciona un método de pago. Este campo es obligatorio.");
+      return;
+    }
     if (!['pending', 'assigned', 'inProgress'].includes(work.status)) {
     toast.warn(`La obra con dirección ${work.propertyAddress} ya tiene estado '${work.status}' y no permite carga de materiales iniciales.`);
     setInitialReceiptFile(null);
@@ -422,6 +430,7 @@ const formatDate = (isoDate) => {
         workId: work.idWork,
         staffId: staff?.id, // Asegúrate de que 'staff' y 'staff.id' estén disponibles
         typeExpense: "Materiales Iniciales", // Tipo de gasto específico
+        paymentMethod: initialPaymentMethod, // 🆕 Método de pago obligatorio
       };
 
       console.log('Datos a enviar para crear Gasto (Expense):', expenseData);
@@ -466,6 +475,7 @@ const formatDate = (isoDate) => {
       // --- Limpieza del formulario ---
       setInitialReceiptFile(null);
       setInitialMaterialsAmount("");
+      setInitialPaymentMethod(''); // 🆕 Limpiar método de pago
       if(document.getElementById('initialReceiptFile')) {
         document.getElementById('initialReceiptFile').value = null;
       }
@@ -924,6 +934,41 @@ const formatDate = (isoDate) => {
                     />
                   </div>
 
+                  {/* 🆕 Método de Pago - OBLIGATORIO */}
+                  <div>
+                    <label htmlFor="initialPaymentMethod" className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                      <CurrencyDollarIcon className="h-4 w-4 mr-2 text-gray-500" />
+                      Método de Pago <span className="text-red-500 ml-1">*</span>
+                    </label>
+                    <select
+                      id="initialPaymentMethod"
+                      value={initialPaymentMethod}
+                      onChange={(e) => setInitialPaymentMethod(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                      required
+                    >
+                      <option value="">Seleccionar método de pago...</option>
+                      <optgroup label="🏦 Cuentas Bancarias">
+                        {PAYMENT_METHODS_GROUPED.bank.map(method => (
+                          <option key={method.value} value={method.value}>{method.label}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="💳 Tarjetas">
+                        {PAYMENT_METHODS_GROUPED.card.map(method => (
+                          <option key={method.value} value={method.value}>{method.label}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="💰 Otros Métodos">
+                        {PAYMENT_METHODS_GROUPED.other.map(method => (
+                          <option key={method.value} value={method.value}>{method.label}</option>
+                        ))}
+                      </optgroup>
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Especifica con qué cuenta/método se pagó este gasto
+                    </p>
+                  </div>
+
                   <div>
                     <label htmlFor="initialReceiptFile" className="flex items-center text-sm font-medium text-gray-700 mb-2">
                       <DocumentTextIcon className="h-4 w-4 mr-2 text-gray-500" />
@@ -949,7 +994,7 @@ const formatDate = (isoDate) => {
                   <button
                     type="button"
                     onClick={handleUploadInitialReceipt}
-                    disabled={!initialReceiptFile || !initialMaterialsAmount || isUploadingReceipt}
+                    disabled={!initialReceiptFile || !initialMaterialsAmount || !initialPaymentMethod || isUploadingReceipt}
                     className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:transform-none disabled:cursor-not-allowed"
                   >
                     <div className="flex items-center justify-center space-x-2">
@@ -1064,6 +1109,41 @@ const formatDate = (isoDate) => {
                   />
                 </div>
 
+                {/* 🆕 Método de Pago - OBLIGATORIO */}
+                <div>
+                  <label htmlFor="modalInitialPaymentMethod" className="flex items-center text-sm font-medium text-gray-700 mb-2">
+                    <CurrencyDollarIcon className="h-4 w-4 mr-2 text-gray-500" />
+                    Método de Pago <span className="text-red-500 ml-1">*</span>
+                  </label>
+                  <select
+                    id="modalInitialPaymentMethod"
+                    value={initialPaymentMethod}
+                    onChange={(e) => setInitialPaymentMethod(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    required
+                  >
+                    <option value="">Seleccionar método de pago...</option>
+                    <optgroup label="🏦 Cuentas Bancarias">
+                      {PAYMENT_METHODS_GROUPED.bank.map(method => (
+                        <option key={method.value} value={method.value}>{method.label}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="💳 Tarjetas">
+                      {PAYMENT_METHODS_GROUPED.card.map(method => (
+                        <option key={method.value} value={method.value}>{method.label}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="💰 Otros Métodos">
+                      {PAYMENT_METHODS_GROUPED.other.map(method => (
+                        <option key={method.value} value={method.value}>{method.label}</option>
+                      ))}
+                    </optgroup>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Especifica con qué cuenta/método se pagó este gasto
+                  </p>
+                </div>
+
                 <div>
                   <label htmlFor="modalInitialReceiptFile" className="flex items-center text-sm font-medium text-gray-700 mb-2">
                     <DocumentTextIcon className="h-4 w-4 mr-2 text-gray-500" />
@@ -1098,7 +1178,7 @@ const formatDate = (isoDate) => {
                       handleUploadInitialReceipt();
                       setShowReceiptModal(false);
                     }}
-                    disabled={!initialReceiptFile || !initialMaterialsAmount || isUploadingReceipt}
+                    disabled={!initialReceiptFile || !initialMaterialsAmount || !initialPaymentMethod || isUploadingReceipt}
                     className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:transform-none disabled:cursor-not-allowed"
                   >
                     <div className="flex items-center justify-center space-x-2">
