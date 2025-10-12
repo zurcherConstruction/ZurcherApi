@@ -92,7 +92,8 @@ const budgetSlice = createSlice({
     },
     updateBudgetSuccess: (state, action) => {
       state.loading = false;
-      const index = state.budgets.findIndex((budget) => budget.id === action.payload.id);
+      // 🔧 FIX: Usar idBudget en lugar de id
+      const index = state.budgets.findIndex((budget) => budget.idBudget === action.payload.idBudget);
       if (index !== -1) {
         state.budgets[index] = action.payload;
       }

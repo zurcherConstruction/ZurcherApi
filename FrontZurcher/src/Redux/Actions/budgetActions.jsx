@@ -231,6 +231,52 @@ export const uploadInvoice = (budgetId, file, uploadedAmount, onProgress, paymen
   }
 };
 
+// 🆕 NUEVA ACCIÓN: Reenviar presupuesto editado al cliente
+export const resendBudgetToClient = (idBudget) => async (dispatch) => {
+  dispatch(updateBudgetRequest()); // Usar los mismos estados de loading
+  try {
+    const response = await api.post(`/budget/${idBudget}/send-for-review`);
+    
+    // Actualizar el budget en el store con el estado actualizado
+    if (response.data.budget) {
+      dispatch(updateBudgetSuccess(response.data.budget));
+    }
+    
+    return {
+      type: 'RESEND_BUDGET_SUCCESS',
+      payload: response.data
+    };
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Error al reenviar el presupuesto';
+    dispatch(updateBudgetFailure(errorMessage));
+    throw new Error(errorMessage);
+  }
+};
+
+// 🆕 NUEVA ACCIÓN: Enviar presupuesto aprobado a SignNow
+export const sendBudgetToSignNow = (idBudget) => async (dispatch) => {
+  dispatch(updateBudgetRequest());
+  try {
+    const response = await api.post(`/budget/${idBudget}/send-to-signnow`);
+    
+    // Actualizar el budget en el store
+    if (response.data.data?.budgetId) {
+      // Refrescar el budget específico para obtener el estado actualizado
+      const budgetResponse = await api.get(`/budget/${idBudget}`);
+      dispatch(updateBudgetSuccess(budgetResponse.data));
+    }
+    
+    return {
+      type: 'SEND_TO_SIGNNOW_SUCCESS',
+      payload: response.data
+    };
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || error.response?.data?.details || 'Error al enviar a SignNow';
+    dispatch(updateBudgetFailure(errorMessage));
+    throw new Error(errorMessage);
+  }
+};
+
 // 🆕 NUEVA ACCIÓN: Convertir Draft a Invoice Definitivo
 export const convertDraftToInvoice = (idBudget) => async (dispatch) => {
   dispatch(updateBudgetRequest()); // Reutilizar los mismos estados de loading

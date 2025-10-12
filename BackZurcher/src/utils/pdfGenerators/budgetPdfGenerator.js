@@ -556,7 +556,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
 
   // SECCIÓN DE TOTALES - ALINEACIÓN PERFECTA
   const totalsStartX = NEW_PAGE_MARGIN + contentWidth * 0.55; // ✅ POSICIÓN FIJA para TODAS las etiquetas
-  const totalsValueX = NEW_PAGE_MARGIN + contentWidth * 0.85; // ✅ POSICIÓN FIJA para TODOS los valores
+  const totalsValueX = NEW_PAGE_MARGIN + contentWidth * 0.78; // ✅ MOVIDO A LA IZQUIERDA para números grandes
   const totalsRightEdge = doc.page.width - NEW_PAGE_MARGIN;
 
   let currentTotalY = doc.y;
@@ -568,7 +568,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   // ✅ SUBTOTAL - empieza en totalsStartX
   doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
   doc.text("SUBTOTAL", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
-  doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
+  doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
   doc.text(`$${subtotalBruto.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
   doc.moveDown(0.6);
 
@@ -607,7 +607,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   currentTotalY = doc.y;
   doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
   doc.text("TOTAL", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
-  doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
+  doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
   doc.text(`$${priceAfterDiscountAlreadyApplied.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
   doc.moveDown(0.8);
 
@@ -633,7 +633,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
     currentTotalY = doc.y;
     doc.font(FONT_FAMILY_MONO_BOLD).fontSize(12).fillColor(COLOR_TEXT_DARK);
     doc.text("BALANCE DUE", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
-    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(16).fillColor(COLOR_TEXT_DARK);
+    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(14).fillColor(COLOR_TEXT_DARK);
     doc.text(`$${priceAfterDiscountAlreadyApplied.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
     doc.moveDown(0.8);
 
@@ -656,7 +656,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
     currentTotalY = doc.y;
     doc.font(FONT_FAMILY_MONO_BOLD).fontSize(12).fillColor(COLOR_TEXT_DARK);
     doc.text(percentageText, totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
-    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(16).fillColor(COLOR_TEXT_DARK);
+    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(14).fillColor(COLOR_TEXT_DARK);
     doc.text(`$${parseFloat(initialPaymentAmt).toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
   }
 
