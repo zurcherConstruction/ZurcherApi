@@ -3,6 +3,8 @@ import { useDispatch, useSelector } from "react-redux";
 import {
   fetchBudgets,
   updateBudget,
+  resendBudgetToClient,
+  sendBudgetToSignNow,
   // uploadInvoice, // Ya no se usa aquí si se eliminó handleUploadPayment
 } from "../../Redux/Actions/budgetActions";
 import {
@@ -378,11 +380,18 @@ const BudgetList = () => {
 
     try {
       // Despachar la acción para actualizar solo las notas
-      await dispatch(
+      const result = await dispatch(
         updateBudget(editingBudgetId, { generalNotes: currentNote })
       );
       
-      handleCancelEditNote(); // Salir del modo edición
+      if (result.type === 'UPDATE_BUDGET_SUCCESS') {
+        console.log('✅ Nota guardada exitosamente:', currentNote);
+        
+        // 🆕 Refrescar la lista para asegurar que se muestren los datos actualizados
+        refreshBudgets();
+        
+        handleCancelEditNote(); // Salir del modo edición
+      }
     } catch (error) {
       console.error("Error al guardar las notas:", error);
       alert(
@@ -440,55 +449,107 @@ const BudgetList = () => {
       });
   };
   
-  // 🆕 NUEVA FUNCIÓN: Enviar presupuesto para revisión del cliente (sin firma)
-  const handleSendForReview = async (budget) => {
+  // 🆕 FUNCIÓN: Reenviar presupuesto editado al cliente
+  const handleResendBudget = async (budget) => {
+    const applicantEmail = budget.Permit?.applicantEmail || budget.applicantEmail;
+    
+    if (!applicantEmail) {
+      alert('❌ No hay email de cliente configurado para este presupuesto');
+      return;
+    }
+
     if (!window.confirm(
-      `¿Enviar presupuesto #${budget.idBudget} para revisión del cliente?\n\n` +
-      `Se enviará un email a ${budget.Permit?.applicantEmail || budget.applicantEmail} ` +
-      `con el presupuesto para revisión preliminar (SIN firma digital).`
+      `¿Reenviar presupuesto editado #${budget.idBudget} al cliente?\n\n` +
+      `📧 Destinatario: ${applicantEmail}\n` +
+      `📋 Se enviará el presupuesto actualizado para revisión preliminar (SIN firma digital).\n\n` +
+      `El cliente recibirá:\n` +
+      `- PDF del presupuesto actualizado\n` +
+      `- Botones para aprobar o rechazar\n` +
+      `- Link para ver el presupuesto en línea`
     )) {
       return;
     }
 
     try {
-      const response = await api.post(`/budget/${budget.idBudget}/send-for-review`);
+      console.log(`📤 Reenviando presupuesto ${budget.idBudget} a ${applicantEmail}...`);
       
-      if (response.data.success) {
-        alert(`✅ Presupuesto enviado para revisión a ${budget.Permit?.applicantEmail || budget.applicantEmail}`);
-        refreshBudgets(); // ✅ Refrescar con parámetros actuales
+      const result = await dispatch(resendBudgetToClient(budget.idBudget));
+      
+      if (result.type === 'RESEND_BUDGET_SUCCESS') {
+        alert(
+          `✅ Presupuesto reenviado exitosamente\n\n` +
+          `📧 Email enviado a: ${applicantEmail}\n` +
+          `📋 Estado: ${result.payload.budget?.status || 'pending_review'}\n\n` +
+          `El cliente puede revisar y aprobar/rechazar el presupuesto.`
+        );
+        refreshBudgets();
       }
     } catch (error) {
-      console.error('Error al enviar presupuesto para revisión:', error);
+      console.error('❌ Error al reenviar presupuesto:', error);
       alert(
-        'Error al enviar el presupuesto para revisión: ' + 
-        (error.response?.data?.error || error.message)
+        `❌ Error al reenviar el presupuesto\n\n` +
+        `${error.message || 'Error desconocido'}\n\n` +
+        `Por favor, verifica:\n` +
+        `- El presupuesto tiene PDF generado\n` +
+        `- El email del cliente es válido\n` +
+        `- La conexión con el servidor`
       );
     }
   };
   
-  // 🆕 NUEVA FUNCIÓN: Enviar presupuesto aprobado a SignNow
-  const handleSendToSignNow = async (budget) => {
+  // 🆕 FUNCIÓN: Enviar presupuesto para revisión del cliente (primera vez)
+  const handleSendForReview = async (budget) => {
+    const applicantEmail = budget.Permit?.applicantEmail || budget.applicantEmail;
+    
+    if (!applicantEmail) {
+      alert('❌ No hay email de cliente configurado');
+      return;
+    }
+
     if (!window.confirm(
-      `¿Enviar presupuesto #${budget.idBudget} a SignNow?\n\n` +
-      `El cliente ya aprobó este presupuesto. Se enviará para firma digital y pago.`
+      `¿Enviar presupuesto #${budget.idBudget} para revisión del cliente?\n\n` +
+      `📧 Destinatario: ${applicantEmail}\n` +
+      `Se enviará para revisión preliminar (SIN firma digital).`
     )) {
       return;
     }
 
     try {
-      // Usar el endpoint existente de SignNow
-      const response = await api.post(`/budget/${budget.idBudget}/send-to-signnow`);
+      const result = await dispatch(resendBudgetToClient(budget.idBudget));
       
-      if (response.data.success || response.data.message) {
-        alert(`✅ Presupuesto enviado a SignNow para firma digital`);
-        dispatch(fetchBudgets()); // Recargar lista
+      if (result.type === 'RESEND_BUDGET_SUCCESS') {
+        alert(`✅ Presupuesto enviado para revisión a ${applicantEmail}`);
+        refreshBudgets();
+      }
+    } catch (error) {
+      console.error('Error al enviar presupuesto:', error);
+      alert(`❌ Error: ${error.message}`);
+    }
+  };
+  
+  // 🆕 FUNCIÓN: Enviar presupuesto aprobado a SignNow
+  const handleSendToSignNow = async (budget) => {
+    if (!window.confirm(
+      `¿Enviar presupuesto #${budget.idBudget} a SignNow?\n\n` +
+      `El cliente ya aprobó este presupuesto.\n` +
+      `Se enviará para firma digital y pago.`
+    )) {
+      return;
+    }
+
+    try {
+      const result = await dispatch(sendBudgetToSignNow(budget.idBudget));
+      
+      if (result.type === 'SEND_TO_SIGNNOW_SUCCESS') {
+        alert(
+          `✅ Presupuesto enviado a SignNow\n\n` +
+          `El cliente recibirá un email para firmar digitalmente.`
+        );
+        refreshBudgets();
       }
     } catch (error) {
       console.error('Error al enviar a SignNow:', error);
-      alert(
-        'Error al enviar a SignNow: ' + 
-        (error.response?.data?.error || error.message)
-      );
+      alert(`❌ Error al enviar a SignNow: ${error.message}`);
     }
   };
   
@@ -979,13 +1040,21 @@ const BudgetList = () => {
                               
                               {/* 🆕 ESTADO: PENDING_REVIEW - Esperando aprobación del cliente */}
                               {budget.status === "pending_review" && (
-                                <div className="text-center">
-                                  <p className="text-blue-700 text-[10px] font-semibold bg-blue-100 px-1 py-0.5 rounded leading-tight">
+                                <div className="flex flex-col gap-1 w-full">
+                                  <p className="text-blue-700 text-[10px] font-semibold bg-blue-100 px-1 py-0.5 rounded leading-tight text-center">
                                     📧 In Review
                                   </p>
-                                  <p className="text-gray-600 text-[8px] mt-0.5">
+                                  <p className="text-gray-600 text-[8px] text-center">
                                     Awaiting client
                                   </p>
+                                  {/* 🆕 Botón: Reenviar presupuesto editado */}
+                                  <button
+                                    onClick={() => handleResendBudget(budget)}
+                                    className="inline-flex items-center justify-center bg-orange-500 text-white px-2 py-0.5 rounded text-[10px] hover:bg-orange-600 w-full h-6"
+                                    title="Resend updated budget to client"
+                                  >
+                                    🔄 Resend
+                                  </button>
                                 </div>
                               )}
                               
@@ -1007,9 +1076,9 @@ const BudgetList = () => {
                                 </div>
                               )}
                               
-                              {/* ESTADO: SEND - Estado + botón reject horizontalmente */}
+                              {/* ESTADO: SEND - Estado + botón reject + resend */}
                               {budget.status === "send" && (
-                                <>
+                                <div className="flex flex-col gap-1 w-full">
                                   <div className="text-center">
                                     <p className="text-yellow-700 text-[10px] font-semibold bg-yellow-100 px-1 py-0.5 rounded leading-tight">
                                       Sent
@@ -1024,20 +1093,30 @@ const BudgetList = () => {
                                       </p>
                                     )}
                                   </div>
-                                  <button
-                                    onClick={() =>
-                                      handleUpdateStatus(
-                                        budget.idBudget,
-                                        "rejected",
-                                        budget
-                                      )
-                                    }
-                                    className="inline-flex items-center justify-center bg-red-500 text-white px-1.5 py-0.5 rounded text-[10px] hover:bg-red-600 w-14 h-6"
-                                    title="Reject Budget"
-                                  >
-                                    Reject
-                                  </button>
-                                </>
+                                  <div className="flex gap-1">
+                                    {/* 🆕 Botón: Reenviar */}
+                                    <button
+                                      onClick={() => handleResendBudget(budget)}
+                                      className="inline-flex items-center justify-center bg-orange-500 text-white px-1 py-0.5 rounded text-[10px] hover:bg-orange-600 flex-1 h-6"
+                                      title="Resend updated budget"
+                                    >
+                                      🔄 Resend
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        handleUpdateStatus(
+                                          budget.idBudget,
+                                          "rejected",
+                                          budget
+                                        )
+                                      }
+                                      className="inline-flex items-center justify-center bg-red-500 text-white px-1.5 py-0.5 rounded text-[10px] hover:bg-red-600 w-14 h-6"
+                                      title="Reject Budget"
+                                    >
+                                      Reject
+                                    </button>
+                                  </div>
+                                </div>
                               )}
                               {/* ESTADO: SENT_FOR_SIGNATURE - Estado + botón reject horizontalmente */}
                               {budget.status === "sent_for_signature" && (
@@ -1080,9 +1159,9 @@ const BudgetList = () => {
                                   </p>
                                   {/* Botón: Reenviar para Revisión */}
                                   <button
-                                    onClick={() => handleSendForReview(budget)}
+                                    onClick={() => handleResendBudget(budget)}
                                     className="inline-flex items-center justify-center bg-blue-500 text-white px-2 py-0.5 rounded text-[10px] hover:bg-blue-600 w-full h-6"
-                                    title="Resend for Client Review (After Editing)"
+                                    title="Resend updated budget for client review"
                                   >
                                     🔄 Resend
                                   </button>
@@ -1540,13 +1619,22 @@ const BudgetList = () => {
                             
                             {/* 🆕 ESTADO: PENDING_REVIEW */}
                             {budget.status === "pending_review" && (
-                              <div className="w-full text-center p-3 border rounded-lg bg-blue-50">
-                                <p className="text-sm font-semibold text-blue-700">
-                                  📧 In Review
-                                </p>
-                                <p className="text-xs text-gray-600 mt-1">
-                                  Awaiting client approval
-                                </p>
+                              <div className="w-full space-y-2">
+                                <div className="text-center p-3 border rounded-lg bg-blue-50">
+                                  <p className="text-sm font-semibold text-blue-700">
+                                    📧 In Review
+                                  </p>
+                                  <p className="text-xs text-gray-600 mt-1">
+                                    Awaiting client approval
+                                  </p>
+                                </div>
+                                {/* 🆕 Botón: Reenviar presupuesto editado */}
+                                <button
+                                  onClick={() => handleResendBudget(budget)}
+                                  className="w-full bg-orange-500 text-white py-2 rounded-lg text-sm font-semibold hover:bg-orange-600"
+                                >
+                                  🔄 Resend Updated Budget
+                                </button>
                               </div>
                             )}
                             
@@ -1571,7 +1659,7 @@ const BudgetList = () => {
                               </div>
                             )}
 
-                            {/* ESTADO: SEND - Estado + botón reject horizontalmente */}
+                            {/* ESTADO: SEND - Estado + botones resend y reject */}
                             {budget.status === "send" && (
                               <div className="w-full space-y-2">
                                 <div className="text-center p-2 border rounded bg-yellow-50">
@@ -1588,6 +1676,13 @@ const BudgetList = () => {
                                     </p>
                                   )}
                                 </div>
+                                {/* 🆕 Botón: Reenviar */}
+                                <button
+                                  onClick={() => handleResendBudget(budget)}
+                                  className="w-full bg-orange-500 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors"
+                                >
+                                  🔄 Resend Updated Budget
+                                </button>
                                 <button
                                   onClick={() =>
                                     handleUpdateStatus(
@@ -1647,9 +1742,9 @@ const BudgetList = () => {
                                 </div>
                                 {/* Botón: Reenviar para Revisión */}
                                 <button
-                                  onClick={() => handleSendForReview(budget)}
+                                  onClick={() => handleResendBudget(budget)}
                                   className="w-full inline-flex items-center justify-center bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-md"
-                                  title="Resend for Client Review (After Editing)"
+                                  title="Resend updated budget for client review"
                                 >
                                   🔄 Resend for Review
                                 </button>

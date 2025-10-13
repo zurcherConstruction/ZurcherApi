@@ -1469,6 +1469,11 @@ const customCategoryOrder = [
                   Sales Commission (internal): <span className="font-semibold">+$500.00</span>
                 </p>
               )}
+              {formData.leadSource === 'external_referral' && externalReferralInfo.commissionAmount && (
+                <p className="text-green-600 text-sm italic">
+                  Referral Commission ({externalReferralInfo.name || 'External'}): <span className="font-semibold">+${parseFloat(externalReferralInfo.commissionAmount).toFixed(2)}</span>
+                </p>
+              )}
               <p className="text-xl font-bold text-gray-800">Total: <span className="font-semibold text-gray-900">${formData.totalPrice.toFixed(2)}</span></p>
               <div className="flex flex-col sm:flex-row justify-end items-center space-y-3 sm:space-y-0 sm:space-x-4 mt-4 pt-3"> {/* Made payment section responsive */}
                 <label htmlFor="payment_perc" className="text-sm font-medium text-gray-700">Pago Inicial:</label>

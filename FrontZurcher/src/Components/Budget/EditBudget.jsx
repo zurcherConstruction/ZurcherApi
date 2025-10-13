@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { fetchBudgets, fetchBudgetById, updateBudget, } from "../../Redux/Actions/budgetActions";
 // ✅ AGREGAR ESTAS IMPORTACIONES:
 import { fetchBudgetItems } from "../../Redux/Actions/budgetItemActions";
+import { fetchStaff } from "../../Redux/Actions/adminActions"; // 🆕 Para cargar sales reps
 import DynamicCategorySection from './DynamicCategorySection';
 import EditClientDataModal from './EditClientDataModal';
 import EditPermitFieldsModal from './EditPermitFieldsModal'; // 🆕 NUEVO
@@ -37,6 +38,11 @@ const EditBudget = () => {
     loading: loadingCatalog,
     error: catalogError
   } = useSelector(state => state.budgetItems);
+
+  // ✅ AGREGAR SELECTOR PARA STAFF (Sales Reps):
+  const { staffList = [], loading: loadingStaff } = useSelector(state => state.admin) || {};
+  const salesReps = staffList.filter(s => s.role === 'sales_rep' && s.isActive);
+  console.log('👔 Vendedores disponibles:', salesReps);
 
  
 
@@ -72,6 +78,15 @@ const EditBudget = () => {
   // ✅ AGREGAR ESTADOS PARA SISTEMA DINÁMICO:
   const [dynamicSectionVisibility, setDynamicSectionVisibility] = useState({});
 
+  // 🆕 Estado para información de referidos externos
+  const [externalReferralInfo, setExternalReferralInfo] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    company: '',
+    commissionAmount: ''
+  });
+
   // --- Cargar Lista de Budgets para Búsqueda ---
   useEffect(() => {
     // Cargar TODOS los presupuestos disponibles (hasta 1000)
@@ -81,6 +96,11 @@ const EditBudget = () => {
   // ✅ AGREGAR EFECTO PARA CARGAR CATÁLOGO:
   useEffect(() => {
     dispatch(fetchBudgetItems());
+  }, [dispatch]);
+
+  // 🆕 Cargar lista de staff al montar
+  useEffect(() => {
+    dispatch(fetchStaff()); // Usar la acción correcta
   }, [dispatch]);
 
   // Actualiza el filtro en la línea ~45:
@@ -214,6 +234,9 @@ const editableBudgets = useMemo(() => {
           discountAmount: parseFloat(currentBudget.discountAmount) || 0,
           generalNotes: currentBudget.generalNotes || "",
           initialPaymentPercentage: currentBudget.initialPaymentPercentage || '60',
+          // 🆕 Campos de comisiones
+          leadSource: currentBudget.leadSource || 'web',
+          createdByStaffId: currentBudget.createdByStaffId || '',
           lineItems: (currentBudget.lineItems || []).map(item => ({
             _tempId: generateTempId(),
             id: item.id,
@@ -238,6 +261,26 @@ const editableBudgets = useMemo(() => {
         };
        
         setFormData(newFormData);
+        
+        // 🆕 Poblar externalReferralInfo si existe
+        if (currentBudget.leadSource === 'external_referral') {
+          setExternalReferralInfo({
+            name: currentBudget.externalReferralName || '',
+            email: currentBudget.externalReferralEmail || '',
+            phone: currentBudget.externalReferralPhone || '',
+            company: currentBudget.externalReferralCompany || '',
+            commissionAmount: currentBudget.salesCommissionAmount || ''
+          });
+        } else {
+          // Resetear si no es external_referral
+          setExternalReferralInfo({
+            name: '',
+            email: '',
+            phone: '',
+            company: '',
+            commissionAmount: ''
+          });
+        }
         
         // 🆕 Resetear el flag de forzar refresh después de recrear
         if (forceFormDataRefresh > 0) {
@@ -271,7 +314,16 @@ const editableBudgets = useMemo(() => {
     }, 0);
 
     const discount = parseFloat(formData.discountAmount) || 0;
-    const total = subtotal - discount;
+    
+    // 🆕 Calcular comisión según leadSource
+    let commission = 0;
+    if (formData.leadSource === 'sales_rep' && formData.createdByStaffId) {
+      commission = 500; // Comisión fija de $500 para sales rep
+    } else if (formData.leadSource === 'external_referral' && externalReferralInfo.commissionAmount) {
+      commission = parseFloat(externalReferralInfo.commissionAmount) || 0;
+    }
+    
+    const total = subtotal - discount + commission;
 
     let payment = 0;
     const percentage = parseFloat(formData.initialPaymentPercentage);
@@ -295,7 +347,7 @@ const editableBudgets = useMemo(() => {
     } else {
        console.log('Totals are already up-to-date.');
     }
-  }, [formData?.lineItems, formData?.discountAmount, formData?.initialPaymentPercentage, formData?.subtotalPrice, formData?.totalPrice, formData?.initialPayment]);
+  }, [formData?.lineItems, formData?.discountAmount, formData?.initialPaymentPercentage, formData?.leadSource, formData?.createdByStaffId, externalReferralInfo.commissionAmount, formData?.subtotalPrice, formData?.totalPrice, formData?.initialPayment]);
 
   // --- Handlers ---
   const handleGeneralInputChange = (e) => {
@@ -489,6 +541,15 @@ const editableBudgets = useMemo(() => {
       discountAmount: parseFloat(formData.discountAmount) || 0,
       generalNotes: formData.generalNotes,
       initialPaymentPercentage: parseFloat(formData.initialPaymentPercentage) || 60,
+      // 🆕 Campos de comisiones
+      leadSource: formData.leadSource,
+      createdByStaffId: formData.createdByStaffId || null,
+      // 🆕 Campos de external referral (solo si aplica)
+      externalReferralName: formData.leadSource === 'external_referral' ? externalReferralInfo.name : null,
+      externalReferralEmail: formData.leadSource === 'external_referral' ? externalReferralInfo.email : null,
+      externalReferralPhone: formData.leadSource === 'external_referral' ? externalReferralInfo.phone : null,
+      externalReferralCompany: formData.leadSource === 'external_referral' ? externalReferralInfo.company : null,
+      salesCommissionAmount: formData.leadSource === 'external_referral' ? parseFloat(externalReferralInfo.commissionAmount) || 0 : 0,
     };
 
     const lineItemsPayload = formData.lineItems.map(item => ({
@@ -814,6 +875,238 @@ const editableBudgets = useMemo(() => {
                   <label htmlFor="generalNotes" className="block text-sm font-medium text-gray-700">General Notes</label>
                   <textarea id="generalNotes" name="generalNotes" value={formData.generalNotes} onChange={handleGeneralInputChange} rows="3" className="input-style mt-1"></textarea>
                 </div>
+
+                {/* 🆕 Lead Source & Commission Management */}
+                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-bold text-blue-900">Lead Source & Commissions</h4>
+                    
+                    {/* 🆕 BADGES DE ESTADO */}
+                    <div className="flex gap-2">
+                      {formData.leadSource === 'sales_rep' && formData.createdByStaffId && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 border border-indigo-300">
+                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
+                          </svg>
+                          Sales Rep ($500)
+                        </span>
+                      )}
+                      {formData.leadSource === 'external_referral' && externalReferralInfo.commissionAmount && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-300">
+                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+                          </svg>
+                          External Ref (${parseFloat(externalReferralInfo.commissionAmount).toFixed(2)})
+                        </span>
+                      )}
+                      {formData.leadSource && !['sales_rep', 'external_referral'].includes(formData.leadSource) && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-300">
+                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          No Commission
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* 🆕 INFO PANEL - Resumen del estado actual */}
+                  {(formData.leadSource === 'sales_rep' && formData.createdByStaffId) || 
+                   (formData.leadSource === 'external_referral' && externalReferralInfo.name) ? (
+                    <div className="mb-4 p-3 bg-white border-l-4 border-blue-500 rounded-r-lg shadow-sm">
+                      <div className="flex items-start">
+                        <svg className="w-5 h-5 text-blue-500 mt-0.5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-gray-900">Current Commission Configuration:</p>
+                          {formData.leadSource === 'sales_rep' && formData.createdByStaffId && (
+                            <div className="mt-1 text-sm text-gray-700">
+                              <p>• <span className="font-medium">Type:</span> Internal Sales Representative</p>
+                              <p>• <span className="font-medium">Assigned to:</span> {salesReps.find(r => r.id === formData.createdByStaffId)?.name || 'Loading...'}</p>
+                              <p>• <span className="font-medium">Commission:</span> $500.00 (Fixed)</p>
+                            </div>
+                          )}
+                          {formData.leadSource === 'external_referral' && externalReferralInfo.name && (
+                            <div className="mt-1 text-sm text-gray-700">
+                              <p>• <span className="font-medium">Type:</span> External Referral (Non-Staff)</p>
+                              <p>• <span className="font-medium">Referral:</span> {externalReferralInfo.name}</p>
+                              {externalReferralInfo.company && (
+                                <p>• <span className="font-medium">Company:</span> {externalReferralInfo.company}</p>
+                              )}
+                              <p>• <span className="font-medium">Commission:</span> ${parseFloat(externalReferralInfo.commissionAmount || 0).toFixed(2)}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                  
+                  <div className="mb-4">
+                    <label htmlFor="leadSource" className="block text-sm font-medium text-gray-700 mb-1">
+                      Lead Source <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      id="leadSource"
+                      name="leadSource"
+                      value={formData.leadSource}
+                      onChange={handleGeneralInputChange}
+                      className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      disabled={isBudgetLocked}
+                    >
+                      <option value="web">Website / Web Form</option>
+                      <option value="direct_client">Direct Client (Walk-in/Call)</option>
+                      <option value="social_media">Social Media</option>
+                      <option value="referral">Referral (Generic)</option>
+                      <option value="sales_rep">Sales Representative (Staff)</option>
+                      <option value="external_referral">External Referral (Non-Staff)</option>
+                    </select>
+                  </div>
+
+                  {/* Sales Rep (solo si leadSource === 'sales_rep') */}
+                  {formData.leadSource === 'sales_rep' && (
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label htmlFor="createdByStaffId" className="block text-sm font-medium text-gray-700">
+                          Sales Representative <span className="text-red-500">*</span>
+                        </label>
+                        {formData.createdByStaffId && (
+                          <span className="text-xs text-indigo-700 font-medium">
+                            ✓ Currently assigned: {salesReps.find(r => r.id === formData.createdByStaffId)?.name || 'Unknown'}
+                          </span>
+                        )}
+                      </div>
+                      <select
+                        id="createdByStaffId"
+                        name="createdByStaffId"
+                        value={formData.createdByStaffId}
+                        onChange={handleGeneralInputChange}
+                        required={formData.leadSource === 'sales_rep'}
+                        className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                        disabled={isBudgetLocked}
+                      >
+                        <option value="">Select a sales representative...</option>
+                        {loadingStaff ? (
+                          <option disabled>Loading sales reps...</option>
+                        ) : salesReps.length === 0 ? (
+                          <option disabled>No sales representatives available</option>
+                        ) : (
+                          salesReps.map(rep => (
+                            <option key={rep.id} value={rep.id}>
+                              {rep.name} ({rep.email})
+                            </option>
+                          ))
+                        )}
+                      </select>
+                      <p className="text-xs text-indigo-600 mt-1 font-medium">
+                        💰 Fixed commission: $500 USD (increases client's total price)
+                      </p>
+                    </div>
+                  )}
+
+                  {/* External Referral Fields (solo si leadSource === 'external_referral') */}
+                  {formData.leadSource === 'external_referral' && (
+                    <div className="mt-4 p-4 bg-green-50 border border-green-300 rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+                        <h5 className="text-sm font-bold text-green-900">External Referral Information</h5>
+                        {externalReferralInfo.name && (
+                          <span className="text-xs text-green-700 font-medium">
+                            ✓ Currently configured: {externalReferralInfo.name}
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Referral Name <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={externalReferralInfo.name}
+                            onChange={(e) => setExternalReferralInfo(prev => ({
+                              ...prev,
+                              name: e.target.value
+                            }))}
+                            className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            placeholder="John Doe"
+                            required
+                            disabled={isBudgetLocked}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                          <input
+                            type="email"
+                            value={externalReferralInfo.email}
+                            onChange={(e) => setExternalReferralInfo(prev => ({
+                              ...prev,
+                              email: e.target.value
+                            }))}
+                            className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            placeholder="referral@example.com"
+                            disabled={isBudgetLocked}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                          <input
+                            type="tel"
+                            value={externalReferralInfo.phone}
+                            onChange={(e) => setExternalReferralInfo(prev => ({
+                              ...prev,
+                              phone: e.target.value
+                            }))}
+                            className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            placeholder="+1 (555) 123-4567"
+                            disabled={isBudgetLocked}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
+                          <input
+                            type="text"
+                            value={externalReferralInfo.company}
+                            onChange={(e) => setExternalReferralInfo(prev => ({
+                              ...prev,
+                              company: e.target.value
+                            }))}
+                            className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            placeholder="ABC Real Estate"
+                            disabled={isBudgetLocked}
+                          />
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Commission Amount ($) <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="number"
+                            value={externalReferralInfo.commissionAmount}
+                            onChange={(e) => setExternalReferralInfo(prev => ({
+                              ...prev,
+                              commissionAmount: e.target.value
+                            }))}
+                            className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                            placeholder="500.00"
+                            min="0"
+                            step="0.01"
+                            required
+                            disabled={isBudgetLocked}
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Commission amount that will be added to the client's total price
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
               </fieldset>
               {/* --- Líneas de Items (Editables: Cantidad y Notas) --- */}
               <fieldset className="border border-gray-200 p-4 rounded-lg mb-6" disabled={isBudgetLocked}>
@@ -980,7 +1273,19 @@ const editableBudgets = useMemo(() => {
                 </div>
                 <div className="mt-4 space-y-2 text-right">
                   <p className="text-sm text-gray-600">Subtotal: <span className="font-medium text-gray-900">${formData.subtotalPrice.toFixed(2)}</span></p>
-                  <p className="text-sm text-gray-600">Discount: <span className="font-medium text-red-600">-${(parseFloat(formData.discountAmount) || 0).toFixed(2)}</span></p>
+                  {(parseFloat(formData.discountAmount) || 0) > 0 && (
+                    <p className="text-sm text-gray-600">Discount ({formData.discountDescription || 'General'}): <span className="font-medium text-red-600">-${(parseFloat(formData.discountAmount) || 0).toFixed(2)}</span></p>
+                  )}
+                  {formData.leadSource === 'sales_rep' && formData.createdByStaffId && (
+                    <p className="text-sm text-indigo-600 italic">
+                      Sales Commission (internal): <span className="font-semibold">+$500.00</span>
+                    </p>
+                  )}
+                  {formData.leadSource === 'external_referral' && externalReferralInfo.commissionAmount && (
+                    <p className="text-sm text-green-600 italic">
+                      External Referral Commission: <span className="font-semibold">+${parseFloat(externalReferralInfo.commissionAmount || 0).toFixed(2)}</span>
+                    </p>
+                  )}
                   <p className="text-lg font-semibold text-blue-900">Total: ${formData.totalPrice.toFixed(2)}</p>
                   <p className="text-md font-medium text-blue-700">Initial Payment Required: ${formData.initialPayment.toFixed(2)}</p>
                 </div>

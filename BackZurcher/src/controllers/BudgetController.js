@@ -175,7 +175,7 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
         externalReferralEmail: leadSource === 'external_referral' ? externalReferralEmail : null,
         externalReferralPhone: leadSource === 'external_referral' ? externalReferralPhone : null,
         externalReferralCompany: leadSource === 'external_referral' ? externalReferralCompany : null,
-        salesCommissionAmount: leadSource === 'sales_rep' ? 500 : 0, // Solo para sales rep
+        salesCommissionAmount: commission, // ✅ FIX: Guardar comisión para ambos tipos (sales_rep: 500, external: customCommissionAmount)
         clientTotalPrice: finalTotalWithCommission,
         commissionAmount: commission, // Universal para ambos tipos
         commissionPaid: false,
@@ -535,9 +535,16 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
 
       // Preparar información para el documento
       const propertyAddress = budget.Permit?.propertyAddress || budget.propertyAddress || 'Property';
-      const fileName = `Budget_${budget.idBudget}_${propertyAddress.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+      
+      // ✅ USAR INVOICE NUMBER SI EXISTE, sino usar idBudget
+      const documentIdentifier = budget.invoiceNumber 
+        ? `Invoice_${budget.invoiceNumber}` 
+        : `Budget_${budget.idBudget}`;
+      
+      const fileName = `${documentIdentifier}_${propertyAddress.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
 
       console.log(`📁 Nombre del archivo para SignNow: ${fileName}`);
+      console.log(`📋 Tipo de documento: ${budget.invoiceNumber ? `Invoice #${budget.invoiceNumber}` : `Budget #${budget.idBudget}`}`);
 
       // Enviar documento para firma
       console.log('📤 Enviando documento a SignNow...');
@@ -891,6 +898,10 @@ async getBudgets(req, res) {
       attributes: [
         'idBudget', 'date', 'expirationDate', 'status', 'applicantName', 'propertyAddress',
         'subtotalPrice', 'totalPrice', 'initialPayment', 'initialPaymentPercentage', 'pdfPath',
+        'generalNotes', // 🆕 Incluir notas generales
+        'paymentInvoice', // Comprobante de pago
+        'paymentProofAmount', // Monto del comprobante
+        'paymentProofType', // Tipo de comprobante (pdf/image)
         'isLegacy', // Campo para identificar legacy budgets
         'legacySignedPdfUrl', // URL de Cloudinary del PDF firmado para trabajos legacy
         'legacySignedPdfPublicId', // Public ID de Cloudinary
@@ -1248,7 +1259,7 @@ async optionalDocs(req, res) {
 
     try {
       console.log(`--- Iniciando actualización para Budget ID: ${idBudget} ---`);
-      //console.log("Datos recibidos en req.body:", req.body);
+      console.log("Datos recibidos en req.body:", JSON.stringify(req.body, null, 2));
 
       // --- 1. Buscar el Budget Existente ---
       const budget = await Budget.findByPk(idBudget, {
@@ -1286,7 +1297,15 @@ async optionalDocs(req, res) {
         generalNotes,
         initialPaymentPercentage: initialPaymentPercentageInput,
         lineItems,
-        paymentMethod // 🆕 Extraer método de pago
+        paymentMethod, // 🆕 Extraer método de pago
+        // 🆕 Campos de comisiones
+        leadSource,
+        createdByStaffId,
+        externalReferralName,
+        externalReferralEmail,
+        externalReferralPhone,
+        externalReferralCompany,
+        salesCommissionAmount
       } = req.body;
 
       // --- 3. Validaciones Preliminares ---
@@ -1318,6 +1337,26 @@ async optionalDocs(req, res) {
       // Asegurar que discountAmount sea numérico
       if (discountAmount !== undefined) generalUpdateData.discountAmount = parseFloat(discountAmount) || 0;
       if (generalNotes !== undefined) generalUpdateData.generalNotes = generalNotes;
+      
+      // 🆕 Actualizar campos de comisiones
+      if (leadSource !== undefined) generalUpdateData.leadSource = leadSource;
+      if (createdByStaffId !== undefined) generalUpdateData.createdByStaffId = createdByStaffId || null;
+      if (externalReferralName !== undefined) generalUpdateData.externalReferralName = leadSource === 'external_referral' ? externalReferralName : null;
+      if (externalReferralEmail !== undefined) generalUpdateData.externalReferralEmail = leadSource === 'external_referral' ? externalReferralEmail : null;
+      if (externalReferralPhone !== undefined) generalUpdateData.externalReferralPhone = leadSource === 'external_referral' ? externalReferralPhone : null;
+      if (externalReferralCompany !== undefined) generalUpdateData.externalReferralCompany = leadSource === 'external_referral' ? externalReferralCompany : null;
+      
+      // Calcular y guardar salesCommissionAmount basado en el tipo de comisión
+      if (leadSource !== undefined) {
+        if (leadSource === 'sales_rep' && createdByStaffId) {
+          generalUpdateData.salesCommissionAmount = 500; // Comisión fija para sales rep
+        } else if (leadSource === 'external_referral' && salesCommissionAmount !== undefined) {
+          generalUpdateData.salesCommissionAmount = parseFloat(salesCommissionAmount) || 0;
+        } else {
+          generalUpdateData.salesCommissionAmount = 0; // Sin comisión
+        }
+      }
+      
       // Asegurar que initialPaymentPercentage sea numérico
       let actualPercentageForUpdate = undefined; // Solo actualiza si viene en el input
       if (initialPaymentPercentageInput !== undefined) {
@@ -1471,7 +1510,21 @@ async optionalDocs(req, res) {
       console.log("Recalculando totales finales...");
       // Usar los valores actualizados en el objeto 'budget' en memoria
       const finalDiscount = parseFloat(budget.discountAmount) || 0;
-      const finalTotal = calculatedSubtotal - finalDiscount;
+      
+      // 🆕 Calcular comisión según el tipo
+      let commission = 0;
+      const currentLeadSource = budget.leadSource || 'web';
+      if (currentLeadSource === 'sales_rep' && budget.createdByStaffId) {
+        commission = 500; // Comisión fija para sales rep
+        console.log(`💰 Comisión de Sales Rep: $${commission} (Staff ID: ${budget.createdByStaffId})`);
+      } else if (currentLeadSource === 'external_referral' && budget.salesCommissionAmount) {
+        commission = parseFloat(budget.salesCommissionAmount) || 0;
+        console.log(`💰 Comisión de Referido Externo: $${commission}`);
+      } else {
+        console.log(`💰 Sin comisión (Lead Source: ${currentLeadSource})`);
+      }
+      
+      const finalTotal = calculatedSubtotal - finalDiscount + commission;
       // *** CORRECCIÓN: Usar el porcentaje actualizado en memoria para el cálculo ***
       const percentageForCalculation = parseFloat(budget.initialPaymentPercentage) || 60; // Lee el valor ya actualizado (o el original si no se actualizó)
       const calculatedInitialPayment = finalTotal * (percentageForCalculation / 100);
@@ -1483,14 +1536,16 @@ async optionalDocs(req, res) {
       Object.assign(budget, {
         subtotalPrice: calculatedSubtotal,
         totalPrice: finalTotal,
-        initialPayment: calculatedInitialPayment // Este es el initialPayment calculado
+        initialPayment: calculatedInitialPayment, // Este es el initialPayment calculado
+        commissionAmount: commission // 🆕 Guardar el monto de comisión calculado
       });
 
       // Guardar los nuevos totales en la BD (sin pdfPath aún)
       await budget.update({
         subtotalPrice: calculatedSubtotal,
         totalPrice: finalTotal,
-        initialPayment: calculatedInitialPayment
+        initialPayment: calculatedInitialPayment,
+        commissionAmount: commission // 🆕 Guardar comisión en BD
       }, { transaction });
       console.log(`Totales finales para Budget ID ${idBudget} actualizados: Subtotal=${calculatedSubtotal}, Total=${finalTotal}, InitialPayment=${calculatedInitialPayment}`);
 
@@ -3361,7 +3416,9 @@ async optionalDocs(req, res) {
     try {
       const { idBudget } = req.params;
       
-      console.log(`📧 Enviando presupuesto ${idBudget} para revisión...`);
+      console.log(`📧 === INICIANDO ENVÍO DE PRESUPUESTO PARA REVISIÓN ===`);
+      console.log(`📋 Budget ID: ${idBudget}`);
+      console.log(`⏰ Timestamp: ${new Date().toISOString()}`);
 
       // Buscar el presupuesto con sus datos completos
       const budget = await Budget.findByPk(idBudget, {
@@ -3375,14 +3432,26 @@ async optionalDocs(req, res) {
       });
 
       if (!budget) {
+        console.error(`❌ Presupuesto ${idBudget} no encontrado`);
         return res.status(404).json({ error: 'Presupuesto no encontrado' });
       }
 
-      // ✅ Validaciones - Permitir reenvío de presupuestos rechazados
-      const allowedStatuses = ['created', 'draft', 'rejected'];
+      console.log(`✅ Presupuesto encontrado:`, {
+        idBudget: budget.idBudget,
+        status: budget.status,
+        applicantEmail: budget.Permit?.applicantEmail,
+        hasPdfPath: !!budget.pdfPath
+      });
+
+      // ✅ Validaciones - Permitir reenvío de presupuestos en varios estados
+      const allowedStatuses = ['created', 'draft', 'rejected', 'pending_review', 'send', 'client_approved'];
       if (!allowedStatuses.includes(budget.status)) {
         return res.status(400).json({ 
-          error: `No se puede enviar para revisión un presupuesto con estado "${budget.status}". Solo presupuestos en estado "created", "draft" o "rejected" (para reenvío) pueden enviarse para revisión.`
+          error: `No se puede enviar para revisión un presupuesto con estado "${budget.status}". Solo presupuestos en estado "created", "draft", "pending_review", "send", "client_approved" o "rejected" pueden enviarse para revisión.`,
+          details: `Por favor, verifica:
+- El presupuesto tiene PDF generado
+- El email del cliente es válido
+- La conexión con el servidor`
         });
       }
 
@@ -3394,8 +3463,11 @@ async optionalDocs(req, res) {
 
       // Generar token único para revisión (si no existe o si es reenvío)
       const crypto = require('crypto');
-      const isResend = budget.status === 'rejected'; // Detectar si es un reenvío
+      const isResend = ['rejected', 'pending_review', 'send', 'client_approved'].includes(budget.status); // Detectar si es un reenvío
       const reviewToken = budget.reviewToken || crypto.randomBytes(32).toString('hex');
+
+      console.log(`🔄 Tipo de envío: ${isResend ? 'REENVÍO' : 'PRIMER ENVÍO'}`);
+      console.log(`🔑 Review Token: ${reviewToken.substring(0, 10)}...`);
 
       // Actualizar presupuesto
       await budget.update({
@@ -3693,18 +3765,24 @@ async optionalDocs(req, res) {
 
       // 🆕 SI SE SOLICITA, CONVERTIR AUTOMÁTICAMENTE A INVOICE
       let invoiceNumber = null;
-      if (convertToInvoice && !budget.invoiceNumber) {
-        // 🔄 USAR NUMERACIÓN UNIFICADA (compartida con FinalInvoices)
-        invoiceNumber = await getNextInvoiceNumber(transaction);
-        
-        console.log(`📋 Asignando Invoice Number: ${invoiceNumber} (numeración unificada) al aprobar`);
+      if (convertToInvoice) {
+        // ✅ MANTENER invoice number existente o generar uno nuevo
+        if (budget.invoiceNumber) {
+          // Ya tiene invoice number, mantenerlo (caso de re-aprobación después de edición)
+          invoiceNumber = budget.invoiceNumber;
+          console.log(`♻️  Manteniendo Invoice Number existente: ${invoiceNumber}`);
+        } else {
+          // Primera vez que se aprueba, generar nuevo invoice number
+          invoiceNumber = await getNextInvoiceNumber(transaction);
+          console.log(`📋 Asignando nuevo Invoice Number: ${invoiceNumber} (numeración unificada)`);
+        }
 
         // Actualizar presupuesto con invoice number
         await budget.update({
           status: 'created', // Estado de invoice definitivo
           reviewedAt: new Date(),
           invoiceNumber: invoiceNumber,
-          convertedToInvoiceAt: new Date()
+          convertedToInvoiceAt: budget.convertedToInvoiceAt || new Date() // Mantener fecha original si existe
         }, { transaction });
 
       } else {
