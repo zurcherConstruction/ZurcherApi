@@ -220,6 +220,14 @@ function App() {
               }
             />
             <Route
+              path="/budgets/edit/:budgetId"
+              element={
+                <PrivateRoute allowedRoles={["owner", "admin"]}>
+                  <EditBudget />
+                </PrivateRoute>
+              }
+            />
+            <Route
               path="/pdf"
               element={
                 <PrivateRoute allowedRoles={["owner", "admin"]}>

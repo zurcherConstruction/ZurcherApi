@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { fetchBudgets, fetchBudgetById, updateBudget, } from "../../Redux/Actions/budgetActions";
 // ✅ AGREGAR ESTAS IMPORTACIONES:
 import { fetchBudgetItems } from "../../Redux/Actions/budgetItemActions";
@@ -21,6 +21,7 @@ const EditBudget = () => {
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const { budgetId } = useParams(); // ✅ Obtener budgetId de la URL
 
   // --- Selectores de Redux ---
   const {
@@ -42,7 +43,7 @@ const EditBudget = () => {
   // ✅ AGREGAR SELECTOR PARA STAFF (Sales Reps):
   const { staffList = [], loading: loadingStaff } = useSelector(state => state.admin) || {};
   const salesReps = staffList.filter(s => s.role === 'sales_rep' && s.isActive);
-  console.log('👔 Vendedores disponibles:', salesReps);
+ 
 
  
 
@@ -102,6 +103,16 @@ const EditBudget = () => {
   useEffect(() => {
     dispatch(fetchStaff()); // Usar la acción correcta
   }, [dispatch]);
+
+  // ✅ NUEVO: Cargar presupuesto automáticamente si viene budgetId en la URL
+  useEffect(() => {
+    if (budgetId && !selectedBudgetId) {
+      console.log('🔍 Cargando presupuesto desde URL:', budgetId);
+      const numericId = Number(budgetId);
+      setSelectedBudgetId(numericId);
+      dispatch(fetchBudgetById(numericId));
+    }
+  }, [budgetId, selectedBudgetId, dispatch]);
 
   // Actualiza el filtro en la línea ~45:
 const editableBudgets = useMemo(() => {
@@ -186,16 +197,17 @@ const editableBudgets = useMemo(() => {
     setSearchResults(filtered);
   }, [searchTerm, editableBudgets]);
 
-  // --- Cargar Datos del Budget Seleccionado (sin cambios) ---
+  // --- Cargar Datos del Budget Seleccionado ---
   useEffect(() => {
-    if (selectedBudgetId) {
+    // Solo cargar si selectedBudgetId cambió y NO viene de la URL inicial
+    if (selectedBudgetId && !budgetId) {
       console.log(`Dispatching fetchBudgetById for ID: ${selectedBudgetId}`);
       setFormData(null);
       dispatch(fetchBudgetById(selectedBudgetId));
-    } else {
+    } else if (!selectedBudgetId) {
       setFormData(null);
     }
-  }, [dispatch, selectedBudgetId]);
+  }, [selectedBudgetId, budgetId, dispatch]);
 
   // --- Poblar Estado Local (formData) cuando currentBudget cambia ---
   useEffect(() => {
