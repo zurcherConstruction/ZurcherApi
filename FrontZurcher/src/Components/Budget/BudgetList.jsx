@@ -1003,17 +1003,17 @@ const BudgetList = () => {
                             )}
                           </td>
                           {/* --- FIN CELDA DE NOTAS --- */}
-                          <td className="border border-gray-300 px-1 py-1">
-                            <div className="flex flex-row items-center justify-center space-x-1 min-w-[100px]">
+                          <td className="border border-gray-300 px-2 py-2">
+                            <div className="flex flex-row items-center justify-center gap-1.5">
                               {" "}
-                              {/* Cambio: flex-row y space-x-1 */}
+                              {/* Cambio: flex-row y gap-1.5 para mejor separación */}
                               {/* ESTADO: DRAFT - Solo enviar para revisión del cliente */}
                               {budget.status === "draft" && (
-                                <div className="flex flex-col gap-1 w-full">
+                                <div className="flex flex-col gap-1 w-full min-w-[100px]">
                                   {/* Botón: Enviar para Revisión del Cliente */}
                                   <button
                                     onClick={() => handleSendForReview(budget)}
-                                    className="inline-flex items-center justify-center bg-blue-500 text-white px-2 py-0.5 rounded text-[10px] hover:bg-blue-600 w-full h-6"
+                                    className="inline-flex items-center justify-center bg-blue-500 text-white px-3 py-1.5 rounded text-[10px] font-medium hover:bg-blue-600 w-full shadow-sm"
                                     title="Send for Client Review"
                                   >
                                     📧 Send Quote
@@ -1023,14 +1023,14 @@ const BudgetList = () => {
                               
                               {/* ESTADO: CREATED (Invoice convertido después de aprobación) */}
                               {((budget.status === "created" || budget.status === "client_approved") && !isDraft) && (
-                                <div className="flex flex-col gap-1 w-full">
-                                  <p className="text-green-700 text-[10px] font-semibold bg-green-100 px-1 py-0.5 rounded leading-tight text-center">
+                                <div className="flex flex-col gap-1 w-full min-w-[100px]">
+                                  <p className="text-green-700 text-[10px] font-semibold bg-green-100 px-2 py-1 rounded leading-tight text-center">
                                     ✅ Approved
                                   </p>
                                   {/* Botón: Send to SignNow (para firma y pago) */}
                                   <button
                                     onClick={() => handleSendToSignNow(budget)}
-                                    className="inline-flex items-center justify-center bg-purple-500 text-white px-1 py-0.5 rounded text-[8px] hover:bg-purple-600 w-16 h-5"
+                                    className="inline-flex items-center justify-center bg-purple-500 text-white px-3 py-1.5 rounded text-[10px] font-medium hover:bg-purple-600 w-full shadow-sm"
                                     title="Send to SignNow for Signature & Payment"
                                   >
                                     📝 Send SignNow
@@ -1060,15 +1060,15 @@ const BudgetList = () => {
                               
                               {/* 🆕 ESTADO: CLIENT_APPROVED - Cliente aprobó, ya convertido a Invoice automáticamente */}
                               {budget.status === "client_approved" && (
-                                <div className="flex flex-col gap-1 w-full">
-                                  <p className="text-green-700 text-[9px] font-semibold bg-green-100 px-1 py-0.5 rounded leading-tight text-center">
+                                <div className="flex flex-col gap-1 w-full min-w-[100px]">
+                                  <p className="text-green-700 text-[10px] font-semibold bg-green-100 px-2 py-1 rounded leading-tight text-center">
                                     ✅ Approved
                                   </p>
                                   
                                   {/* Botón: Send to SignNow (para firma y pago) */}
                                   <button
                                     onClick={() => handleSendToSignNow(budget)}
-                                    className="inline-flex items-center justify-center bg-purple-500 text-white px-1 py-0.5 rounded text-[8px] hover:bg-purple-600 w-16 h-5"
+                                    className="inline-flex items-center justify-center bg-purple-500 text-white px-3 py-1.5 rounded text-[10px] font-medium hover:bg-purple-600 w-full shadow-sm"
                                     title="Send to SignNow for Signature & Payment"
                                   >
                                     📝 SignNow
@@ -1078,9 +1078,9 @@ const BudgetList = () => {
                               
                               {/* ESTADO: SEND - Estado + botón reject + resend */}
                               {budget.status === "send" && (
-                                <div className="flex flex-col gap-1 w-full">
+                                <div className="flex flex-col gap-1 w-full min-w-[100px]">
                                   <div className="text-center">
-                                    <p className="text-yellow-700 text-[9px] font-semibold bg-yellow-100 px-1 py-0.5 rounded leading-tight">
+                                    <p className="text-yellow-700 text-[10px] font-semibold bg-yellow-100 px-2 py-1 rounded leading-tight">
                                       Sent
                                     </p>
                                     {budget.paymentInvoice ? (
@@ -1097,7 +1097,7 @@ const BudgetList = () => {
                                     {/* 🆕 Botón: Reenviar */}
                                     <button
                                       onClick={() => handleResendBudget(budget)}
-                                      className="inline-flex items-center justify-center bg-orange-500 text-white px-1 py-0.5 rounded text-[9px] hover:bg-orange-600 flex-1 h-6"
+                                      className="inline-flex items-center justify-center bg-orange-500 text-white px-2 py-1.5 rounded text-[10px] font-medium hover:bg-orange-600 flex-1 shadow-sm"
                                       title="Resend updated budget"
                                     >
                                       🔄 Resend
@@ -1110,7 +1110,7 @@ const BudgetList = () => {
                                           budget
                                         )
                                       }
-                                      className="inline-flex items-center justify-center bg-red-500 text-white px-1 py-0.5 rounded text-[9px] hover:bg-red-600 w-12 h-6"
+                                      className="inline-flex items-center justify-center bg-red-500 text-white px-2 py-1.5 rounded text-[10px] font-medium hover:bg-red-600 shadow-sm"
                                       title="Reject Budget"
                                     >
                                       Reject
@@ -1120,8 +1120,8 @@ const BudgetList = () => {
                               )}
                               {/* ESTADO: SENT_FOR_SIGNATURE - Estado + botón reject horizontalmente */}
                               {budget.status === "sent_for_signature" && (
-                                <>
-                                  <p className="text-blue-700 text-[9px] font-semibold bg-blue-100 px-1 py-0.5 rounded text-center leading-tight">
+                                <div className="flex flex-col gap-1 w-full min-w-[100px]">
+                                  <p className="text-blue-700 text-[10px] font-semibold bg-blue-100 px-2 py-1 rounded text-center leading-tight">
                                     To Sign
                                   </p>
                                   <button
@@ -1132,35 +1132,39 @@ const BudgetList = () => {
                                         budget
                                       )
                                     }
-                                    className="inline-flex items-center justify-center bg-red-500 text-white px-1 py-0.5 rounded text-[9px] hover:bg-red-600 w-12 h-6"
+                                    className="inline-flex items-center justify-center bg-red-500 text-white px-3 py-1.5 rounded text-[10px] font-medium hover:bg-red-600 w-full shadow-sm"
                                     title="Reject Budget"
                                   >
                                     Reject
                                   </button>
-                                </>
+                                </div>
                               )}
                               {/* ESTADO: APPROVED */}
                               {budget.status === "approved" && (
-                                <p className="text-green-700 text-[9px] font-semibold bg-green-100 px-1 py-0.5 rounded text-center w-full leading-tight">
-                                  Approved
-                                </p>
+                                <div className="w-full min-w-[100px]">
+                                  <p className="text-green-700 text-[10px] font-semibold bg-green-100 px-2 py-1.5 rounded text-center leading-tight">
+                                    Approved
+                                  </p>
+                                </div>
                               )}
                               {/* ESTADO: SIGNED */}
                               {budget.status === "signed" && (
-                                <p className="text-green-800 text-[9px] font-semibold bg-green-200 px-1 py-0.5 rounded text-center w-full leading-tight">
-                                  Signed
-                                </p>
+                                <div className="w-full min-w-[100px]">
+                                  <p className="text-green-800 text-[10px] font-semibold bg-green-200 px-2 py-1.5 rounded text-center leading-tight">
+                                    Signed
+                                  </p>
+                                </div>
                               )}
                               {/* ESTADO: REJECTED - Puede reenviarse para revisión */}
                               {budget.status === "rejected" && (
-                                <div className="flex flex-col gap-1 w-full">
-                                  <p className="text-red-700 text-[9px] font-semibold bg-red-100 px-1 py-0.5 rounded text-center leading-tight">
+                                <div className="flex flex-col gap-1 w-full min-w-[100px]">
+                                  <p className="text-red-700 text-[10px] font-semibold bg-red-100 px-2 py-1 rounded text-center leading-tight">
                                     ❌ Rejected
                                   </p>
                                   {/* Botón: Reenviar para Revisión */}
                                   <button
                                     onClick={() => handleResendBudget(budget)}
-                                    className="inline-flex items-center justify-center bg-blue-500 text-white px-1.5 py-0.5 rounded text-[9px] hover:bg-blue-600 w-full h-6"
+                                    className="inline-flex items-center justify-center bg-blue-500 text-white px-3 py-1.5 rounded text-[10px] font-medium hover:bg-blue-600 w-full shadow-sm"
                                     title="Resend updated budget for client review"
                                   >
                                     🔄 Resend
@@ -1169,8 +1173,8 @@ const BudgetList = () => {
                               )}
                               {/* ESTADO: NOT RESPONDED - Estado + botón reject horizontalmente */}
                               {budget.status === "notResponded" && (
-                                <>
-                                  <p className="text-orange-700 text-[9px] font-semibold bg-orange-100 px-1 py-0.5 rounded text-center leading-tight">
+                                <div className="flex flex-col gap-1 w-full min-w-[100px]">
+                                  <p className="text-orange-700 text-[10px] font-semibold bg-orange-100 px-2 py-1 rounded text-center leading-tight">
                                     No Response
                                   </p>
                                   <button
@@ -1181,16 +1185,16 @@ const BudgetList = () => {
                                         budget
                                       )
                                     }
-                                    className="inline-flex items-center justify-center bg-red-500 text-white px-1 py-0.5 rounded text-[9px] hover:bg-red-600 w-12 h-6"
+                                    className="inline-flex items-center justify-center bg-red-500 text-white px-3 py-1.5 rounded text-[10px] font-medium hover:bg-red-600 w-full shadow-sm"
                                     title="Reject Budget"
                                   >
                                     Reject
                                   </button>
-                                </>
+                                </div>
                               )}
                               {/* Separador visual si hay PDFs */}
                               {hasBudgetPdfItself && (
-                                <div className="border-l border-gray-300 h-6 mx-0.5"></div>
+                                <div className="border-l border-gray-300 h-8 mx-1"></div>
                               )}
                               {/* Botones PDF horizontalmente */}
                               {hasBudgetPdfItself && (
@@ -1200,7 +1204,7 @@ const BudgetList = () => {
                                       handleViewPdf(budget.idBudget)
                                     }
                                     disabled={viewingPdfId === budget.idBudget}
-                                    className="inline-flex items-center justify-center bg-teal-600 text-white px-0.5 py-0.5 rounded text-[9px] hover:bg-teal-700 disabled:opacity-50 h-6 w-8"
+                                    className="inline-flex items-center justify-center bg-teal-600 text-white p-1.5 rounded hover:bg-teal-700 disabled:opacity-50 shadow-sm"
                                     title="View Budget PDF"
                                   >
                                     {viewingPdfId === budget.idBudget ? (
@@ -1237,7 +1241,7 @@ const BudgetList = () => {
                                     disabled={
                                       downloadingPdfId === budget.idBudget
                                     }
-                                    className="inline-flex items-center justify-center bg-blue-600 text-white px-0.5 py-0.5 rounded text-[9px] hover:bg-blue-700 disabled:opacity-50 h-6 w-8"
+                                    className="inline-flex items-center justify-center bg-blue-600 text-white p-1.5 rounded hover:bg-blue-700 disabled:opacity-50 shadow-sm"
                                     title="Download Budget PDF"
                                   >
                                     {downloadingPdfId === budget.idBudget ? (
@@ -1278,7 +1282,7 @@ const BudgetList = () => {
                                     isLoadingPdfInModal ===
                                     `${budget.idBudget}-pdfData`
                                   }
-                                  className="inline-flex items-center justify-center bg-indigo-600 text-white px-0.5 py-0.5 rounded text-[9px] hover:bg-indigo-700 disabled:opacity-50 h-6 w-8"
+                                  className="inline-flex items-center justify-center bg-indigo-600 text-white p-1.5 rounded hover:bg-indigo-700 disabled:opacity-50 shadow-sm"
                                   title="View Permit PDF"
                                 >
                                   {isLoadingPdfInModal ===
@@ -1318,7 +1322,7 @@ const BudgetList = () => {
                                     isLoadingPdfInModal ===
                                     `${budget.idBudget}-optionalDocs`
                                   }
-                                  className="inline-flex items-center justify-center bg-purple-600 text-white px-0.5 py-0.5 rounded text-[9px] hover:bg-purple-700 disabled:opacity-50 h-6 w-8"
+                                  className="inline-flex items-center justify-center bg-purple-600 text-white p-1.5 rounded hover:bg-purple-700 disabled:opacity-50 shadow-sm"
                                   title="View Optional Docs"
                                 >
                                   {isLoadingPdfInModal ===
@@ -1354,7 +1358,7 @@ const BudgetList = () => {
                                     handleViewLegacyBudgetPdf(budget.idBudget, budget.legacySignedPdfUrl)
                                   }
                                   disabled={viewingPdfId === budget.idBudget}
-                                  className="inline-flex items-center justify-center bg-amber-600 text-white px-0.5 py-0.5 rounded text-[9px] hover:bg-amber-700 disabled:opacity-50 h-6 w-8"
+                                  className="inline-flex items-center justify-center bg-amber-600 text-white p-1.5 rounded hover:bg-amber-700 disabled:opacity-50 shadow-sm"
                                   title="Ver PDF Legacy"
                                 >
                                   {viewingPdfId === budget.idBudget ? (
@@ -1371,7 +1375,7 @@ const BudgetList = () => {
                               {/* Botón para editar datos de cliente */}
                               <button
                                 onClick={() => handleEditClientData(budget.idBudget)}
-                                className="inline-flex items-center justify-center bg-indigo-600 text-white px-0.5 py-0.5 rounded text-[9px] hover:bg-indigo-700 h-6 w-8"
+                                className="inline-flex items-center justify-center bg-indigo-600 text-white p-1.5 rounded hover:bg-indigo-700 shadow-sm"
                                 title="Edit Client Data"
                               >
                                 <UserIcon className="h-4 w-4" />
