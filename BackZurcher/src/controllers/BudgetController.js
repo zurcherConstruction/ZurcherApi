@@ -892,7 +892,7 @@ async getBudgets(req, res) {
           attributes: ['idPermit', 'propertyAddress', 'systemType', 'expirationDate', 'applicantEmail',  'applicantPhone', 'applicantName', 'permitNumber', 'lot', 'block', 'pdfData', 'optionalDocs'],
         }
       ],
-      order: [['date', 'DESC']],
+      order: [['idBudget', 'DESC']], // ✅ Ordenar por ID para mostrar más recientes primero
       limit: pageSize,
       offset,
       attributes: [
