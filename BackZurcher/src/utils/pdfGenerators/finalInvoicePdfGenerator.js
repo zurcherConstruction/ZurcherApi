@@ -257,19 +257,20 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
         doc.text("ACCOUNT NUMBER: 686125371".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
         doc.moveDown(0.3);
         doc.text("ROUTING NUMBER: 267084131".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+        doc.moveDown(0.5);
+        doc.text("Zelle: zurcherconstruction.fl@gmail.com".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
         doc.moveDown(0.3);
         doc.text("CREDIT CARD + 3%".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
         doc.moveDown(0.3);
         doc.text("ASK ABOUT PAYMENT METHODS. ".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
         doc.moveDown(0.3);
-        doc.text("EMAIL: ADMIN@ZURCHERSEPTIC.COM".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
       
 
       const yAfterPaymentInfo = doc.y;
       doc.y = thankYouAndPaymentInfoY;
 
       const totalsStartX = NEW_PAGE_MARGIN + contentWidth * 0.55;
-      const totalsValueX = NEW_PAGE_MARGIN + contentWidth * 0.85;
+      const totalsValueX = NEW_PAGE_MARGIN + contentWidth * 0.78; // ✅ MOVIDO A LA IZQUIERDA para números grandes
       const totalsRightEdge = doc.page.width - NEW_PAGE_MARGIN;
       let currentTotalY = doc.y;
 
@@ -280,16 +281,21 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
 
       doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
       doc.text("SUBTOTAL", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
+      doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
       doc.text(`$${subtotal.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
       doc.moveDown(0.6);
 
       currentTotalY = doc.y;
+      doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
       doc.text("TAX", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
+      doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
       doc.text(`$${tax.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
       doc.moveDown(0.6);
 
       currentTotalY = doc.y;
+      doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
       doc.text("TOTAL", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
+      doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
       doc.text(`$${total.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
       doc.moveDown(0.8);
 
