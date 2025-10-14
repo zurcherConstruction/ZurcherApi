@@ -671,6 +671,9 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
 
   if (!isDraft && paymentAmountForStripe > 0 && process.env.STRIPE_SECRET_KEY) {
     try {
+      // Configurar expiración del link de pago para 30 días desde ahora
+      const expiresAt = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60); // 30 días en segundos
+      
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: [{
@@ -682,6 +685,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
           quantity: 1,
         }],
         mode: 'payment',
+        expires_at: expiresAt, // Link expira en 30 días
         success_url: 'https://www.zurcherseptic.com/thank-you',
         cancel_url: 'https://www.zurcherseptic.com/thank-you',
         ...(clientEmailFromPermit && { customer_email: clientEmailFromPermit }),
