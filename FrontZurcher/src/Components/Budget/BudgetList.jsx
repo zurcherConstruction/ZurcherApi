@@ -151,6 +151,16 @@ const BudgetList = () => {
     pageSize: currentPageSize  // ✅ Del Redux
   } = useSelector((state) => state.budget);
   
+  // ✅ Obtener el rol del usuario autenticado
+  const { user, currentStaff } = useSelector((state) => state.auth);
+  const staff = currentStaff || user; // Intentar ambos
+  const userRole = staff?.role || '';
+  
+  // ✅ Solo owner y admin pueden editar, el resto solo ve
+  const canEdit = userRole === 'owner' || userRole === 'admin';
+  const isReadOnly = !canEdit;
+  
+
 
   
   // ✅ Estados para paginación local
@@ -994,8 +1004,13 @@ const BudgetList = () => {
                                 </span>
                                 <button
                                   onClick={() => handleEditNoteClick(budget)}
-                                  className="ml-2 p-1 text-blue-600 hover:text-blue-800"
-                                  title="Edit Notes"
+                                  disabled={isReadOnly}
+                                  className={`ml-2 p-1 ${
+                                    isReadOnly 
+                                      ? 'text-gray-400 cursor-not-allowed' 
+                                      : 'text-blue-600 hover:text-blue-800'
+                                  }`}
+                                  title={isReadOnly ? "View only - No edit permissions" : "Edit Notes"}
                                 >
                                   <PencilIcon className="h-4 w-4" />
                                 </button>
@@ -1013,8 +1028,13 @@ const BudgetList = () => {
                                   {/* Botón: Enviar para Revisión del Cliente */}
                                   <button
                                     onClick={() => handleSendForReview(budget)}
-                                    className="inline-flex items-center justify-center bg-blue-500 text-white px-3 py-1.5 rounded text-[10px] font-medium hover:bg-blue-600 w-full shadow-sm"
-                                    title="Send for Client Review"
+                                    disabled={isReadOnly}
+                                    className={`inline-flex items-center justify-center px-3 py-1.5 rounded text-[10px] font-medium w-full shadow-sm ${
+                                      isReadOnly 
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                        : 'bg-blue-500 text-white hover:bg-blue-600'
+                                    }`}
+                                    title={isReadOnly ? "View only - No edit permissions" : "Send for Client Review"}
                                   >
                                     📧 Send Quote
                                   </button>
@@ -1030,8 +1050,13 @@ const BudgetList = () => {
                                   {/* Botón: Send to SignNow (para firma y pago) */}
                                   <button
                                     onClick={() => handleSendToSignNow(budget)}
-                                    className="inline-flex items-center justify-center bg-purple-500 text-white px-3 py-1.5 rounded text-[10px] font-medium hover:bg-purple-600 w-full shadow-sm"
-                                    title="Send to SignNow for Signature & Payment"
+                                    disabled={isReadOnly}
+                                    className={`inline-flex items-center justify-center px-3 py-1.5 rounded text-[10px] font-medium w-full shadow-sm ${
+                                      isReadOnly 
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                        : 'bg-purple-500 text-white hover:bg-purple-600'
+                                    }`}
+                                    title={isReadOnly ? "View only - No edit permissions" : "Send to SignNow for Signature & Payment"}
                                   >
                                     📝 Send SignNow
                                   </button>
@@ -1050,8 +1075,13 @@ const BudgetList = () => {
                                   {/* 🆕 Botón: Reenviar presupuesto editado */}
                                   <button
                                     onClick={() => handleResendBudget(budget)}
-                                    className="inline-flex items-center justify-center bg-orange-500 text-white px-1 py-0.5 rounded text-[8px] hover:bg-orange-600 w-16 h-5"
-                                    title="Resend updated budget to client"
+                                    disabled={isReadOnly}
+                                    className={`inline-flex items-center justify-center px-1 py-0.5 rounded text-[8px] w-16 h-5 ${
+                                      isReadOnly 
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                        : 'bg-orange-500 text-white hover:bg-orange-600'
+                                    }`}
+                                    title={isReadOnly ? "View only - No edit permissions" : "Resend updated budget to client"}
                                   >
                                     🔄 Resend
                                   </button>
@@ -1068,8 +1098,13 @@ const BudgetList = () => {
                                   {/* Botón: Send to SignNow (para firma y pago) */}
                                   <button
                                     onClick={() => handleSendToSignNow(budget)}
-                                    className="inline-flex items-center justify-center bg-purple-500 text-white px-3 py-1.5 rounded text-[10px] font-medium hover:bg-purple-600 w-full shadow-sm"
-                                    title="Send to SignNow for Signature & Payment"
+                                    disabled={isReadOnly}
+                                    className={`inline-flex items-center justify-center px-3 py-1.5 rounded text-[10px] font-medium w-full shadow-sm ${
+                                      isReadOnly 
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                        : 'bg-purple-500 text-white hover:bg-purple-600'
+                                    }`}
+                                    title={isReadOnly ? "View only - No edit permissions" : "Send to SignNow for Signature & Payment"}
                                   >
                                     📝 SignNow
                                   </button>
@@ -1097,8 +1132,13 @@ const BudgetList = () => {
                                     {/* 🆕 Botón: Reenviar */}
                                     <button
                                       onClick={() => handleResendBudget(budget)}
-                                      className="inline-flex items-center justify-center bg-orange-500 text-white px-2 py-1.5 rounded text-[10px] font-medium hover:bg-orange-600 flex-1 shadow-sm"
-                                      title="Resend updated budget"
+                                      disabled={isReadOnly}
+                                      className={`inline-flex items-center justify-center px-2 py-1.5 rounded text-[10px] font-medium flex-1 shadow-sm ${
+                                        isReadOnly 
+                                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                          : 'bg-orange-500 text-white hover:bg-orange-600'
+                                      }`}
+                                      title={isReadOnly ? "View only - No edit permissions" : "Resend updated budget"}
                                     >
                                       🔄 Resend
                                     </button>
@@ -1110,8 +1150,13 @@ const BudgetList = () => {
                                           budget
                                         )
                                       }
-                                      className="inline-flex items-center justify-center bg-red-500 text-white px-2 py-1.5 rounded text-[10px] font-medium hover:bg-red-600 shadow-sm"
-                                      title="Reject Budget"
+                                      disabled={isReadOnly}
+                                      className={`inline-flex items-center justify-center px-2 py-1.5 rounded text-[10px] font-medium shadow-sm ${
+                                        isReadOnly 
+                                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                          : 'bg-red-500 text-white hover:bg-red-600'
+                                      }`}
+                                      title={isReadOnly ? "View only - No edit permissions" : "Reject Budget"}
                                     >
                                       Reject
                                     </button>
@@ -1132,8 +1177,13 @@ const BudgetList = () => {
                                         budget
                                       )
                                     }
-                                    className="inline-flex items-center justify-center bg-red-500 text-white px-3 py-1.5 rounded text-[10px] font-medium hover:bg-red-600 w-full shadow-sm"
-                                    title="Reject Budget"
+                                    disabled={isReadOnly}
+                                    className={`inline-flex items-center justify-center px-3 py-1.5 rounded text-[10px] font-medium w-full shadow-sm ${
+                                      isReadOnly 
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                        : 'bg-red-500 text-white hover:bg-red-600'
+                                    }`}
+                                    title={isReadOnly ? "View only - No edit permissions" : "Reject Budget"}
                                   >
                                     Reject
                                   </button>
@@ -1164,8 +1214,13 @@ const BudgetList = () => {
                                   {/* Botón: Reenviar para Revisión */}
                                   <button
                                     onClick={() => handleResendBudget(budget)}
-                                    className="inline-flex items-center justify-center bg-blue-500 text-white px-3 py-1.5 rounded text-[10px] font-medium hover:bg-blue-600 w-full shadow-sm"
-                                    title="Resend updated budget for client review"
+                                    disabled={isReadOnly}
+                                    className={`inline-flex items-center justify-center px-3 py-1.5 rounded text-[10px] font-medium w-full shadow-sm ${
+                                      isReadOnly 
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                        : 'bg-blue-500 text-white hover:bg-blue-600'
+                                    }`}
+                                    title={isReadOnly ? "View only - No edit permissions" : "Resend updated budget for client review"}
                                   >
                                     🔄 Resend
                                   </button>
@@ -1185,8 +1240,13 @@ const BudgetList = () => {
                                         budget
                                       )
                                     }
-                                    className="inline-flex items-center justify-center bg-red-500 text-white px-3 py-1.5 rounded text-[10px] font-medium hover:bg-red-600 w-full shadow-sm"
-                                    title="Reject Budget"
+                                    disabled={isReadOnly}
+                                    className={`inline-flex items-center justify-center px-3 py-1.5 rounded text-[10px] font-medium w-full shadow-sm ${
+                                      isReadOnly 
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                        : 'bg-red-500 text-white hover:bg-red-600'
+                                    }`}
+                                    title={isReadOnly ? "View only - No edit permissions" : "Reject Budget"}
                                   >
                                     Reject
                                   </button>
@@ -1375,8 +1435,13 @@ const BudgetList = () => {
                               {/* Botón para editar datos de cliente */}
                               <button
                                 onClick={() => handleEditClientData(budget.idBudget)}
-                                className="inline-flex items-center justify-center bg-indigo-600 text-white p-1.5 rounded hover:bg-indigo-700 shadow-sm"
-                                title="Edit Client Data"
+                                disabled={isReadOnly}
+                                className={`inline-flex items-center justify-center p-1.5 rounded shadow-sm ${
+                                  isReadOnly 
+                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                    : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                }`}
+                                title={isReadOnly ? "View only - No edit permissions" : "Edit Client Data"}
                               >
                                 <UserIcon className="h-4 w-4" />
                               </button>
@@ -1579,8 +1644,13 @@ const BudgetList = () => {
                               </span>
                               <button
                                 onClick={() => handleEditNoteClick(budget)}
-                                className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-md transition-colors"
-                                title="Edit Notes"
+                                disabled={isReadOnly}
+                                className={`p-1.5 rounded-md transition-colors ${
+                                  isReadOnly 
+                                    ? 'text-gray-400 cursor-not-allowed' 
+                                    : 'text-blue-600 hover:text-blue-800 hover:bg-blue-50'
+                                }`}
+                                title={isReadOnly ? "View only - No edit permissions" : "Edit Notes"}
                               >
                                 <PencilIcon className="h-4 w-4" />
                               </button>
@@ -1600,7 +1670,13 @@ const BudgetList = () => {
                                 {/* 🆕 Botón: Enviar para Revisión */}
                                 <button
                                   onClick={() => handleSendForReview(budget)}
-                                  className="w-full bg-blue-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
+                                  disabled={isReadOnly}
+                                  className={`w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                                    isReadOnly 
+                                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                      : 'bg-blue-500 text-white hover:bg-blue-600'
+                                  }`}
+                                  title={isReadOnly ? "View only - No edit permissions" : "Send budget for client review"}
                                 >
                                   📧 Send for Review
                                 </button>
@@ -1614,7 +1690,13 @@ const BudgetList = () => {
                                       budget
                                     )
                                   }
-                                  className="w-full bg-yellow-500 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-yellow-600 transition-colors"
+                                  disabled={isReadOnly}
+                                  className={`w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                                    isReadOnly 
+                                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                      : 'bg-yellow-500 text-white hover:bg-yellow-600'
+                                  }`}
+                                  title={isReadOnly ? "View only - No edit permissions" : "Send budget to client"}
                                 >
                                   Send Budget
                                 </button>
@@ -1635,7 +1717,13 @@ const BudgetList = () => {
                                 {/* 🆕 Botón: Reenviar presupuesto editado */}
                                 <button
                                   onClick={() => handleResendBudget(budget)}
-                                  className="w-full bg-orange-500 text-white py-2 rounded-lg text-sm font-semibold hover:bg-orange-600"
+                                  disabled={isReadOnly}
+                                  className={`w-full py-2 rounded-lg text-sm font-semibold ${
+                                    isReadOnly 
+                                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                      : 'bg-orange-500 text-white hover:bg-orange-600'
+                                  }`}
+                                  title={isReadOnly ? "View only - No edit permissions" : "Resend updated budget"}
                                 >
                                   🔄 Resend Updated Budget
                                 </button>
@@ -1656,7 +1744,13 @@ const BudgetList = () => {
                                 {/* Botón: Send to SignNow */}
                                 <button
                                   onClick={() => handleSendToSignNow(budget)}
-                                  className="w-full bg-purple-500 text-white py-2 rounded-lg text-sm font-semibold hover:bg-purple-600"
+                                  disabled={isReadOnly}
+                                  className={`w-full py-2 rounded-lg text-sm font-semibold ${
+                                    isReadOnly 
+                                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                      : 'bg-purple-500 text-white hover:bg-purple-600'
+                                  }`}
+                                  title={isReadOnly ? "View only - No edit permissions" : "Send to SignNow for signature"}
                                 >
                                   📝 Send to SignNow
                                 </button>
@@ -1683,7 +1777,13 @@ const BudgetList = () => {
                                 {/* 🆕 Botón: Reenviar */}
                                 <button
                                   onClick={() => handleResendBudget(budget)}
-                                  className="w-full bg-orange-500 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-orange-600 transition-colors"
+                                  disabled={isReadOnly}
+                                  className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                    isReadOnly 
+                                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                      : 'bg-orange-500 text-white hover:bg-orange-600'
+                                  }`}
+                                  title={isReadOnly ? "View only - No edit permissions" : "Resend updated budget"}
                                 >
                                   🔄 Resend Updated Budget
                                 </button>
@@ -1695,7 +1795,13 @@ const BudgetList = () => {
                                       budget
                                     )
                                   }
-                                  className="w-full bg-red-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-red-600 transition-colors"
+                                  disabled={isReadOnly}
+                                  className={`w-full px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                    isReadOnly 
+                                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                      : 'bg-red-500 text-white hover:bg-red-600'
+                                  }`}
+                                  title={isReadOnly ? "View only - No edit permissions" : "Reject budget"}
                                 >
                                   Reject
                                 </button>
@@ -1718,7 +1824,13 @@ const BudgetList = () => {
                                       budget
                                     )
                                   }
-                                  className="w-full bg-red-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-red-600 transition-colors"
+                                  disabled={isReadOnly}
+                                  className={`w-full px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                    isReadOnly 
+                                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                      : 'bg-red-500 text-white hover:bg-red-600'
+                                  }`}
+                                  title={isReadOnly ? "View only - No edit permissions" : "Reject budget"}
                                 >
                                   Reject
                                 </button>
@@ -1747,8 +1859,13 @@ const BudgetList = () => {
                                 {/* Botón: Reenviar para Revisión */}
                                 <button
                                   onClick={() => handleResendBudget(budget)}
-                                  className="w-full inline-flex items-center justify-center bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-md"
-                                  title="Resend updated budget for client review"
+                                  disabled={isReadOnly}
+                                  className={`w-full inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-md ${
+                                    isReadOnly 
+                                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                                  }`}
+                                  title={isReadOnly ? "View only - No edit permissions" : "Resend updated budget for client review"}
                                 >
                                   🔄 Resend for Review
                                 </button>
@@ -1770,14 +1887,20 @@ const BudgetList = () => {
                                       budget
                                     )
                                   }
-                                  className="w-full bg-red-500 text-white px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-red-600 transition-colors"
+                                  disabled={isReadOnly}
+                                  className={`w-full px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                    isReadOnly 
+                                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                      : 'bg-red-500 text-white hover:bg-red-600'
+                                  }`}
+                                  title={isReadOnly ? "View only - No edit permissions" : "Reject budget"}
                                 >
                                   Reject
                                 </button>
                               </div>
                             )}
 
-                            {/* Botones de PDF (usando grid para mejor distribución si hay varios) */}
+                            /* Botones de PDF (usando grid para mejor distribución si hay varios) */
                             {(hasBudgetPdfItself ||
                               hasLegacyBudgetPdf ||
                               (permitId &&
@@ -2006,7 +2129,12 @@ const BudgetList = () => {
                             {/* Botón para editar datos de cliente */}
                             <button
                               onClick={() => handleEditClientData(budget.idBudget)}
-                              className="w-full flex items-center justify-center bg-indigo-600 text-white px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
+                              disabled={isReadOnly}
+                              className={`w-full flex items-center justify-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                                isReadOnly 
+                                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                  : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                              }`}
                             >
                               <UserIcon className="h-4 w-4 mr-2" />
                               Edit Client Data
@@ -2256,3 +2384,4 @@ const BudgetList = () => {
 };
 
 export default BudgetList;
+

@@ -35,6 +35,11 @@ const GestionBudgets = () => {
     stats: statsFromBackend      // 🆕 Estadísticas desde el backend
   } = useSelector(state => state.budget);
 
+  // ✅ Get current user role for delete permissions
+  const { user, currentStaff } = useSelector((state) => state.auth);
+  const staff = currentStaff || user;
+  const userRole = staff?.role || '';
+
   // ✅ Estados para paginación local
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -207,9 +212,9 @@ const GestionBudgets = () => {
     return !['approved', 'signed'].includes(budget.status);
   };
   
-  // 🧪 TESTING MODE: Permitir eliminar cualquier estado para pruebas
+  // ✅ Only owner can delete budgets
   const canDelete = (budget) => {
-    return true; // ⚠️ TODO: Restaurar a !['approved', 'signed'].includes(budget.status) en producción
+    return userRole === 'owner';
   };
 
   // Nueva función para mostrar detalles

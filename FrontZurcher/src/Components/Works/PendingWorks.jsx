@@ -19,6 +19,15 @@ const PendingWorks = () => {
   const dispatch = useDispatch();
   const { works } = useSelector((state) => state.work);
   const { staffList: staff, loading: staffLoading, error: staffError } = useSelector((state) => state.admin);
+  
+  // ✅ Obtener el rol del usuario para permisos
+  const { user, currentStaff } = useSelector((state) => state.auth);
+  const authStaff = currentStaff || user;
+  const userRole = authStaff?.role || '';
+  
+  // ✅ Solo owner y recept pueden editar, admin solo ve
+  const canEdit = userRole === 'owner' || userRole === 'recept';
+  const isReadOnly = !canEdit;
 
   const [selectedWork, setSelectedWork] = useState(null);
   const [startDate, setStartDate] = useState(new Date());
@@ -232,26 +241,40 @@ const PendingWorks = () => {
                     onChange={setStartDate}
                     value={startDate}
                     minDate={getToday()}
-                    className="rounded-lg border border-gray-200 shadow-sm"
+                    className={`rounded-lg border border-gray-200 shadow-sm ${
+                      isReadOnly ? 'opacity-60 pointer-events-none' : ''
+                    }`}
+                    tileDisabled={isReadOnly ? () => true : undefined}
                   />
+                  {isReadOnly && (
+                    <p className="text-xs text-gray-500 mt-2">⚠️ View only - No edit permissions</p>
+                  )}
                 </div>
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Miembro del staff asignado</label>
                   {staffLoading && <p>Cargando miembros del staff...</p>}
                   {staffError && <p className="text-red-500">Error: {staffError}</p>}
                   {!staffLoading && !staffError && (
-                    <select
-                      value={selectedStaff}
-                      onChange={(e) => setSelectedStaff(e.target.value)}
-                      className="border p-2 rounded w-full bg-gray-50 focus:ring-2 focus:ring-blue-400"
-                    >
-                      <option value="">Selecciona un miembro del staff</option>
-                      {staff.filter(member => member.role === 'worker').map((member) => (
-                        <option key={member.id} value={member.id}>
-                          {member.name}
-                        </option>
-                      ))}
-                    </select>
+                    <>
+                      <select
+                        value={selectedStaff}
+                        onChange={(e) => setSelectedStaff(e.target.value)}
+                        disabled={isReadOnly}
+                        className={`border p-2 rounded w-full focus:ring-2 focus:ring-blue-400 ${
+                          isReadOnly ? 'bg-gray-100 cursor-not-allowed' : 'bg-gray-50'
+                        }`}
+                      >
+                        <option value="">Selecciona un miembro del staff</option>
+                        {staff.filter(member => member.role === 'worker').map((member) => (
+                          <option key={member.id} value={member.id}>
+                            {member.name}
+                          </option>
+                        ))}
+                      </select>
+                      {isReadOnly && (
+                        <p className="text-xs text-gray-500 mt-2">⚠️ View only - No edit permissions</p>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -259,11 +282,12 @@ const PendingWorks = () => {
                 <button
                   onClick={handleAssignOrUpdate}
                   className={`flex-1 py-3 rounded-lg font-semibold text-white transition-all duration-200 ${
-                    !selectedWork || !selectedStaff
+                    !selectedWork || !selectedStaff || isReadOnly
                       ? "bg-gray-300 cursor-not-allowed"
                       : "bg-blue-600 hover:bg-blue-700 shadow-md hover:scale-[1.02]"
                   }`}
-                  disabled={!selectedWork || !selectedStaff}
+                  disabled={!selectedWork || !selectedStaff || isReadOnly}
+                  title={isReadOnly ? "View only - No edit permissions" : ""}
                 >
                   {editMode ? "Guardar cambios" : "Asignar trabajo"}
                 </button>
@@ -277,7 +301,13 @@ const PendingWorks = () => {
                 {selectedWork && selectedWork.status !== "cancelled" && (
                   <button
                     onClick={handleCancelWork}
-                    className="flex-1 py-3 text-xs rounded-lg font-semibold bg-red-500 hover:bg-red-600 text-white border border-red-600 transition-all duration-200"
+                    disabled={isReadOnly}
+                    className={`flex-1 py-3 text-xs rounded-lg font-semibold border transition-all duration-200 ${
+                      isReadOnly
+                        ? 'bg-gray-300 text-gray-500 border-gray-400 cursor-not-allowed'
+                        : 'bg-red-500 hover:bg-red-600 text-white border-red-600'
+                    }`}
+                    title={isReadOnly ? "View only - No edit permissions" : "Cancelar trabajo"}
                   >
                     Cancelar trabajo
                   </button>

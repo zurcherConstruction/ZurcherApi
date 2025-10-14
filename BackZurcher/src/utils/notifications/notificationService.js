@@ -68,14 +68,14 @@ const stateNotificationMap = {
   getStaff: async (work) => {
     if (!work?.staffId) {
       // Si no hay asignado, notificar solo a admin/owner/recept
-      return await Staff.findAll({ where: { role: ['owner', 'admin', 'recept'] } });
+      return await Staff.findAll({ where: { role: ['owner','recept'] } });
     }
     // Buscar al trabajador asignado Y a los roles de gestión
     const staff = await Staff.findAll({
       where: {
         [Op.or]: [
           { id: work.staffId }, // El trabajador asignado
-          { role: ['owner', 'admin', 'recept'] } // Los roles de gestión
+          { role: ['owner', 'recept'] } // Los roles de gestión
         ]
       }
     });
@@ -129,7 +129,7 @@ const stateNotificationMap = {
   },
   invoiceFinal: {
     roles: ['owner', 'admin'], // Finance debe saber cuando se envía factura final
-    message: (work) => `La factura final del trabajo con dirección ${work.propertyAddress} ha sido enviada al cliente. Esperando pago.`,
+    message: (work) => `El Invoice final del trabajo con dirección ${work.propertyAddress} ha sido enviada al cliente. Esperando pago.`,
   },
   finalInspectionPending: {
     roles: ['admin', 'owner'], 
@@ -331,7 +331,7 @@ const stateNotificationMap = {
     }
   },
   workApproved: {
-    roles: ['owner', 'admin'], // Solo notificar al owner
+    roles: ['owner'], // Solo notificar al owner
     message: (work) => `El trabajo para la dirección ${work.propertyAddress || 'Dirección desconocida'} (Work ID: ${work?.idWork || work?.id || 'N/A'}) ha sido aprobado y está listo para ser agendado.`,
   },
   // ------------------ Estados faltantes agregados ------------------
@@ -343,10 +343,10 @@ const stateNotificationMap = {
     }
   },
   final_invoice_sent_to_client: {
-    roles: ['admin', 'owner'],
+    roles: [ 'owner'],
     message: (work, context) => {
       const clientEmail = context?.clientEmail || 'cliente@desconocido';
-      return `La factura final ha sido enviada al cliente (${clientEmail}) para la obra en ${work?.propertyAddress || 'Dirección desconocida'}. Inspección ID: ${context?.inspectionId || 'N/A'}.`;
+      return `El Invoice final ha sido enviado al cliente (${clientEmail}) para la obra en ${work?.propertyAddress || 'Dirección desconocida'}. Inspección ID: ${context?.inspectionId || 'N/A'}.`;
     }
   },
   budgetSigned: {
@@ -368,7 +368,7 @@ const stateNotificationMap = {
         return data.staff.map(s => ({ id: s.id || null, email: s.email || s, name: s.name || null, role: s.role || null, pushToken: s.pushToken || null }));
       }
       // Fallback: no staff especificado -> notificar a admin/owner
-      return await Staff.findAll({ where: { role: ['admin', 'owner'] } });
+      return await Staff.findAll({ where: { role: ['owner'] } });
     },
     message: (data) => data?.message || 'Mensaje personalizado',
   },

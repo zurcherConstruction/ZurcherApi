@@ -53,7 +53,7 @@ const isStaff = (req, res, next) => {
   if (!staffRoles.includes(req.staff.role)) {
     return res.status(403).json({
       error: true,
-      message: 'Acceso permitido solo para personal del hotel'
+      message: 'Acceso permitido solo para personal de ZurcherSeptic'
     });
   }
   next();
