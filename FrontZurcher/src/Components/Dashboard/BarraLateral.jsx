@@ -96,10 +96,67 @@ const BarraLateral = () => {
 
   // Filtrar opciones según el rol
   const getFilteredMenuSections = () => {
-    if (staff?.role === "owner" || staff?.role === "admin") {
-      return menuSections; // Acceso completo
+    if (staff?.role === "owner") {
+      return menuSections; // Acceso completo para owner
+    } else if (staff?.role === "admin") {
+      // Admin tiene acceso limitado: sin Tracking Work y solo Upload Vouchers en Financial
+      return [
+        {
+          name: "Dashboard",
+          icon: FaHome,
+          color: "text-blue-400",
+          items: [
+            { name: "Dashboard", path: "/dashboard", icon: FaChartBar },
+          ],
+        },
+        {
+          name: "Works Management",
+          icon: FaTasks,
+          color: "text-green-400",
+          items: [
+            { name: "Works", path: "/works", icon: FaTasks },
+            // Tracking Work removido para admin
+            { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
+            { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
+            { name: "Maintenance", path: "/maintenance", icon: FaWrench },
+          ],
+        },
+        {
+          name: "Budgets & Permits",
+          icon: FaFolderOpen,
+          color: "text-purple-400",
+          items: [
+            { name: "Upload Permits", path: "/pdf", icon: FaUpload },
+            { name: "Budgets", path: "/budgets", icon: FaFolderOpen },
+            { name: "Legacy Budgets", path: "/create-legacy-budget", icon: FaHistory },
+            { name: "Items Budgets", path: "/itemBudget", icon: FaBoxes },
+            { name: "Edit Budgets", path: "/editBudget", icon: FaEdit },
+            { name: "Gestion Budgets", path: "/gestionBudgets", icon: FaCog },
+            { name: "BudgetsEnd", path: "/archive", icon: FaArchive },
+          ],
+        },
+        {
+          name: "Financial",
+          icon: FaMoneyBillWave,
+          color: "text-yellow-400",
+          items: [
+            // Solo Upload Vouchers para admin
+            { name: "Upload Vouchers", path: "/attachInvoice", icon: FaReceipt },
+          ],
+        },
+        {
+          name: "Administration",
+          icon: FaCog,
+          color: "text-red-400",
+          items: [
+            { name: "Materials", path: "/materiales", icon: FaTools },
+            { name: "Send Message", path: "/send-notifications", icon: FaBell },
+            { name: "Staff", path: "/register", icon: FaUsers },
+          ],
+        },
+      ];
     } else if (staff?.role === "recept") {
-      // Solo materiales, itemBudget, attachInvoice y send-notifications
+      // Solo materiales, itemBudget, attachInvoice, send-notifications y calendario
       return [
         {
           name: "Reception Tasks",
@@ -110,6 +167,38 @@ const BarraLateral = () => {
             { name: "Items Budgets", path: "/itemBudget", icon: FaBoxes },
             { name: "Upload Vouchers", path: "/attachInvoice", icon: FaReceipt },
             { name: "Send Message", path: "/send-notifications", icon: FaBell },
+            { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
+          ],
+        },
+      ];
+    } else if (staff?.role === "finance") {
+      // Finance: Solo ver budgets, vouchers, balance, summary, fixed-expenses, accounts-receivable
+      return [
+        {
+          name: "Dashboard",
+          icon: FaHome,
+          color: "text-blue-400",
+          items: [
+            { name: "Dashboard", path: "/dashboard", icon: FaChartBar },
+          ],
+        },
+        {
+          name: "Budgets",
+          icon: FaFolderOpen,
+          color: "text-purple-400",
+          items: [
+            { name: "Budgets (View Only)", path: "/budgets", icon: FaFolderOpen },
+          ],
+        },
+        {
+          name: "Financial",
+          icon: FaMoneyBillWave,
+          color: "text-yellow-400",
+          items: [
+            { name: "Upload Vouchers", path: "/attachInvoice", icon: FaReceipt },
+            { name: "Income & Expenses", path: "/summary", icon: FaFileInvoiceDollar },
+            { name: "Fixed Expenses", path: "/fixed-expenses", icon: FaDollarSign },
+            { name: "Accounts Receivable", path: "/accounts-receivable", icon: FaDollarSign },
           ],
         },
       ];

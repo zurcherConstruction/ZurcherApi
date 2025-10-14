@@ -72,10 +72,10 @@ const Dashboard = () => {
         {
           path: '/budgets',
           title: 'Budgets',
-          description: 'Manage project budgets',
+          description: 'View project budgets',
           icon: DocumentTextIcon,
           gradient: 'from-indigo-500 to-indigo-600',
-          allowedRoles: ['owner', 'admin'],
+          allowedRoles: ['owner', 'admin', 'finance', 'recept'],
         },
         {
           path: '/itemBudget',
@@ -128,7 +128,7 @@ const Dashboard = () => {
           description: 'Expense documentation',
           icon: DocumentArrowUpIcon,
           gradient: 'from-rose-500 to-rose-600',
-          allowedRoles: ['owner', 'admin', 'recept'],
+          allowedRoles: ['owner', 'admin', 'recept', 'finance'],
         },
         {
           path: '/balance',
@@ -144,7 +144,7 @@ const Dashboard = () => {
           description: 'Detailed financial reports',
           icon: ClipboardDocumentListIcon,
           gradient: 'from-violet-500 to-violet-600',
-          allowedRoles: ['owner'],
+          allowedRoles: ['owner', 'finance'],
         },
       ]
     },
@@ -205,6 +205,7 @@ const Dashboard = () => {
       case 'admin': return 'Administrator Dashboard';
       case 'recept': return 'Receptionist Dashboard';
       case 'worker': return 'Worker Dashboard';
+      case 'finance': return 'Finance Dashboard';
       default: return 'Dashboard';
     }
   };

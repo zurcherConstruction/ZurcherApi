@@ -16,6 +16,12 @@ const Works = () => {
   // Obtener works desde el estado de Redux
   const { works, loading, error } = useSelector((state) => state.work);
 
+  // ✅ Get current user role for delete permissions
+  const { user, currentStaff } = useSelector((state) => state.auth);
+  const staff = currentStaff || user;
+  const userRole = staff?.role || '';
+  const canDeleteWork = userRole === 'owner';
+
   // Cargar works al montar el componente
   useEffect(() => {
     dispatch(fetchWorks()); // Cargar los works desde el backend
@@ -194,14 +200,22 @@ const Works = () => {
                                 <EyeIcon className="w-4 h-4" />
                                 View Details
                               </button>
-                              <button
-                                onClick={() => handleDeleteWork(work)}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-300 font-medium shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-                                title="Eliminar trabajo y todos sus datos"
-                              >
-                                <TrashIcon className="w-4 h-4" />
-                                Delete
-                              </button>
+                              {canDeleteWork && (
+                                <button
+                                  onClick={() => handleDeleteWork(work)}
+                                  className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all duration-300 font-medium shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
+                                  title="Eliminar trabajo y todos sus datos"
+                                >
+                                  <TrashIcon className="w-4 h-4" />
+                                  Delete
+                                </button>
+                              )}
+                              {!canDeleteWork && (
+                                <div className="px-4 py-2 bg-gray-200 text-gray-500 rounded-lg text-sm font-medium cursor-not-allowed" title="Solo el owner puede eliminar works">
+                                  <TrashIcon className="w-4 h-4 inline mr-1" />
+                                  Delete (Owner Only)
+                                </div>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -241,13 +255,20 @@ const Works = () => {
                         <EyeIcon className="w-4 h-4" />
                         View Details
                       </button>
-                      <button
-                        onClick={() => handleDeleteWork(work)}
-                        className="px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl hover:from-red-600 hover:to-red-700 transition-all duration-300 font-medium shadow-md hover:shadow-lg"
-                        title="Eliminar trabajo"
-                      >
-                        <TrashIcon className="w-4 h-4" />
-                      </button>
+                      {canDeleteWork && (
+                        <button
+                          onClick={() => handleDeleteWork(work)}
+                          className="px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl hover:from-red-600 hover:to-red-700 transition-all duration-300 font-medium shadow-md hover:shadow-lg"
+                          title="Eliminar trabajo"
+                        >
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      )}
+                      {!canDeleteWork && (
+                        <div className="px-4 py-3 bg-gray-200 text-gray-500 rounded-xl text-sm font-medium cursor-not-allowed" title="Solo el owner puede eliminar">
+                          <TrashIcon className="w-4 h-4" />
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

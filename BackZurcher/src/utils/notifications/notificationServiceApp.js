@@ -14,7 +14,7 @@ const getNotificationDetailsApp = async (newStatus, work, budget, context = {}) 
             break;
 
         case 'budgetSent':
-            staffToNotify = await Staff.findAll({ where: { role: ['admin', 'owner'] } });
+            staffToNotify = await Staff.findAll({ where: { role: ['owner'] } });
             message = `El presupuesto para ${work.propertyAddress} ha sido enviado al cliente.`;
             break;
         case 'workApproved':
@@ -24,7 +24,7 @@ const getNotificationDetailsApp = async (newStatus, work, budget, context = {}) 
             break;
             case 'pending': // Estado inicial del Work o cuando está listo para materiales/asignación
              // Ajusta roles según quién deba saber que está pendiente
-            staffToNotify = await Staff.findAll({ where: { role: ['admin', 'owner'] } });
+            staffToNotify = await Staff.findAll({ where: { role: ['owner'] } });
             message = `Trabajo Pendiente: ${address}. Comprar materiales/asignar.`;
             break;
 
@@ -34,7 +34,7 @@ const getNotificationDetailsApp = async (newStatus, work, budget, context = {}) 
                 // Obtener managers/recept con pushToken
                 const managers = await Staff.findAll({
                     where: {
-                        role: ['owner', 'admin', 'recept'],
+                        role: ['owner', 'recept'],
                         pushToken: { [Op.ne]: null } // Solo los que tienen push token
                     }
                 });
@@ -56,7 +56,7 @@ const getNotificationDetailsApp = async (newStatus, work, budget, context = {}) 
                  // Si no hay staffId, notificar a admin/owner/recept que necesita asignación
                  staffToNotify = await Staff.findAll({
                      where: {
-                         role: ['owner', 'admin', 'recept'],
+                         role: ['owner','recept'],
                          pushToken: { [Op.ne]: null } // Solo con pushToken
                      }
                  });
@@ -66,7 +66,7 @@ const getNotificationDetailsApp = async (newStatus, work, budget, context = {}) 
 
         case 'inProgress': // Cuando se compran materiales o empieza el trabajo
              // Notificar a roles relevantes (worker asignado, admin, owner?)
-             staffToNotify = await Staff.findAll({ where: { role: ['worker', 'recept', 'owner', 'admin'] } }); // Ajusta roles
+             staffToNotify = await Staff.findAll({ where: { role: ['worker', 'recept', 'owner',] } }); // Ajusta roles
              message = `Trabajo en Progreso: ${address}.`;
              break;
 
@@ -88,7 +88,7 @@ const getNotificationDetailsApp = async (newStatus, work, budget, context = {}) 
         case 'invoiceFinal':
                     // Notificar cuando se envía la factura final
                     staffToNotify = await Staff.findAll({ where: { role: [ 'admin', 'owner'] } });
-                    message = `Factura Final enviada para: ${address}. Esperando pago del cliente.`;
+                    message = `Invoice Final enviado para: ${address}. Esperando pago del cliente.`;
                     break;
 
         // --- Añade CASES para TODOS los demás estados de Work ---

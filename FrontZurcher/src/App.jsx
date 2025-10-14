@@ -120,7 +120,7 @@ function App() {
             <Route
               path="/dashboard"
               element={
-                <PrivateRoute allowedRoles={["admin", "recept", "owner"]}>
+                <PrivateRoute allowedRoles={["admin", "recept", "owner", "finance"]}>
                   <Dashboard />
                 </PrivateRoute>
               }
@@ -164,7 +164,7 @@ function App() {
             <Route
               path="/workCalendar"
               element={
-                <PrivateRoute allowedRoles={["owner"]}>
+                <PrivateRoute allowedRoles={["owner", "recept", "admin"]}>
                   <PendingWorks />
                 </PrivateRoute>
               }
@@ -198,7 +198,7 @@ function App() {
             <Route
               path="/check"
               element={
-                <PrivateRoute allowedRoles={["owner", "admin"]}>
+                <PrivateRoute allowedRoles={["owner"]}>
                   <MaterialsCheck />
                 </PrivateRoute>
               }
@@ -206,7 +206,7 @@ function App() {
             <Route
               path="/budgets"
               element={
-                <PrivateRoute allowedRoles={["owner", "admin"]}>
+                <PrivateRoute allowedRoles={["owner", "admin", "finance", "recept"]}>
                   <BudgetList />
                 </PrivateRoute>
               }
@@ -284,7 +284,7 @@ function App() {
             <Route
               path="/attachInvoice"
               element={
-                <PrivateRoute allowedRoles={["owner", "recept", "admin"]}>
+                <PrivateRoute allowedRoles={["owner", "recept", "admin", "finance"]}>
                   <AttachInvoice />
                 </PrivateRoute>
               }
@@ -292,7 +292,7 @@ function App() {
             <Route
               path="/balance"
               element={
-                <PrivateRoute allowedRoles={["owner"]}>
+                <PrivateRoute allowedRoles={["owner", "finance"]}>
                   <BalanceStats />
                 </PrivateRoute>
               }
@@ -300,7 +300,7 @@ function App() {
             <Route
               path="/fixed-expenses"
               element={
-                <PrivateRoute allowedRoles={["owner"]}>
+                <PrivateRoute allowedRoles={["owner", "finance"]}>
                   <FixedExpensesManager />
                 </PrivateRoute>
               }
@@ -343,7 +343,7 @@ function App() {
 <Route
               path="/summary"
               element={
-                <PrivateRoute allowedRoles={["owner"]}>
+                <PrivateRoute allowedRoles={["owner", "finance"]}>
                   <Summary />
                 </PrivateRoute>
               }

@@ -26,7 +26,7 @@ router.get(
 router.post('/', verifyToken, allowRoles(['admin', 'recept', 'owner']), WorkController.createWork);
 router.get('/assigned', verifyToken, allowRoles(['owner', 'worker']), WorkController.getAssignedWorks);
 // Obtener todas las obras (personal del hotel)
-router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker', 'maintenance']), WorkController.getWorks);
+router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker', 'maintenance', 'finance']), WorkController.getWorks);
 
 // Obtener una obra por ID (personal del hotel)
 router.get('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker', 'maintenance']), WorkController.getWorkById);
