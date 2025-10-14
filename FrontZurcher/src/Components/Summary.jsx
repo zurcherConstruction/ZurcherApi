@@ -478,57 +478,54 @@ const Summary = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-4">
       <div className="max-w-full mx-auto px-2">
         {/* Header */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <div className="flex items-center space-x-3 mb-4">
-            <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg">
-              <ChartBarIcon className="h-6 w-6 text-white" />
+        <div className="bg-white rounded-xl shadow-lg p-4 mb-4">
+          <div className="flex items-center space-x-2 mb-3">
+            <div className="p-1.5 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg">
+              <ChartBarIcon className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-gray-800">Resumen Financiero</h2>
-              <p className="text-gray-600">Gestión de ingresos y gastos del proyecto</p>
+              <h2 className="text-xl font-bold text-gray-800">Resumen Financiero</h2>
+              <p className="text-sm text-gray-600">Gestión de ingresos y gastos del proyecto</p>
             </div>
           </div>
 
           {/* Filtros */}
-          <form className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-4" onSubmit={handleFilter}>
+          <form className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2" onSubmit={handleFilter}>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <CalendarDaysIcon className="h-4 w-4 inline mr-1" />
-                Fecha Desde
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                📅 Desde
               </label>
               <input
                 type="date"
                 name="startDate"
                 value={filters.startDate}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <CalendarDaysIcon className="h-4 w-4 inline mr-1" />
-                Fecha Hasta
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                📅 Hasta
               </label>
               <input
                 type="date"
                 name="endDate"
                 value={filters.endDate}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <FunnelIcon className="h-4 w-4 inline mr-1" />
-                Tipo General
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                📊 Tipo
               </label>
               <select
                 name="type"
                 value={filters.type}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Todos</option>
                 <option value="income">Ingresos</option>
@@ -537,15 +534,14 @@ const Summary = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <ArrowTrendingUpIcon className="h-4 w-4 inline mr-1" />
-                Tipo de Ingreso
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                ↑ Ingreso
               </label>
               <select
                 name="typeIncome"
                 value={filters.typeIncome}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Todos</option>
                 {incomeTypes.map((type) => (
@@ -557,15 +553,14 @@ const Summary = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <ArrowTrendingDownIcon className="h-4 w-4 inline mr-1" />
-                Tipo de Gasto
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                ↓ Gasto
               </label>
               <select
                 name="typeExpense"
                 value={filters.typeExpense}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Todos</option>
                 {expenseTypes.map((type) => (
@@ -577,15 +572,14 @@ const Summary = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <UserIcon className="h-4 w-4 inline mr-1" />
-                Usuario
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                👤 Usuario
               </label>
               <select
                 name="staffId"
                 value={filters.staffId}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Todos</option>
                 {staffList.map((staff) => (
@@ -598,42 +592,41 @@ const Summary = () => {
 
             {/* 🆕 Filtro de Verificación */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                ✅ Estado de Verificación
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                ✅ Verif.
               </label>
               <select
                 name="verified"
                 value={filters.verified}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Todos</option>
-                <option value="true">✅ Verificados</option>
-                <option value="false">⏳ Pendientes de Verificación</option>
+                <option value="true">✅ Sí</option>
+                <option value="false">⏳ No</option>
               </select>
             </div>
 
             {/* 💳 Filtro de Método de Pago */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <BanknotesIcon className="h-4 w-4 inline mr-1" />
-                Método de Pago
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                💳 Método
               </label>
               <select
                 name="paymentMethod"
                 value={filters.paymentMethod}
                 onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Todos</option>
-                <optgroup label="💳 Pagos Online">
+                <optgroup label="💳 Online">
                   {PAYMENT_METHODS.filter(m => m.category === 'online').map((method) => (
                     <option key={method.value} value={method.value}>
                       {method.label}
                     </option>
                   ))}
                 </optgroup>
-                <optgroup label="🏦 Cuentas Bancarias">
+                <optgroup label="🏦 Bancos">
                   {PAYMENT_METHODS.filter(m => m.category === 'bank').map((method) => (
                     <option key={method.value} value={method.value}>
                       {method.label}
@@ -647,7 +640,7 @@ const Summary = () => {
                     </option>
                   ))}
                 </optgroup>
-                <optgroup label="💰 Otros Métodos">
+                <optgroup label="💰 Otros">
                   {PAYMENT_METHODS.filter(m => m.category === 'other').map((method) => (
                     <option key={method.value} value={method.value}>
                       {method.label}
@@ -657,12 +650,12 @@ const Summary = () => {
               </select>
             </div>
 
-            <div className="md:col-span-2 lg:col-span-3 xl:col-span-7 flex gap-3">
+            <div className="col-span-2 sm:col-span-3 md:col-span-4 lg:col-span-5 xl:col-span-6 flex gap-2">
               <button
                 type="submit"
-                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 flex items-center space-x-2"
+                className="bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium py-1.5 px-4 rounded transition-colors flex items-center justify-center gap-1.5"
               >
-                <MagnifyingGlassIcon className="h-5 w-5" />
+                <MagnifyingGlassIcon className="h-4 w-4" />
                 <span>Filtrar</span>
               </button>
               <button
@@ -680,9 +673,9 @@ const Summary = () => {
                   });
                   fetchMovements();
                 }}
-                className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-6 rounded-lg transition-all duration-200 flex items-center space-x-2"
+                className="bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm font-medium py-1.5 px-4 rounded transition-colors flex items-center justify-center gap-1.5"
               >
-                <XMarkIcon className="h-5 w-5" />
+                <XMarkIcon className="h-4 w-4" />
                 <span>Limpiar</span>
               </button>
             </div>
@@ -691,212 +684,194 @@ const Summary = () => {
 
         {/* Tabla de movimientos */}
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="px-4 py-4 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-800 flex items-center space-x-2">
-              <BanknotesIcon className="h-5 w-5 text-blue-600" />
-              <span>Movimientos Registrados</span>
-              <span className="bg-blue-100 text-blue-800 text-sm font-medium px-3 py-1 rounded-full ml-2">
-                {filteredMovements.length} registros
+          <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+            <h3 className="text-base font-semibold text-gray-800 flex items-center space-x-2">
+              <BanknotesIcon className="h-4 w-4 text-blue-600" />
+              <span>Movimientos</span>
+              <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full ml-2">
+                {filteredMovements.length}
               </span>
             </h3>
           </div>
 
-          {/* Contenedor con scroll vertical solamente */}
-          <div className="max-h-[70vh] overflow-y-auto">
-            <table key={`movements-table-${movements.length}-${refreshKey}`} className="w-full min-w-full table-auto">
-              <thead className="bg-gray-50 sticky top-0 z-10">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
-                    Verificado
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
-                    Fecha
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">
-                    Tipo
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
-                    Monto
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
-                    Categoría
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Notas / Dirección
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
-                    Método de Pago
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
-                    Usuario
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
-                    Comprobante
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {loading ? (
+          {/* Contenedor con scroll horizontal y vertical */}
+          <div className="overflow-x-auto">
+            <div className="max-h-[70vh] overflow-y-auto">
+              <table key={`movements-table-${movements.length}-${refreshKey}`} className="w-full min-w-[1100px] table-auto text-xs">
+                <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
-                    <td colSpan={10} className="px-6 py-12 text-center">
-                      <div className="flex items-center justify-center space-x-2">
-                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                        <span className="text-gray-500">Cargando movimientos...</span>
-                      </div>
-                    </td>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-tight w-12">
+                      ✓
+                    </th>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-tight w-20">
+                      Fecha
+                    </th>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-tight w-16">
+                      Tipo
+                    </th>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-tight w-24">
+                      Monto
+                    </th>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-tight w-32">
+                      Categoría
+                    </th>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-tight min-w-[200px]">
+                      Notas / Dirección
+                    </th>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-tight w-28">
+                      Método
+                    </th>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-tight w-28">
+                      Usuario
+                    </th>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-tight w-20">
+                      Comp.
+                    </th>
+                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-tight w-28">
+                      Acciones
+                    </th>
                   </tr>
-                ) : filteredMovements.length === 0 ? (
-                  <tr>
-                    <td colSpan={10} className="px-6 py-12 text-center">
-                      <div className="text-center">
-                        <ChartBarIcon className="mx-auto h-12 w-12 text-gray-400" />
-                        <h3 className="mt-2 text-sm font-medium text-gray-900">Sin movimientos</h3>
-                        <p className="mt-1 text-sm text-gray-500">
-                          No se encontraron movimientos con los filtros aplicados.
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  filteredMovements.map((mov) => (
-                    <tr key={mov.idIncome || mov.idExpense} className={`hover:bg-gray-50 transition-colors ${
-                      mov.verified 
-                        ? mov.movimiento === 'Ingreso' 
-                          ? 'bg-green-50' 
-                          : 'bg-blue-50'
-                        : ''
-                    }`}>
-                      {/* 🆕 Columna de Verificación */}
-                      <td className="px-4 py-4 whitespace-nowrap text-center">
-                        <input
-                          type="checkbox"
-                          checked={mov.verified || false}
-                          onChange={() => handleToggleVerified(mov)}
-                          className="w-5 h-5 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2 cursor-pointer"
-                          title={mov.verified ? 'Marcar como no verificado' : 'Marcar como verificado'}
-                        />
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {new Date(mov.date).toLocaleDateString('es-ES')}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          mov.movimiento === 'Ingreso' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {mov.movimiento === 'Ingreso' ? (
-                            <ArrowTrendingUpIcon className="h-4 w-4 mr-1" />
-                          ) : (
-                            <ArrowTrendingDownIcon className="h-4 w-4 mr-1" />
-                          )}
-                          {mov.movimiento}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                        <span className={`${
-                          mov.movimiento === 'Ingreso' ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          {mov.movimiento === 'Ingreso' ? '+' : '-'}${parseFloat(mov.amount).toLocaleString('es-ES', { minimumFractionDigits: 2 })}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-md text-xs">
-                          {mov.typeIncome || mov.typeExpense || "-"}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-gray-900">
-                        <div className="max-w-xs">
-                          {mov.notes ? (
-                            <div className="break-words">
-                              <span className="font-medium text-gray-900">{mov.notes}</span>
-                              {mov.work?.propertyAddress && (
-                                <div className="text-xs text-gray-500 mt-1">
-                                  📍 {mov.work.propertyAddress}
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="text-gray-600 italic">
-                              {mov.work?.propertyAddress ? (
-                                <span>📍 {mov.work.propertyAddress}</span>
-                              ) : (
-                                "Sin información"
-                              )}
-                            </div>
-                          )}
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={10} className="px-6 py-12 text-center">
+                        <div className="flex items-center justify-center space-x-2">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                          <span className="text-gray-500">Cargando movimientos...</span>
                         </div>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {mov.paymentMethod === 'Stripe' ? (
-                          <StripePaymentBadge 
-                            stripePaymentIntentId={mov.stripePaymentIntentId}
-                            stripeSessionId={mov.stripeSessionId}
-                            invoiceNumber={mov.Budget?.invoiceNumber || mov.Work?.budget?.invoiceNumber}
-                            compact={true}
-                          />
-                        ) : mov.paymentMethod ? (
-                          <div className="flex items-center space-x-1">
-                            <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-medium">
-                              💳 {mov.paymentMethod}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-400 text-xs italic">Sin especificar</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div className="flex items-center">
-                          <UserIcon className="h-4 w-4 text-gray-400 mr-2" />
-                          <span className={mov.Staff?.name ? 'text-gray-900' : 'text-red-500 italic font-medium'}>
-                            {mov.Staff?.name || "⚠️ Sin asignar"}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm">
-                        {mov.Receipts && mov.Receipts.length > 0 ? (
-                          <button
-                            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-md transition-colors flex items-center space-x-1"
-                            onClick={() => {
-                              console.log('Movimiento completo:', mov);
-                              console.log('Recibos encontrados:', mov.Receipts);
-                              setReceiptUrl(mov.Receipts[0]);
-                            }}
-                          >
-                            <EyeIcon className="h-4 w-4" />
-                            <span>Ver</span>
-                          </button>
-                        ) : (
-                          <span className="text-gray-400 text-xs italic flex items-center">
-                            <DocumentTextIcon className="h-4 w-4 mr-1" />
-                            Sin comprobante
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-sm space-x-2">
-                        <button
-                          className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-md transition-colors inline-flex items-center space-x-1"
-                          onClick={() => handleEdit(mov)}
-                        >
-                          <PencilIcon className="h-4 w-4" />
-                          <span>Editar</span>
-                        </button>
-                        <button
-                          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-md transition-colors inline-flex items-center space-x-1"
-                          onClick={() => handleDelete(mov)}
-                        >
-                          <TrashIcon className="h-4 w-4" />
-                          <span>Eliminar</span>
-                        </button>
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : filteredMovements.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="px-6 py-12 text-center">
+                        <div className="text-center">
+                          <ChartBarIcon className="mx-auto h-12 w-12 text-gray-400" />
+                          <h3 className="mt-2 text-sm font-medium text-gray-900">Sin movimientos</h3>
+                          <p className="mt-1 text-sm text-gray-500">
+                            No se encontraron movimientos con los filtros aplicados.
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredMovements.map((mov) => (
+                      <tr key={mov.idIncome || mov.idExpense} className={`hover:bg-gray-50 transition-colors ${
+                        mov.verified 
+                          ? mov.movimiento === 'Ingreso' 
+                            ? 'bg-green-50' 
+                            : 'bg-blue-50'
+                          : ''
+                      }`}>
+                        {/* 🆕 Columna de Verificación */}
+                        <td className="px-2 py-2 whitespace-nowrap text-center">
+                          <input
+                            type="checkbox"
+                            checked={mov.verified || false}
+                            onChange={() => handleToggleVerified(mov)}
+                            className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2 cursor-pointer"
+                            title={mov.verified ? 'Marcar como no verificado' : 'Marcar como verificado'}
+                          />
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
+                          {new Date(mov.date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap">
+                          <span className={`inline-flex items-center justify-center w-6 h-6 rounded text-xs font-medium ${
+                            mov.movimiento === 'Ingreso' 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-red-100 text-red-800'
+                          }`} title={mov.movimiento}>
+                            {mov.movimiento === 'Ingreso' ? '↑' : '↓'}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap text-xs font-medium">
+                          <span className={`${
+                            mov.movimiento === 'Ingreso' ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {mov.movimiento === 'Ingreso' ? '+' : '-'}${parseFloat(mov.amount).toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
+                          <span className="bg-gray-100 text-gray-800 px-1.5 py-0.5 rounded text-xs truncate block max-w-[120px]" title={mov.typeIncome || mov.typeExpense || "-"}>
+                            {mov.typeIncome || mov.typeExpense || "-"}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 text-xs text-gray-900">
+                          <div className="max-w-[200px] space-y-0.5">
+                            {mov.notes && (
+                              <div className="break-words line-clamp-1" title={mov.notes}>
+                                <span className="text-gray-900">{mov.notes}</span>
+                              </div>
+                            )}
+                            {mov.work?.propertyAddress && (
+                              <div className="flex items-start gap-0.5 text-xs text-gray-500 truncate" title={mov.work.propertyAddress}>
+                                <span className="flex-shrink-0">📍</span>
+                                <span className="truncate">{mov.work.propertyAddress}</span>
+                              </div>
+                            )}
+                            {!mov.notes && !mov.work?.propertyAddress && (
+                              <span className="text-gray-400 italic text-xs">-</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
+                          {mov.paymentMethod === 'Stripe' ? (
+                            <span className="bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded text-xs" title="Stripe">💳</span>
+                          ) : mov.paymentMethod ? (
+                            <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-xs truncate block max-w-[100px]" title={mov.paymentMethod}>
+                              {mov.paymentMethod}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 text-xs">-</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
+                          <span className={`truncate block max-w-[100px] ${mov.Staff?.name ? 'text-gray-900' : 'text-red-500 italic'}`} title={mov.Staff?.name || "Sin asignar"}>
+                            {mov.Staff?.name || "⚠️"}
+                          </span>
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap text-xs">
+                          {mov.Receipts && mov.Receipts.length > 0 ? (
+                            <button
+                              className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded transition-colors inline-flex items-center justify-center"
+                              onClick={() => {
+                                console.log('Movimiento completo:', mov);
+                                console.log('Recibos encontrados:', mov.Receipts);
+                                setReceiptUrl(mov.Receipts[0]);
+                              }}
+                              title="Ver comprobante"
+                            >
+                              <EyeIcon className="h-3 w-3" />
+                            </button>
+                          ) : (
+                            <span className="text-gray-400 text-xs">-</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2 whitespace-nowrap text-xs">
+                          <div className="flex gap-1">
+                            <button
+                              className="bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded transition-colors inline-flex items-center justify-center"
+                              onClick={() => handleEdit(mov)}
+                              title="Editar"
+                            >
+                              <PencilIcon className="h-3 w-3" />
+                            </button>
+                            <button
+                              className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded transition-colors inline-flex items-center justify-center"
+                              onClick={() => handleDelete(mov)}
+                              title="Eliminar"
+                            >
+                              <TrashIcon className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
