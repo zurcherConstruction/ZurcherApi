@@ -325,7 +325,7 @@ function App() {
             <Route
               path="/initialPay"
               element={
-                <PrivateRoute allowedRoles={["owner"]}>
+                <PrivateRoute allowedRoles={["owner", "finance"]}>
                   <UploadInitialPay />
                 </PrivateRoute>
               }
