@@ -344,8 +344,11 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
             cancel_url: 'https://www.zurcherseptic.com/thank-you',  // Cambiar por tu URL de cancelación
             ...(clientEmail && { customer_email: clientEmail }),
             metadata: { 
-              internal_invoice_id: invoiceId, 
-              payment_type: 'final_invoice_payment' 
+              final_invoice_id: invoiceId,
+              work_id: workData?.idWork || null,
+              budget_id: budgetData?.idBudget || null,
+              payment_type: 'final_invoice_payment',
+              invoice_number: invoiceNumber
             }
           });
           paymentLinkUrl = session.url;

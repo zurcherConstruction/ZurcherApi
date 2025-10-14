@@ -55,6 +55,7 @@ module.exports = (sequelize) => {
         'Zelle',
         'Tarjeta Débito',
         'PayPal',
+        'Stripe',
         'Otro'
       ),
       allowNull: true,
@@ -72,6 +73,17 @@ module.exports = (sequelize) => {
       allowNull: false,
       defaultValue: false,
       comment: 'Indica si el ingreso ha sido verificado/revisado por el equipo de finanzas'
+    },
+    // 🆕 Campos para pagos de Stripe
+    stripePaymentIntentId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'ID del Payment Intent de Stripe (para tracking y reembolsos)'
+    },
+    stripeSessionId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'ID de la Checkout Session de Stripe'
     }
   });
 

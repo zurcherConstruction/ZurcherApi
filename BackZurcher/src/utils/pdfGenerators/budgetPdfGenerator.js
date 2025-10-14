@@ -685,7 +685,11 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
         success_url: 'https://www.zurcherseptic.com/thank-you',
         cancel_url: 'https://www.zurcherseptic.com/thank-you',
         ...(clientEmailFromPermit && { customer_email: clientEmailFromPermit }),
-        metadata: { internal_budget_id: budgetData.idBudget, payment_type: 'invoice_payment' }
+        metadata: { 
+          internal_budget_id: budgetData.idBudget, 
+          payment_type: 'invoice_payment',
+          invoice_number: budgetData.invoiceNumber || budgetData.idBudget.toString()
+        }
       });
       paymentLinkUrl = session.url;
     } catch (stripeError) {

@@ -3,17 +3,28 @@ const { getNotificationDetailsApp } = require('./notificationServiceApp');
 const { sendEmail } = require('./emailService');
 const { Notification, Staff } = require('../../data');
 const { Expo } = require('expo-server-sdk');
+const { filterDuplicates, registerSent } = require('./notificationDeduplicator');
 let expo = new Expo();
 
 const sendNotifications = async (status, work, budget, io, context = {}) => {
   try {
+    // Obtener el ID de la entidad para deduplicación
+    const entityId = work?.idWork || budget?.idBudget || work?.id || budget?.id || 'unknown';
+    
     // Obtener detalles para notificaciones por correo
     const emailDetails = await getNotificationDetails(status, work || budget, context);
 
     if (emailDetails) {
       const { staffToNotify, message, subject } = emailDetails;
+      
+      // 🛡️ Filtrar duplicados basado en envíos recientes
+      const filteredStaff = filterDuplicates(staffToNotify, status, entityId);
+      
+      if (filteredStaff.length === 0) {
+        console.log(`⏭️ Todas las notificaciones de email para "${status}" (${entityId}) fueron filtradas por duplicación`);
+      }
 
-      for (const staff of staffToNotify) {
+      for (const staff of filteredStaff) {
         if (!staff.email || !staff.email.includes('@')) {
           console.error(`El usuario ${staff.id} no tiene un correo electrónico válido: ${staff.email}`);
           continue;
@@ -86,6 +97,9 @@ const sendNotifications = async (status, work, budget, io, context = {}) => {
           console.error(`Error al enviar correo a ${staff.email}:`, error);
         }
       }
+      
+      // 🛡️ Registrar los correos enviados exitosamente
+      registerSent(filteredStaff, status, entityId);
     }
 
     // --- Notificaciones Push ---

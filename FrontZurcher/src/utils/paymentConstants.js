@@ -12,6 +12,9 @@ export const PAYMENT_METHODS = [
   { value: 'Chase Credit Card', label: 'Chase Credit Card', category: 'card' },
   { value: 'Tarjeta Débito', label: 'Tarjeta Débito', category: 'card' },
   
+  // Pagos Online
+  { value: 'Stripe', label: '💳 Stripe (Online)', category: 'online' },
+  
   // Otros Métodos
   { value: 'Cheque', label: 'Cheque', category: 'other' },
   { value: 'Transferencia Bancaria', label: 'Transferencia Bancaria', category: 'other' },
@@ -25,6 +28,7 @@ export const PAYMENT_METHODS = [
 export const PAYMENT_METHODS_GROUPED = {
   bank: PAYMENT_METHODS.filter(m => m.category === 'bank'),
   card: PAYMENT_METHODS.filter(m => m.category === 'card'),
+  online: PAYMENT_METHODS.filter(m => m.category === 'online'),
   other: PAYMENT_METHODS.filter(m => m.category === 'other'),
 };
 
@@ -122,6 +126,10 @@ export const getPaymentMethodIcon = (value) => {
       return '🏦';
     case 'card':
       return '💳';
+    case 'online':
+      if (value === 'Stripe') return '💳';
+      if (value === 'PayPal') return '💰';
+      return '🌐';
     case 'other':
       if (value === 'Efectivo') return '💵';
       if (value === 'Cheque') return '📝';

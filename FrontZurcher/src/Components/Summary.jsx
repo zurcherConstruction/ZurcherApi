@@ -24,6 +24,8 @@ import {
 } from "@heroicons/react/24/outline";
 // 🆕 Importar constantes centralizadas
 import { PAYMENT_METHODS, PAYMENT_METHODS_GROUPED, INCOME_TYPES, EXPENSE_TYPES } from "../utils/paymentConstants";
+// 💳 Importar componente de Stripe
+import StripePaymentBadge from "./Stripe/StripePaymentBadge";
 
 const Summary = () => {
   const [filters, setFilters] = useState({
@@ -34,6 +36,7 @@ const Summary = () => {
     typeExpense: "",
     staffId: "",
     verified: "", // 🆕 Filtro por verificación: "" (todos), "true" (verificados), "false" (no verificados)
+    paymentMethod: "", // 🆕 Filtro por método de pago (incluye "Stripe")
   });
   const [movements, setMovements] = useState([]);
   const [staffList, setStaffList] = useState([]);
@@ -610,6 +613,50 @@ const Summary = () => {
               </select>
             </div>
 
+            {/* 💳 Filtro de Método de Pago */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <BanknotesIcon className="h-4 w-4 inline mr-1" />
+                Método de Pago
+              </label>
+              <select
+                name="paymentMethod"
+                value={filters.paymentMethod}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+              >
+                <option value="">Todos</option>
+                <optgroup label="💳 Pagos Online">
+                  {PAYMENT_METHODS.filter(m => m.category === 'online').map((method) => (
+                    <option key={method.value} value={method.value}>
+                      {method.label}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="🏦 Cuentas Bancarias">
+                  {PAYMENT_METHODS.filter(m => m.category === 'bank').map((method) => (
+                    <option key={method.value} value={method.value}>
+                      {method.label}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="💳 Tarjetas">
+                  {PAYMENT_METHODS.filter(m => m.category === 'card').map((method) => (
+                    <option key={method.value} value={method.value}>
+                      {method.label}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="💰 Otros Métodos">
+                  {PAYMENT_METHODS.filter(m => m.category === 'other').map((method) => (
+                    <option key={method.value} value={method.value}>
+                      {method.label}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+
             <div className="md:col-span-2 lg:col-span-3 xl:col-span-7 flex gap-3">
               <button
                 type="submit"
@@ -629,6 +676,7 @@ const Summary = () => {
                     typeExpense: "",
                     staffId: "",
                     verified: "", // 🆕 Limpiar filtro de verificación
+                    paymentMethod: "", // 💳 Limpiar filtro de método de pago
                   });
                   fetchMovements();
                 }}
@@ -783,7 +831,14 @@ const Summary = () => {
                         </div>
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {mov.paymentMethod ? (
+                        {mov.paymentMethod === 'Stripe' ? (
+                          <StripePaymentBadge 
+                            stripePaymentIntentId={mov.stripePaymentIntentId}
+                            stripeSessionId={mov.stripeSessionId}
+                            invoiceNumber={mov.Budget?.invoiceNumber || mov.Work?.budget?.invoiceNumber}
+                            compact={true}
+                          />
+                        ) : mov.paymentMethod ? (
                           <div className="flex items-center space-x-1">
                             <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-medium">
                               💳 {mov.paymentMethod}
