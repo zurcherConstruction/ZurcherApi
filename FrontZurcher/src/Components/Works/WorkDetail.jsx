@@ -69,6 +69,12 @@ const workRef = useRef(work);
     error: balanceError, // Renombrado para evitar conflicto
   } = useSelector((state) => state.balance);
 
+  // ✅ Get current user role for permissions
+  const { user, currentStaff } = useSelector((state) => state.auth);
+  const staff = currentStaff || user;
+  const userRole = staff?.role || '';
+  const canUploadImages = ['owner', 'admin', 'worker'].includes(userRole);
+
   const [showCreateCOModal, setShowCreateCOModal] = useState(false);
   const [showEditCOModal, setShowEditCOModal] = useState(false); // Estado para el modal de edición
   const [editingCO, setEditingCO] = useState(null); // Estado para la CO que se está editando
@@ -85,6 +91,14 @@ const workRef = useRef(work);
   const [installedImageComment, setInstalledImageComment] = useState('');
  const [showBudgetPdfModal, setShowBudgetPdfModal] = useState(false);
 const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
+
+  // ✅ New states for general image upload
+  const [showUploadImageModal, setShowUploadImageModal] = useState(false);
+  const [selectedStage, setSelectedStage] = useState('');
+  const [uploadImageFile, setUploadImageFile] = useState(null);
+  const [uploadImageComment, setUploadImageComment] = useState('');
+  const [truckCount, setTruckCount] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
  
   // --- 1. CALCULAR TOTALES Y BALANCE ---
   const { totalIncome, totalExpense, balance } = useMemo(() => {
@@ -441,6 +455,59 @@ const handleShowBudgetPdf = async () => {
     setShowBudgetPdfModal(true);
   } catch (e) {
     alert('No se pudo cargar el PDF del presupuesto');
+  }
+};
+
+// ✅ NEW: General image upload function with stage selection
+const handleImageFileChange = (event) => {
+  if (event.target.files && event.target.files[0]) {
+    setUploadImageFile(event.target.files[0]);
+  }
+};
+
+const handleUploadImage = async () => {
+  if (!uploadImageFile || !work?.idWork || !selectedStage) {
+    alert("Por favor, selecciona un archivo y una etapa.");
+    return;
+  }
+
+  // Validation for truck stages
+  const isTruckStage = selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra';
+  if (isTruckStage && (!truckCount || parseInt(truckCount) <= 0)) {
+    alert("Por favor, ingresa un número válido de camiones.");
+    return;
+  }
+
+  setUploadingImage(true);
+  const formData = new FormData();
+  formData.append("imageFile", uploadImageFile);
+  formData.append("stage", selectedStage);
+  formData.append("comment", uploadImageComment || `Imagen de ${selectedStage} subida desde administración`);
+  formData.append("dateTime", new Date().toISOString());
+  
+  if (isTruckStage) {
+    formData.append("truckCount", parseInt(truckCount));
+  }
+
+  try {
+    const result = await dispatch(addImagesToWork(work.idWork, formData));
+    if (result && !result.error) {
+      alert(`Imagen de "${selectedStage}" subida correctamente.`);
+      // Reset form
+      setUploadImageFile(null);
+      setUploadImageComment('');
+      setTruckCount('');
+      setSelectedStage('');
+      setShowUploadImageModal(false);
+      // Refresh work data
+      dispatch(fetchWorkById(work.idWork));
+    } else {
+      alert(`Error al subir la imagen: ${result?.message || 'Error desconocido'}`);
+    }
+  } catch (error) {
+    alert(`Error al subir la imagen: ${error.message}`);
+  } finally {
+    setUploadingImage(false);
   }
 };
 
@@ -824,6 +891,16 @@ const handleShowBudgetPdf = async () => {
                   Imágenes de la Obra
                 </h2>
                 <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                  {/* ✅ NEW: General image upload button for owner, admin, worker */}
+                  {canUploadImages && (
+                    <button
+                      onClick={() => setShowUploadImageModal(true)}
+                      className="w-full sm:w-auto text-sm bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-3 rounded shadow"
+                    >
+                      📸 Subir Imagen
+                    </button>
+                  )}
+                  
                   {/* Botón para subir imagen de sistema instalado */}
                   {work?.status && ['inProgress', 'installed'].includes(work.status) && (
                     <button
@@ -1698,6 +1775,162 @@ const handleShowBudgetPdf = async () => {
   pdfUrl={budgetPdfUrl}
   title={`Presupuesto #${work?.budget?.idBudget}`}
 />
+
+      {/* ✅ NEW: General Image Upload Modal */}
+      {showUploadImageModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-semibold text-gray-800">📸 Subir Imagen a la Obra</h3>
+                <button
+                  onClick={() => {
+                    setShowUploadImageModal(false);
+                    setUploadImageFile(null);
+                    setUploadImageComment('');
+                    setSelectedStage('');
+                    setTruckCount('');
+                  }}
+                  className="text-gray-500 hover:text-gray-700 text-2xl"
+                >
+                  &times;
+                </button>
+              </div>
+
+              {/* Stage Selection */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Seleccionar Etapa: <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={selectedStage}
+                  onChange={(e) => setSelectedStage(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">-- Selecciona una etapa --</option>
+                  <option value="foto previa del lugar">📍 Foto Previa del Lugar</option>
+                  <option value="materiales">🧱 Materiales</option>
+                  <option value="foto excavación">⛏️ Foto Excavación</option>
+                  <option value="camiones de arena">🚛 Camiones de Arena</option>
+                  <option value="sistema instalado">⚙️ Sistema Instalado</option>
+                  <option value="extracción de piedras">🪨 Extracción de Piedras</option>
+                  <option value="camiones de tierra">🚚 Camiones de Tierra</option>
+                  <option value="trabajo cubierto">✅ Trabajo Cubierto</option>
+                  <option value="inspeccion final">🔍 Inspección Final</option>
+                </select>
+              </div>
+
+              {/* Truck Count (only for truck stages) */}
+              {(selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra') && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Número de Camiones: <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={truckCount}
+                    onChange={(e) => setTruckCount(e.target.value)}
+                    placeholder="Ej: 5"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Especifica cuántos camiones se muestran en esta imagen
+                  </p>
+                </div>
+              )}
+
+              {/* Image File Selection */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Seleccionar Imagen: <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageFileChange}
+                  className="block w-full text-sm text-gray-500
+                             file:mr-4 file:py-2 file:px-4
+                             file:rounded-full file:border-0
+                             file:text-sm file:font-semibold
+                             file:bg-indigo-50 file:text-indigo-700
+                             hover:file:bg-indigo-100"
+                />
+              </div>
+
+              {/* Image Preview */}
+              {uploadImageFile && (
+                <div className="mb-4">
+                  <p className="text-xs text-gray-600 mb-2">
+                    Archivo seleccionado: <span className="font-medium">{uploadImageFile.name}</span>
+                  </p>
+                  <img 
+                    src={URL.createObjectURL(uploadImageFile)} 
+                    alt="Previsualización" 
+                    className="max-h-60 w-auto rounded border shadow-sm mx-auto"
+                  />
+                </div>
+              )}
+
+              {/* Comment */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Comentario (opcional):
+                </label>
+                <textarea
+                  value={uploadImageComment}
+                  onChange={(e) => setUploadImageComment(e.target.value)}
+                  placeholder="Agrega un comentario descriptivo sobre esta imagen..."
+                  rows="3"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              {/* Role Info */}
+              <div className="mb-4 p-3 bg-gray-50 rounded-md">
+                <p className="text-xs text-gray-600">
+                  👤 Subiendo como: <span className="font-semibold capitalize">{userRole}</span>
+                </p>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleUploadImage}
+                  disabled={!uploadImageFile || !selectedStage || uploadingImage}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                >
+                  {uploadingImage ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Subiendo Imagen...
+                    </span>
+                  ) : (
+                    '📤 Subir Imagen'
+                  )}
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setShowUploadImageModal(false);
+                    setUploadImageFile(null);
+                    setUploadImageComment('');
+                    setSelectedStage('');
+                    setTruckCount('');
+                  }}
+                  disabled={uploadingImage}
+                  className="px-6 py-3 bg-gray-300 hover:bg-gray-400 text-gray-700 font-semibold rounded disabled:opacity-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
