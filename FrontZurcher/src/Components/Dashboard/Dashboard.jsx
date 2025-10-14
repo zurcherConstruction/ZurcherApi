@@ -54,7 +54,7 @@ const Dashboard = () => {
           description: 'Schedule and timeline',
           icon: CalendarDaysIcon,
           gradient: 'from-purple-500 to-purple-600',
-          allowedRoles: ['owner', 'admin'],
+          allowedRoles: ['owner', 'admin', 'recept'],
         },
         {
           path: '/check',
@@ -62,7 +62,7 @@ const Dashboard = () => {
           description: 'Quality control and inspection',
           icon: CheckCircleIcon,
           gradient: 'from-orange-500 to-orange-600',
-          allowedRoles: ['owner', 'admin'],
+          allowedRoles: ['owner'],
         },
       ]
     },
@@ -99,7 +99,7 @@ const Dashboard = () => {
           description: 'Advanced budget controls',
           icon: CogIcon,
           gradient: 'from-gray-500 to-gray-600',
-          allowedRoles: ['owner', 'admin'],
+          allowedRoles: ['owner', 'admin', 'finance'],
         },
         {
           path: '/archive',
@@ -120,7 +120,7 @@ const Dashboard = () => {
           description: 'Manage down payments',
           icon: BanknotesIcon,
           gradient: 'from-emerald-500 to-emerald-600',
-          allowedRoles: ['owner', 'admin'],
+          allowedRoles: ['owner', 'admin', 'finance'],
         },
         {
           path: '/attachInvoice',
@@ -136,7 +136,7 @@ const Dashboard = () => {
           description: 'Financial overview',
           icon: PresentationChartBarIcon,
           gradient: 'from-cyan-500 to-cyan-600',
-          allowedRoles: ['owner'],
+          allowedRoles: ['owner', 'finance'],
         },
         {
           path: '/summary',
@@ -173,7 +173,7 @@ const Dashboard = () => {
           description: 'Team communication',
           icon: ChatBubbleLeftIcon,
           gradient: 'from-pink-500 to-pink-600',
-          allowedRoles: ['owner', 'admin', 'recept', 'worker'],
+          allowedRoles: ['owner', 'admin', 'recept', 'worker', 'finance'],
         },
         {
           path: '/register',

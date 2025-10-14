@@ -28,11 +28,13 @@ const signNowRoutes = require('./signNowRoutes'); // Asegúrate de que la ruta s
 const contactRoutes = require('./contactRoutes'); // Asegúrate de que la ruta sea correcta
 const importRoutes = require('./importRoutes'); // Rutas para importar trabajos legacy
 const budgetPublicRoutes = require('./BudgetPublicRoutes');
+const stripeWebhookRoutes = require('./stripeWebhookRoutes'); // 🆕 Webhooks de Stripe
 
 router.use('/auth', authRoutes); // Registro y login no requieren token
 router.use('/change-orders',changeOrdersRoutes); // Ruta para change orders (incluye rutas públicas)
 
 //router.use('/webhooks-adobe-sign', adobeWebhookRoutes); 
+router.use('/stripe', stripeWebhookRoutes); // 🆕 Webhooks de Stripe (público, sin auth)
 router.use('/signnow', signNowRoutes);
 router.use('/contact', contactRoutes); // Ruta pública para formulario de contacto
 

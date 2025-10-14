@@ -11,6 +11,6 @@ router.post('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance']
 router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance']), getAllIncomes);
 router.get('/:id', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance']), getIncomeById);
 router.put('/:id', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance']), updateIncome);
-router.delete('/:id', verifyToken, allowRoles(['admin', 'owner']), deleteIncome);
+router.delete('/:id', verifyToken, allowRoles(['admin', 'owner', 'finance']), deleteIncome);
 
 module.exports = router;

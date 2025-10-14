@@ -199,6 +199,8 @@ const BarraLateral = () => {
             { name: "Income & Expenses", path: "/summary", icon: FaFileInvoiceDollar },
             { name: "Fixed Expenses", path: "/fixed-expenses", icon: FaDollarSign },
             { name: "Accounts Receivable", path: "/accounts-receivable", icon: FaDollarSign },
+            { name: "Balance", path: "/balance", icon: FaChartBar },  
+            { name: "Initial Pay", path: "/initialPay", icon: FaMoneyBillWave },
           ],
         },
       ];

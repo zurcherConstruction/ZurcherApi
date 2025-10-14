@@ -152,7 +152,7 @@ const stateNotificationMap = {
     message: (work) => `El trabajo con dirección ${work.propertyAddress} está en mantenimiento. Por favor, realiza las tareas asignadas.`,
   },
   budgetCreated: {
-    roles: ['admin', 'owner'], // Incluir finance en presupuestos
+    roles: [ 'owner'], // Incluir finance en presupuestos
     message: (work) => `El presupuesto para la dirección ${work.propertyAddress} está listo para ser enviado al cliente.`,
   },
   
@@ -163,11 +163,11 @@ const stateNotificationMap = {
   },
   
   budgetSent: {
-    roles: ['admin', 'owner'], // Incluir finance cuando se envía presupuesto
+    roles: ['owner'], // Incluir finance cuando se envía presupuesto
     message: (work) => `El presupuesto para la dirección ${work.propertyAddress} ha sido enviado al cliente.`,
   },
    budgetSentToSignNow: {
-    roles: ['admin', 'owner'], // Incluir finance en firmas de presupuesto
+    roles: ['owner'], // Incluir finance en firmas de presupuesto
     message: (data) => {
       const id = data?.idBudget || data?.id || 'N/A';
       const addr = data?.propertyAddress || data?.address || 'Dirección desconocida';
@@ -179,7 +179,7 @@ const stateNotificationMap = {
   
   // 🆕 NUEVAS NOTIFICACIONES PARA WORKFLOW DE REVISIÓN
   budgetSentForReview: {
-    roles: ['admin', 'owner'],
+    roles: ['owner'],
     message: (data) => {
       const id = data?.idBudget || 'N/A';
       const addr = data?.propertyAddress || 'Dirección desconocida';
@@ -217,7 +217,7 @@ const stateNotificationMap = {
   },
   
   incomeCreated: {
-    roles: ['admin', 'owner', 'finance'], // Finance debe estar en todos los pagos
+    roles: [ 'owner', 'finance'], // Finance debe estar en todos los pagos
     // 'income' ahora tiene las propiedades extra añadidas
     message: (income) => {
       const paymentReceived = parseFloat(income.amount || 0);
@@ -239,7 +239,7 @@ const stateNotificationMap = {
   
   // ✅ NUEVAS NOTIFICACIONES FINANCIERAS
   expenseCreated: {
-    roles: ['admin', 'owner', 'finance'],
+    roles: ['owner', 'finance'],
     message: (expense) => {
       const amount = parseFloat(expense.amount || 0);
       const expenseType = expense.typeExpense || 'Gasto';
@@ -271,7 +271,7 @@ const stateNotificationMap = {
   },
   
   incomeRegistered: {
-    roles: ['admin', 'owner', 'finance'],
+    roles: [ 'owner', 'finance'],
     message: (income) => {
       const amount = parseFloat(income.amount || 0);
       const incomeType = income.typeIncome || 'Ingreso';
@@ -303,7 +303,7 @@ const stateNotificationMap = {
   },
   
   expenseUpdated: {
-    roles: ['admin', 'owner', 'finance'],
+    roles: ['owner', 'finance'],
     message: (expense) => {
       const amount = parseFloat(expense.amount || 0);
       const expenseType = expense.typeExpense || 'Gasto';
