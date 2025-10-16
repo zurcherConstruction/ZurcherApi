@@ -362,8 +362,17 @@ const UploadScreen = () => {
             Alert.alert('Límite Alcanzado', `Ya has alcanzado el límite de 12 imágenes para ${selectedStage}.`);
             return;
         }
+        
+        // Calcular el total actual de camiones
+        const currentTotal = imagesByStage[selectedStage]?.length > 0 
+          ? Math.max(...imagesByStage[selectedStage].map(img => img.truckCount || 0))
+          : 0;
+        const promptMessage = currentTotal > 0 
+          ? `Total actual: ${currentTotal} camiones.\n\n¿Cuántos camiones hay en total hasta el momento?`
+          : '¿Cuántos camiones hay en total hasta el momento?';
+        
         if (Platform.OS === 'ios') {
-     Alert.prompt('Cantidad de Camiones', 'Ingresa la cantidad de camiones:', [
+          Alert.prompt('Cantidad Total de Camiones', promptMessage, [
             { text: 'Cancelar', style: 'cancel' },
             { text: 'Cargar Imagen', onPress: async (truckCountInput) => {
                 const count = parseInt(truckCountInput, 10);
@@ -374,6 +383,17 @@ const UploadScreen = () => {
                 await processAndUploadImage(assetToProcess.uri, '', count, selectedStage); // Pasar comentario vacío
             }},
           ], 'plain-text', '', 'numeric');
+        } else if (Platform.OS === 'web') {
+          // Para web, usar window.prompt
+          const truckCountInput = window.prompt(promptMessage, currentTotal > 0 ? currentTotal.toString() : '');
+          if (truckCountInput !== null) { // El usuario no canceló
+            const count = parseInt(truckCountInput, 10);
+            if (isNaN(count) || count < 0) {
+              Alert.alert('Error', 'Por favor, ingresa un número válido de camiones.');
+              return;
+            }
+            await processAndUploadImage(assetToProcess.uri, '', count, selectedStage);
+          }
         } else { 
           // Para Android, si quieres pedir cantidad, necesitarías un modal personalizado o similar.
           // Actualmente, solo sube la imagen. Si quieres añadir cantidad, se necesitaría un flujo de UI.
@@ -457,10 +477,17 @@ const UploadScreen = () => {
       const isTruckStage = selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra'; // Usar selectedStage
       if (Platform.OS === 'ios') {
         if (isTruckStage) {
+          // Calcular el total actual de camiones
+          const currentTotal = imagesByStage[selectedStage]?.length > 0 
+            ? Math.max(...imagesByStage[selectedStage].map(img => img.truckCount || 0))
+            : 0;
+          const promptMessage = currentTotal > 0 
+            ? `Total actual: ${currentTotal} camiones.\n\n¿Cuántos camiones hay en total hasta el momento?`
+            : '¿Cuántos camiones hay en total hasta el momento?';
           // Directamente pedir cantidad de camiones, sin comentario
           Alert.prompt(
-            'Cantidad de Camiones',
-            'Ingresa la cantidad de camiones:',
+            'Cantidad Total de Camiones',
+            promptMessage,
             [
               { text: 'Cancelar', style: 'cancel' },
               {
@@ -496,6 +523,30 @@ const UploadScreen = () => {
             ],
             'plain-text'
           );
+        }
+      } else if (Platform.OS === 'web') {
+        if (isTruckStage) {
+          // Calcular el total actual de camiones
+          const currentTotal = imagesByStage[selectedStage]?.length > 0 
+            ? Math.max(...imagesByStage[selectedStage].map(img => img.truckCount || 0))
+            : 0;
+          const promptMessage = currentTotal > 0 
+            ? `Total actual: ${currentTotal} camiones.\n\n¿Cuántos camiones hay en total hasta el momento?`
+            : '¿Cuántos camiones hay en total hasta el momento?';
+          const truckCountInput = window.prompt(promptMessage, currentTotal > 0 ? currentTotal.toString() : '');
+          if (truckCountInput !== null) {
+            const count = parseInt(truckCountInput, 10);
+            if (isNaN(count) || count < 0) {
+              Alert.alert('Error', 'Por favor, ingresa un número válido de camiones.');
+              return;
+            }
+            processAndUploadImage(imageUri, '', count, selectedStage);
+          }
+        } else {
+          const commentText = window.prompt('Añadir Comentario (opcional):', '');
+          if (commentText !== null) {
+            processAndUploadImage(imageUri, commentText || '', null, selectedStage);
+          }
         }
       } else { 
         // Para Android, si quieres pedir cantidad para truckStage, necesitarías un modal personalizado.
@@ -561,8 +612,17 @@ const UploadScreen = () => {
       }
       const filename = resizedImage.uri.split('/').pop();
       const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : `image`;
-      formData.append('imageFile', { uri: resizedImage.uri, name: filename, type: type });
+      const type = match ? `image/${match[1]}` : `image/jpeg`;
+      
+      // 🌐 SOPORTE PARA WEB: Convertir URI a Blob
+      if (Platform.OS === 'web') {
+        const response = await fetch(resizedImage.uri);
+        const blob = await response.blob();
+        formData.append('imageFile', blob, filename);
+      } else {
+        // 📱 MÓVIL: Usar el formato estándar de React Native
+        formData.append('imageFile', { uri: resizedImage.uri, name: filename, type: type });
+      }
 
       const resultAction = await dispatch(addImagesToWork(idWork, formData));
       

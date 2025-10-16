@@ -7,23 +7,44 @@ import { createIncome, createExpense, createReceipt } from '../Redux/features/ba
 import { useDispatch, useSelector } from 'react-redux';
 import { Picker } from '@react-native-picker/picker';
 
+// ✅ Tipos sincronizados con el backend
 const incomeTypes = [
-           'Factura Pago Inicial Budget',
-            'Factura Pago Final Budget',
-            'DiseñoDif',
-            "Comprobante Ingreso",
-  ];
-  const expenseTypes = [
-           'Materiales',
-           'Materiales Iniciales',
-           'Inspección Inicial',
-           'Inspección Final',
-            'Diseño',
-            'Workers',
-            'Imprevistos',
-            "Comprobante Gasto",
-            "Gastos Generales",
-  ];
+  'Factura Pago Inicial Budget',
+  'Factura Pago Final Budget',
+  'DiseñoDif',
+  'Comprobante Ingreso',
+];
+
+const expenseTypes = [
+  'Materiales',
+  'Diseño',
+  'Workers',
+  'Imprevistos',
+  'Comprobante Gasto',
+  'Gastos Generales',
+  'Materiales Iniciales',
+  'Inspección Inicial',
+  'Inspección Final',
+  'Comisión Vendedor',
+  'Gasto Fijo',
+];
+
+// ✅ Métodos de pago sincronizados con el backend
+const paymentMethods = [
+  'Cap Trabajos Septic',
+  'Capital Proyectos Septic',
+  'Chase Bank',
+  'AMEX',
+  'Chase Credit Card',
+  'Cheque',
+  'Transferencia Bancaria',
+  'Efectivo',
+  'Zelle',
+  'Tarjeta Débito',
+  'PayPal',
+  'Stripe',
+  'Otro',
+];
 
 const BalanceUploadScreen = () => {
   const route = useRoute();
@@ -38,6 +59,7 @@ const BalanceUploadScreen = () => {
   const [uploadType, setUploadType] = useState('expense'); // 'expense' or 'income'
   const [amount, setAmount] = useState('');
   const [typeDetail, setTypeDetail] = useState(''); // Ej: 'Factura Luz', 'Pago Inicial Cliente'
+  const [paymentMethod, setPaymentMethod] = useState(''); // 🆕 Método de pago
   const [notes, setNotes] = useState('');
   const [selectedFile, setSelectedFile] = useState(null); // { name: string, uri: string, mimeType: string, size: number }
 
@@ -49,6 +71,10 @@ const BalanceUploadScreen = () => {
       setTypeDetail(incomeTypes[0]);
     } else {
       setTypeDetail(expenseTypes[0]);
+    }
+    // Inicializar con el primer método de pago
+    if (!paymentMethod) {
+      setPaymentMethod(paymentMethods[0]);
     }
   }, [uploadType]);
 
@@ -95,6 +121,10 @@ const BalanceUploadScreen = () => {
       Alert.alert('Error de Validación', 'Por favor, ingresa el tipo de ingreso/gasto.');
       return;
     }
+    if (!paymentMethod) {
+      Alert.alert('Error de Validación', 'Por favor, selecciona un método de pago.');
+      return;
+    }
     // El archivo es opcional ahora, se puede cargar solo el ingreso/gasto
     if (!selectedFile) {
       Alert.alert('Error de Validación', 'Por favor, selecciona un archivo como comprobante.');
@@ -114,6 +144,7 @@ const BalanceUploadScreen = () => {
           notes: notes,
           workId: idWork,
           staffId: user?.id, // Agregar staffId del usuario autenticado
+          paymentMethod: paymentMethod, // 🆕 Método de pago
         };
         // Despachar y esperar el resultado usando unwrap()
         createdRecord = await dispatch(createIncome(incomeData)).unwrap();
@@ -127,6 +158,7 @@ const BalanceUploadScreen = () => {
           notes: notes,
           workId: idWork,
           staffId: user?.id, // Agregar staffId del usuario autenticado
+          paymentMethod: paymentMethod, // 🆕 Método de pago
         };
         // Despachar y esperar el resultado usando unwrap()
         createdRecord = await dispatch(createExpense(expenseData)).unwrap();
@@ -146,12 +178,20 @@ const BalanceUploadScreen = () => {
         const relatedModel = uploadType === 'income' ? 'Income' : 'Expense';
         const formData = new FormData();
 
-        // Adjuntar el archivo (el nombre 'file' debe coincidir con el esperado por Multer en el backend)
-        formData.append('file', {
-          uri: selectedFile.uri,
-          name: selectedFile.name,
-          type: selectedFile.mimeType,
-        });
+        // Adjuntar el archivo con manejo específico para web
+        if (Platform.OS === 'web') {
+          // En web, convertir URI a Blob
+          const response = await fetch(selectedFile.uri);
+          const blob = await response.blob();
+          formData.append('file', blob, selectedFile.name);
+        } else {
+          // En móvil nativo, usar el formato estándar
+          formData.append('file', {
+            uri: selectedFile.uri,
+            name: selectedFile.name,
+            type: selectedFile.mimeType,
+          });
+        }
        
         // Adjuntar otros datos necesarios para el Receipt
         formData.append('relatedModel', relatedModel);
@@ -175,6 +215,7 @@ const BalanceUploadScreen = () => {
       // Limpiar formulario
       setAmount('');
       setTypeDetail('');
+      setPaymentMethod(paymentMethods[0]); // Resetear al primer método
       setNotes('');
       setSelectedFile(null);
       // Opcional: Navegar hacia atrás o a otra pantalla
@@ -240,6 +281,23 @@ const BalanceUploadScreen = () => {
              ))}
            </Picker>
         </View>
+
+      {/* 🆕 Selector de Método de Pago */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.label}>Método de Pago:</Text>
+        <View style={styles.pickerContainer}>
+          <Picker
+            selectedValue={paymentMethod}
+            onValueChange={(itemValue) => setPaymentMethod(itemValue)}
+            style={styles.picker}
+            dropdownIconColor="#6b7280"
+          >
+            {paymentMethods.map((method) => (
+              <Picker.Item key={method} label={method} value={method} />
+            ))}
+          </Picker>
+        </View>
+      </View>
 
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Notas (Opcional):</Text>

@@ -1065,9 +1065,11 @@ const handleUploadImage = async () => {
                   let totalTrucksInStage = 0;
 
                   if (truckSumStages.includes(stage)) {
-                    totalTrucksInStage = images.reduce((sum, image) => {
-                      return sum + (Number(image.truckCount) || 0);
-                    }, 0);
+                    // Obtener el valor máximo (último total acumulado) en lugar de sumar
+                    totalTrucksInStage = Math.max(
+                      ...images.map(image => Number(image.truckCount) || 0),
+                      0
+                    );
                   }
 
                   return (
@@ -1396,6 +1398,11 @@ const handleUploadImage = async () => {
                               <strong>Fecha:</strong>{" "}
                               {new Date(expense.date).toLocaleDateString()}
                             </p>
+                            {expense.paymentMethod && (
+                              <p>
+                                <strong>Método de Pago:</strong> {expense.paymentMethod}
+                              </p>
+                            )}
                             {expense.notes && (
                               <p>
                                 <strong>Notas:</strong> {expense.notes}
@@ -1461,6 +1468,11 @@ const handleUploadImage = async () => {
                               <strong>Fecha:</strong>{" "}
                               {new Date(income.date).toLocaleDateString()}
                             </p>
+                            {income.paymentMethod && (
+                              <p>
+                                <strong>Método de Pago:</strong> {income.paymentMethod}
+                              </p>
+                            )}
                             {income.notes && (
                               <p>
                                 <strong>Notas:</strong> {income.notes}
@@ -1823,8 +1835,21 @@ const handleUploadImage = async () => {
               {/* Truck Count (only for truck stages) */}
               {(selectedStage === 'camiones de arena' || selectedStage === 'camiones de tierra') && (
                 <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  {(() => {
+                    const currentImages = groupedImages[selectedStage] || [];
+                    const currentTotal = currentImages.length > 0 
+                      ? Math.max(...currentImages.map(img => Number(img.truckCount) || 0), 0)
+                      : 0;
+                    return currentTotal > 0 ? (
+                      <div className="mb-3 p-2 bg-blue-100 border border-blue-300 rounded text-center">
+                        <p className="text-sm font-semibold text-blue-800">
+                          📊 Total actual registrado: <span className="text-lg">{currentTotal}</span> camiones
+                        </p>
+                      </div>
+                    ) : null;
+                  })()}
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Número de Camiones: <span className="text-red-500">*</span>
+                    Total de Camiones Hasta el Momento: <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
@@ -1835,7 +1860,7 @@ const handleUploadImage = async () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    Especifica cuántos camiones se muestran en esta imagen
+                    Indica el total acumulado de camiones hasta este momento (no solo los de esta imagen)
                   </p>
                 </div>
               )}

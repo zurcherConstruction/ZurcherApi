@@ -47,7 +47,7 @@ const WorksListScreen = ({ navigation }) => { // Recibe navigation como prop
   const filteredWorks = useMemo(() => {
     if (!works) return [];
 
-    const allowedStatuses = ['inProgress', 'coverPending', 'rejectedInspection'];
+    const allowedStatuses = ['assigned', 'inProgress', 'coverPending', 'rejectedInspection', 'maintenance'];
 
     // Primero, filtrar por los estados permitidos
     const worksWithAllowedStatus = works.filter(work =>
