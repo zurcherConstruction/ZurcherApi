@@ -182,8 +182,19 @@ const InspectionFlowManager = ({ work, selectedWorkImageId, isVisible }) => {
 
         } catch (err) {
             console.error(errorMsgContext, err);
-            const errorMessage = err.response?.data?.message || err.message || 'Error desconocido';
-            alert(`${errorMsgContext}: ${errorMessage}`);
+            const errorData = err.response?.data;
+            const errorMessage = errorData?.message || err.message || 'Error desconocido';
+            
+            // ✅ Manejo especial para inspecciones ya procesadas
+            if (errorData?.alreadyProcessed) {
+                const processedDate = errorData.dateProcessed 
+                    ? new Date(errorData.dateProcessed).toLocaleString('es-ES')
+                    : 'fecha desconocida';
+                    
+                alert(`⚠️ ATENCIÓN: Esta inspección ya fue procesada como "${errorData.existingStatus?.toUpperCase()}" el ${processedDate}.\n\nNo se puede volver a registrar un resultado para evitar duplicaciones.`);
+            } else {
+                alert(`${errorMsgContext}: ${errorMessage}`);
+            }
         }
     };
 
@@ -589,7 +600,56 @@ const InspectionFlowManager = ({ work, selectedWorkImageId, isVisible }) => {
                     );
                 case 'result_approved':
                 case 'result_rejected':
-                    return <p className="text-green-700 font-semibold">Proceso de inspección inicial finalizado. Resultado: {inspectionForForm.finalStatus?.toUpperCase()}</p>;
+                    const isApproved = inspectionForForm.finalStatus === 'approved';
+                    const statusColor = isApproved ? 'green' : 'red';
+                    const statusIcon = isApproved ? '✅' : '❌';
+                    const statusText = isApproved ? 'APROBADA' : 'RECHAZADA';
+                    const resultDate = inspectionForForm.dateResultReceived 
+                        ? new Date(inspectionForForm.dateResultReceived)
+                        : (inspectionForForm.updatedAt ? new Date(inspectionForForm.updatedAt) : null);
+                    
+                    return (
+                        <div className={`p-4 rounded-lg border-2 ${isApproved ? 'bg-green-50 border-green-500' : 'bg-red-50 border-red-500'}`}>
+                            <div className="flex items-start space-x-3">
+                                <div className="flex-shrink-0">
+                                    <span className="text-3xl">{statusIcon}</span>
+                                </div>
+                                <div className="flex-1">
+                                    <h4 className={`text-lg font-bold text-${statusColor}-800 mb-2`}>
+                                        Inspección Inicial {statusText}
+                                    </h4>
+                                    {resultDate && (
+                                        <p className={`text-sm text-${statusColor}-700 mb-1`}>
+                                            <strong>Fecha:</strong> {resultDate.toLocaleDateString('es-ES', { 
+                                                year: 'numeric', 
+                                                month: 'long', 
+                                                day: 'numeric' 
+                                            })}
+                                        </p>
+                                    )}
+                                    {resultDate && (
+                                        <p className={`text-sm text-${statusColor}-700 mb-2`}>
+                                            <strong>Hora:</strong> {resultDate.toLocaleTimeString('es-ES', { 
+                                                hour: '2-digit', 
+                                                minute: '2-digit',
+                                                second: '2-digit'
+                                            })}
+                                        </p>
+                                    )}
+                                    {inspectionForForm.notes && (
+                                        <p className={`text-sm text-${statusColor}-800 mt-2`}>
+                                            <strong>Notas:</strong> {inspectionForForm.notes}
+                                        </p>
+                                    )}
+                                    <div className={`mt-3 p-2 rounded bg-${statusColor}-100 border border-${statusColor}-300`}>
+                                        <p className={`text-xs font-semibold text-${statusColor}-900`}>
+                                            ⚠️ Esta inspección ya ha sido procesada. No se puede volver a aprobar o rechazar.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    );
                 default:
                     return <p>Estado de proceso desconocido: {inspectionForForm.processStatus}</p>;
             }
