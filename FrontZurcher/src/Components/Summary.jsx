@@ -774,7 +774,7 @@ const Summary = () => {
                           />
                         </td>
                         <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
-                          {new Date(mov.date).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                          {new Date(mov.date).toLocaleDateString('en-US')}
                         </td>
                         <td className="px-2 py-2 whitespace-nowrap">
                           <span className={`inline-flex items-center justify-center w-6 h-6 rounded text-xs font-medium ${
@@ -789,7 +789,7 @@ const Summary = () => {
                           <span className={`${
                             mov.movimiento === 'Ingreso' ? 'text-green-600' : 'text-red-600'
                           }`}>
-                            {mov.movimiento === 'Ingreso' ? '+' : '-'}${parseFloat(mov.amount).toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            {mov.movimiento === 'Ingreso' ? '+' : '-'}${parseFloat(mov.amount).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
                         </td>
                         <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">

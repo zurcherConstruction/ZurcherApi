@@ -105,6 +105,7 @@ const workRef = useRef(work);
   const staff = currentStaff || user;
   const userRole = staff?.role || '';
   const canUploadImages = ['owner', 'admin', 'worker'].includes(userRole);
+  const isViewOnly = userRole === 'finance'; // Finance role is view-only
 
   const [showCreateCOModal, setShowCreateCOModal] = useState(false);
   const [showEditCOModal, setShowEditCOModal] = useState(false); // Estado para el modal de edición
@@ -733,13 +734,15 @@ const handleUploadImage = async () => {
               </div>
               <div className="mt-4 md:mt-0 md:ml-auto md:pl-3">
                 <div className="-mx-1.5 -my-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateCOModal(true)}
-                    className="w-full md:w-auto inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
-                  >
-                    Generar CO
-                  </button>
+                  {!isViewOnly && (
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateCOModal(true)}
+                      className="w-full md:w-auto inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
+                    >
+                      Generar CO
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -928,37 +931,39 @@ const handleUploadImage = async () => {
                 >
                   Imágenes de la Obra
                 </h2>
-                <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-                  {/* ✅ NEW: General image upload button for owner, admin, worker */}
-                  {canUploadImages && (
-                    <button
-                      onClick={() => setShowUploadImageModal(true)}
-                      className="w-full sm:w-auto text-sm bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-3 rounded shadow"
-                    >
-                      📸 Subir Imagen
-                    </button>
-                  )}
-                  
-                  {/* Botón para subir imagen de sistema instalado */}
-                  {work?.status && ['inProgress', 'installed'].includes(work.status) && (
-                    <button
-                      onClick={() => setShowUploadInstalledImage(!showUploadInstalledImage)}
-                      className="w-full sm:w-auto text-sm bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-3 rounded shadow"
-                    >
-                      {showUploadInstalledImage ? 'Cancelar' : 'Subir Img. Sistema'}
-                    </button>
-                  )}
-                  
-                  {/* Botón existente para inspección final */}
-                  {work?.status && (work.status === 'paymentReceived' || work.status === 'finalRejected' || work.status === 'finalInspectionPending') && (
-                    <button
-                      onClick={() => setShowUploadFinalInspectionImage(!showUploadFinalInspectionImage)}
-                      className="w-full sm:w-auto text-sm bg-teal-500 hover:bg-teal-600 text-white font-semibold py-2 px-3 rounded shadow"
-                    >
-                      {showUploadFinalInspectionImage ? 'Cancelar Subida' : 'Subir Img. Insp. Final'}
-                    </button>
-                  )}
-                </div>
+                {!isViewOnly && (
+                  <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                    {/* ✅ NEW: General image upload button for owner, admin, worker */}
+                    {canUploadImages && (
+                      <button
+                        onClick={() => setShowUploadImageModal(true)}
+                        className="w-full sm:w-auto text-sm bg-indigo-500 hover:bg-indigo-600 text-white font-semibold py-2 px-3 rounded shadow"
+                      >
+                        📸 Subir Imagen
+                      </button>
+                    )}
+                    
+                    {/* Botón para subir imagen de sistema instalado */}
+                    {work?.status && ['inProgress', 'installed'].includes(work.status) && (
+                      <button
+                        onClick={() => setShowUploadInstalledImage(!showUploadInstalledImage)}
+                        className="w-full sm:w-auto text-sm bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-3 rounded shadow"
+                      >
+                        {showUploadInstalledImage ? 'Cancelar' : 'Subir Img. Sistema'}
+                      </button>
+                    )}
+                    
+                    {/* Botón existente para inspección final */}
+                    {work?.status && (work.status === 'paymentReceived' || work.status === 'finalRejected' || work.status === 'finalInspectionPending') && (
+                      <button
+                        onClick={() => setShowUploadFinalInspectionImage(!showUploadFinalInspectionImage)}
+                        className="w-full sm:w-auto text-sm bg-teal-500 hover:bg-teal-600 text-white font-semibold py-2 px-3 rounded shadow"
+                      >
+                        {showUploadFinalInspectionImage ? 'Cancelar Subida' : 'Subir Img. Insp. Final'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Sección para subir imagen del sistema instalado */}
@@ -1260,27 +1265,31 @@ const handleUploadImage = async () => {
                           )}
                         </span>
                       )}
-                      {/* ✅ Deshabilitar botón solo si ambas inspecciones están APROBADAS */}
-                      {(!hasApprovedInitialInspection || !hasApprovedFinalInspection) ? (
-                        <button
-                          className="ml-4 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded shadow text-sm"
-                          onClick={e => { 
-                            e.stopPropagation(); 
-                            // ✅ Establecer el tipo de inspección por defecto según cuál no está aprobada
-                            if (!hasApprovedInitialInspection) {
-                              setQuickInspectionType('initial');
-                            } else if (!hasApprovedFinalInspection) {
-                              setQuickInspectionType('final');
-                            }
-                            setShowQuickInspectionModal(true); 
-                          }}
-                        >
-                          Registrar resultado rápido
-                        </button>
-                      ) : (
-                        <span className="ml-4 px-3 py-2 rounded shadow text-sm font-medium bg-gray-300 text-gray-600 cursor-not-allowed">
-                          ✅ Todas las inspecciones procesadas
-                        </span>
+                      {/* ✅ Deshabilitar botón solo si ambas inspecciones están APROBADAS o si es finance (solo vista) */}
+                      {!isViewOnly && (
+                        <>
+                          {(!hasApprovedInitialInspection || !hasApprovedFinalInspection) ? (
+                            <button
+                              className="ml-4 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded shadow text-sm"
+                              onClick={e => { 
+                                e.stopPropagation(); 
+                                // ✅ Establecer el tipo de inspección por defecto según cuál no está aprobada
+                                if (!hasApprovedInitialInspection) {
+                                  setQuickInspectionType('initial');
+                                } else if (!hasApprovedFinalInspection) {
+                                  setQuickInspectionType('final');
+                                }
+                                setShowQuickInspectionModal(true); 
+                              }}
+                            >
+                              Registrar resultado rápido
+                            </button>
+                          ) : (
+                            <span className="ml-4 px-3 py-2 rounded shadow text-sm font-medium bg-gray-300 text-gray-600 cursor-not-allowed">
+                              ✅ Todas las inspecciones procesadas
+                            </span>
+                          )}
+                        </>
                       )}
                     </>
                   )}
@@ -1810,15 +1819,17 @@ const handleUploadImage = async () => {
                 onClick={() => toggleSection("changeOrders")}
               >
                 <span>Changes Orders</span>
-                <button
-                  className="bg-blue-600 hover:bg-blue-800 text-white px-3 py-2 rounded-xl shadow ml-4"
-                  onClick={e => {
-                    e.stopPropagation();
-                    setShowCreateCOModal(true);
-                  }}
-                >
-                  Generate Change Order
-                </button>
+                {!isViewOnly && (
+                  <button
+                    className="bg-blue-600 hover:bg-blue-800 text-white px-3 py-2 rounded-xl shadow ml-4"
+                    onClick={e => {
+                      e.stopPropagation();
+                      setShowCreateCOModal(true);
+                    }}
+                  >
+                    Generate Change Order
+                  </button>
+                )}
                 <span className="ml-2">
                   {openSections.changeOrders ? "▲" : "▼"}
                 </span>
@@ -1909,7 +1920,7 @@ const handleUploadImage = async () => {
                               </button>
                             )}
 
-                            {(co.status === 'draft' || co.status === 'pendingAdminReview' || co.status === 'rejected') && (
+                            {!isViewOnly && (co.status === 'draft' || co.status === 'pendingAdminReview' || co.status === 'rejected') && (
                               <button
                                 onClick={() => handleEditCO(co)}
                                 className="ml-2 px-3 py-1 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1"
@@ -1917,7 +1928,7 @@ const handleUploadImage = async () => {
                                 Editar CO
                               </button>
                             )}
-                            {(co.status === 'draft' || co.status === 'pendingAdminReview' || co.status === 'rejected') && (
+                            {!isViewOnly && (co.status === 'draft' || co.status === 'pendingAdminReview' || co.status === 'rejected') && (
                               <button
                                 onClick={() => handleDeleteCO(co.id)}
                                 className="ml-2 px-3 py-1 text-xs font-medium text-white bg-red-600 hover:bg-red-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
@@ -1925,7 +1936,7 @@ const handleUploadImage = async () => {
                                 Eliminar
                               </button>
                             )}
-                            {(co.status === 'draft' || co.status === 'pendingAdminReview') && !co.pdfUrl && (
+                            {!isViewOnly && (co.status === 'draft' || co.status === 'pendingAdminReview') && !co.pdfUrl && (
                               <button
                                 onClick={() => handleSendCOToClient(co.id)}
                                 className="ml-2 px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"

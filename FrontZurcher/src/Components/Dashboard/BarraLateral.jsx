@@ -173,7 +173,7 @@ const BarraLateral = () => {
         },
       ];
     } else if (staff?.role === "finance") {
-      // Finance: Solo ver budgets, vouchers, balance, summary, fixed-expenses, accounts-receivable
+      // Finance: Solo ver budgets, vouchers, balance, summary, fixed-expenses, accounts-receivable, works y progress (vista)
       return [
         {
           name: "Dashboard",
@@ -181,6 +181,15 @@ const BarraLateral = () => {
           color: "text-blue-400",
           items: [
             { name: "Dashboard", path: "/dashboard", icon: FaChartBar },
+          ],
+        },
+        {
+          name: "Works Management",
+          icon: FaTasks,
+          color: "text-green-400",
+          items: [
+            { name: "Works (View Only)", path: "/works", icon: FaTasks },
+            { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
           ],
         },
         {

@@ -143,7 +143,7 @@ function App() {
             <Route
               path="/progress-tracker"
               element={
-                <PrivateRoute allowedRoles={["admin", "recept", "owner"]}>
+                <PrivateRoute allowedRoles={["admin", "recept", "owner", "finance"]}>
                   <ProgressTracker />
                 </PrivateRoute>
               }
@@ -160,7 +160,7 @@ function App() {
             <Route
               path="/work/:idWork"
               element={
-                <PrivateRoute allowedRoles={["owner", "admin"]}>
+                <PrivateRoute allowedRoles={["owner", "admin", "finance"]}>
                   <WorkDetail />
                 </PrivateRoute>
               }

@@ -38,7 +38,7 @@ const Dashboard = () => {
           description: 'Manage all construction projects',
           icon: BuildingOfficeIcon,
           gradient: 'from-blue-500 to-blue-600',
-          allowedRoles: ['owner', 'admin'],
+          allowedRoles: ['owner', 'admin', 'finance'],
         },
         {
           path: '/progress-tracker',
@@ -46,7 +46,7 @@ const Dashboard = () => {
           description: 'Track project progress',
           icon: ChartBarIcon,
           gradient: 'from-green-500 to-green-600',
-          allowedRoles: ['owner', 'admin', 'recept'],
+          allowedRoles: ['owner', 'admin', 'recept', 'finance'],
         },
         {
           path: '/workCalendar',
