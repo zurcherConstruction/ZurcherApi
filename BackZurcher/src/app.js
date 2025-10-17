@@ -90,7 +90,13 @@ app.use(passport.initialize());
 // ==== CORS CONFIGURACIÓN ====
 const allowedOrigins = [
   'https://www.zurcherseptic.com', // Producción
-  'http://localhost:5173' // Desarrollo local (ajusta si usas otro puerto)
+  'http://localhost:5173', // Desarrollo local Vite
+  'http://localhost:3000', // Desarrollo local React
+  'http://localhost:5174', // Vite puerto alternativo
+  'http://localhost:8081', // Expo Web
+  'http://127.0.0.1:5173', // Localhost alternativo
+  'http://127.0.0.1:3000',  // Localhost alternativo
+  'http://127.0.0.1:8081'  // Expo Web alternativo
 ];
 
 app.use(cors({

@@ -1,7 +1,8 @@
-const { Work, MaintenanceVisit, MaintenanceMedia, Staff } = require('../data');
+const { Work, MaintenanceVisit, MaintenanceMedia, Staff, Permit } = require('../data');
 const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryUploader');
 const { Op } = require('sequelize');
 const { addMonths, format, parseISO  } = require('date-fns'); // Para manipulación de fechas
+const jwt = require('jsonwebtoken');
 
 // --- Lógica para Programar Mantenimientos Iniciales ---
 const scheduleInitialMaintenanceVisits = async (workId) => {
@@ -425,6 +426,308 @@ const createMaintenanceVisit = async (req, res) => {
   }
 };
 
+// --- Obtener mantenimientos asignados a un worker específico ---
+const getAssignedMaintenances = async (req, res) => {
+  try {
+    const { workerId } = req.query;
+    
+    if (!workerId) {
+      return res.status(400).json({ error: true, message: 'Se requiere workerId.' });
+    }
+
+    console.log('[getAssignedMaintenances] Buscando visitas para workerId:', workerId);
+
+    // Primero obtener las visitas sin hacer el JOIN directo con Permit (evita errores de columnas PK)
+    const visitsRaw = await MaintenanceVisit.findAll({
+      where: {
+        staffId: workerId,
+        status: {
+          [Op.not]: 'completed'
+        }
+      },
+      include: [
+        { model: MaintenanceMedia, as: 'mediaFiles' },
+        { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] },
+        { model: Work, as: 'work', attributes: ['idWork', 'status', 'maintenanceStartDate', 'propertyAddress'] }
+      ],
+      order: [['scheduledDate', 'ASC']],
+    });
+
+    // Convertir a objetos planos para manipular fácilmente
+    const visits = visitsRaw.map(v => v.get({ plain: true }));
+
+    // Recolectar direcciones para buscar Permits en una segunda consulta
+    const addresses = Array.from(new Set(visits.map(v => v.work?.propertyAddress).filter(Boolean)));
+
+    let permitsByAddress = {};
+    if (addresses.length > 0) {
+      const permits = await Permit.findAll({
+        where: { propertyAddress: addresses },
+        attributes: ['idPermit', 'propertyAddress', 'applicant', 'systemType', 'optionalDocs']
+      });
+      permitsByAddress = permits.reduce((acc, p) => {
+        acc[p.propertyAddress] = p.get({ plain: true });
+        return acc;
+      }, {});
+    }
+
+    // Adjuntar Permit (tanto en .permit como en .Permit) al objeto work para mantener compatibilidad
+    for (const visit of visits) {
+      const work = visit.work || {};
+      const permit = work.propertyAddress ? permitsByAddress[work.propertyAddress] || null : null;
+      // Añadir en ambas claves por compatibilidad con distintas partes del frontend
+      work.permit = permit;
+      work.Permit = permit;
+      visit.work = work;
+    }
+
+    console.log('[getAssignedMaintenances] Encontradas', visits.length, 'visitas para el worker');
+
+    res.status(200).json({ message: 'Mantenimientos asignados obtenidos correctamente.', visits, count: visits.length });
+  } catch (error) {
+    console.error('Error al obtener mantenimientos asignados:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor.' });
+  }
+};
+
+// --- Generar token de corta duración para acceso al formulario ---
+const generateMaintenanceToken = async (req, res) => {
+  try {
+    const { visitId } = req.params;
+    const currentUserId = req.staff?.id;
+
+    const visit = await MaintenanceVisit.findByPk(visitId, {
+      include: [
+        { 
+          model: Staff, 
+          as: 'assignedStaff', 
+          attributes: ['id', 'name', 'email'] 
+        }
+      ]
+    });
+
+    if (!visit) {
+      return res.status(404).json({ error: true, message: 'Visita de mantenimiento no encontrada.' });
+    }
+
+    // Verificar permisos: solo el worker asignado o admin/owner/maintenance pueden generar token
+    const userRole = req.staff?.role; // ✅ Corregido: 'role' no 'rol'
+    const isAuthorized = 
+      visit.staffId === currentUserId || // ✅ Corregido: usar staffId que es el campo correcto
+      ['admin', 'owner', 'maintenance'].includes(userRole);
+
+    if (!isAuthorized) {
+      console.log('[generateMaintenanceToken] Autorización denegada:', {
+        visitId: visit.id,
+        visitStaffId: visit.staffId,
+        currentUserId,
+        userRole,
+        isMatch: visit.staffId === currentUserId
+      });
+      return res.status(403).json({ error: true, message: 'No autorizado para generar token para esta visita.' });
+    }
+
+    // Generar token JWT de corta duración (15 minutos)
+    const token = jwt.sign(
+      {
+        visitId: visit.id,
+        staffId: visit.staffId,
+        type: 'maintenance_form'
+      },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '15m' }
+    );
+
+    res.status(200).json({ 
+      message: 'Token generado correctamente.',
+      token,
+      visitId: visit.id,
+      expiresIn: 900 // 15 minutos en segundos
+    });
+  } catch (error) {
+    console.error('Error al generar token de mantenimiento:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor.' });
+  }
+};
+
+// --- Completar formulario de mantenimiento ---
+const completeMaintenanceVisit = async (req, res) => {
+  try {
+    const { visitId } = req.params;
+    const files = req.files; // Array de archivos de Multer
+    const currentUserId = req.staff?.id;
+
+    // Extraer todos los campos del formulario
+    const {
+      // Niveles
+      level_inlet,
+      level_outlet,
+      
+      // Inspección General
+      strong_odors,
+      strong_odors_notes,
+      water_level_ok,
+      water_level_notes,
+      visible_leaks,
+      visible_leaks_notes,
+      area_around_dry,
+      area_around_notes,
+      cap_green_inspected,
+      cap_green_notes,
+      needs_pumping,
+      
+      // Sistema ATU
+      blower_working,
+      blower_working_notes,
+      blower_filter_clean,
+      blower_filter_notes,
+      diffusers_bubbling,
+      diffusers_bubbling_notes,
+      discharge_pump_ok,
+      discharge_pump_notes,
+      clarified_water_outlet,
+      clarified_water_notes,
+      
+      // Lift Station
+      alarm_panel_working,
+      alarm_panel_notes,
+      pump_working,
+      pump_working_notes,
+      float_switch_good,
+      float_switch_notes,
+      
+      // PBTS
+      well_samples, // JSON string
+      
+      // Generales
+      general_notes,
+      
+      // Archivos asociados a campos específicos (JSON string con mapeo)
+      fileFieldMapping, // Ej: {"file1.jpg": "strong_odors", "file2.mp4": "general"}
+    } = req.body;
+
+    const visit = await MaintenanceVisit.findByPk(visitId);
+    if (!visit) {
+      return res.status(404).json({ error: true, message: 'Visita de mantenimiento no encontrada.' });
+    }
+
+    // Verificar permisos
+    const userRole = req.staff?.rol;
+    const isAuthorized = 
+      visit.staffId === currentUserId || 
+      ['admin', 'owner', 'maintenance'].includes(userRole);
+
+    if (!isAuthorized) {
+      return res.status(403).json({ error: true, message: 'No autorizado para completar esta visita.' });
+    }
+
+    // Actualizar campos del formulario
+    visit.level_inlet = level_inlet || null;
+    visit.level_outlet = level_outlet || null;
+    visit.strong_odors = strong_odors === 'true' || strong_odors === true;
+    visit.strong_odors_notes = strong_odors_notes || null;
+    visit.water_level_ok = water_level_ok === 'true' || water_level_ok === true;
+    visit.water_level_notes = water_level_notes || null;
+    visit.visible_leaks = visible_leaks === 'true' || visible_leaks === true;
+    visit.visible_leaks_notes = visible_leaks_notes || null;
+    visit.area_around_dry = area_around_dry === 'true' || area_around_dry === true;
+    visit.area_around_notes = area_around_notes || null;
+    visit.cap_green_inspected = cap_green_inspected === 'true' || cap_green_inspected === true;
+    visit.cap_green_notes = cap_green_notes || null;
+    visit.needs_pumping = needs_pumping === 'true' || needs_pumping === true;
+    
+    // ATU
+    visit.blower_working = blower_working === 'true' || blower_working === true;
+    visit.blower_working_notes = blower_working_notes || null;
+    visit.blower_filter_clean = blower_filter_clean === 'true' || blower_filter_clean === true;
+    visit.blower_filter_notes = blower_filter_notes || null;
+    visit.diffusers_bubbling = diffusers_bubbling === 'true' || diffusers_bubbling === true;
+    visit.diffusers_bubbling_notes = diffusers_bubbling_notes || null;
+    visit.discharge_pump_ok = discharge_pump_ok === 'true' || discharge_pump_ok === true;
+    visit.discharge_pump_notes = discharge_pump_notes || null;
+    visit.clarified_water_outlet = clarified_water_outlet === 'true' || clarified_water_outlet === true;
+    visit.clarified_water_notes = clarified_water_notes || null;
+    
+    // Lift Station
+    visit.alarm_panel_working = alarm_panel_working === 'true' || alarm_panel_working === true;
+    visit.alarm_panel_notes = alarm_panel_notes || null;
+    visit.pump_working = pump_working === 'true' || pump_working === true;
+    visit.pump_working_notes = pump_working_notes || null;
+    visit.float_switch_good = float_switch_good === 'true' || float_switch_good === true;
+    visit.float_switch_notes = float_switch_notes || null;
+    
+    // PBTS - parsear JSON
+    if (well_samples) {
+      try {
+        visit.well_samples = typeof well_samples === 'string' ? JSON.parse(well_samples) : well_samples;
+      } catch (e) {
+        console.error('Error parsing well_samples:', e);
+        visit.well_samples = [];
+      }
+    }
+    
+    visit.general_notes = general_notes || null;
+    visit.actualVisitDate = new Date(); // Fecha de completado
+    visit.status = 'completed';
+    visit.completed_by_staff_id = currentUserId;
+
+    await visit.save();
+
+    // Procesar archivos subidos
+    const uploadedMedia = [];
+    if (files && files.length > 0) {
+      let fieldMapping = {};
+      if (fileFieldMapping) {
+        try {
+          fieldMapping = typeof fileFieldMapping === 'string' ? JSON.parse(fileFieldMapping) : fileFieldMapping;
+        } catch (e) {
+          console.error('Error parsing fileFieldMapping:', e);
+        }
+      }
+
+      for (const file of files) {
+        const resourceType = file.mimetype.startsWith('video/') ? 'video' : (file.mimetype.startsWith('image/') ? 'image' : 'raw');
+        const cloudinaryResult = await uploadBufferToCloudinary(file.buffer, {
+          folder: `maintenance/${visit.workId}/${visit.id}`,
+          resource_type: resourceType,
+        });
+
+        // Determinar a qué campo pertenece este archivo
+        const fieldName = fieldMapping[file.originalname] || 'general';
+
+        const newMedia = await MaintenanceMedia.create({
+          maintenanceVisitId: visit.id,
+          mediaUrl: cloudinaryResult.secure_url,
+          publicId: cloudinaryResult.public_id,
+          mediaType: resourceType === 'raw' ? 'document' : resourceType,
+          originalName: file.originalname,
+          fieldName: fieldName,
+        });
+        uploadedMedia.push(newMedia);
+      }
+    }
+
+    // Obtener la visita actualizada con todas las relaciones
+    const updatedVisit = await MaintenanceVisit.findByPk(visitId, {
+      include: [
+        { model: MaintenanceMedia, as: 'mediaFiles' },
+        { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] }
+      ]
+    });
+
+    // TODO: Enviar notificación a supervisor/admin de que se completó la inspección
+
+    res.status(200).json({ 
+      message: 'Formulario de mantenimiento completado correctamente.',
+      visit: updatedVisit,
+      uploadedFiles: uploadedMedia.length
+    });
+  } catch (error) {
+    console.error('Error al completar formulario de mantenimiento:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor.' });
+  }
+};
+
 module.exports = {
   scheduleInitialMaintenanceVisits, // Exportar para uso interno
   scheduleMaintenanceVisits, // Nueva función para programar manualmente
@@ -434,4 +737,7 @@ module.exports = {
   updateMaintenanceVisit,
   addMediaToMaintenanceVisit,
   deleteMaintenanceMedia,
+  getAssignedMaintenances, // ⭐ Nueva función
+  generateMaintenanceToken, // ⭐ Nueva función
+  completeMaintenanceVisit, // ⭐ Nueva función
 };

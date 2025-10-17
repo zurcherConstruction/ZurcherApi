@@ -3,6 +3,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import HomeScreen from '../screens/HomeScreen';
 import AssignedWorksScreen from '../screens/AssignedWorksScreen';
+import MaintenanceList from '../screens/MaintenanceList';
+import MaintenanceWebView from '../screens/MaintenanceWebView';
 import { Ionicons } from '@expo/vector-icons';
 import WorkDetail from '../screens/WorkDetail';
 
@@ -34,6 +36,34 @@ function HomeStackNavigator() {
   );
 }
 
+function MaintenanceStackNavigator() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: true,
+        headerTitle: "Mantenimientos",
+        headerBackTitleVisible: false,
+        headerTintColor: "#1e3a8a",
+      }}
+    >
+      <Stack.Screen 
+        name="MaintenanceListScreen" 
+        component={MaintenanceList}
+        options={{
+          title: "Mis Mantenimientos",
+        }}
+      />
+      <Stack.Screen
+        name="MaintenanceWebView"
+        component={MaintenanceWebView}
+        options={{
+          title: "Formulario de Mantenimiento",
+        }}
+      />
+    </Stack.Navigator>
+  );
+}
+
 const BottomTabNavigator = () => {
   return (
     <Tab.Navigator
@@ -44,6 +74,8 @@ const BottomTabNavigator = () => {
             iconName = "home";
           } else if (route.name === "AssignedWorks") {
             iconName = "list";
+          } else if (route.name === "Maintenance") {
+            iconName = "build"; // Icono de herramientas para mantenimiento
           } else if (route.name === "Logout") {
             iconName = "log-out"; // Icono para logout
           }
@@ -66,6 +98,13 @@ const BottomTabNavigator = () => {
         component={AssignedWorksScreen}
         options={{
           tabBarLabel: "Trabajos Asignados", // Texto en la barra inferior
+        }}
+      />
+      <Tab.Screen
+        name="Maintenance"
+        component={MaintenanceStackNavigator}
+        options={{
+          tabBarLabel: "Mantenimientos", // Texto en la barra inferior
         }}
       />
       <Tab.Screen

@@ -26,9 +26,11 @@
       "buildNumber": "28",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSFaceIDUsageDescription": "Use Face ID to securely log in to your Zurcher Construction account without typing your password.",
-        "NSPhotoLibraryUsageDescription": "We need access to your photo library so you can select and upload images related to your construction projects, such as receipts, progress photos, or site documentation.",
-        "NSCameraUsageDescription": "We need access to your camera so you can take and upload photos of receipts, work progress, or construction sites directly to your project records.",
+        "NSFaceIDUsageDescription": "Use Face ID to authenticate yourself and access your account",
+        "NSCameraUsageDescription": "La aplicación necesita acceso a la cámara para tomar fotos de trabajos y formularios de mantenimiento.",
+        "NSPhotoLibraryUsageDescription": "La aplicación necesita acceso a la galería para subir fotos de trabajos y formularios de mantenimiento.",
+        "NSPhotoLibraryAddUsageDescription": "La aplicación necesita permiso para guardar fotos en tu galería.",
+
         "UIBackgroundModes": [
           "remote-notification"
         ],

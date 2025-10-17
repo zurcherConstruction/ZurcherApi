@@ -383,9 +383,11 @@ const WorkDetail = () => {
         {Object.entries(groupedImages).map(([stage, imagesInStage]) => { // Renamed 'images' to 'imagesInStage' for clarity
           let totalTrucksInStage = 0;
           if (truckSumStages.includes(stage)) {
-            totalTrucksInStage = imagesInStage.reduce((sum, image) => {
-              return sum + (Number(image.truckCount) || 0);
-            }, 0);
+            // ✅ Obtener el valor máximo (último total acumulado) en lugar de sumar
+            totalTrucksInStage = Math.max(
+              ...imagesInStage.map(image => Number(image.truckCount) || 0),
+              0
+            );
           }
 
           return (

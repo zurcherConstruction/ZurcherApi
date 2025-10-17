@@ -36,12 +36,23 @@ console.log('ID del trabajo:', idWork);
   // Renderizar item de la lista
   const renderItem = ({ item, type }) => (
     <View style={[styles.itemContainer, type === 'income' ? styles.incomeItem : styles.expenseItem]}>
-    <View style={styles.itemHeader}>
-      <Text style={styles.itemType}>{item.name || 'Sin nombre'}</Text>
-      <Text style={[styles.itemAmount, type === 'income' ? styles.incomeAmount : styles.expenseAmount]}>
-        ${parseFloat(item.value || 0).toFixed(2)}
-      </Text>
-    </View>
+      <View style={styles.itemHeader}>
+        <Text style={styles.itemType}>{item.name || 'Sin nombre'}</Text>
+        <Text style={[styles.itemAmount, type === 'income' ? styles.incomeAmount : styles.expenseAmount]}>
+          ${parseFloat(item.value || 0).toFixed(2)}
+        </Text>
+      </View>
+      {item.date && (
+        <Text style={styles.itemDate}>Fecha: {formatDate(item.date)}</Text>
+      )}
+      {item.paymentMethod && (
+        <Text style={styles.itemPaymentMethod}>
+          💳 {item.paymentMethod}
+        </Text>
+      )}
+      {item.notes && (
+        <Text style={styles.itemNotes}>Notas: {item.notes}</Text>
+      )}
     </View>
   );
 
@@ -185,6 +196,12 @@ const styles = StyleSheet.create({
   itemDate: {
     fontSize: 14,
     color: '#6b7280', // gray-500
+    marginBottom: 3,
+  },
+  itemPaymentMethod: {
+    fontSize: 14,
+    color: '#3b82f6', // blue-500
+    fontWeight: '500',
     marginBottom: 3,
   },
   itemNotes: {

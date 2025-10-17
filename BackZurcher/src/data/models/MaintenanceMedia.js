@@ -32,7 +32,11 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING,
       allowNull: true,
     },
-    // Podrías añadir un campo para descripción o comentarios de la media
+    fieldName: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Nombre del campo del formulario al que pertenece este archivo (ej: strong_odors, blower_working, general)',
+    },
   }, {
     timestamps: true,
   });

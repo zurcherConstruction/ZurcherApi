@@ -135,6 +135,7 @@ export const createGeneralExpenseWithReceipt = createAsyncThunk(
         typeExpense: "Gastos Generales", // Tipo por defecto
         date: new Date().toISOString(), // Fecha actual
         staffId: staffId, // Agregar staffId del usuario autenticado
+        paymentMethod: "Chase Credit Card", // Método de pago por defecto para gastos generales
         // NO incluimos workId
       };
       console.log("Enviando datos de gasto general:", expenseData);
