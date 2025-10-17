@@ -156,7 +156,7 @@ const BarraLateral = () => {
         },
       ];
     } else if (staff?.role === "recept") {
-      // Solo materiales, itemBudget, attachInvoice, send-notifications y calendario
+      // Solo materiales, itemBudget, attachInvoice, send-notifications, calendario y progress tracker
       return [
         {
           name: "Reception Tasks",
@@ -168,6 +168,7 @@ const BarraLateral = () => {
             { name: "Upload Vouchers", path: "/attachInvoice", icon: FaReceipt },
             { name: "Send Message", path: "/send-notifications", icon: FaBell },
             { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
+            { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
           ],
         },
       ];

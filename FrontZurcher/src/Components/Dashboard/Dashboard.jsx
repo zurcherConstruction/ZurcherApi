@@ -46,7 +46,7 @@ const Dashboard = () => {
           description: 'Track project progress',
           icon: ChartBarIcon,
           gradient: 'from-green-500 to-green-600',
-          allowedRoles: ['owner', 'admin'],
+          allowedRoles: ['owner', 'admin', 'recept'],
         },
         {
           path: '/workCalendar',
