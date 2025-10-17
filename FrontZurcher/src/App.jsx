@@ -58,6 +58,7 @@ import ChangeOrderResponsePage from "./Components/Landing/ChangeOrderResponsePag
 import PrivacyPolicy from "./Components/PrivacyPolicy";
 // Importar componentes de Mantenimiento
 import MaintenanceList from "./Components/Maintenance/MaintenanceList";
+import MaintenanceForm from "./pages/MaintenanceForm";
 
 
 function App() {
@@ -74,7 +75,7 @@ function App() {
 
   useEffect(() => {
     // Lista de rutas públicas que no requieren redirección automática
-    const publicRoutes = ["/", "/thank-you", "/change-order-response", "/privacy-policy", "/login", "/forgot-password"];
+    const publicRoutes = ["/", "/thank-you", "/change-order-response", "/privacy-policy", "/login", "/forgot-password", "/maintenance-form"];
     const isPublicRoute = publicRoutes.some(route => 
       location.pathname === route || location.pathname.startsWith("/reset-password")
     );
@@ -90,7 +91,7 @@ function App() {
   }
 
   // Determinar si estamos en una ruta pública de la landing
-  const publicLandingRoutes = ["/", "/thank-you", "/change-order-response", "/privacy-policy"];
+  const publicLandingRoutes = ["/", "/thank-you", "/change-order-response", "/privacy-policy", "/maintenance-form"];
   const isBudgetReviewRoute = location.pathname.startsWith("/budget-review/");
   const isPublicLandingRoute = publicLandingRoutes.includes(location.pathname) || isBudgetReviewRoute;
   
@@ -115,6 +116,9 @@ function App() {
             
             {/* 🆕 Ruta pública para revisión de presupuestos */}
             <Route path="/budget-review/:budgetId/:reviewToken" element={<BudgetReviewPage />} />
+            
+            {/* 🆕 Ruta pública para formulario de mantenimiento (protegida por token en query params) */}
+            <Route path="/maintenance-form" element={<MaintenanceForm />} />
            
             {/* Rutas privadas */}
             <Route

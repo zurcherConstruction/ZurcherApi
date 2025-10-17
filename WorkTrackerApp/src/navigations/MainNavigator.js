@@ -136,6 +136,26 @@ const AppDrawerNavigator = () => {
           />
         </>
       )}
+      
+      {/* --- Maintenance Role --- */}
+      {staff?.role === 'maintenance' && (
+        <>
+          {/* Usar BottomTabNavigator para maintenance - incluye Mantenimientos */}
+          <Drawer.Screen 
+            name="MaintenanceHome" 
+            component={BottomTabNavigator}
+            options={{ 
+              title: 'Inicio',
+              headerShown: false // El BottomTab maneja su propio header
+            }} 
+          />
+          <Drawer.Screen 
+            name="MyAllWorksView"
+            component={AllMyWorksScreen}
+            options={{ title: 'Historial de Mis Obras' }} 
+          />
+        </>
+      )}
 
       {/* --- Receipt / Admin --- */}
       {(staff?.role === 'receipt' || staff?.role === 'admin') && (

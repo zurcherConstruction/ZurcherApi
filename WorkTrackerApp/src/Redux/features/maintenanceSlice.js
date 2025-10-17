@@ -80,15 +80,52 @@ export const deleteMaintenanceMediaFile = createAsyncThunk(
   }
 );
 
+// 6. Obtener mantenimientos asignados al worker actual
+export const fetchAssignedMaintenances = createAsyncThunk(
+  'maintenance/fetchAssignedMaintenances',
+  async (workerId, { rejectWithValue }) => {
+    try {
+      console.log('[fetchAssignedMaintenances] Iniciando request con workerId:', workerId);
+      const { data } = await api.get(`/maintenance/assigned`, {
+        params: { workerId }
+      });
+      console.log('[fetchAssignedMaintenances] Response recibida:', data);
+      console.log('[fetchAssignedMaintenances] Cantidad de visitas:', data.visits?.length || 0);
+      return data.visits || [];
+    } catch (error) {
+      console.error("[fetchAssignedMaintenances] Error:", error.response?.data || error.message);
+      console.error("[fetchAssignedMaintenances] Error completo:", error);
+      return rejectWithValue(error.response?.data?.message || error.message || 'Error al obtener mantenimientos asignados');
+    }
+  }
+);
+
+// 7. Generar token de corta duración para formulario web
+export const generateMaintenanceToken = createAsyncThunk(
+  'maintenance/generateMaintenanceToken',
+  async (visitId, { rejectWithValue }) => {
+    try {
+      const { data } = await api.post(`/maintenance/${visitId}/generate-token`);
+      return data; // { token, visitId, expiresIn }
+    } catch (error) {
+      console.error("Error en generateMaintenanceToken:", error.response?.data || error.message);
+      return rejectWithValue(error.response?.data?.message || error.message || 'Error al generar token');
+    }
+  }
+);
+
 // --- SLICE DEFINITION ---
 
 const initialState = {
   worksInMaintenance: [], // Lista de obras con status 'maintenance' y su próxima visita
   maintenanceVisitsByWorkId: {}, // { workId1: [visit1, visit2], workId2: [...] }
+  assignedMaintenances: [], // Visitas asignadas al worker actual
   currentWorkDetail: null, // Para la obra seleccionada actualmente (puede incluir sus visitas)
+  generatedToken: null, // Token generado para acceso al formulario
   loading: false, // Loading general para la lista de obras en mantenimiento
   loadingVisits: false, // Loading específico para visitas de una obra
   loadingAction: false, // Loading para acciones como update, addMedia, deleteMedia
+  loadingAssigned: false, // Loading para obtener mantenimientos asignados
   error: null,
   visitsLoadedForWork: {}, 
 };
@@ -239,6 +276,34 @@ const maintenanceSlice = createSlice({
         }
       })
       .addCase(deleteMaintenanceMediaFile.rejected, (state, action) => {
+        state.loadingAction = false;
+        state.error = action.payload;
+      })
+
+      // fetchAssignedMaintenances
+      .addCase(fetchAssignedMaintenances.pending, (state) => {
+        state.loadingAssigned = true;
+        state.error = null;
+      })
+      .addCase(fetchAssignedMaintenances.fulfilled, (state, action) => {
+        state.loadingAssigned = false;
+        state.assignedMaintenances = action.payload;
+      })
+      .addCase(fetchAssignedMaintenances.rejected, (state, action) => {
+        state.loadingAssigned = false;
+        state.error = action.payload;
+      })
+
+      // generateMaintenanceToken
+      .addCase(generateMaintenanceToken.pending, (state) => {
+        state.loadingAction = true;
+        state.error = null;
+      })
+      .addCase(generateMaintenanceToken.fulfilled, (state, action) => {
+        state.loadingAction = false;
+        state.generatedToken = action.payload;
+      })
+      .addCase(generateMaintenanceToken.rejected, (state, action) => {
         state.loadingAction = false;
         state.error = action.payload;
       });

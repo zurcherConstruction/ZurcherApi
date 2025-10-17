@@ -56,5 +56,27 @@ router.delete('/media/:mediaId',
     MaintenanceController.deleteMaintenanceMedia
 );
 
+// ⭐ Obtener mantenimientos asignados a un worker (usado por la app móvil)
+router.get('/assigned',
+    verifyToken,
+    allowRoles(['admin', 'owner', 'worker', 'maintenance']),
+    MaintenanceController.getAssignedMaintenances
+);
+
+// ⭐ Generar token de corta duración para acceso al formulario web
+router.post('/:visitId/generate-token',
+    verifyToken,
+    allowRoles(['admin', 'owner', 'worker', 'maintenance']),
+    MaintenanceController.generateMaintenanceToken
+);
+
+// ⭐ Completar formulario de mantenimiento (multipart con archivos)
+router.post('/:visitId/complete',
+    verifyToken,
+    allowRoles(['admin', 'owner', 'worker', 'maintenance']),
+    upload.array('maintenanceFiles', 20), // Permitir hasta 20 archivos
+    MaintenanceController.completeMaintenanceVisit
+);
+
 
 module.exports = router;

@@ -100,6 +100,8 @@ const VisitForm = ({ visit, isOpen, onClose }) => {
       }
 
       console.log('VisitForm - Actualizando visita con ID:', visit.id);
+      console.log('VisitForm - Datos a enviar:', formData);
+      
       const result = await dispatch(updateMaintenanceVisit(visit.id, formData));
 
       Swal.fire({
@@ -111,10 +113,11 @@ const VisitForm = ({ visit, isOpen, onClose }) => {
 
       onClose();
     } catch (error) {
+      console.error('VisitForm - Error al actualizar:', error);
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: error || 'Error al actualizar la visita.',
+        text: error?.response?.data?.message || error?.message || 'Error al actualizar la visita.',
       });
     }
   };
@@ -292,7 +295,7 @@ const VisitForm = ({ visit, isOpen, onClose }) => {
               {/* Asignación de personal */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Asignar a personal
+                  Asignar a personal (Maintenance o Worker)
                 </label>
                 <select
                   name="staffId"
@@ -301,12 +304,20 @@ const VisitForm = ({ visit, isOpen, onClose }) => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Sin asignar</option>
-                  {staff.filter(member => member.role === 'worker').map(member => (
-                    <option key={member.id} value={member.id}>
-                      {member.name}
-                    </option>
-                  ))}
+                  {staff
+                    .filter(member => member.role === 'worker' || member.role === 'maintenance')
+                    .map(member => (
+                      <option key={member.id} value={member.id}>
+                        {member.name} ({member.role === 'maintenance' ? 'Maintenance' : 'Worker'})
+                      </option>
+                    ))
+                  }
                 </select>
+                {formData.staffId && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Esta persona recibirá la tarea en su app móvil
+                  </p>
+                )}
               </div>
 
               {/* Notas */}
