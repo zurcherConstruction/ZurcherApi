@@ -264,7 +264,7 @@ const UploadInitialPay = () => {
                 <option value="">-- Seleccionar Presupuesto --</option>
                 {sendBudgets.map((budget) => (
                   <option key={budget.idBudget} value={budget.idBudget}>
-                    ID {budget.idBudget} - {budget.applicantName} - {budget.propertyAddress} ({budget.status})
+                   {budget.propertyAddress} - {budget.applicantName} -  ({budget.status})
                   </option>
                 ))}
               </select>

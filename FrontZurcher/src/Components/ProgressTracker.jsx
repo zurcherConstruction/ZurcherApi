@@ -27,7 +27,7 @@ const ProgressTracker = () => {
   }, [dispatch]);
 
   // Refresco automático cada 60 segundos
-  useAutoRefresh(fetchWorks, 60000, []);
+  useAutoRefresh(fetchWorks, 120000, []);
 
   useEffect(() => {
     if (works) {
