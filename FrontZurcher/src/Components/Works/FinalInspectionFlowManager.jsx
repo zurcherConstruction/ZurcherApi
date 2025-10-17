@@ -168,9 +168,22 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
             }
 
         } catch (err) { // Captura errores de la lógica de dispatch o construcción de FormData
-            const errorMessage = err.response?.data?.message || err.message || `Error inesperado en ${successMsgContext}`;
+            const errorData = err.response?.data;
+            const errorMessage = errorData?.message || err.message || `Error inesperado en ${successMsgContext}`;
             console.error(`[FinalInspectionFlowManager] Error general en ${successMsgContext}:`, err);
-            toast.error(errorMessage);
+            
+            // ✅ Manejo especial para inspecciones ya procesadas
+            if (errorData?.alreadyProcessed) {
+                const processedDate = errorData.dateProcessed 
+                    ? new Date(errorData.dateProcessed).toLocaleString('es-ES')
+                    : 'fecha desconocida';
+                    
+                toast.error(`⚠️ Esta inspección ya fue procesada como "${errorData.existingStatus?.toUpperCase()}" el ${processedDate}. No se puede volver a registrar un resultado.`, {
+                    duration: 6000
+                });
+            } else {
+                toast.error(errorMessage);
+            }
         }
     };
 
@@ -266,14 +279,96 @@ const FinalInspectionFlowManager = ({ work, isVisible }) => {
         }
 
         if (finalInspectionApproved) {
-            return <p className="text-green-700 font-semibold">Inspección Final APROBADA.</p>;
+            const resultDate = currentFinalInspection?.dateResultReceived 
+                ? new Date(currentFinalInspection.dateResultReceived)
+                : (currentFinalInspection?.updatedAt ? new Date(currentFinalInspection.updatedAt) : null);
+            
+            return (
+                <div className="p-4 rounded-lg border-2 bg-green-50 border-green-500">
+                    <div className="flex items-start space-x-3">
+                        <div className="flex-shrink-0">
+                            <span className="text-3xl">✅</span>
+                        </div>
+                        <div className="flex-1">
+                            <h4 className="text-lg font-bold text-green-800 mb-2">
+                                Inspección Final APROBADA
+                            </h4>
+                            {resultDate && (
+                                <p className="text-sm text-green-700 mb-1">
+                                    <strong>Fecha:</strong> {resultDate.toLocaleDateString('es-ES', { 
+                                        year: 'numeric', 
+                                        month: 'long', 
+                                        day: 'numeric' 
+                                    })}
+                                </p>
+                            )}
+                            {resultDate && (
+                                <p className="text-sm text-green-700 mb-2">
+                                    <strong>Hora:</strong> {resultDate.toLocaleTimeString('es-ES', { 
+                                        hour: '2-digit', 
+                                        minute: '2-digit',
+                                        second: '2-digit'
+                                    })}
+                                </p>
+                            )}
+                            {currentFinalInspection?.notes && (
+                                <p className="text-sm text-green-800 mt-2">
+                                    <strong>Notas:</strong> {currentFinalInspection.notes}
+                                </p>
+                            )}
+                            <div className="mt-3 p-2 rounded bg-green-100 border border-green-300">
+                                <p className="text-xs font-semibold text-green-900">
+                                    ⚠️ Esta inspección ya ha sido procesada. No se puede volver a aprobar o rechazar.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
         }
 
         if (finalInspectionRejected) {
+            const resultDate = currentFinalInspection?.dateResultReceived 
+                ? new Date(currentFinalInspection.dateResultReceived)
+                : (currentFinalInspection?.updatedAt ? new Date(currentFinalInspection.updatedAt) : null);
+            
             return (
                 <div>
-                    <p className="text-red-700 font-semibold">Inspección Final RECHAZADA.</p>
-                    {currentFinalInspection?.notes && <p className="text-sm text-gray-600 mb-2">Notas del rechazo: {currentFinalInspection.notes}</p>}
+                    <div className="p-4 rounded-lg border-2 bg-red-50 border-red-500 mb-4">
+                        <div className="flex items-start space-x-3">
+                            <div className="flex-shrink-0">
+                                <span className="text-3xl">❌</span>
+                            </div>
+                            <div className="flex-1">
+                                <h4 className="text-lg font-bold text-red-800 mb-2">
+                                    Inspección Final RECHAZADA
+                                </h4>
+                                {resultDate && (
+                                    <p className="text-sm text-red-700 mb-1">
+                                        <strong>Fecha:</strong> {resultDate.toLocaleDateString('es-ES', { 
+                                            year: 'numeric', 
+                                            month: 'long', 
+                                            day: 'numeric' 
+                                        })}
+                                    </p>
+                                )}
+                                {resultDate && (
+                                    <p className="text-sm text-red-700 mb-2">
+                                        <strong>Hora:</strong> {resultDate.toLocaleTimeString('es-ES', { 
+                                            hour: '2-digit', 
+                                            minute: '2-digit',
+                                            second: '2-digit'
+                                        })}
+                                    </p>
+                                )}
+                                {currentFinalInspection?.notes && (
+                                    <p className="text-sm text-red-800 mt-2">
+                                        <strong>Notas del rechazo:</strong> {currentFinalInspection.notes}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
                     <button
                         onClick={() => setActiveForm('requestReinspectionAfterFinalRejection')} // Cambia el nombre del activeForm
                         className="font-bold py-2 px-4 rounded mb-2 bg-orange-500 hover:bg-orange-600 text-white"

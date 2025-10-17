@@ -69,6 +69,37 @@ const workRef = useRef(work);
     error: balanceError, // Renombrado para evitar conflicto
   } = useSelector((state) => state.balance);
 
+  // ✅ Obtener inspecciones del estado de Redux
+  const { inspectionsByWork } = useSelector((state) => state.inspection);
+
+  // ✅ Verificar si ya existe una inspección inicial o final APROBADA (solo bloqueamos aprobadas)
+  const hasApprovedInitialInspection = useMemo(() => {
+    return inspectionsByWork.some(insp => 
+      insp.type === 'initial' && 
+      insp.finalStatus === 'approved'
+    );
+  }, [inspectionsByWork]);
+
+  const hasApprovedFinalInspection = useMemo(() => {
+    return inspectionsByWork.some(insp => 
+      insp.type === 'final' && 
+      insp.finalStatus === 'approved'
+    );
+  }, [inspectionsByWork]);
+
+  // ℹ️ Obtener historial de inspecciones para mostrar
+  const initialInspectionsHistory = useMemo(() => {
+    return inspectionsByWork
+      .filter(insp => insp.type === 'initial' && insp.finalStatus)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }, [inspectionsByWork]);
+
+  const finalInspectionsHistory = useMemo(() => {
+    return inspectionsByWork
+      .filter(insp => insp.type === 'final' && insp.finalStatus)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }, [inspectionsByWork]);
+
   // ✅ Get current user role for permissions
   const { user, currentStaff } = useSelector((state) => state.auth);
   const staff = currentStaff || user;
@@ -187,6 +218,13 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
   useEffect(() => {
     if (idWork) { // Asegúrate de que idWork no sea undefined
       dispatch(fetchWorkById(idWork));
+    }
+  }, [dispatch, idWork]);
+
+  // ✅ Cargar inspecciones cuando se monta el componente o cambia idWork
+  useEffect(() => {
+    if (idWork) {
+      dispatch(fetchInspectionsByWork(idWork));
     }
   }, [dispatch, idWork]);
 
@@ -1222,12 +1260,28 @@ const handleUploadImage = async () => {
                           )}
                         </span>
                       )}
-                      <button
-                        className="ml-4 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded shadow text-sm"
-                        onClick={e => { e.stopPropagation(); setShowQuickInspectionModal(true); }}
-                      >
-                        Registrar resultado rápido
-                      </button>
+                      {/* ✅ Deshabilitar botón solo si ambas inspecciones están APROBADAS */}
+                      {(!hasApprovedInitialInspection || !hasApprovedFinalInspection) ? (
+                        <button
+                          className="ml-4 px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded shadow text-sm"
+                          onClick={e => { 
+                            e.stopPropagation(); 
+                            // ✅ Establecer el tipo de inspección por defecto según cuál no está aprobada
+                            if (!hasApprovedInitialInspection) {
+                              setQuickInspectionType('initial');
+                            } else if (!hasApprovedFinalInspection) {
+                              setQuickInspectionType('final');
+                            }
+                            setShowQuickInspectionModal(true); 
+                          }}
+                        >
+                          Registrar resultado rápido
+                        </button>
+                      ) : (
+                        <span className="ml-4 px-3 py-2 rounded shadow text-sm font-medium bg-gray-300 text-gray-600 cursor-not-allowed">
+                          ✅ Todas las inspecciones procesadas
+                        </span>
+                      )}
                     </>
                   )}
                 </h2>
@@ -1243,12 +1297,221 @@ const handleUploadImage = async () => {
             {/* Modal para resultado rápido de inspección */}
             {showQuickInspectionModal && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-                <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative">
+                <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md relative max-h-[90vh] overflow-y-auto">
                   <button className="absolute top-2 right-2 text-gray-500 hover:text-red-600" onClick={() => setShowQuickInspectionModal(false)}>&#10005;</button>
                   <h3 className="text-lg font-bold mb-4 text-gray-800">Registrar resultado rápido de inspección</h3>
+                  
+                  {/* ✅ BANNER DE ESTADO ACTUAL - Más prominente */}
+                  <div className="mb-4 grid grid-cols-2 gap-2">
+                    {/* Estado Inspección Inicial */}
+                    <div className={`p-3 rounded-lg border-2 ${
+                      hasApprovedInitialInspection 
+                        ? 'bg-green-50 border-green-500' 
+                        : initialInspectionsHistory.some(i => i.finalStatus === 'rejected')
+                        ? 'bg-yellow-50 border-yellow-400'
+                        : 'bg-gray-50 border-gray-300'
+                    }`}>
+                      <p className="text-xs font-semibold text-gray-700 mb-1">Inicial:</p>
+                      {hasApprovedInitialInspection ? (
+                        <div className="flex items-center">
+                          <span className="text-2xl mr-2">✅</span>
+                          <div>
+                            <p className="text-sm font-bold text-green-700">APROBADA</p>
+                            <p className="text-xs text-green-600">Finalizada</p>
+                          </div>
+                        </div>
+                      ) : initialInspectionsHistory.length > 0 ? (
+                        <div className="flex items-center">
+                          <span className="text-2xl mr-2">❌</span>
+                          <div>
+                            <p className="text-sm font-bold text-red-700">RECHAZADA</p>
+                            <p className="text-xs text-gray-600">{initialInspectionsHistory.length} intento{initialInspectionsHistory.length > 1 ? 's' : ''}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center">
+                          <span className="text-2xl mr-2">⏳</span>
+                          <div>
+                            <p className="text-sm font-medium text-gray-600">Pendiente</p>
+                            <p className="text-xs text-gray-500">Sin registro</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Estado Inspección Final */}
+                    <div className={`p-3 rounded-lg border-2 ${
+                      hasApprovedFinalInspection 
+                        ? 'bg-green-50 border-green-500' 
+                        : finalInspectionsHistory.some(i => i.finalStatus === 'rejected')
+                        ? 'bg-yellow-50 border-yellow-400'
+                        : 'bg-gray-50 border-gray-300'
+                    }`}>
+                      <p className="text-xs font-semibold text-gray-700 mb-1">Final:</p>
+                      {hasApprovedFinalInspection ? (
+                        <div className="flex items-center">
+                          <span className="text-2xl mr-2">✅</span>
+                          <div>
+                            <p className="text-sm font-bold text-green-700">APROBADA</p>
+                            <p className="text-xs text-green-600">Finalizada</p>
+                          </div>
+                        </div>
+                      ) : finalInspectionsHistory.length > 0 ? (
+                        <div className="flex items-center">
+                          <span className="text-2xl mr-2">❌</span>
+                          <div>
+                            <p className="text-sm font-bold text-red-700">RECHAZADA</p>
+                            <p className="text-xs text-gray-600">{finalInspectionsHistory.length} intento{finalInspectionsHistory.length > 1 ? 's' : ''}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center">
+                          <span className="text-2xl mr-2">⏳</span>
+                          <div>
+                            <p className="text-sm font-medium text-gray-600">Pendiente</p>
+                            <p className="text-xs text-gray-500">Sin registro</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* 📋 Historial detallado (colapsable si quieres, por ahora siempre visible si hay datos) */}
+                  {(initialInspectionsHistory.length > 0 || finalInspectionsHistory.length > 0) && (
+                    <div className="mb-4 p-3 bg-blue-50 border border-blue-300 rounded-lg">
+                      <p className="text-sm text-blue-800 font-medium mb-2">📋 Historial de Inspecciones:</p>
+                      
+                      {initialInspectionsHistory.length > 0 && (
+                        <div className="mb-2">
+                          <p className="text-xs font-semibold text-blue-700 mb-1">Inicial:</p>
+                          {initialInspectionsHistory.map((insp, idx) => (
+                            <div key={insp.idInspection} className={`text-xs p-3 rounded mb-2 ${
+                              insp.finalStatus === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              <div className="mb-2">
+                                <span className="font-medium">
+                                  {idx === 0 ? '🔵 Último: ' : `Intento ${initialInspectionsHistory.length - idx}: `}
+                                </span>
+                                <span className="uppercase font-bold">{insp.finalStatus}</span>
+                                <span className="ml-2 text-gray-600">
+                                  ({new Date(insp.dateResultReceived || insp.createdAt).toLocaleDateString('en-US')})
+                                </span>
+                                {insp.finalStatus === 'approved' && (
+                                  <span className="ml-2 text-green-700">✓ Finalizada</span>
+                                )}
+                              </div>
+                              {insp.notes && (
+                                <p className="text-xs text-gray-600 mb-2">
+                                  <strong>Notas:</strong> {insp.notes.substring(0, 150)}{insp.notes.length > 150 ? '...' : ''}
+                                </p>
+                              )}
+                              {insp.resultDocumentUrl && (
+                                <div className="mt-2">
+                                  {/* Intentar mostrar como imagen primero, si es imagen de Cloudinary funcionará */}
+                                  <img
+                                    src={insp.resultDocumentUrl}
+                                    alt={`Comprobante inspección ${insp.finalStatus}`}
+                                    className="rounded w-full h-auto object-contain max-h-[150px] border border-gray-300"
+                                    onError={(e) => {
+                                      // Si falla como imagen, intentar mostrar iframe para PDF
+                                      e.target.style.display = 'none';
+                                      const parent = e.target.parentElement;
+                                      const iframe = document.createElement('iframe');
+                                      iframe.src = `https://docs.google.com/gview?url=${encodeURIComponent(insp.resultDocumentUrl)}&embedded=true`;
+                                      iframe.width = '100%';
+                                      iframe.height = '150px';
+                                      iframe.title = 'Vista previa inspección';
+                                      iframe.className = 'rounded border border-gray-300';
+                                      parent.insertBefore(iframe, e.target);
+                                    }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {finalInspectionsHistory.length > 0 && (
+                        <div>
+                          <p className="text-xs font-semibold text-blue-700 mb-1">Final:</p>
+                          {finalInspectionsHistory.map((insp, idx) => (
+                            <div key={insp.idInspection} className={`text-xs p-3 rounded mb-2 ${
+                              insp.finalStatus === 'approved' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                            }`}>
+                              <div className="mb-2">
+                                <span className="font-medium">
+                                  {idx === 0 ? '🔵 Último: ' : `Intento ${finalInspectionsHistory.length - idx}: `}
+                                </span>
+                                <span className="uppercase font-bold">{insp.finalStatus}</span>
+                                <span className="ml-2 text-gray-600">
+                                  ({new Date(insp.dateResultReceived || insp.createdAt).toLocaleDateString('en-US')})
+                                </span>
+                                {insp.finalStatus === 'approved' && (
+                                  <span className="ml-2 text-green-700">✓ Finalizada</span>
+                                )}
+                              </div>
+                              {insp.notes && (
+                                <p className="text-xs text-gray-600 mb-2">
+                                  <strong>Notas:</strong> {insp.notes.substring(0, 150)}{insp.notes.length > 150 ? '...' : ''}
+                                </p>
+                              )}
+                              {insp.resultDocumentUrl && (
+                                <div className="mt-2">
+                                  {/* Intentar mostrar como imagen primero, si es imagen de Cloudinary funcionará */}
+                                  <img
+                                    src={insp.resultDocumentUrl}
+                                    alt={`Comprobante inspección ${insp.finalStatus}`}
+                                    className="rounded w-full h-auto object-contain max-h-[150px] border border-gray-300"
+                                    onError={(e) => {
+                                      // Si falla como imagen, intentar mostrar iframe para PDF
+                                      e.target.style.display = 'none';
+                                      const parent = e.target.parentElement;
+                                      const iframe = document.createElement('iframe');
+                                      iframe.src = `https://docs.google.com/gview?url=${encodeURIComponent(insp.resultDocumentUrl)}&embedded=true`;
+                                      iframe.width = '100%';
+                                      iframe.height = '150px';
+                                      iframe.title = 'Vista previa inspección';
+                                      iframe.className = 'rounded border border-gray-300';
+                                      parent.insertBefore(iframe, e.target);
+                                    }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
                   <form
                     onSubmit={async e => {
                       e.preventDefault();
+                      
+                      // ✅ Validación previa: verificar si el tipo seleccionado ya está aprobado
+                      if (quickInspectionType === 'initial' && hasApprovedInitialInspection) {
+                        const approvedInsp = initialInspectionsHistory.find(i => i.finalStatus === 'approved');
+                        const approvedDate = approvedInsp 
+                          ? new Date(approvedInsp.dateResultReceived || approvedInsp.createdAt).toLocaleString('es-ES')
+                          : 'fecha desconocida';
+                        
+                        alert(`⚠️ ATENCIÓN: Ya existe una inspección inicial APROBADA para esta obra.\n\nFecha de aprobación: ${approvedDate}\n\nNo puedes crear más inspecciones del mismo tipo una vez aprobada. La inspección está finalizada.`);
+                        setQuickInspectionLoading(false);
+                        return;
+                      }
+                      
+                      if (quickInspectionType === 'final' && hasApprovedFinalInspection) {
+                        const approvedInsp = finalInspectionsHistory.find(i => i.finalStatus === 'approved');
+                        const approvedDate = approvedInsp 
+                          ? new Date(approvedInsp.dateResultReceived || approvedInsp.createdAt).toLocaleString('es-ES')
+                          : 'fecha desconocida';
+                        
+                        alert(`⚠️ ATENCIÓN: Ya existe una inspección final APROBADA para esta obra.\n\nFecha de aprobación: ${approvedDate}\n\nNo puedes crear más inspecciones del mismo tipo una vez aprobada. La inspección está finalizada.`);
+                        setQuickInspectionLoading(false);
+                        return;
+                      }
+                      
                       if (!quickInspectionFile) return alert('Debes subir una imagen o PDF.');
                       setQuickInspectionLoading(true);
                       try {
@@ -1262,17 +1525,60 @@ const handleUploadImage = async () => {
                         setQuickInspectionFile(null);
                         setQuickInspectionNotes('');
                         setQuickInspectionLoading(false);
+                        // Recargar datos de la obra e inspecciones
+                        await dispatch(fetchWorkById(work.idWork));
+                        await dispatch(fetchInspectionsByWork(work.idWork));
+                        alert('✅ Resultado de inspección registrado exitosamente.');
                       } catch (err) {
+                        console.error('Error al registrar resultado rápido:', err);
+                        const errorData = err.response?.data;
+                        
+                        // ✅ Manejo especial para inspecciones ya aprobadas
+                        if (errorData?.alreadyApproved) {
+                          const typeText = quickInspectionType === 'initial' ? 'inicial' : 'final';
+                          const processedDate = errorData.dateProcessed 
+                            ? new Date(errorData.dateProcessed).toLocaleString('es-ES')
+                            : 'fecha desconocida';
+                          
+                          alert(`⚠️ ATENCIÓN: Ya existe una inspección ${typeText} APROBADA para esta obra.\n\nFecha de aprobación: ${processedDate}\n\nNo puedes crear más inspecciones del mismo tipo una vez aprobada. La inspección está finalizada.`);
+                        } else {
+                          const errorMessage = errorData?.message || err.message || 'Error desconocido';
+                          alert(`Error al registrar resultado: ${errorMessage}`);
+                        }
                         setQuickInspectionLoading(false);
                       }
                     }}
                   >
                     <div className="mb-3">
                       <label className="block text-sm font-medium mb-1">Tipo de inspección</label>
-                      <select value={quickInspectionType} onChange={e => setQuickInspectionType(e.target.value)} className="w-full border rounded px-2 py-1">
-                        <option value="initial">Inicial</option>
-                        <option value="final">Final</option>
+                      <select 
+                        value={quickInspectionType} 
+                        onChange={e => setQuickInspectionType(e.target.value)} 
+                        className="w-full border rounded px-2 py-1"
+                      >
+                        <option value="initial" disabled={hasApprovedInitialInspection}>
+                          Inicial {hasApprovedInitialInspection ? '(✓ Aprobada - Finalizada)' : initialInspectionsHistory.length > 0 ? `(${initialInspectionsHistory.length} intento${initialInspectionsHistory.length > 1 ? 's' : ''})` : ''}
+                        </option>
+                        <option value="final" disabled={hasApprovedFinalInspection}>
+                          Final {hasApprovedFinalInspection ? '(✓ Aprobada - Finalizada)' : finalInspectionsHistory.length > 0 ? `(${finalInspectionsHistory.length} intento${finalInspectionsHistory.length > 1 ? 's' : ''})` : ''}
+                        </option>
                       </select>
+                      {((quickInspectionType === 'initial' && hasApprovedInitialInspection) || 
+                        (quickInspectionType === 'final' && hasApprovedFinalInspection)) && (
+                        <p className="text-xs text-red-600 mt-1">
+                          ⚠️ Esta inspección ya fue APROBADA y está finalizada. No se pueden agregar más resultados.
+                        </p>
+                      )}
+                      {quickInspectionType === 'initial' && !hasApprovedInitialInspection && initialInspectionsHistory.some(i => i.finalStatus === 'rejected') && (
+                        <p className="text-xs text-blue-600 mt-1">
+                          ℹ️ Puedes cargar un nuevo resultado ya que la inspección anterior fue rechazada.
+                        </p>
+                      )}
+                      {quickInspectionType === 'final' && !hasApprovedFinalInspection && finalInspectionsHistory.some(i => i.finalStatus === 'rejected') && (
+                        <p className="text-xs text-blue-600 mt-1">
+                          ℹ️ Puedes cargar un nuevo resultado ya que la inspección anterior fue rechazada.
+                        </p>
+                      )}
                     </div>
                     <div className="mb-3">
                       <label className="block text-sm font-medium mb-1">Resultado</label>
@@ -1291,7 +1597,15 @@ const handleUploadImage = async () => {
                     </div>
                     <div className="flex justify-end gap-2 mt-4">
                       <button type="button" className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400" onClick={() => setShowQuickInspectionModal(false)}>Cancelar</button>
-                      <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700" disabled={quickInspectionLoading}>
+                      <button 
+                        type="submit" 
+                        className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed" 
+                        disabled={
+                          quickInspectionLoading || 
+                          (quickInspectionType === 'initial' && hasApprovedInitialInspection) ||
+                          (quickInspectionType === 'final' && hasApprovedFinalInspection)
+                        }
+                      >
                         {quickInspectionLoading ? 'Guardando...' : 'Registrar'}
                       </button>
                     </div>

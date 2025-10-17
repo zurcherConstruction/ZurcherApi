@@ -25,6 +25,45 @@ const registerQuickInspectionResult = async (req, res) => {
       return res.status(404).json({ error: true, message: 'Obra no encontrada.' });
     }
 
+    // ✅ VALIDAR que no exista ya una inspección del mismo tipo APROBADA
+    // Permitir múltiples intentos si están rechazadas
+    const existingApprovedInspection = await Inspection.findOne({
+      where: {
+        workId,
+        type,
+        finalStatus: 'approved'
+      },
+      order: [['createdAt', 'DESC']]
+    });
+
+    if (existingApprovedInspection) {
+      const resultDate = existingApprovedInspection.dateResultReceived 
+        ? new Date(existingApprovedInspection.dateResultReceived).toLocaleString('es-ES')
+        : new Date(existingApprovedInspection.createdAt).toLocaleString('es-ES');
+      
+      return res.status(400).json({ 
+        error: true, 
+        message: `Ya existe una inspección ${type === 'initial' ? 'inicial' : 'final'} APROBADA para esta obra registrada el ${resultDate}. No se pueden crear más inspecciones del mismo tipo una vez aprobada.`,
+        alreadyApproved: true,
+        existingStatus: 'approved',
+        dateProcessed: existingApprovedInspection.dateResultReceived || existingApprovedInspection.createdAt,
+        inspectionId: existingApprovedInspection.idInspection
+      });
+    }
+
+    // ℹ️ Obtener historial de inspecciones rechazadas para logging
+    const rejectedCount = await Inspection.count({
+      where: {
+        workId,
+        type,
+        finalStatus: 'rejected'
+      }
+    });
+    
+    if (rejectedCount > 0) {
+      console.log(`[InspectionController - Quick] Esta será la inspección ${type} intento #${rejectedCount + 1} para work ${workId} (anteriores rechazadas: ${rejectedCount})`);
+    }
+
     // Subir archivo a Cloudinary
     const cloudinaryResult = await uploadBufferToCloudinary(req.file.buffer, {
       folder: `inspections/${workId}/quick_result`,
@@ -50,8 +89,13 @@ const registerQuickInspectionResult = async (req, res) => {
     // Actualizar estado de la obra según lógica existente
     if (type === 'initial') {
       if (finalStatus === 'approved') {
-        work.status = 'approvedInspection';
+        // Automatizar la transición: inspección inicial aprobada → coverPending directamente
+        work.status = 'coverPending';
+        console.log(`[InspectionController - Quick] Inspección inicial aprobada para work ${work.idWork}. Estado cambiado automáticamente a 'coverPending'.`);
+        await work.save();
+        // Enviar notificación para el nuevo estado
         await sendNotifications('initial_inspection_approved', work, req.app.get('io'), { inspectionId: inspection.idInspection });
+        await sendNotifications('coverPending', work, req.app.get('io'));
       } else {
         work.status = 'rejectedInspection';
         // Incluir la URL del documento de resultado en el objeto work para la notificación
@@ -467,6 +511,21 @@ const registerInspectionResult = async (req, res) => {
     const inspection = await Inspection.findByPk(inspectionId, { include: [Work] });
     if (!inspection) {
       return res.status(404).json({ error: true, message: 'Registro de inspección no encontrado.' });
+    }
+
+    // ✅ VALIDAR que la inspección NO haya sido ya aprobada/rechazada
+    if (inspection.finalStatus && ['approved', 'rejected'].includes(inspection.finalStatus)) {
+      const resultDate = inspection.dateResultReceived 
+        ? new Date(inspection.dateResultReceived).toLocaleString('es-ES')
+        : 'fecha desconocida';
+      
+      return res.status(400).json({ 
+        error: true, 
+        message: `Esta inspección ya fue procesada como "${inspection.finalStatus.toUpperCase()}" el ${resultDate}. No se puede volver a registrar un resultado.`,
+        alreadyProcessed: true,
+        existingStatus: inspection.finalStatus,
+        dateProcessed: inspection.dateResultReceived
+      });
     }
 
      // Validar que la inspección esté en el estado correcto para recibir un resultado
