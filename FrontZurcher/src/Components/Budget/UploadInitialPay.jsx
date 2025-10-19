@@ -169,15 +169,14 @@ const UploadInitialPay = () => {
   // Excluir estado "approved" (significa que YA se cargó el comprobante)
   // Excluir presupuestos con paymentInvoice o paymentProofAmount
   const sendBudgets = budgets.filter(b => {
-    // Solo mostrar presupuestos con status='signed' (realmente firmados)
+    // Solo mostrar presupuestos con status='signed' (realmente firmados, pero sin pago aún)
+    // No mostrar 'approved' porque esos ya tienen pago inicial
     if (b.status !== 'signed') return false;
     
     // Verificar que tenga método de firma válido (signnow o manual)
     const isSigned = b.signatureMethod === 'signnow' || b.signatureMethod === 'manual';
     if (!isSigned) return false;
     
-    // Excluir si el estado es "approved" (ya tiene comprobante)
-    if (b.status === 'approved') return false;
     // Excluir si tiene paymentInvoice (URL del comprobante)
     if (b.paymentInvoice && b.paymentInvoice.trim() !== '') return false;
     // Excluir si tiene paymentProofAmount (monto registrado)

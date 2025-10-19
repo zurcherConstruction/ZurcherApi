@@ -950,7 +950,7 @@ const editableBudgets = useMemo(() => {
                   </div>
 
                   {/* Mostrar información si ya está firmado */}
-                  {formData.status === 'signed' && formData.signatureMethod && (
+                  {(formData.status === 'signed' || formData.status === 'approved') && formData.signatureMethod && (
                     <div className="mb-3 p-3 bg-white border-l-4 border-green-500 rounded-r-lg shadow-sm">
                       <div className="flex items-start">
                         <svg className="w-5 h-5 text-green-500 mt-0.5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">

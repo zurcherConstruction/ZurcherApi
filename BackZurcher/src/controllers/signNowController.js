@@ -142,10 +142,10 @@ const signNowController = {
         });
       }
 
-      if (budget.status !== 'signed') {
+      if (budget.status !== 'signed' && budget.status !== 'approved') {
         return res.status(400).json({
           success: false,
-          message: 'El presupuesto no está marcado como firmado. Verifica primero el estado en SignNow.'
+          message: 'El presupuesto no está marcado como firmado o aprobado. Verifica primero el estado en SignNow.'
         });
       }
 
