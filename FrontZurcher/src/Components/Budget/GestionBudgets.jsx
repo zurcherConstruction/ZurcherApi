@@ -63,6 +63,12 @@ const GestionBudgets = () => {
   const [newOptionalDocsFile, setNewOptionalDocsFile] = useState(null);
   const [uploadingPermitPdf, setUploadingPermitPdf] = useState(false);
   const [uploadingOptionalDocs, setUploadingOptionalDocs] = useState(false);
+  
+  // 🆕 Filtro de método de firma
+  const [signatureFilter, setSignatureFilter] = useState('all');
+
+  // 🆕 Estado para verificación manual de firmas
+  const [verifyingSignatures, setVerifyingSignatures] = useState(false);
 
   // ✅ useEffect para debounce del searchTerm (esperar 500ms después de que el usuario deje de escribir)
   useEffect(() => {
@@ -100,8 +106,22 @@ const GestionBudgets = () => {
     return years.sort((a, b) => b - a);
   }, [budgets]);
 
-  // ✅ Los budgets ya vienen filtrados del backend, no necesitamos filtrado local
-  const filteredBudgets = budgets || [];
+  // ✅ Los budgets ya vienen filtrados del backend por status, año y búsqueda
+  // Aplicamos filtro adicional de firma en el cliente
+  const filteredBudgets = useMemo(() => {
+    if (!budgets) return [];
+    
+    // Si no hay filtro de firma o es "all", retornar todos los budgets
+    if (signatureFilter === 'all') {
+      return budgets;
+    }
+    
+    // Filtrar por signatureMethod
+    return budgets.filter(budget => {
+      const signatureMethod = budget.signatureMethod || 'none';
+      return signatureMethod === signatureFilter;
+    });
+  }, [budgets, signatureFilter]);
 
   // 🆕 Usar estadísticas del backend si están disponibles, sino calcular localmente (fallback)
   const budgetStats = useMemo(() => {
@@ -128,6 +148,18 @@ const GestionBudgets = () => {
     };
   }, [budgets, totalRecords, statsFromBackend]);
 
+  // 🆕 Estadísticas de métodos de firma
+  const signatureStats = useMemo(() => {
+    if (!budgets) return { signnow: 0, manual: 0, legacy: 0, none: 0 };
+    
+    return {
+      signnow: budgets.filter(b => b.signatureMethod === 'signnow').length,
+      manual: budgets.filter(b => b.signatureMethod === 'manual').length,
+      legacy: budgets.filter(b => b.signatureMethod === 'legacy').length,
+      none: budgets.filter(b => !b.signatureMethod || b.signatureMethod === 'none').length
+    };
+  }, [budgets]);
+
   // ✅ NUEVO: Función para filtrar por estado al hacer click en las tarjetas
   const handleStatCardClick = (status) => {
     if (status === 'all') {
@@ -144,6 +176,58 @@ const GestionBudgets = () => {
   // ✅ Redirige a EditBudget para edición completa
   const handleEdit = (budget) => {
     navigate(`/budgets/edit/${budget.idBudget}`);
+  };
+
+  // 🆕 Verificar firmas manualmente
+  const handleVerifySignatures = async () => {
+    if (verifyingSignatures) return;
+
+    const confirm = window.confirm(
+      '¿Verificar ahora todas las firmas pendientes de SignNow?\n\n' +
+      'Esto revisará todos los documentos enviados a SignNow y actualizará ' +
+      'el estado de los que ya fueron firmados.'
+    );
+
+    if (!confirm) return;
+
+    setVerifyingSignatures(true);
+    try {
+      const response = await api.post('/budget/verify-signatures');
+      
+      if (response.data.success) {
+        const { checked, signed, results } = response.data;
+        
+        let message = `✅ Verificación completada\n\n`;
+        message += `📊 Presupuestos revisados: ${checked}\n`;
+        message += `✍️ Firmados encontrados: ${signed}\n\n`;
+        
+        if (signed > 0) {
+          message += `Presupuestos actualizados:\n`;
+          results
+            .filter(r => r.status === 'signed')
+            .forEach((r, i) => {
+              message += `${i + 1}. Budget #${r.idBudget} - ${r.propertyAddress}\n`;
+            });
+        }
+        
+        alert(message);
+        
+        // Recargar budgets para ver cambios
+        dispatch(fetchBudgets({
+          page,
+          pageSize,
+          search: debouncedSearchTerm,
+          status: statusFilter,
+          month: monthFilter,
+          year: yearFilter
+        }));
+      }
+    } catch (error) {
+      console.error('Error verificando firmas:', error);
+      alert(`❌ Error al verificar firmas:\n${error.response?.data?.details || error.message}`);
+    } finally {
+      setVerifyingSignatures(false);
+    }
   };
 
   const handleDelete = async (budgetId) => {
@@ -208,6 +292,44 @@ const GestionBudgets = () => {
     );
   };
 
+  // 🆕 Badge para método de firma
+  const getSignatureBadge = (signatureMethod) => {
+    const signatureConfig = {
+      'signnow': { 
+        bg: 'bg-green-100', 
+        text: 'text-green-800', 
+        label: '✓ SignNow',
+        icon: '📝'
+      },
+      'manual': { 
+        bg: 'bg-blue-100', 
+        text: 'text-blue-800', 
+        label: '✓ Manual',
+        icon: '📄'
+      },
+      'legacy': { 
+        bg: 'bg-gray-100', 
+        text: 'text-gray-800', 
+        label: 'Legacy',
+        icon: '📋'
+      },
+      'none': { 
+        bg: 'bg-yellow-50', 
+        text: 'text-yellow-700', 
+        label: 'Sin Firmar',
+        icon: '⏳'
+      }
+    };
+
+    const config = signatureConfig[signatureMethod] || signatureConfig['none'];
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full ${config.bg} ${config.text}`}>
+        <span>{config.icon}</span>
+        <span>{config.label}</span>
+      </span>
+    );
+  };
+
   const canEdit = (budget) => {
     return !['approved', 'signed'].includes(budget.status);
   };
@@ -226,17 +348,38 @@ const GestionBudgets = () => {
 
   // Handler para ver PDF firmado (usando Vite env)
   const handleViewSignedPdf = async (budget) => {
-    // Usar el mismo cliente axios para obtener la URL blob
     try {
-      const response = await api.get(`/budget/${budget.idBudget}/download-signed`, {
-        responseType: 'blob',
-        withCredentials: true,
-      });
-      const blob = response.data;
-      const url = window.URL.createObjectURL(blob);
-      setSignedPdfUrl(url);
+      let pdfUrl = null;
+      
+      // 🆕 Si es firma manual, usar la URL directa de Cloudinary
+      if (budget.signatureMethod === 'manual' && budget.manualSignedPdfPath) {
+        pdfUrl = budget.manualSignedPdfPath;
+      }
+      // 🆕 Si es firma SignNow, descargar desde el backend
+      else if (budget.signatureMethod === 'signnow') {
+        const response = await api.get(`/budget/${budget.idBudget}/download-signed`, {
+          responseType: 'blob',
+          withCredentials: true,
+        });
+        const blob = response.data;
+        pdfUrl = window.URL.createObjectURL(blob);
+      }
+      // 🆕 Si es legacy, usar la URL del PDF legacy
+      else if (budget.signatureMethod === 'legacy' && budget.legacySignedPdfUrl) {
+        pdfUrl = budget.legacySignedPdfUrl;
+      }
+      else {
+        // Si no tiene método de firma, mostrar error
+        alert('Este presupuesto no tiene un PDF firmado disponible.');
+        return;
+      }
+      
+      // Mostrar el PDF en el modal
+      setSignedPdfUrl(pdfUrl);
       setShowSignedPdfModal(true);
+      
     } catch (error) {
+      console.error('Error al cargar PDF firmado:', error);
       alert('No se pudo cargar el PDF firmado.');
     }
   };
@@ -481,8 +624,39 @@ const GestionBudgets = () => {
         </div>
       </div>
 
-      {/* Filtros y Búsqueda */}
+      {/* Botón de Verificación de Firmas + Filtros y Búsqueda */}
       <div className="bg-white p-6 rounded-lg shadow mb-6">
+        {/* Botón de Verificación Manual */}
+        <div className="mb-4 flex justify-end">
+          <button
+            onClick={handleVerifySignatures}
+            disabled={verifyingSignatures}
+            className={`inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all ${
+              verifyingSignatures
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg'
+            }`}
+          >
+            {verifyingSignatures ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Verificando...
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Verificar Firmas Ahora
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Filtros */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Búsqueda */}
           <div className="relative lg:col-span-2">
@@ -513,6 +687,19 @@ const GestionBudgets = () => {
             <option value="approved">Aprobado</option>
             <option value="rejected">Rechazado</option>
             <option value="notResponded">Sin Respuesta</option>
+          </select>
+
+          {/* 🆕 Filtro por Método de Firma */}
+          <select
+            value={signatureFilter}
+            onChange={(e) => setSignatureFilter(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+          >
+            <option value="all">Todas las firmas ({budgets?.length || 0})</option>
+            <option value="signnow">✓ SignNow ({signatureStats.signnow})</option>
+            <option value="manual">📄 Manual ({signatureStats.manual})</option>
+            <option value="legacy">� Legacy ({signatureStats.legacy})</option>
+            <option value="none">✗ Sin Firmar ({signatureStats.none})</option>
           </select>
 
           {/* Filtro por Mes */}
@@ -575,6 +762,9 @@ const GestionBudgets = () => {
                   Estado
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Firma
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Acciones
                 </th>
               </tr>
@@ -599,6 +789,9 @@ const GestionBudgets = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {getStatusBadge(budget.status)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {getSignatureBadge(budget.signatureMethod || 'none')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">

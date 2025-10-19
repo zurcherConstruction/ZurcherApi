@@ -110,8 +110,12 @@ module.exports = (sequelize) => {
     type: DataTypes.STRING,
     allowNull: true, // Puede ser null si no se ha subido un PDF
 },
-  signedPdfPath: { // Para guardar la ruta al PDF firmado por el cliente
+  signedPdfPath: { // Para guardar la ruta al PDF firmado por el cliente (SignNow)
     type: DataTypes.STRING,
+    allowNull: true,
+  },
+  signedPdfPublicId: { // Public ID de Cloudinary del PDF firmado (SignNow)
+    type: DataTypes.STRING(200),
     allowNull: true,
   },
   signNowDocumentId: { // ID del documento de SignNow
@@ -119,6 +123,22 @@ module.exports = (sequelize) => {
     allowNull: true,
     unique: true,
   },
+  
+  // --- 🆕 CAMPOS PARA FIRMA MANUAL ---
+  signatureMethod: { // Método de firma del presupuesto
+    type: DataTypes.ENUM('signnow', 'manual', 'legacy', 'none'),
+    allowNull: true,
+    defaultValue: 'none'
+  },
+  manualSignedPdfPath: { // URL del PDF firmado subido manualmente
+    type: DataTypes.STRING(500),
+    allowNull: true,
+  },
+  manualSignedPdfPublicId: { // Public ID de Cloudinary del PDF manual
+    type: DataTypes.STRING(200),
+    allowNull: true,
+  },
+  
   PermitIdPermit: {
     type: DataTypes.UUID, // Debe coincidir con el tipo de Permit.idPermit
     allowNull: false, // O true si un Budget puede existir sin Permit

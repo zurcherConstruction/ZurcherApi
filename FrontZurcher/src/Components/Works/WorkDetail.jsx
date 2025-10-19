@@ -480,15 +480,43 @@ const handleUploadInstalledImage = async () => {
 };
 
 const handleShowBudgetPdf = async () => {
-  // Si tienes la URL pública:
-  if (work?.budget?.pdfPath) {
-    setBudgetPdfUrl(work.budget.pdfPath);
-    setShowBudgetPdfModal(true);
-    return;
-  }
-  // Si necesitas pedirlo como blob:
   try {
-    const response = await api.get(`/budget/${work.budget.idBudget}/preview`, { responseType: 'blob' });
+    const budget = work?.budget;
+    if (!budget?.idBudget) {
+      alert('No se encontró información del presupuesto');
+      return;
+    }
+
+    // CASO 1: Presupuesto firmado manualmente
+    if (budget.signatureMethod === 'manual' && budget.manualSignedPdfPath) {
+      const response = await api.get(`/budget/${budget.idBudget}/view-manual-signed`, {
+        responseType: 'blob'
+      });
+      const objectUrl = window.URL.createObjectURL(response.data);
+      setBudgetPdfUrl(objectUrl);
+      setShowBudgetPdfModal(true);
+      return;
+    }
+
+    // CASO 2: Presupuesto firmado con SignNow
+    if (budget.signatureMethod === 'signnow' && budget.signNowDocumentId) {
+      try {
+        const response = await api.get(`/budget/${budget.idBudget}/view-signed`, {
+          responseType: 'blob'
+        });
+        const objectUrl = window.URL.createObjectURL(response.data);
+        setBudgetPdfUrl(objectUrl);
+        setShowBudgetPdfModal(true);
+        return;
+      } catch (signNowError) {
+        // Si falla SignNow, continuar al CASO 3
+      }
+    }
+
+    // CASO 3: Regenerar PDF sin firma
+    const response = await api.get(`/budget/${budget.idBudget}/preview`, { 
+      responseType: 'blob' 
+    });
     const objectUrl = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
     setBudgetPdfUrl(objectUrl);
     setShowBudgetPdfModal(true);
@@ -848,13 +876,26 @@ const handleUploadImage = async () => {
                     <p className="text-sm text-gray-600">
                       <strong>Estado:</strong> {work.budget.status}
                     </p>
+                    
+                    {/* Método de Firma */}
+                    {work.budget.signatureMethod && work.budget.signatureMethod !== 'none' && (
+                      <div className="mt-3 p-3 bg-green-50 border-l-4 border-green-500 rounded">
+                        <p className="text-sm font-semibold text-green-800">
+                          {work.budget.signatureMethod === 'signnow' && '✍️ Firmado con SignNow'}
+                          {work.budget.signatureMethod === 'manual' && '📄 Firmado Manualmente'}
+                          {work.budget.signatureMethod === 'legacy' && '🏷️ Presupuesto Legacy'}
+                        </p>
+                      </div>
+                    )}
                   </>
                 )}
                 <button
-    className="bg-blue-600 text-white px-3 py-2 rounded shadow hover:bg-blue-700"
+    className="bg-blue-600 text-white px-3 py-2 rounded shadow hover:bg-blue-700 mt-4"
     onClick={handleShowBudgetPdf}
   >
-    Ver Presupuesto PDF
+    {work.budget.signatureMethod === 'signnow' || work.budget.signatureMethod === 'manual' 
+      ? 'Ver Presupuesto Firmado' 
+      : 'Ver Presupuesto PDF'}
   </button>
               </div>
             )}

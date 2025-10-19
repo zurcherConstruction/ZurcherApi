@@ -3,6 +3,9 @@ const cron = require('node-cron');
 const { Budget, Permit, ChangeOrder, Work } = require('../data');
 const SignNowService = require('./ServiceSignNow');
 const { sendNotifications } = require('../utils/notifications/notificationManager');
+const path = require('path');
+const fs = require('fs');
+const { cloudinary } = require('../utils/cloudinaryConfig');
 
 const checkPendingSignatures = async () => {
   console.log(`\n⏰ [CRON JOB] Iniciando la verificación de firmas pendientes - ${new Date().toISOString()}`);
@@ -10,13 +13,19 @@ const checkPendingSignatures = async () => {
 
   // --- TAREA 1: VERIFICAR PRESUPUESTOS PENDIENTES ---
   try {
+    // 🆕 Buscar presupuestos que tengan signNowDocumentId pero NO estén firmados
+    const { Op } = require('sequelize');
     const pendingBudgets = await Budget.findAll({
-      where: { status: 'sent_for_signature' },
+      where: {
+        signNowDocumentId: { [Op.ne]: null }, // Tiene documento en SignNow
+        status: { [Op.ne]: 'signed' }, // NO está firmado
+        signatureMethod: 'signnow' // 🆕 Solo los enviados por SignNow
+      },
       include: [{ model: Permit, attributes: ['applicantName', 'propertyAddress'] }]
     });
 
     if (pendingBudgets.length > 0) {
-      console.log(`[CRON JOB] Se encontraron ${pendingBudgets.length} presupuestos pendientes para verificar.`);
+      console.log(`[CRON JOB] Se encontraron ${pendingBudgets.length} presupuestos con SignNow pendientes para verificar.`);
       for (const budget of pendingBudgets) {
         try {
           if (!budget.signNowDocumentId) {
@@ -28,10 +37,63 @@ const checkPendingSignatures = async () => {
 
           if (signatureStatus.isSigned) {
             console.log(`✅ ¡Presupuesto FIRMADO! ID: ${budget.idBudget}.`);
-            await budget.update({
-              status: 'signed',
-              signedAt: new Date()
-            });
+            
+            // 🆕 MEJORA: Descargar automáticamente el PDF firmado a Cloudinary
+            try {
+              const tempDir = path.join(__dirname, '../../temp');
+              if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir, { recursive: true });
+              }
+
+              const tempFilePath = path.join(tempDir, `budget_${budget.idBudget}_signed_${Date.now()}.pdf`);
+              
+              // Descargar de SignNow
+              await signNowService.downloadSignedDocument(budget.signNowDocumentId, tempFilePath);
+              console.log(`   -> PDF descargado temporalmente: ${tempFilePath}`);
+
+              // Subir a Cloudinary con metadata
+              const uploadResult = await cloudinary.uploader.upload(tempFilePath, {
+                folder: 'signed_budgets',
+                resource_type: 'raw',
+                public_id: `budget_${budget.idBudget}_signed_${Date.now()}`,
+                tags: [
+                  `invoice-${budget.idBudget}`,
+                  `property-${(budget.Permit?.propertyAddress || '').replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`,
+                  'budget',
+                  'signed'
+                ],
+                context: {
+                  invoice: budget.idBudget.toString(),
+                  property: budget.Permit?.propertyAddress || budget.propertyAddress,
+                  signed_at: new Date().toISOString()
+                }
+              });
+
+              console.log(`   -> PDF subido a Cloudinary: ${uploadResult.secure_url}`);
+
+              // Actualizar Budget con la URL de Cloudinary
+              await budget.update({
+                status: 'signed',
+                signatureMethod: 'signnow', // 🆕 Actualizar método de firma
+                signedAt: new Date(),
+                signedPdfPath: uploadResult.secure_url,
+                signedPdfPublicId: uploadResult.public_id
+              });
+
+              // Borrar archivo temporal
+              fs.unlinkSync(tempFilePath);
+              console.log(`   -> Archivo temporal eliminado`);
+              
+            } catch (downloadError) {
+              console.error(`❌ Error al descargar/subir PDF firmado del presupuesto ${budget.idBudget}:`, downloadError.message);
+              // Aún así actualizamos el status pero sin el PDF
+              await budget.update({
+                status: 'signed',
+                signatureMethod: 'signnow', // 🆕 Actualizar método de firma
+                signedAt: new Date()
+              });
+            }
+            
             console.log(`   -> Estado del presupuesto ${budget.idBudget} actualizado a 'signed'.`);
 
             const notificationData = {
@@ -74,11 +136,66 @@ const checkPendingSignatures = async () => {
 
           if (signatureStatus.isSigned) {
             console.log(`✅ ¡Firma de Orden de Cambio COMPLETADA! ID: ${co.id}.`);
-            // Actualizamos solo los campos de la firma, no el estado principal
-            await co.update({
-              signatureStatus: 'completed',
-              signedAt: new Date()
-            });
+            
+            // 🆕 MEJORA: Descargar automáticamente el PDF firmado a Cloudinary
+            try {
+              const tempDir = path.join(__dirname, '../../temp');
+              if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir, { recursive: true });
+              }
+
+              const tempFilePath = path.join(tempDir, `change_order_${co.id}_signed_${Date.now()}.pdf`);
+              
+              // Descargar de SignNow
+              await signNowService.downloadSignedDocument(co.signNowDocumentId, tempFilePath);
+              console.log(`   -> PDF de CO descargado temporalmente: ${tempFilePath}`);
+
+              // Obtener información de la obra para metadata
+              const work = await Work.findByPk(co.WorkIdWork, {
+                include: [{ model: Permit, attributes: ['propertyAddress'] }]
+              });
+
+              // Subir a Cloudinary con metadata
+              const uploadResult = await cloudinary.uploader.upload(tempFilePath, {
+                folder: 'signed_change_orders',
+                resource_type: 'raw',
+                public_id: `change_order_${co.id}_signed_${Date.now()}`,
+                tags: [
+                  `change-order-${co.id}`,
+                  work ? `property-${(work.propertyAddress || work.Permit?.propertyAddress || '').replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}` : '',
+                  'change-order',
+                  'signed'
+                ].filter(Boolean),
+                context: {
+                  change_order_id: co.id.toString(),
+                  property: work?.propertyAddress || work?.Permit?.propertyAddress || '',
+                  signed_at: new Date().toISOString()
+                }
+              });
+
+              console.log(`   -> PDF de CO subido a Cloudinary: ${uploadResult.secure_url}`);
+
+              // Actualizar CO con la URL de Cloudinary
+              await co.update({
+                signatureStatus: 'completed',
+                signedAt: new Date(),
+                signedPdfPath: uploadResult.secure_url,
+                signedPdfPublicId: uploadResult.public_id
+              });
+
+              // Borrar archivo temporal
+              fs.unlinkSync(tempFilePath);
+              console.log(`   -> Archivo temporal de CO eliminado`);
+              
+            } catch (downloadError) {
+              console.error(`❌ Error al descargar/subir PDF firmado de la CO ${co.id}:`, downloadError.message);
+              // Aún así actualizamos el status pero sin el PDF
+              await co.update({
+                signatureStatus: 'completed',
+                signedAt: new Date()
+              });
+            }
+            
             console.log(`   -> Estado de firma de la CO ${co.id} actualizado a 'completed'.`);
             // Aquí podrías agregar una notificación si lo deseas
           }
@@ -97,12 +214,13 @@ const checkPendingSignatures = async () => {
 };
 
 const startSignatureCheckCron = () => {
-  cron.schedule('0 */2 * * *', checkPendingSignatures, {
+  // Ejecutar cada 30 minutos (0, 30)
+  cron.schedule('*/30 * * * *', checkPendingSignatures, {
     scheduled: true,
     timezone: "America/New_York" // IMPORTANTE: Ajusta a tu zona horaria.
   });
 
-  console.log('✅ Cron job para verificar firmas de SignNow programado para ejecutarse cada 2 horas.');
+  console.log('✅ Cron job para verificar firmas de SignNow programado para ejecutarse cada 30 minutos.');
 };
 
 module.exports = { startSignatureCheckCron, checkPendingSignatures };

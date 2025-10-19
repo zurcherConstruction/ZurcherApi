@@ -326,6 +326,55 @@ class SignNowService {
     }
   }
 
+  // 🆕 NUEVO: Listar todos los documentos de la cuenta SignNow
+  async listAllDocuments(page = 0, perPage = 50) {
+    try {
+      if (!this.apiKey) {
+        throw new Error('API Key no configurada');
+      }
+
+      const response = await axios.get(`${this.baseURL}/user/documentsv2`, {
+        headers: this.getHeaders(),
+        params: {
+          page,
+          per_page: perPage
+        },
+        timeout: 60000
+      });
+
+      return {
+        documents: response.data.documents || [],
+        pagination: {
+          page,
+          perPage,
+          total: response.data.documents?.length || 0
+        }
+      };
+    } catch (error) {
+      console.error('Error listando documentos:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  // 🆕 NUEVO: Obtener detalles completos de un documento (incluyendo metadata)
+  async getDocumentDetails(documentId) {
+    try {
+      if (!this.apiKey) {
+        throw new Error('API Key no configurada');
+      }
+
+      const response = await axios.get(`${this.baseURL}/document/${documentId}`, {
+        headers: this.getHeaders(),
+        timeout: 60000
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Error obteniendo detalles del documento:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
   // Método principal para enviar presupuesto para firma
  async sendBudgetForSignature(pdfPath, fileName, signerEmail, signerName) {
     try {
