@@ -293,8 +293,53 @@ const BudgetList = () => {
     }
 
     try {
+      // 🔍 Buscar el budget para verificar el método de firma
+      const budget = budgets.find(b => b.idBudget === budgetId);
       
-      // Usar la ruta de preview específica para vista previa
+      // �📄 CASO 1: Firma Manual - Usar proxy del backend
+      if (budget && budget.signatureMethod === 'manual' && budget.manualSignedPdfPath) {
+        console.log(`📄 Budget ${budgetId} tiene firma manual, cargando desde backend...`);
+        
+        // Usar el endpoint del backend que hace de proxy y establece headers inline
+        const response = await api.get(`/budget/${budgetId}/view-manual-signed`, {
+          responseType: "blob",
+          withCredentials: true
+        });
+        
+        // Crear una URL temporal para el Blob
+        const objectUrl = window.URL.createObjectURL(response.data);
+        
+        setPdfUrlForModal(objectUrl);
+        setPdfTitleForModal(`📄 Presupuesto Firmado Manual - ${budgetId}`);
+        setIsModalOpen(true);
+        return; // ✅ El finally limpiará viewingPdfId
+      }
+      
+      // ✍️ CASO 2: Firma SignNow - Usar endpoint de visualización (no descarga)
+      if (budget && budget.signatureMethod === 'signnow' && budget.signNowDocumentId) {
+        
+        try {
+          // Usar el endpoint de visualización que envía inline (no attachment)
+          const response = await api.get(`/budget/${budgetId}/view-signed`, {
+            responseType: "blob",
+            withCredentials: true
+          });
+          
+          // Crear una URL temporal para el Blob
+          const objectUrl = window.URL.createObjectURL(response.data);
+          
+          setPdfUrlForModal(objectUrl);
+          setPdfTitleForModal(`✍️ Presupuesto Firmado SignNow - ${budgetId}`);
+          setIsModalOpen(true);
+          return; // ✅ El finally limpiará viewingPdfId
+        } catch (signNowError) {
+          // Si falla (ej: documento aún no firmado), regenerar PDF sin firma
+          console.warn(`⚠️ SignNow PDF no disponible para budget ${budgetId}, regenerando...`, signNowError.response?.data);
+          // Continuar al CASO 3 para regenerar
+        }
+      }
+      
+      // 🔄 CASO 3: Sin firma o legacy - Regenerar PDF desde backend
       const response = await api.get(`/budget/${budgetId}/preview`, {
         responseType: "blob", // Obtener como Blob
       });
@@ -311,9 +356,8 @@ const BudgetList = () => {
       setIsModalOpen(true);
     } catch (error) {
       console.error("Error fetching PDF for viewing:", error);
-      alert(
-        "Error al obtener el PDF para visualizar. Verifique que exista y tenga permisos."
-      );
+      const errorMsg = error.response?.data?.message || "Error al obtener el PDF para visualizar. Verifique que exista y tenga permisos.";
+      alert(errorMsg);
     } finally {
       setViewingPdfId(null); // Dejar de indicar carga
     }
@@ -321,7 +365,6 @@ const BudgetList = () => {
 
   // *** FUNCIÓN para manejar la vista del PDF LEGACY ***
   const handleViewLegacyBudgetPdf = async (budgetId, directUrl = null) => {
-    console.log(`🔍 handleViewLegacyBudgetPdf called:`, { budgetId, directUrl });
     setViewingPdfId(budgetId); // Indicar que se está cargando la vista previa
 
     // Limpiar modal anterior si existe
@@ -334,7 +377,6 @@ const BudgetList = () => {
     try {
       // Si tenemos URL directa de Cloudinary, usarla directamente
       if (directUrl && directUrl.includes('cloudinary.com')) {
-        console.log(`🎯 Using direct Cloudinary URL: ${directUrl}`);
         setPdfUrlForModal(directUrl);
         setPdfTitleForModal(`🏷️ Presupuesto Legacy - ${budgetId}`);
         setIsModalOpen(true);
@@ -839,19 +881,6 @@ const BudgetList = () => {
                       // Variables for legacy budget detection
                       const isLegacyBudget = budget.isLegacy === true;
                       const hasLegacyBudgetPdf = isLegacyBudget && !!budget.hasLegacySignedPdf;
-
-                      // 🔍 DEBUGGING: Ver qué datos llegan del backend para presupuesto legacy
-                      if (budget.idBudget === 17) {
-                        console.log('🔍 DEBUGGING BUDGET 17 (LEGACY):');
-                        console.log('- budget.isLegacy:', budget.isLegacy);
-                        console.log('- budget.hasLegacySignedPdf:', budget.hasLegacySignedPdf);
-                        console.log('- budget.legacySignedPdfUrl:', budget.legacySignedPdfUrl);
-                        console.log('- isLegacyBudget:', isLegacyBudget);
-                        console.log('- hasLegacyBudgetPdf:', hasLegacyBudgetPdf);
-                        console.log('- Full budget object:', budget);
-                      }
-
-                     
 
                       let permitExpirationAlertIcon = null;
                       const permitExpStatus =
@@ -1522,20 +1551,6 @@ const BudgetList = () => {
                     const hasBudgetPdfItself = !!budget.pdfPath;
                     const isLegacyBudget = !!budget.isLegacy;
                     const hasLegacyBudgetPdf = isLegacyBudget && !!budget.hasLegacySignedPdf;
-                    
-                    // Debug para presupuestos legacy
-                    if (isLegacyBudget) {
-                      console.log(`🏷️ FRONTEND Legacy Budget ${budget.idBudget}:`, {
-                        applicantName: budget.applicantName,
-                        isLegacy: budget.isLegacy,
-                        isLegacyBudget,
-                        hasLegacySignedPdf: budget.hasLegacySignedPdf,
-                        legacySignedPdfUrl: budget.legacySignedPdfUrl,
-                        hasLegacyBudgetPdf,
-                        shouldShowBadge: isLegacyBudget,
-                        shouldShowPdfButton: hasLegacyBudgetPdf
-                      });
-                    }
 
                     return (
                       <div
@@ -1590,7 +1605,6 @@ const BudgetList = () => {
                           {/* Etiqueta Legacy */}
                           {isLegacyBudget && (
                             <div className="col-span-2">
-                              {console.log(`🎯 RENDERIZANDO BADGE LEGACY para Budget ${budget.idBudget}`)}
                               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border-2 border-amber-300">
                                 <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                   <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -2024,7 +2038,6 @@ const BudgetList = () => {
                                 {permitId && hasPermitPdfData && (
                                   <button
                                     onClick={() => {
-                                      console.log('🖱️ PDF Button clicked:', { budgetId: budget.idBudget, pdfType: 'pdfData' });
                                       handleShowPermitPdfInModal(
                                         budget,
                                         "pdfData"
@@ -2384,4 +2397,5 @@ const BudgetList = () => {
 };
 
 export default BudgetList;
+
 

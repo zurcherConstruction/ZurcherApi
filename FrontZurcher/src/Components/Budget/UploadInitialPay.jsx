@@ -164,10 +164,18 @@ const UploadInitialPay = () => {
     }
   };
 
-  // 🆕 Filtrar presupuestos que NO tengan comprobante cargado
+  // Filtrar presupuestos FIRMADOS que NO tengan comprobante cargado
+  // Solo mostrar presupuestos realmente firmados (status='signed')
   // Excluir estado "approved" (significa que YA se cargó el comprobante)
   // Excluir presupuestos con paymentInvoice o paymentProofAmount
   const sendBudgets = budgets.filter(b => {
+    // Solo mostrar presupuestos con status='signed' (realmente firmados)
+    if (b.status !== 'signed') return false;
+    
+    // Verificar que tenga método de firma válido (signnow o manual)
+    const isSigned = b.signatureMethod === 'signnow' || b.signatureMethod === 'manual';
+    if (!isSigned) return false;
+    
     // Excluir si el estado es "approved" (ya tiene comprobante)
     if (b.status === 'approved') return false;
     // Excluir si tiene paymentInvoice (URL del comprobante)
@@ -177,11 +185,6 @@ const UploadInitialPay = () => {
     // Incluir el presupuesto si no cumple ninguna de las condiciones anteriores
     return true;
   });
-
-  // 🔍 Debug: Mostrar cuántos presupuestos se filtraron
-  console.log(`📊 Total de presupuestos: ${budgets.length}`);
-  console.log(`✅ Presupuestos SIN comprobante: ${sendBudgets.length}`);
-  console.log(`❌ Presupuestos CON comprobante (o approved): ${budgets.length - sendBudgets.length}`);
 
   if (budgetsLoading) {
     return (
@@ -220,9 +223,12 @@ const UploadInitialPay = () => {
         <div className="max-w-md mx-auto px-4">
           <div className="bg-white rounded-xl shadow-lg p-8 text-center">
             <ClipboardDocumentListIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500 font-medium">No hay presupuestos pendientes de comprobante</p>
-            <p className="text-gray-400 text-sm mt-1">
-              Todos los presupuestos ya tienen su comprobante de pago inicial cargado.
+            <p className="text-gray-500 font-medium">No hay presupuestos firmados disponibles</p>
+            <p className="text-gray-600 text-sm mt-2">
+              No hay presupuestos firmados disponibles para subir comprobante de pago inicial.
+            </p>
+            <p className="text-gray-500 text-xs mt-3">
+              Los presupuestos deben estar firmados (vía SignNow o manualmente) antes de poder cargar el comprobante de pago.
             </p>
           </div>
         </div>
@@ -253,7 +259,7 @@ const UploadInitialPay = () => {
             <div>
               <label htmlFor="budget-select" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
                 <ClipboardDocumentListIcon className="h-5 w-5 mr-2 text-blue-500" />
-                Seleccionar Presupuesto (Sin comprobante de pago)
+                Seleccionar Presupuesto Firmado (Sin comprobante de pago)
               </label>
               <select
                 id="budget-select"

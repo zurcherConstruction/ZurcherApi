@@ -671,33 +671,39 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
 
   if (!isDraft && paymentAmountForStripe > 0 && process.env.STRIPE_SECRET_KEY) {
     try {
-      // Configurar expiración del link de pago para 30 días desde ahora
-      const expiresAt = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60); // 30 días en segundos
-      
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
-        line_items: [{
-          price_data: {
-            currency: 'usd',
-            product_data: { name: `Invoice #${budgetData.invoiceNumber || budgetData.idBudget} - ${budgetData.applicantName}` },
-            unit_amount: paymentAmountWithFee
-          },
-          quantity: 1,
-        }],
-        mode: 'payment',
-        expires_at: expiresAt, // Link expira en 30 días
-        success_url: 'https://www.zurcherseptic.com/thank-you',
-        cancel_url: 'https://www.zurcherseptic.com/thank-you',
-        ...(clientEmailFromPermit && { customer_email: clientEmailFromPermit }),
+      // Crear producto y precio en Stripe
+      const product = await stripe.products.create({
+        name: `Invoice #${budgetData.invoiceNumber || budgetData.idBudget} - ${budgetData.applicantName}`,
         metadata: { 
-          internal_budget_id: budgetData.idBudget, 
+          internal_budget_id: budgetData.idBudget.toString(), 
           payment_type: 'invoice_payment',
           invoice_number: budgetData.invoiceNumber || budgetData.idBudget.toString()
         }
       });
-      paymentLinkUrl = session.url;
+
+      const price = await stripe.prices.create({
+        product: product.id,
+        unit_amount: paymentAmountWithFee,
+        currency: 'usd',
+      });
+
+      // Crear Payment Link (permite expiración > 24 horas)
+      const paymentLink = await stripe.paymentLinks.create({
+        line_items: [{ price: price.id, quantity: 1 }],
+        after_completion: {
+          type: 'redirect',
+          redirect: { url: 'https://www.zurcherseptic.com/thank-you' }
+        },
+        metadata: { 
+          internal_budget_id: budgetData.idBudget.toString(), 
+          payment_type: 'invoice_payment',
+          invoice_number: budgetData.invoiceNumber || budgetData.idBudget.toString()
+        }
+      });
+      
+      paymentLinkUrl = paymentLink.url;
     } catch (stripeError) {
-      console.error("Stripe session creation error for invoice:", stripeError);
+      console.error("Stripe payment link creation error for invoice:", stripeError);
     }
   }
 

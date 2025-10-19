@@ -3,6 +3,7 @@ const BudgetController = require('../controllers/BudgetController');
 const { verifyToken } = require('../middleware/isAuth');
 const { allowRoles, isOwner, isAdmin, isRecept, isStaff } = require('../middleware/byRol');
 const { upload } = require('../middleware/multer');
+const { verifyPendingSignatures } = require('../controllers/SignatureVerificationController');
 const router = express.Router();
 
 // ========== NOTA: Las rutas públicas están en BudgetPublicRoutes.js ==========
@@ -119,6 +120,48 @@ router.get(
   BudgetController.downloadSignedBudget
 );
 
+// 🆕 Visualizar documento firmado (inline, para modal)
+router.get(
+  '/:idBudget/view-signed',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner', 'staff', 'finance']), // Todos pueden visualizar
+  BudgetController.viewSignedBudget
+);
+
+// 🆕 Visualizar documento firmado manualmente (proxy de Cloudinary)
+router.get(
+  '/:idBudget/view-manual-signed',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner', 'staff', 'finance']), // Todos pueden visualizar
+  BudgetController.viewManualSignedBudget
+);
+
+// 🔁 Reintentar descarga de PDF firmado
+const signNowController = require('../controllers/signNowController');
+router.post(
+  '/:idBudget/retry-signed-download',
+  verifyToken,
+  allowRoles(['admin', 'owner']),
+  signNowController.retryBudgetSignedDownload
+);
+
+// 🔗 Sincronizar documento manual de SignNow
+router.post(
+  '/:idBudget/sync-manual-signnow',
+  verifyToken,
+  allowRoles(['admin', 'owner']),
+  signNowController.syncManualSignNowDocument
+);
+
+// 📤 Subir PDF firmado manualmente (no desde SignNow)
+router.post(
+  '/:idBudget/upload-manual-signed',
+  verifyToken,
+  allowRoles(['admin', 'owner', 'recept']), // recept puede subir también
+  upload.single('file'), // Usar multer para recibir el archivo PDF
+  BudgetController.uploadManualSignedPdf
+);
+
 // ========== RUTAS EXISTENTES ==========
 
   router.put('/:idBudget', verifyToken, BudgetController.updateBudget); // Solo administradores pueden actualizar presupuestos
@@ -142,6 +185,14 @@ router.patch(
   verifyToken,
   allowRoles(['admin', 'recept', 'owner']), // Solo roles administrativos pueden editar
   BudgetController.updateClientData
+);
+
+// 🆕 Verificar manualmente firmas pendientes de SignNow
+router.post(
+  '/verify-signatures',
+  verifyToken,
+  isStaff, // Cualquier staff puede verificar
+  verifyPendingSignatures
 );
 
 // // ✅ RUTA DE DIAGNÓSTICO SMTP

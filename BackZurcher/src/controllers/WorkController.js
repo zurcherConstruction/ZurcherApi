@@ -204,7 +204,24 @@ const getWorkById = async (req, res) => {
         {
           model: Budget,
           as: 'budget',
-          attributes: ['idBudget', 'propertyAddress', 'status', 'paymentInvoice', 'paymentProofType', 'initialPayment', 'paymentProofAmount', 'date', 'applicantName','totalPrice', 'initialPaymentPercentage'],
+          attributes: [
+            'idBudget', 
+            'propertyAddress', 
+            'status', 
+            'paymentInvoice', 
+            'paymentProofType', 
+            'initialPayment', 
+            'paymentProofAmount', 
+            'date', 
+            'applicantName',
+            'totalPrice', 
+            'initialPaymentPercentage',
+            'signatureMethod',
+            'signNowDocumentId',
+            'signedPdfPath',
+            'manualSignedPdfPath',
+            'manualSignedPdfPublicId'
+          ],
         },
         {
           model: Permit,

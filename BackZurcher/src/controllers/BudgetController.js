@@ -764,6 +764,155 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
     }
   },
 
+  // 🆕 Nuevo método para VISUALIZAR (no descargar) el PDF firmado de SignNow
+  async viewSignedBudget(req, res) {
+    const { idBudget } = req.params;
+
+    try {
+      console.log(`--- Visualizando documento firmado para presupuesto ${idBudget} ---`);
+
+      // Buscar el presupuesto
+      const budget = await Budget.findByPk(idBudget);
+
+      if (!budget) {
+        return res.status(404).json({
+          error: true,
+          message: 'Presupuesto no encontrado'
+        });
+      }
+
+      // Si ya existe el archivo localmente, servirlo directamente
+      if (budget.signedPdfPath && fs.existsSync(budget.signedPdfPath)) {
+        console.log(`✅ Sirviendo PDF firmado existente: ${budget.signedPdfPath}`);
+        
+        // Establecer headers ANTES de enviar el archivo
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'inline'); // ← inline para visualizar, no descargar
+        
+        // Leer y enviar el archivo
+        const fileStream = fs.createReadStream(budget.signedPdfPath);
+        return fileStream.pipe(res);
+      }
+
+      // Si no existe localmente, descargarlo de SignNow
+      if (!budget.signNowDocumentId) {
+        return res.status(400).json({
+          error: true,
+          message: 'Este presupuesto no tiene documento firmado disponible'
+        });
+      }
+
+      // Inicializar servicio de SignNow
+      const SignNowService = require('../services/ServiceSignNow');
+      const signNowService = new SignNowService();
+
+      // Verificar si está firmado
+      const signatureStatus = await signNowService.isDocumentSigned(budget.signNowDocumentId);
+
+      if (!signatureStatus.isSigned) {
+        return res.status(400).json({
+          error: true,
+          message: 'El documento aún no ha sido firmado'
+        });
+      }
+
+      // Crear path para el archivo firmado
+      const path = require('path');
+      const uploadsDir = path.join(__dirname, '..', '..', 'uploads', 'signed-budgets');
+
+      // Crear directorio si no existe
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+
+      const signedFileName = `Budget_${budget.idBudget}_signed.pdf`;
+      const signedFilePath = path.join(uploadsDir, signedFileName);
+
+      // Descargar documento firmado de SignNow
+      await signNowService.downloadSignedDocument(budget.signNowDocumentId, signedFilePath);
+
+      // Actualizar presupuesto con path del archivo firmado
+      await budget.update({
+        signedPdfPath: signedFilePath
+      });
+
+      // Establecer headers ANTES de enviar el archivo
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline'); // ← inline para visualizar, no descargar
+      
+      // Leer y enviar el archivo
+      const fileStream = fs.createReadStream(signedFilePath);
+      fileStream.pipe(res);
+
+    } catch (error) {
+      console.error('❌ Error visualizando documento firmado:', error);
+
+      res.status(500).json({
+        error: true,
+        message: 'Error visualizando documento firmado',
+        details: error.message
+      });
+    }
+  },
+
+  // 🆕 Método para visualizar PDF firmado manualmente (proxy de Cloudinary)
+  async viewManualSignedBudget(req, res) {
+    const { idBudget } = req.params;
+
+    try {
+      console.log(`--- Visualizando documento manual para presupuesto ${idBudget} ---`);
+
+      // Buscar el presupuesto
+      const budget = await Budget.findByPk(idBudget);
+
+      if (!budget) {
+        return res.status(404).json({
+          error: true,
+          message: 'Presupuesto no encontrado'
+        });
+      }
+
+      if (!budget.manualSignedPdfPath) {
+        return res.status(400).json({
+          error: true,
+          message: 'Este presupuesto no tiene PDF firmado manual'
+        });
+      }
+
+      console.log(`📄 Descargando PDF manual desde Cloudinary: ${budget.manualSignedPdfPath}`);
+
+      // Descargar el PDF desde Cloudinary usando axios
+      const axios = require('axios');
+      const cloudinaryResponse = await axios.get(budget.manualSignedPdfPath, {
+        responseType: 'arraybuffer'
+      });
+
+      if (cloudinaryResponse.status !== 200) {
+        throw new Error(`Error descargando de Cloudinary: ${cloudinaryResponse.statusText}`);
+      }
+
+      // Obtener el buffer del PDF
+      const pdfBuffer = Buffer.from(cloudinaryResponse.data);
+
+      // Establecer headers para visualización inline
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline'); // ← inline para visualizar
+      res.setHeader('Content-Length', pdfBuffer.length);
+
+      // Enviar el PDF
+      res.send(pdfBuffer);
+
+    } catch (error) {
+      console.error('❌ Error visualizando documento manual:', error);
+
+      res.status(500).json({
+        error: true,
+        message: 'Error visualizando documento manual',
+        details: error.message
+      });
+    }
+  },
+
 
   // Asegúrate de que getBudgetById incluya los lineItems:
   async getBudgetById(req, res) {
@@ -908,7 +1057,12 @@ async getBudgets(req, res) {
         'invoiceNumber', // 🆕 Número de invoice (para diferenciar Draft de Invoice)
         'reviewedAt', // 🆕 Fecha de aprobación del cliente
         'convertedToInvoiceAt', // 🆕 Fecha de conversión a invoice
-        'sentForReviewAt' // 🆕 Fecha de envío para revisión
+        'sentForReviewAt', // 🆕 Fecha de envío para revisión
+        'signatureMethod', // 🆕 Método de firma (signnow/manual/legacy/none)
+        'manualSignedPdfPath', // 🆕 URL del PDF firmado manualmente
+        'manualSignedPdfPublicId', // 🆕 Public ID del PDF manual
+        'signedPdfPath', // 🆕 URL del PDF firmado por SignNow
+        'signNowDocumentId' // 🆕 ID del documento en SignNow
       ]
     });
 
@@ -4343,6 +4497,139 @@ async optionalDocs(req, res) {
       }
       res.status(500).json({ 
         error: 'Error al convertir el presupuesto',
+        details: error.message 
+      });
+    }
+  },
+
+  // 📤 SUBIR PDF FIRMADO MANUALMENTE (manual signature upload)
+  async uploadManualSignedPdf(req, res) {
+    try {
+      const { idBudget } = req.params;
+      console.log(`📤 Iniciando carga manual de PDF firmado para Budget ${idBudget}`);
+
+      // 1. Validar que se envió un archivo
+      if (!req.file) {
+        return res.status(400).json({ 
+          error: 'No se proporcionó ningún archivo PDF' 
+        });
+      }
+
+      // 2. Validar que el archivo es PDF
+      const allowedMimeTypes = ['application/pdf'];
+      if (!allowedMimeTypes.includes(req.file.mimetype)) {
+        return res.status(400).json({ 
+          error: 'El archivo debe ser un PDF',
+          mimeTypeReceived: req.file.mimetype
+        });
+      }
+
+      // 3. Buscar el Budget con información del Permit
+      const budget = await Budget.findByPk(idBudget, {
+        include: [{ 
+          model: Permit, 
+          attributes: ['propertyAddress', 'permitNumber'] 
+        }]
+      });
+
+      if (!budget) {
+        return res.status(404).json({ 
+          error: 'Presupuesto no encontrado' 
+        });
+      }
+
+      // 4. Crear identificador único con invoice# y dirección (si existe)
+      const invoiceTag = budget.invoiceNumber 
+        ? `invoice-${budget.invoiceNumber}` 
+        : `budget-${idBudget}`;
+      
+      const normalizedAddress = budget.Permit?.propertyAddress
+        ? budget.Permit.propertyAddress.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()
+        : 'no-address';
+      
+      const propertyTag = `property-${normalizedAddress}`;
+
+      // 5. Eliminar el PDF firmado anterior de Cloudinary (si existe)
+      if (budget.manualSignedPdfPublicId) {
+        console.log(`🗑️ Eliminando PDF manual anterior: ${budget.manualSignedPdfPublicId}`);
+        try {
+          await cloudinary.uploader.destroy(budget.manualSignedPdfPublicId);
+          console.log('✅ PDF anterior eliminado de Cloudinary');
+        } catch (deleteError) {
+          console.warn('⚠️ No se pudo eliminar el PDF anterior:', deleteError.message);
+        }
+      }
+
+      // 6. Subir el nuevo PDF a Cloudinary
+      console.log('☁️ Subiendo PDF firmado manualmente a Cloudinary...');
+      
+      const uploadResult = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: 'signed_budgets',
+            resource_type: 'raw', // Para PDFs
+            public_id: `budget-${idBudget}-manual-signed-${Date.now()}`,
+            tags: [invoiceTag, propertyTag, 'manual-signature', 'signed-budget'],
+            context: {
+              budget_id: idBudget,
+              invoice_number: budget.invoiceNumber || 'N/A',
+              property_address: budget.Permit?.propertyAddress || 'N/A',
+              uploaded_by: req.user?.email || 'unknown',
+              signature_method: 'manual'
+            }
+          },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        );
+
+        uploadStream.end(req.file.buffer);
+      });
+
+      console.log('✅ PDF subido exitosamente a Cloudinary:', uploadResult.secure_url);
+
+      // 7. Actualizar el Budget con los datos del PDF manual
+      await budget.update({
+        signatureMethod: 'manual',
+        manualSignedPdfPath: uploadResult.secure_url,
+        manualSignedPdfPublicId: uploadResult.public_id,
+        status: 'signed' // Cambiar estado a firmado
+      });
+
+      console.log(`✅ Budget ${idBudget} actualizado con PDF firmado manual`);
+
+      // 8. Enviar notificación (deshabilitado temporalmente - tipo no configurado)
+      // try {
+      //   await sendNotifications({
+      //     type: 'BUDGET_MANUAL_SIGNED',
+      //     budgetId: idBudget,
+      //     permitId: budget.permitId,
+      //     message: `Presupuesto #${budget.invoiceNumber || idBudget} firmado manualmente`,
+      //     metadata: { signatureMethod: 'manual' }
+      //   });
+      // } catch (notifError) {
+      //   console.warn('⚠️ Error al enviar notificación:', notifError.message);
+      // }
+
+      // 9. Responder con éxito
+      res.status(200).json({
+        success: true,
+        message: 'PDF firmado cargado exitosamente',
+        budget: {
+          idBudget: budget.idBudget,
+          invoiceNumber: budget.invoiceNumber,
+          status: budget.status,
+          signatureMethod: budget.signatureMethod,
+          manualSignedPdfPath: budget.manualSignedPdfPath
+        },
+        pdfUrl: uploadResult.secure_url
+      });
+
+    } catch (error) {
+      console.error('❌ Error al subir PDF firmado manual:', error);
+      res.status(500).json({ 
+        error: 'Error al subir el PDF firmado',
         details: error.message 
       });
     }

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useParams } from "react-router-dom";
 import { fetchBudgets, fetchBudgetById, updateBudget, } from "../../Redux/Actions/budgetActions";
+import { toast } from 'react-toastify'; // 🆕 Para notificaciones
 // ✅ AGREGAR ESTAS IMPORTACIONES:
 import { fetchBudgetItems } from "../../Redux/Actions/budgetItemActions";
 import { fetchStaff } from "../../Redux/Actions/adminActions"; // 🆕 Para cargar sales reps
@@ -65,6 +66,11 @@ const EditBudget = () => {
   const [newOptionalDocsFile, setNewOptionalDocsFile] = useState(null);
   const [uploadingPermitPdf, setUploadingPermitPdf] = useState(false);
   const [uploadingOptionalDocs, setUploadingOptionalDocs] = useState(false);
+
+  // 🆕 Estados para carga manual de PDF firmado
+  const [showManualSignatureUpload, setShowManualSignatureUpload] = useState(false);
+  const [manualSignedPdfFile, setManualSignedPdfFile] = useState(null);
+  const [uploadingManualSignedPdf, setUploadingManualSignedPdf] = useState(false);
 
   const [manualItemData, setManualItemData] = useState({
     category: "",
@@ -707,6 +713,40 @@ const editableBudgets = useMemo(() => {
     }
   };
 
+  // 🆕 Handler para subir PDF firmado manualmente
+  const handleManualSignedPdfUpload = async () => {
+    if (!manualSignedPdfFile || !selectedBudgetId) {
+      toast.error('Por favor selecciona un archivo PDF');
+      return;
+    }
+
+    setUploadingManualSignedPdf(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', manualSignedPdfFile);
+
+      const response = await api.post(`/budget/${selectedBudgetId}/upload-manual-signed`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      if (response.data.success) {
+        toast.success('✅ PDF firmado cargado exitosamente');
+        setShowManualSignatureUpload(false);
+        setManualSignedPdfFile(null);
+        
+        // Recargar el budget actual para ver los cambios
+        dispatch(fetchBudgetById(selectedBudgetId));
+      }
+    } catch (error) {
+      console.error('Error al cargar PDF firmado:', error);
+      toast.error(error.response?.data?.error || 'Error al cargar el PDF firmado');
+    } finally {
+      setUploadingManualSignedPdf(false);
+    }
+  };
+
   // --- Renderizado ---
   return (
     <div className="max-w-4xl mx-auto p-4 min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -886,6 +926,170 @@ const editableBudgets = useMemo(() => {
                 <div className="mt-4">
                   <label htmlFor="generalNotes" className="block text-sm font-medium text-gray-700">General Notes</label>
                   <textarea id="generalNotes" name="generalNotes" value={formData.generalNotes} onChange={handleGeneralInputChange} rows="3" className="input-style mt-1"></textarea>
+                </div>
+
+                {/* 🆕 SECCIÓN DE FIRMA MANUAL DEL PRESUPUESTO */}
+                <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-300 rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-green-900">📄 Firma del Presupuesto</h4>
+                      {formData.signatureMethod && (
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          formData.signatureMethod === 'signnow' ? 'bg-green-100 text-green-800' :
+                          formData.signatureMethod === 'manual' ? 'bg-blue-100 text-blue-800' :
+                          formData.signatureMethod === 'legacy' ? 'bg-gray-100 text-gray-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          {formData.signatureMethod === 'signnow' ? '✓ SignNow' :
+                           formData.signatureMethod === 'manual' ? '📄 Manual' :
+                           formData.signatureMethod === 'legacy' ? '📦 Legacy' :
+                           '✗ Sin Firmar'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Mostrar información si ya está firmado */}
+                  {formData.status === 'signed' && formData.signatureMethod && (
+                    <div className="mb-3 p-3 bg-white border-l-4 border-green-500 rounded-r-lg shadow-sm">
+                      <div className="flex items-start">
+                        <svg className="w-5 h-5 text-green-500 mt-0.5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-gray-900">Presupuesto Firmado</p>
+                          <p className="text-xs text-gray-600 mt-1">
+                            Método: {formData.signatureMethod === 'signnow' ? 'SignNow (Firma Digital)' :
+                                     formData.signatureMethod === 'manual' ? 'Carga Manual de PDF' :
+                                     formData.signatureMethod === 'legacy' ? 'Sistema Anterior' : 'Desconocido'}
+                          </p>
+                          {formData.manualSignedPdfPath && (
+                            <a
+                              href={formData.manualSignedPdfPath}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:text-blue-800 underline mt-1 inline-block"
+                            >
+                              Ver PDF Firmado →
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 🆕 Indicador de PDF Manual Ya Subido */}
+                  {formData.signatureMethod === 'manual' && formData.manualSignedPdfPath && (
+                    <div className="p-4 bg-green-50 border-2 border-green-300 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0">
+                          <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-sm font-bold text-green-800 mb-1">✓ PDF Firmado Manual Cargado</h4>
+                          <p className="text-sm text-green-700 mb-3">
+                            Este presupuesto ya tiene un PDF firmado manualmente.
+                          </p>
+                          <div className="flex gap-2">
+                            <a
+                              href={formData.manualSignedPdfPath}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-md hover:bg-green-700 flex items-center gap-1"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                              Ver PDF
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => setShowManualSignatureUpload(true)}
+                              className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 flex items-center gap-1"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                              </svg>
+                              Reemplazar PDF
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Botón para subir PDF firmado manualmente (solo si no está firmado) */}
+                  {formData.status !== 'signed' && formData.signatureMethod !== 'manual' && (
+                    <div className="space-y-3">
+                      <p className="text-sm text-gray-700">
+                        Si el cliente firmó el presupuesto en físico o te envió un PDF firmado por correo, puedes cargarlo aquí.
+                      </p>
+                      {!showManualSignatureUpload ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowManualSignatureUpload(true)}
+                          className="px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                          </svg>
+                          Subir Presupuesto Firmado (PDF)
+                        </button>
+                      ) : (
+                        <div className="space-y-3 p-4 bg-white rounded-lg border border-green-200">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Seleccionar archivo PDF firmado
+                            </label>
+                            <input
+                              type="file"
+                              accept="application/pdf"
+                              onChange={(e) => setManualSignedPdfFile(e.target.files[0])}
+                              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                            />
+                            {manualSignedPdfFile && (
+                              <p className="mt-2 text-sm text-gray-600">
+                                Archivo seleccionado: <span className="font-medium">{manualSignedPdfFile.name}</span>
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={handleManualSignedPdfUpload}
+                              disabled={!manualSignedPdfFile || uploadingManualSignedPdf}
+                              className="px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                              {uploadingManualSignedPdf ? (
+                                <>
+                                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                  Subiendo...
+                                </>
+                              ) : (
+                                <>✓ Cargar PDF</>  
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowManualSignatureUpload(false);
+                                setManualSignedPdfFile(null);
+                              }}
+                              className="px-4 py-2 bg-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-400"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* 🆕 Lead Source & Commission Management */}
