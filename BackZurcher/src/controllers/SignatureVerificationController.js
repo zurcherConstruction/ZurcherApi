@@ -15,10 +15,11 @@ const verifyPendingSignatures = async (req, res) => {
     const signNowService = new SignNowService();
 
     // Buscar presupuestos con SignNow pendientes
+    // Excluir 'signed' y 'approved' porque ya fueron procesados
     const pendingBudgets = await Budget.findAll({
       where: {
         signNowDocumentId: { [Op.ne]: null },
-        status: { [Op.ne]: 'signed' },
+        status: { [Op.notIn]: ['signed', 'approved'] },
         signatureMethod: 'signnow'
       },
       include: [{ model: Permit, attributes: ['applicantName', 'propertyAddress'] }]
