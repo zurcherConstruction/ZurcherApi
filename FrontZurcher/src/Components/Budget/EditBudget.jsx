@@ -122,22 +122,21 @@ const EditBudget = () => {
 
   // Actualiza el filtro en la línea ~45:
 const editableBudgets = useMemo(() => {
-  // ✅ INCLUIR TODOS LOS ESTADOS EDITABLES (incluye rejected y pending_review)
-  // 🧪 TESTING MODE: Permitir editar Budgets en cualquier estado (incluyendo con Works)
+  // ✅ ESTADOS EDITABLES (alineados con el modelo Budget)
   const allowedStatus = [
-    "draft",             // Borrador
-                 // 🆕 NUEVO: Borrador inicial (no enviado) - OPCIONAL
-    "pending_review", 
-    "created",           // Recién creado
-    "send",              // Marcado para enviar
-    "sent",              // Enviado
-    "pending",           // Pendiente
-    "pending_review",    // 🆕 En revisión del cliente
-    "rejected",          // 🆕 Rechazado (para reenvío)
-    "notResponded",      // Sin respuesta
-    "sent_for_signature",// Enviado para firma
-    "signed",            // ⚠️ Firmado (agregado para testing - editar Permits)
-    "approved"           // ⚠️ Aprobado (agregado para testing - editar Permits)
+    "draft",              // Borrador inicial
+    "pending_review",     // En revisión del cliente
+    "client_approved",    // Cliente aprobó
+    "created",            // Recién creado (default)
+    "send",               // Marcado para enviar
+    "sent",               // Ya enviado por email
+    "pending",            // Pendiente de respuesta
+    "sent_for_signature", // Enviado para firma
+    "rejected",           // Rechazado (para reenvío)
+    "notResponded",       // Sin respuesta
+    // 🧪 TESTING MODE: Permitir editar Budgets firmados/aprobados (solo para editar Permits)
+    "signed",             // ⚠️ Firmado (para editar Permits)
+    "approved"            // ⚠️ Aprobado (para editar Permits)
   ];
   return (budgets || []).filter(budget => allowedStatus.includes(budget.status));
 }, [budgets]);
@@ -217,9 +216,15 @@ const editableBudgets = useMemo(() => {
 
   // --- Poblar Estado Local (formData) cuando currentBudget cambia ---
   useEffect(() => {
-   
-
-    if (currentBudget && currentBudget.idBudget === selectedBudgetId && (!formData || formData.idBudget !== selectedBudgetId || forceFormDataRefresh > 0)) {
+    // 🔄 SIEMPRE recrear formData si:
+    // 1. currentBudget existe y coincide con selectedBudgetId
+    // 2. Y (formData no existe OR forceFormDataRefresh está activo)
+    // Nota: forceFormDataRefresh > 0 fuerza la recreación incluso si formData ya existe
+    const shouldRecreateFormData = currentBudget && 
+                                    currentBudget.idBudget === selectedBudgetId && 
+                                    (!formData || formData.idBudget !== selectedBudgetId || forceFormDataRefresh > 0);
+    
+    if (shouldRecreateFormData) {
       
 
       try {
@@ -311,11 +316,18 @@ const editableBudgets = useMemo(() => {
         setFormData(null);
       }
     } else {
-      // Log por qué no se pobló
-      if (!currentBudget) console.log('Condition not met: currentBudget is null/undefined.');
-      else if (currentBudget.idBudget !== selectedBudgetId) console.log(`Condition not met: ID mismatch (${currentBudget.idBudget} !== ${selectedBudgetId}).`);
-      else if (formData && formData.idBudget === selectedBudgetId) console.log('Condition not met: formData already exists for this budgetId.');
-      else console.log('Condition not met: Unknown reason.');
+      // 📊 Log detallado de por qué NO se recreó formData (solo si no es por refresh forzado)
+      if (forceFormDataRefresh === 0) {
+        if (!currentBudget) {
+          console.log('⏭️ formData NO recreado: currentBudget is null/undefined.');
+        } else if (currentBudget.idBudget !== selectedBudgetId) {
+          console.log(`⏭️ formData NO recreado: ID mismatch (${currentBudget.idBudget} !== ${selectedBudgetId}).`);
+        } else if (formData && formData.idBudget === selectedBudgetId) {
+          console.log('⏭️ formData NO recreado: formData ya existe para este budgetId (OK - no hay cambios pendientes).');
+        } else {
+          console.log('⏭️ formData NO recreado: Unknown reason.');
+        }
+      }
     }
   }, [currentBudget, selectedBudgetId, formData, forceFormDataRefresh]); // 🆕 Agregado forceFormDataRefresh
 
@@ -543,10 +555,20 @@ const editableBudgets = useMemo(() => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    console.log('🚀 === INICIO DE HANDLESUBMIT ===');
+    console.log('📋 formData:', formData);
+    console.log('🎯 selectedBudgetId:', selectedBudgetId);
+    
     if (!formData || !selectedBudgetId) {
+      console.error('❌ No hay datos de formulario o budget seleccionado.');
+      console.log('formData existe?', !!formData);
+      console.log('selectedBudgetId existe?', !!selectedBudgetId);
       alert("No hay datos de formulario o budget seleccionado.");
       return;
     }
+    
+    console.log('✅ Validación inicial pasada, continuando con submit...');
     setIsSubmitting(true);
    
 
@@ -715,35 +737,56 @@ const editableBudgets = useMemo(() => {
 
   // 🆕 Handler para subir PDF firmado manualmente
   const handleManualSignedPdfUpload = async () => {
+    console.log('📤 === INICIO DE HANDLEMANULSIGNEDPDFUPLOAD ===');
+    console.log('📄 Archivo seleccionado:', manualSignedPdfFile?.name);
+    console.log('🎯 Budget ID:', selectedBudgetId);
+    
     if (!manualSignedPdfFile || !selectedBudgetId) {
+      console.error('❌ Validación fallida:');
+      console.log('   - manualSignedPdfFile:', !!manualSignedPdfFile);
+      console.log('   - selectedBudgetId:', !!selectedBudgetId);
       toast.error('Por favor selecciona un archivo PDF');
       return;
     }
 
+    console.log('✅ Validación pasada, iniciando carga...');
     setUploadingManualSignedPdf(true);
+    
     try {
       const formData = new FormData();
       formData.append('file', manualSignedPdfFile);
+      console.log('📦 FormData creado con archivo:', manualSignedPdfFile.name);
 
+      console.log('🌐 Enviando petición POST a /budget/${selectedBudgetId}/upload-manual-signed');
       const response = await api.post(`/budget/${selectedBudgetId}/upload-manual-signed`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
 
+      console.log('✅ Respuesta recibida:', response.data);
+      
       if (response.data.success) {
         toast.success('✅ PDF firmado cargado exitosamente');
+        console.log('🔄 Cerrando modal y limpiando estado...');
         setShowManualSignatureUpload(false);
         setManualSignedPdfFile(null);
         
         // Recargar el budget actual para ver los cambios
+        console.log('🔄 Recargando budget desde el servidor...');
         dispatch(fetchBudgetById(selectedBudgetId));
+      } else {
+        console.warn('⚠️ Respuesta no exitosa:', response.data);
       }
     } catch (error) {
-      console.error('Error al cargar PDF firmado:', error);
+      console.error('❌ Error al cargar PDF firmado:', error);
+      console.error('   - Status:', error.response?.status);
+      console.error('   - Data:', error.response?.data);
+      console.error('   - Message:', error.message);
       toast.error(error.response?.data?.error || 'Error al cargar el PDF firmado');
     } finally {
       setUploadingManualSignedPdf(false);
+      console.log('🏁 handleManualSignedPdfUpload finalizado');
     }
   };
 
@@ -830,7 +873,7 @@ const editableBudgets = useMemo(() => {
               <fieldset className="border border-gray-200 p-4 rounded-lg mb-6">
                 <legend className="flex items-center justify-between w-full px-2">
                   <span className="text-lg font-semibold text-blue-800">Permit Information</span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {currentBudget?.PermitIdPermit && (
                       <>
                         <button
@@ -864,6 +907,32 @@ const editableBudgets = useMemo(() => {
                     >
                       🔧 Editar Permit
                     </button>
+                    {/* 🆕 BOTÓN PARA SUBIR PDF FIRMADO - AHORA FUERA DEL FORM */}
+                    {(!formData.signatureMethod || formData.signatureMethod !== 'legacy') && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log('🔘 === BOTÓN "Subir Presupuesto Firmado" CLICKEADO ===');
+                          console.log('   - Budget ID:', selectedBudgetId);
+                          console.log('   - Estado actual showManualSignatureUpload:', showManualSignatureUpload);
+                          console.log('   - isBudgetLocked:', isBudgetLocked);
+                          console.log('   - formData.signatureMethod:', formData?.signatureMethod);
+                          setShowManualSignatureUpload(true);
+                          console.log('   - ✅ Modal debe abrirse ahora (showManualSignatureUpload = true)');
+                        }}
+                        className="inline-flex items-center px-3 py-2 text-sm font-medium text-green-600 bg-green-50 border border-green-200 rounded-md hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                      >
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        {formData.signatureMethod === 'signnow' || formData.signatureMethod === 'manual' 
+                          ? 'Reemplazar PDF Firmado' 
+                          : '📄 Subir PDF Firmado'
+                        }
+                      </button>
+                    )}
                   </div>
                 </legend>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -926,170 +995,6 @@ const editableBudgets = useMemo(() => {
                 <div className="mt-4">
                   <label htmlFor="generalNotes" className="block text-sm font-medium text-gray-700">General Notes</label>
                   <textarea id="generalNotes" name="generalNotes" value={formData.generalNotes} onChange={handleGeneralInputChange} rows="3" className="input-style mt-1"></textarea>
-                </div>
-
-                {/* 🆕 SECCIÓN DE FIRMA MANUAL DEL PRESUPUESTO */}
-                <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-300 rounded-lg">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-bold text-green-900">📄 Firma del Presupuesto</h4>
-                      {formData.signatureMethod && (
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          formData.signatureMethod === 'signnow' ? 'bg-green-100 text-green-800' :
-                          formData.signatureMethod === 'manual' ? 'bg-blue-100 text-blue-800' :
-                          formData.signatureMethod === 'legacy' ? 'bg-gray-100 text-gray-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {formData.signatureMethod === 'signnow' ? '✓ SignNow' :
-                           formData.signatureMethod === 'manual' ? '📄 Manual' :
-                           formData.signatureMethod === 'legacy' ? '📦 Legacy' :
-                           '✗ Sin Firmar'}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Mostrar información si ya está firmado */}
-                  {(formData.status === 'signed' || formData.status === 'approved') && formData.signatureMethod && (
-                    <div className="mb-3 p-3 bg-white border-l-4 border-green-500 rounded-r-lg shadow-sm">
-                      <div className="flex items-start">
-                        <svg className="w-5 h-5 text-green-500 mt-0.5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-gray-900">Presupuesto Firmado</p>
-                          <p className="text-xs text-gray-600 mt-1">
-                            Método: {formData.signatureMethod === 'signnow' ? 'SignNow (Firma Digital)' :
-                                     formData.signatureMethod === 'manual' ? 'Carga Manual de PDF' :
-                                     formData.signatureMethod === 'legacy' ? 'Sistema Anterior' : 'Desconocido'}
-                          </p>
-                          {formData.manualSignedPdfPath && (
-                            <a
-                              href={formData.manualSignedPdfPath}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-600 hover:text-blue-800 underline mt-1 inline-block"
-                            >
-                              Ver PDF Firmado →
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 🆕 Indicador de PDF Manual Ya Subido */}
-                  {formData.signatureMethod === 'manual' && formData.manualSignedPdfPath && (
-                    <div className="p-4 bg-green-50 border-2 border-green-300 rounded-lg">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0">
-                          <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="text-sm font-bold text-green-800 mb-1">✓ PDF Firmado Manual Cargado</h4>
-                          <p className="text-sm text-green-700 mb-3">
-                            Este presupuesto ya tiene un PDF firmado manualmente.
-                          </p>
-                          <div className="flex gap-2">
-                            <a
-                              href={formData.manualSignedPdfPath}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-md hover:bg-green-700 flex items-center gap-1"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                              </svg>
-                              Ver PDF
-                            </a>
-                            <button
-                              type="button"
-                              onClick={() => setShowManualSignatureUpload(true)}
-                              className="px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 flex items-center gap-1"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                              </svg>
-                              Reemplazar PDF
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Botón para subir PDF firmado manualmente (solo si no está firmado) */}
-                  {formData.status !== 'signed' && formData.signatureMethod !== 'manual' && (
-                    <div className="space-y-3">
-                      <p className="text-sm text-gray-700">
-                        Si el cliente firmó el presupuesto en físico o te envió un PDF firmado por correo, puedes cargarlo aquí.
-                      </p>
-                      {!showManualSignatureUpload ? (
-                        <button
-                          type="button"
-                          onClick={() => setShowManualSignatureUpload(true)}
-                          className="px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 flex items-center gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                          </svg>
-                          Subir Presupuesto Firmado (PDF)
-                        </button>
-                      ) : (
-                        <div className="space-y-3 p-4 bg-white rounded-lg border border-green-200">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Seleccionar archivo PDF firmado
-                            </label>
-                            <input
-                              type="file"
-                              accept="application/pdf"
-                              onChange={(e) => setManualSignedPdfFile(e.target.files[0])}
-                              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
-                            />
-                            {manualSignedPdfFile && (
-                              <p className="mt-2 text-sm text-gray-600">
-                                Archivo seleccionado: <span className="font-medium">{manualSignedPdfFile.name}</span>
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={handleManualSignedPdfUpload}
-                              disabled={!manualSignedPdfFile || uploadingManualSignedPdf}
-                              className="px-4 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                            >
-                              {uploadingManualSignedPdf ? (
-                                <>
-                                  <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                  </svg>
-                                  Subiendo...
-                                </>
-                              ) : (
-                                <>✓ Cargar PDF</>  
-                              )}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setShowManualSignatureUpload(false);
-                                setManualSignedPdfFile(null);
-                              }}
-                              className="px-4 py-2 bg-gray-300 text-gray-700 text-sm rounded-md hover:bg-gray-400"
-                            >
-                              Cancelar
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
 
                 {/* 🆕 Lead Source & Commission Management */}
@@ -1531,6 +1436,96 @@ const editableBudgets = useMemo(() => {
         budgetId={selectedBudgetId}
         onDataUpdated={handleClientDataUpdated}
       />
+
+      {/* 🆕 Modal para subir/reemplazar PDF firmado manualmente */}
+      {showManualSignatureUpload && (
+        <div className="fixed inset-0 bg-gray-700 bg-opacity-60 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6 relative">
+            <button
+              onClick={() => {
+                setShowManualSignatureUpload(false);
+                setManualSignedPdfFile(null);
+              }}
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <h2 className="text-lg font-bold mb-4 text-center text-green-900">
+              {formData?.signatureMethod === 'signnow' || formData?.signatureMethod === 'manual' 
+                ? 'Reemplazar PDF Firmado' 
+                : 'Subir Presupuesto Firmado (PDF)'}
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Seleccionar archivo PDF firmado
+                </label>
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={(e) => {
+                    console.log('📁 === ARCHIVO SELECCIONADO ===');
+                    console.log('   - Archivo:', e.target.files[0]?.name);
+                    console.log('   - Tipo:', e.target.files[0]?.type);
+                    console.log('   - Tamaño:', e.target.files[0]?.size, 'bytes');
+                    setManualSignedPdfFile(e.target.files[0]);
+                  }}
+                  className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                />
+                {manualSignedPdfFile && (
+                  <p className="mt-2 text-sm text-green-600">
+                    ✓ Archivo seleccionado: <span className="font-medium">{manualSignedPdfFile.name}</span>
+                  </p>
+                )}
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                <p className="text-xs text-blue-800">
+                  📄 Este PDF reemplazará cualquier documento firmado anterior. El presupuesto se marcará como firmado manualmente.
+                </p>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setShowManualSignatureUpload(false);
+                    setManualSignedPdfFile(null);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+                  disabled={uploadingManualSignedPdf}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('🎯 === BOTÓN "✓ Cargar PDF" CLICKEADO ===');
+                    console.log('   - Archivo:', manualSignedPdfFile?.name);
+                    console.log('   - Budget ID:', selectedBudgetId);
+                    console.log('   - uploadingManualSignedPdf:', uploadingManualSignedPdf);
+                    handleManualSignedPdfUpload();
+                  }}
+                  disabled={!manualSignedPdfFile || uploadingManualSignedPdf}
+                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {uploadingManualSignedPdf ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Subiendo...
+                    </>
+                  ) : (
+                    <>✓ Cargar PDF</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal para reemplazar PDF del Permit */}
       {showReplacePermitPdfModal && (

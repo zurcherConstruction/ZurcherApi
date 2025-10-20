@@ -4608,14 +4608,21 @@ async optionalDocs(req, res) {
       console.log('✅ PDF subido exitosamente a Cloudinary:', uploadResult.secure_url);
 
       // 7. Actualizar el Budget con los datos del PDF manual
+      // ✅ CORREGIDO: Solo usar estados que EXISTEN en el modelo Budget
+      // Estados válidos: draft, pending_review, client_approved, created, send, sent_for_signature, signed, approved, notResponded, rejected
+      // Preservar el status si ya está en 'approved' (el estado más avanzado válido)
+      const newStatus = budget.status === 'approved' 
+        ? 'approved' // Mantener como aprobado si ya lo estaba
+        : 'signed';  // Cambiar a firmado en cualquier otro caso
+
       await budget.update({
         signatureMethod: 'manual',
         manualSignedPdfPath: uploadResult.secure_url,
         manualSignedPdfPublicId: uploadResult.public_id,
-        status: 'signed' // Cambiar estado a firmado
+        status: newStatus // Cambiar a firmado solo si no está aprobado
       });
 
-      console.log(`✅ Budget ${idBudget} actualizado con PDF firmado manual`);
+      console.log(`✅ Budget ${idBudget} actualizado con PDF firmado manual (status: ${newStatus})`);
 
       // 8. Enviar notificación (deshabilitado temporalmente - tipo no configurado)
       // try {
