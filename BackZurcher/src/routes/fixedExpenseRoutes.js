@@ -8,8 +8,11 @@ const {
   deleteFixedExpense,
   toggleFixedExpenseStatus,
   getUpcomingFixedExpenses,
-  generateExpenseFromFixed
+  generateExpenseFromFixed,
+  getUnpaidFixedExpenses,
+  getFixedExpensesByPaymentStatus
 } = require('../controllers/fixedExpenseController');
+const { getCronStatus } = require('../controllers/cronStatusController');
 
 // Middleware de autenticación (ajustar según tu sistema)
 // const { isAuth } = require('../middleware/isAuth');
@@ -30,12 +33,36 @@ router.post('/', createFixedExpense);
 router.get('/', getAllFixedExpenses);
 
 /**
+ * 🆕 @route   GET /api/fixed-expenses/cron-status
+ * @desc    Verificar estado del CRON de auto-generación
+ * @access  Private
+ */
+router.get('/cron-status', getCronStatus);
+
+/**
  * @route   GET /api/fixed-expenses/upcoming
  * @desc    Obtener gastos fijos próximos a vencer
  * @query   ?days=30
  * @access  Private
  */
 router.get('/upcoming', getUpcomingFixedExpenses);
+
+/**
+ * 🆕 @route   GET /api/fixed-expenses/unpaid
+ * @desc    Obtener gastos fijos no pagados (para vincular con invoices)
+ * @query   ?vendor=&category=
+ * @access  Private
+ */
+router.get('/unpaid', getUnpaidFixedExpenses);
+
+/**
+ * 🆕 @route   GET /api/fixed-expenses/by-status/:status
+ * @desc    Obtener gastos fijos por estado de pago
+ * @param   status - unpaid | paid | paid_via_invoice
+ * @query   ?category=&vendor=
+ * @access  Private
+ */
+router.get('/by-status/:status', getFixedExpensesByPaymentStatus);
 
 /**
  * @route   GET /api/fixed-expenses/:id

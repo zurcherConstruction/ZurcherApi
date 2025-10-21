@@ -16,7 +16,7 @@ const createExpense = async (req, res) => {
       });
     }
 
-    // 1. Crear el Expense normalmente
+    // 1. Crear el Expense normalmente (con estado unpaid por defecto)
     const newExpense = await Expense.create({ 
       date, 
       amount, 
@@ -26,7 +26,8 @@ const createExpense = async (req, res) => {
       staffId, 
       paymentMethod, 
       paymentDetails,
-      verified: verified || false 
+      verified: verified || false,
+      paymentStatus: 'unpaid'  // 🆕 Todos los gastos inician como no pagados
     });
 
     // 2. Si es Inspección Inicial o Inspección Final y hay archivo, crear Receipt asociado
@@ -247,6 +248,104 @@ const getExpenseTypes = async (req, res) => {
   }
 };
 
+// Obtener gastos no pagados (para vincular con invoices)
+const getUnpaidExpenses = async (req, res) => {
+  try {
+    const { workId, vendor } = req.query;
+
+    const where = {
+      paymentStatus: 'unpaid'
+    };
+
+    if (workId) {
+      where.workId = workId;
+    }
+
+    if (vendor) {
+      where.vendor = { [Op.iLike]: `%${vendor}%` };
+    }
+
+    const unpaidExpenses = await Expense.findAll({
+      where,
+      include: [
+        {
+          model: Work,
+          as: 'work',
+          attributes: ['idWork', 'propertyAddress'] // Work NO tiene campo 'name'
+        },
+        {
+          model: Staff,
+          as: 'Staff',
+          attributes: ['id', 'name']
+        }
+      ],
+      order: [['date', 'DESC']]
+    });
+
+    // Devolver array directamente para compatibilidad con frontend
+    res.json(unpaidExpenses);
+
+  } catch (error) {
+    res.status(500).json({
+      error: 'Error al obtener gastos no pagados',
+      details: error.message
+    });
+  }
+};
+
+// Obtener gastos por estado de pago
+const getExpensesByPaymentStatus = async (req, res) => {
+  try {
+    const { status } = req.params; // Obtener status desde params de URL
+    const { workId } = req.query;
+
+    const where = {};
+
+    // Validar que el status sea válido
+    const validStatuses = ['unpaid', 'paid', 'paid_via_invoice'];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({
+        error: 'Estado de pago inválido',
+        validStatuses
+      });
+    }
+
+    if (status) {
+      where.paymentStatus = status;
+    }
+
+    if (workId) {
+      where.workId = workId;
+    }
+
+    const expenses = await Expense.findAll({
+      where,
+      include: [
+        {
+          model: Work,
+          as: 'work',
+          attributes: ['idWork', 'propertyAddress', 'name']
+        },
+        {
+          model: Staff,
+          as: 'Staff',
+          attributes: ['id', 'name']
+        }
+      ],
+      order: [['date', 'DESC']]
+    });
+
+    // Devolver array directamente para compatibilidad con frontend
+    res.json(expenses);
+
+  } catch (error) {
+    res.status(500).json({
+      error: 'Error al obtener gastos por estado',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   createExpense,
   getAllExpenses,
@@ -254,4 +353,6 @@ module.exports = {
   updateExpense,
   deleteExpense,
   getExpenseTypes,
+  getUnpaidExpenses,
+  getExpensesByPaymentStatus
 };

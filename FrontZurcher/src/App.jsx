@@ -59,6 +59,7 @@ import PrivacyPolicy from "./Components/PrivacyPolicy";
 // Importar componentes de Mantenimiento
 import MaintenanceList from "./Components/Maintenance/MaintenanceList";
 import MaintenanceForm from "./pages/MaintenanceForm";
+import SupplierInvoiceManager from './Components/SupplierInvoices/SupplierInvoiceManager';
 
 
 function App() {
@@ -76,10 +77,10 @@ function App() {
   useEffect(() => {
     // Lista de rutas públicas que no requieren redirección automática
     const publicRoutes = ["/", "/thank-you", "/change-order-response", "/privacy-policy", "/login", "/forgot-password", "/maintenance-form"];
-    const isPublicRoute = publicRoutes.some(route => 
+    const isPublicRoute = publicRoutes.some(route =>
       location.pathname === route || location.pathname.startsWith("/reset-password")
     );
-    
+
     // No redirigir automáticamente desde la landing principal
     // Los usuarios usarán el login modal para acceder al dashboard
   }, [isAuthenticated, location.pathname, navigate]);
@@ -94,7 +95,7 @@ function App() {
   const publicLandingRoutes = ["/", "/thank-you", "/change-order-response", "/privacy-policy", "/maintenance-form"];
   const isBudgetReviewRoute = location.pathname.startsWith("/budget-review/");
   const isPublicLandingRoute = publicLandingRoutes.includes(location.pathname) || isBudgetReviewRoute;
-  
+
   // Determinar si mostrar header y sidebar
   const shouldShowLayout = isAuthenticated && !isPublicLandingRoute;
 
@@ -107,73 +108,73 @@ function App() {
         <div className="flex-1 w-full overflow-x-hidden">
           <div className={`w-full max-w-none ${shouldShowLayout ? "px-2 sm:px-4 md:px-6 lg:px-8 py-4 md:py-6" : ""}`}>
             <Routes>
-            {/* Rutas públicas */}
-            <Route path="/" element={<LandingClients />} />
-           
-            <Route path="/thank-you" element={<ThankYou />} />
-            <Route path="/change-order-response" element={<ChangeOrderResponsePage />} />
-            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-            
-            {/* 🆕 Ruta pública para revisión de presupuestos */}
-            <Route path="/budget-review/:budgetId/:reviewToken" element={<BudgetReviewPage />} />
-            
-            {/* 🆕 Ruta pública para formulario de mantenimiento (protegida por token en query params) */}
-            <Route path="/maintenance-form" element={<MaintenanceForm />} />
-           
-            {/* Rutas privadas */}
-            <Route
-              path="/dashboard"
-              element={
-                <PrivateRoute allowedRoles={["admin", "recept", "owner", "finance"]}>
-                  <Dashboard />
-                </PrivateRoute>
-              }
-            />
+              {/* Rutas públicas */}
+              <Route path="/" element={<LandingClients />} />
 
-               {/* Rutas privadas */}
-            <Route
-              path="/gestionBudgets"
-              element={
-                <PrivateRoute allowedRoles={["admin", "recept", "owner"]}>
-                  <GestionBudgets />
-                </PrivateRoute>
-              }
-            />
+              <Route path="/thank-you" element={<ThankYou />} />
+              <Route path="/change-order-response" element={<ChangeOrderResponsePage />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
 
-            <Route
-              path="/progress-tracker"
-              element={
-                <PrivateRoute allowedRoles={["admin", "recept", "owner", "finance"]}>
-                  <ProgressTracker />
-                </PrivateRoute>
-              }
-            />
+              {/* 🆕 Ruta pública para revisión de presupuestos */}
+              <Route path="/budget-review/:budgetId/:reviewToken" element={<BudgetReviewPage />} />
 
-            <Route
-              path="/works"
-              element={
-                <PrivateRoute allowedRoles={["owner", "admin"]}>
-                  <Works />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/work/:idWork"
-              element={
-                <PrivateRoute allowedRoles={["owner", "admin", "finance"]}>
-                  <WorkDetail />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/workCalendar"
-              element={
-                <PrivateRoute allowedRoles={["owner", "recept", "admin"]}>
-                  <PendingWorks />
-                </PrivateRoute>
-              }
-            />
-            {/* <Route
+              {/* 🆕 Ruta pública para formulario de mantenimiento (protegida por token en query params) */}
+              <Route path="/maintenance-form" element={<MaintenanceForm />} />
+
+              {/* Rutas privadas */}
+              <Route
+                path="/dashboard"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "recept", "owner", "finance"]}>
+                    <Dashboard />
+                  </PrivateRoute>
+                }
+              />
+
+              {/* Rutas privadas */}
+              <Route
+                path="/gestionBudgets"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "recept", "owner"]}>
+                    <GestionBudgets />
+                  </PrivateRoute>
+                }
+              />
+
+              <Route
+                path="/progress-tracker"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "recept", "owner", "finance"]}>
+                    <ProgressTracker />
+                  </PrivateRoute>
+                }
+              />
+
+              <Route
+                path="/works"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin"]}>
+                    <Works />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/work/:idWork"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin", "finance"]}>
+                    <WorkDetail />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/workCalendar"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "recept", "admin"]}>
+                    <PendingWorks />
+                  </PrivateRoute>
+                }
+              />
+              {/* <Route
               path="/installation"
               element={
                 <PrivateRoute
@@ -183,208 +184,217 @@ function App() {
                 </PrivateRoute>
               }
             /> */}
-            <Route
-              path="/materiales"
-              element={
-                <PrivateRoute allowedRoles={["owner", "recept"]}>
-                  <Materiales />
-                </PrivateRoute>
-              }
-            />
               <Route
-              path="/itemBudget"
-              element={
-                <PrivateRoute allowedRoles={["owner", "recept","admin"]}>
-                  <ItemsBudgets />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/check"
-              element={
-                <PrivateRoute allowedRoles={["owner"]}>
-                  <MaterialsCheck />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/budgets"
-              element={
-                <PrivateRoute allowedRoles={["owner", "admin", "finance", "recept"]}>
-                  <BudgetList />
-                </PrivateRoute>
-              }
-            />
+                path="/materiales"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "recept"]}>
+                    <Materiales />
+                  </PrivateRoute>
+                }
+              />
               <Route
-              path="/editBudget"
-              element={
-                <PrivateRoute allowedRoles={["owner", "admin"]}>
-                  <EditBudget />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/budgets/edit/:budgetId"
-              element={
-                <PrivateRoute allowedRoles={["owner", "admin"]}>
-                  <EditBudget />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/pdf"
-              element={
-                <PrivateRoute allowedRoles={["owner", "admin"]}>
-                  <PdfReceipt />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/createBudget"
-              element={
-                <PrivateRoute allowedRoles={["owner", "admin"]}>
-                  <CreateBudget />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/create-legacy-budget"
-              element={
-                <PrivateRoute allowedRoles={["owner", "admin"]}>
-                  <CreateLegacyBudget />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/archive"
-              element={
-                <PrivateRoute allowedRoles={["owner", "admin"]}>
-                  <ArchveBudget />
-                </PrivateRoute>
-              }
-            />
-            <Route path="/archives/:folder/:file" element={<FileDetail />} />
+                path="/itemBudget"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "recept", "admin"]}>
+                    <ItemsBudgets />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/check"
+                element={
+                  <PrivateRoute allowedRoles={["owner"]}>
+                    <MaterialsCheck />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/budgets"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin", "finance", "recept"]}>
+                    <BudgetList />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/editBudget"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin"]}>
+                    <EditBudget />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/budgets/edit/:budgetId"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin"]}>
+                    <EditBudget />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/pdf"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin"]}>
+                    <PdfReceipt />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/createBudget"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin"]}>
+                    <CreateBudget />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/create-legacy-budget"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin"]}>
+                    <CreateLegacyBudget />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/archive"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin"]}>
+                    <ArchveBudget />
+                  </PrivateRoute>
+                }
+              />
+              <Route path="/archives/:folder/:file" element={<FileDetail />} />
 
-            <Route
-              path="/send-notifications"
-              element={
-                <PrivateRoute
-                  allowedRoles={["owner", "recept", "worker", "admin"]}
-                >
-                  <SendNotification />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/notifications"
-              element={
-                <PrivateRoute
-                  allowedRoles={["owner", "recept", "worker", "admin"]}
-                >
-                  <Notifications />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/attachInvoice"
-              element={
-                <PrivateRoute allowedRoles={["owner", "recept", "admin", "finance"]}>
-                  <AttachInvoice />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/balance"
-              element={
-                <PrivateRoute allowedRoles={["owner", "finance"]}>
-                  <BalanceStats />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/fixed-expenses"
-              element={
-                <PrivateRoute allowedRoles={["owner", "finance"]}>
-                  <FixedExpensesManager />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/register"
-              element={
-                <PrivateRoute allowedRoles={["owner"]}>
-                  <Register />
-                </PrivateRoute>
-              }
-            />
-            <Route
-              path="/ver-imagenes/:idWork"
-              element={
-                <PrivateRoute allowedRoles={["owner", "admin"]}>
-                  <VerImagenes />
-                </PrivateRoute>
-              }
-            />
+              <Route
+                path="/send-notifications"
+                element={
+                  <PrivateRoute
+                    allowedRoles={["owner", "recept", "worker", "admin"]}
+                  >
+                    <SendNotification />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/notifications"
+                element={
+                  <PrivateRoute
+                    allowedRoles={["owner", "recept", "worker", "admin"]}
+                  >
+                    <Notifications />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/attachInvoice"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "recept", "admin", "finance"]}>
+                    <AttachInvoice />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/balance"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "finance"]}>
+                    <BalanceStats />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/fixed-expenses"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "finance"]}>
+                    <FixedExpensesManager />
+                  </PrivateRoute>
+                }
+              />
 
-            <Route
-              path="/initialPay"
-              element={
-                <PrivateRoute allowedRoles={["owner", "finance"]}>
-                  <UploadInitialPay />
-                </PrivateRoute>
-              }
-            />
+              <Route
+                path="/supplier-invoices"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "finance"]}>
+                    <SupplierInvoiceManager />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/register"
+                element={
+                  <PrivateRoute allowedRoles={["owner"]}>
+                    <Register />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/ver-imagenes/:idWork"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin"]}>
+                    <VerImagenes />
+                  </PrivateRoute>
+                }
+              />
 
-            <Route
-              path="/priceBudget"
-              element={
-                <PrivateRoute allowedRoles={["owner", "admin"]}>
-                  <PriceBudgetManagement />
-                </PrivateRoute>
-              }
-            />
+              <Route
+                path="/initialPay"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "finance"]}>
+                    <UploadInitialPay />
+                  </PrivateRoute>
+                }
+              />
 
-<Route
-              path="/summary"
-              element={
-                <PrivateRoute allowedRoles={["owner", "finance"]}>
-                  <Summary />
-                </PrivateRoute>
-              }
-            />
+              <Route
+                path="/priceBudget"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin"]}>
+                    <PriceBudgetManagement />
+                  </PrivateRoute>
+                }
+              />
 
-            <Route
-              path="/accounts-receivable"
-              element={
-                <PrivateRoute allowedRoles={["admin", "owner", "finance"]}>
-                  <AccountsReceivable />
-                </PrivateRoute>
-              }
-            />
+              <Route
+                path="/summary"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "finance"]}>
+                    <Summary />
+                  </PrivateRoute>
+                }
+              />
 
-            {/* Rutas de Mantenimiento */}
-            <Route
-              path="/maintenance"
-              element={
-                <PrivateRoute allowedRoles={["owner", "admin", "worker"]}>
-                  <MaintenanceList />
-                </PrivateRoute>
-              }
-            />
+              <Route
+                path="/accounts-receivable"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "owner", "finance"]}>
+                    <AccountsReceivable />
+                  </PrivateRoute>
+                }
+              />
 
-            {/* Rutas de autenticación */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/unauthorized" element={<Unauthorized />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password/:token" element={<ResetPassword />} />
+              {/* Rutas de Mantenimiento */}
+              <Route
+                path="/maintenance"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin", "worker"]}>
+                    <MaintenanceList />
+                  </PrivateRoute>
+                }
+              />
 
-            {/* Ruta por defecto para 404 */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+              {/* Rutas de autenticación */}
+              <Route path="/login" element={<Login />} />
+              <Route path="/unauthorized" element={<Unauthorized />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password/:token" element={<ResetPassword />} />
+
+              {/* Ruta por defecto para 404 */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
           </div>
         </div>
       </div>
-      <ToastContainer 
+      <ToastContainer
         position="top-right"
         className="mt-16 md:mt-20"
         toastClassName="text-sm"

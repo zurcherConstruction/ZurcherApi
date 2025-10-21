@@ -95,6 +95,36 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING,
       allowNull: true,
       comment: 'Nombre del proveedor/beneficiario del gasto'
+    },
+    
+    // 🆕 Estado de Pago del Gasto
+    paymentStatus: {
+      type: DataTypes.ENUM(
+        'unpaid',              // No pagado (gasto comprometido pero sin pagar)
+        'paid',                // Pagado directamente (sin invoice de proveedor)
+        'paid_via_invoice'     // Pagado a través de un SupplierInvoice
+      ),
+      allowNull: false,
+      defaultValue: 'unpaid',
+      
+    },
+    
+    // Fecha en que se pagó el gasto
+    paidDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      
+    },
+    
+    // 🔑 Vinculación con SupplierInvoiceItem (cuando se paga vía invoice)
+    supplierInvoiceItemId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'SupplierInvoiceItems',
+        key: 'idItem'
+      },
+      
     }
   });
 

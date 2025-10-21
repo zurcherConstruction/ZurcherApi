@@ -132,6 +132,36 @@ module.exports = (sequelize) => {
         key: 'id'
       },
       comment: 'Staff que creó/registró el gasto fijo'
+    },
+    
+    // 🆕 Estado de Pago del Gasto Fijo (igual que Expense)
+    paymentStatus: {
+      type: DataTypes.ENUM(
+        'unpaid',              // No pagado (gasto comprometido pero sin pagar)
+        'paid',                // Pagado directamente (sin invoice de proveedor)
+        'paid_via_invoice'     // Pagado a través de un SupplierInvoice
+      ),
+      allowNull: false,
+      defaultValue: 'unpaid',
+     
+    },
+    
+    // Fecha en que se pagó el gasto fijo
+    paidDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      comment: 'Fecha en que se pagó el gasto fijo'
+    },
+    
+    // 🔑 Vinculación con SupplierInvoiceItem (cuando se paga vía invoice)
+    supplierInvoiceItemId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'SupplierInvoiceItems',
+        key: 'idItem'
+      },
+      comment: 'Item de factura de proveedor que incluye este gasto fijo'
     }
   }, {
     timestamps: true,

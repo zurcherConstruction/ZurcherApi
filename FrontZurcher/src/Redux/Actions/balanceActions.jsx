@@ -120,6 +120,26 @@ export const expenseActions = {
       return handleError(error, 'Error al obtener tipos de gasto');
     }
   },
+
+  // 🆕 Obtener gastos sin pagar (disponibles para vincular a facturas)
+  getUnpaid: async () => {
+    try {
+      const response = await api.get('/expense/unpaid');
+      return response.data;
+    } catch (error) {
+      return handleError(error, 'Error al obtener gastos sin pagar');
+    }
+  },
+
+  // 🆕 Obtener gastos por estado de pago
+  getByPaymentStatus: async (status) => {
+    try {
+      const response = await api.get(`/expense/by-status/${status}`);
+      return response.data;
+    } catch (error) {
+      return handleError(error, 'Error al obtener gastos por estado de pago');
+    }
+  },
 };
 
 // Actions para Balance

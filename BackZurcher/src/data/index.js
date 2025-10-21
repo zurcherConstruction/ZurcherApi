@@ -53,7 +53,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, SupplierInvoice, SupplierInvoiceItem } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -275,6 +275,91 @@ Staff.hasMany(FixedExpense, {
 FixedExpense.belongsTo(Staff, {
   foreignKey: 'createdByStaffId',
   as: 'createdBy'
+});
+
+// --- RELACIONES PARA SUPPLIER INVOICES (INVOICES DE PROVEEDORES) ---
+
+// Un SupplierInvoice tiene muchos Items
+SupplierInvoice.hasMany(SupplierInvoiceItem, {
+  foreignKey: 'supplierInvoiceId',
+  as: 'items'
+});
+SupplierInvoiceItem.belongsTo(SupplierInvoice, {
+  foreignKey: 'supplierInvoiceId',
+  as: 'invoice'
+});
+
+// Un SupplierInvoiceItem puede estar asociado a un Work (opcional)
+Work.hasMany(SupplierInvoiceItem, {
+  foreignKey: 'workId',
+  as: 'supplierInvoiceItems'
+});
+SupplierInvoiceItem.belongsTo(Work, {
+  foreignKey: 'workId',
+  as: 'work'
+});
+
+// Un SupplierInvoiceItem puede estar vinculado a un Expense existente
+Expense.hasOne(SupplierInvoiceItem, {
+  foreignKey: 'relatedExpenseId',
+  as: 'invoiceItem'
+});
+SupplierInvoiceItem.belongsTo(Expense, {
+  foreignKey: 'relatedExpenseId',
+  as: 'relatedExpense'
+});
+
+// Un Expense puede estar vinculado a un SupplierInvoiceItem (cuando se paga vía invoice)
+SupplierInvoiceItem.hasOne(Expense, {
+  foreignKey: 'supplierInvoiceItemId',
+  as: 'expense'
+});
+Expense.belongsTo(SupplierInvoiceItem, {
+  foreignKey: 'supplierInvoiceItemId',
+  as: 'paidViaInvoiceItem'
+});
+
+// 🆕 RELACIONES ENTRE FixedExpense Y SupplierInvoiceItem
+// Un SupplierInvoiceItem puede estar vinculado a un FixedExpense existente
+FixedExpense.hasOne(SupplierInvoiceItem, {
+  foreignKey: 'relatedFixedExpenseId',
+  as: 'invoiceItem'
+});
+SupplierInvoiceItem.belongsTo(FixedExpense, {
+  foreignKey: 'relatedFixedExpenseId',
+  as: 'relatedFixedExpense'
+});
+
+// Un FixedExpense puede estar vinculado a un SupplierInvoiceItem (cuando se paga vía invoice)
+SupplierInvoiceItem.hasOne(FixedExpense, {
+  foreignKey: 'supplierInvoiceItemId',
+  as: 'fixedExpense'
+});
+FixedExpense.belongsTo(SupplierInvoiceItem, {
+  foreignKey: 'supplierInvoiceItemId',
+  as: 'paidViaInvoiceItem'
+});
+
+// Un SupplierInvoice fue creado por un Staff
+Staff.hasMany(SupplierInvoice, {
+  foreignKey: 'createdByStaffId',
+  as: 'supplierInvoicesCreated'
+});
+SupplierInvoice.belongsTo(Staff, {
+  foreignKey: 'createdByStaffId',
+  as: 'createdBy'
+});
+
+// Relación polimórfica con Receipt (para adjuntar comprobantes PDF del invoice)
+SupplierInvoice.hasMany(Receipt, { 
+  foreignKey: 'relatedId', 
+  constraints: false, 
+  scope: { relatedModel: 'SupplierInvoice' },
+  as: 'Receipts'
+});
+Receipt.belongsTo(SupplierInvoice, { 
+  foreignKey: 'relatedId', 
+  constraints: false 
 });
 
 //---------------------------------------------------------------------------------//

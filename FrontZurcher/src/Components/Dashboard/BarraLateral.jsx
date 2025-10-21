@@ -21,7 +21,8 @@ import {
   FaBoxes,
   FaReceipt,
   FaWrench,
-  FaHistory
+  FaHistory,
+  FaFileInvoice
 } from "react-icons/fa";
 
 const BarraLateral = () => {
@@ -76,6 +77,7 @@ const BarraLateral = () => {
       items: [
         { name: "Initial Pay", path: "/initialPay", icon: FaMoneyBillWave },
         { name: "Upload Vouchers", path: "/attachInvoice", icon: FaReceipt },
+        { name: "Supplier Invoices", path: "/supplier-invoices", icon: FaFileInvoice },
         { name: "Balance", path: "/balance", icon: FaChartBar },
         { name: "Income & Expenses", path: "/summary", icon: FaFileInvoiceDollar },
         { name: "Fixed Expenses", path: "/fixed-expenses", icon: FaDollarSign }, // 🆕 Gastos Fijos
@@ -173,7 +175,7 @@ const BarraLateral = () => {
         },
       ];
     } else if (staff?.role === "finance") {
-      // Finance: Solo ver budgets, vouchers, balance, summary, fixed-expenses, accounts-receivable, works y progress (vista)
+      // Finance: Solo ver budgets, vouchers, balance, summary, fixed-expenses, accounts-receivable, supplier-invoices, works y progress (vista)
       return [
         {
           name: "Dashboard",
@@ -206,6 +208,7 @@ const BarraLateral = () => {
           color: "text-yellow-400",
           items: [
             { name: "Upload Vouchers", path: "/attachInvoice", icon: FaReceipt },
+            { name: "Supplier Invoices", path: "/supplier-invoices", icon: FaFileInvoice },
             { name: "Income & Expenses", path: "/summary", icon: FaFileInvoiceDollar },
             { name: "Fixed Expenses", path: "/fixed-expenses", icon: FaDollarSign },
             { name: "Accounts Receivable", path: "/accounts-receivable", icon: FaDollarSign },
