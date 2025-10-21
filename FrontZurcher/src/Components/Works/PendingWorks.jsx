@@ -38,7 +38,27 @@ const PendingWorks = () => {
   const localizer = momentLocalizer(moment);
 
   // Filtrar trabajos
-  const pendingWorks = works.filter((work) => work.status === "pending");
+  // Mostrar trabajos pending solo si:
+  // 1. El budget está firmado (signatureMethod: manual o signnow)
+  // 2. Tiene comprobante de pago inicial (paymentInvoice o paymentProofAmount)
+  const pendingWorks = works.filter((work) => {
+    if (work.status === "pending") {
+      const budget = work.budget;
+      if (!budget) return false;
+      
+      // Verificar que el budget tenga firma válida (manual o signnow)
+      const hasValidSignature = budget.signatureMethod === "signnow" || budget.signatureMethod === "manual";
+      if (!hasValidSignature) return false;
+      
+      // Verificar que tenga comprobante de pago inicial
+      const hasPaymentProof = 
+        (budget.paymentInvoice && budget.paymentInvoice.trim() !== "") ||
+        (budget.paymentProofAmount && parseFloat(budget.paymentProofAmount) > 0);
+      
+      return hasPaymentProof;
+    }
+    return false;
+  });
   const assignedWorks = works.filter((work) => work.status === "assigned");
   const inProgressWorks = works.filter((work) => work.status === "inProgress");
 
