@@ -32,7 +32,8 @@ module.exports = (sequelize) => {
             'Materiales Iniciales',
             'Inspección Inicial',
             'Inspección Final',
-            'Gasto Fijo' // 🆕 Para comprobantes de gastos fijos
+            'Gasto Fijo', // 🆕 Para comprobantes de gastos fijos
+            'Invoice Proveedor' // 🆕 Para invoices de proveedores
         ),
         allowNull: false,
     },

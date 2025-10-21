@@ -20,7 +20,8 @@ import {
   WrenchScrewdriverIcon,
   CogIcon,
   DocumentDuplicateIcon,
-  PresentationChartBarIcon
+  PresentationChartBarIcon,
+  ReceiptPercentIcon
 } from '@heroicons/react/24/outline'; 
 
 const Dashboard = () => {
@@ -129,6 +130,14 @@ const Dashboard = () => {
           icon: DocumentArrowUpIcon,
           gradient: 'from-rose-500 to-rose-600',
           allowedRoles: ['owner', 'admin', 'recept', 'finance'],
+        },
+        {
+          path: '/supplier-invoices',
+          title: 'Supplier Invoices',
+          description: 'Manage vendor invoices & payments',
+          icon: ReceiptPercentIcon,
+          gradient: 'from-fuchsia-500 to-fuchsia-600',
+          allowedRoles: ['owner', 'finance'],
         },
         {
           path: '/balance',

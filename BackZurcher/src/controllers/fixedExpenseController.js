@@ -414,6 +414,7 @@ const getUpcomingFixedExpenses = async (req, res) => {
 
 /**
  * Generar un gasto (Expense) a partir de un gasto fijo
+ * NOTA: Esto registra un pago manual directo del gasto fijo
  */
 const generateExpenseFromFixed = async (req, res) => {
   try {
@@ -430,31 +431,85 @@ const generateExpenseFromFixed = async (req, res) => {
       return res.status(400).json({ error: 'El gasto fijo está inactivo' });
     }
 
+    // Verificar que el gasto fijo no esté ya pagado
+    if (fixedExpense.paymentStatus !== 'unpaid') {
+      return res.status(400).json({ 
+        error: 'Este gasto fijo ya fue pagado',
+        currentStatus: fixedExpense.paymentStatus
+      });
+    }
+
     // Importar el modelo Expense
     const { Expense } = require('../data');
 
-    // Crear el gasto
+    // Usar fecha local para evitar problemas de timezone
+    const finalPaymentDate = paymentDate || (() => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    })();
+
+    // Crear el gasto con paymentStatus: 'paid' (pago directo, no vía invoice)
     const newExpense = await Expense.create({
       typeExpense: 'Gasto Fijo',
       amount: fixedExpense.amount,
-      notes: `${fixedExpense.name}${notes ? ` - ${notes}` : ''}`,
+      notes: notes || fixedExpense.description || fixedExpense.name,
       paymentMethod: fixedExpense.paymentMethod,
       paymentDetails: fixedExpense.paymentAccount || null,
-      date: paymentDate || new Date(),
-      staffId: fixedExpense.createdByStaffId,
-      verified: false,
+      date: finalPaymentDate,
+      staffId: fixedExpense.createdByStaffId || req.user?.id || null,
+      verified: true, // Marcado como verificado porque se paga manualmente
       workId: null, // Gastos fijos generalmente no están asociados a una obra específica
-      // Campos adicionales para tracking
+      paymentStatus: 'paid', // 🔑 PAGADO DIRECTAMENTE (no vía invoice)
+      paidDate: finalPaymentDate,
       relatedFixedExpenseId: fixedExpense.idFixedExpense,
       vendor: fixedExpense.vendor
     });
 
-    // Actualizar nextDueDate del gasto fijo
+    console.log(`✅ Expense generado desde FixedExpense: ${newExpense.idExpense}`);
+
+    // Actualizar el FixedExpense:
+    // 1. Marcar como pagado
+    // 2. Actualizar nextDueDate para el próximo período
     const newNextDueDate = calculateNextDueDate(
-      fixedExpense.nextDueDate,
+      fixedExpense.nextDueDate || fixedExpense.startDate,
       fixedExpense.frequency
     );
-    await fixedExpense.update({ nextDueDate: newNextDueDate });
+
+    await fixedExpense.update({ 
+      paymentStatus: 'paid',
+      paidDate: finalPaymentDate,
+      nextDueDate: newNextDueDate
+    });
+
+    console.log(`✅ FixedExpense actualizado: paymentStatus=paid, nextDueDate=${newNextDueDate}`);
+
+    // Si es recurrente y autoCreateExpense está activado, crear el próximo FixedExpense
+    if (fixedExpense.frequency !== 'one_time' && fixedExpense.autoCreateExpense) {
+      const nextFixedExpense = await FixedExpense.create({
+        name: fixedExpense.name,
+        description: fixedExpense.description,
+        amount: fixedExpense.amount,
+        frequency: fixedExpense.frequency,
+        category: fixedExpense.category,
+        paymentMethod: fixedExpense.paymentMethod,
+        paymentAccount: fixedExpense.paymentAccount,
+        startDate: newNextDueDate,
+        endDate: fixedExpense.endDate,
+        nextDueDate: calculateNextDueDate(newNextDueDate, fixedExpense.frequency),
+        isActive: true,
+        autoCreateExpense: fixedExpense.autoCreateExpense,
+        vendor: fixedExpense.vendor,
+        accountNumber: fixedExpense.accountNumber,
+        notes: fixedExpense.notes,
+        createdByStaffId: fixedExpense.createdByStaffId,
+        paymentStatus: 'unpaid' // El nuevo período empieza sin pagar
+      });
+
+      console.log(`🔄 Próximo FixedExpense creado automáticamente: ${nextFixedExpense.idFixedExpense}`);
+    }
 
     res.status(201).json({
       message: 'Gasto generado exitosamente',
@@ -464,7 +519,8 @@ const generateExpenseFromFixed = async (req, res) => {
           {
             model: Staff,
             as: 'createdBy',
-            attributes: ['id', 'name', 'email']
+            attributes: ['id', 'name', 'email'],
+            required: false
           }
         ]
       })
@@ -562,6 +618,89 @@ function calculateTotalCommitment(activeExpenses) {
   }, 0);
 }
 
+/**
+ * 🆕 Obtener gastos fijos no pagados (para vincular con supplier invoices)
+ */
+const getUnpaidFixedExpenses = async (req, res) => {
+  try {
+    const { vendor, category } = req.query;
+
+    const where = { 
+      paymentStatus: 'unpaid',
+      isActive: true // Solo gastos activos
+    };
+
+    if (vendor) {
+      where.vendor = { [Op.iLike]: `%${vendor}%` };
+    }
+
+    if (category) {
+      where.category = category;
+    }
+
+    const unpaidFixedExpenses = await FixedExpense.findAll({
+      where,
+      order: [['nextDueDate', 'ASC']]
+    });
+
+    res.json(unpaidFixedExpenses);
+
+  } catch (error) {
+    console.error('❌ Error al obtener gastos fijos no pagados:', error);
+    res.status(500).json({
+      error: 'Error al obtener gastos fijos no pagados',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * 🆕 Obtener gastos fijos por estado de pago
+ */
+const getFixedExpensesByPaymentStatus = async (req, res) => {
+  try {
+    const { status } = req.params;
+    const { category, vendor } = req.query;
+
+    const where = {};
+
+    // Validar que el status sea válido
+    const validStatuses = ['unpaid', 'paid', 'paid_via_invoice'];
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({
+        error: 'Estado de pago inválido',
+        validStatuses
+      });
+    }
+
+    if (status) {
+      where.paymentStatus = status;
+    }
+
+    if (category) {
+      where.category = category;
+    }
+
+    if (vendor) {
+      where.vendor = { [Op.iLike]: `%${vendor}%` };
+    }
+
+    const fixedExpenses = await FixedExpense.findAll({
+      where,
+      order: [['nextDueDate', 'ASC']]
+    });
+
+    res.json(fixedExpenses);
+
+  } catch (error) {
+    console.error('❌ Error al obtener gastos fijos por estado:', error);
+    res.status(500).json({
+      error: 'Error al obtener gastos fijos por estado',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   createFixedExpense,
   getAllFixedExpenses,
@@ -570,5 +709,7 @@ module.exports = {
   deleteFixedExpense,
   toggleFixedExpenseStatus,
   getUpcomingFixedExpenses,
-  generateExpenseFromFixed
+  generateExpenseFromFixed,
+  getUnpaidFixedExpenses,
+  getFixedExpensesByPaymentStatus
 };
