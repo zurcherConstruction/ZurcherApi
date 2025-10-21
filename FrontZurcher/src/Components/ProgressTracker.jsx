@@ -121,13 +121,20 @@ const ProgressTracker = () => {
 
           // --- ALERTA DE PRESUPUESTO NO FIRMADO ---
           let budgetNotSignedAlert = null;
-          if (work.budget && work.budget.status !== "signed") {
-            budgetNotSignedAlert = (
-              <div className="flex items-center justify-center mt-2 text-xs text-yellow-600 font-semibold">
-                <ExclamationTriangleIcon className="h-4 w-4 mr-1 text-yellow-500 animate-pulse" />
-                Presupuesto pendiente de firma
-              </div>
-            );
+          if (work.budget) {
+            const budget = work.budget;
+            // Si tiene método de firma válido (manual o signnow), significa que está firmado
+            const hasValidSignatureMethod = budget.signatureMethod === "signnow" || budget.signatureMethod === "manual";
+            
+            // Mostrar alerta solo si NO tiene método de firma válido
+            if (!hasValidSignatureMethod) {
+              budgetNotSignedAlert = (
+                <div className="flex items-center justify-center mt-2 text-xs text-yellow-600 font-semibold">
+                  <ExclamationTriangleIcon className="h-4 w-4 mr-1 text-yellow-500 animate-pulse" />
+                  Presupuesto pendiente de firma
+                </div>
+              );
+            }
           }
 
           // --- ALERTA DE INSPECCIÓN INICIAL NO ABONADA ---

@@ -76,7 +76,7 @@ const getWorks = async (req, res) => {
         {
           model: Budget,
           as: 'budget',
-          attributes: ['idBudget', 'propertyAddress', 'status', 'paymentInvoice', 'initialPayment', 'paymentProofAmount', 'date'],
+          attributes: ['idBudget', 'propertyAddress', 'status', 'paymentInvoice', 'initialPayment', 'paymentProofAmount', 'date', 'signatureMethod'],
         },
         {
           model: Permit,
