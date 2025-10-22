@@ -65,6 +65,26 @@ const AttachReceipt = () => {
     dispatch(fetchWorks());
   }, [dispatch]);
 
+  // 🆕 Limpiar selección de obra cuando cambie el tipo de comprobante
+  useEffect(() => {
+    if (type === "Factura Pago Final Budget") {
+      // Si la obra actual no está en la lista filtrada, limpiar la selección
+      const filtered = works?.filter(work => {
+        if (!work.finalInvoice || !work.finalInvoice.id) return false;
+        const validStatuses = ['pending', 'partially_paid', 'send', 'sent'];
+        if (!validStatuses.includes(work.finalInvoice.status)) return false;
+        const totalDue = parseFloat(work.finalInvoice.finalAmountDue || 0);
+        const totalPaid = parseFloat(work.finalInvoice.totalAmountPaid || 0);
+        return (totalDue - totalPaid) > 0;
+      }) || [];
+
+      const isSelectedWorkValid = filtered.some(w => w.idWork === selectedWork);
+      if (!isSelectedWorkValid) {
+        setSelectedWork("");
+      }
+    }
+  }, [type, works, selectedWork]);
+
   useEffect(() => {
     if (type === "Factura Pago Final Budget" && selectedWork && works) {
       const workDetails = works.find(w => w.idWork === selectedWork);
@@ -265,6 +285,35 @@ const AttachReceipt = () => {
   const canBeGeneral = generalExpenseTypes.includes(type) || generalIncomeTypes.includes(type);
   const requiresWork = type === "Factura Pago Final Budget"; // Los pagos de factura final SIEMPRE requieren work
 
+  // 🆕 FILTRAR OBRAS SEGÚN EL TIPO DE COMPROBANTE SELECCIONADO
+  const filteredWorksForDropdown = () => {
+    if (!works || works.length === 0) return [];
+
+    // Si seleccionó "Factura Pago Final Budget", mostrar SOLO obras con Final Invoice válido
+    if (type === "Factura Pago Final Budget") {
+      return works.filter(work => {
+        // Debe tener finalInvoice
+        if (!work.finalInvoice || !work.finalInvoice.id) return false;
+        
+        // El invoice NO debe estar cancelado ni completamente pagado
+        const validStatuses = ['pending', 'partially_paid', 'send', 'sent'];
+        if (!validStatuses.includes(work.finalInvoice.status)) return false;
+        
+        // Verificar que aún tenga saldo pendiente
+        const totalDue = parseFloat(work.finalInvoice.finalAmountDue || 0);
+        const totalPaid = parseFloat(work.finalInvoice.totalAmountPaid || 0);
+        const remainingBalance = totalDue - totalPaid;
+        
+        return remainingBalance > 0;
+      });
+    }
+
+    // Para otros tipos de comprobantes, mostrar todas las obras
+    return works;
+  };
+
+  const availableWorks = filteredWorksForDropdown();
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8">
@@ -373,16 +422,64 @@ const AttachReceipt = () => {
                   <BuildingOffice2Icon className="h-5 w-5 mr-2 text-blue-500" />
                   Seleccionar Obra {requiresWork && <span className="ml-1 text-red-500">*</span>}
                 </label>
+
+                {/* 🆕 Mensaje informativo para Factura Final */}
+                {type === "Factura Pago Final Budget" && availableWorks.length === 0 && (
+                  <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div className="flex items-start space-x-2">
+                      <InformationCircleIcon className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-yellow-800">
+                          No hay obras disponibles para pago final
+                        </p>
+                        <p className="text-xs text-yellow-700 mt-1">
+                          Solo se muestran obras con Factura Final generada y saldo pendiente de pago.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 🆕 Mensaje informativo general */}
+                {type === "Factura Pago Final Budget" && availableWorks.length > 0 && (
+                  <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-start space-x-2">
+                      <InformationCircleIcon className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-xs text-blue-700">
+                        <strong>📋 {availableWorks.length}</strong> obra(s) con Factura Final pendiente de pago
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <select
                   id="work"
                   value={selectedWork}
                   onChange={(e) => setSelectedWork(e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
                   required={requiresWork}
+                  disabled={type === "Factura Pago Final Budget" && availableWorks.length === 0}
                 >
-                  <option value="">Seleccione una obra</option>
-                  {works && works.map((work) => {
-                    // Mostrar obras que pueden necesitar comprobantes de pago
+                  <option value="">
+                    {type === "Factura Pago Final Budget" 
+                      ? "Seleccione una obra con factura final pendiente"
+                      : "Seleccione una obra"}
+                  </option>
+                  {availableWorks && availableWorks.map((work) => {
+                    // Para Factura Final, mostrar info del saldo pendiente
+                    if (type === "Factura Pago Final Budget" && work.finalInvoice) {
+                      const totalDue = parseFloat(work.finalInvoice.finalAmountDue || 0);
+                      const totalPaid = parseFloat(work.finalInvoice.totalAmountPaid || 0);
+                      const remainingBalance = (totalDue - totalPaid).toFixed(2);
+                      
+                      return (
+                        <option key={work.idWork} value={work.idWork}>
+                          {work.propertyAddress} - Pendiente: ${remainingBalance}
+                        </option>
+                      );
+                    }
+
+                    // Para otros tipos, mostrar normalmente
                     const canAttachPayment = ['invoiceFinal', 'paymentReceived'].includes(work.status);
                     const hasUnpaidInvoice = work.finalInvoice && work.finalInvoice.status !== 'paid';
 

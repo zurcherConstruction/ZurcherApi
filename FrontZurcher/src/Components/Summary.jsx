@@ -471,6 +471,9 @@ const Summary = () => {
     // 🆕 Filtro por verificación
     if (filters.verified === "true" && !mov.verified) return false;
     if (filters.verified === "false" && mov.verified) return false;
+    // 💳 Filtro por método de pago
+    if (filters.paymentMethod && mov.paymentMethod !== filters.paymentMethod)
+      return false;
     return true;
   });
 

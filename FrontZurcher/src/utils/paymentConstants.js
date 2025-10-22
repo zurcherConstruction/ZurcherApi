@@ -13,14 +13,14 @@ export const PAYMENT_METHODS = [
   { value: 'Tarjeta Débito', label: 'Tarjeta Débito', category: 'card' },
   
   // Pagos Online
-  { value: 'Stripe', label: '💳 Stripe (Online)', category: 'online' },
+  { value: 'Stripe', label: '💳 Stripe', category: 'online' },
+  { value: 'PayPal', label: 'PayPal', category: 'online' },
   
   // Otros Métodos
   { value: 'Cheque', label: 'Cheque', category: 'other' },
   { value: 'Transferencia Bancaria', label: 'Transferencia Bancaria', category: 'other' },
   { value: 'Efectivo', label: 'Efectivo', category: 'other' },
   { value: 'Zelle', label: 'Zelle', category: 'other' },
-  { value: 'PayPal', label: 'PayPal', category: 'other' },
   { value: 'Otro', label: 'Otro', category: 'other' },
 ];
 
@@ -80,7 +80,7 @@ export const EXPENSE_TYPES = [
   'Inspección Inicial',
   'Inspección Final',
   'Comisión Vendedor',
-  'Gasto Fijo', // 🆕 Para gastos fijos
+  'Gasto Fijo',
 ];
 
 // Tipos de Comprobantes (sincronizado con Receipt.js)

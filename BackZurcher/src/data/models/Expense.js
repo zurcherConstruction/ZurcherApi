@@ -62,6 +62,7 @@ module.exports = (sequelize) => {
         'Zelle',
         'Tarjeta Débito',
         'PayPal',
+        'Stripe',
         'Otro'
       ),
       allowNull: true,
