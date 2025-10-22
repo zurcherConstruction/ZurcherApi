@@ -97,6 +97,10 @@ const budgetSlice = createSlice({
       if (index !== -1) {
         state.budgets[index] = action.payload;
       }
+      // ✅ TAMBIÉN ACTUALIZAR currentBudget si es el mismo presupuesto
+      if (state.currentBudget && state.currentBudget.idBudget === action.payload.idBudget) {
+        state.currentBudget = action.payload;
+      }
     },
     updateBudgetFailure: (state, action) => {
       state.loading = false;

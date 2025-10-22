@@ -437,13 +437,15 @@ async updateBudgetItem(req, res) {
           };
 
           if (id && id !== '' && !isNaN(parseInt(id))) {
-            // Actualizar item existente
+            // Intentar actualizar item existente
             const existingItem = await BudgetItem.findByPk(parseInt(id));
             if (existingItem) {
               await existingItem.update(itemData);
               results.updated.push({ id: parseInt(id), name: itemData.name });
             } else {
-              results.errors.push({ row: i + 2, error: `Item con ID ${id} no encontrado` });
+              // Si no existe, crear uno nuevo (ignorando el ID del Excel)
+              const newItem = await BudgetItem.create(itemData);
+              results.created.push({ id: newItem.id, name: itemData.name });
             }
           } else {
             // Crear nuevo item
