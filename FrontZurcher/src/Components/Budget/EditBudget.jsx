@@ -631,9 +631,12 @@ const editableBudgets = useMemo(() => {
       const resultAction = await dispatch(updateBudget(selectedBudgetId, payload));
       const updatedBudget = unwrapResult(resultAction);
  
+      // ✅ VOLVER A CARGAR EL PRESUPUESTO PARA OBTENER DATOS FRESCOS
+      await dispatch(fetchBudgetById(selectedBudgetId));
 
       alert("Presupuesto actualizado exitosamente!");
-      handleSearchAgain();
+      // No hacer handleSearchAgain() para mantener el presupuesto cargado
+      // handleSearchAgain();
 
     } catch (err) {
       console.error("❌ Error durante el proceso de handleSubmit:", err);
