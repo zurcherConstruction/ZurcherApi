@@ -406,10 +406,40 @@ async updateBudgetItem(req, res) {
       const results = {
         created: [],
         updated: [],
+        deleted: [],
         errors: [],
         skipped: []
       };
 
+      // 🆕 PASO 1: Recolectar todos los IDs válidos del Excel
+      const excelIds = [];
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.length < 3) continue;
+        const [id] = row;
+        if (id && id !== '' && !isNaN(parseInt(id))) {
+          excelIds.push(parseInt(id));
+        }
+      }
+
+      // 🆕 PASO 2: Eliminar items que NO están en el Excel
+      if (excelIds.length > 0) {
+        const { Op } = require('sequelize');
+        const deletedItems = await BudgetItem.destroy({
+          where: {
+            id: {
+              [Op.notIn]: excelIds
+            }
+          }
+        });
+        
+        if (deletedItems > 0) {
+          results.deleted.push({ count: deletedItems, message: `${deletedItems} items eliminados (no están en el Excel)` });
+          console.log(`🗑️ ${deletedItems} items eliminados porque no están en el Excel importado`);
+        }
+      }
+
+      // 🆕 PASO 3: Crear o actualizar items del Excel
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         if (!row || row.length < 3) continue; // Skip empty rows
@@ -464,6 +494,7 @@ async updateBudgetItem(req, res) {
         summary: {
           created: results.created.length,
           updated: results.updated.length,
+          deleted: results.deleted.length,
           errors: results.errors.length,
           skipped: results.skipped.length
         }
