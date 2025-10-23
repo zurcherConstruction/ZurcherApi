@@ -83,7 +83,10 @@ const MaintenanceDetail = ({ work, isOpen, onClose }) => {
             type="date" 
             id="startDate" 
             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value="${new Date().toISOString().split('T')[0]}"
+            value="${(() => {
+              const now = new Date();
+              return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            })()}"
           />
           <p class="mt-2 text-xs text-gray-500">
             ${hasExistingVisits ? 

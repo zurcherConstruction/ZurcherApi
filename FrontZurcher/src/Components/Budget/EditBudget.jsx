@@ -19,6 +19,21 @@ const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).su
 
 const EditBudget = () => {
   
+  // ✅ Función para formatear fechas de YYYY-MM-DD a MM-DD-YYYY
+  const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
+    
+    // dateString viene como "YYYY-MM-DD" del backend
+    const [year, month, day] = dateString.split('-');
+    
+    if (!year || !month || !day) {
+      console.error("Invalid date format:", dateString);
+      return "Invalid Date";
+    }
+    
+    // Retornar en formato MM-DD-YYYY
+    return `${month}-${day}-${year}`;
+  };
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -829,7 +844,7 @@ const editableBudgets = useMemo(() => {
                   >
                     <p className="font-medium text-base text-blue-900">{budget.propertyAddress}</p>
                     <p className="text-xs text-gray-600">
-                      Permit: {budget.Permit?.permitNumber || 'N/A'} | Applicant: {budget.applicantName || 'N/A'} | Date: {budget.date ? format(parseISO(budget.date), 'MM/dd/yyyy') : 'N/A'}
+                      Permit: {budget.Permit?.permitNumber || 'N/A'} | Applicant: {budget.applicantName || 'N/A'} | Date: {budget.date ? formatDate(budget.date) : 'N/A'}
                     </p>
                   </button>
                 </li>

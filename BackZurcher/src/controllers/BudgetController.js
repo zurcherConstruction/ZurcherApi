@@ -156,7 +156,7 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
       const newBudget = await Budget.create({
         idBudget: nextBudgetId,
         PermitIdPermit: permit.idPermit,
-        date: date || new Date(),
+        date: date || new Date().toISOString().split('T')[0],
         expirationDate: expirationDate || null,
         status,
         discountDescription,
@@ -1050,7 +1050,19 @@ async getBudgets(req, res) {
 
     // 🎯 Filtro por status SOLO para whereClause (no para estadísticas)
     if (status && status !== 'all') {
-      whereClause.status = status;
+      // ✅ Caso especial: "signed" incluye tanto status='signed' como firma manual
+      if (status === 'signed') {
+        whereClause[Op.or] = whereClause[Op.or] || [];
+        whereClause[Op.or].push(
+          { status: 'signed' },
+          { 
+            signatureMethod: 'manual',
+            manualSignedPdfPath: { [Op.ne]: null }
+          }
+        );
+      } else {
+        whereClause.status = status;
+      }
     }
 
     const { rows: budgetsInstances, count: totalBudgets } = await Budget.findAndCountAll({
@@ -1090,7 +1102,7 @@ async getBudgets(req, res) {
     // Esto asegura que siempre se muestren todos los estados, sin importar el filtro aplicado
     const allBudgetsForStats = await Budget.findAll({
       where: baseWhereClause, // ✅ USAR baseWhereClause en lugar de whereClause
-      attributes: ['status']
+      attributes: ['status', 'signatureMethod', 'manualSignedPdfPath']
     });
 
     const stats = {
@@ -1101,7 +1113,10 @@ async getBudgets(req, res) {
       created: allBudgetsForStats.filter(b => b.status === 'created').length,
       send: allBudgetsForStats.filter(b => b.status === 'send').length,
       sent_for_signature: allBudgetsForStats.filter(b => b.status === 'sent_for_signature').length,
-      signed: allBudgetsForStats.filter(b => b.status === 'signed').length,
+      // ✅ "signed" incluye budgets con status='signed' O firma manual completa
+      signed: allBudgetsForStats.filter(b => 
+        b.status === 'signed' || (b.signatureMethod === 'manual' && b.manualSignedPdfPath)
+      ).length,
       approved: allBudgetsForStats.filter(b => b.status === 'approved').length,
       rejected: allBudgetsForStats.filter(b => b.status === 'rejected').length,
       notResponded: allBudgetsForStats.filter(b => b.status === 'notResponded').length
@@ -2012,19 +2027,23 @@ async optionalDocs(req, res) {
 
           try {
             console.log(`Creando nuevo Income para Work ID: ${workRecord.idWork}`);
+            console.log('👤 Usuario autenticado (req.user):', req.user?.id, req.user?.name);
+            const now = new Date();
+            const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
             const createdIncome = await Income.create({
-              date: new Date(),
+              date: localDate,
               amount: actualInitialPaymentAmount,
               typeIncome: 'Factura Pago Inicial Budget',
               notes: `Pago inicial registrado al aprobar Budget #${budget.idBudget}`,
               workId: workRecord.idWork,
-              staffId: req.staff?.id,  // Cambiar req.user por req.staff
+              staffId: req.user?.id,  // ✅ Usuario autenticado que aprueba el Budget
               paymentMethod: budget.paymentProofMethod || paymentMethod || null, // 🆕 Usar método del Budget
               verified: false // 🆕 Por defecto no verificado
             }, { transaction });
             console.log(`Nuevo Income creado exitosamente con datos:`, {
               idIncome: createdIncome.idIncome,
               amount: createdIncome.amount,
+              staffId: createdIncome.staffId,
               paymentMethod: createdIncome.paymentMethod,
               verified: createdIncome.verified
             });
@@ -2064,18 +2083,21 @@ async optionalDocs(req, res) {
 
           if (!existingIncome) {
             console.warn(`Advertencia: Work ${workRecord.idWork} existía pero no se encontró Income inicial. Creando ahora.`);
+            console.log('👤 Usuario autenticado (req.user):', req.user?.id, req.user?.name);
             try {
+              const now = new Date();
+              const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
               const createdLateIncome = await Income.create({
-                date: new Date(),
+                date: localDate,
                 amount: actualInitialPaymentAmount,
                 typeIncome: 'Factura Pago Inicial Budget',
                 notes: `Pago inicial (tardío) registrado al aprobar Budget #${budget.idBudget}`,
                 workId: workRecord.idWork,
-                staffId: req.staff?.id, // Cambiar req.user por req.staff
+                staffId: req.user?.id, // ✅ Usuario autenticado que aprueba el Budget
                 paymentMethod: budget.paymentProofMethod || paymentMethod || null, // 🆕 Usar método del Budget
                 verified: false // 🆕 Por defecto no verificado
               }, { transaction });
-              console.log(`Income (tardío) creado exitosamente.`);
+              console.log(`Income (tardío) creado exitosamente con staffId:`, createdLateIncome.staffId);
               
               // 🚀 NOTIFICACIÓN DE INGRESO TARDÍO DESDE BUDGET
               setImmediate(async () => {
@@ -2328,10 +2350,12 @@ async optionalDocs(req, res) {
           if (!relatedIncome) {
             console.log('No se encontró Income de pago inicial, creando uno nuevo...');
             const amountForIncome = parsedUploadedAmount || budget.initialPayment;
+            const now = new Date();
+            const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
             relatedIncome = await Income.create({
               amount: amountForIncome,
-              date: new Date(),
+              date: localDate,
               typeIncome: 'Factura Pago Inicial Budget',
               notes: `Pago inicial para Budget #${budget.idBudget}`,
               workId: existingWork.idWork,
@@ -3250,8 +3274,8 @@ async optionalDocs(req, res) {
         PermitIdPermit: newPermit.idPermit,
         propertyAddress,
         applicantName,
-        date: date || new Date(),
-        expirationDate: expirationDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 días por defecto
+        date: date || new Date().toISOString().split('T')[0],
+        expirationDate: expirationDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 días por defecto
         status,
         discountDescription: discountDescription || '',
         discountAmount: discountAmountNum,
@@ -4013,6 +4037,7 @@ async optionalDocs(req, res) {
                 // Actualizar presupuesto con información de SignNow
                 await updatedBudget.update({
                   signNowDocumentId: signNowResult.documentId,
+                  signatureMethod: 'signnow',
                   status: 'sent_for_signature',
                   sentForSignatureAt: new Date()
                 });

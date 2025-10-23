@@ -129,10 +129,12 @@ async function processInvoicePayment(budgetId, amountPaid, session) {
     console.log(`💰 Procesando pago de $${amountPaid} para Budget #${budgetId}`);
 
     // Crear registro de Income
+    const now = new Date();
+    const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const income = await Income.create({
       type: 'Factura Pago Inicial Budget',
       amount: amountPaid,
-      date: new Date(),
+      date: localDate,
       description: `Initial payment received via Stripe for Invoice #${budget.invoiceNumber || budgetId} - ${budget.Permit?.propertyAddress || budget.propertyAddress || 'N/A'}`,
       budgetId: budgetId,
       paymentMethod: 'Stripe', // Stripe se procesa en esta cuenta
@@ -206,10 +208,12 @@ async function processFinalInvoicePayment(metadata, amountPaid, session) {
     }
 
     // Crear registro de Income
+    const now = new Date();
+    const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const income = await Income.create({
       type: 'Factura Pago Final Budget',
       amount: amountPaid,
-      date: new Date(),
+      date: localDate,
       description: `Final payment received via Stripe for Final Invoice #${finalInvoiceId}${work ? ` - ${work.propertyAddress}` : ''}`,
       workId: effectiveWorkId || null,
       budgetId: budgetId || work?.budgetId || null,

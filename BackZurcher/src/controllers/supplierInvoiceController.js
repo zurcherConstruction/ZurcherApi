@@ -511,36 +511,153 @@ const registerPayment = async (req, res) => {
  * PUT /api/supplier-invoices/:id
  */
 const updateSupplierInvoice = async (req, res) => {
+  const transaction = await SupplierInvoice.sequelize.transaction();
+  
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const { items, ...invoiceUpdates } = req.body;
 
-    const invoice = await SupplierInvoice.findByPk(id);
+    const invoice = await SupplierInvoice.findByPk(id, {
+      include: [{
+        model: SupplierInvoiceItem,
+        as: 'items'
+      }],
+      transaction
+    });
 
     if (!invoice) {
+      await transaction.rollback();
       return res.status(404).json({
         error: 'Invoice no encontrado'
       });
     }
 
     // No permitir editar invoices pagados
-    if (invoice.paymentStatus === 'paid' && !updates.notes) {
+    if (invoice.paymentStatus === 'paid') {
+      await transaction.rollback();
       return res.status(400).json({
         error: 'No se puede editar un invoice que ya está pagado'
       });
     }
 
-    // Actualizar
-    await invoice.update(updates);
+    // Si se envían items, procesarlos
+    if (items && Array.isArray(items)) {
+      // Obtener items actuales
+      const currentItems = invoice.items || [];
+      
+      // Revertir expenses de items que serán eliminados
+      for (const currentItem of currentItems) {
+        if (currentItem.relatedExpenseId) {
+          await Expense.update({
+            paymentStatus: 'unpaid',
+            paidDate: null,
+            supplierInvoiceItemId: null
+          }, {
+            where: { idExpense: currentItem.relatedExpenseId },
+            transaction
+          });
+        }
+        if (currentItem.relatedFixedExpenseId) {
+          await FixedExpense.update({
+            paymentStatus: 'unpaid',
+            paidDate: null,
+            supplierInvoiceItemId: null
+          }, {
+            where: { idFixedExpense: currentItem.relatedFixedExpenseId },
+            transaction
+          });
+        }
+      }
+
+      // Eliminar todos los items actuales
+      await SupplierInvoiceItem.destroy({
+        where: { supplierInvoiceId: id },
+        transaction
+      });
+
+      // Crear nuevos items
+      let totalAmount = 0;
+      for (const itemData of items) {
+        const item = await SupplierInvoiceItem.create({
+          supplierInvoiceId: id,
+          workId: itemData.workId || null,
+          description: itemData.description,
+          category: itemData.category,
+          amount: itemData.amount,
+          relatedExpenseId: itemData.relatedExpenseId || null,
+          relatedFixedExpenseId: itemData.relatedFixedExpenseId || null,
+          notes: itemData.notes || null
+        }, { transaction });
+
+        totalAmount += parseFloat(itemData.amount);
+
+        // Vincular expense si existe
+        if (itemData.relatedExpenseId) {
+          await Expense.update({
+            paymentStatus: 'paid_via_invoice',
+            paidDate: invoiceUpdates.issueDate || invoice.issueDate,
+            supplierInvoiceItemId: item.idItem
+          }, {
+            where: { idExpense: itemData.relatedExpenseId },
+            transaction
+          });
+        }
+        
+        if (itemData.relatedFixedExpenseId) {
+          await FixedExpense.update({
+            paymentStatus: 'paid_via_invoice',
+            paidDate: invoiceUpdates.issueDate || invoice.issueDate,
+            supplierInvoiceItemId: item.idItem
+          }, {
+            where: { idFixedExpense: itemData.relatedFixedExpenseId },
+            transaction
+          });
+        }
+      }
+
+      // Actualizar totalAmount
+      invoiceUpdates.totalAmount = totalAmount;
+    }
+
+    // Actualizar invoice principal
+    await invoice.update(invoiceUpdates, { transaction });
+
+    await transaction.commit();
 
     console.log(`✅ Invoice ${invoice.invoiceNumber} actualizado`);
 
+    // Retornar invoice actualizado con items
+    const updatedInvoice = await SupplierInvoice.findByPk(id, {
+      include: [{
+        model: SupplierInvoiceItem,
+        as: 'items',
+        include: [
+          {
+            model: Work,
+            as: 'work',
+            attributes: ['idWork', 'propertyAddress']
+          },
+          {
+            model: Expense,
+            as: 'relatedExpense',
+            attributes: ['idExpense', 'typeExpense', 'amount']
+          },
+          {
+            model: FixedExpense,
+            as: 'relatedFixedExpense',
+            attributes: ['idFixedExpense', 'description', 'amount']
+          }
+        ]
+      }]
+    });
+
     res.json({
       message: 'Invoice actualizado exitosamente',
-      invoice
+      invoice: updatedInvoice
     });
 
   } catch (error) {
+    await transaction.rollback();
     console.error('❌ Error actualizando invoice:', error);
     res.status(500).json({
       error: 'Error al actualizar el invoice',

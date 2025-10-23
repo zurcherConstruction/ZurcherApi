@@ -174,7 +174,13 @@ const signNowController = {
         context: {
           invoice: budget.idBudget.toString(),
           property: budget.Permit?.propertyAddress || budget.propertyAddress,
-          signed_at: budget.signedAt || new Date().toISOString()
+          signed_at: budget.signedAt || (() => {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+          })()
         }
       });
 
@@ -263,16 +269,30 @@ const signNowController = {
         context: {
           invoice: budget.idBudget.toString(),
           property: budget.Permit?.propertyAddress || budget.propertyAddress,
-          signed_at: new Date().toISOString(),
+          signed_at: (() => {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+          })(),
           sync_type: 'manual'
         }
       });
 
       // Actualizar Budget
+      const localDate = (() => {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      })();
+      
       await budget.update({
         signNowDocumentId,
         status: 'signed',
-        signedAt: new Date(),
+        signedAt: localDate,
         signedPdfPath: uploadResult.secure_url,
         signedPdfPublicId: uploadResult.public_id
       });

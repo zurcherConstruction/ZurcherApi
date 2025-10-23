@@ -18,8 +18,10 @@ const checkPendingSignatures = async () => {
     const pendingBudgets = await Budget.findAll({
       where: {
         signNowDocumentId: { [Op.ne]: null }, // Tiene documento en SignNow
-        status: { [Op.notIn]: ['signed', 'approved'] }, // NO está firmado ni aprobado
-        signatureMethod: 'signnow' // 🆕 Solo los enviados por SignNow
+        status: { 
+          [Op.in]: ['pending_review', 'created', 'sent_for_signature', 'client_approved', 'send']
+        }, // Estados pendientes de firma
+        signatureMethod: 'signnow' // Solo los enviados por SignNow
       },
       include: [{ model: Permit, attributes: ['applicantName', 'propertyAddress'] }]
     });

@@ -17,11 +17,11 @@ module.exports = (sequelize) => {
       allowNull: false,
     },
     date: {
-      type: DataTypes.DATEONLY,
+      type: DataTypes.STRING(10),
       allowNull: false,
     },
     expirationDate: {
-      type: DataTypes.DATEONLY,
+      type: DataTypes.STRING(10),
     },
     // price: {
     //   type: DataTypes.DECIMAL(10, 2), // Aseguramos precisión decimal

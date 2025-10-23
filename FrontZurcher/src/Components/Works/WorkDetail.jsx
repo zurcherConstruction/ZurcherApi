@@ -27,6 +27,21 @@ const WorkDetail = () => {
   const { idWork } = useParams();
   const dispatch = useDispatch();
 
+  // ✅ Función para formatear fechas de YYYY-MM-DD a MM-DD-YYYY
+  const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
+    
+    // dateString viene como "YYYY-MM-DD" del backend
+    const [year, month, day] = dateString.split('-');
+    
+    if (!year || !month || !day) {
+      return "Invalid Date";
+    }
+    
+    // Retornar en formato MM-DD-YYYY
+    return `${month}-${day}-${year}`;
+  };
+
   // Refresco automático cada 60 segundos
   useAutoRefresh(() => fetchWorkById(idWork), 360000, [idWork]);
 
@@ -871,7 +886,7 @@ const handleUploadImage = async () => {
                   </p>
                     {/* Otros Datos */}
                     <p className="mt-3 text-sm text-gray-600">
-                      <strong>Fecha:</strong> {new Date(work.budget.date).toLocaleDateString()}
+                      <strong>Fecha:</strong> {formatDate(work.budget.date)}
                     </p>
                     <p className="text-sm text-gray-600">
                       <strong>Estado:</strong> {work.budget.status}

@@ -18,24 +18,21 @@ import DynamicCategorySection from "./DynamicCategorySection";
 const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
 // --- Helper para formatear fecha a MM-DD-YYYY ---
-const formatDateMMDDYYYY = (isoDateString) => {
-  if (!isoDateString || typeof isoDateString !== 'string') {
+const formatDateMMDDYYYY = (dateString) => {
+  if (!dateString || typeof dateString !== 'string') {
     return ''; // Devuelve vacío si no hay fecha o no es string
   }
-  try {
-    // Asegurarse de que la fecha se interprete correctamente (UTC para evitar problemas de zona horaria)
-    const date = new Date(isoDateString + 'T00:00:00Z');
-    if (isNaN(date.getTime())) {
-      return ''; // Devuelve vacío si la fecha no es válida
-    }
-    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(date.getUTCDate()).padStart(2, '0');
-    const year = date.getUTCFullYear();
-    return `${month}-${day}-${year}`;
-  } catch (error) {
-    console.error("Error formatting date:", error);
-    return ''; // Devuelve vacío en caso de error
+  
+  // dateString viene como "YYYY-MM-DD" del backend
+  const [year, month, day] = dateString.split('-');
+  
+  if (!year || !month || !day) {
+    console.error("Invalid date format:", dateString);
+    return '';
   }
+  
+  // Retornar en formato MM-DD-YYYY
+  return `${month}-${day}-${year}`;
 };
 
 // --- Helper para convertir MM-DD-YYYY a YYYY-MM-DD ---
@@ -49,6 +46,15 @@ const convertUSAtoISO = (usaDate) => {
     return `${year}-${month}-${day}`;
   }
   return '';
+};
+
+// --- Helper para obtener la fecha local en formato YYYY-MM-DD ---
+const getLocalDateString = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 };
 // --- Hook para leer Query Params ---
 function useQuery() {
@@ -195,7 +201,7 @@ const CreateBudget = () => {
     applicantName: "",
     lot: "",
     block: "",
-    date: new Date().toISOString().split('T')[0],
+    date: getLocalDateString(),
     expirationDate: "", // Se calculará automáticamente
     initialPayment: 0,
     status: "draft", // 🆕 CAMBIO: Por defecto crear como DRAFT
@@ -279,7 +285,7 @@ const CreateBudget = () => {
         discountDescription: "",
         generalNotes: "",
         initialPayment: 0,
-        date: new Date().toISOString().split('T')[0], // Resetear fecha a hoy
+        date: getLocalDateString(), // Resetear fecha a hoy
         expirationDate: "", // Se recalculará
         status: "created",
         initialPaymentPercentage: '60',

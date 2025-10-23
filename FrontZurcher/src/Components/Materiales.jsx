@@ -44,8 +44,18 @@ const Materiales = () => {
   const { works, selectedWork: work, loading, error } = useSelector((state) => state.work);
 
   const [selectedAddress, setSelectedAddress] = useState(""); // Dirección seleccionada
+  
+  // Helper para obtener fecha local en formato YYYY-MM-DD
+  const getLocalDateString = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  
   const [formData, setFormData] = useState({
-    date: new Date().toISOString().split("T")[0],
+    date: getLocalDateString(),
     materials: [],
     comments: "",
   });
@@ -135,7 +145,7 @@ const Materiales = () => {
   
       // Limpiar el formulario
       setFormData({
-        date: new Date().toISOString().split("T")[0],
+        date: getLocalDateString(),
         materials: [],
         comments: "",
       });
@@ -160,7 +170,7 @@ useEffect(() => {
       dispatch(fetchWorkById(selectedWork.idWork)); // Cargar detalles del trabajo
       setFormData({
         ...formData,
-        date: selectedWork.startDate || new Date().toISOString().split("T")[0], // Usar startDate si está disponible
+        date: selectedWork.startDate || getLocalDateString(), // Usar startDate si está disponible
       });
     }
   }
@@ -424,7 +434,7 @@ const formatDate = (isoDate) => {
     try {
       // --- Paso 1: Crear el registro de Gasto (Expense) ---
       const expenseData = {
-        date: new Date().toISOString().split("T")[0],
+        date: getLocalDateString(),
         amount: parseFloat(initialMaterialsAmount),
         notes: `Gasto de materiales iniciales para ${work.propertyAddress}`, // Nota automática
         workId: work.idWork,
@@ -451,7 +461,7 @@ const formatDate = (isoDate) => {
       receiptFormData.append('relatedModel', 'Expense'); // Asociar al modelo Expense
       receiptFormData.append('relatedId', createdExpenseId); // ID del gasto recién creado
       receiptFormData.append('type', 'Materiales Iniciales'); // Tipo de comprobante
-      receiptFormData.append('date', new Date().toISOString().split("T")[0]);
+      receiptFormData.append('date', getLocalDateString());
       // receiptFormData.append('notes', `Comprobante de materiales iniciales para ${work.propertyAddress}`); // Opcional
 
       console.log('Datos a enviar para crear Comprobante (Receipt):', Object.fromEntries(receiptFormData));
@@ -463,7 +473,7 @@ const formatDate = (isoDate) => {
     if (work.status !== 'inProgress') {
       const workUpdateData = {
         status: 'inProgress',
-        startDate: work.startDate || new Date().toISOString(), 
+        startDate: work.startDate || getLocalDateString(), 
       };
       await dispatch(updateWork(work.idWork, workUpdateData));
       toast.success(`Estado de la obra para "${work.propertyAddress}" actualizado a "En Progreso".`);

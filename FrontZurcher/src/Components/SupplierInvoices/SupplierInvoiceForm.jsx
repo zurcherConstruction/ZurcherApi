@@ -80,7 +80,17 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
         vendorCuit: invoice.vendorCuit || '',
         description: invoice.description || invoice.notes || '',
       });
-      setItems(invoice.SupplierInvoiceItems || []);
+      
+      // Procesar items: si vienen del backend sin quantity/unitPrice, inicializarlos
+      const processedItems = (invoice.items || invoice.SupplierInvoiceItems || []).map(item => ({
+        ...item,
+        quantity: item.quantity || 1,
+        unitPrice: item.unitPrice || parseFloat(item.amount),
+        amount: item.amount,
+        isNew: false // Items del backend no son nuevos
+      }));
+      
+      setItems(processedItems);
     }
   }, [invoice]);
 
@@ -639,9 +649,10 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
                           type="number"
                           value={item.quantity}
                           onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-                          className={`w-full px-2 py-1 text-sm border border-gray-300 rounded ${
-                            errors[`item_${index}_quantity`] ? 'border-red-500' : ''
-                          }`}
+                          disabled={!item.isNew}
+                          className={`w-full px-2 py-1 text-sm border rounded ${
+                            item.isNew ? 'border-gray-300' : 'border-gray-200 bg-gray-50'
+                          } ${errors[`item_${index}_quantity`] ? 'border-red-500' : ''}`}
                         />
                       </div>
                       <div className="col-span-2">
@@ -652,9 +663,10 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
                           type="number"
                           value={item.unitPrice}
                           onChange={(e) => handleItemChange(index, 'unitPrice', e.target.value)}
-                          className={`w-full px-2 py-1 text-sm border border-gray-300 rounded ${
-                            errors[`item_${index}_unitPrice`] ? 'border-red-500' : ''
-                          }`}
+                          disabled={!item.isNew}
+                          className={`w-full px-2 py-1 text-sm border rounded ${
+                            item.isNew ? 'border-gray-300' : 'border-gray-200 bg-gray-50'
+                          } ${errors[`item_${index}_unitPrice`] ? 'border-red-500' : ''}`}
                         />
                       </div>
                       <div className="col-span-2">

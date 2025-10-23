@@ -40,6 +40,22 @@ const GestionBudgets = () => {
   const staff = currentStaff || user;
   const userRole = staff?.role || '';
 
+  // ✅ Función para formatear fechas de YYYY-MM-DD a MM-DD-YYYY
+  const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
+    
+    // dateString viene como "YYYY-MM-DD" del backend
+    const [year, month, day] = dateString.split('-');
+    
+    if (!year || !month || !day) {
+      console.error("Invalid date format:", dateString);
+      return "Invalid Date";
+    }
+    
+    // Retornar en formato MM-DD-YYYY
+    return `${month}-${day}-${year}`;
+  };
+
   // ✅ Estados para paginación local
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -102,7 +118,10 @@ const GestionBudgets = () => {
   // Obtener años únicos de los budgets
   const availableYears = useMemo(() => {
     if (!budgets?.length) return [];
-    const years = [...new Set(budgets.map(budget => new Date(budget.date).getFullYear()))];
+    const years = [...new Set(budgets.map(budget => {
+      const [year] = budget.date.split('-');
+      return parseInt(year);
+    }))];
     return years.sort((a, b) => b - a);
   }, [budgets]);
 
@@ -782,7 +801,7 @@ const GestionBudgets = () => {
                     {budget.propertyAddress}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {new Date(budget.date).toLocaleDateString()}
+                    {formatDate(budget.date)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     ${Number(budget.totalPrice || 0).toLocaleString()}
@@ -1017,14 +1036,14 @@ const GestionBudgets = () => {
                     <div>
                       <span className="text-sm font-medium text-gray-600">Fecha de Creación:</span>
                       <p className="text-sm text-gray-900">
-                        {new Date(selectedBudget.date).toLocaleDateString()}
+                        {formatDate(selectedBudget.date)}
                       </p>
                     </div>
                     <div>
                       <span className="text-sm font-medium text-gray-600">Fecha de Expiración:</span>
                       <p className="text-sm text-gray-900">
                         {selectedBudget.expirationDate
-                          ? new Date(selectedBudget.expirationDate).toLocaleDateString()
+                          ? formatDate(selectedBudget.expirationDate)
                           : 'N/A'
                         }
                       </p>

@@ -825,7 +825,7 @@ const AccountsReceivableController = {
           typeExpense: 'Comisión Vendedor',
           notes: expenseNotes,
           workId: budget.Work.idWork,
-          staffId: budget.createdByStaffId || null, // Solo para sales_rep
+          staffId: req.user?.id || null, // ✅ Usuario que paga la comisión (no el vendedor)
           paymentMethod,
           paymentDetails: paymentDetails || null,
           verified: false, // Requiere verificación de finanzas

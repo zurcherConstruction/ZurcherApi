@@ -2,9 +2,34 @@ const { Income, Staff, Receipt, Work } = require('../data'); // Agregar Work
 const { Op } = require('sequelize');
 const { sendNotifications } = require('../utils/notifications/notificationManager'); // Importar notificaciones
 
+// 🔧 Helper: Normalizar fecha de ISO a YYYY-MM-DD (acepta ambos formatos)
+const normalizeDateToLocal = (dateInput) => {
+  if (!dateInput) return null;
+  
+  // Si ya es formato YYYY-MM-DD (10 caracteres), devolverlo tal cual
+  if (typeof dateInput === 'string' && dateInput.length === 10 && dateInput.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    return dateInput;
+  }
+  
+  // Si es formato ISO completo (ej: 2025-10-22T12:34:56.789Z), convertir a fecha local
+  try {
+    const date = new Date(dateInput);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  } catch (e) {
+    console.error('Error normalizando fecha:', dateInput, e);
+    return dateInput; // Devolver el original si falla
+  }
+};
+
 // Crear un nuevo ingreso
 const createIncome = async (req, res) => {
-  const { date, amount, typeIncome, notes, workId, staffId, paymentMethod, paymentDetails, verified } = req.body;
+  let { date, amount, typeIncome, notes, workId, staffId, paymentMethod, paymentDetails, verified } = req.body;
+  
+  // ✅ Normalizar fecha (acepta ISO completo o YYYY-MM-DD)
+  date = normalizeDateToLocal(date);
   
   try {
     // ✅ VALIDACIÓN: paymentMethod es OBLIGATORIO
@@ -137,7 +162,13 @@ const getIncomeById = async (req, res) => {
 // Actualizar un ingreso
 const updateIncome = async (req, res) => {
   const { id } = req.params;
-  const { date, amount, typeIncome, notes, workId, staffId, paymentMethod, paymentDetails, verified } = req.body; // Agregar paymentDetails
+  let { date, amount, typeIncome, notes, workId, staffId, paymentMethod, paymentDetails, verified } = req.body; // Agregar paymentDetails
+  
+  // ✅ Normalizar fecha si se proporciona
+  if (date) {
+    date = normalizeDateToLocal(date);
+  }
+  
   try {
     const income = await Income.findByPk(id);
     if (!income) return res.status(404).json({ message: 'Ingreso no encontrado' });

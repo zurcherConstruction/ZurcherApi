@@ -66,7 +66,10 @@ const VisitForm = ({ visit, isOpen, onClose }) => {
       status: newStatus,
       // Si se marca como completada, poner fecha actual si no tiene
       actualVisitDate: newStatus === 'completed' && !prev.actualVisitDate 
-        ? new Date().toISOString().split('T')[0]
+        ? (() => {
+            const now = new Date();
+            return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+          })()
         : prev.actualVisitDate
     }));
   };
