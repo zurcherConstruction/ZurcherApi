@@ -254,7 +254,7 @@ module.exports = (sequelize) => {
   },
   
   commissionPaidDate: {
-    type: DataTypes.DATEONLY,
+    type: DataTypes.STRING(10), // Formato: YYYY-MM-DD
     allowNull: true
   },
   

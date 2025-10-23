@@ -17,7 +17,7 @@ module.exports = (sequelize) => {
   }
 },
     date: {
-      type: DataTypes.DATEONLY,
+      type: DataTypes.STRING(10), // Formato: YYYY-MM-DD
       allowNull: false,
     },
     amount: {
