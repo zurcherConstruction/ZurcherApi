@@ -3,6 +3,22 @@ const router = express.Router();
 const AccountsReceivableController = require('../controllers/AccountsReceivableController');
 const { verifyToken } = require("../middleware/isAuth");
 const { allowRoles } = require("../middleware/byRol");
+const multer = require('multer');
+
+// Configurar Multer para archivos de comprobantes de comisiones
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB máximo
+  fileFilter: (req, file, cb) => {
+    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+    if (allowedMimeTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo se permiten archivos JPG, PNG o PDF'));
+    }
+  }
+});
 
 /**
  * Rutas para Cuentas por Cobrar (Accounts Receivable)
@@ -41,11 +57,12 @@ router.get(
   AccountsReceivableController.getActiveInvoices
 );
 
-// Marcar comisión como pagada o no pagada
+// Marcar comisión como pagada o no pagada (con soporte para archivo de comprobante)
 router.put(
   '/:budgetId/commission-paid',
   verifyToken,
   allowRoles(['admin', 'owner', 'finance']),
+  upload.single('file'), // 🆕 Soportar archivo opcional de comprobante
   AccountsReceivableController.markCommissionAsPaid
 );
 

@@ -59,6 +59,28 @@ const Summary = () => {
   const dispatch = useDispatch();
 
   // Obtener movimientos con filtros
+  // Función para formatear fechas de YYYY-MM-DD a MM-DD-YYYY
+  const formatDate = (date) => {
+    if (!date) return 'N/A';
+    
+    // Si es un string en formato YYYY-MM-DD, parsearlo sin conversión UTC
+    if (typeof date === 'string' && date.includes('-')) {
+      const [year, month, day] = date.split('-').map(Number);
+      const d = new Date(year, month - 1, day);
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      return `${mm}-${dd}-${yyyy}`;
+    }
+    
+    // Fallback para otros formatos
+    const d = new Date(date);
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${month}-${day}-${year}`;
+  };
+
   const fetchMovements = async () => {
     setLoading(true);
     try {
@@ -471,6 +493,9 @@ const Summary = () => {
     // 🆕 Filtro por verificación
     if (filters.verified === "true" && !mov.verified) return false;
     if (filters.verified === "false" && mov.verified) return false;
+    // 💳 Filtro por método de pago
+    if (filters.paymentMethod && mov.paymentMethod !== filters.paymentMethod)
+      return false;
     return true;
   });
 
@@ -774,7 +799,7 @@ const Summary = () => {
                           />
                         </td>
                         <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
-                          {new Date(mov.date).toLocaleDateString('en-US')}
+                          {formatDate(mov.date)}
                         </td>
                         <td className="px-2 py-2 whitespace-nowrap">
                           <span className={`inline-flex items-center justify-center w-6 h-6 rounded text-xs font-medium ${
@@ -905,7 +930,7 @@ const Summary = () => {
                   </label>
                   <input
                     type="date"
-                    value={editData.date ? new Date(editData.date).toISOString().split('T')[0] : ''}
+                    value={editData.date || ''}
                     onChange={(e) =>
                       setEditData({ ...editData, date: e.target.value })
                     }

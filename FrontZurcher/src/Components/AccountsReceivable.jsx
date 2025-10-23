@@ -12,6 +12,7 @@ import {
   FaClock,
   FaUserTie
 } from 'react-icons/fa';
+import { PAYMENT_METHODS_GROUPED } from '../utils/paymentConstants'; // 🆕 Importar métodos de pago
 
 const AccountsReceivable = () => {
   const token = useSelector((state) => state.auth.token);
@@ -29,6 +30,8 @@ const AccountsReceivable = () => {
   const [selectedCommission, setSelectedCommission] = useState(null);
   const [paymentFile, setPaymentFile] = useState(null);
   const [paymentNotes, setPaymentNotes] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState(''); // 🆕 Método de pago
+  const [paymentDetails, setPaymentDetails] = useState(''); // 🆕 Detalles adicionales
   const [uploadingPayment, setUploadingPayment] = useState(false);
   const [data, setData] = useState({
     summary: {},
@@ -129,6 +132,8 @@ const AccountsReceivable = () => {
     setSelectedCommission(null);
     setPaymentFile(null);
     setPaymentNotes('');
+    setPaymentMethod(''); // 🆕 Limpiar método de pago
+    setPaymentDetails(''); // 🆕 Limpiar detalles
   };
 
   const handleSubmitPayment = async (e) => {
@@ -138,90 +143,59 @@ const AccountsReceivable = () => {
     
     const newStatus = !selectedCommission.currentStatus;
     
-    // Si está marcando como pagada, requiere archivo
-    if (newStatus && !paymentFile) {
-      alert('Por favor adjunta el comprobante de pago de la comisión');
-      return;
+    // Si está marcando como pagada, requiere archivo y método de pago
+    if (newStatus) {
+      if (!paymentFile) {
+        alert('⚠️ Por favor adjunta el comprobante de pago de la comisión');
+        return;
+      }
+      if (!paymentMethod) {
+        alert('⚠️ Por favor selecciona el método de pago');
+        return;
+      }
     }
     
     setUploadingPayment(true);
     
     try {
+      // ✅ NUEVO FLUJO AUTOMÁTICO: Un solo endpoint hace todo
+      const formData = new FormData();
+      formData.append('paid', newStatus);
+      
+      // Usar fecha local sin conversión UTC (evita restar un día)
+      const today = new Date();
+      const localDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      formData.append('paidDate', localDate);
+      
       if (newStatus) {
-        // MARCAR COMO PAGADA: Crear gasto + adjuntar comprobante
-        
-        // Determinar el nombre del receptor y notas
-        const recipientName = selectedCommission.leadSource === 'sales_rep'
-          ? selectedCommission.salesRepName
-          : selectedCommission.externalReferralName;
-        
-        const recipientType = selectedCommission.leadSource === 'sales_rep'
-          ? 'Vendedor Interno (Staff)'
-          : 'Referido Externo';
-        
-        // 1. Crear el gasto de tipo "Comisión Vendedor"
-        const expenseData = {
-          date: new Date().toISOString().split("T")[0],
-          amount: parseFloat(selectedCommission.commissionAmount),
-          notes: paymentNotes || `Pago de comisión - Budget #${selectedCommission.budgetId} - ${recipientType}: ${recipientName}`,
-          typeExpense: "Comisión Vendedor",
-          staffId: selectedCommission.leadSource === 'sales_rep' ? selectedCommission.salesRepId : null,
-          // ✅ Asociar al work si existe (trazabilidad por proyecto)
-          ...(selectedCommission.workId ? { workId: selectedCommission.workId } : {}),
-        };
+        // Solo para marcar como pagada
+        formData.append('paymentMethod', paymentMethod);
+        if (paymentDetails) formData.append('paymentDetails', paymentDetails);
+        if (paymentNotes) formData.append('notes', paymentNotes);
+        if (paymentFile) formData.append('file', paymentFile);
+      }
 
-        const response = await axios.post(
-          `${import.meta.env.VITE_API_URL}/expense`,
-          expenseData,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-
-        const createdExpense = response.data;
-        
-        if (!createdExpense || !createdExpense.idExpense) {
-          throw new Error("No se pudo crear el gasto de comisión");
+      const response = await axios.put(
+        `${import.meta.env.VITE_API_URL}/accounts-receivable/${selectedCommission.budgetId}/commission-paid`,
+        formData,
+        { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data'
+          } 
         }
+      );
 
-        // 2. Adjuntar el comprobante al gasto creado
-        const formData = new FormData();
-        formData.append("file", paymentFile);
-        formData.append("notes", paymentNotes || '');
-        formData.append("type", "Comisión Vendedor");
-        formData.append("relatedModel", "Expense");
-        formData.append("relatedId", createdExpense.idExpense.toString());
-
-        await axios.post(
-          `${import.meta.env.VITE_API_URL}/receipt`,
-          formData,
-          { 
-            headers: { 
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'multipart/form-data'
-            } 
-          }
-        );
-
-        // 3. Marcar la comisión como pagada en el Budget
-        await axios.put(
-          `${import.meta.env.VITE_API_URL}/accounts-receivable/${selectedCommission.budgetId}/commission-paid`,
-          { 
-            paid: true, 
-            paidDate: new Date().toISOString().split('T')[0]
-          },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-
-        alert('✅ Comisión pagada correctamente. Gasto y comprobante registrados.');
+      if (response.data.success) {
+        const message = newStatus 
+          ? `✅ Comisión pagada correctamente!\n\n` +
+            `💰 Expense creado: $${response.data.expense?.amount || 0}\n` +
+            `📄 Método: ${response.data.expense?.paymentMethod || 'N/A'}\n` +
+            `${response.data.receipt ? '📎 Comprobante adjuntado\n' : ''}` +
+            `🏢 Proveedor: ${response.data.expense?.vendor || 'N/A'}`
+          : 'Comisión marcada como pendiente';
         
-      } else {
-        // MARCAR COMO PENDIENTE: Solo actualizar el estado
-        await axios.put(
-          `${import.meta.env.VITE_API_URL}/accounts-receivable/${selectedCommission.budgetId}/commission-paid`,
-          { paid: false, paidDate: null },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        
-        alert('Comisión marcada como pendiente');
+        alert(message);
       }
       
       // Refrescar datos
@@ -231,7 +205,8 @@ const AccountsReceivable = () => {
       handleClosePaymentModal();
     } catch (error) {
       console.error('Error updating commission status:', error);
-      alert('Error al actualizar el estado de la comisión: ' + (error.response?.data?.message || error.message));
+      const errorMsg = error.response?.data?.message || error.message;
+      alert(`❌ Error al actualizar el estado de la comisión:\n${errorMsg}`);
     } finally {
       setUploadingPayment(false);
     }
@@ -247,11 +222,23 @@ const AccountsReceivable = () => {
 
   const formatDate = (date) => {
     if (!date) return 'N/A';
-    return new Date(date).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
+    
+    // Si es un string en formato YYYY-MM-DD, parsearlo sin conversión UTC
+    if (typeof date === 'string' && date.includes('-')) {
+      const [year, month, day] = date.split('-').map(Number);
+      const d = new Date(year, month - 1, day);
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      return `${mm}-${dd}-${yyyy}`;
+    }
+    
+    // Fallback para otros formatos
+    const d = new Date(date);
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${month}-${day}-${year}`;
   };
 
   if (loading) {
@@ -1226,20 +1213,31 @@ const AccountsReceivable = () => {
                         {formatDate(budget.date)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <button
-                          onClick={() => handleToggleCommissionPaid(budget.budgetId, budget.commissionPaid, budget.workId)}
-                          disabled={!budget.commissionPaid && !budget.workId}
-                          className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
-                            !budget.commissionPaid && !budget.workId
-                              ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                              : budget.commissionPaid
-                                ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                                : 'bg-green-100 text-green-700 hover:bg-green-200'
-                          }`}
-                          title={!budget.commissionPaid && !budget.workId ? 'No se puede pagar: presupuesto sin Work confirmado' : ''}
-                        >
-                          {budget.commissionPaid ? 'Marcar Pendiente' : 'Marcar Pagada'}
-                        </button>
+                        {budget.commissionPaid ? (
+                          <div className="flex items-center gap-2">
+                            <span className="px-3 py-1 rounded-md text-xs font-semibold bg-green-100 text-green-700 border border-green-300">
+                              ✓ Pagada
+                            </span>
+                            {budget.commissionPaidDate && (
+                              <span className="text-xs text-gray-500">
+                                {formatDate(budget.commissionPaidDate)}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleToggleCommissionPaid(budget.budgetId, budget.commissionPaid, budget.workId)}
+                            disabled={!budget.workId}
+                            className={`px-3 py-1 rounded-md text-xs font-semibold transition-all ${
+                              !budget.workId
+                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                : 'bg-purple-500 text-white hover:bg-purple-600'
+                            }`}
+                            title={!budget.workId ? 'No se puede pagar: presupuesto sin Work confirmado' : 'Marcar comisión como pagada'}
+                          >
+                            💰 Marcar Pagada
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -1393,6 +1391,57 @@ const AccountsReceivable = () => {
                 </div>
               )}
 
+              {/* Payment Method - Only required when marking as paid */}
+              {!selectedCommission.currentStatus && (
+                <div>
+                  <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                    <svg className="w-5 h-5 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                    Método de Pago <span className="text-red-500 ml-1">*</span>
+                  </label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+                    required={!selectedCommission.currentStatus}
+                  >
+                    <option value="">Seleccione método de pago...</option>
+                    {Object.entries(PAYMENT_METHODS_GROUPED).map(([category, methods]) => (
+                      <optgroup key={category} label={category.toUpperCase()}>
+                        {methods.map((method) => (
+                          <option key={method.value} value={method.value}>
+                            {method.label}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Payment Details - Optional */}
+              {!selectedCommission.currentStatus && (
+                <div>
+                  <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                    <svg className="w-5 h-5 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    Detalles de Pago (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={paymentDetails}
+                    onChange={(e) => setPaymentDetails(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    placeholder="Ej: Cheque #12345, Últimos 4 dígitos: 9876, Ref: TRF001234..."
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    💳 Información adicional como número de cheque, referencia de transferencia o últimos 4 dígitos de tarjeta
+                  </p>
+                </div>
+              )}
+
               {/* Notes */}
               <div>
                 <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
@@ -1439,7 +1488,7 @@ const AccountsReceivable = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={uploadingPayment || (!selectedCommission.currentStatus && !paymentFile)}
+                  disabled={uploadingPayment || (!selectedCommission.currentStatus && (!paymentFile || !paymentMethod))}
                   className={`flex-1 px-6 py-3 rounded-lg font-medium text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
                     selectedCommission.currentStatus
                       ? 'bg-red-500 hover:bg-red-600'

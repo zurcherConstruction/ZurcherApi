@@ -1,5 +1,20 @@
-const { Work, Budget, FinalInvoice, ChangeOrder, WorkExtraItem, Staff } = require('../data');
+const { Work, Budget, FinalInvoice, ChangeOrder, WorkExtraItem, Staff, Expense, Receipt } = require('../data');
 const { Sequelize, Op } = require('sequelize');
+const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader');
+const { sendNotifications } = require('../utils/notifications/notificationManager');
+
+/**
+ * Helper para formatear fecha sin conversión UTC
+ * Devuelve string en formato YYYY-MM-DD en hora local
+ */
+const formatDateLocal = (date) => {
+  if (!date) return null;
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 /**
  * Controlador para Cuentas por Cobrar (Accounts Receivable)
@@ -320,13 +335,13 @@ const AccountsReceivableController = {
 
   /**
    * Obtener comisiones pendientes de pago a vendedores
+   * ✅ SOLO muestra comisiones de budgets que se convirtieron en Work (aprobados)
    */
   async getPendingCommissions(req, res) {
     try {
-      console.log('🔍 Buscando comisiones pendientes...');
+      console.log('🔍 Buscando comisiones pendientes (solo budgets aprobados con Work)...');
       
-      // ✅ MOSTRAR TODAS LAS COMISIONES (pagadas y pendientes)
-      // Incluye tanto sales_rep como external_referral
+      // ✅ FILTRAR: Solo budgets que tienen Work asociado (fueron aprobados)
       const budgetsWithCommissions = await Budget.findAll({
         where: {
           [Op.or]: [
@@ -334,12 +349,11 @@ const AccountsReceivableController = {
               // Sales Reps (vendedores internos) - comisión fija $500
               leadSource: 'sales_rep',
               createdByStaffId: { [Op.ne]: null },
-              commissionAmount: { [Op.gt]: 0 } // ✅ CAMBIADO: usar commissionAmount universal
+              commissionAmount: { [Op.gt]: 0 }
             },
             {
               // External Referrals (referidos externos) - comisión variable
               leadSource: 'external_referral',
-              // ✅ REMOVIDO: externalReferralName requirement - solo verificar commissionAmount
               commissionAmount: { [Op.gt]: 0 }
             }
           ]
@@ -349,17 +363,17 @@ const AccountsReceivableController = {
             model: Staff,
             as: 'createdByStaff',
             attributes: ['id', 'name', 'email', 'role'],
-            required: false // ✅ IMPORTANTE: No requerir Staff para external referrals
+            required: false
           },
           {
             model: Work,
             attributes: ['idWork', 'status'],
-            required: false
+            required: true // ✅ CLAVE: Solo budgets que TIENEN Work asociado
           }
         ]
       });
 
-      console.log(`✅ Encontrados ${budgetsWithCommissions.length} budgets con comisiones`);
+      console.log(`✅ Encontrados ${budgetsWithCommissions.length} budgets APROBADOS con comisiones (tienen Work)`);
       console.log(`   - Sales Reps: ${budgetsWithCommissions.filter(b => b.leadSource === 'sales_rep').length}`);
       console.log(`   - External Referrals: ${budgetsWithCommissions.filter(b => b.leadSource === 'external_referral').length}`);
 
@@ -720,14 +734,41 @@ const AccountsReceivableController = {
   },
 
   /**
-   * 🆕 Marcar comisión como pagada
+   * 🆕 Marcar comisión como pagada Y crear Expense automáticamente
+   * Sigue el mismo patrón que UploadVouchers para consistencia
    */
   async markCommissionAsPaid(req, res) {
     try {
       const { budgetId } = req.params;
-      const { paid, paidDate } = req.body; // paid: boolean, paidDate: YYYY-MM-DD (opcional)
+      const { 
+        paid, 
+        paidDate, 
+        paymentMethod, 
+        paymentDetails, 
+        notes 
+      } = req.body;
 
-      const budget = await Budget.findByPk(budgetId);
+      // ✅ Validaciones
+      if (!paymentMethod && paid) {
+        return res.status(400).json({
+          error: true,
+          message: '⚠️ El método de pago es obligatorio para marcar como pagada'
+        });
+      }
+
+      const budget = await Budget.findByPk(budgetId, {
+        include: [
+          {
+            model: Staff,
+            as: 'createdByStaff',
+            attributes: ['id', 'name', 'email']
+          },
+          {
+            model: Work,
+            attributes: ['idWork', 'propertyAddress', 'status']
+          }
+        ]
+      });
       
       if (!budget) {
         return res.status(404).json({
@@ -736,20 +777,147 @@ const AccountsReceivableController = {
         });
       }
 
-      // Actualizar estado de comisión
+      // ✅ Verificar que tenga Work asociado
+      if (!budget.Work) {
+        return res.status(400).json({
+          error: true,
+          message: 'Este budget no tiene un Work asociado. Solo se pueden pagar comisiones de budgets aprobados.'
+        });
+      }
+
+      const commissionAmount = parseFloat(budget.commissionAmount || 0);
+      
+      if (commissionAmount <= 0) {
+        return res.status(400).json({
+          error: true,
+          message: 'Este budget no tiene un monto de comisión configurado'
+        });
+      }
+
+      let createdExpense = null;
+      let createdReceipt = null;
+
+      // ✅ Si se marca como pagada, crear el Expense automáticamente
+      if (paid) {
+        console.log(`💰 Creando Expense automático por comisión: $${commissionAmount}`);
+
+        // Determinar el vendor según el tipo de comisión
+        let vendor = '';
+        let expenseNotes = notes || '';
+
+        if (budget.leadSource === 'sales_rep') {
+          vendor = budget.createdByStaff?.name || 'Vendedor no especificado';
+          expenseNotes = `Comisión Sales Rep - ${vendor} - Budget ${budget.propertyAddress}`;
+        } else if (budget.leadSource === 'external_referral') {
+          vendor = budget.externalReferralName || 'Referido externo';
+          expenseNotes = `Comisión Referido Externo - ${vendor} - Budget ${budget.propertyAddress}`;
+          if (budget.externalReferralCompany) {
+            expenseNotes += ` (${budget.externalReferralCompany})`;
+          }
+        }
+
+        // Crear el Expense con fecha como string YYYY-MM-DD
+        const expenseDate = paidDate || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+
+        createdExpense = await Expense.create({
+          date: expenseDate,
+          amount: commissionAmount,
+          typeExpense: 'Comisión Vendedor',
+          notes: expenseNotes,
+          workId: budget.Work.idWork,
+          staffId: budget.createdByStaffId || null, // Solo para sales_rep
+          paymentMethod,
+          paymentDetails: paymentDetails || null,
+          verified: false, // Requiere verificación de finanzas
+          paymentStatus: 'paid', // Ya se pagó
+          vendor: vendor
+        });
+
+        console.log(`✅ Expense creado: ${createdExpense.idExpense}`);
+
+        // ✅ Si hay archivo adjunto, crear Receipt
+        if (req.file) {
+          console.log('📎 Subiendo comprobante a Cloudinary...');
+          
+          const result = await uploadBufferToCloudinary(req.file.buffer, {
+            folder: 'zurcher_receipts',
+            resource_type: req.file.mimetype === 'application/pdf' ? 'raw' : 'auto',
+            format: req.file.mimetype === 'application/pdf' ? undefined : 'jpg',
+            access_mode: 'public'
+          });
+
+          createdReceipt = await Receipt.create({
+            relatedModel: 'Expense',
+            relatedId: createdExpense.idExpense.toString(),
+            type: 'Comisión Vendedor',
+            notes: expenseNotes,
+            fileUrl: result.secure_url,
+            publicId: result.public_id,
+            mimeType: req.file.mimetype,
+            originalName: req.file.originalname
+          });
+
+          console.log(`✅ Receipt creado: ${createdReceipt.idReceipt}`);
+        }
+
+        // ✅ Enviar notificación al equipo de finanzas
+        try {
+          await sendNotifications('expenseCreated', {
+            ...createdExpense.toJSON(),
+            propertyAddress: budget.Work.propertyAddress,
+            Staff: budget.createdByStaff
+          });
+          console.log(`✅ Notificación de comisión enviada`);
+        } catch (notificationError) {
+          console.error('❌ Error enviando notificación:', notificationError.message);
+        }
+      }
+
+      // ✅ Actualizar estado de comisión en el Budget (guardar fecha como string)
       budget.commissionPaid = paid;
-      budget.commissionPaidDate = paid ? (paidDate || new Date()) : null;
+      
+      if (paid) {
+        // Guardar fecha directamente como string YYYY-MM-DD
+        if (paidDate) {
+          budget.commissionPaidDate = paidDate;
+        } else {
+          const today = new Date();
+          budget.commissionPaidDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        }
+      } else {
+        budget.commissionPaidDate = null;
+      }
       
       await budget.save();
 
       res.status(200).json({
-        message: `Comisión marcada como ${paid ? 'pagada' : 'no pagada'}`,
+        success: true,
+        message: paid 
+          ? `✅ Comisión marcada como pagada y Expense creado automáticamente` 
+          : `Comisión marcada como no pagada`,
         budget: {
           idBudget: budget.idBudget,
-          commissionAmount: budget.salesCommissionAmount,
+          propertyAddress: budget.propertyAddress,
+          commissionAmount: budget.commissionAmount,
           commissionPaid: budget.commissionPaid,
-          commissionPaidDate: budget.commissionPaidDate
-        }
+          commissionPaidDate: budget.commissionPaidDate, // Ya es string
+          leadSource: budget.leadSource,
+          salesRepName: budget.createdByStaff?.name || null,
+          externalReferralName: budget.externalReferralName || null
+        },
+        expense: createdExpense ? {
+          idExpense: createdExpense.idExpense,
+          amount: createdExpense.amount,
+          date: createdExpense.date,
+          paymentMethod: createdExpense.paymentMethod,
+          vendor: createdExpense.vendor,
+          hasReceipt: !!createdReceipt
+        } : null,
+        receipt: createdReceipt ? {
+          idReceipt: createdReceipt.idReceipt,
+          fileUrl: createdReceipt.fileUrl,
+          originalName: createdReceipt.originalName
+        } : null
       });
 
     } catch (error) {

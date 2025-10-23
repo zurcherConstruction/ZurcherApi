@@ -9,7 +9,7 @@ module.exports = (sequelize) => {
       allowNull: false,
     },
     date: {
-      type: DataTypes.DATEONLY,
+      type: DataTypes.STRING(10), // Formato: YYYY-MM-DD
       allowNull: false,
     },
     amount: {
@@ -62,6 +62,7 @@ module.exports = (sequelize) => {
         'Zelle',
         'Tarjeta Débito',
         'PayPal',
+        'Stripe',
         'Otro'
       ),
       allowNull: true,
