@@ -35,8 +35,15 @@ const FixedExpensesManager = () => {
   const [upcomingExpenses, setUpcomingExpenses] = useState([]);
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [selectedExpenseForGenerate, setSelectedExpenseForGenerate] = useState(null);
+  
+  // Helper para obtener fecha local
+  const getLocalDateString = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  };
+  
   const [generateFormData, setGenerateFormData] = useState({
-    paymentDate: new Date().toISOString().split('T')[0],
+    paymentDate: getLocalDateString(),
     notes: ''
   });
 
@@ -57,7 +64,7 @@ const FixedExpensesManager = () => {
     category: '',
     paymentMethod: '',
     paymentAccount: '',
-    startDate: new Date().toISOString().split('T')[0],
+    startDate: getLocalDateString(),
     endDate: '',
     isActive: true,
     autoCreateExpense: false,
@@ -295,7 +302,7 @@ const FixedExpensesManager = () => {
       setShowGenerateModal(false);
       setSelectedExpenseForGenerate(null);
       setGenerateFormData({
-        paymentDate: new Date().toISOString().split('T')[0],
+        paymentDate: getLocalDateString(),
         notes: ''
       });
     } catch (error) {
@@ -307,7 +314,7 @@ const FixedExpensesManager = () => {
   const openGenerateModal = (expense) => {
     setSelectedExpenseForGenerate(expense);
     setGenerateFormData({
-      paymentDate: new Date().toISOString().split('T')[0],
+      paymentDate: getLocalDateString(),
       notes: `Pago de ${expense.name}`
     });
     setShowGenerateModal(true);
@@ -322,7 +329,7 @@ const FixedExpensesManager = () => {
       category: '',
       paymentMethod: '',
       paymentAccount: '',
-      startDate: new Date().toISOString().split('T')[0],
+      startDate: getLocalDateString(),
       endDate: '',
       isActive: true,
       autoCreateExpense: false,

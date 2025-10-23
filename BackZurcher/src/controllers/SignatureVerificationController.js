@@ -11,15 +11,14 @@ const { Op } = require('sequelize');
  */
 const verifyPendingSignatures = async (req, res) => {
   try {
-    console.log(`\n🔍 [MANUAL] Verificación manual de firmas iniciada por usuario - ${new Date().toISOString()}`);
     const signNowService = new SignNowService();
 
-    // Buscar presupuestos con SignNow pendientes
-    // Excluir 'signed' y 'approved' porque ya fueron procesados
     const pendingBudgets = await Budget.findAll({
       where: {
         signNowDocumentId: { [Op.ne]: null },
-        status: { [Op.notIn]: ['signed', 'approved'] },
+        status: { 
+          [Op.in]: ['pending_review', 'created', 'sent_for_signature', 'client_approved', 'send']
+        },
         signatureMethod: 'signnow'
       },
       include: [{ model: Permit, attributes: ['applicantName', 'propertyAddress'] }]
@@ -34,8 +33,6 @@ const verifyPendingSignatures = async (req, res) => {
       });
     }
 
-    console.log(`[MANUAL] Se encontraron ${pendingBudgets.length} presupuestos pendientes para verificar.`);
-
     let signedCount = 0;
     const results = [];
 
@@ -44,7 +41,6 @@ const verifyPendingSignatures = async (req, res) => {
         const signatureStatus = await signNowService.isDocumentSigned(budget.signNowDocumentId);
 
         if (signatureStatus.isSigned) {
-          console.log(`✅ Presupuesto FIRMADO detectado: ${budget.idBudget}`);
           signedCount++;
 
           // Descargar y subir a Cloudinary
@@ -93,8 +89,6 @@ const verifyPendingSignatures = async (req, res) => {
             });
 
           } catch (downloadError) {
-            console.error(`Error al descargar PDF del presupuesto ${budget.idBudget}:`, downloadError.message);
-            
             await budget.update({
               status: 'signed',
               signatureMethod: 'signnow',
@@ -116,15 +110,12 @@ const verifyPendingSignatures = async (req, res) => {
           });
         }
       } catch (error) {
-        console.error(`Error verificando presupuesto ${budget.idBudget}:`, error.message);
         results.push({
           idBudget: budget.idBudget,
           error: error.message
         });
       }
     }
-
-    console.log(`[MANUAL] Verificación completada: ${signedCount} de ${pendingBudgets.length} presupuestos firmados`);
 
     res.status(200).json({
       success: true,

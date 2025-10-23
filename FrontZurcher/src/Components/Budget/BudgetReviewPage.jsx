@@ -18,6 +18,21 @@ const BudgetReviewPage = () => {
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
+  // ✅ Función para formatear fechas de YYYY-MM-DD a MM-DD-YYYY
+  const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
+    
+    // dateString viene como "YYYY-MM-DD" del backend
+    const [year, month, day] = dateString.split('-');
+    
+    if (!year || !month || !day) {
+      return "Invalid Date";
+    }
+    
+    // Retornar en formato MM-DD-YYYY
+    return `${month}-${day}-${year}`;
+  };
+
   useEffect(() => {
     console.log('🔍 BudgetReviewPage mounted with:', { budgetId, reviewToken, API_URL });
     fetchBudgetDetails();
@@ -292,7 +307,7 @@ const BudgetReviewPage = () => {
             <div>
               <p className="text-sm text-gray-600">Date</p>
               <p className="text-lg font-semibold">
-                {new Date(budget.date).toLocaleDateString()}
+                {formatDate(budget.date)}
               </p>
             </div>
           </div>

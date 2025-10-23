@@ -32,6 +32,8 @@ const UploadInitialPay = () => {
     }));
   }, [dispatch]);
 
+
+
   const handleBudgetSelect = (event) => {
     setSelectedBudgetId(event.target.value);
     setFile(null);
@@ -166,22 +168,30 @@ const UploadInitialPay = () => {
 
   // Filtrar presupuestos FIRMADOS o ENVIADOS PARA FIRMA que NO tengan comprobante cargado
   // Mostrar presupuestos con status='signed' o 'sent_for_signature'
+  // ✅ INCLUIR budgets con firma manual completa (signatureMethod='manual' && manualSignedPdfPath)
   // Excluir estado "approved" (significa que YA se cargó el comprobante)
   // Excluir presupuestos con paymentInvoice o paymentProofAmount
   const sendBudgets = budgets.filter(b => {
-    // Mostrar presupuestos con status 'signed' o 'sent_for_signature'
-    // No mostrar 'approved' porque esos ya tienen pago inicial
-    if (b.status !== 'signed' && b.status !== 'sent_for_signature') return false;
+    // ✅ Verificar si está firmado (SignNow o Manual)
+    const isSignNowSigned = b.status === 'signed';
+    const isManuallySigned = b.signatureMethod === 'manual' && b.manualSignedPdfPath;
+    const isSentForSignature = b.status === 'sent_for_signature';
     
-    // Verificar que tenga método de firma válido (signnow o manual)
-    const isSigned = b.signatureMethod === 'signnow' || b.signatureMethod === 'manual';
-    if (!isSigned) return false;
+    // Debe estar firmado (SignNow o Manual) O enviado para firma
+    if (!isSignNowSigned && !isManuallySigned && !isSentForSignature) {
+      return false;
+    }
     
     // Excluir si tiene paymentInvoice (URL del comprobante)
-    if (b.paymentInvoice && b.paymentInvoice.trim() !== '') return false;
+    if (b.paymentInvoice && b.paymentInvoice.trim() !== '') {
+      return false;
+    }
+    
     // Excluir si tiene paymentProofAmount (monto registrado)
-    if (b.paymentProofAmount && parseFloat(b.paymentProofAmount) > 0) return false;
-    // Incluir el presupuesto si no cumple ninguna de las condiciones anteriores
+    if (b.paymentProofAmount && parseFloat(b.paymentProofAmount) > 0) {
+      return false;
+    }
+    
     return true;
   });
 

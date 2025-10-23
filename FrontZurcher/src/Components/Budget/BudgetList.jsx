@@ -458,12 +458,18 @@ const BudgetList = () => {
   // --- FIN NUEVAS FUNCIONES ---
 
   const formatDate = (dateString) => {
-    try {
-      return format(parseISO(dateString), "dd-MM-yyyy");
-    } catch (e) {
-      console.error("Error formatting date:", dateString, e);
+    if (!dateString) return "N/A";
+    
+    // dateString viene como "YYYY-MM-DD" del backend
+    const [year, month, day] = dateString.split('-');
+    
+    if (!year || !month || !day) {
+      console.error("Invalid date format:", dateString);
       return "Invalid Date";
     }
+    
+    // Retornar en formato MM-DD-YYYY
+    return `${month}-${day}-${year}`;
   };
 
   const handleUpdateStatus = (idBudget, newStatus, budget) => {
@@ -694,8 +700,15 @@ const BudgetList = () => {
     };
   }, [pdfUrlForModal]);
 
-  const getStatusColor = (status) => {
-    switch (status) {
+  const getStatusColor = (budget) => {
+    // ✅ Verificar si tiene firma manual completa (debe tratarse como "signed")
+    const isManuallySigned = budget.signatureMethod === 'manual' && budget.manualSignedPdfPath;
+    
+    if (isManuallySigned || budget.status === "signed") {
+      return "bg-green-200"; // Verde más intenso para firmado
+    }
+    
+    switch (budget.status) {
       case "draft":
         return "bg-gray-100"; // 🆕 Gris claro para borrador
       case "created":
@@ -711,8 +724,6 @@ const BudgetList = () => {
         return "bg-yellow-100"; // Azul claro para enviado a SignNow
       case "approved":
         return "bg-green-100"; // Verde claro para aprobado
-      case "signed":
-        return "bg-green-200"; // Verde más intenso para firmado
       case "notResponded":
         return "bg-orange-100"; // Naranja para sin respuesta
       case "rejected":
@@ -933,7 +944,7 @@ const BudgetList = () => {
                         <tr
                           key={budget.idBudget}
                           className={`hover:bg-gray-100 transition-colors ${getStatusColor(
-                            budget.status
+                            budget
                           )}`}
                         >
                           <td className="border border-gray-300 px-4 py-2 text-xs">
@@ -1226,8 +1237,8 @@ const BudgetList = () => {
                                   </p>
                                 </div>
                               )}
-                              {/* ESTADO: SIGNED */}
-                              {budget.status === "signed" && (
+                              {/* ESTADO: SIGNED (incluye firma manual) */}
+                              {(budget.status === "signed" || (budget.signatureMethod === 'manual' && budget.manualSignedPdfPath)) && (
                                 <div className="w-full min-w-[100px]">
                                   <p className="text-green-800 text-[10px] font-semibold bg-green-200 px-2 py-1.5 rounded text-center leading-tight">
                                     Signed
@@ -1556,7 +1567,7 @@ const BudgetList = () => {
                       <div
                         key={budget.idBudget}
                         className={`border border-gray-300 rounded-xl p-4 md:p-6 shadow-lg hover:shadow-xl transition-all duration-200 ${getStatusColor(
-                          budget.status
+                          budget
                         )}`}
                       >
                         <div className="flex justify-between items-start mb-3">
@@ -1857,7 +1868,7 @@ const BudgetList = () => {
                               </div>
                             )}
 
-                            {budget.status === "signed" && (
+                            {(budget.status === "signed" || (budget.signatureMethod === 'manual' && budget.manualSignedPdfPath)) && (
                               <div className="w-full text-center text-green-800 text-xs font-semibold p-2 border rounded bg-green-100">
                                 Signed
                               </div>

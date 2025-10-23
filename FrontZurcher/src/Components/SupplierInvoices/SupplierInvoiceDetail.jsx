@@ -341,7 +341,7 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {invoice.SupplierInvoiceItems?.map((item, index) => (
+                {(invoice.items || invoice.SupplierInvoiceItems || [])?.map((item, index) => (
                   <tr key={index} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <div className="text-sm text-gray-900">{item.description}</div>

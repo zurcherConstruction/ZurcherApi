@@ -212,8 +212,13 @@ const AttachReceipt = () => {
         let createdRecordId = null;
         let createdRecord;
         const isIncome = incomeTypes.includes(type);
+        
+        // Generar fecha local
+        const now = new Date();
+        const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        
         const incomeExpenseData = {
-          date: new Date().toISOString().split("T")[0],
+          date: localDate,
           amount: parseFloat(generalAmount),
           notes,
           // Solo incluir workId si no es transacción general

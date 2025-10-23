@@ -160,21 +160,22 @@ const createReceipt = async (req, res) => {
 
             // Crear Income para FinalInvoice ANTES de crear el Receipt
             if (finalInvoiceInstanceForUpdate.workId && numericAmountPaidForIncome > 0) {
+              const now = new Date();
+              const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
               const incomeDataForFinalInvoice = {
                 amount: numericAmountPaidForIncome,
-                date: finalInvoiceInstanceForUpdate.paymentDate || new Date(),
+                date: finalInvoiceInstanceForUpdate.paymentDate || localDate,
                 workId: finalInvoiceInstanceForUpdate.workId,
                 typeIncome: 'Factura Pago Final Budget',
                 notes: `Pago para Factura Final ID: ${finalInvoiceInstanceForUpdate.id}.`,
-                staffId: req.user?.id || null, // ✅ Usar staffId del usuario autenticado
+                staffId: req.user?.id || null, // ✅ Mantener staffId del usuario autenticado (quien carga el comprobante)
                 paymentMethod: req.body.paymentMethod || 'Sin especificar', // ✅ Agregar método de pago
                 verified: false // El pago aún no ha sido verificado
               };
 
-              const workForStaff = await Work.findByPk(finalInvoiceInstanceForUpdate.workId, { attributes: ['staffId'], transaction });
-              if (workForStaff && workForStaff.staffId) {
-                incomeDataForFinalInvoice.staffId = workForStaff.staffId;
-              }
+              // ❌ REMOVIDO: No sobrescribir el staffId con el del Work
+              // El staffId debe ser el usuario que está cargando el comprobante (req.user.id)
+              // NO el worker asignado al trabajo (workForStaff.staffId)
 
               console.log('[ReceiptController] Creando Income para pago de FinalInvoice:', incomeDataForFinalInvoice);
               const createdIncome = await Income.create(incomeDataForFinalInvoice, { transaction });

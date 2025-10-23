@@ -31,8 +31,9 @@ const verifyToken = async (req, res, next) => {
         });
       }
 
-      // Asignar el Staff autenticado a req.staff
+      // Asignar el Staff autenticado a req.staff Y req.user (para compatibilidad)
       req.staff = staff;
+      req.user = staff; // ✅ Agregar también a req.user para compatibilidad
       next();
     });
   } catch (error) {

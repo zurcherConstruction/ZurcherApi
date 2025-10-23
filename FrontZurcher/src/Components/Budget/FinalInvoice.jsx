@@ -183,9 +183,13 @@ const FinalInvoiceComponent = ({ workId }) => {
 
    const handleMarkAsPaid = () => {
     if (currentInvoice && window.confirm('¿Marcar esta factura como Pagada?')) {
+        // Generar fecha local
+        const now = new Date();
+        const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        
         dispatch(updateFinalInvoiceStatus({
             finalInvoiceId: currentInvoice.id,
-            statusData: { status: 'paid', paymentDate: new Date().toISOString().split('T')[0] }
+            statusData: { status: 'paid', paymentDate: localDate }
         }));
     }
 };

@@ -271,12 +271,6 @@ class SignNowService {
         (req) => req.signature_id !== null && req.signature_id !== undefined
       );
 
-      if (allInvitesAreSigned) {
-       
-      } else {
-        console.log(`[SignNowService] Aún pendiente. No todas las invitaciones para el documento ${documentId} están firmadas.`);
-      }
-
       return {
         isSigned: allInvitesAreSigned,
         status: allInvitesAreSigned ? 'signed' : 'pending',
