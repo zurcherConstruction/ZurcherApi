@@ -60,6 +60,9 @@ import PrivacyPolicy from "./Components/PrivacyPolicy";
 import MaintenanceList from "./Components/Maintenance/MaintenanceList";
 import MaintenanceForm from "./pages/MaintenanceForm";
 import SupplierInvoiceManager from './Components/SupplierInvoices/SupplierInvoiceManager';
+// Importar componentes de Workers
+import WorkerDashboard from "./Components/Workers/WorkerDashboard";
+import WorkerWorkUpload from "./Components/Workers/WorkerWorkUpload";
 
 
 function App() {
@@ -378,6 +381,24 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["owner", "admin", "worker"]}>
                     <MaintenanceList />
+                  </PrivateRoute>
+                }
+              />
+
+              {/* Rutas de Workers */}
+              <Route
+                path="/worker"
+                element={
+                  <PrivateRoute allowedRoles={["worker"]}>
+                    <WorkerDashboard />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/worker/work/:workId"
+                element={
+                  <PrivateRoute allowedRoles={["worker"]}>
+                    <WorkerWorkUpload />
                   </PrivateRoute>
                 }
               />
