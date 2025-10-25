@@ -66,6 +66,7 @@ import WorkerDashboard from "./Components/Workers/WorkerDashboard";
 import WorkerWorkUpload from "./Components/Workers/WorkerWorkUpload";
 import WorkerMaintenanceDashboard from "./Components/Workers/WorkerMaintenanceDashboard";
 import WorkerMaintenanceDetail from "./Components/Workers/WorkerMaintenanceDetail";
+import WorkerGeneralExpense from "./Components/Workers/WorkerGeneralExpense";
 
 
 function App() {
@@ -434,6 +435,14 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["worker"]}>
                     <WorkerMaintenanceDetail />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/worker/general-expense"
+                element={
+                  <PrivateRoute allowedRoles={["worker"]}>
+                    <WorkerGeneralExpense />
                   </PrivateRoute>
                 }
               />

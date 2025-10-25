@@ -7,7 +7,8 @@ import {
   WrenchScrewdriverIcon,
   ClockIcon,
   CheckCircleIcon,
-  PhotoIcon
+  PhotoIcon,
+  CurrencyDollarIcon
 } from "@heroicons/react/24/outline";
 
 const WorkerDashboard = () => {
@@ -82,36 +83,45 @@ const WorkerDashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       {/* Header */}
-      <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-6 shadow-lg">
+      <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-4 sm:p-6 shadow-lg">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <div>
-              <h1 className="text-2xl font-bold mb-2">Mis Trabajos</h1>
-              <p className="text-green-100">Bienvenido, {authStaff?.name}</p>
+              <h1 className="text-xl sm:text-2xl font-bold mb-2">Mis Trabajos</h1>
+              <p className="text-green-100 text-sm sm:text-base">Bienvenido, {authStaff?.name}</p>
             </div>
-            {/* Botón de Mantenimientos */}
-            <button
-              onClick={() => navigate('/worker/maintenance')}
-              className="flex items-center gap-2 bg-white bg-opacity-20 hover:bg-opacity-30 backdrop-blur-sm px-4 py-2 rounded-lg transition-colors"
-            >
-              <WrenchScrewdriverIcon className="h-5 w-5" />
-              <span className="font-semibold">Mantenimientos</span>
-            </button>
+            {/* Botones de Acción */}
+            <div className="flex gap-2 flex-col sm:flex-row">
+              <button
+                onClick={() => navigate('/worker/maintenance')}
+                className="flex items-center justify-center gap-2 bg-white bg-opacity-20 hover:bg-opacity-30 backdrop-blur-sm px-4 py-2 rounded-lg transition-colors"
+              >
+                <WrenchScrewdriverIcon className="h-5 w-5" />
+                <span className="font-semibold">Mantenimientos</span>
+              </button>
+              <button
+                onClick={() => navigate('/worker/general-expense')}
+                className="flex items-center justify-center gap-2 bg-white bg-opacity-20 hover:bg-opacity-30 backdrop-blur-sm px-4 py-2 rounded-lg transition-colors"
+              >
+                <CurrencyDollarIcon className="h-5 w-5" />
+                <span className="font-semibold">Gastos Generales</span>
+              </button>
+            </div>
           </div>
           
           {/* Stats Cards */}
-          <div className="grid grid-cols-3 gap-4 mt-4">
-            <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-lg p-4 text-center">
-              <div className="text-3xl font-bold">{assignedWorks.length}</div>
-              <div className="text-sm text-green-100">Asignados</div>
+          <div className="grid grid-cols-3 gap-2 sm:gap-4 mt-4">
+            <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-lg p-2 sm:p-4 text-center">
+              <div className="text-xl sm:text-3xl font-bold">{assignedWorks.length}</div>
+              <div className="text-xs sm:text-sm text-green-100">Asignados</div>
             </div>
-            <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-lg p-4 text-center">
-              <div className="text-3xl font-bold">{inProgressWorks.length}</div>
-              <div className="text-sm text-green-100">En Progreso</div>
+            <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-lg p-2 sm:p-4 text-center">
+              <div className="text-xl sm:text-3xl font-bold">{inProgressWorks.length}</div>
+              <div className="text-xs sm:text-sm text-green-100">En Progreso</div>
             </div>
-            <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-lg p-4 text-center">
-              <div className="text-3xl font-bold">{completedWorks.length}</div>
-              <div className="text-sm text-green-100">Completados</div>
+            <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-lg p-2 sm:p-4 text-center">
+              <div className="text-xl sm:text-3xl font-bold">{completedWorks.length}</div>
+              <div className="text-xs sm:text-sm text-green-100">Completados</div>
             </div>
           </div>
         </div>
@@ -119,40 +129,40 @@ const WorkerDashboard = () => {
 
       {/* Tabs */}
       <div className="bg-white shadow-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex space-x-1 border-b">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4">
+          <div className="flex space-x-1 border-b overflow-x-auto">
             <button
               onClick={() => setActiveTab('assigned')}
-              className={`flex-1 py-4 px-4 text-center font-medium transition-colors ${
+              className={`flex-1 min-w-fit py-3 sm:py-4 px-2 sm:px-4 text-center font-medium transition-colors ${
                 activeTab === 'assigned'
                   ? 'border-b-2 border-green-600 text-green-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              <BriefcaseIcon className="h-5 w-5 inline-block mr-2" />
-              Asignados ({assignedWorks.length})
+              <BriefcaseIcon className="h-4 sm:h-5 w-4 sm:w-5 inline-block mr-1 sm:mr-2" />
+              <span className="text-xs sm:text-base">Asignados ({assignedWorks.length})</span>
             </button>
             <button
               onClick={() => setActiveTab('inProgress')}
-              className={`flex-1 py-4 px-4 text-center font-medium transition-colors ${
+              className={`flex-1 min-w-fit py-3 sm:py-4 px-2 sm:px-4 text-center font-medium transition-colors ${
                 activeTab === 'inProgress'
                   ? 'border-b-2 border-green-600 text-green-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              <ClockIcon className="h-5 w-5 inline-block mr-2" />
-              En Progreso ({inProgressWorks.length})
+              <ClockIcon className="h-4 sm:h-5 w-4 sm:w-5 inline-block mr-1 sm:mr-2" />
+              <span className="text-xs sm:text-base">En Progreso ({inProgressWorks.length})</span>
             </button>
             <button
               onClick={() => setActiveTab('completed')}
-              className={`flex-1 py-4 px-4 text-center font-medium transition-colors ${
+              className={`flex-1 min-w-fit py-3 sm:py-4 px-2 sm:px-4 text-center font-medium transition-colors ${
                 activeTab === 'completed'
                   ? 'border-b-2 border-green-600 text-green-600'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              <CheckCircleIcon className="h-5 w-5 inline-block mr-2" />
-              Completados ({completedWorks.length})
+              <CheckCircleIcon className="h-4 sm:h-5 w-4 sm:w-5 inline-block mr-1 sm:mr-2" />
+              <span className="text-xs sm:text-base">Completados ({completedWorks.length})</span>
             </button>
           </div>
         </div>

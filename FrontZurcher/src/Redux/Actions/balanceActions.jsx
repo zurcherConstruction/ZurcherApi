@@ -140,6 +140,20 @@ export const expenseActions = {
       return handleError(error, 'Error al obtener gastos por estado de pago');
     }
   },
+
+  // 🆕 Crear gasto general con recibo (para workers)
+  createGeneralExpenseWithReceipt: async (formData) => {
+    try {
+      const response = await api.post('/expense/general', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      return handleError(error, 'Error al crear el gasto general');
+    }
+  },
 };
 
 // Actions para Balance
