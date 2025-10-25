@@ -195,6 +195,30 @@ router.post(
   verifyPendingSignatures
 );
 
+// 🆕 Archivar presupuestos antiguos manualmente
+router.post(
+  '/archive-old',
+  verifyToken,
+  allowRoles(['admin', 'owner']), // Solo admin y owner
+  async (req, res) => {
+    try {
+      const { archiveBudgets } = require('../tasks/cronJobs');
+      await archiveBudgets();
+      res.json({ 
+        success: true, 
+        message: 'Presupuestos archivados correctamente' 
+      });
+    } catch (error) {
+      console.error('Error al archivar presupuestos:', error);
+      res.status(500).json({ 
+        error: true, 
+        message: 'Error al archivar presupuestos',
+        details: error.message 
+      });
+    }
+  }
+);
+
 // // ✅ RUTA DE DIAGNÓSTICO SMTP
 // router.get('/diagnostic/email', verifyToken, isOwner, BudgetController.diagnoseEmail); // Solo el owner puede hacer diagnósticos
 
