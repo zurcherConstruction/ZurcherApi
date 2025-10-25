@@ -330,19 +330,6 @@ const editableBudgets = useMemo(() => {
         console.error('❌ Error during setFormData:', error, 'currentBudget was:', currentBudget);
         setFormData(null);
       }
-    } else {
-      // 📊 Log detallado de por qué NO se recreó formData (solo si no es por refresh forzado)
-      if (forceFormDataRefresh === 0) {
-        if (!currentBudget) {
-          console.log('⏭️ formData NO recreado: currentBudget is null/undefined.');
-        } else if (currentBudget.idBudget !== selectedBudgetId) {
-          console.log(`⏭️ formData NO recreado: ID mismatch (${currentBudget.idBudget} !== ${selectedBudgetId}).`);
-        } else if (formData && formData.idBudget === selectedBudgetId) {
-          console.log('⏭️ formData NO recreado: formData ya existe para este budgetId (OK - no hay cambios pendientes).');
-        } else {
-          console.log('⏭️ formData NO recreado: Unknown reason.');
-        }
-      }
     }
   }, [currentBudget, selectedBudgetId, formData, forceFormDataRefresh]); // 🆕 Agregado forceFormDataRefresh
 
@@ -389,8 +376,6 @@ const editableBudgets = useMemo(() => {
           initialPayment: payment,
         };
       });
-    } else {
-       console.log('Totals are already up-to-date.');
     }
   }, [formData?.lineItems, formData?.discountAmount, formData?.initialPaymentPercentage, formData?.leadSource, formData?.createdByStaffId, externalReferralInfo.commissionAmount, formData?.subtotalPrice, formData?.totalPrice, formData?.initialPayment]);
 
@@ -467,8 +452,6 @@ const editableBudgets = useMemo(() => {
   };
 
   const addItemFromDynamicSection = (itemData) => {
-    console.log("➕ Agregando item desde sección dinámica:", itemData);
-    
     const foundItem = normalizedBudgetItemsCatalog.find(catalogItem => {
       let match = catalogItem.name === itemData.name && catalogItem.category === itemData.category;
       
@@ -501,7 +484,6 @@ const editableBudgets = useMemo(() => {
     });
 
     if (foundItem) {
-      console.log('✅ Item encontrado en catálogo:', foundItem);
       const newItem = {
         _tempId: itemData._tempId,
         id: undefined, // Nuevo item, no tiene ID en BD todavía
@@ -517,19 +499,15 @@ const editableBudgets = useMemo(() => {
         supplierName: itemData.supplierName || foundItem.supplierName || '', // ✅ INCLUIR SUPPLIERNAME
       };
 
-      console.log('📝 Nuevo item a agregar:', newItem);
-
       setFormData(prev => {
         if (!prev) return null;
         const updatedLineItems = [...prev.lineItems, newItem];
-        console.log('Total items después de agregar:', updatedLineItems.length);
         return {
           ...prev,
           lineItems: updatedLineItems
         };
       });
     } else {
-      console.log('⚠️ Item NO encontrado en catálogo, creando personalizado');
       // Item personalizado (manual)
       const newItem = {
         _tempId: itemData._tempId,
@@ -546,12 +524,9 @@ const editableBudgets = useMemo(() => {
         supplierName: itemData.supplierName || '', // ✅ INCLUIR SUPPLIERNAME
       };
 
-      console.log('📝 Nuevo item personalizado a agregar:', newItem);
-
       setFormData(prev => {
         if (!prev) return null;
         const updatedLineItems = [...prev.lineItems, newItem];
-        console.log('Total items después de agregar (personalizado):', updatedLineItems.length);
         return {
           ...prev,
           lineItems: updatedLineItems
@@ -571,13 +546,9 @@ const editableBudgets = useMemo(() => {
   };
 
   const handleRemoveLineItem = (indexToRemove) => {
-    console.log('🗑️ Eliminando item en index:', indexToRemove);
-    console.log('Item a eliminar:', formData?.lineItems[indexToRemove]);
-    
     setFormData(prev => {
       if (!prev) return null;
       const updatedLineItems = prev.lineItems.filter((_, index) => index !== indexToRemove);
-      console.log('Total items después de eliminar:', updatedLineItems.length);
       return { ...prev, lineItems: updatedLineItems };
     });
   };
@@ -607,19 +578,11 @@ const editableBudgets = useMemo(() => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    console.log('🚀 === INICIO DE HANDLESUBMIT ===');
-    console.log('📋 formData:', formData);
-    console.log('🎯 selectedBudgetId:', selectedBudgetId);
-    
     if (!formData || !selectedBudgetId) {
-      console.error('❌ No hay datos de formulario o budget seleccionado.');
-      console.log('formData existe?', !!formData);
-      console.log('selectedBudgetId existe?', !!selectedBudgetId);
       alert("No hay datos de formulario o budget seleccionado.");
       return;
     }
     
-    console.log('✅ Validación inicial pasada, continuando con submit...');
     setIsSubmitting(true);
    
 
@@ -656,19 +619,6 @@ const editableBudgets = useMemo(() => {
       description: item.description,
       supplierName: item.supplierName || undefined, // ✅ INCLUIR SUPPLIERNAME EN PAYLOAD
     }));
-
-    console.log('📦 === LINE ITEMS PAYLOAD ===');
-    console.log('Total items a enviar:', lineItemsPayload.length);
-    lineItemsPayload.forEach((item, index) => {
-      console.log(`Item ${index + 1}:`, {
-        name: item.name,
-        category: item.category,
-        budgetItemId: item.budgetItemId,
-        unitPrice: item.unitPrice,
-        quantity: item.quantity,
-        _tempId: formData.lineItems[index]._tempId
-      });
-    });
 
     let payload;
     // Verificar si se están actualizando los archivos del PERMIT

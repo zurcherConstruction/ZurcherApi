@@ -697,13 +697,11 @@ const completeMaintenanceVisit = async (req, res) => {
       visit.actualVisitDate = new Date();
       visit.status = 'completed';
       visit.completed_by_staff_id = currentUserId;
-      console.log('✅ Visita marcada como completada');
     } else {
       // Guardar progreso sin completar
       if (visit.status === 'pending_scheduling' || visit.status === 'scheduled') {
         visit.status = 'assigned'; // Cambiar a 'en proceso'
       }
-      console.log('💾 Progreso guardado sin completar');
     }
 
     await visit.save();
@@ -725,8 +723,6 @@ const completeMaintenanceVisit = async (req, res) => {
           // Guardar URL en el campo correspondiente
           const urlField = `well_sample_${i + 1}_url`;
           visit[urlField] = cloudinaryResult.secure_url;
-          
-          console.log(`✅ Muestra ${i + 1} subida:`, cloudinaryResult.secure_url);
         } catch (error) {
           console.error(`❌ Error subiendo muestra ${i + 1}:`, error);
         }
@@ -933,18 +929,8 @@ const downloadMaintenancePDF = async (req, res) => {
     }
 
     // Generar el PDF
-    console.log('🔧 Generando PDF con datos de la visita...');
     const visitJSON = visit.toJSON();
-    console.log('📋 Campos del formulario:', {
-      system_condition: visitJSON.system_condition,
-      tank_condition: visitJSON.tank_condition,
-      filter_status: visitJSON.filter_status,
-      pump_operation: visitJSON.pump_operation,
-      filter_cleaned: visitJSON.filter_cleaned,
-      notes: visitJSON.notes
-    });
     const pdfPath = await generateMaintenancePDF(visitJSON);
-    console.log(`✅ PDF generado en: ${pdfPath}`);
 
     // Verificar que el archivo existe
     if (!fs.existsSync(pdfPath)) {
