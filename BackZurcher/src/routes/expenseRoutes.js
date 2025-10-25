@@ -8,7 +8,8 @@ const {
   deleteExpense, 
   getExpenseTypes,
   getUnpaidExpenses,
-  getExpensesByPaymentStatus
+  getExpensesByPaymentStatus,
+  createGeneralExpenseWithReceipt
 } = require('../controllers/expenseController');
 const { upload } = require('../middleware/multer');
 const { verifyToken } = require('../middleware/isAuth');
@@ -16,6 +17,9 @@ const { allowRoles } = require('../middleware/byRol');
 
 // Ruta para obtener tipos de gasto (debe ir antes de /:id)
 router.get('/types', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance', 'worker']), getExpenseTypes);
+
+// 🆕 Ruta para crear gasto general con recibo (workers)
+router.post('/general', verifyToken, allowRoles(['worker', 'admin', 'owner']), upload.single('receipt'), createGeneralExpenseWithReceipt);
 
 // 🆕 Ruta para obtener gastos no pagados (para vincular con invoices)
 router.get('/unpaid', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance']), getUnpaidExpenses);

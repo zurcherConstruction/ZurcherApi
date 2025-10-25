@@ -377,6 +377,102 @@ const getExpensesByPaymentStatus = async (req, res) => {
   }
 };
 
+// 🆕 Crear gasto general con recibo (para workers)
+const createGeneralExpenseWithReceipt = async (req, res) => {
+  const { amount, notes, staffId } = req.body;
+  
+  try {
+    // Validaciones
+    if (!amount || parseFloat(amount) <= 0) {
+      return res.status(400).json({
+        error: true,
+        message: 'El monto debe ser mayor a 0'
+      });
+    }
+
+    if (!staffId) {
+      return res.status(400).json({
+        error: true,
+        message: 'Se requiere el ID del staff'
+      });
+    }
+
+    // Crear fecha actual en formato local
+    const now = new Date();
+    const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    // Crear el gasto general
+    const newExpense = await Expense.create({
+      date: localDate,
+      amount: parseFloat(amount),
+      typeExpense: 'Gastos Generales',
+      notes: notes || 'Gasto general registrado por worker',
+      workId: null, // No está asociado a un trabajo específico
+      staffId: staffId,
+      paymentMethod: 'Chase Credit Card', // Método por defecto según especificación
+      paymentStatus: 'unpaid',
+      verified: false
+    });
+
+    // Si hay archivo (recibo), subirlo a Cloudinary y crear Receipt
+    let createdReceipt = null;
+    if (req.file) {
+      try {
+        const result = await uploadBufferToCloudinary(req.file.buffer, {
+          folder: 'zurcher_receipts/general_expenses',
+          resource_type: req.file.mimetype === 'application/pdf' ? 'raw' : 'auto',
+          format: req.file.mimetype === 'application/pdf' ? undefined : 'jpg',
+          access_mode: 'public'
+        });
+
+        createdReceipt = await Receipt.create({
+          relatedModel: 'Expense',
+          relatedId: newExpense.idExpense.toString(),
+          type: 'Gastos Generales',
+          notes: notes || 'Comprobante de gasto general',
+          fileUrl: result.secure_url,
+          publicId: result.public_id,
+          mimeType: req.file.mimetype,
+          originalName: req.file.originalname
+        });
+      } catch (uploadError) {
+        console.error('Error al subir recibo:', uploadError);
+        // No fallar la creación del gasto si falla la subida del recibo
+      }
+    }
+
+    // Enviar notificaciones
+    try {
+      const expenseWithDetails = await Expense.findByPk(newExpense.idExpense, {
+        include: [
+          { model: Staff, as: 'Staff', attributes: ['id', 'name', 'email'] }
+        ]
+      });
+
+      await sendNotifications('expenseCreated', expenseWithDetails.toJSON());
+      console.log(`✅ Notificación de gasto general enviada: $${amount}`);
+    } catch (notificationError) {
+      console.error('❌ Error enviando notificación:', notificationError.message);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Gasto general creado correctamente',
+      expense: {
+        ...newExpense.toJSON(),
+        Receipt: createdReceipt ? createdReceipt.toJSON() : null
+      }
+    });
+  } catch (error) {
+    console.error('Error al crear gasto general:', error);
+    res.status(500).json({ 
+      error: true,
+      message: 'Error al crear el gasto general', 
+      details: error.message 
+    });
+  }
+};
+
 module.exports = {
   createExpense,
   getAllExpenses,
@@ -385,5 +481,6 @@ module.exports = {
   deleteExpense,
   getExpenseTypes,
   getUnpaidExpenses,
-  getExpensesByPaymentStatus
+  getExpensesByPaymentStatus,
+  createGeneralExpenseWithReceipt
 };
