@@ -1577,15 +1577,10 @@ async optionalDocs(req, res) {
       let finalLineItemsForPdf = []; // Array para guardar los items que irán al PDF
 
       if (hasLineItemUpdates) {
-        console.log("Sincronizando Line Items (Eliminar y Recrear)...");
         await BudgetLineItem.destroy({ where: { budgetId: idBudget }, transaction });
-        console.log(`Items existentes para Budget ID ${idBudget} eliminados.`);
 
         const createdLineItems = [];
         for (const incomingItem of lineItems) {
-
-          console.log("incomingItem:", incomingItem);
-          console.log("incomingItem.budgetItemId:", incomingItem.budgetItemId);
 
           let priceAtTime = 0;
           let itemDataForCreation = {
@@ -1597,8 +1592,6 @@ async optionalDocs(req, res) {
             description: null,
           };
 
-          console.log("itemDataForCreation inicial:", itemDataForCreation);
-
           // Validar quantity
           if (isNaN(itemDataForCreation.quantity) || itemDataForCreation.quantity <= 0) {
             console.error("Error: Item inválido encontrado:", incomingItem);
@@ -1607,12 +1600,10 @@ async optionalDocs(req, res) {
 
           if (incomingItem.budgetItemId) {
             // Item del catálogo
-            console.log("Procesando item del catálogo...");
             const budgetItemDetails = await BudgetItem.findByPk(incomingItem.budgetItemId, { transaction });
-            console.log("budgetItemDetails encontrado:", budgetItemDetails);
 
             if (!budgetItemDetails || !budgetItemDetails.isActive) {
-              console.error("Error: Item base no encontrado o inactivo:", incomingItem.budgetItemId);
+              console.error("❌ Error: Item base no encontrado o inactivo:", incomingItem.budgetItemId);
               throw new Error(`El item base con ID ${incomingItem.budgetItemId} no se encontró o no está activo.`);
             }
 
@@ -1622,7 +1613,6 @@ async optionalDocs(req, res) {
             itemDataForCreation.category = incomingItem.category || budgetItemDetails.category;
             itemDataForCreation.description = incomingItem.description || budgetItemDetails.description || null;
             itemDataForCreation.supplierName = incomingItem.supplierName || budgetItemDetails.supplierName || null; // ✅ AGREGAR SUPPLIERNAME
-            console.log("itemDataForCreation después de asignar budgetItemId:", itemDataForCreation);
           } else if (incomingItem.name && incomingItem.category && incomingItem.unitPrice !== undefined) {
             // Item manual
             const manualPrice = parseFloat(incomingItem.unitPrice);
@@ -1647,18 +1637,13 @@ async optionalDocs(req, res) {
           itemDataForCreation.priceAtTimeOfBudget = priceAtTime;
           itemDataForCreation.lineTotal = priceAtTime * itemDataForCreation.quantity;
 
-          // Antes de crear el item:
-          console.log("itemDataForCreation FINAL antes de crear:", itemDataForCreation);
           const newItem = await BudgetLineItem.create(itemDataForCreation, { transaction });
-          console.log("newItem creado:", newItem.toJSON());
-
 
           calculatedSubtotal += parseFloat(newItem.lineTotal || 0);
           createdLineItems.push(newItem);
         }
 
         finalLineItemsForPdf = createdLineItems.map(item => item.toJSON());
-        console.log(`${createdLineItems.length} items recreados para Budget ID ${idBudget}.`);
       } else {
         // ✅ CORRECCIÓN: Si no hay cambios en items, calcular desde items existentes
         console.log("No hay cambios en items, calculando subtotal desde items existentes...");
@@ -3770,16 +3755,42 @@ async optionalDocs(req, res) {
               </div>
               
               ${includeActionButtons ? `
-              <p><strong>⚠️ This is a preliminary budget for your review.</strong> It does not include digital signature or payment at this stage.</p>
-              
-              <p>Please review the attached budget PDF and let us know if you have any questions or if you wish to proceed:</p>
-              
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${reviewUrl}?action=approve" class="button btn-approve">✅ APPROVE BUDGET</a>
-                <a href="${reviewUrl}?action=reject" class="button btn-reject">❌ PROVIDE FEEDBACK</a>
+              <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 24px; margin: 30px 0; border-radius: 4px;">
+                <h3 style="color: #856404; margin-top: 0; font-size: 20px;">📋 Please Review and Choose an Option:</h3>
+                <p style="margin: 12px 0; font-size: 16px; line-height: 1.6;"><strong>English:</strong> Please review the attached budget carefully. Once you approve, we will send you the official invoice for payment and a SignNow email for digital signature. After the initial payment is received and the document is signed, your property will be added to our schedule/calendar.</p>
+                <p style="margin: 12px 0; font-size: 16px; line-height: 1.6;"><strong>Español:</strong> Por favor revise el presupuesto adjunto cuidadosamente. Una vez que lo apruebe, le enviaremos el invoice oficial de pago y un correo de SignNow para firma digital. Una vez recibido el pago inicial y firmado el documento, su propiedad ingresará a nuestro calendario.</p>
               </div>
               
-              <p><em>If you approve the budget, we will proceed to send you the official document for digital signature and payment coordination.</em></p>
+              <div style="background-color: #f8d7da; border-left: 4px solid #dc3545; padding: 24px; margin: 30px 0; border-radius: 4px;">
+                <h3 style="color: #721c24; margin-top: 0; font-size: 20px;">⚠️ Important - Importante:</h3>
+                <p style="margin: 12px 0; font-size: 16px; line-height: 1.6;"><strong>English:</strong> If there are any errors or incorrect information in the budget, please click "Provide Feedback" and let us know what needs to be corrected. Thank you!</p>
+                <p style="margin: 12px 0; font-size: 16px; line-height: 1.6;"><strong>Español:</strong> Si hay datos erróneos o información incorrecta en el presupuesto, por favor haga clic en "Proporcionar Comentarios" e indíquenos qué se debe corregir. ¡Gracias!</p>
+              </div>
+              
+              <div style="text-align: center; margin: 40px 0;">
+                <div style="margin-bottom: 30px;">
+                  <a href="${reviewUrl}?action=approve" class="button btn-approve" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4); transform: scale(1.05); font-size: 20px; padding: 20px 40px; color: white; text-decoration: none; display: inline-block; border-radius: 6px; font-weight: bold;">
+                    ✅ APPROVE BUDGET<br/>
+                    <span style="font-size: 16px; font-weight: normal; color: white;">APROBAR PRESUPUESTO</span>
+                  </a>
+                </div>
+                <div>
+                  <a href="${reviewUrl}?action=reject" class="button btn-reject" style="background-color: #dc3545; font-size: 17px; padding: 16px 32px; opacity: 0.9; color: white; text-decoration: none; display: inline-block; border-radius: 6px; font-weight: bold;">
+                    💬 PROVIDE FEEDBACK<br/>
+                    <span style="font-size: 15px; font-weight: normal; color: white;">PROPORCIONAR COMENTARIOS</span>
+                  </a>
+                </div>
+              </div>
+              
+              <div style="background-color: #d1ecf1; border-left: 4px solid #0c5460; padding: 20px; margin: 20px 0; border-radius: 4px;">
+                <p style="margin: 0; color: #0c5460; font-size: 18px;"><strong>📌 Next Steps After Approval / Próximos Pasos Después de Aprobar:</strong></p>
+                <p style="margin: 12px 0; color: #0c5460; font-size: 16px; line-height: 1.6;">
+                  <strong>English:</strong> 1️⃣ You will receive an official invoice for payment. 2️⃣ You will receive a SignNow email for digital signature. 3️⃣ Once paid and signed, your property will be scheduled.
+                </p>
+                <p style="margin: 12px 0; color: #0c5460; font-size: 16px; line-height: 1.6;">
+                  <strong>Español:</strong> 1️⃣ Recibirá un invoice oficial para el pago. 2️⃣ Recibirá un correo de SignNow para firma digital. 3️⃣ Una vez pagado y firmado, su propiedad será programada.
+                </p>
+              </div>
               ` : `
               <p><em>This is an informational copy only. The client will review and approve the budget.</em></p>
               `}

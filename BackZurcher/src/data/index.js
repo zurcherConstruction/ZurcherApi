@@ -261,6 +261,12 @@ MaintenanceVisit.belongsTo(Staff, { // <--- CAMBIO AQUÍ: Usa 'Staff' directamen
   as: 'assignedStaff' 
 });
 
+// MaintenanceVisit también puede tener un completedByStaff
+MaintenanceVisit.belongsTo(Staff, {
+  foreignKey: 'completed_by_staff_id',
+  as: 'completedByStaff'
+});
+
 // Un Staff puede tener muchas MaintenanceVisits asignadas
 Staff.hasMany(MaintenanceVisit, { // <--- CAMBIO AQUÍ: Usa 'MaintenanceVisit' directamente
   foreignKey: 'staffId', 

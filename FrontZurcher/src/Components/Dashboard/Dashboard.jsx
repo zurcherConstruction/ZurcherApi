@@ -21,12 +21,20 @@ import {
   CogIcon,
   DocumentDuplicateIcon,
   PresentationChartBarIcon,
-  ReceiptPercentIcon
+  ReceiptPercentIcon,
+  BriefcaseIcon
 } from '@heroicons/react/24/outline'; 
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { currentStaff: staff } = useSelector((state) => state.auth);
+
+  // Redirigir workers directamente a su dashboard
+  React.useEffect(() => {
+    if (staff?.role === 'worker') {
+      navigate('/worker');
+    }
+  }, [staff, navigate]);
 
   // Definir las opciones del Dashboard organizadas por categorías
   const dashboardSections = [
@@ -154,6 +162,19 @@ const Dashboard = () => {
           icon: ClipboardDocumentListIcon,
           gradient: 'from-violet-500 to-violet-600',
           allowedRoles: ['owner', 'finance'],
+        },
+      ]
+    },
+    {
+      title: "Workers",
+      items: [
+        {
+          path: '/worker',
+          title: 'My Works',
+          description: 'View assigned jobs and upload photos',
+          icon: BriefcaseIcon,
+          gradient: 'from-blue-600 to-indigo-700',
+          allowedRoles: ['worker'],
         },
       ]
     },

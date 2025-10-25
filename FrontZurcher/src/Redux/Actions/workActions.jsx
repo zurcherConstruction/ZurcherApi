@@ -370,16 +370,16 @@ export const addImagesToWork = (idWork, formData) => async (dispatch) => {
       console.error('[workActions] addImagesToWork SUCCESS pero respuesta inesperada:', response.data);
       const failureMsg = 'Respuesta inesperada del servidor tras subir imagen.';
       dispatch(addImagesFailure(failureMsg));
-      Alert.alert('Error', failureMsg);
+      // No usar Alert.alert en web
       return { error: true, message: failureMsg, details: response.data };
     }
   } catch (error) {
     const backendErrorMessage = error.response?.data?.message;
     const displayErrorMessage = backendErrorMessage || 'Error al agregar las imágenes';
     
-    console.error('[workActions] addImagesToWork FAILURE:', displayErrorMessage, 'Full error response:', error.response?.data); // <--- AQUÍ error.response?.data es undefined
+    console.error('[workActions] addImagesToWork FAILURE:', displayErrorMessage, 'Full error response:', error.response?.data);
     dispatch(addImagesFailure(displayErrorMessage)); 
-    Alert.alert('Error', displayErrorMessage); 
+    // No usar Alert.alert en web - el componente mostrará toast
     return { error: true, message: displayErrorMessage, details: error.response?.data }; 
   }
 };

@@ -63,6 +63,13 @@ router.get('/assigned',
     MaintenanceController.getAssignedMaintenances
 );
 
+// ⭐ Obtener todas las visitas completadas (para Owner/Admin)
+router.get('/completed',
+    verifyToken,
+    allowRoles(['admin', 'owner', 'maintenance']),
+    MaintenanceController.getAllCompletedMaintenances
+);
+
 // ⭐ Generar token de corta duración para acceso al formulario web
 router.post('/:visitId/generate-token',
     verifyToken,
@@ -74,8 +81,20 @@ router.post('/:visitId/generate-token',
 router.post('/:visitId/complete',
     verifyToken,
     allowRoles(['admin', 'owner', 'worker', 'maintenance']),
-    upload.array('maintenanceFiles', 20), // Permitir hasta 20 archivos
+    upload.fields([
+        { name: 'maintenanceFiles', maxCount: 20 }, // Archivos generales de la inspección
+        { name: 'wellSample1', maxCount: 1 },       // Muestra 1 PBTS/ATU
+        { name: 'wellSample2', maxCount: 1 },       // Muestra 2 PBTS/ATU
+        { name: 'wellSample3', maxCount: 1 }        // Muestra 3 PBTS/ATU
+    ]),
     MaintenanceController.completeMaintenanceVisit
+);
+
+// 📄 Descargar PDF de visita de mantenimiento completada
+router.get('/:visitId/download-pdf',
+    verifyToken,
+    allowRoles(['admin', 'owner', 'maintenance']),
+    MaintenanceController.downloadMaintenancePDF
 );
 
 

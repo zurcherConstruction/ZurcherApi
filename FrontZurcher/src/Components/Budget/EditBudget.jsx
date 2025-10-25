@@ -330,19 +330,6 @@ const editableBudgets = useMemo(() => {
         console.error('❌ Error during setFormData:', error, 'currentBudget was:', currentBudget);
         setFormData(null);
       }
-    } else {
-      // 📊 Log detallado de por qué NO se recreó formData (solo si no es por refresh forzado)
-      if (forceFormDataRefresh === 0) {
-        if (!currentBudget) {
-          console.log('⏭️ formData NO recreado: currentBudget is null/undefined.');
-        } else if (currentBudget.idBudget !== selectedBudgetId) {
-          console.log(`⏭️ formData NO recreado: ID mismatch (${currentBudget.idBudget} !== ${selectedBudgetId}).`);
-        } else if (formData && formData.idBudget === selectedBudgetId) {
-          console.log('⏭️ formData NO recreado: formData ya existe para este budgetId (OK - no hay cambios pendientes).');
-        } else {
-          console.log('⏭️ formData NO recreado: Unknown reason.');
-        }
-      }
     }
   }, [currentBudget, selectedBudgetId, formData, forceFormDataRefresh]); // 🆕 Agregado forceFormDataRefresh
 
@@ -389,8 +376,6 @@ const editableBudgets = useMemo(() => {
           initialPayment: payment,
         };
       });
-    } else {
-       console.log('Totals are already up-to-date.');
     }
   }, [formData?.lineItems, formData?.discountAmount, formData?.initialPaymentPercentage, formData?.leadSource, formData?.createdByStaffId, externalReferralInfo.commissionAmount, formData?.subtotalPrice, formData?.totalPrice, formData?.initialPayment]);
 
@@ -467,16 +452,34 @@ const editableBudgets = useMemo(() => {
   };
 
   const addItemFromDynamicSection = (itemData) => {
-    console.log("Agregando item desde sección dinámica:", itemData);
-    
     const foundItem = normalizedBudgetItemsCatalog.find(catalogItem => {
       let match = catalogItem.name === itemData.name && catalogItem.category === itemData.category;
+      
+      // Comparar marca si está presente
       if (itemData.marca && itemData.marca !== '') {
         match = match && catalogItem.marca === itemData.marca;
       }
+      
+      // Comparar capacity si está presente
       if (itemData.capacity && itemData.capacity !== '') {
         match = match && catalogItem.capacity === itemData.capacity;
       }
+      
+      // ✅ COMPARAR DESCRIPTION para diferenciar items con mismo nombre
+      if (itemData.description && itemData.description !== '') {
+        match = match && catalogItem.description === itemData.description;
+      }
+      
+      // ✅ COMPARAR SUPPLIERNAME para diferenciar items del mismo producto pero diferentes proveedores
+      if (itemData.supplierName && itemData.supplierName !== '') {
+        match = match && catalogItem.supplierName === itemData.supplierName;
+      }
+      
+      // ✅ COMPARAR UNITPRICE para items del catálogo (evita duplicados por precio)
+      if (itemData.unitPrice !== undefined && itemData.unitPrice !== null) {
+        match = match && parseFloat(catalogItem.unitPrice) === parseFloat(itemData.unitPrice);
+      }
+      
       return match;
     });
 
@@ -493,17 +496,19 @@ const editableBudgets = useMemo(() => {
         quantity: itemData.quantity,
         notes: itemData.notes || '',
         description: foundItem.description || '', // ✅ INCLUIR DESCRIPTION
+        supplierName: itemData.supplierName || foundItem.supplierName || '', // ✅ INCLUIR SUPPLIERNAME
       };
 
       setFormData(prev => {
         if (!prev) return null;
+        const updatedLineItems = [...prev.lineItems, newItem];
         return {
           ...prev,
-          lineItems: [...prev.lineItems, newItem]
+          lineItems: updatedLineItems
         };
       });
     } else {
-      // Item personalizado
+      // Item personalizado (manual)
       const newItem = {
         _tempId: itemData._tempId,
         id: undefined,
@@ -515,14 +520,16 @@ const editableBudgets = useMemo(() => {
         unitPrice: itemData.unitPrice,
         quantity: itemData.quantity,
         notes: itemData.notes || '',
-        description: '', // ✅ DESCRIPCIÓN VACÍA PARA ITEMS PERSONALIZADOS
+        description: itemData.description || '', // ✅ USAR DESCRIPTION DEL ITEM DATA
+        supplierName: itemData.supplierName || '', // ✅ INCLUIR SUPPLIERNAME
       };
 
       setFormData(prev => {
         if (!prev) return null;
+        const updatedLineItems = [...prev.lineItems, newItem];
         return {
           ...prev,
-          lineItems: [...prev.lineItems, newItem]
+          lineItems: updatedLineItems
         };
       });
     }
@@ -571,19 +578,11 @@ const editableBudgets = useMemo(() => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    console.log('🚀 === INICIO DE HANDLESUBMIT ===');
-    console.log('📋 formData:', formData);
-    console.log('🎯 selectedBudgetId:', selectedBudgetId);
-    
     if (!formData || !selectedBudgetId) {
-      console.error('❌ No hay datos de formulario o budget seleccionado.');
-      console.log('formData existe?', !!formData);
-      console.log('selectedBudgetId existe?', !!selectedBudgetId);
       alert("No hay datos de formulario o budget seleccionado.");
       return;
     }
     
-    console.log('✅ Validación inicial pasada, continuando con submit...');
     setIsSubmitting(true);
    
 

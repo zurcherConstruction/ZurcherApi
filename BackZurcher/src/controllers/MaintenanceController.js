@@ -3,6 +3,9 @@ const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/clo
 const { Op } = require('sequelize');
 const { addMonths, format, parseISO  } = require('date-fns'); // Para manipulación de fechas
 const jwt = require('jsonwebtoken');
+const { generateMaintenancePDF } = require('../utils/maintenancePdfGenerator');
+const fs = require('fs');
+const path = require('path');
 
 // --- Lógica para Programar Mantenimientos Iniciales ---
 const scheduleInitialMaintenanceVisits = async (workId) => {
@@ -67,7 +70,22 @@ const getMaintenanceVisitsForWork = async (req, res) => {
       where: { workId },
       include: [
         { model: MaintenanceMedia, as: 'mediaFiles' },
-        { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] } // Incluir datos del staff asignado
+        { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] }, // Incluir datos del staff asignado
+        { 
+          model: Work, 
+          as: 'work',
+          include: [
+            { 
+              model: Permit, 
+              attributes: [
+                'idPermit', 'permitNumber', 'expirationDate', 'systemType', 
+                'applicantName', 'applicantEmail', 'applicantPhone',
+                'propertyAddress', 'pdfData', 'optionalDocs', 
+                'gpdCapacity', 'squareFeetSystem', 'pump'
+              ]
+            }
+          ]
+        }
       ],
       order: [['visitNumber', 'ASC']],
     });
@@ -437,13 +455,10 @@ const getAssignedMaintenances = async (req, res) => {
 
     console.log('[getAssignedMaintenances] Buscando visitas para workerId:', workerId);
 
-    // Primero obtener las visitas sin hacer el JOIN directo con Permit (evita errores de columnas PK)
+    // Traer TODAS las visitas del worker (incluyendo completadas)
     const visitsRaw = await MaintenanceVisit.findAll({
       where: {
-        staffId: workerId,
-        status: {
-          [Op.not]: 'completed'
-        }
+        staffId: workerId
       },
       include: [
         { model: MaintenanceMedia, as: 'mediaFiles' },
@@ -554,7 +569,7 @@ const generateMaintenanceToken = async (req, res) => {
 const completeMaintenanceVisit = async (req, res) => {
   try {
     const { visitId } = req.params;
-    const files = req.files; // Array de archivos de Multer
+    const files = req.files; // Objeto con arrays por fieldname cuando usamos upload.fields()
     const currentUserId = req.staff?.id;
 
     // Extraer todos los campos del formulario
@@ -599,8 +614,12 @@ const completeMaintenanceVisit = async (req, res) => {
       // PBTS
       well_samples, // JSON string
       
+      // PBTS/ATU - Nuevos campos
+      well_points_quantity,
+      
       // Generales
       general_notes,
+      markAsCompleted, // Indica si se debe cambiar el estado a 'completed'
       
       // Archivos asociados a campos específicos (JSON string con mapeo)
       fileFieldMapping, // Ej: {"file1.jpg": "strong_odors", "file2.mp4": "general"}
@@ -666,16 +685,56 @@ const completeMaintenanceVisit = async (req, res) => {
       }
     }
     
+    // PBTS/ATU - Cantidad de well points
+    if (well_points_quantity) {
+      visit.well_points_quantity = parseInt(well_points_quantity, 10);
+    }
+    
     visit.general_notes = general_notes || null;
-    visit.actualVisitDate = new Date(); // Fecha de completado
-    visit.status = 'completed';
-    visit.completed_by_staff_id = currentUserId;
+    
+    // Solo marcar como completado si se indica explícitamente
+    if (markAsCompleted === 'true' || markAsCompleted === true) {
+      visit.actualVisitDate = new Date();
+      visit.status = 'completed';
+      visit.completed_by_staff_id = currentUserId;
+    } else {
+      // Guardar progreso sin completar
+      if (visit.status === 'pending_scheduling' || visit.status === 'scheduled') {
+        visit.status = 'assigned'; // Cambiar a 'en proceso'
+      }
+    }
 
     await visit.save();
 
-    // Procesar archivos subidos
+    // Procesar imágenes de muestras PBTS/ATU específicas
+    const sampleFields = ['wellSample1', 'wellSample2', 'wellSample3'];
+    for (let i = 0; i < sampleFields.length; i++) {
+      const fieldName = sampleFields[i];
+      const fileArray = files?.[fieldName]; // Con upload.fields(), files es un objeto
+      
+      if (fileArray && fileArray.length > 0) {
+        const file = fileArray[0]; // Tomar el primer archivo
+        try {
+          const cloudinaryResult = await uploadBufferToCloudinary(file.buffer, {
+            folder: `maintenance/${visit.workId}/${visit.id}/well_samples`,
+            resource_type: 'image',
+          });
+          
+          // Guardar URL en el campo correspondiente
+          const urlField = `well_sample_${i + 1}_url`;
+          visit[urlField] = cloudinaryResult.secure_url;
+        } catch (error) {
+          console.error(`❌ Error subiendo muestra ${i + 1}:`, error);
+        }
+      }
+    }
+    
+    await visit.save(); // Guardar nuevamente con las URLs de las muestras
+
+    // Procesar archivos subidos (maintenanceFiles)
     const uploadedMedia = [];
-    if (files && files.length > 0) {
+    const maintenanceFiles = files?.maintenanceFiles || []; // Extraer array de maintenanceFiles
+    if (maintenanceFiles.length > 0) {
       let fieldMapping = {};
       if (fileFieldMapping) {
         try {
@@ -685,7 +744,7 @@ const completeMaintenanceVisit = async (req, res) => {
         }
       }
 
-      for (const file of files) {
+      for (const file of maintenanceFiles) {
         const resourceType = file.mimetype.startsWith('video/') ? 'video' : (file.mimetype.startsWith('image/') ? 'image' : 'raw');
         const cloudinaryResult = await uploadBufferToCloudinary(file.buffer, {
           folder: `maintenance/${visit.workId}/${visit.id}`,
@@ -711,20 +770,199 @@ const completeMaintenanceVisit = async (req, res) => {
     const updatedVisit = await MaintenanceVisit.findByPk(visitId, {
       include: [
         { model: MaintenanceMedia, as: 'mediaFiles' },
-        { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] }
+        { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] },
+        {
+          model: Work,
+          as: 'work',
+          include: [
+            {
+              model: Permit,
+              attributes: [
+                'idPermit', 'permitNumber', 'expirationDate', 'systemType',
+                'applicantName', 'applicantEmail', 'applicantPhone',
+                'propertyAddress', 'pdfData', 'optionalDocs',
+                'gpdCapacity', 'squareFeetSystem', 'pump', 'isPBTS'
+              ]
+            }
+          ]
+        }
       ]
     });
 
-    // TODO: Enviar notificación a supervisor/admin de que se completó la inspección
+    const isCompleted = visit.status === 'completed';
+    const message = isCompleted 
+      ? 'Mantenimiento completado correctamente.' 
+      : 'Progreso de mantenimiento guardado exitosamente.';
 
     res.status(200).json({ 
-      message: 'Formulario de mantenimiento completado correctamente.',
+      message,
       visit: updatedVisit,
-      uploadedFiles: uploadedMedia.length
+      uploadedFiles: uploadedMedia.length,
+      status: visit.status,
+      isCompleted
     });
   } catch (error) {
     console.error('Error al completar formulario de mantenimiento:', error);
     res.status(500).json({ error: true, message: 'Error interno del servidor.' });
+  }
+};
+
+// --- Obtener todas las visitas completadas (para Owner/Admin) ---
+const getAllCompletedMaintenances = async (req, res) => {
+  try {
+    const { status, workId, startDate, endDate } = req.query;
+
+    const whereClause = {};
+    
+    // Filtrar por estado (por defecto solo completadas)
+    if (status) {
+      whereClause.status = status;
+    } else {
+      whereClause.status = 'completed';
+    }
+
+    // Filtrar por work específico
+    if (workId) {
+      whereClause.workId = workId;
+    }
+
+    // Filtrar por rango de fechas
+    if (startDate || endDate) {
+      whereClause.actualVisitDate = {};
+      if (startDate) {
+        whereClause.actualVisitDate[Op.gte] = new Date(startDate);
+      }
+      if (endDate) {
+        whereClause.actualVisitDate[Op.lte] = new Date(endDate);
+      }
+    }
+
+    const visits = await MaintenanceVisit.findAll({
+      where: whereClause,
+      include: [
+        { model: MaintenanceMedia, as: 'mediaFiles' },
+        { 
+          model: Staff, 
+          as: 'assignedStaff', 
+          attributes: ['id', 'name', 'email'] 
+        },
+        {
+          model: Staff,
+          as: 'completedByStaff',
+          attributes: ['id', 'name', 'email']
+        },
+        {
+          model: Work,
+          as: 'work',
+          attributes: ['idWork', 'status', 'propertyAddress', 'maintenanceStartDate'],
+          include: [
+            {
+              model: Permit,
+              attributes: [
+                'idPermit', 'permitNumber', 'systemType',
+                'applicantName', 'applicantEmail', 'applicantPhone',
+                'propertyAddress', 'pdfData', 'optionalDocs', 'isPBTS'
+              ]
+            }
+          ]
+        }
+      ],
+      order: [['actualVisitDate', 'DESC']],
+    });
+
+    res.status(200).json({
+      message: 'Visitas obtenidas correctamente',
+      visits,
+      count: visits.length
+    });
+  } catch (error) {
+    console.error('Error al obtener visitas completadas:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor.' });
+  }
+};
+
+// ===== GENERAR Y DESCARGAR PDF DE VISITA DE MANTENIMIENTO =====
+const downloadMaintenancePDF = async (req, res) => {
+  try {
+    const { visitId } = req.params;
+    console.log(`📄 Generando PDF para visita: ${visitId}`);
+
+    // Obtener datos completos de la visita
+    const visit = await MaintenanceVisit.findByPk(visitId, {
+      include: [
+        {
+          model: Work,
+          as: 'work',
+          include: [
+            {
+              model: Permit
+            }
+          ]
+        },
+        {
+          model: Staff,
+          as: 'assignedStaff',
+          attributes: ['id', 'name', 'email']
+        },
+        {
+          model: Staff,
+          as: 'completedByStaff',
+          attributes: ['id', 'name', 'email']
+        },
+        {
+          model: MaintenanceMedia,
+          as: 'mediaFiles'
+        }
+      ]
+    });
+
+    if (!visit) {
+      return res.status(404).json({ error: true, message: 'Visita de mantenimiento no encontrada.' });
+    }
+
+    // Verificar que la visita esté completada
+    if (visit.status !== 'completed') {
+      return res.status(400).json({ 
+        error: true, 
+        message: 'Solo se pueden generar PDFs para visitas completadas.' 
+      });
+    }
+
+    // Generar el PDF
+    const visitJSON = visit.toJSON();
+    const pdfPath = await generateMaintenancePDF(visitJSON);
+
+    // Verificar que el archivo existe
+    if (!fs.existsSync(pdfPath)) {
+      console.error('❌ El archivo PDF no se generó correctamente');
+      return res.status(500).json({ error: true, message: 'Error al generar el PDF.' });
+    }
+
+    // Enviar el archivo
+    const fileName = `maintenance_visit_${visit.visit_number || visitId}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    
+    const fileStream = fs.createReadStream(pdfPath);
+    fileStream.pipe(res);
+
+    // Eliminar el archivo después de enviarlo (opcional)
+    fileStream.on('end', () => {
+      setTimeout(() => {
+        try {
+          if (fs.existsSync(pdfPath)) {
+            fs.unlinkSync(pdfPath);
+            console.log(`🗑️ Archivo temporal eliminado: ${pdfPath}`);
+          }
+        } catch (err) {
+          console.error('Error al eliminar archivo temporal:', err);
+        }
+      }, 1000); // Esperar 1 segundo antes de eliminar
+    });
+
+  } catch (error) {
+    console.error('❌ Error al generar PDF de mantenimiento:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor al generar PDF.' });
   }
 };
 
@@ -740,4 +978,6 @@ module.exports = {
   getAssignedMaintenances, // ⭐ Nueva función
   generateMaintenanceToken, // ⭐ Nueva función
   completeMaintenanceVisit, // ⭐ Nueva función
+  getAllCompletedMaintenances, // ⭐ Para Owner/Admin
+  downloadMaintenancePDF, // 📄 Generar PDF
 };
