@@ -59,10 +59,13 @@ import PrivacyPolicy from "./Components/PrivacyPolicy";
 // Importar componentes de Mantenimiento
 import MaintenanceList from "./Components/Maintenance/MaintenanceList";
 import MaintenanceForm from "./pages/MaintenanceForm";
+import OwnerMaintenanceView from "./Components/Maintenance/OwnerMaintenanceView";
 import SupplierInvoiceManager from './Components/SupplierInvoices/SupplierInvoiceManager';
 // Importar componentes de Workers
 import WorkerDashboard from "./Components/Workers/WorkerDashboard";
 import WorkerWorkUpload from "./Components/Workers/WorkerWorkUpload";
+import WorkerMaintenanceDashboard from "./Components/Workers/WorkerMaintenanceDashboard";
+import WorkerMaintenanceDetail from "./Components/Workers/WorkerMaintenanceDetail";
 
 
 function App() {
@@ -379,8 +382,24 @@ function App() {
               <Route
                 path="/maintenance"
                 element={
-                  <PrivateRoute allowedRoles={["owner", "admin", "worker"]}>
+                  <PrivateRoute allowedRoles={["owner", "admin"]}>
+                    <OwnerMaintenanceView />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/maintenance/works"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin"]}>
                     <MaintenanceList />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/maintenance/:visitId"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin", "worker"]}>
+                    <WorkerMaintenanceDetail />
                   </PrivateRoute>
                 }
               />
@@ -399,6 +418,22 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["worker"]}>
                     <WorkerWorkUpload />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/worker/maintenance"
+                element={
+                  <PrivateRoute allowedRoles={["worker"]}>
+                    <WorkerMaintenanceDashboard />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/worker/maintenance/:visitId"
+                element={
+                  <PrivateRoute allowedRoles={["worker"]}>
+                    <WorkerMaintenanceDetail />
                   </PrivateRoute>
                 }
               />

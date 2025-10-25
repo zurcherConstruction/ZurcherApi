@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { 
   fetchWorksInMaintenance
 } from '../../Redux/Actions/maintenanceActions.jsx';
@@ -11,9 +12,11 @@ import MaintenanceWorkCard from './MaintenanceWorkCard';
 import MaintenanceDetail from './MaintenanceDetail';
 import LoadingSpinner from '../LoadingSpinner';
 import Swal from 'sweetalert2';
+import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 
 const MaintenanceList = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { 
     worksInMaintenance, 
     loading, 
@@ -77,11 +80,18 @@ const MaintenanceList = () => {
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
+        <button
+          onClick={() => navigate('/maintenance')}
+          className="flex items-center text-blue-600 hover:text-blue-800 mb-3 font-medium"
+        >
+          <ArrowLeftIcon className="h-5 w-5 mr-2" />
+          Volver a Visitas Completadas
+        </button>
         <h1 className="text-3xl font-bold text-gray-800 mb-2">
-          Gestión de Mantenimiento
+          Gestión de Obras en Mantenimiento
         </h1>
         <p className="text-gray-600">
-          Administra las visitas de mantenimiento programadas y completadas
+          Administra las obras y programa las visitas de mantenimiento
         </p>
       </div>
 

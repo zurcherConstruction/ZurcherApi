@@ -171,11 +171,32 @@ module.exports = (sequelize) => {
       allowNull: true,
     },
     
-    // PBTS - muestras de pozos
+    // PBTS/ATU - Campos específicos
+    well_points_quantity: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+      comment: 'Cantidad de well points encontrados (para sistemas PBTS/ATU)'
+    },
+    well_sample_1_url: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'URL de la foto de la muestra 1 (para sistemas PBTS/ATU)'
+    },
+    well_sample_2_url: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'URL de la foto de la muestra 2 (para sistemas PBTS/ATU)'
+    },
+    well_sample_3_url: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'URL de la foto de la muestra 3 (para sistemas PBTS/ATU)'
+    },
     well_samples: {
       type: DataTypes.JSONB,
       allowNull: true,
       defaultValue: [],
+      comment: 'Datos adicionales de las muestras (legacy field)'
     },
     
     // Observaciones generales y firma

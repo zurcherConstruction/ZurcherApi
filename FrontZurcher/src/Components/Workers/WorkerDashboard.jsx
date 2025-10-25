@@ -84,11 +84,23 @@ const WorkerDashboard = () => {
       {/* Header */}
       <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-6 shadow-lg">
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-2xl font-bold mb-2">Mis Trabajos</h1>
-          <p className="text-green-100">Bienvenido, {authStaff?.name}</p>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-2xl font-bold mb-2">Mis Trabajos</h1>
+              <p className="text-green-100">Bienvenido, {authStaff?.name}</p>
+            </div>
+            {/* Botón de Mantenimientos */}
+            <button
+              onClick={() => navigate('/worker/maintenance')}
+              className="flex items-center gap-2 bg-white bg-opacity-20 hover:bg-opacity-30 backdrop-blur-sm px-4 py-2 rounded-lg transition-colors"
+            >
+              <WrenchScrewdriverIcon className="h-5 w-5" />
+              <span className="font-semibold">Mantenimientos</span>
+            </button>
+          </div>
           
           {/* Stats Cards */}
-          <div className="grid grid-cols-3 gap-4 mt-6">
+          <div className="grid grid-cols-3 gap-4 mt-4">
             <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-lg p-4 text-center">
               <div className="text-3xl font-bold">{assignedWorks.length}</div>
               <div className="text-sm text-green-100">Asignados</div>
