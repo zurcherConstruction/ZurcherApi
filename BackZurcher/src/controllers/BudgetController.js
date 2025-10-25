@@ -1598,14 +1598,18 @@ async optionalDocs(req, res) {
 
       if (hasLineItemUpdates) {
         console.log("Sincronizando Line Items (Eliminar y Recrear)...");
+        console.log('📦 Line Items recibidos en backend:', JSON.stringify(lineItems, null, 2));
+        
         await BudgetLineItem.destroy({ where: { budgetId: idBudget }, transaction });
         console.log(`Items existentes para Budget ID ${idBudget} eliminados.`);
 
         const createdLineItems = [];
         for (const incomingItem of lineItems) {
 
-          console.log("incomingItem:", incomingItem);
-          console.log("incomingItem.budgetItemId:", incomingItem.budgetItemId);
+          console.log("🔍 Procesando incomingItem:", incomingItem);
+          console.log("   budgetItemId:", incomingItem.budgetItemId);
+          console.log("   name:", incomingItem.name);
+          console.log("   category:", incomingItem.category);
 
           let priceAtTime = 0;
           let itemDataForCreation = {
@@ -1627,12 +1631,18 @@ async optionalDocs(req, res) {
 
           if (incomingItem.budgetItemId) {
             // Item del catálogo
-            console.log("Procesando item del catálogo...");
+            console.log("📚 Item del catálogo detectado, buscando budgetItemId:", incomingItem.budgetItemId);
             const budgetItemDetails = await BudgetItem.findByPk(incomingItem.budgetItemId, { transaction });
-            console.log("budgetItemDetails encontrado:", budgetItemDetails);
+            console.log("✅ budgetItemDetails encontrado:", budgetItemDetails ? {
+              id: budgetItemDetails.id,
+              name: budgetItemDetails.name,
+              category: budgetItemDetails.category,
+              unitPrice: budgetItemDetails.unitPrice,
+              isActive: budgetItemDetails.isActive
+            } : 'NULL');
 
             if (!budgetItemDetails || !budgetItemDetails.isActive) {
-              console.error("Error: Item base no encontrado o inactivo:", incomingItem.budgetItemId);
+              console.error("❌ Error: Item base no encontrado o inactivo:", incomingItem.budgetItemId);
               throw new Error(`El item base con ID ${incomingItem.budgetItemId} no se encontró o no está activo.`);
             }
 
@@ -1642,7 +1652,7 @@ async optionalDocs(req, res) {
             itemDataForCreation.category = incomingItem.category || budgetItemDetails.category;
             itemDataForCreation.description = incomingItem.description || budgetItemDetails.description || null;
             itemDataForCreation.supplierName = incomingItem.supplierName || budgetItemDetails.supplierName || null; // ✅ AGREGAR SUPPLIERNAME
-            console.log("itemDataForCreation después de asignar budgetItemId:", itemDataForCreation);
+            console.log("📝 itemDataForCreation después de asignar budgetItemId:", itemDataForCreation);
           } else if (incomingItem.name && incomingItem.category && incomingItem.unitPrice !== undefined) {
             // Item manual
             const manualPrice = parseFloat(incomingItem.unitPrice);
@@ -1668,9 +1678,16 @@ async optionalDocs(req, res) {
           itemDataForCreation.lineTotal = priceAtTime * itemDataForCreation.quantity;
 
           // Antes de crear el item:
-          console.log("itemDataForCreation FINAL antes de crear:", itemDataForCreation);
+          console.log("✨ itemDataForCreation FINAL antes de crear:", JSON.stringify(itemDataForCreation, null, 2));
           const newItem = await BudgetLineItem.create(itemDataForCreation, { transaction });
-          console.log("newItem creado:", newItem.toJSON());
+          console.log("✅ newItem creado en BD:", {
+            id: newItem.id,
+            name: newItem.name,
+            category: newItem.category,
+            budgetItemId: newItem.budgetItemId,
+            unitPrice: newItem.unitPrice,
+            quantity: newItem.quantity
+          });
 
 
           calculatedSubtotal += parseFloat(newItem.lineTotal || 0);
@@ -1678,7 +1695,11 @@ async optionalDocs(req, res) {
         }
 
         finalLineItemsForPdf = createdLineItems.map(item => item.toJSON());
-        console.log(`${createdLineItems.length} items recreados para Budget ID ${idBudget}.`);
+        console.log(`✅ ${createdLineItems.length} items recreados para Budget ID ${idBudget}.`);
+        console.log('📋 Items finales guardados:');
+        createdLineItems.forEach((item, index) => {
+          console.log(`   ${index + 1}. ${item.name} (budgetItemId: ${item.budgetItemId}, unitPrice: ${item.unitPrice})`);
+        });
       } else {
         // ✅ CORRECCIÓN: Si no hay cambios en items, calcular desde items existentes
         console.log("No hay cambios en items, calculando subtotal desde items existentes...");

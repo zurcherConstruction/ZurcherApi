@@ -467,20 +467,41 @@ const editableBudgets = useMemo(() => {
   };
 
   const addItemFromDynamicSection = (itemData) => {
-    console.log("Agregando item desde sección dinámica:", itemData);
+    console.log("➕ Agregando item desde sección dinámica:", itemData);
     
     const foundItem = normalizedBudgetItemsCatalog.find(catalogItem => {
       let match = catalogItem.name === itemData.name && catalogItem.category === itemData.category;
+      
+      // Comparar marca si está presente
       if (itemData.marca && itemData.marca !== '') {
         match = match && catalogItem.marca === itemData.marca;
       }
+      
+      // Comparar capacity si está presente
       if (itemData.capacity && itemData.capacity !== '') {
         match = match && catalogItem.capacity === itemData.capacity;
       }
+      
+      // ✅ COMPARAR DESCRIPTION para diferenciar items con mismo nombre
+      if (itemData.description && itemData.description !== '') {
+        match = match && catalogItem.description === itemData.description;
+      }
+      
+      // ✅ COMPARAR SUPPLIERNAME para diferenciar items del mismo producto pero diferentes proveedores
+      if (itemData.supplierName && itemData.supplierName !== '') {
+        match = match && catalogItem.supplierName === itemData.supplierName;
+      }
+      
+      // ✅ COMPARAR UNITPRICE para items del catálogo (evita duplicados por precio)
+      if (itemData.unitPrice !== undefined && itemData.unitPrice !== null) {
+        match = match && parseFloat(catalogItem.unitPrice) === parseFloat(itemData.unitPrice);
+      }
+      
       return match;
     });
 
     if (foundItem) {
+      console.log('✅ Item encontrado en catálogo:', foundItem);
       const newItem = {
         _tempId: itemData._tempId,
         id: undefined, // Nuevo item, no tiene ID en BD todavía
@@ -493,17 +514,23 @@ const editableBudgets = useMemo(() => {
         quantity: itemData.quantity,
         notes: itemData.notes || '',
         description: foundItem.description || '', // ✅ INCLUIR DESCRIPTION
+        supplierName: itemData.supplierName || foundItem.supplierName || '', // ✅ INCLUIR SUPPLIERNAME
       };
+
+      console.log('📝 Nuevo item a agregar:', newItem);
 
       setFormData(prev => {
         if (!prev) return null;
+        const updatedLineItems = [...prev.lineItems, newItem];
+        console.log('Total items después de agregar:', updatedLineItems.length);
         return {
           ...prev,
-          lineItems: [...prev.lineItems, newItem]
+          lineItems: updatedLineItems
         };
       });
     } else {
-      // Item personalizado
+      console.log('⚠️ Item NO encontrado en catálogo, creando personalizado');
+      // Item personalizado (manual)
       const newItem = {
         _tempId: itemData._tempId,
         id: undefined,
@@ -515,14 +542,19 @@ const editableBudgets = useMemo(() => {
         unitPrice: itemData.unitPrice,
         quantity: itemData.quantity,
         notes: itemData.notes || '',
-        description: '', // ✅ DESCRIPCIÓN VACÍA PARA ITEMS PERSONALIZADOS
+        description: itemData.description || '', // ✅ USAR DESCRIPTION DEL ITEM DATA
+        supplierName: itemData.supplierName || '', // ✅ INCLUIR SUPPLIERNAME
       };
+
+      console.log('📝 Nuevo item personalizado a agregar:', newItem);
 
       setFormData(prev => {
         if (!prev) return null;
+        const updatedLineItems = [...prev.lineItems, newItem];
+        console.log('Total items después de agregar (personalizado):', updatedLineItems.length);
         return {
           ...prev,
-          lineItems: [...prev.lineItems, newItem]
+          lineItems: updatedLineItems
         };
       });
     }
@@ -539,9 +571,13 @@ const editableBudgets = useMemo(() => {
   };
 
   const handleRemoveLineItem = (indexToRemove) => {
+    console.log('🗑️ Eliminando item en index:', indexToRemove);
+    console.log('Item a eliminar:', formData?.lineItems[indexToRemove]);
+    
     setFormData(prev => {
       if (!prev) return null;
       const updatedLineItems = prev.lineItems.filter((_, index) => index !== indexToRemove);
+      console.log('Total items después de eliminar:', updatedLineItems.length);
       return { ...prev, lineItems: updatedLineItems };
     });
   };
@@ -620,6 +656,19 @@ const editableBudgets = useMemo(() => {
       description: item.description,
       supplierName: item.supplierName || undefined, // ✅ INCLUIR SUPPLIERNAME EN PAYLOAD
     }));
+
+    console.log('📦 === LINE ITEMS PAYLOAD ===');
+    console.log('Total items a enviar:', lineItemsPayload.length);
+    lineItemsPayload.forEach((item, index) => {
+      console.log(`Item ${index + 1}:`, {
+        name: item.name,
+        category: item.category,
+        budgetItemId: item.budgetItemId,
+        unitPrice: item.unitPrice,
+        quantity: item.quantity,
+        _tempId: formData.lineItems[index]._tempId
+      });
+    });
 
     let payload;
     // Verificar si se están actualizando los archivos del PERMIT
