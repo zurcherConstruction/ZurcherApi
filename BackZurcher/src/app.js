@@ -10,9 +10,11 @@ const authRoutes = require('./routes/authRoutes');
 const http = require('http');
 const { Server } = require('socket.io');
 const fs = require('fs');
-require('./tasks/cronJobs');
+// ⚠️ DESHABILITADO: El cron de archivado ahora es manual o se activa con variable de entorno
+// // require('./tasks/cronJobs');
 const { errorHandler } = require('./middleware/error');
-const { seedBudgetItems } = require('./utils/items');
+// ⚠️ DESHABILITADO: Los items ahora se cargan/descargan vía Excel en budgetitems
+// const { seedBudgetItems } = require('./utils/items');
 
 const app = express();
 const server = http.createServer(app); // Crear el servidor HTTP
@@ -123,20 +125,9 @@ app.use((req, res, next) => {
 });
 
 
-// **AQUÍ AGREGAR LA INICIALIZACIÓN DE LA BASE DE DATOS**
-const initializeDatabase = async () => {
-  try {
-    console.log('🔄 Inicializando items por defecto...');
-    await seedBudgetItems(false); // false para modo silencioso
-    console.log('✅ Inicialización completada');
-  } catch (error) {
-    console.error('❌ Error al inicializar items por defecto:', error);
-    // No detener el servidor
-  }
-};
-
-// Ejecutar la inicialización
-initializeDatabase();
+// ⚠️ DESHABILITADO: Ya no se usa seed automático de items
+// Los items ahora se gestionan manualmente vía Excel en la interfaz de budgetitems
+// Si necesitas ejecutar un seed manual, crea un script separado y ejecútalo con node
 
 // Routes
 app.use('/', routes);
@@ -153,21 +144,6 @@ app.use('*', (req, res) => {
 
 
 app.use(errorHandler);
-
-// Configuración de Socket.IO
-io.on('connection', (socket) => {
-  console.log('Usuario conectado:', socket.id);
-
-  // Escuchar eventos personalizados
-  socket.on('join', (staffId) => {
-    console.log(`Usuario con ID ${staffId} se unió a la sala`);
-    socket.join(staffId); // Unir al usuario a una sala específica basada en su ID
-  });
-
-  socket.on('disconnect', () => {
-    console.log('Usuario desconectado:', socket.id);
-  });
-});
 
 module.exports =  { app, server, io };
 //viendo que paso

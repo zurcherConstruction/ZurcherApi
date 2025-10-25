@@ -9,23 +9,47 @@ const {
   DB_HOST,
   DB_PORT,
   DB_NAME,
-  DB_DEPLOY
+  DB_DEPLOY,
+  NODE_ENV
   } = require('../config/envs');
-//-------------------------------- CONFIGURACION PARA TRABAJAR LOCALMENTE-----------------------------------
-// const sequelize = new Sequelize(
-//   `postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}`,
-//   {
-//     logging: false, // set to console.log to see the raw SQL queries
-//     native: false, // lets Sequelize know we can use pg-native for ~30% more speed
-//   }
-// );
-//-------------------------------------CONFIGURACION PARA EL DEPLOY---------------------------------------------------------------------
-const sequelize = new Sequelize(DB_DEPLOY , {
-      logging: false, // set to console.log to see the raw SQL queries
-      native: false, // lets Sequelize know we can use pg-native for ~30% more speed
-      timezone: 'America/New_York'
-    }
-  );
+
+
+//-------------------------------- CONFIGURACION UNIFICADA (LOCAL Y DEPLOY) -----------------------------------
+// Usar DB_DEPLOY si existe (Railway/Producción), sino usar configuración local
+const sequelize = DB_DEPLOY 
+  ? new Sequelize(DB_DEPLOY, {
+      logging: false,
+      native: false,
+      timezone: 'America/New_York',
+      pool: {
+        max: 10,
+        min: 0,
+        acquire: 30000,
+        idle: 10000
+      },
+      dialectOptions: {
+        ssl: NODE_ENV === 'production' ? { require: true, rejectUnauthorized: false } : false
+      }
+    })
+  : new Sequelize(
+      `postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}`,
+      {
+        logging: false,
+        native: false,
+        pool: {
+          max: 10,
+          min: 0,
+          acquire: 30000,
+          idle: 10000
+        },
+        dialectOptions: {
+          statement_timeout: 10000,
+        }
+      }
+    );
+
+console.log(`📊 Base de datos: ${DB_DEPLOY ? 'RAILWAY (Producción)' : 'LOCAL (Desarrollo)'}`);
+
 
 const basename = path.basename(__filename);
 
