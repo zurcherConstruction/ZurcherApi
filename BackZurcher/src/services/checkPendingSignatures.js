@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 // 1. Importar TODOS los modelos necesarios
 const { Budget, Permit, ChangeOrder, Work } = require('../data');
+const { Op } = require('sequelize'); // Para operadores de Sequelize
 const SignNowService = require('./ServiceSignNow');
 const { sendNotifications } = require('../utils/notifications/notificationManager');
 const path = require('path');
@@ -21,7 +22,12 @@ const checkPendingSignatures = async () => {
         status: { 
           [Op.in]: ['pending_review', 'created', 'sent_for_signature', 'client_approved', 'send']
         }, // Estados pendientes de firma
-        signatureMethod: 'signnow' // Solo los enviados por SignNow
+        // ⚠️ CAMBIO: Buscar los que NO están firmados (signatureMethod 'none' o null)
+        // porque cuando se firmen, el cron cambiará a 'signnow'
+        [Op.or]: [
+          { signatureMethod: 'none' },
+          { signatureMethod: null }
+        ]
       },
       include: [{ model: Permit, attributes: ['applicantName', 'propertyAddress'] }]
     });

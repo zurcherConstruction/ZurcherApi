@@ -1914,9 +1914,11 @@ async optionalDocs(req, res) {
               console.log(JSON.stringify(signNowResult, null, 2));
 
               // Actualizar presupuesto con información de SignNow
+              // ⚠️ NO asignar signatureMethod aquí - se asignará cuando el cron detecte la firma
               console.log('💾 Actualizando presupuesto con datos de SignNow...');
               await budget.update({
                 signNowDocumentId: signNowResult.documentId,
+                signatureMethod: 'none', // Mantener en 'none' hasta que se firme
                 status: 'sent_for_signature', // Cambiar status a 'sent_for_signature'
                 sentForSignatureAt: new Date()
               }, { transaction });
@@ -4025,12 +4027,17 @@ async optionalDocs(req, res) {
                   updatedBudget.Permit.applicantName || 'Valued Client'
                 );
 
-                console.log(`✅ Invoice #${invoiceNumber} enviado a SignNow exitosamente`);
+                // ✅ Solo actualizar si SignNow respondió exitosamente con documentId
+                if (!signNowResult || !signNowResult.documentId) {
+                  throw new Error('SignNow no devolvió un documentId válido');
+                }
 
-                // Actualizar presupuesto con información de SignNow
+                console.log(`✅ Invoice #${invoiceNumber} enviado a SignNow exitosamente con documentId: ${signNowResult.documentId}`);
+
+                // ⚠️ NO asignar signatureMethod aquí - se asignará cuando el cron detecte la firma
                 await updatedBudget.update({
                   signNowDocumentId: signNowResult.documentId,
-                  signatureMethod: 'signnow',
+                  signatureMethod: 'none', // Mantener en 'none' hasta que se firme
                   status: 'sent_for_signature',
                   sentForSignatureAt: new Date()
                 });
