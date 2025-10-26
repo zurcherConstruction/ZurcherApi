@@ -57,6 +57,10 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  
+  // Estado para archivo del invoice
+  const [invoiceFile, setInvoiceFile] = useState(null);
+  const [invoiceFilePreview, setInvoiceFilePreview] = useState(null);
 
   // Cargar datos si estamos editando
   useEffect(() => {
@@ -91,6 +95,11 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
       }));
       
       setItems(processedItems);
+    }
+    
+    // Si estamos editando y hay un PDF del invoice, establecer la preview
+    if (invoice?.invoicePdfPath) {
+      setInvoiceFilePreview(invoice.invoicePdfPath);
     }
   }, [invoice]);
 
@@ -248,6 +257,68 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
     return items.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
   };
 
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validar tipo de archivo
+    const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      alert('⚠️ Solo se permiten archivos PDF o imágenes (JPG, PNG, WEBP)');
+      return;
+    }
+
+    // Validar tamaño (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('⚠️ El archivo no debe superar los 5MB');
+      return;
+    }
+
+    setInvoiceFile(file);
+
+    // Crear preview
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setInvoiceFilePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      // Para PDFs, mostrar ícono
+      setInvoiceFilePreview('PDF');
+    }
+  };
+
+  const handleRemoveFile = () => {
+    setInvoiceFile(null);
+    setInvoiceFilePreview(null);
+  };
+
+  const uploadInvoiceFile = async (invoiceId) => {
+    if (!invoiceFile) return true; // No hay archivo para subir
+
+    try {
+      console.log('📤 Subiendo comprobante para invoice:', invoiceId);
+      console.log('📄 Archivo:', invoiceFile.name, invoiceFile.type, invoiceFile.size);
+      
+      const formData = new FormData();
+      formData.append('file', invoiceFile);
+
+      const response = await supplierInvoiceActions.uploadInvoicePdf(invoiceId, formData);
+      
+      if (response.error) {
+        console.error('❌ Error uploading invoice file:', response);
+        return false;
+      }
+      
+      console.log('✅ Comprobante subido exitosamente:', response);
+      return true;
+    } catch (error) {
+      console.error('❌ Error uploading invoice file:', error);
+      return false;
+    }
+  };
+
   const validateForm = () => {
     const newErrors = {};
 
@@ -324,7 +395,19 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
         setLoading(false);
       } else {
         dispatch(updateSupplierInvoiceSuccess(response));
-        alert('✅ Factura actualizada exitosamente');
+        
+        // Subir archivo del invoice si hay uno nuevo seleccionado
+        if (invoiceFile) {
+          const uploadSuccess = await uploadInvoiceFile(invoice.idSupplierInvoice);
+          if (uploadSuccess) {
+            alert('✅ Factura actualizada y comprobante subido exitosamente');
+          } else {
+            alert('✅ Factura actualizada, pero hubo un error al subir el comprobante. Puedes subirlo después desde el detalle.');
+          }
+        } else {
+          alert('✅ Factura actualizada exitosamente');
+        }
+        
         setLoading(false);
         onClose();
       }
@@ -338,7 +421,19 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
         setLoading(false);
       } else {
         dispatch(createSupplierInvoiceSuccess(response));
-        alert('✅ Factura creada exitosamente');
+        
+        // Subir archivo del invoice si existe
+        if (invoiceFile) {
+          const uploadSuccess = await uploadInvoiceFile(response.invoice.idSupplierInvoice);
+          if (uploadSuccess) {
+            alert('✅ Factura creada y comprobante subido exitosamente');
+          } else {
+            alert('✅ Factura creada, pero hubo un error al subir el comprobante. Puedes subirlo después desde el detalle.');
+          }
+        } else {
+          alert('✅ Factura creada exitosamente');
+        }
+        
         setLoading(false);
         onClose();
       }
@@ -365,7 +460,7 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold text-white">
-              {isEditing ? 'Editar Factura' : 'Nueva Factura de Proveedor'}
+              {isEditing ? 'Editar Invoice' : 'Nuevo Invoice de Proveedor'}
             </h2>
             <button
               type="button"
@@ -381,12 +476,12 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
           {/* Información de la Factura */}
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              Información de la Factura
+              Información del Invoice
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Número de Factura *
+                  Número de Invoice *
                 </label>
                 <input
                   type="text"
@@ -439,23 +534,11 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
                 )}
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  CUIT
-                </label>
-                <input
-                  type="text"
-                  name="vendorCuit"
-                  value={formData.vendorCuit}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="20-12345678-9"
-                />
-              </div>
+              
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Fecha de Factura *
+                  Fecha Invoice *
                 </label>
                 <input
                   type="date"
@@ -502,6 +585,68 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
                   placeholder="Descripción general de la factura..."
                 />
               </div>
+
+              {/* Adjuntar comprobante del invoice */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Comprobante del Invoice (PDF o Imagen)
+                </label>
+                
+                {!invoiceFilePreview ? (
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer">
+                      <FaPlus />
+                      Adjuntar Archivo
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png,.webp"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
+                    </label>
+                    <span className="text-sm text-gray-500">
+                      PDF o imagen (JPG, PNG, WEBP) - Máx 5MB
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-4">
+                    {invoiceFilePreview === 'PDF' ? (
+                      <div className="flex items-center gap-2 px-4 py-2 bg-gray-100 border border-gray-300 rounded-lg">
+                        <svg className="w-6 h-6 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" />
+                        </svg>
+                        <span className="text-sm font-medium">
+                          {invoiceFile?.name || 'Invoice PDF'}
+                        </span>
+                      </div>
+                    ) : (
+                      <img
+                        src={invoiceFilePreview}
+                        alt="Preview"
+                        className="w-32 h-32 object-cover rounded-lg border border-gray-300"
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleRemoveFile}
+                      className="px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                    >
+                      <FaTrash className="inline mr-1" />
+                      Eliminar
+                    </button>
+                    {typeof invoiceFilePreview === 'string' && invoiceFilePreview.startsWith('http') && (
+                      <a
+                        href={invoiceFilePreview}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                      >
+                        Ver Archivo
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -509,7 +654,7 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
           <div className="mb-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-800">
-                Items de la Factura
+                Items del Invoice
               </h3>
               <div className="flex gap-2">
                 <button
