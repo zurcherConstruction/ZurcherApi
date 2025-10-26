@@ -22,11 +22,101 @@ import {
   FaBuilding,
   FaCalendarAlt,
   FaMoneyBillWave,
+  FaEye,
 } from 'react-icons/fa';
+import { XMarkIcon } from '@heroicons/react/24/outline';
+
+// Modal para ver PDF
+const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
+  if (!isOpen || !pdfUrl) {
+    return null;
+  }
+
+  const screenWidth = window.innerWidth;
+  const screenHeight = window.innerHeight;
+  const isMobile = screenWidth < 768;
+  const isTablet = screenWidth >= 768 && screenWidth < 1024;
+  const isLarge = screenWidth >= 1024;
+  
+  const isIPadPro = (screenWidth === 1024 && screenHeight === 1366) || 
+                    (screenWidth === 1366 && screenHeight === 1024) ||
+                    navigator.userAgent.includes('iPad');
+
+  return (
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[9999]"
+      style={{ 
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 9999,
+        padding: isIPadPro ? '20px' : (isMobile ? '8px' : '16px')
+      }}
+    >
+      <div 
+        className="bg-white rounded-lg shadow-2xl flex flex-col overflow-hidden"
+        style={{
+          width: isIPadPro ? '90vw' : (isLarge ? '85vw' : isTablet ? '85vw' : '95vw'),
+          height: isIPadPro ? '85vh' : (isLarge ? '80vh' : isTablet ? '88vh' : '96vh'),
+          maxWidth: 'none',
+          maxHeight: 'none',
+          margin: 'auto'
+        }}
+      >
+        <div className="flex justify-between items-center p-3 sm:p-4 md:p-5 lg:p-6 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+          <h3 className="text-sm sm:text-base md:text-lg lg:text-xl font-semibold text-gray-800 truncate pr-2 max-w-[70%]">
+            {title || "Vista Previa del Comprobante"}
+          </h3>
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            {(isMobile || isTablet) && (
+              <a
+                href={pdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-800 text-xs sm:text-sm md:text-base underline whitespace-nowrap font-medium"
+              >
+                Nueva pestaña
+              </a>
+            )}
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 hover:bg-gray-200 p-1.5 sm:p-2 rounded-full transition-colors"
+            >
+              <XMarkIcon className="h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7" />
+            </button>
+          </div>
+        </div>
+        
+        <div className="flex-grow overflow-hidden relative bg-gray-100">
+          {pdfUrl.includes('.pdf') || pdfUrl.includes('/raw/') ? (
+            // Si es PDF raw de Cloudinary, usar Google Docs Viewer
+            <iframe
+              src={`https://docs.google.com/viewer?url=${encodeURIComponent(pdfUrl)}&embedded=true`}
+              className="w-full h-full border-0"
+              title={title || "Comprobante"}
+            />
+          ) : (
+            // Si es imagen, mostrar directamente
+            <div className="w-full h-full flex items-center justify-center overflow-auto p-4">
+              <img
+                src={pdfUrl}
+                alt={title || "Comprobante"}
+                className="max-w-full max-h-full object-contain"
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
   const dispatch = useDispatch();
   const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [showPdfModal, setShowPdfModal] = useState(false);
   const [paymentData, setPaymentData] = useState({
     amount: '',
     paymentDate: (() => {
@@ -282,6 +372,20 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
                 <div className="text-gray-900">{invoice.description}</div>
               </div>
             )}
+
+            {/* Comprobante del Invoice */}
+            {invoice.invoicePdfPath && (
+              <div>
+                <div className="text-sm text-gray-600 mb-2">Comprobante</div>
+                <button
+                  onClick={() => setShowPdfModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <FaEye />
+                  Ver Comprobante
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Información Financiera */}
@@ -521,6 +625,14 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
           </div>
         )}
       </div>
+
+      {/* Modal para ver PDF */}
+      <PdfModal 
+        isOpen={showPdfModal}
+        onClose={() => setShowPdfModal(false)}
+        pdfUrl={invoice.invoicePdfPath}
+        title={`Comprobante Invoice ${invoice.invoiceNumber}`}
+      />
     </div>
   );
 };

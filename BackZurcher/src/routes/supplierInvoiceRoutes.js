@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const upload = multer(); // Configuración para manejar datos en memoria
 const {
   createSupplierInvoice,
   getSupplierInvoices,
@@ -8,7 +10,8 @@ const {
   updateSupplierInvoice,
   deleteSupplierInvoice,
   getAccountsPayable,
-  getPaymentHistory
+  getPaymentHistory,
+  uploadInvoicePdf
 } = require('../controllers/supplierInvoiceController');
 
 // Middleware de autenticación (ajusta según tu implementación)
@@ -59,6 +62,14 @@ router.get('/:id', getSupplierInvoiceById);
  * @access  Private
  */
 router.patch('/:id/pay', registerPayment);
+
+/**
+ * @route   POST /api/supplier-invoices/:id/upload-invoice
+ * @desc    Subir PDF o imagen del invoice a Cloudinary
+ * @body    FormData con file (PDF, JPG, PNG, WEBP)
+ * @access  Private
+ */
+router.post('/:id/upload-invoice', upload.single('file'), uploadInvoicePdf);
 
 /**
  * @route   PUT /api/supplier-invoices/:id

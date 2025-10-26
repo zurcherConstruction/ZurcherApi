@@ -87,6 +87,20 @@ export const supplierInvoiceActions = {
       return handleError(error, 'Error al obtener las facturas de la obra');
     }
   },
+
+  // Subir PDF o imagen del invoice
+  uploadInvoicePdf: async (id, formData) => {
+    try {
+      const response = await api.post(`/supplier-invoices/${id}/upload-invoice`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      return response.data;
+    } catch (error) {
+      return handleError(error, 'Error al subir el comprobante del invoice');
+    }
+  },
 };
 
 // Actions extendidas para Expenses (relacionadas con supplier invoices)

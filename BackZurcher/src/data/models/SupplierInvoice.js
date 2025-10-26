@@ -122,6 +122,18 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true,
       comment: 'Dirección del proveedor'
+    },
+    
+    // --- PDF del Invoice ---
+    invoicePdfPath: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+      comment: 'URL del PDF del invoice en Cloudinary'
+    },
+    invoicePdfPublicId: {
+      type: DataTypes.STRING(200),
+      allowNull: true,
+      comment: 'Public ID de Cloudinary del PDF del invoice'
     }
   }, {
     timestamps: true,
