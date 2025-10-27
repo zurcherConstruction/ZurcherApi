@@ -10,6 +10,7 @@ const { sendEmail } = require('../utils/notifications/emailService.js');
 const { generateAndSaveBudgetPDF } = require('../utils/pdfGenerators');
 const SignNowService = require('../services/ServiceSignNow');
 const { getNextInvoiceNumber } = require('../utils/invoiceNumberManager'); // 🆕 HELPER DE NUMERACIÓN UNIFICADA
+const ExcelJS = require('exceljs'); // 🆕 Para exportar a Excel
 require('dotenv').config();
 // AGREGAR esta función auxiliar después de los imports:
 function getPublicPdfUrl(localPath, req) {
@@ -4699,6 +4700,256 @@ async optionalDocs(req, res) {
       res.status(500).json({ 
         error: 'Error al subir el PDF firmado',
         details: error.message 
+      });
+    }
+  },
+
+  // 🆕 EXPORTAR BUDGETS A EXCEL
+  async exportBudgetsToExcel(req, res) {
+    try {
+      console.log('📊 Iniciando exportación de budgets a Excel...');
+
+      // 🆕 Obtener filtros de query params (igual que fetchBudgets)
+      const { search, status, month, year } = req.query;
+      
+      console.log('📋 Filtros aplicados:', { search, status, month, year });
+
+      // Construir condiciones WHERE dinámicamente
+      const whereConditions = {};
+      
+      // Filtro por estado
+      if (status && status !== 'all') {
+        whereConditions.status = status;
+      }
+      
+      // Filtro por mes
+      if (month && month !== 'all') {
+        whereConditions[Op.and] = whereConditions[Op.and] || [];
+        whereConditions[Op.and].push(
+          literal(`EXTRACT(MONTH FROM CAST("Budget"."date" AS DATE)) = ${parseInt(month)}`)
+        );
+      }
+      
+      // Filtro por año
+      if (year && year !== 'all') {
+        whereConditions[Op.and] = whereConditions[Op.and] || [];
+        whereConditions[Op.and].push(
+          literal(`EXTRACT(YEAR FROM CAST("Budget"."date" AS DATE)) = ${parseInt(year)}`)
+        );
+      }
+      
+      // Filtro por búsqueda (cliente o dirección)
+      if (search && search.trim()) {
+        whereConditions[Op.or] = [
+          { applicantName: { [Op.iLike]: `%${search}%` } },
+          { propertyAddress: { [Op.iLike]: `%${search}%` } }
+        ];
+      }
+
+      // Obtener budgets con filtros aplicados
+      const budgets = await Budget.findAll({
+        where: whereConditions,
+        include: [
+          {
+            model: Permit,
+            attributes: ['propertyAddress', 'systemType', 'applicantName', 'applicantEmail', 'applicantPhone']
+          },
+          {
+            model: Work,
+            attributes: ['idWork', 'status']
+          }
+        ],
+        order: [['createdAt', 'DESC']]
+      });
+
+      console.log(`📋 Se encontraron ${budgets.length} budgets para exportar (con filtros aplicados)`);
+
+      // Crear workbook y worksheet
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Budgets');
+
+      // Configurar columnas con ancho adecuado
+      worksheet.columns = [
+        { header: 'ID/Invoice', key: 'identifier', width: 15 },
+        { header: 'Cliente', key: 'applicantName', width: 25 },
+        { header: 'Email', key: 'email', width: 30 },
+        { header: 'Teléfono', key: 'phone', width: 15 },
+        { header: 'Dirección', key: 'propertyAddress', width: 40 },
+        { header: 'Fecha Creación', key: 'date', width: 15 },
+        { header: 'Fecha Expiración', key: 'expirationDate', width: 15 },
+        { header: 'Precio Total', key: 'totalPrice', width: 15 },
+        { header: 'Pago Inicial', key: 'initialPayment', width: 15 },
+        { header: '% Pago Inicial', key: 'initialPaymentPercentage', width: 12 },
+        { header: 'Estado', key: 'status', width: 20 },
+        { header: 'Sistema', key: 'systemType', width: 20 },
+        { header: 'Método Firma', key: 'signatureMethod', width: 15 },
+        { header: 'Fecha Firma', key: 'signedAt', width: 20 },
+        { header: 'PDF Firmado', key: 'hasPdf', width: 12 },
+        { header: 'Lead Source', key: 'leadSource', width: 18 },
+        { header: 'Referido Externo', key: 'externalReferral', width: 30 },
+        { header: 'Es Legacy', key: 'isLegacy', width: 12 },
+        { header: 'Notas', key: 'generalNotes', width: 40 },
+        { header: 'Fecha Actualización', key: 'updatedAt', width: 20 }
+      ];
+
+      // Estilizar encabezado
+      worksheet.getRow(1).font = { bold: true, size: 12 };
+      worksheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF4472C4' }
+      };
+      worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+      // Agregar datos
+      budgets.forEach((budget, index) => {
+        // Determinar identificador: invoice number si existe, sino idBudget
+        const identifier = budget.invoiceNumber 
+          ? `Invoice #${budget.invoiceNumber}` 
+          : `Budget #${budget.idBudget}`;
+
+        // Determinar si tiene PDF firmado
+        let hasPdf = 'No';
+        if (budget.signedPdfPath || budget.manualSignedPdfPath || budget.legacySignedPdfUrl) {
+          hasPdf = 'Sí';
+        }
+
+        // Formatear fecha de firma
+        let signedAt = 'N/A';
+        if (budget.updatedAt && (budget.status === 'signed' || budget.status === 'approved')) {
+          signedAt = new Date(budget.updatedAt).toLocaleString('es-US', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+        }
+
+        // Referido externo
+        const externalReferral = budget.leadSource === 'external_referral' && budget.externalReferralName
+          ? `${budget.externalReferralName} ${budget.externalReferralEmail ? `(${budget.externalReferralEmail})` : ''}`
+          : 'N/A';
+
+        const row = worksheet.addRow({
+          identifier,
+          applicantName: budget.applicantName || budget.Permit?.applicantName || 'N/A',
+          email: budget.Permit?.applicantEmail || 'N/A',
+          phone: budget.Permit?.applicantPhone || 'N/A',
+          propertyAddress: budget.propertyAddress || budget.Permit?.propertyAddress || 'N/A',
+          date: budget.date || 'N/A',
+          expirationDate: budget.expirationDate || 'N/A',
+          totalPrice: budget.totalPrice ? `$${parseFloat(budget.totalPrice).toFixed(2)}` : '$0.00',
+          initialPayment: budget.initialPayment ? `$${parseFloat(budget.initialPayment).toFixed(2)}` : '$0.00',
+          initialPaymentPercentage: budget.initialPaymentPercentage ? `${budget.initialPaymentPercentage}%` : '60%',
+          status: budget.status || 'N/A',
+          systemType: budget.Permit?.systemType || 'N/A',
+          signatureMethod: budget.signatureMethod || 'none',
+          signedAt,
+          hasPdf,
+          leadSource: budget.leadSource || 'N/A',
+          externalReferral,
+          isLegacy: budget.isLegacy ? 'Sí' : 'No',
+          generalNotes: budget.generalNotes || '',
+          updatedAt: budget.updatedAt 
+            ? new Date(budget.updatedAt).toLocaleString('es-US', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+              })
+            : 'N/A'
+        });
+
+        // Colorear fila según estado
+        let fillColor = 'FFFFFFFF'; // Blanco por defecto
+        switch (budget.status) {
+          case 'draft':
+            fillColor = 'FFF3F3F3'; // Gris claro
+            break;
+          case 'signed':
+          case 'approved':
+            fillColor = 'FFD4EDDA'; // Verde claro
+            break;
+          case 'sent_for_signature':
+            fillColor = 'FFFEF5E7'; // Amarillo claro
+            break;
+          case 'rejected':
+            fillColor = 'FFF8D7DA'; // Rojo claro
+            break;
+        }
+
+        row.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: fillColor }
+        };
+
+        // Alternar color de fila para mejor legibilidad
+        if (index % 2 === 0) {
+          row.eachCell({ includeEmpty: true }, (cell) => {
+            if (fillColor === 'FFFFFFFF') {
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFF8F9FA' }
+              };
+            }
+          });
+        }
+      });
+
+      // Aplicar bordes a todas las celdas
+      worksheet.eachRow({ includeEmpty: false }, (row) => {
+        row.eachCell({ includeEmpty: true }, (cell) => {
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFD3D3D3' } },
+            left: { style: 'thin', color: { argb: 'FFD3D3D3' } },
+            bottom: { style: 'thin', color: { argb: 'FFD3D3D3' } },
+            right: { style: 'thin', color: { argb: 'FFD3D3D3' } }
+          };
+        });
+      });
+
+      // Generar nombre de archivo con fecha y filtros aplicados
+      let fileNameParts = ['Budgets'];
+      
+      if (status && status !== 'all') {
+        fileNameParts.push(status);
+      }
+      if (month && month !== 'all') {
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        fileNameParts.push(monthNames[parseInt(month) - 1]);
+      }
+      if (year && year !== 'all') {
+        fileNameParts.push(year);
+      }
+      
+      fileNameParts.push(new Date().toISOString().split('T')[0]);
+      
+      const fileName = `${fileNameParts.join('_')}.xlsx`;
+
+      // Configurar headers de respuesta
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+
+      // Escribir el archivo a la respuesta
+      await workbook.xlsx.write(res);
+
+      console.log(`✅ Excel exportado exitosamente: ${fileName} (${budgets.length} registros)`);
+      res.end();
+
+    } catch (error) {
+      console.error('❌ Error al exportar budgets a Excel:', error);
+      res.status(500).json({
+        error: true,
+        message: 'Error al exportar budgets a Excel',
+        details: error.message
       });
     }
   }

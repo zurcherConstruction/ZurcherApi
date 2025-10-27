@@ -5,6 +5,7 @@ import {
   updateBudget,
   resendBudgetToClient,
   sendBudgetToSignNow,
+  exportBudgetsToExcel, // 🆕 Importar la nueva acción
   // uploadInvoice, // Ya no se usa aquí si se eliminó handleUploadPayment
 } from "../../Redux/Actions/budgetActions";
 import {
@@ -17,6 +18,7 @@ import {
   PaperClipIcon,
   UserIcon,
   DocumentCheckIcon,
+  ArrowDownTrayIcon, // 🆕 Icono para exportar Excel
 } from "@heroicons/react/24/outline"; // Icono para descarga
 //import BudgetPDF from "./BudgetPDF";
 import { parseISO, format } from "date-fns";
@@ -692,6 +694,22 @@ const BudgetList = () => {
     refreshBudgets(); // ✅ Refrescar con parámetros actuales
   };
 
+  // 🆕 HANDLER PARA EXPORTAR A EXCEL
+  const handleExportToExcel = async () => {
+    try {
+      await dispatch(exportBudgetsToExcel({
+        search: debouncedSearchTerm,
+        status: statusFilter,
+        month: monthFilter,
+        year: yearFilter
+      }));
+      // El archivo se descarga automáticamente
+    } catch (error) {
+      console.error('Error al exportar a Excel:', error);
+      alert('Error al exportar los budgets a Excel');
+    }
+  };
+
   useEffect(() => {
     return () => {
       if (pdfUrlForModal) {
@@ -833,6 +851,21 @@ const BudgetList = () => {
               </select>
             </div>
           </div>
+
+          {/* 🆕 BOTÓN EXPORTAR A EXCEL */}
+          {!isReadOnly && (
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={handleExportToExcel}
+                title="Exporta los budgets según los filtros aplicados"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 shadow-md hover:shadow-lg font-medium text-sm"
+              >
+                <ArrowDownTrayIcon className="h-5 w-5" />
+                <span className="hidden sm:inline">Export to Excel</span>
+                <span className="sm:hidden">Export</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {loading && <p className="text-blue-500">Loading Budgets...</p>}

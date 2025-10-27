@@ -6,7 +6,8 @@ import {
   fetchBudgetById,
   deleteBudget,
   updateBudget,
-  downloadSignedBudget
+  downloadSignedBudget,
+  exportBudgetsToExcel // 🆕 Importar la acción de exportación
 } from '../../Redux/Actions/budgetActions';
 import {
   MagnifyingGlassIcon,
@@ -15,7 +16,8 @@ import {
   EyeIcon,
   FunnelIcon,
   CalendarDaysIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  ArrowDownTrayIcon // 🆕 Icono para exportar Excel
 } from '@heroicons/react/24/outline';
 import { Worker, Viewer } from '@react-pdf-viewer/core';
 import api from '../../utils/axios';
@@ -246,6 +248,22 @@ const GestionBudgets = () => {
       alert(`❌ Error al verificar firmas:\n${error.response?.data?.details || error.message}`);
     } finally {
       setVerifyingSignatures(false);
+    }
+  };
+
+  // 🆕 HANDLER PARA EXPORTAR A EXCEL
+  const handleExportToExcel = async () => {
+    try {
+      await dispatch(exportBudgetsToExcel({
+        search: debouncedSearchTerm,
+        status: statusFilter,
+        month: monthFilter,
+        year: yearFilter
+      }));
+      // El archivo se descarga automáticamente
+    } catch (error) {
+      console.error('Error al exportar a Excel:', error);
+      alert('Error al exportar los budgets a Excel');
     }
   };
 
@@ -645,12 +663,24 @@ const GestionBudgets = () => {
 
       {/* Botón de Verificación de Firmas + Filtros y Búsqueda */}
       <div className="bg-white p-6 rounded-lg shadow mb-6">
-        {/* Botón de Verificación Manual */}
-        <div className="mb-4 flex justify-end">
+        {/* Botones de Acción */}
+        <div className="mb-4 flex flex-wrap justify-end gap-2 sm:gap-3">
+          {/* Botón Exportar a Excel */}
+          <button
+            onClick={handleExportToExcel}
+            title="Exporta los budgets según los filtros aplicados"
+            className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all hover:shadow-lg font-medium text-sm"
+          >
+            <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
+            <span className="hidden sm:inline">Exportar Excel</span>
+            <span className="sm:hidden">Excel</span>
+          </button>
+
+          {/* Botón Verificar Firmas */}
           <button
             onClick={handleVerifySignatures}
             disabled={verifyingSignatures}
-            className={`inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all ${
+            className={`inline-flex items-center px-4 py-2 rounded-lg font-medium text-sm transition-all ${
               verifyingSignatures
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg'
