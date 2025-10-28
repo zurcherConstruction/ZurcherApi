@@ -141,7 +141,7 @@ module.exports = (sequelize) => {
   
   PermitIdPermit: {
     type: DataTypes.UUID, // Debe coincidir con el tipo de Permit.idPermit
-    allowNull: false, // O true si un Budget puede existir sin Permit
+    allowNull: true, // ✅ CORREGIDO: Permite NULL para que onDelete: SET NULL funcione
     references: {
       model: 'Permits', // Nombre de la tabla referenciada
       key: 'idPermit'   // Clave primaria referenciada
