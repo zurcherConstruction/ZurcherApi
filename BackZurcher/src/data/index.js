@@ -75,7 +75,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, SupplierInvoice, SupplierInvoiceItem } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, SupplierInvoice, SupplierInvoiceItem, BudgetNote } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -388,6 +388,28 @@ SupplierInvoice.hasMany(Receipt, {
 Receipt.belongsTo(SupplierInvoice, { 
   foreignKey: 'relatedId', 
   constraints: false 
+});
+
+// --- RELACIONES PARA BUDGET NOTES (SEGUIMIENTO DE PRESUPUESTOS) ---
+
+// Un Budget tiene muchas BudgetNotes (notas de seguimiento)
+Budget.hasMany(BudgetNote, {
+  foreignKey: 'budgetId',
+  as: 'notes'
+});
+BudgetNote.belongsTo(Budget, {
+  foreignKey: 'budgetId',
+  as: 'budget'
+});
+
+// Un Staff puede crear muchas BudgetNotes
+Staff.hasMany(BudgetNote, {
+  foreignKey: 'staffId',
+  as: 'budgetNotes'
+});
+BudgetNote.belongsTo(Staff, {
+  foreignKey: 'staffId',
+  as: 'author'
 });
 
 //---------------------------------------------------------------------------------//
