@@ -296,3 +296,58 @@ export const convertDraftToInvoice = (idBudget) => async (dispatch) => {
     };
   }
 };
+
+// 🆕 NUEVA ACCIÓN: Exportar budgets a Excel
+export const exportBudgetsToExcel = ({ search = '', status = '', month = '', year = '' } = {}) => async () => {
+  try {
+    // Construir query params con los filtros
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    if (status && status !== 'all') params.append('status', status);
+    if (month && month !== 'all') params.append('month', month);
+    if (year && year !== 'all') params.append('year', year);
+
+    const queryString = params.toString();
+    const url = `/budget/export/excel${queryString ? `?${queryString}` : ''}`;
+
+    const response = await api.get(url, {
+      responseType: 'blob', // Importante para recibir archivos binarios
+      withCredentials: true
+    });
+
+    // Crear un enlace temporal para descargar el archivo
+    const blob = response.data;
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    
+    // Obtener el nombre del archivo del header o usar uno por defecto
+    const contentDisposition = response.headers['content-disposition'];
+    let fileName = `Budgets_Export_${new Date().toISOString().split('T')[0]}.xlsx`;
+    
+    if (contentDisposition) {
+      const fileNameMatch = contentDisposition.match(/filename="(.+)"/);
+      if (fileNameMatch && fileNameMatch.length === 2) {
+        fileName = fileNameMatch[1];
+      }
+    }
+    
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+
+    return {
+      type: 'EXPORT_BUDGETS_TO_EXCEL_SUCCESS',
+      payload: { message: 'Budgets exportados exitosamente' }
+    };
+  } catch (error) {
+    console.error('Error al exportar budgets:', error);
+    const errorMessage = error.response?.data?.message || 'Error al exportar budgets a Excel';
+    return {
+      type: 'EXPORT_BUDGETS_TO_EXCEL_FAILURE',
+      payload: errorMessage
+    };
+  }
+};

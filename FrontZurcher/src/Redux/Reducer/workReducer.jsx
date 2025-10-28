@@ -238,7 +238,7 @@ deleteChangeOrderFailure: (state, action) => {
       state.loading = false;
       const { idWork, imageId } = action.payload;
 
-      // 1. Actualizar la lista de trabajos (state.works)
+      // 1. Actualizar la lista de trabajos (state.works) si existe
       const workIndexInList = state.works.findIndex(w => w.idWork === idWork);
       if (workIndexInList !== -1) {
         const workToUpdateInList = { ...state.works[workIndexInList] };
@@ -246,9 +246,8 @@ deleteChangeOrderFailure: (state, action) => {
           workToUpdateInList.images = workToUpdateInList.images.filter(img => img.id !== imageId);
           state.works[workIndexInList] = workToUpdateInList;
         }
-      } else {
-        console.warn(`deleteImagesSuccess: Trabajo con ID ${idWork} no encontrado en state.works.`);
       }
+      // ℹ️ No mostrar warning si state.works está vacío (contexto de trabajo individual)
 
       // 2. Actualizar el trabajo detallado (state.work) si es el mismo
       if (state.work && state.work.idWork === idWork) {

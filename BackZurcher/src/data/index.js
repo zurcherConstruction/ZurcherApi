@@ -43,7 +43,7 @@ const sequelize = DB_DEPLOY
           idle: 10000
         },
         dialectOptions: {
-          statement_timeout: 10000,
+          statement_timeout: 30000, // ⏰ Aumentado a 30 segundos para permitir sync() de Sequelize
         }
       }
     );

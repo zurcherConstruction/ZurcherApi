@@ -394,8 +394,8 @@ export const deleteImagesFromWork = (idWork, imageId) => async (dispatch) => { /
     if (response.status === 204) {
       // Payload opcional, podría ser útil para el reducer si no se refresca
       dispatch(deleteImagesSuccess({ idWork, imageId })); // Acción para éxito
-      // *** CLAVE: Refrescar la lista de trabajos para actualizar la UI ***
-      dispatch(fetchAssignedWorks());
+      // ✅ Refrescar el trabajo específico para actualizar la UI
+      dispatch(fetchWorkById(idWork));
     } else {
       // Manejar otros códigos de estado si es necesario
       throw new Error(`Error inesperado al eliminar: ${response.status}`);
@@ -405,7 +405,7 @@ export const deleteImagesFromWork = (idWork, imageId) => async (dispatch) => { /
     const errorMessage =
       error.response?.data?.message || error.message || 'Error al eliminar la imagen';
     dispatch(deleteImagesFailure(errorMessage)); // Acción para error
-    Alert.alert('Error', errorMessage); // Mostrar error en una alerta
+    // El error se maneja en el reducer y componente
     throw error; // Lanzar el error para manejarlo en el componente
   }
 };

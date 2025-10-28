@@ -5,6 +5,7 @@ import {
   updateBudget,
   resendBudgetToClient,
   sendBudgetToSignNow,
+  exportBudgetsToExcel, // 🆕 Importar la nueva acción
   // uploadInvoice, // Ya no se usa aquí si se eliminó handleUploadPayment
 } from "../../Redux/Actions/budgetActions";
 import {
@@ -17,6 +18,7 @@ import {
   PaperClipIcon,
   UserIcon,
   DocumentCheckIcon,
+  ArrowDownTrayIcon, // 🆕 Icono para exportar Excel
 } from "@heroicons/react/24/outline"; // Icono para descarga
 //import BudgetPDF from "./BudgetPDF";
 import { parseISO, format } from "date-fns";
@@ -192,12 +194,12 @@ const BudgetList = () => {
   const [showClientDataModal, setShowClientDataModal] = useState(false);
   const [selectedBudgetIdForClient, setSelectedBudgetIdForClient] = useState(null);
 
-  // ✅ useEffect para debounce del searchTerm (esperar 500ms después de que el usuario deje de escribir)
+  // ✅ useEffect para debounce del searchTerm (esperar 800ms después de que el usuario deje de escribir)
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
       setPage(1); // Resetear a primera página al buscar
-    }, 500);
+    }, 800);
 
     return () => {
       clearTimeout(handler);
@@ -666,7 +668,14 @@ const BudgetList = () => {
      
     } catch (e) {
       console.error("Error obteniendo el PDF desde el backend:", e);
-      alert("No se pudo cargar el archivo PDF.");
+      
+      // Mensaje específico para 404
+      if (e.response && e.response.status === 404) {
+        alert("Este presupuesto no tiene el archivo solicitado.");
+      } else {
+        alert("No se pudo cargar el archivo PDF.");
+      }
+      
       setPdfUrlForModal("");
     }
     setIsLoadingPdfInModal(null);
@@ -690,6 +699,22 @@ const BudgetList = () => {
   const handleClientDataUpdated = (updatedData) => {
     // Recargar la lista de presupuestos para mostrar los datos actualizados
     refreshBudgets(); // ✅ Refrescar con parámetros actuales
+  };
+
+  // 🆕 HANDLER PARA EXPORTAR A EXCEL
+  const handleExportToExcel = async () => {
+    try {
+      await dispatch(exportBudgetsToExcel({
+        search: debouncedSearchTerm,
+        status: statusFilter,
+        month: monthFilter,
+        year: yearFilter
+      }));
+      // El archivo se descarga automáticamente
+    } catch (error) {
+      console.error('Error al exportar a Excel:', error);
+      alert('Error al exportar los budgets a Excel');
+    }
   };
 
   useEffect(() => {
@@ -753,14 +778,22 @@ const BudgetList = () => {
               <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-2">
                 Search
               </label>
-              <input
-                id="search"
-                type="text"
-                placeholder="Search budgets..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+              <div className="relative">
+                <input
+                  id="search"
+                  type="text"
+                  placeholder="Search budgets..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                {/* Indicador de búsqueda activa */}
+                {searchTerm && searchTerm !== debouncedSearchTerm && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Status Filter */}
@@ -833,6 +866,21 @@ const BudgetList = () => {
               </select>
             </div>
           </div>
+
+          {/* 🆕 BOTÓN EXPORTAR A EXCEL */}
+          {!isReadOnly && (
+            <div className="mt-4 flex justify-end">
+              <button
+                onClick={handleExportToExcel}
+                title="Exporta los budgets según los filtros aplicados"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 shadow-md hover:shadow-lg font-medium text-sm"
+              >
+                <ArrowDownTrayIcon className="h-5 w-5" />
+                <span className="hidden sm:inline">Export to Excel</span>
+                <span className="sm:hidden">Export</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {loading && <p className="text-blue-500">Loading Budgets...</p>}

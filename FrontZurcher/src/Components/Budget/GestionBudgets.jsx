@@ -6,7 +6,8 @@ import {
   fetchBudgetById,
   deleteBudget,
   updateBudget,
-  downloadSignedBudget
+  downloadSignedBudget,
+  exportBudgetsToExcel // 🆕 Importar la acción de exportación
 } from '../../Redux/Actions/budgetActions';
 import {
   MagnifyingGlassIcon,
@@ -15,7 +16,8 @@ import {
   EyeIcon,
   FunnelIcon,
   CalendarDaysIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  ArrowDownTrayIcon // 🆕 Icono para exportar Excel
 } from '@heroicons/react/24/outline';
 import { Worker, Viewer } from '@react-pdf-viewer/core';
 import api from '../../utils/axios';
@@ -86,12 +88,12 @@ const GestionBudgets = () => {
   // 🆕 Estado para verificación manual de firmas
   const [verifyingSignatures, setVerifyingSignatures] = useState(false);
 
-  // ✅ useEffect para debounce del searchTerm (esperar 500ms después de que el usuario deje de escribir)
+  // ✅ useEffect para debounce del searchTerm (esperar 800ms después de que el usuario deje de escribir)
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
       setPage(1); // Resetear a primera página al buscar
-    }, 500);
+    }, 800);
 
     return () => {
       clearTimeout(handler);
@@ -150,19 +152,54 @@ const GestionBudgets = () => {
     }
     
     // Fallback: calcular localmente (solo mostrará stats de la página actual)
-    if (!budgets) return { total: 0 };
+    if (!budgets) return { 
+      total: 0, 
+      draft: 0, 
+      approved: 0, 
+      en_seguimiento: 0, 
+      sent_for_signature: 0, 
+      signed_without_payment: 0, 
+      rejected: 0 
+    };
+
+    // Calcular "approved" incluyendo legacy
+    const approved = budgets.filter(b => 
+      b.status === 'approved' || b.isLegacy === true
+    ).length;
+
+    // Calcular "en_seguimiento" localmente
+    const en_seguimiento = budgets.filter(b => 
+      ['send', 'pending_review', 'client_approved', 'notResponded'].includes(b.status)
+    ).length;
+
+    // Calcular "signed" excluyendo legacy
+    const signed = budgets.filter(b => {
+      const isSigned = b.status === 'signed' || (b.signatureMethod === 'manual' && b.manualSignedPdfPath);
+      return isSigned && !b.isLegacy;
+    }).length;
+
+    // Calcular "signed_without_payment" excluyendo legacy
+    const signed_without_payment = budgets.filter(b => {
+      const isSigned = b.status === 'signed' || (b.signatureMethod === 'manual' && b.manualSignedPdfPath);
+      const hasNoPayment = !b.paymentProofAmount || parseFloat(b.paymentProofAmount) === 0;
+      return isSigned && hasNoPayment && !b.isLegacy;
+    }).length;
 
     return {
       total: totalRecords || budgets.length,
       draft: budgets.filter(b => b.status === 'draft').length,
+      approved: approved,
+      en_seguimiento: en_seguimiento,
+      sent_for_signature: budgets.filter(b => b.status === 'sent_for_signature').length,
+      signed: signed,
+      signed_without_payment: signed_without_payment,
+      rejected: budgets.filter(b => b.status === 'rejected').length,
+      
+      // 📊 MANTENER ESTADOS LEGACY para compatibilidad (no se muestran en las tarjetas)
       pending_review: budgets.filter(b => b.status === 'pending_review').length,
       client_approved: budgets.filter(b => b.status === 'client_approved').length,
       created: budgets.filter(b => b.status === 'created').length,
       send: budgets.filter(b => b.status === 'send').length,
-      sent_for_signature: budgets.filter(b => b.status === 'sent_for_signature').length,
-      signed: budgets.filter(b => b.status === 'signed').length,
-      approved: budgets.filter(b => b.status === 'approved').length,
-      rejected: budgets.filter(b => b.status === 'rejected').length,
       notResponded: budgets.filter(b => b.status === 'notResponded').length
     };
   }, [budgets, totalRecords, statsFromBackend]);
@@ -246,6 +283,22 @@ const GestionBudgets = () => {
       alert(`❌ Error al verificar firmas:\n${error.response?.data?.details || error.message}`);
     } finally {
       setVerifyingSignatures(false);
+    }
+  };
+
+  // 🆕 HANDLER PARA EXPORTAR A EXCEL
+  const handleExportToExcel = async () => {
+    try {
+      await dispatch(exportBudgetsToExcel({
+        search: debouncedSearchTerm,
+        status: statusFilter,
+        month: monthFilter,
+        year: yearFilter
+      }));
+      // El archivo se descarga automáticamente
+    } catch (error) {
+      console.error('Error al exportar a Excel:', error);
+      alert('Error al exportar los budgets a Excel');
     }
   };
 
@@ -520,7 +573,9 @@ const GestionBudgets = () => {
       </div>
 
       {/* Estadísticas */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
+        {/* FILA 1: VISTA GENERAL Y TRABAJO INTERNO */}
+        
         {/* Total - Clickeable para mostrar todos */}
         <div 
           onClick={() => handleStatCardClick('all')}
@@ -543,48 +598,30 @@ const GestionBudgets = () => {
           <div className="text-sm text-gray-600">Borradores</div>
         </div>
 
-        {/* Pending Review - En Revisión */}
+        {/* Approved - Aprobados (COMPLETOS) */}
         <div 
-          onClick={() => handleStatCardClick('pending_review')}
+          onClick={() => handleStatCardClick('approved')}
           className={`bg-white p-4 rounded-lg shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
-            statusFilter === 'pending_review' ? 'ring-2 ring-yellow-600' : ''
+            statusFilter === 'approved' ? 'ring-2 ring-green-600' : ''
           }`}
         >
-          <div className="text-2xl font-bold text-yellow-600">{budgetStats.pending_review}</div>
-          <div className="text-sm text-gray-600">En Revisión</div>
+          <div className="text-2xl font-bold text-green-600">{budgetStats.approved}</div>
+          <div className="text-sm text-gray-600">Aprobados</div>
+          <div className="text-xs text-gray-500 mt-1">Firmados + Pago</div>
         </div>
 
-        {/* Client Approved - Aprobado por Cliente */}
+        {/* FILA 2: SEGUIMIENTO AL CLIENTE */}
+        
+        {/* En Seguimiento - Agrupa: send, pending_review, client_approved, notResponded */}
         <div 
-          onClick={() => handleStatCardClick('client_approved')}
+          onClick={() => handleStatCardClick('en_seguimiento')}
           className={`bg-white p-4 rounded-lg shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
-            statusFilter === 'client_approved' ? 'ring-2 ring-teal-600' : ''
+            statusFilter === 'en_seguimiento' ? 'ring-2 ring-blue-600' : ''
           }`}
         >
-          <div className="text-2xl font-bold text-teal-600">{budgetStats.client_approved}</div>
-          <div className="text-sm text-gray-600">Pre-Aprobado</div>
-        </div>
-
-        {/* Created - Creados */}
-        <div 
-          onClick={() => handleStatCardClick('created')}
-          className={`bg-white p-4 rounded-lg shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
-            statusFilter === 'created' ? 'ring-2 ring-gray-600' : ''
-          }`}
-        >
-          <div className="text-2xl font-bold text-gray-600">{budgetStats.created}</div>
-          <div className="text-sm text-gray-600">Creados</div>
-        </div>
-
-        {/* Send - Enviados */}
-        <div 
-          onClick={() => handleStatCardClick('send')}
-          className={`bg-white p-4 rounded-lg shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
-            statusFilter === 'send' ? 'ring-2 ring-blue-600' : ''
-          }`}
-        >
-          <div className="text-2xl font-bold text-blue-600">{budgetStats.send}</div>
+          <div className="text-2xl font-bold text-blue-600">{budgetStats.en_seguimiento}</div>
           <div className="text-sm text-gray-600">Enviados</div>
+          <div className="text-xs text-gray-500 mt-1">En seguimiento</div>
         </div>
 
         {/* Sent for Signature - Para Firma */}
@@ -598,28 +635,20 @@ const GestionBudgets = () => {
           <div className="text-sm text-gray-600">Para Firma</div>
         </div>
 
-        {/* Signed - Firmados */}
+        {/* Firmados Sin Pago - Firmados pero falta pago inicial */}
         <div 
-          onClick={() => handleStatCardClick('signed')}
+          onClick={() => handleStatCardClick('signed_without_payment')}
           className={`bg-white p-4 rounded-lg shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
-            statusFilter === 'signed' ? 'ring-2 ring-indigo-600' : ''
+            statusFilter === 'signed_without_payment' ? 'ring-2 ring-orange-600' : ''
           }`}
         >
-          <div className="text-2xl font-bold text-indigo-600">{budgetStats.signed}</div>
-          <div className="text-sm text-gray-600">Firmados</div>
+          <div className="text-2xl font-bold text-orange-600">{budgetStats.signed_without_payment}</div>
+          <div className="text-sm text-gray-600">Firmados Sin Pago</div>
+          <div className="text-xs text-gray-500 mt-1">Gestión cobros</div>
         </div>
 
-        {/* Approved - Aprobados */}
-        <div 
-          onClick={() => handleStatCardClick('approved')}
-          className={`bg-white p-4 rounded-lg shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
-            statusFilter === 'approved' ? 'ring-2 ring-green-600' : ''
-          }`}
-        >
-          <div className="text-2xl font-bold text-green-600">{budgetStats.approved}</div>
-          <div className="text-sm text-gray-600">Aprobados</div>
-        </div>
-
+        {/* FILA 3: CIERRE */}
+        
         {/* Rejected - Rechazados */}
         <div 
           onClick={() => handleStatCardClick('rejected')}
@@ -630,27 +659,28 @@ const GestionBudgets = () => {
           <div className="text-2xl font-bold text-red-600">{budgetStats.rejected}</div>
           <div className="text-sm text-gray-600">Rechazados</div>
         </div>
-
-        {/* Not Responded - Sin Respuesta */}
-        <div 
-          onClick={() => handleStatCardClick('notResponded')}
-          className={`bg-white p-4 rounded-lg shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
-            statusFilter === 'notResponded' ? 'ring-2 ring-orange-600' : ''
-          }`}
-        >
-          <div className="text-2xl font-bold text-orange-600">{budgetStats.notResponded}</div>
-          <div className="text-sm text-gray-600">Sin Respuesta</div>
-        </div>
       </div>
 
       {/* Botón de Verificación de Firmas + Filtros y Búsqueda */}
       <div className="bg-white p-6 rounded-lg shadow mb-6">
-        {/* Botón de Verificación Manual */}
-        <div className="mb-4 flex justify-end">
+        {/* Botones de Acción */}
+        <div className="mb-4 flex flex-wrap justify-end gap-2 sm:gap-3">
+          {/* Botón Exportar a Excel */}
+          <button
+            onClick={handleExportToExcel}
+            title="Exporta los budgets según los filtros aplicados"
+            className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all hover:shadow-lg font-medium text-sm"
+          >
+            <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
+            <span className="hidden sm:inline">Exportar Excel</span>
+            <span className="sm:hidden">Excel</span>
+          </button>
+
+          {/* Botón Verificar Firmas */}
           <button
             onClick={handleVerifySignatures}
             disabled={verifyingSignatures}
-            className={`inline-flex items-center px-4 py-2 rounded-lg font-medium transition-all ${
+            className={`inline-flex items-center px-4 py-2 rounded-lg font-medium text-sm transition-all ${
               verifyingSignatures
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-lg'
@@ -687,6 +717,12 @@ const GestionBudgets = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
+            {/* Indicador de búsqueda activa */}
+            {searchTerm && searchTerm !== debouncedSearchTerm && (
+              <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
+              </div>
+            )}
           </div>
 
           {/* Filtro por Estado */}
