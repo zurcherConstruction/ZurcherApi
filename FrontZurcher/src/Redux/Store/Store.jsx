@@ -19,6 +19,7 @@ import finalInvoiceReducer from '../Reducer/finalInvoiceReducer';
 import contactReducer from '../Reducer/contactReducer';
 import maintenanceReducer from '../Reducer/maintenanceReducer';
 import supplierInvoiceReducer from '../Reducer/supplierInvoiceReducer';
+import budgetNoteReducer from '../Reducer/budgetNoteReducer';
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -39,6 +40,7 @@ const rootReducer = combineReducers({
   contact: contactReducer,
   maintenance: maintenanceReducer,
   supplierInvoice: supplierInvoiceReducer,
+  budgetNote: budgetNoteReducer,
 });
 
 export const store = configureStore({

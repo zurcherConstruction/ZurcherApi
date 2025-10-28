@@ -17,11 +17,13 @@ import {
   FunnelIcon,
   CalendarDaysIcon,
   DocumentTextIcon,
-  ArrowDownTrayIcon // 🆕 Icono para exportar Excel
+  ArrowDownTrayIcon, // 🆕 Icono para exportar Excel
+  ChatBubbleLeftRightIcon // 📝 Icono para seguimiento
 } from '@heroicons/react/24/outline';
 import { Worker, Viewer } from '@react-pdf-viewer/core';
 import api from '../../utils/axios';
 import '@react-pdf-viewer/core/lib/styles/index.css';
+import BudgetNotesModal from './BudgetNotesModal';
 
 const GestionBudgets = () => {
   const dispatch = useDispatch();
@@ -87,6 +89,10 @@ const GestionBudgets = () => {
 
   // 🆕 Estado para verificación manual de firmas
   const [verifyingSignatures, setVerifyingSignatures] = useState(false);
+
+  // 📝 Estado para modal de notas de seguimiento
+  const [showNotesModal, setShowNotesModal] = useState(false);
+  const [budgetForNotes, setBudgetForNotes] = useState(null);
 
   // ✅ useEffect para debounce del searchTerm (esperar 800ms después de que el usuario deje de escribir)
   useEffect(() => {
@@ -415,6 +421,12 @@ const GestionBudgets = () => {
   const handleViewDetails = (budget) => {
     setSelectedBudget(budget);
     setShowDetailModal(true);
+  };
+
+  // 📝 Handler para abrir modal de notas de seguimiento
+  const handleOpenNotes = (budget) => {
+    setBudgetForNotes(budget);
+    setShowNotesModal(true);
   };
 
 
@@ -850,6 +862,13 @@ const GestionBudgets = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleOpenNotes(budget)}
+                        className="text-purple-600 hover:text-purple-900 p-1 rounded"
+                        title="Seguimiento"
+                      >
+                        <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                      </button>
                       <button
                         onClick={() => handleViewDetails(budget)}
                         className="text-green-600 hover:text-green-900 p-1 rounded"
@@ -1321,6 +1340,17 @@ const GestionBudgets = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 📝 Modal de Notas de Seguimiento */}
+      {showNotesModal && budgetForNotes && (
+        <BudgetNotesModal
+          budget={budgetForNotes}
+          onClose={() => {
+            setShowNotesModal(false);
+            setBudgetForNotes(null);
+          }}
+        />
       )}
 
     </div>
