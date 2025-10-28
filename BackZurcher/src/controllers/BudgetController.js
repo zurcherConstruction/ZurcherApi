@@ -1,4 +1,4 @@
-const { Budget, Permit, Work, Income, BudgetItem, BudgetLineItem, Receipt, conn } = require('../data');
+const { Budget, Permit, Work, Income, BudgetItem, BudgetLineItem, Receipt, conn, sequelize } = require('../data');
 const { Op, literal } = require('sequelize'); 
 const { cloudinary } = require('../utils/cloudinaryConfig.js');
 const { sendNotifications } = require('../utils/notifications/notificationManager.js');
@@ -12,6 +12,7 @@ const SignNowService = require('../services/ServiceSignNow');
 const { getNextInvoiceNumber } = require('../utils/invoiceNumberManager'); // 🆕 HELPER DE NUMERACIÓN UNIFICADA
 const ExcelJS = require('exceljs'); // 🆕 Para exportar a Excel
 require('dotenv').config();
+
 // AGREGAR esta función auxiliar después de los imports:
 function getPublicPdfUrl(localPath, req) {
   if (!localPath) return null;
@@ -1022,10 +1023,9 @@ async getBudgets(req, res) {
     // Filtro por mes (aplicar a ambos whereClause)
     if (month && month !== 'all') {
       const monthNum = parseInt(month);
-      // ✅ El frontend envía 0-11 (JavaScript), convertir a 1-12 (SQL)
-      const sqlMonth = monthNum + 1;
-      if (sqlMonth >= 1 && sqlMonth <= 12) {
-        const monthCondition = literal(`EXTRACT(MONTH FROM "Budget"."date") = ${sqlMonth}`);
+      // ✅ El frontend envía 1-12 (formato SQL directo), NO requiere conversión
+      if (monthNum >= 1 && monthNum <= 12) {
+        const monthCondition = literal(`EXTRACT(MONTH FROM CAST("Budget"."date" AS DATE)) = ${monthNum}`);
         
         baseWhereClause[Op.and] = baseWhereClause[Op.and] || [];
         baseWhereClause[Op.and].push(monthCondition);
@@ -1039,7 +1039,7 @@ async getBudgets(req, res) {
     if (year && year !== 'all') {
       const yearNum = parseInt(year);
       if (yearNum > 2020 && yearNum <= new Date().getFullYear() + 1) {
-        const yearCondition = literal(`EXTRACT(YEAR FROM "Budget"."date") = ${yearNum}`);
+        const yearCondition = literal(`EXTRACT(YEAR FROM CAST("Budget"."date" AS DATE)) = ${yearNum}`);
         
         baseWhereClause[Op.and] = baseWhereClause[Op.and] || [];
         baseWhereClause[Op.and].push(yearCondition);
@@ -1051,78 +1051,132 @@ async getBudgets(req, res) {
 
     // 🎯 Filtro por status SOLO para whereClause (no para estadísticas)
     if (status && status !== 'all') {
-      // ✅ Caso especial: "signed" incluye tanto status='signed' como firma manual
-      if (status === 'signed') {
+      // ✅ Caso especial: "approved" incluye status='approved' O isLegacy=true
+      if (status === 'approved') {
         whereClause[Op.or] = whereClause[Op.or] || [];
         whereClause[Op.or].push(
-          { status: 'signed' },
-          { 
-            signatureMethod: 'manual',
-            manualSignedPdfPath: { [Op.ne]: null }
-          }
+          { status: 'approved' },
+          { isLegacy: true }
         );
-      } else {
+      }
+      // ✅ Caso especial: "signed" incluye tanto status='signed' como firma manual (excluye legacy)
+      else if (status === 'signed') {
+        whereClause[Op.and] = whereClause[Op.and] || [];
+        whereClause[Op.and].push({
+          isLegacy: { [Op.or]: [false, null] },
+          [Op.or]: [
+            { status: 'signed' },
+            { 
+              signatureMethod: 'manual',
+              manualSignedPdfPath: { [Op.ne]: null }
+            }
+          ]
+        });
+      } 
+      // 🆕 Caso especial: "en_seguimiento" agrupa varios estados
+      else if (status === 'en_seguimiento') {
+        whereClause.status = {
+          [Op.in]: ['send', 'pending_review', 'client_approved', 'notResponded']
+        };
+      }
+      // 🆕 Caso especial: "signed_without_payment" - firmados sin pago inicial (excluye legacy)
+      else if (status === 'signed_without_payment') {
+        whereClause[Op.and] = whereClause[Op.and] || [];
+        whereClause[Op.and].push({
+          isLegacy: { [Op.or]: [false, null] },
+          [Op.or]: [
+            { 
+              status: 'signed',
+              paymentProofAmount: { [Op.or]: [null, 0] }
+            },
+            { 
+              signatureMethod: 'manual',
+              manualSignedPdfPath: { [Op.ne]: null },
+              paymentProofAmount: { [Op.or]: [null, 0] }
+            }
+          ]
+        });
+      }
+      else {
         whereClause.status = status;
       }
     }
 
     const { rows: budgetsInstances, count: totalBudgets } = await Budget.findAndCountAll({
-      where: whereClause, // ✅ AGREGAR EL WHERE CLAUSE
+      where: whereClause,
       include: [
         {
           model: Permit,
-          attributes: ['idPermit', 'propertyAddress', 'systemType', 'expirationDate', 'applicantEmail',  'applicantPhone', 'applicantName', 'permitNumber', 'lot', 'block', 'pdfData', 'optionalDocs'],
+          attributes: [
+            'idPermit', 'propertyAddress', 'systemType', 'expirationDate', 'applicantEmail',  
+            'applicantPhone', 'applicantName', 'permitNumber', 'lot', 'block',
+            // ✅ Flags virtuales para saber si existen PDFs sin traer los BLOBs
+            [sequelize.literal('CASE WHEN "Permit"."pdfData" IS NOT NULL THEN true ELSE false END'), 'hasPermitPdfData'],
+            [sequelize.literal('CASE WHEN "Permit"."optionalDocs" IS NOT NULL THEN true ELSE false END'), 'hasOptionalDocs']
+          ],
         }
       ],
-      order: [['idBudget', 'DESC']], // ✅ Ordenar por ID para mostrar más recientes primero
+      order: [['idBudget', 'DESC']],
       limit: pageSize,
       offset,
       attributes: [
         'idBudget', 'date', 'expirationDate', 'status', 'applicantName', 'propertyAddress',
         'subtotalPrice', 'totalPrice', 'initialPayment', 'initialPaymentPercentage', 'pdfPath',
-        'generalNotes', // 🆕 Incluir notas generales
-        'paymentInvoice', // Comprobante de pago
-        'paymentProofAmount', // Monto del comprobante
-        'paymentProofType', // Tipo de comprobante (pdf/image)
-        'isLegacy', // Campo para identificar legacy budgets
-        'legacySignedPdfUrl', // URL de Cloudinary del PDF firmado para trabajos legacy
-        'legacySignedPdfPublicId', // Public ID de Cloudinary
-        'invoiceNumber', // 🆕 Número de invoice (para diferenciar Draft de Invoice)
-        'reviewedAt', // 🆕 Fecha de aprobación del cliente
-        'convertedToInvoiceAt', // 🆕 Fecha de conversión a invoice
-        'sentForReviewAt', // 🆕 Fecha de envío para revisión
-        'signatureMethod', // 🆕 Método de firma (signnow/manual/legacy/none)
-        'manualSignedPdfPath', // 🆕 URL del PDF firmado manualmente
-        'manualSignedPdfPublicId', // 🆕 Public ID del PDF manual
-        'signedPdfPath', // 🆕 URL del PDF firmado por SignNow
-        'signNowDocumentId' // 🆕 ID del documento en SignNow
+        'generalNotes',
+        'paymentInvoice',
+        'paymentProofAmount',
+        'paymentProofType',
+        'isLegacy',
+        'legacySignedPdfUrl',
+        'legacySignedPdfPublicId',
+        'invoiceNumber',
+        'reviewedAt',
+        'convertedToInvoiceAt',
+        'sentForReviewAt',
+        'signatureMethod',
+        'manualSignedPdfPath',
+        'manualSignedPdfPublicId',
+        'signedPdfPath',
+        'signNowDocumentId'
       ]
     });
 
     // 🆕 CALCULAR ESTADÍSTICAS GLOBALES usando baseWhereClause (SIN filtro de status)
-    // Esto asegura que siempre se muestren todos los estados, sin importar el filtro aplicado
     const allBudgetsForStats = await Budget.findAll({
-      where: baseWhereClause, // ✅ USAR baseWhereClause en lugar de whereClause
-      attributes: ['status', 'signatureMethod', 'manualSignedPdfPath']
+      where: baseWhereClause,
+      attributes: ['status', 'signatureMethod', 'manualSignedPdfPath', 'isLegacy', 'paymentProofAmount']
     });
 
     const stats = {
-      total: allBudgetsForStats.length, // ✅ Total de todos los budgets (sin filtro de status)
+      total: allBudgetsForStats.length,
       draft: allBudgetsForStats.filter(b => b.status === 'draft').length,
+      // ✅ Approved incluye legacy
+      approved: allBudgetsForStats.filter(b => b.status === 'approved' || b.isLegacy === true).length,
+      // ✅ En seguimiento agrupa 4 estados
+      en_seguimiento: allBudgetsForStats.filter(b => 
+        ['send', 'pending_review', 'client_approved', 'notResponded'].includes(b.status)
+      ).length,
+      sent_for_signature: allBudgetsForStats.filter(b => b.status === 'sent_for_signature').length,
+      // ✅ Signed excluye legacy
+      signed: allBudgetsForStats.filter(b => {
+        const isSigned = b.status === 'signed' || (b.signatureMethod === 'manual' && b.manualSignedPdfPath);
+        return isSigned && !b.isLegacy;
+      }).length,
+      // ✅ Signed without payment excluye legacy
+      signed_without_payment: allBudgetsForStats.filter(b => {
+        const isSigned = b.status === 'signed' || (b.signatureMethod === 'manual' && b.manualSignedPdfPath);
+        const hasNoPayment = !b.paymentProofAmount || parseFloat(b.paymentProofAmount) === 0;
+        return isSigned && hasNoPayment && !b.isLegacy;
+      }).length,
+      rejected: allBudgetsForStats.filter(b => b.status === 'rejected').length,
+      // Estados individuales (para compatibilidad)
       pending_review: allBudgetsForStats.filter(b => b.status === 'pending_review').length,
       client_approved: allBudgetsForStats.filter(b => b.status === 'client_approved').length,
       created: allBudgetsForStats.filter(b => b.status === 'created').length,
       send: allBudgetsForStats.filter(b => b.status === 'send').length,
-      sent_for_signature: allBudgetsForStats.filter(b => b.status === 'sent_for_signature').length,
-      // ✅ "signed" incluye budgets con status='signed' O firma manual completa
-      signed: allBudgetsForStats.filter(b => 
-        b.status === 'signed' || (b.signatureMethod === 'manual' && b.manualSignedPdfPath)
-      ).length,
-      approved: allBudgetsForStats.filter(b => b.status === 'approved').length,
-      rejected: allBudgetsForStats.filter(b => b.status === 'rejected').length,
       notResponded: allBudgetsForStats.filter(b => b.status === 'notResponded').length
     };
-
+    
     const budgetsWithDetails = budgetsInstances.map(budgetInstance => {
       const budgetJson = budgetInstance.toJSON();
 
@@ -1139,7 +1193,7 @@ async getBudgets(req, res) {
 
           const expDateParts = expirationDateString.split('-');
           const year = parseInt(expDateParts[0], 10);
-          const month = parseInt(expDateParts[1], 10) - 1; // Mes es 0-indexado
+          const month = parseInt(expDateParts[1], 10) - 1;
           const day = parseInt(expDateParts[2], 10);
 
           if (!isNaN(year) && !isNaN(month) && !isNaN(day) && month >= 0 && month <= 11 && day >= 1 && day <= 31) {
@@ -1164,62 +1218,20 @@ async getBudgets(req, res) {
           } else {
             console.warn(`Formato de fecha de expiración de permiso inválido para budget ${budgetJson.idBudget}, permit ${budgetJson.Permit.idPermit}: ${expirationDateString}`);
           }
-          // Añadir al objeto Permit DENTRO del budgetJson
           budgetJson.Permit.expirationStatus = permitExpirationStatus;
           budgetJson.Permit.expirationMessage = permitExpirationMessage;
         } else if (budgetJson.Permit) {
-          // Si hay Permit pero no expirationDate, marcar como válido o desconocido
           budgetJson.Permit.expirationStatus = "valid";
           budgetJson.Permit.expirationMessage = "";
         }
 
-        // DEBUG: Log para verificar contenido ANTES de procesar
-  if (budgetJson.isLegacy) {
-    console.log(`🔍 DEBUG Legacy Budget ${budgetJson.idBudget} (ANTES):`, {
-      hasPermit: !!budgetJson.Permit,
-      permitKeys: budgetJson.Permit ? Object.keys(budgetJson.Permit) : 'NO_PERMIT',
-      pdfData: budgetJson.Permit?.pdfData ? `HAS_URL(${typeof budgetJson.Permit.pdfData})` : 'NO_DATA',
-      optionalDocs: budgetJson.Permit?.optionalDocs ? `HAS_URL(${typeof budgetJson.Permit.optionalDocs})` : 'NO_DATA',
-      pdfPath: budgetJson.pdfPath ? 'HAS_PATH' : 'NO_PATH',
-      legacySignedPdfUrl: budgetJson.legacySignedPdfUrl ? `HAS_LEGACY_URL(${budgetJson.legacySignedPdfUrl})` : 'NO_LEGACY_URL'
-    });
-  }
+  // ✅ Los flags hasPermitPdfData y hasOptionalDocs ya vienen calculados desde el query SQL
+  // No necesitamos calcularlos aquí ni eliminar campos BLOB (ya no los traemos)
 
-  if (budgetJson.Permit) {
-    // Para legacy budgets, también considerar archivos PDF en el sistema
-    // Para legacy budgets, pdfData y optionalDocs contienen rutas de archivos
-    // Para budgets normales, contienen datos binarios BLOB
-    
-    budgetJson.Permit.hasPermitPdfData = !!budgetJson.Permit.pdfData;
-    budgetJson.Permit.hasOptionalDocs = !!budgetJson.Permit.optionalDocs;
-    
-    // Opcional: eliminar los campos pesados si por error llegan
-    delete budgetJson.Permit.pdfData;
-    delete budgetJson.Permit.optionalDocs;
-  }
-
-  // Para presupuestos legacy, marcar si tiene PDF firmado
   if (budgetJson.isLegacy) {
-    console.log(`✅ LEGACY BUDGET DETECTADO: ${budgetJson.idBudget}`, {
-      applicantName: budgetJson.applicantName,
-      propertyAddress: budgetJson.propertyAddress,
-      status: budgetJson.status,
-      hasLegacyPdfUrl: !!budgetJson.legacySignedPdfUrl,
-      legacyPdfUrl: budgetJson.legacySignedPdfUrl,
-      isLegacy: budgetJson.isLegacy
-    });
     budgetJson.hasLegacySignedPdf = !!budgetJson.legacySignedPdfUrl;
-    // Mantener la URL para que el frontend pueda acceder directamente
-    // No eliminamos legacySignedPdfUrl porque es solo una URL
-    
-    console.log(`🔗 Enviando al frontend:`, {
-      budgetId: budgetJson.idBudget,
-      hasLegacySignedPdf: budgetJson.hasLegacySignedPdf,
-      legacySignedPdfUrl: budgetJson.legacySignedPdfUrl ? 'URL_PRESENTE' : 'URL_AUSENTE'
-    });
   }
 
-        // Transformar pdfPath a budgetPdfUrl
         if (budgetJson.pdfPath) {
         budgetJson.budgetPdfUrl = `${req.protocol}://${req.get('host')}/budgets/${budgetJson.idBudget}/pdf`;
       } else {
@@ -1233,7 +1245,7 @@ async getBudgets(req, res) {
       total: totalBudgets,
       page,
       pageSize,
-      stats // 🆕 Agregar estadísticas globales
+      stats
     });
 
   } catch (error) {
@@ -1269,12 +1281,12 @@ async permitPdf(req, res) {
       pdfDataPreview: typeof pdfData === 'string' ? pdfData.substring(0, 100) : 'BUFFER_OR_OTHER'
     });
     
-    // Si es legacy y pdfData es una URL de Cloudinary (string o Buffer), redirigir
+    // ✅ DETECTAR URLs de Cloudinary (pueden estar como string O Buffer) - NO requiere isLegacy
     let cloudinaryUrl = null;
     
-    if (isLegacy && typeof pdfData === 'string' && pdfData.includes('cloudinary.com')) {
+    if (typeof pdfData === 'string' && pdfData.includes('cloudinary.com')) {
       cloudinaryUrl = pdfData;
-    } else if (isLegacy && Buffer.isBuffer(pdfData)) {
+    } else if (Buffer.isBuffer(pdfData)) {
       // Convertir Buffer a string para ver si es una URL de Cloudinary
       const bufferString = pdfData.toString('utf8');
       if (bufferString.includes('cloudinary.com')) {
@@ -1365,12 +1377,12 @@ async optionalDocs(req, res) {
       isCloudinaryString: typeof optionalDocs === 'string' && optionalDocs.includes('cloudinary.com')
     });
     
-    // Si es legacy y optionalDocs es una URL de Cloudinary (string o Buffer), redirigir
+    // ✅ DETECTAR URLs de Cloudinary (pueden estar como string O Buffer) - NO requiere isLegacy
     let cloudinaryUrl = null;
     
-    if (isLegacy && typeof optionalDocs === 'string' && optionalDocs.includes('cloudinary.com')) {
+    if (typeof optionalDocs === 'string' && optionalDocs.includes('cloudinary.com')) {
       cloudinaryUrl = optionalDocs;
-    } else if (isLegacy && Buffer.isBuffer(optionalDocs)) {
+    } else if (Buffer.isBuffer(optionalDocs)) {
       // Convertir Buffer a string para ver si es una URL de Cloudinary
       const bufferString = optionalDocs.toString('utf8');
       if (bufferString.includes('cloudinary.com')) {
@@ -4717,9 +4729,57 @@ async optionalDocs(req, res) {
       // Construir condiciones WHERE dinámicamente
       const whereConditions = {};
       
-      // Filtro por estado
+      // 🎯 Filtro por estado (con lógica de agrupación)
       if (status && status !== 'all') {
-        whereConditions.status = status;
+        // ✅ Caso especial: "approved" incluye status='approved' O isLegacy=true
+        if (status === 'approved') {
+          whereConditions[Op.or] = whereConditions[Op.or] || [];
+          whereConditions[Op.or].push(
+            { status: 'approved' },
+            { isLegacy: true }
+          );
+        }
+        // ✅ Caso especial: "signed" incluye tanto status='signed' como firma manual (excluye legacy)
+        else if (status === 'signed') {
+          whereConditions[Op.and] = whereConditions[Op.and] || [];
+          whereConditions[Op.and].push({
+            isLegacy: { [Op.or]: [false, null] },
+            [Op.or]: [
+              { status: 'signed' },
+              { 
+                signatureMethod: 'manual',
+                manualSignedPdfPath: { [Op.ne]: null }
+              }
+            ]
+          });
+        } 
+        // 🆕 Caso especial: "en_seguimiento" agrupa varios estados
+        else if (status === 'en_seguimiento') {
+          whereConditions.status = {
+            [Op.in]: ['send', 'pending_review', 'client_approved', 'notResponded']
+          };
+        }
+        // 🆕 Caso especial: "signed_without_payment" - firmados sin pago inicial (excluye legacy)
+        else if (status === 'signed_without_payment') {
+          whereConditions[Op.and] = whereConditions[Op.and] || [];
+          whereConditions[Op.and].push({
+            isLegacy: { [Op.or]: [false, null] },
+            [Op.or]: [
+              { 
+                status: 'signed',
+                paymentProofAmount: { [Op.or]: [null, 0] }
+              },
+              { 
+                signatureMethod: 'manual',
+                manualSignedPdfPath: { [Op.ne]: null },
+                paymentProofAmount: { [Op.or]: [null, 0] }
+              }
+            ]
+          });
+        }
+        else {
+          whereConditions.status = status;
+        }
       }
       
       // Filtro por mes
