@@ -1,5 +1,35 @@
-const { BudgetNote, Budget, Staff, sequelize } = require('../data');
+const { BudgetNote, Budget, Staff, Notification, sequelize } = require('../data');
 const { Op } = require('sequelize');
+
+// 🔧 Helper: Extraer menciones @usuario del mensaje
+const extractMentions = (message) => {
+  const mentionRegex = /@(\w+)/g;
+  const mentions = [];
+  let match;
+  while ((match = mentionRegex.exec(message)) !== null) {
+    mentions.push(match[1]); // match[1] es el nombre después de @
+  }
+  return mentions;
+};
+
+// 🔧 Helper: Encontrar IDs de staff por nombres mencionados
+const findStaffByNames = async (names) => {
+  if (!names || names.length === 0) return [];
+  
+  const staff = await Staff.findAll({
+    where: {
+      [Op.or]: names.map(name => ({
+        name: {
+          [Op.iLike]: `%${name}%` // Búsqueda case-insensitive individual
+        }
+      })),
+      isActive: true
+    },
+    attributes: ['id', 'name']
+  });
+  
+  return staff;
+};
 
 const BudgetNoteController = {
   
@@ -30,6 +60,11 @@ const BudgetNoteController = {
         });
       }
 
+      // 👥 Detectar menciones en el mensaje
+      const mentionedNames = extractMentions(message);
+      const mentionedStaff = await findStaffByNames(mentionedNames);
+      const mentionedStaffIds = mentionedStaff.map(s => s.id);
+
       // Crear la nota
       const note = await BudgetNote.create({
         budgetId,
@@ -37,9 +72,32 @@ const BudgetNoteController = {
         message: message.trim(),
         noteType: noteType || 'follow_up',
         priority: priority || 'medium',
-        relatedStatus: relatedStatus || budget.status, // Si no se especifica, usar el estado actual
-        isResolved: false
+        relatedStatus: relatedStatus || budget.status,
+        isResolved: false,
+        mentionedStaffIds // Guardar IDs de mencionados
       });
+
+      // 🔔 Crear notificaciones para usuarios mencionados
+      if (mentionedStaffIds.length > 0) {
+        const author = await Staff.findByPk(staffId, { attributes: ['name'] });
+        const notificationPromises = mentionedStaffIds.map(mentionedId => {
+          // No notificar al autor si se menciona a sí mismo
+          if (mentionedId === staffId) return null;
+          
+          return Notification.create({
+            staffId: mentionedId,
+            senderId: staffId, // 👤 ID del autor que menciona (relación correcta)
+            type: 'mention',
+            title: `${author?.name || 'Alguien'} te mencionó en un seguimiento`,
+            message: `Presupuesto #${budgetId}: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`,
+            relatedId: budgetId,
+            relatedType: 'budget_note',
+            isRead: false
+          });
+        });
+
+        await Promise.all(notificationPromises.filter(p => p !== null));
+      }
 
       // Cargar la nota con el autor para devolverla completa
       const noteWithAuthor = await BudgetNote.findByPk(note.id, {
@@ -296,6 +354,26 @@ const BudgetNoteController = {
       console.error('Error al obtener estadísticas:', error);
       res.status(500).json({ 
         error: 'Error al obtener estadísticas',
+        details: error.message 
+      });
+    }
+  },
+
+  // 👥 Obtener lista de staff activo para menciones
+  async getActiveStaff(req, res) {
+    try {
+      const staff = await Staff.findAll({
+        where: { isActive: true },
+        attributes: ['id', 'name', 'email', 'role'],
+        order: [['name', 'ASC']]
+      });
+
+      res.status(200).json(staff);
+
+    } catch (error) {
+      console.error('Error al obtener staff activo:', error);
+      res.status(500).json({ 
+        error: 'Error al obtener lista de staff',
         details: error.message 
       });
     }

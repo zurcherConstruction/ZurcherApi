@@ -15,6 +15,8 @@ import {
   TrashIcon,
   PencilIcon,
 } from '@heroicons/react/24/outline';
+import MentionTextarea from '../Common/MentionTextarea';
+import MessageWithMentions from '../Common/MessageWithMentions';
 
 // 📋 Tipos de nota con iconos y colores
 const noteTypes = {
@@ -273,20 +275,15 @@ const BudgetNotesModal = ({ budget, onClose }) => {
                 <label className="block text-sm font-medium mb-1">
                   Mensaje
                 </label>
-                <textarea
+                <MentionTextarea
                   value={formData.message}
-                  onChange={(e) =>
-                    setFormData({ ...formData, message: e.target.value })
+                  onChange={(newValue) =>
+                    setFormData({ ...formData, message: newValue })
                   }
-                  className="w-full px-3 py-2 border rounded"
-                  rows="3"
-                  placeholder="Escribe tu nota aquí..."
-                  required
+                  placeholder="Escribe tu nota aquí... Usa @ para mencionar a alguien"
+                  rows={3}
                   maxLength={5000}
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  {formData.message.length}/5000 caracteres
-                </p>
               </div>
 
               {formData.noteType === 'problem' && (
@@ -400,9 +397,10 @@ const BudgetNotesModal = ({ budget, onClose }) => {
                       )}
                     </div>
 
-                    <p className="text-gray-700 whitespace-pre-wrap mb-3">
-                      {note.message}
-                    </p>
+                    <MessageWithMentions 
+                      message={note.message}
+                      className="text-gray-700 mb-3"
+                    />
 
                     <div className="flex justify-between items-center text-xs text-gray-500">
                       <span>

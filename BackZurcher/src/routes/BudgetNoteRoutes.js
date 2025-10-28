@@ -16,7 +16,10 @@ router.get('/budget/:budgetId', BudgetNoteController.getNotesByBudget);
 // 📊 Obtener estadísticas de seguimiento de un budget
 router.get('/budget/:budgetId/stats', BudgetNoteController.getFollowUpStats);
 
-// 🔍 Obtener una nota específica
+// � Obtener lista de staff activo (para autocompletado de menciones)
+router.get('/staff/active', BudgetNoteController.getActiveStaff);
+
+// �🔍 Obtener una nota específica
 router.get('/:noteId', BudgetNoteController.getNoteById);
 
 // ✏️ Actualizar una nota

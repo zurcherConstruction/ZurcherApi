@@ -68,6 +68,12 @@ module.exports = (sequelize) => {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
       comment: 'Para notas tipo "problem", indica si ya se resolvió'
+    },
+    mentionedStaffIds: {
+      type: DataTypes.ARRAY(DataTypes.UUID),
+      allowNull: true,
+      defaultValue: [],
+      comment: 'IDs de staff mencionados con @ en el mensaje'
     }
   }, {
     timestamps: true, // Crea automáticamente createdAt y updatedAt
