@@ -277,6 +277,7 @@ const GestionBudgets = () => {
       await dispatch(exportBudgetsToExcel({
         search: debouncedSearchTerm,
         status: statusFilter,
+        signatureMethod: signatureFilter, // 🆕 Agregar filtro de método de firma
         month: monthFilter,
         year: yearFilter
       }));

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useParams } from "react-router-dom";
 import { fetchBudgets, fetchBudgetById, updateBudget, } from "../../Redux/Actions/budgetActions";
+import { fetchWorks } from "../../Redux/Actions/workActions"; // 🆕 Para refrescar works cuando se actualiza permit
 import { toast } from 'react-toastify'; // 🆕 Para notificaciones
 // ✅ AGREGAR ESTAS IMPORTACIONES:
 import { fetchBudgetItems } from "../../Redux/Actions/budgetItemActions";
@@ -1681,12 +1682,16 @@ const editableBudgets = useMemo(() => {
             // (Ver BudgetReducer.jsx línea 51-53: actualiza state.budgets[index])
             dispatch(fetchBudgetById(selectedBudgetId));
             
-            // 3. 🆕 Limpiar búsqueda para forzar nueva búsqueda con valores actualizados
+            // 3. 🆕 Refrescar works para actualizar alertas de permit en ProgressTracker
+            dispatch(fetchWorks());
+            console.log('🔄 Works refrescados - alertas de permit actualizadas');
+            
+            // 4. 🆕 Limpiar búsqueda para forzar nueva búsqueda con valores actualizados
             setSearchTerm("");
             setSearchResults([]);
             console.log('🔍 Búsqueda limpiada - busca de nuevo con los valores actualizados');
             
-            // 4. Cerrar modal después de un delay
+            // 5. Cerrar modal después de un delay
             setTimeout(() => {
               setShowEditPermitFieldsModal(false);
               console.log('✅ Datos recargados y modal cerrado');
