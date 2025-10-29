@@ -21,10 +21,10 @@ router.post('/legacy', verifyToken, allowRoles(['admin', 'owner']), upload.field
   { name: 'optionalDocs', maxCount: 1 }
 ]), BudgetController.createLegacyBudget); // Solo admin y owner pueden migrar
 
-router.get('/all', verifyToken, isStaff, BudgetController.getBudgets); // Personal del hotel puede ver presupuestos
+router.get('/all', verifyToken, isStaff, BudgetController.getBudgets); // Personal del hotel puede ver presupuestos (incluyendo follow-up)
 
 // 🆕 EXPORTAR BUDGETS A EXCEL
-router.get('/export/excel', verifyToken, allowRoles(['admin', 'owner', 'finance']), BudgetController.exportBudgetsToExcel);
+router.get('/export/excel', verifyToken, allowRoles(['admin', 'owner', 'finance', 'follow-up']), BudgetController.exportBudgetsToExcel);
 
 router.post(
     '/:idBudget/upload',
@@ -110,7 +110,7 @@ router.post(
 router.get(
   '/:idBudget/signature-status',
   verifyToken,
-  allowRoles(['admin', 'recept', 'owner', 'finance', 'staff']), // Staff y Finance también pueden consultar estado
+  allowRoles(['admin', 'recept', 'owner', 'finance', 'staff', 'follow-up']), // Staff, Finance y Follow-up también pueden consultar estado
   BudgetController.checkSignatureStatus
 );
 
@@ -118,7 +118,7 @@ router.get(
 router.get(
   '/:idBudget/download-signed',
   verifyToken,
-  allowRoles(['admin', 'recept', 'owner', 'staff']), // Staff también puede descargar firmados
+  allowRoles(['admin', 'recept', 'owner', 'staff', 'follow-up']), // Staff y follow-up también pueden descargar firmados
   BudgetController.downloadSignedBudget
 );
 
@@ -126,7 +126,7 @@ router.get(
 router.get(
   '/:idBudget/view-signed',
   verifyToken,
-  allowRoles(['admin', 'recept', 'owner', 'staff', 'finance']), // Todos pueden visualizar
+  allowRoles(['admin', 'recept', 'owner', 'staff', 'finance', 'follow-up']), // Todos pueden visualizar
   BudgetController.viewSignedBudget
 );
 
@@ -134,7 +134,7 @@ router.get(
 router.get(
   '/:idBudget/view-manual-signed',
   verifyToken,
-  allowRoles(['admin', 'recept', 'owner', 'staff', 'finance']), // Todos pueden visualizar
+  allowRoles(['admin', 'recept', 'owner', 'staff', 'finance', 'follow-up']), // Todos pueden visualizar
   BudgetController.viewManualSignedBudget
 );
 

@@ -210,6 +210,7 @@ const Register = () => {
                   <option value="finance">Finance</option>
                   <option value="maintenance">Maintenance</option>
                   <option value="sales_rep">Sales Representative</option>
+                  <option value="follow-up">Follow-up</option>
                 </select>
               </div>
               {editingStaff && (

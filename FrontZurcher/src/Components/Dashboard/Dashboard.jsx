@@ -108,7 +108,7 @@ const Dashboard = () => {
           description: 'Advanced budget controls',
           icon: CogIcon,
           gradient: 'from-gray-500 to-gray-600',
-          allowedRoles: ['owner', 'admin', 'finance'],
+          allowedRoles: ['owner', 'admin', 'finance', 'follow-up'],
         },
         {
           path: '/archive',

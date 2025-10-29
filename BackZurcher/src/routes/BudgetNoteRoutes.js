@@ -4,6 +4,7 @@ const BudgetNoteController = require('../controllers/BudgetNoteController');
 const { verifyToken } = require('../middleware/isAuth');
 
 // Todas las rutas requieren autenticación
+// Follow-up tiene acceso completo a las notas (crear, leer, actualizar)
 router.use(verifyToken);
 
 // 📝 Crear nueva nota de seguimiento
