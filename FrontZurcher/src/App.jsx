@@ -168,7 +168,7 @@ function App() {
               <Route
                 path="/work/:idWork"
                 element={
-                  <PrivateRoute allowedRoles={["owner", "admin", "finance"]}>
+                  <PrivateRoute allowedRoles={["owner", "admin", "finance", "recept"]}>
                     <WorkDetail />
                   </PrivateRoute>
                 }
