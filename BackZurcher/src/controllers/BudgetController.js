@@ -1023,9 +1023,10 @@ async getBudgets(req, res) {
     // Filtro por mes (aplicar a ambos whereClause)
     if (month && month !== 'all') {
       const monthNum = parseInt(month);
-      // ✅ El frontend envía 1-12 (formato SQL directo), NO requiere conversión
-      if (monthNum >= 1 && monthNum <= 12) {
-        const monthCondition = literal(`EXTRACT(MONTH FROM CAST("Budget"."date" AS DATE)) = ${monthNum}`);
+      // ✅ El frontend envía 0-11, necesitamos convertir a 1-12 para SQL EXTRACT(MONTH)
+      if (monthNum >= 0 && monthNum <= 11) {
+        const sqlMonth = monthNum + 1; // Convertir de 0-11 a 1-12
+        const monthCondition = literal(`EXTRACT(MONTH FROM CAST("Budget"."date" AS DATE)) = ${sqlMonth}`);
         
         baseWhereClause[Op.and] = baseWhereClause[Op.and] || [];
         baseWhereClause[Op.and].push(monthCondition);
@@ -4809,9 +4810,9 @@ async optionalDocs(req, res) {
       console.log('📊 Iniciando exportación de budgets a Excel...');
 
       // 🆕 Obtener filtros de query params (igual que fetchBudgets)
-      const { search, status, month, year } = req.query;
+      const { search, status, signatureMethod, month, year } = req.query;
       
-      console.log('📋 Filtros aplicados:', { search, status, month, year });
+      console.log('📋 Filtros aplicados:', { search, status, signatureMethod, month, year });
 
       // Construir condiciones WHERE dinámicamente
       const whereConditions = {};
@@ -4826,31 +4827,12 @@ async optionalDocs(req, res) {
             { isLegacy: true }
           );
         }
-        // ✅ Caso especial: "signed" incluye tanto status='signed' como firma manual (excluye legacy)
+        // ✅ Caso especial: "signed" = Firmados sin pago (excluye legacy y approved)
         else if (status === 'signed') {
           whereConditions[Op.and] = whereConditions[Op.and] || [];
           whereConditions[Op.and].push({
             isLegacy: { [Op.or]: [false, null] },
-            [Op.or]: [
-              { status: 'signed' },
-              { 
-                signatureMethod: 'manual',
-                manualSignedPdfPath: { [Op.ne]: null }
-              }
-            ]
-          });
-        } 
-        // 🆕 Caso especial: "en_seguimiento" agrupa varios estados
-        else if (status === 'en_seguimiento') {
-          whereConditions.status = {
-            [Op.in]: ['send', 'pending_review', 'client_approved', 'notResponded']
-          };
-        }
-        // 🆕 Caso especial: "signed_without_payment" - firmados sin pago inicial (excluye legacy)
-        else if (status === 'signed_without_payment') {
-          whereConditions[Op.and] = whereConditions[Op.and] || [];
-          whereConditions[Op.and].push({
-            isLegacy: { [Op.or]: [false, null] },
+            status: { [Op.ne]: 'approved' }, // Excluir los ya aprobados
             [Op.or]: [
               { 
                 status: 'signed',
@@ -4863,6 +4845,12 @@ async optionalDocs(req, res) {
               }
             ]
           });
+        } 
+        // 🆕 Caso especial: "en_revision" = Enviados en seguimiento
+        else if (status === 'en_revision') {
+          whereConditions.status = {
+            [Op.in]: ['send', 'pending_review', 'client_approved', 'notResponded', 'sent_for_signature']
+          };
         }
         else {
           whereConditions.status = status;
@@ -4873,7 +4861,7 @@ async optionalDocs(req, res) {
       if (month && month !== 'all') {
         whereConditions[Op.and] = whereConditions[Op.and] || [];
         whereConditions[Op.and].push(
-          literal(`EXTRACT(MONTH FROM CAST("Budget"."date" AS DATE)) = ${parseInt(month)}`)
+          literal(`EXTRACT(MONTH FROM CAST("Budget"."date" AS DATE)) = ${parseInt(month) + 1}`)
         );
       }
       
@@ -4891,6 +4879,25 @@ async optionalDocs(req, res) {
           { applicantName: { [Op.iLike]: `%${search}%` } },
           { propertyAddress: { [Op.iLike]: `%${search}%` } }
         ];
+      }
+
+      // 🆕 Filtro por método de firma
+      if (signatureMethod && signatureMethod !== 'all') {
+        if (signatureMethod === 'none') {
+          // Sin firmar: signatureMethod es null, 'none', o vacío
+          whereConditions[Op.or] = whereConditions[Op.or] || [];
+          whereConditions[Op.or].push(
+            { signatureMethod: null },
+            { signatureMethod: 'none' },
+            { signatureMethod: '' }
+          );
+        } else if (signatureMethod === 'legacy') {
+          // Legacy: isLegacy=true
+          whereConditions.isLegacy = true;
+        } else {
+          // SignNow o Manual: filtrar por signatureMethod exacto
+          whereConditions.signatureMethod = signatureMethod;
+        }
       }
 
       // Obtener budgets con filtros aplicados
@@ -5030,6 +5037,9 @@ async optionalDocs(req, res) {
       
       if (status && status !== 'all') {
         fileNameParts.push(status);
+      }
+      if (signatureMethod && signatureMethod !== 'all') {
+        fileNameParts.push(signatureMethod);
       }
       if (month && month !== 'all') {
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
