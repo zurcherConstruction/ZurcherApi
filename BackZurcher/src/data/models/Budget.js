@@ -296,6 +296,37 @@ module.exports = (sequelize) => {
   }
     
   }, {
+    // 🆕 Hooks para manejar transiciones de estado automáticas
+    hooks: {
+      beforeUpdate: async (budget, options) => {
+        // ✅ CASO 1: FIRMA PRIMERO, PAGO DESPUÉS
+        // Si está en 'signed' y se agrega pago, pasar automáticamente a 'approved'
+        if (budget.status === 'signed' && budget.changed('paymentProofAmount')) {
+          const paymentAmount = parseFloat(budget.paymentProofAmount);
+          if (paymentAmount && paymentAmount > 0) {
+            budget.status = 'approved';
+          }
+        }
+
+        // ✅ CASO 2: PAGO PRIMERO, FIRMA DESPUÉS
+        // Si tiene pago Y se cambia a 'signed' (firma agregada después), pasar a 'approved'
+        if (budget.changed('status') && budget.status === 'signed' && budget.paymentProofAmount) {
+          const paymentAmount = parseFloat(budget.paymentProofAmount);
+          if (paymentAmount && paymentAmount > 0) {
+            budget.status = 'approved';
+          }
+        }
+
+        // ✅ CASO 3: Firma manual con pago
+        if (budget.manualSignedPdfPath && budget.paymentProofAmount) {
+          const paymentAmount = parseFloat(budget.paymentProofAmount);
+          if (paymentAmount && paymentAmount > 0 && budget.status === 'signed') {
+            budget.status = 'approved';
+          }
+        }
+      }
+    },
+    
     // 🆕 Opciones del modelo - Índices
     indexes: [
       {

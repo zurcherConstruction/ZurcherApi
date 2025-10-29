@@ -665,8 +665,8 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
 
       console.log('📊 Estado de firma:', signatureStatus);
 
-      // Actualizar estado en la base de datos si está firmado
-      if (signatureStatus.isSigned && budget.status !== 'signed') {
+      // ✅ Actualizar a 'signed' si está firmado (el hook del modelo lo pasará a 'approved' si tiene pago)
+      if (signatureStatus.isSigned && budget.status !== 'signed' && budget.status !== 'approved') {
         await budget.update({
           status: 'signed',
           signedAt: new Date()
@@ -739,7 +739,7 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
       const signedFilePath = path.join(uploadsDir, signedFileName);
       // Descargar SIEMPRE el PDF firmado más reciente desde SignNow
       await signNowService.downloadSignedDocument(budget.signNowDocumentId, signedFilePath);
-      // Actualizar presupuesto con path del archivo firmado
+
       await budget.update({
         signedPdfPath: signedFilePath,
         status: 'signed',
@@ -1031,51 +1031,35 @@ async getBudgets(req, res) {
 
     // 🎯 Filtro por status SOLO para whereClause (no para estadísticas)
     if (status && status !== 'all') {
-      // ✅ Caso especial: "approved" incluye status='approved' O isLegacy=true
-      if (status === 'approved') {
-        whereClause[Op.or] = whereClause[Op.or] || [];
-        whereClause[Op.or].push(
-          { status: 'approved' },
-          { isLegacy: true }
-        );
+      // ✅ "draft" - Borradores + creados (antiguos, ya no se usa)
+      if (status === 'draft') {
+        whereClause.status = { [Op.in]: ['draft', 'created'] };
       }
-      // ✅ Caso especial: "signed" incluye tanto status='signed' como firma manual (excluye legacy)
+      // ✅ "en_revision" - Todos los estados intermedios (esperando firma)
+      else if (status === 'en_revision') {
+        whereClause.status = {
+          [Op.in]: ['send', 'pending_review', 'client_approved', 'notResponded', 'sent_for_signature']
+        };
+      }
+      // ✅ "signed" - Firmados (Signow o manual) pero SIN pago (excluye legacy)
       else if (status === 'signed') {
         whereClause[Op.and] = whereClause[Op.and] || [];
         whereClause[Op.and].push({
-          isLegacy: { [Op.or]: [false, null] },
-          [Op.or]: [
-            { status: 'signed' },
-            { 
-              signatureMethod: 'manual',
-              manualSignedPdfPath: { [Op.ne]: null }
-            }
-          ]
+          status: 'signed',
+          isLegacy: { [Op.or]: [false, null] }
         });
-      } 
-      // 🆕 Caso especial: "en_seguimiento" agrupa varios estados
-      else if (status === 'en_seguimiento') {
-        whereClause.status = {
-          [Op.in]: ['send', 'pending_review', 'client_approved', 'notResponded']
-        };
       }
-      // 🆕 Caso especial: "signed_without_payment" - firmados sin pago inicial (excluye legacy)
-      else if (status === 'signed_without_payment') {
+      // ✅ "approved" - COMPLETOS: Firmados CON pago (listos para Work, excluye legacy)
+      else if (status === 'approved') {
         whereClause[Op.and] = whereClause[Op.and] || [];
         whereClause[Op.and].push({
-          isLegacy: { [Op.or]: [false, null] },
-          [Op.or]: [
-            { 
-              status: 'signed',
-              paymentProofAmount: { [Op.or]: [null, 0] }
-            },
-            { 
-              signatureMethod: 'manual',
-              manualSignedPdfPath: { [Op.ne]: null },
-              paymentProofAmount: { [Op.or]: [null, 0] }
-            }
-          ]
+          status: 'approved',
+          isLegacy: { [Op.or]: [false, null] }
         });
+      }
+      // ✅ "legacy" - Presupuestos antiguos (ya vienen completos)
+      else if (status === 'legacy') {
+        whereClause.isLegacy = true;
       }
       else {
         whereClause.status = status;
@@ -1129,32 +1113,26 @@ async getBudgets(req, res) {
 
     const stats = {
       total: allBudgetsForStats.length,
-      draft: allBudgetsForStats.filter(b => b.status === 'draft').length,
-      // ✅ Approved incluye legacy
-      approved: allBudgetsForStats.filter(b => b.status === 'approved' || b.isLegacy === true).length,
-      // ✅ En seguimiento agrupa 4 estados
-      en_seguimiento: allBudgetsForStats.filter(b => 
-        ['send', 'pending_review', 'client_approved', 'notResponded'].includes(b.status)
+      // ✅ Draft + created (antiguos, ya no se usa)
+      draft: allBudgetsForStats.filter(b => ['draft', 'created'].includes(b.status)).length,
+      // ✅ En revisión - Esperando firma
+      en_revision: allBudgetsForStats.filter(b => 
+        ['send', 'pending_review', 'client_approved', 'notResponded', 'sent_for_signature'].includes(b.status)
       ).length,
-      sent_for_signature: allBudgetsForStats.filter(b => b.status === 'sent_for_signature').length,
-      // ✅ Signed excluye legacy
-      signed: allBudgetsForStats.filter(b => {
-        const isSigned = b.status === 'signed' || (b.signatureMethod === 'manual' && b.manualSignedPdfPath);
-        return isSigned && !b.isLegacy;
-      }).length,
-      // ✅ Signed without payment excluye legacy
-      signed_without_payment: allBudgetsForStats.filter(b => {
-        const isSigned = b.status === 'signed' || (b.signatureMethod === 'manual' && b.manualSignedPdfPath);
-        const hasNoPayment = !b.paymentProofAmount || parseFloat(b.paymentProofAmount) === 0;
-        return isSigned && hasNoPayment && !b.isLegacy;
-      }).length,
+      // ✅ Firmados SIN pago (esperando pago)
+      signed: allBudgetsForStats.filter(b => b.status === 'signed' && !b.isLegacy).length,
+      // ✅ COMPLETOS: Firmados CON pago (listos para Work)
+      approved: allBudgetsForStats.filter(b => b.status === 'approved' && !b.isLegacy).length,
+      // ✅ Legacy (antiguos, ya vienen completos)
+      legacy: allBudgetsForStats.filter(b => b.isLegacy === true).length,
       rejected: allBudgetsForStats.filter(b => b.status === 'rejected').length,
       // Estados individuales (para compatibilidad)
       pending_review: allBudgetsForStats.filter(b => b.status === 'pending_review').length,
       client_approved: allBudgetsForStats.filter(b => b.status === 'client_approved').length,
       created: allBudgetsForStats.filter(b => b.status === 'created').length,
       send: allBudgetsForStats.filter(b => b.status === 'send').length,
-      notResponded: allBudgetsForStats.filter(b => b.status === 'notResponded').length
+      notResponded: allBudgetsForStats.filter(b => b.status === 'notResponded').length,
+      sent_for_signature: allBudgetsForStats.filter(b => b.status === 'sent_for_signature').length
     };
     
     const budgetsWithDetails = budgetsInstances.map(budgetInstance => {
@@ -2422,7 +2400,122 @@ async optionalDocs(req, res) {
           console.log('No se encontró Work asociado a este Budget');
         }
       } else {
-        console.log('Budget no está aprobado, no se crean Income/Receipt');
+        // 🆕 Budget AÚN NO está approved → Crear Work + Income inmediatamente
+        console.log('Budget aún no está aprobado, creando Work + Income...');
+        
+        const amountForIncome = parsedUploadedAmount || budget.initialPayment;
+        const now = new Date();
+        const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+        // 🆕 BUSCAR O CREAR WORK PRIMERO
+        let existingWork = await Work.findOne({
+          where: { idBudget: budget.idBudget },
+          transaction
+        });
+
+        if (!existingWork) {
+          console.log('Creando nuevo Work para el Budget...');
+          existingWork = await Work.create({
+            propertyAddress: budget.propertyAddress,
+            status: 'pending',
+            idBudget: budget.idBudget,
+            notes: `Work creado al registrar pago inicial de Budget #${budget.idBudget}`,
+            initialPayment: amountForIncome
+          }, { transaction });
+          console.log(`✅ Work creado: ${existingWork.idWork}`);
+        } else {
+          // Actualizar monto si cambió
+          if (parseFloat(existingWork.initialPayment) !== parseFloat(amountForIncome)) {
+            await existingWork.update({
+              initialPayment: amountForIncome
+            }, { transaction });
+            console.log(`✅ Work actualizado con nuevo monto: $${amountForIncome}`);
+          }
+        }
+
+        // BUSCAR O CREAR INCOME asociado al Work
+        let existingIncome = await Income.findOne({
+          where: {
+            workId: existingWork.idWork,
+            typeIncome: 'Factura Pago Inicial Budget'
+          },
+          transaction
+        });
+
+        if (existingIncome) {
+          // Actualizar Income existente
+          await existingIncome.update({
+            amount: amountForIncome,
+            paymentMethod: paymentMethod || existingIncome.paymentMethod,
+            notes: `Pago inicial actualizado para Budget #${budget.idBudget}`,
+            staffId: req.user?.id
+          }, { transaction });
+          console.log(`✅ Income existente actualizado: ${existingIncome.idIncome} - $${amountForIncome}`);
+        } else {
+          // Crear nuevo Income
+          existingIncome = await Income.create({
+            date: localDate,
+            amount: amountForIncome,
+            typeIncome: 'Factura Pago Inicial Budget',
+            notes: `Pago inicial para Budget #${budget.idBudget}`,
+            workId: existingWork.idWork, // ✅ Asociado directamente al Work
+            staffId: req.user?.id,
+            paymentMethod: paymentMethod || null,
+            verified: false
+          }, { transaction });
+          console.log(`✅ Income creado: ${existingIncome.idIncome} - $${amountForIncome}`);
+          
+          // 🚀 Notificación de Income inmediata
+          setImmediate(async () => {
+            try {
+              const notificationData = {
+                ...existingIncome.toJSON(),
+                propertyAddress: budget.propertyAddress,
+                Staff: req.user ? { name: req.user.name } : { name: 'Sistema' }
+              };
+              await sendNotifications('incomeRegistered', notificationData);
+              console.log(`✅ Notificación de pago inicial enviada: $${amountForIncome} - Budget #${budget.idBudget}`);
+            } catch (notificationError) {
+              console.error('❌ Error enviando notificación:', notificationError.message);
+            }
+          });
+        }
+
+        // Crear/Actualizar Receipt para el Income
+        if (uploadResult?.secure_url) {
+          let existingReceipt = await Receipt.findOne({
+            where: {
+              relatedModel: 'Income',
+              relatedId: existingIncome.idIncome
+            },
+            transaction
+          });
+
+          const receiptData = {
+            fileUrl: uploadResult.secure_url,
+            publicId: uploadResult.public_id,
+            mimeType: req.file?.mimetype || 'application/pdf',
+            originalName: req.file?.originalname || 'comprobante_pago_inicial.pdf',
+            staffId: req.user?.id
+          };
+
+          if (existingReceipt) {
+            await existingReceipt.update({
+              ...receiptData,
+              notes: `Comprobante actualizado para Budget #${budget.idBudget}`
+            }, { transaction });
+            console.log(`Receipt actualizado para Income: ${existingIncome.idIncome}`);
+          } else {
+            await Receipt.create({
+              relatedModel: 'Income',
+              relatedId: existingIncome.idIncome,
+              type: 'Factura Pago Inicial Budget', // ✅ Usar valor del ENUM correcto
+              notes: `Comprobante de pago inicial para Budget #${budget.idBudget}`,
+              ...receiptData
+            }, { transaction });
+            console.log(`Nuevo Receipt creado para Income: ${existingIncome.idIncome}`);
+          }
+        }
       }
 
       await transaction.commit();
@@ -4646,21 +4739,15 @@ async optionalDocs(req, res) {
       console.log('✅ PDF subido exitosamente a Cloudinary:', uploadResult.secure_url);
 
       // 7. Actualizar el Budget con los datos del PDF manual
-      // ✅ CORREGIDO: Solo usar estados que EXISTEN en el modelo Budget
-      // Estados válidos: draft, pending_review, client_approved, created, send, sent_for_signature, signed, approved, notResponded, rejected
-      // Preservar el status si ya está en 'approved' (el estado más avanzado válido)
-      const newStatus = budget.status === 'approved' 
-        ? 'approved' // Mantener como aprobado si ya lo estaba
-        : 'signed';  // Cambiar a firmado en cualquier otro caso
-
+      // ✅ CORREGIDO: Cambiar a 'signed' y dejar que el hook del modelo lo pase a 'approved' si tiene pago
       await budget.update({
         signatureMethod: 'manual',
         manualSignedPdfPath: uploadResult.secure_url,
         manualSignedPdfPublicId: uploadResult.public_id,
-        status: newStatus // Cambiar a firmado solo si no está aprobado
+        status: 'signed' // El hook beforeUpdate pasará a 'approved' automáticamente si tiene paymentProofAmount > 0
       });
 
-      console.log(`✅ Budget ${idBudget} actualizado con PDF firmado manual (status: ${newStatus})`);
+      console.log(`✅ Budget ${idBudget} actualizado con PDF firmado manual (status: ${budget.status})`);
 
       // 8. Enviar notificación (deshabilitado temporalmente - tipo no configurado)
       // try {
@@ -4991,6 +5078,73 @@ async optionalDocs(req, res) {
       res.status(500).json({
         error: true,
         message: 'Error al exportar budgets a Excel',
+        details: error.message
+      });
+    }
+  },
+
+  // 🔍 DIAGNÓSTICO: Ver TODOS los estados que existen en la BD
+  async diagnoseStatuses(req, res) {
+    try {
+      const allBudgets = await Budget.findAll({
+        attributes: ['idBudget', 'status', 'signatureMethod', 'isLegacy', 'manualSignedPdfPath', 'paymentProofAmount']
+      });
+
+      // Contar por status
+      const statusCount = {};
+      allBudgets.forEach(b => {
+        const status = b.status || 'NULL';
+        statusCount[status] = (statusCount[status] || 0) + 1;
+      });
+
+      // Calcular cuántos cubre cada filtro
+      const filterCoverage = {
+        draft: allBudgets.filter(b => ['draft', 'created'].includes(b.status)).length,
+        en_revision: allBudgets.filter(b => ['send', 'pending_review', 'client_approved', 'notResponded', 'sent_for_signature'].includes(b.status)).length,
+        signed: allBudgets.filter(b => b.status === 'signed' && !b.isLegacy).length,
+        approved: allBudgets.filter(b => b.status === 'approved' && !b.isLegacy).length,
+        legacy: allBudgets.filter(b => b.isLegacy === true).length,
+        rejected: allBudgets.filter(b => b.status === 'rejected').length,
+      };
+
+      const totalInFilters = Object.values(filterCoverage).reduce((sum, count) => sum + count, 0);
+      const uncovered = allBudgets.length - totalInFilters;
+
+      // Buscar presupuestos no cubiertos
+      const coveredIds = new Set();
+      allBudgets.forEach(b => {
+        if (['draft', 'created'].includes(b.status) ||
+            ['send', 'pending_review', 'client_approved', 'notResponded', 'sent_for_signature'].includes(b.status) ||
+            (b.status === 'signed' && !b.isLegacy) ||
+            (b.status === 'approved' && !b.isLegacy) ||
+            b.isLegacy === true ||
+            b.status === 'rejected') {
+          coveredIds.add(b.idBudget);
+        }
+      });
+
+      const uncoveredBudgets = allBudgets.filter(b => !coveredIds.has(b.idBudget)).map(b => ({
+        idBudget: b.idBudget,
+        status: b.status,
+        signatureMethod: b.signatureMethod,
+        isLegacy: b.isLegacy,
+        hasManualPdf: !!b.manualSignedPdfPath,
+        paymentAmount: b.paymentProofAmount
+      }));
+
+      res.json({
+        totalBudgets: allBudgets.length,
+        statusBreakdown: statusCount,
+        filterCoverage,
+        totalCoveredByFilters: totalInFilters,
+        uncoveredCount: uncovered,
+        uncoveredBudgets
+      });
+    } catch (error) {
+      console.error('Error en diagnóstico:', error);
+      res.status(500).json({
+        error: true,
+        message: 'Error al diagnosticar estados',
         details: error.message
       });
     }

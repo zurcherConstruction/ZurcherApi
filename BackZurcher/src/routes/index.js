@@ -4,6 +4,7 @@ const authRoutes = require('./authRoutes');
 const adminRoutes = require('./adminRoutes');
 const budgetRoutes = require('./BudgetRoutes');
 const budgetNoteRoutes = require('./BudgetNoteRoutes'); // 🆕 Rutas para notas de seguimiento de budgets
+const workNoteRoutes = require('./WorkNoteRoutes'); // 🆕 Rutas para notas de seguimiento de obras
 const pdfRoutes = require('./pdfRoutes');
 const inspectionRoutes = require('./inspectionRoutes');
 const materialRoutes = require('./materialRoutes');
@@ -51,6 +52,7 @@ router.use(verifyToken); // Middleware global para rutas protegidas
 router.use('/admin', adminRoutes);
 router.use('/budget', budgetRoutes);
 router.use('/budget-notes', budgetNoteRoutes); // 🆕 Rutas para notas de seguimiento
+router.use('/work-notes', workNoteRoutes); // 🆕 Rutas para notas de seguimiento de obras
 router.use('/budget-item', budgetItemRoutes); // Rutas para BudgetItems
 router.use('/pdf', pdfRoutes);
 router.use('/inspection', inspectionRoutes);

@@ -224,4 +224,7 @@ router.post(
 // // ✅ RUTA DE DIAGNÓSTICO SMTP
 // router.get('/diagnostic/email', verifyToken, isOwner, BudgetController.diagnoseEmail); // Solo el owner puede hacer diagnósticos
 
+// 🔍 RUTA DE DIAGNÓSTICO: Ver todos los estados existentes
+router.get('/diagnostic/statuses', verifyToken, allowRoles(['admin', 'owner']), BudgetController.diagnoseStatuses);
+
 module.exports = router;

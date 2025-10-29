@@ -209,15 +209,20 @@ async function importExistingWork(req, res) {
       isLegacy: true
     });
 
+    // ✅ Formatear fechas como YYYY-MM-DD para DATEONLY
+    const now = new Date();
+    const currentDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    const expirationDate = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
     const nuevoPresupuesto = await Budget.create({
       PermitIdPermit: nuevoPermit.idPermit,
       propertyAddress,
       applicantName,
-      date: new Date(),
-      expirationDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 días
+      date: currentDate,
+      expirationDate: expirationDate,
       
-      // Estado: signed porque ya está firmado
-      status: 'signed',
+      // ✅ Estado: approved porque los legacy ya vienen firmados Y pagados (completos)
+      status: 'approved',
       
       // Montos
       subtotalPrice: finalTotal,

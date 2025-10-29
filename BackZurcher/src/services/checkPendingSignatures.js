@@ -14,16 +14,15 @@ const checkPendingSignatures = async () => {
 
   // --- TAREA 1: VERIFICAR PRESUPUESTOS PENDIENTES ---
   try {
-    // 🆕 Buscar presupuestos que tengan signNowDocumentId pero NO estén firmados
+    // 🆕 Buscar presupuestos que tengan signNowDocumentId pero NO estén firmados ni aprobados
     const { Op } = require('sequelize');
     const pendingBudgets = await Budget.findAll({
       where: {
         signNowDocumentId: { [Op.ne]: null }, // Tiene documento en SignNow
         status: { 
-          [Op.in]: ['pending_review', 'created', 'sent_for_signature', 'client_approved', 'send']
-        }, // Estados pendientes de firma
+          [Op.notIn]: ['signed', 'approved', 'rejected'] // Excluir los que ya están firmados, aprobados o rechazados
+        },
         // ⚠️ CAMBIO: Buscar los que NO están firmados (signatureMethod 'none' o null)
-        // porque cuando se firmen, el cron cambiará a 'signnow'
         [Op.or]: [
           { signatureMethod: 'none' },
           { signatureMethod: null }
@@ -79,10 +78,10 @@ const checkPendingSignatures = async () => {
 
               console.log(`   -> PDF subido a Cloudinary: ${uploadResult.secure_url}`);
 
-              // Actualizar Budget con la URL de Cloudinary
+              // ✅ Actualizar Budget a 'signed' (el hook del modelo lo pasará a 'approved' si tiene pago)
               await budget.update({
                 status: 'signed',
-                signatureMethod: 'signnow', // 🆕 Actualizar método de firma
+                signatureMethod: 'signnow',
                 signedAt: new Date(),
                 signedPdfPath: uploadResult.secure_url,
                 signedPdfPublicId: uploadResult.public_id
@@ -97,7 +96,7 @@ const checkPendingSignatures = async () => {
               // Aún así actualizamos el status pero sin el PDF
               await budget.update({
                 status: 'signed',
-                signatureMethod: 'signnow', // 🆕 Actualizar método de firma
+                signatureMethod: 'signnow',
                 signedAt: new Date()
               });
             }

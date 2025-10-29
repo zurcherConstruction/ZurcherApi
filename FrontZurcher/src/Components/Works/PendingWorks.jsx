@@ -39,23 +39,15 @@ const PendingWorks = () => {
 
   // Filtrar trabajos
   // Mostrar trabajos pending solo si:
-  // 1. El budget está firmado (signatureMethod: manual o signnow)
-  // 2. Tiene comprobante de pago inicial (paymentInvoice o paymentProofAmount)
+  // El budget está en estado 'approved' (ya tiene firma + pago inicial)
   const pendingWorks = works.filter((work) => {
     if (work.status === "pending") {
       const budget = work.budget;
       if (!budget) return false;
       
-      // Verificar que el budget tenga firma válida (manual o signnow)
-      const hasValidSignature = budget.signatureMethod === "signnow" || budget.signatureMethod === "manual";
-      if (!hasValidSignature) return false;
-      
-      // Verificar que tenga comprobante de pago inicial
-      const hasPaymentProof = 
-        (budget.paymentInvoice && budget.paymentInvoice.trim() !== "") ||
-        (budget.paymentProofAmount && parseFloat(budget.paymentProofAmount) > 0);
-      
-      return hasPaymentProof;
+      // ✅ SIMPLIFICADO: Budget 'approved' = Firmado + Pago completo
+      // El hook Budget.beforeUpdate ya manejó la transición signed → approved
+      return budget.status === 'approved';
     }
     return false;
   });
