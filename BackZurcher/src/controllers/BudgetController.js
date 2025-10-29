@@ -4917,16 +4917,17 @@ async optionalDocs(req, res) {
 
       // Configurar columnas con ancho adecuado (optimizado para impresión)
       worksheet.columns = [
-        { header: 'ID/Invoice', key: 'identifier', width: 15 },
-        { header: 'Fecha', key: 'date', width: 12 },
-        { header: 'Cliente', key: 'applicantName', width: 25 },
-        { header: 'Email', key: 'email', width: 30 },
-        { header: 'Teléfono', key: 'phone', width: 15 },
-        { header: 'Dirección', key: 'propertyAddress', width: 40 },
-        { header: 'Sistema', key: 'systemType', width: 20 },
-        { header: 'Precio Total', key: 'totalPrice', width: 15 },
-        { header: 'Pago Inicial', key: 'initialPayment', width: 15 },
-        { header: 'Notas', key: 'generalNotes', width: 40 }
+        { header: 'ID/INVOICE', key: 'identifier', width: 15 },
+        { header: 'FECHA CREACIÓN', key: 'date', width: 15 },
+        { header: 'FECHA EXPIRACIÓN', key: 'expirationDate', width: 15 },
+        { header: 'CLIENTE', key: 'applicantName', width: 25 },
+        { header: 'EMAIL', key: 'email', width: 30 },
+        { header: 'TELÉFONO', key: 'phone', width: 15 },
+        { header: 'DIRECCIÓN', key: 'propertyAddress', width: 40 },
+        { header: 'SISTEMA', key: 'systemType', width: 20 },
+        { header: 'PRECIO TOTAL', key: 'totalPrice', width: 15 },
+        { header: 'PAGO INICIAL', key: 'initialPayment', width: 15 },
+        { header: 'NOTAS', key: 'generalNotes', width: 40 }
       ];
 
       // Estilizar encabezado
@@ -4943,20 +4944,35 @@ async optionalDocs(req, res) {
       budgets.forEach((budget, index) => {
         // Determinar identificador: invoice number si existe, sino idBudget
         const identifier = budget.invoiceNumber 
-          ? `Invoice #${budget.invoiceNumber}` 
-          : `Budget #${budget.idBudget}`;
+          ? `INVOICE #${budget.invoiceNumber}` 
+          : `BUDGET #${budget.idBudget}`;
+
+        // Formatear fechas en formato MM-DD-YYYY
+        const formatDate = (dateString) => {
+          if (!dateString) return 'N/A';
+          try {
+            const date = new Date(dateString);
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${month}-${day}-${year}`;
+          } catch (error) {
+            return 'N/A';
+          }
+        };
 
         const row = worksheet.addRow({
           identifier,
-          date: budget.date || 'N/A',
-          applicantName: budget.applicantName || budget.Permit?.applicantName || 'N/A',
-          email: budget.Permit?.applicantEmail || 'N/A',
+          date: formatDate(budget.date),
+          expirationDate: formatDate(budget.expirationDate),
+          applicantName: (budget.applicantName || budget.Permit?.applicantName || 'N/A').toUpperCase(),
+          email: (budget.Permit?.applicantEmail || 'N/A').toUpperCase(),
           phone: budget.Permit?.applicantPhone || 'N/A',
-          propertyAddress: budget.propertyAddress || budget.Permit?.propertyAddress || 'N/A',
-          systemType: budget.Permit?.systemType || 'N/A',
+          propertyAddress: (budget.propertyAddress || budget.Permit?.propertyAddress || 'N/A').toUpperCase(),
+          systemType: (budget.Permit?.systemType || 'N/A').toUpperCase(),
           totalPrice: budget.totalPrice ? `$${parseFloat(budget.totalPrice).toFixed(2)}` : '$0.00',
           initialPayment: budget.initialPayment ? `$${parseFloat(budget.initialPayment).toFixed(2)}` : '$0.00',
-          generalNotes: budget.generalNotes || ''
+          generalNotes: (budget.generalNotes || '').toUpperCase()
         });
 
         // Colorear fila según estado
