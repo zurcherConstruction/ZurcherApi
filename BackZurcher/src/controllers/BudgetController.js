@@ -4915,28 +4915,19 @@ async optionalDocs(req, res) {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Budgets');
 
-      // Configurar columnas con ancho adecuado
+      // Configurar columnas con ancho adecuado (optimizado para impresión)
       worksheet.columns = [
-        { header: 'ID/Invoice', key: 'identifier', width: 15 },
-        { header: 'Cliente', key: 'applicantName', width: 25 },
-        { header: 'Email', key: 'email', width: 30 },
-        { header: 'Teléfono', key: 'phone', width: 15 },
-        { header: 'Dirección', key: 'propertyAddress', width: 40 },
-        { header: 'Fecha Creación', key: 'date', width: 15 },
-        { header: 'Fecha Expiración', key: 'expirationDate', width: 15 },
-        { header: 'Precio Total', key: 'totalPrice', width: 15 },
-        { header: 'Pago Inicial', key: 'initialPayment', width: 15 },
-        { header: '% Pago Inicial', key: 'initialPaymentPercentage', width: 12 },
-        { header: 'Estado', key: 'status', width: 20 },
-        { header: 'Sistema', key: 'systemType', width: 20 },
-        { header: 'Método Firma', key: 'signatureMethod', width: 15 },
-        { header: 'Fecha Firma', key: 'signedAt', width: 20 },
-        { header: 'PDF Firmado', key: 'hasPdf', width: 12 },
-        { header: 'Lead Source', key: 'leadSource', width: 18 },
-        { header: 'Referido Externo', key: 'externalReferral', width: 30 },
-        { header: 'Es Legacy', key: 'isLegacy', width: 12 },
-        { header: 'Notas', key: 'generalNotes', width: 40 },
-        { header: 'Fecha Actualización', key: 'updatedAt', width: 20 }
+        { header: 'ID/INVOICE', key: 'identifier', width: 15 },
+        { header: 'FECHA CREACIÓN', key: 'date', width: 15 },
+        { header: 'FECHA EXPIRACIÓN', key: 'expirationDate', width: 15 },
+        { header: 'CLIENTE', key: 'applicantName', width: 25 },
+        { header: 'EMAIL', key: 'email', width: 30 },
+        { header: 'TELÉFONO', key: 'phone', width: 15 },
+        { header: 'DIRECCIÓN', key: 'propertyAddress', width: 40 },
+        { header: 'SISTEMA', key: 'systemType', width: 20 },
+        { header: 'PRECIO TOTAL', key: 'totalPrice', width: 15 },
+        { header: 'PAGO INICIAL', key: 'initialPayment', width: 15 },
+        { header: 'NOTAS', key: 'generalNotes', width: 40 }
       ];
 
       // Estilizar encabezado
@@ -4949,65 +4940,39 @@ async optionalDocs(req, res) {
       worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
       worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
 
-      // Agregar datos
+      // Agregar datos (solo campos esenciales)
       budgets.forEach((budget, index) => {
         // Determinar identificador: invoice number si existe, sino idBudget
         const identifier = budget.invoiceNumber 
-          ? `Invoice #${budget.invoiceNumber}` 
-          : `Budget #${budget.idBudget}`;
+          ? `INVOICE #${budget.invoiceNumber}` 
+          : `BUDGET #${budget.idBudget}`;
 
-        // Determinar si tiene PDF firmado
-        let hasPdf = 'No';
-        if (budget.signedPdfPath || budget.manualSignedPdfPath || budget.legacySignedPdfUrl) {
-          hasPdf = 'Sí';
-        }
-
-        // Formatear fecha de firma
-        let signedAt = 'N/A';
-        if (budget.updatedAt && (budget.status === 'signed' || budget.status === 'approved')) {
-          signedAt = new Date(budget.updatedAt).toLocaleString('es-US', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit'
-          });
-        }
-
-        // Referido externo
-        const externalReferral = budget.leadSource === 'external_referral' && budget.externalReferralName
-          ? `${budget.externalReferralName} ${budget.externalReferralEmail ? `(${budget.externalReferralEmail})` : ''}`
-          : 'N/A';
+        // Formatear fechas en formato MM-DD-YYYY
+        const formatDate = (dateString) => {
+          if (!dateString) return 'N/A';
+          try {
+            const date = new Date(dateString);
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${month}-${day}-${year}`;
+          } catch (error) {
+            return 'N/A';
+          }
+        };
 
         const row = worksheet.addRow({
           identifier,
-          applicantName: budget.applicantName || budget.Permit?.applicantName || 'N/A',
-          email: budget.Permit?.applicantEmail || 'N/A',
+          date: formatDate(budget.date),
+          expirationDate: formatDate(budget.expirationDate),
+          applicantName: (budget.applicantName || budget.Permit?.applicantName || 'N/A').toUpperCase(),
+          email: (budget.Permit?.applicantEmail || 'N/A').toUpperCase(),
           phone: budget.Permit?.applicantPhone || 'N/A',
-          propertyAddress: budget.propertyAddress || budget.Permit?.propertyAddress || 'N/A',
-          date: budget.date || 'N/A',
-          expirationDate: budget.expirationDate || 'N/A',
+          propertyAddress: (budget.propertyAddress || budget.Permit?.propertyAddress || 'N/A').toUpperCase(),
+          systemType: (budget.Permit?.systemType || 'N/A').toUpperCase(),
           totalPrice: budget.totalPrice ? `$${parseFloat(budget.totalPrice).toFixed(2)}` : '$0.00',
           initialPayment: budget.initialPayment ? `$${parseFloat(budget.initialPayment).toFixed(2)}` : '$0.00',
-          initialPaymentPercentage: budget.initialPaymentPercentage ? `${budget.initialPaymentPercentage}%` : '60%',
-          status: budget.status || 'N/A',
-          systemType: budget.Permit?.systemType || 'N/A',
-          signatureMethod: budget.signatureMethod || 'none',
-          signedAt,
-          hasPdf,
-          leadSource: budget.leadSource || 'N/A',
-          externalReferral,
-          isLegacy: budget.isLegacy ? 'Sí' : 'No',
-          generalNotes: budget.generalNotes || '',
-          updatedAt: budget.updatedAt 
-            ? new Date(budget.updatedAt).toLocaleString('es-US', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit'
-              })
-            : 'N/A'
+          generalNotes: (budget.generalNotes || '').toUpperCase()
         });
 
         // Colorear fila según estado

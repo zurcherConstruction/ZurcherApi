@@ -217,6 +217,18 @@ const BarraLateral = () => {
           ],
         },
       ];
+    } else if (staff?.role === "follow-up") {
+      // Follow-up: Solo Gestión de Budgets (ver, descargar Excel, chat y notas)
+      return [
+        {
+          name: "Client Follow-up",
+          icon: FaFolderOpen,
+          color: "text-purple-400",
+          items: [
+            { name: "Gestion Budgets", path: "/gestionBudgets", icon: FaCog },
+          ],
+        },
+      ];
     }
     return []; // Sin acceso por defecto
   };

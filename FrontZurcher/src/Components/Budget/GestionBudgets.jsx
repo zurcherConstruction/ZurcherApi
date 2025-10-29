@@ -388,11 +388,14 @@ const GestionBudgets = () => {
   };
 
   const canEdit = (budget) => {
+    // Follow-up no puede editar nunca
+    if (userRole === 'follow-up') return false;
     return !['approved', 'signed'].includes(budget.status);
   };
   
-  // ✅ Only owner can delete budgets
+  // ✅ Only owner can delete budgets (follow-up cannot delete)
   const canDelete = (budget) => {
+    if (userRole === 'follow-up') return false;
     return userRole === 'owner';
   };
 
