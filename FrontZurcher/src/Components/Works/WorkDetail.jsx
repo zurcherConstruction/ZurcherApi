@@ -17,7 +17,9 @@ import CreateChangeOrderModal from './CreateChangeOrderModal'; // Importar el nu
 import api from "../../utils/axios";
 import useAutoRefresh from "../../utils/useAutoRefresh";
 import PdfModal from "../Budget/PdfModal"; 
-import { fetchInspectionsByWork, registerQuickInspectionResult } from '../../Redux/Actions/inspectionActions'
+import { fetchInspectionsByWork, registerQuickInspectionResult } from '../../Redux/Actions/inspectionActions';
+import WorkNotesModal from './WorkNotesModal';
+import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
   // --- Estado para modal de resultado rápido de inspección ---
   
 // Asegúrate de que esta ruta sea correcta
@@ -126,6 +128,7 @@ const workRef = useRef(work);
   const [showEditCOModal, setShowEditCOModal] = useState(false); // Estado para el modal de edición
   const [editingCO, setEditingCO] = useState(null); // Estado para la CO que se está editando
   const [showPdfModal, setShowPdfModal] = useState(false);
+  const [showWorkNotesModal, setShowWorkNotesModal] = useState(false); // 📝 Modal de notas
   const [pdfUrlCo, setPdfUrlCo] = useState('');
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState('');
@@ -739,21 +742,31 @@ const handleUploadImage = async () => {
               )}
             </p>
           </div>
-          {/* Botón dinámico en el encabezado */}
-          {displayHeaderButton && headerButtonAction && (
-            <div className="flex-shrink-0 w-full lg:w-auto">
+          {/* Botones de acción en el encabezado */}
+          <div className="flex-shrink-0 w-full lg:w-auto flex flex-col sm:flex-row gap-2">
+            {/* 📝 Botón de Notas de Seguimiento */}
+            <button
+              onClick={() => setShowWorkNotesModal(true)}
+              className="flex items-center justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-md transition-colors duration-200 w-full sm:w-auto"
+            >
+              <ChatBubbleLeftRightIcon className="h-5 w-5 mr-2" />
+              <span className="font-medium">Notas</span>
+            </button>
+
+            {/* Botón dinámico */}
+            {displayHeaderButton && headerButtonAction && (
               <button
                 onClick={() => {
                   headerButtonAction().catch(err => {
                     console.error("Error al ejecutar la acción del botón:", err);
                   });
                 }}
-                className={`${headerButtonClasses} w-full lg:w-auto`}
+                className={`${headerButtonClasses} w-full sm:w-auto`}
               >
                 {headerButtonText}
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* --- BANNER Y BOTÓN PARA ORDEN DE CAMBIO POR EXTRACCIÓN DE PIEDRAS --- */}
@@ -2336,6 +2349,14 @@ const handleUploadImage = async () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 📝 Modal de Notas de Seguimiento */}
+      {showWorkNotesModal && (
+        <WorkNotesModal
+          work={work}
+          onClose={() => setShowWorkNotesModal(false)}
+        />
       )}
     </div>
   );

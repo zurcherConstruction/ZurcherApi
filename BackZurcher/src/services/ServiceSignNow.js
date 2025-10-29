@@ -214,28 +214,20 @@ class SignNowService {
         throw new Error('API Key no configurada');
       }
 
-      
-
       // Probar cada método de autenticación
       for (let i = 0; i < authMethods.length; i++) {
         const method = authMethods[i];
-       
 
         try {
           const response = await axios.get(`${this.baseURL}/document/${documentId}`, {
             headers: method.headers(),
             timeout: 60000
           });
-
-         
           
           return response.data;
 
         } catch (error) {
-         
-          
           if (i === authMethods.length - 1) {
-           
             throw error;
           }
         }
@@ -250,23 +242,20 @@ class SignNowService {
   // Verificar si el documento está firmado
   async isDocumentSigned(documentId) {
     try {
-      
       const documentDetails = await this.getDocumentStatus(documentId);
 
       if (!documentDetails) {
-       
         return { isSigned: false, status: 'not_found', signatures: [], invites: [] };
       }
 
-      // La lógica clave:
-      // 1. ¿Hay invitaciones (requests)?
+      // ¿Hay invitaciones (requests)?
       const hasInvites = Array.isArray(documentDetails.requests) && documentDetails.requests.length > 0;
+      
       if (!hasInvites) {
-       
         return { isSigned: false, status: 'no_invites', signatures: [], invites: [] };
       }
 
-      // 2. ¿TODAS las invitaciones tienen una firma?
+      // ✅ Verificar signature_id en cada request (cuando cliente firma, SignNow asigna signature_id)
       const allInvitesAreSigned = documentDetails.requests.every(
         (req) => req.signature_id !== null && req.signature_id !== undefined
       );
@@ -291,8 +280,11 @@ class SignNowService {
         throw new Error('API Key no configurada');
       }
 
-      // Usar el endpoint correcto para PDF "flattened" (firma visible)
+      // ✅ Usar el endpoint con type=collapsed que SÍ funciona
+      // Este parámetro hace que SignNow "aplane" (flatten) las firmas en el PDF
       const downloadUrl = `${this.baseURL}/document/${documentId}/download?type=collapsed`;
+      
+      console.log(`📥 Descargando documento firmado (collapsed) desde: ${downloadUrl}`);
       
       const response = await axios.get(
         downloadUrl,

@@ -142,3 +142,10 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Temporary files and documentation
+temp_*.txt
+FRONTEND_STATUS_AUDIT_COMPLETE.md
+UPLOAD_INITIAL_PAY_FLEXIBLE_FLOW.md
+*_AUDIT*.md
+*_FLOW*.md

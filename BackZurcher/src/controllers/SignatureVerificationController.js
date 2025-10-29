@@ -13,15 +13,19 @@ const verifyPendingSignatures = async (req, res) => {
   try {
     const signNowService = new SignNowService();
 
+    // 🆕 OPTIMIZADO: Solo buscar presupuestos enviados en los últimos 30 días
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
     const pendingBudgets = await Budget.findAll({
       where: {
-        signNowDocumentId: { [Op.ne]: null },
-        status: { 
-          [Op.in]: ['pending_review', 'created', 'sent_for_signature', 'client_approved', 'send']
-        },
-        signatureMethod: 'signnow'
+        signNowDocumentId: { [Op.ne]: null }, // Tiene documento en SignNow
+        status: 'sent_for_signature', // Solo los que están esperando firma
+        sentForReviewAt: { [Op.gte]: thirtyDaysAgo } // Solo últimos 30 días
       },
-      include: [{ model: Permit, attributes: ['applicantName', 'propertyAddress'] }]
+      include: [{ model: Permit, attributes: ['applicantName', 'propertyAddress'] }],
+      limit: 50, // Máximo 50 para evitar timeout
+      order: [['sentForReviewAt', 'DESC']] // Los más recientes primero
     });
 
     if (pendingBudgets.length === 0) {
@@ -71,6 +75,7 @@ const verifyPendingSignatures = async (req, res) => {
               }
             });
 
+            // ✅ Actualizar a 'signed' - El hook manejará la transición a 'approved' si tiene pago
             await budget.update({
               status: 'signed',
               signatureMethod: 'signnow',
@@ -89,6 +94,9 @@ const verifyPendingSignatures = async (req, res) => {
             });
 
           } catch (downloadError) {
+            console.error(`❌ Error descargando PDF para Budget #${budget.idBudget}:`, downloadError.message);
+            
+            // Actualizar solo el status sin PDF
             await budget.update({
               status: 'signed',
               signatureMethod: 'signnow',
@@ -110,6 +118,7 @@ const verifyPendingSignatures = async (req, res) => {
           });
         }
       } catch (error) {
+        console.error(`❌ Error verificando Budget #${budget.idBudget}:`, error.message);
         results.push({
           idBudget: budget.idBudget,
           error: error.message

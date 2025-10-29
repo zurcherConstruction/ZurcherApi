@@ -162,43 +162,21 @@ const GestionBudgets = () => {
       total: 0, 
       draft: 0, 
       approved: 0, 
-      en_seguimiento: 0, 
-      sent_for_signature: 0, 
-      signed_without_payment: 0, 
+      en_revision: 0, 
+      signed: 0, 
+      legacy: 0,
       rejected: 0 
     };
 
-    // Calcular "approved" incluyendo legacy
-    const approved = budgets.filter(b => 
-      b.status === 'approved' || b.isLegacy === true
-    ).length;
-
-    // Calcular "en_seguimiento" localmente
-    const en_seguimiento = budgets.filter(b => 
-      ['send', 'pending_review', 'client_approved', 'notResponded'].includes(b.status)
-    ).length;
-
-    // Calcular "signed" excluyendo legacy
-    const signed = budgets.filter(b => {
-      const isSigned = b.status === 'signed' || (b.signatureMethod === 'manual' && b.manualSignedPdfPath);
-      return isSigned && !b.isLegacy;
-    }).length;
-
-    // Calcular "signed_without_payment" excluyendo legacy
-    const signed_without_payment = budgets.filter(b => {
-      const isSigned = b.status === 'signed' || (b.signatureMethod === 'manual' && b.manualSignedPdfPath);
-      const hasNoPayment = !b.paymentProofAmount || parseFloat(b.paymentProofAmount) === 0;
-      return isSigned && hasNoPayment && !b.isLegacy;
-    }).length;
-
     return {
       total: totalRecords || budgets.length,
-      draft: budgets.filter(b => b.status === 'draft').length,
-      approved: approved,
-      en_seguimiento: en_seguimiento,
-      sent_for_signature: budgets.filter(b => b.status === 'sent_for_signature').length,
-      signed: signed,
-      signed_without_payment: signed_without_payment,
+      draft: budgets.filter(b => ['draft', 'created'].includes(b.status)).length,
+      en_revision: budgets.filter(b => 
+        ['send', 'pending_review', 'client_approved', 'notResponded', 'sent_for_signature'].includes(b.status)
+      ).length,
+      signed: budgets.filter(b => b.status === 'signed' && !b.isLegacy).length,
+      approved: budgets.filter(b => b.status === 'approved' && !b.isLegacy).length,
+      legacy: budgets.filter(b => b.isLegacy === true).length,
       rejected: budgets.filter(b => b.status === 'rejected').length,
       
       // 📊 MANTENER ESTADOS LEGACY para compatibilidad (no se muestran en las tarjetas)
@@ -206,7 +184,8 @@ const GestionBudgets = () => {
       client_approved: budgets.filter(b => b.status === 'client_approved').length,
       created: budgets.filter(b => b.status === 'created').length,
       send: budgets.filter(b => b.status === 'send').length,
-      notResponded: budgets.filter(b => b.status === 'notResponded').length
+      notResponded: budgets.filter(b => b.status === 'notResponded').length,
+      sent_for_signature: budgets.filter(b => b.status === 'sent_for_signature').length
     };
   }, [budgets, totalRecords, statsFromBackend]);
 
@@ -624,37 +603,26 @@ const GestionBudgets = () => {
 
         {/* FILA 2: SEGUIMIENTO AL CLIENTE */}
         
-        {/* En Seguimiento - Agrupa: send, pending_review, client_approved, notResponded */}
+        {/* En Revisión - Agrupa: send, pending_review, client_approved, notResponded, sent_for_signature */}
         <div 
-          onClick={() => handleStatCardClick('en_seguimiento')}
+          onClick={() => handleStatCardClick('en_revision')}
           className={`bg-white p-4 rounded-lg shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
-            statusFilter === 'en_seguimiento' ? 'ring-2 ring-blue-600' : ''
+            statusFilter === 'en_revision' ? 'ring-2 ring-blue-600' : ''
           }`}
         >
-          <div className="text-2xl font-bold text-blue-600">{budgetStats.en_seguimiento}</div>
+          <div className="text-2xl font-bold text-blue-600">{budgetStats.en_revision}</div>
           <div className="text-sm text-gray-600">Enviados</div>
           <div className="text-xs text-gray-500 mt-1">En seguimiento</div>
         </div>
 
-        {/* Sent for Signature - Para Firma */}
+        {/* Firmados Sin Pago - Esperando pago inicial */}
         <div 
-          onClick={() => handleStatCardClick('sent_for_signature')}
+          onClick={() => handleStatCardClick('signed')}
           className={`bg-white p-4 rounded-lg shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
-            statusFilter === 'sent_for_signature' ? 'ring-2 ring-purple-600' : ''
+            statusFilter === 'signed' ? 'ring-2 ring-orange-600' : ''
           }`}
         >
-          <div className="text-2xl font-bold text-purple-600">{budgetStats.sent_for_signature}</div>
-          <div className="text-sm text-gray-600">Para Firma</div>
-        </div>
-
-        {/* Firmados Sin Pago - Firmados pero falta pago inicial */}
-        <div 
-          onClick={() => handleStatCardClick('signed_without_payment')}
-          className={`bg-white p-4 rounded-lg shadow cursor-pointer transition-all hover:shadow-lg hover:scale-105 ${
-            statusFilter === 'signed_without_payment' ? 'ring-2 ring-orange-600' : ''
-          }`}
-        >
-          <div className="text-2xl font-bold text-orange-600">{budgetStats.signed_without_payment}</div>
+          <div className="text-2xl font-bold text-orange-600">{budgetStats.signed}</div>
           <div className="text-sm text-gray-600">Firmados Sin Pago</div>
           <div className="text-xs text-gray-500 mt-1">Gestión cobros</div>
         </div>

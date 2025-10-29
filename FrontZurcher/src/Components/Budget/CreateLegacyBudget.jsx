@@ -19,7 +19,7 @@ const CreateLegacyBudget = () => {
     systemType: '',
     
     // Datos del Budget
-    status: 'signed',
+    status: 'approved', // ✅ Legacy budgets ya tienen firma + pago completo del sistema anterior
     totalPrice: '',
     initialPayment: '',
     initialPaymentPercentage: 60,
@@ -282,7 +282,7 @@ const CreateLegacyBudget = () => {
         fileInputs.forEach(input => input.value = '');
 
       setTimeout(() => {
-        navigate('/budget/list');
+        navigate('/progress-tracker');
       }, 3000);
     } catch (error) {
       console.error('❌ Error completo:', error);

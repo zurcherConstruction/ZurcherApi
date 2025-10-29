@@ -75,7 +75,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, SupplierInvoice, SupplierInvoiceItem, BudgetNote } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, SupplierInvoice, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -411,6 +411,51 @@ BudgetNote.belongsTo(Staff, {
   foreignKey: 'staffId',
   as: 'author'
 });
+
+// --- RELACIONES PARA WORK NOTES (SEGUIMIENTO DE OBRAS) ---
+
+// Un Work tiene muchas WorkNotes (notas de seguimiento)
+Work.hasMany(WorkNote, {
+  foreignKey: 'workId',
+  as: 'workNotes' // Cambiado de 'notes' a 'workNotes' para evitar conflicto con el campo notes del modelo
+});
+WorkNote.belongsTo(Work, {
+  foreignKey: 'workId',
+  as: 'work'
+});
+
+// Un Staff puede crear muchas WorkNotes
+Staff.hasMany(WorkNote, {
+  foreignKey: 'staffId',
+  as: 'workNotes'
+});
+WorkNote.belongsTo(Staff, {
+  foreignKey: 'staffId',
+  as: 'author'
+});
+
+// --- RELACIONES PARA WORK STATE HISTORY (HISTORIAL DE CAMBIOS DE ESTADO) ---
+
+// Un Work tiene muchos registros de WorkStateHistory
+Work.hasMany(WorkStateHistory, {
+  foreignKey: 'workId',
+  as: 'stateHistory'
+});
+WorkStateHistory.belongsTo(Work, {
+  foreignKey: 'workId',
+  as: 'work'
+});
+
+// Un Staff puede haber realizado muchos cambios de estado
+Staff.hasMany(WorkStateHistory, {
+  foreignKey: 'changedBy',
+  as: 'stateChanges'
+});
+WorkStateHistory.belongsTo(Staff, {
+  foreignKey: 'changedBy',
+  as: 'changedByStaff'
+});
+
 
 //---------------------------------------------------------------------------------//
 module.exports = {

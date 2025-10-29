@@ -1,7 +1,7 @@
 const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
-  return sequelize.define('Work', {
+  const Work = sequelize.define('Work', {
     idWork: {
       type: DataTypes.UUID,
       primaryKey: true,
@@ -81,5 +81,70 @@ module.exports = (sequelize) => {
       comment: 'Indica si este trabajo fue importado desde sistema externo'
     }
 
+  }, {
+    hooks: {
+      // 🔄 Hook automático: Registrar cambios de estado en WorkStateHistory Y crear WorkNote
+      beforeUpdate: async (work, options) => {
+        // Solo registrar si cambió el status
+        if (work.changed('status')) {
+          const WorkStateHistory = sequelize.models.WorkStateHistory;
+          const WorkNote = sequelize.models.WorkNote;
+          
+          const fromStatus = work._previousDataValues.status;
+          const toStatus = work.status;
+          const changedBy = options.staffId || null; // Pasar staffId en options al actualizar
+          
+          // 1️⃣ Registrar en historial
+          await WorkStateHistory.create({
+            workId: work.idWork,
+            fromStatus: fromStatus,
+            toStatus: toStatus,
+            changedBy: changedBy,
+            reason: options.reason || null,
+            changedAt: new Date()
+          });
+
+          // 2️⃣ Crear nota automática con el cambio de estado
+          const statusLabels = {
+            pending: 'Pendiente',
+            assigned: 'Asignado',
+            inProgress: 'En Progreso',
+            installed: 'Instalado',
+            firstInspectionPending: 'Inspección Pendiente',
+            approvedInspection: 'Inspección Aprobada',
+            rejectedInspection: 'Inspección Rechazada',
+            coverPending: 'Tapar Pendiente',
+            covered: 'Tapado',
+            invoiceFinal: 'Factura Final',
+            paymentReceived: 'Pago Recibido',
+            finalInspectionPending: 'Inspección Final Pendiente',
+            finalApproved: 'Aprobado Final',
+            finalRejected: 'Rechazado Final',
+            maintenance: 'Mantenimiento',
+            cancelled: 'Cancelado'
+          };
+
+          const fromLabel = statusLabels[fromStatus] || fromStatus;
+          const toLabel = statusLabels[toStatus] || toStatus;
+          
+          const message = `Estado actualizado automáticamente: ${fromLabel} → ${toLabel}`;
+
+          await WorkNote.create({
+            workId: work.idWork,
+            staffId: changedBy, // Puede ser null si es automático
+            message: message,
+            noteType: 'status_change',
+            priority: 'medium',
+            relatedStatus: toStatus,
+            isResolved: true, // Siempre resuelto porque es informativo
+            mentionedStaffIds: []
+          });
+
+          console.log(`✅ WorkStateHistory y WorkNote registrados: ${fromStatus} → ${toStatus}`);
+        }
+      }
+    }
   });
+
+  return Work;
 };

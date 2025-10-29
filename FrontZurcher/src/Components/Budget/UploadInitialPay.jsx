@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { uploadInvoice, fetchBudgets, updateBudget } from '../../Redux/Actions/budgetActions';
+import { uploadInvoice, fetchBudgets, fetchBudgetById } from '../../Redux/Actions/budgetActions';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { PAYMENT_METHODS_GROUPED } from '../../utils/paymentConstants';
@@ -109,23 +109,20 @@ const UploadInitialPay = () => {
         throw new Error('Error al subir el comprobante');
       }
 
+      // ✅ NO cambiar status manualmente - El hook Budget.beforeUpdate lo manejará
+      // Si tiene firma (status='signed') + pago → Hook cambia a 'approved'
+      // Si solo tiene pago (sin firma) → Mantiene estado actual hasta que firme
       toast.update(uploadToast, {
-        render: "Actualizando estado del presupuesto...",
+        render: "Actualizando presupuesto...",
         type: "info",
         isLoading: true
       });
 
-      const updateResult = await dispatch(updateBudget(selectedBudgetId, { 
-        status: 'approved',
-        invoiceUrl: uploadResult.payload.url
-      }));
-
-      if (!updateResult?.payload) {
-        throw new Error('Error al actualizar el estado del presupuesto');
-      }
+      // Refrescar datos para obtener el estado actualizado por el hook
+      await dispatch(fetchBudgetById(selectedBudgetId));
 
       toast.update(uploadToast, {
-        render: "¡Comprobante subido y presupuesto aprobado!",
+        render: "¡Comprobante de pago subido exitosamente!",
         type: "success",
         isLoading: false,
         autoClose: 3000,
@@ -166,28 +163,18 @@ const UploadInitialPay = () => {
     }
   };
 
-  // Filtrar presupuestos FIRMADOS o ENVIADOS PARA FIRMA que NO tengan comprobante cargado
-  // Mostrar presupuestos con status='signed' o 'sent_for_signature'
-  // ✅ INCLUIR budgets con firma manual completa (signatureMethod='manual' && manualSignedPdfPath)
-  // Excluir estado "approved" (significa que YA se cargó el comprobante)
-  // Excluir presupuestos con paymentInvoice o paymentProofAmount
+  // Filtrar presupuestos elegibles para subir comprobante de pago
+  // ✅ PERMITIR PAGO ANTES DE FIRMA: Cliente puede pagar primero y firmar después
+  // Estados válidos: client_approved, sent_for_signature, signed (cualquier estado previo a 'approved')
+  // Excluir: 'approved' (ya completado), 'rejected', 'draft' (no aprobado aún)
   const sendBudgets = budgets.filter(b => {
-    // ✅ Verificar si está firmado (SignNow o Manual)
-    const isSignNowSigned = b.status === 'signed';
-    const isManuallySigned = b.signatureMethod === 'manual' && b.manualSignedPdfPath;
-    const isSentForSignature = b.status === 'sent_for_signature';
-    
-    // Debe estar firmado (SignNow o Manual) O enviado para firma
-    if (!isSignNowSigned && !isManuallySigned && !isSentForSignature) {
+    // Excluir estados no elegibles
+    const invalidStatuses = ['draft', 'created', 'pending_review', 'rejected', 'approved'];
+    if (invalidStatuses.includes(b.status)) {
       return false;
     }
     
-    // Excluir si tiene paymentInvoice (URL del comprobante)
-    if (b.paymentInvoice && b.paymentInvoice.trim() !== '') {
-      return false;
-    }
-    
-    // Excluir si tiene paymentProofAmount (monto registrado)
+    // Excluir si ya tiene pago registrado (doble verificación)
     if (b.paymentProofAmount && parseFloat(b.paymentProofAmount) > 0) {
       return false;
     }
@@ -234,10 +221,11 @@ const UploadInitialPay = () => {
             <ClipboardDocumentListIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-500 font-medium">No hay presupuestos disponibles</p>
             <p className="text-gray-600 text-sm mt-2">
-              No hay presupuestos enviados para firma o firmados disponibles para subir comprobante de pago inicial.
+              No hay presupuestos disponibles para subir comprobante de pago inicial.
             </p>
             <p className="text-gray-500 text-xs mt-3">
-              Los presupuestos deben estar enviados para firma o firmados (vía SignNow o manualmente) antes de poder cargar el comprobante de pago.
+              Los presupuestos deben estar aprobados por el cliente (client_approved, sent_for_signature, o signed).
+              El pago puede subirse ANTES o DESPUÉS de la firma del cliente.
             </p>
           </div>
         </div>
@@ -268,7 +256,7 @@ const UploadInitialPay = () => {
             <div>
               <label htmlFor="budget-select" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
                 <ClipboardDocumentListIcon className="h-5 w-5 mr-2 text-blue-500" />
-                Seleccionar Presupuesto (Enviado para firma o Firmado)
+                Seleccionar Presupuesto (Aprobado por Cliente)
               </label>
               <select
                 id="budget-select"

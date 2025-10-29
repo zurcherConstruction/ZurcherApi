@@ -149,9 +149,10 @@ const editableBudgets = useMemo(() => {
     "sent_for_signature", // Enviado para firma
     "rejected",           // Rechazado (para reenvío)
     "notResponded",       // Sin respuesta
-    // 🧪 TESTING MODE: Permitir editar Budgets firmados/aprobados (solo para editar Permits)
-    "signed",             // ⚠️ Firmado (para editar Permits)
-    "approved"            // ⚠️ Aprobado (para editar Permits)
+    // ⚠️ EDICIÓN LIMITADA: Permitir editar solo datos del Permit (NO del Budget)
+    // isBudgetLocked protege contra cambios en Budget cuando tiene pago registrado
+    "signed",             // ⚠️ Firmado (editable solo Permit, Budget bloqueado si tiene pago)
+    "approved"            // ⚠️ Aprobado (editable solo Permit, Budget bloqueado por isBudgetLocked)
   ];
   return (budgets || []).filter(budget => allowedStatus.includes(budget.status));
 }, [budgets]);
