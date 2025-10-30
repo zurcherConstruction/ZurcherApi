@@ -18,10 +18,16 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: 'Descripción detallada del gasto fijo'
     },
-    amount: {
+    totalAmount: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
-      comment: 'Monto del gasto fijo'
+      comment: 'Monto total del gasto fijo (puede pagarse en partes)'
+    },
+    paidAmount: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      defaultValue: 0,
+      comment: 'Monto ya pagado (suma de todos los pagos parciales)'
     },
     frequency: {
       type: DataTypes.ENUM(
@@ -134,11 +140,12 @@ module.exports = (sequelize) => {
       comment: 'Staff que creó/registró el gasto fijo'
     },
     
-    // 🆕 Estado de Pago del Gasto Fijo (igual que Expense)
+    // 🆕 Estado de Pago del Gasto Fijo
     paymentStatus: {
       type: DataTypes.ENUM(
-        'unpaid',              // No pagado (gasto comprometido pero sin pagar)
-        'paid',                // Pagado directamente (sin invoice de proveedor)
+        'unpaid',              // No pagado (sin pagos registrados)
+        'partial',             // 🆕 Pago parcial (tiene pagos pero no está completo)
+        'paid',                // Pagado completamente
         'paid_via_invoice'     // Pagado a través de un SupplierInvoice
       ),
       allowNull: false,
@@ -162,6 +169,16 @@ module.exports = (sequelize) => {
         key: 'idItem'
       },
       comment: 'Item de factura de proveedor que incluye este gasto fijo'
+    },
+    
+    // 🆕 Campo virtual para calcular el monto restante
+    remainingAmount: {
+      type: DataTypes.VIRTUAL,
+      get() {
+        const total = parseFloat(this.getDataValue('totalAmount') || 0);
+        const paid = parseFloat(this.getDataValue('paidAmount') || 0);
+        return (total - paid).toFixed(2);
+      }
     }
   }, {
     timestamps: true,

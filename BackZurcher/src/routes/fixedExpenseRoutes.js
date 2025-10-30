@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
+const upload = multer(); // Configuración básica de multer para FormData
 const {
   createFixedExpense,
   getAllFixedExpenses,
@@ -13,6 +15,13 @@ const {
   getFixedExpensesByPaymentStatus
 } = require('../controllers/fixedExpenseController');
 const { getCronStatus } = require('../controllers/cronStatusController');
+
+// 🆕 Controlador de pagos parciales
+const {
+  addPartialPayment,
+  getPaymentHistory,
+  deletePartialPayment
+} = require('../controllers/fixedExpensePaymentController');
 
 // Middleware de autenticación (ajustar según tu sistema)
 // const { isAuth } = require('../middleware/isAuth');
@@ -99,5 +108,25 @@ router.patch('/:id/toggle-status', toggleFixedExpenseStatus);
  * @access  Private
  */
 router.post('/:id/generate-expense', generateExpenseFromFixed);
+
+// ============================================
+// 🆕 RUTAS DE PAGOS PARCIALES
+// ============================================
+
+/**
+ * 💰 @route   POST /api/fixed-expenses/:id/payments
+ * @desc    Registrar un pago parcial (crea Expense automáticamente)
+ * @body    { amount, paymentDate?, paymentMethod?, notes?, staffId? }
+ * @files   receipt (opcional)
+ * @access  Private
+ */
+router.post('/:id/payments', upload.single('receipt'), addPartialPayment);
+
+/**
+ * 📋 @route   GET /api/fixed-expenses/:id/payments
+ * @desc    Obtener historial de pagos de un gasto fijo
+ * @access  Private
+ */
+router.get('/:id/payments', getPaymentHistory);
 
 module.exports = router;

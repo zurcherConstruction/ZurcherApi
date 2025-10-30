@@ -1,4 +1,4 @@
-const { FixedExpense, Staff } = require('../data');
+const { FixedExpense, FixedExpensePayment, Staff, Expense } = require('../data');
 const { Op } = require('sequelize');
 
 /**
@@ -9,7 +9,8 @@ const createFixedExpense = async (req, res) => {
     const {
       name,
       description,
-      amount,
+      amount,        // 🔄 Retrocompatibilidad: frontend envía "amount"
+      totalAmount,   // 🆕 Nuevo campo
       frequency,
       category,
       paymentMethod,
@@ -24,8 +25,11 @@ const createFixedExpense = async (req, res) => {
       createdByStaffId
     } = req.body;
 
+    // 🔄 Usar totalAmount si existe, sino usar amount (retrocompatibilidad)
+    const finalTotalAmount = totalAmount || amount;
+
     // Validaciones básicas
-    if (!name || !amount || !frequency || !category || !paymentMethod || !startDate) {
+    if (!name || !finalTotalAmount || !frequency || !category || !paymentMethod || !startDate) {
       return res.status(400).json({
         error: 'Faltan campos requeridos: name, amount, frequency, category, paymentMethod, startDate'
       });
@@ -37,7 +41,8 @@ const createFixedExpense = async (req, res) => {
     const newFixedExpense = await FixedExpense.create({
       name,
       description,
-      amount,
+      totalAmount: finalTotalAmount,  // 🔄 Usar el monto correcto
+      paidAmount: 0,                   // 🆕 Inicializar en 0
       frequency,
       category,
       paymentMethod,
@@ -119,6 +124,15 @@ const getAllFixedExpenses = async (req, res) => {
           as: 'createdBy',
           attributes: ['id', 'name', 'email'],
           required: false
+        },
+        // 🆕 Incluir resumen de pagos parciales
+        {
+          model: FixedExpensePayment,
+          as: 'payments',
+          attributes: ['idPayment', 'amount', 'paymentDate'],
+          separate: true, // Evita duplicados
+          order: [['paymentDate', 'DESC']],
+          limit: 5 // Solo los últimos 5 pagos en el listado
         }
       ],
       order: [
@@ -244,6 +258,24 @@ const getFixedExpenseById = async (req, res) => {
           model: Staff,
           as: 'createdBy',
           attributes: ['id', 'name', 'email']
+        },
+        // 🆕 Incluir pagos parciales
+        {
+          model: FixedExpensePayment,
+          as: 'payments',
+          include: [
+            {
+              model: Expense,
+              as: 'generatedExpense',
+              attributes: ['idExpense', 'name', 'cost', 'paymentStatus']
+            },
+            {
+              model: Staff,
+              as: 'createdBy',
+              attributes: ['id', 'name']
+            }
+          ],
+          order: [['paymentDate', 'DESC']]
         }
       ]
     });
@@ -252,7 +284,19 @@ const getFixedExpenseById = async (req, res) => {
       return res.status(404).json({ error: 'Gasto fijo no encontrado' });
     }
 
-    res.status(200).json(fixedExpense);
+    // 🆕 Agregar balance calculado
+    const response = {
+      ...fixedExpense.toJSON(),
+      balance: {
+        totalAmount: parseFloat(fixedExpense.totalAmount).toFixed(2),
+        paidAmount: parseFloat(fixedExpense.paidAmount || 0).toFixed(2),
+        remainingAmount: fixedExpense.remainingAmount,
+        paymentCount: fixedExpense.payments?.length || 0,
+        percentagePaid: ((parseFloat(fixedExpense.paidAmount || 0) / parseFloat(fixedExpense.totalAmount)) * 100).toFixed(2)
+      }
+    };
+
+    res.status(200).json(response);
 
   } catch (error) {
     console.error('❌ Error obteniendo gasto fijo:', error);
@@ -454,7 +498,7 @@ const generateExpenseFromFixed = async (req, res) => {
     // Crear el gasto con paymentStatus: 'paid' (pago directo, no vía invoice)
     const newExpense = await Expense.create({
       typeExpense: 'Gasto Fijo',
-      amount: fixedExpense.amount,
+      amount: fixedExpense.totalAmount || fixedExpense.amount, // ✅ Retrocompatibilidad
       notes: notes || fixedExpense.description || fixedExpense.name,
       paymentMethod: fixedExpense.paymentMethod,
       paymentDetails: fixedExpense.paymentAccount || null,
@@ -472,33 +516,43 @@ const generateExpenseFromFixed = async (req, res) => {
 
     // Actualizar el FixedExpense:
     // 1. Marcar como pagado
-    // 2. Actualizar nextDueDate para el próximo período
+    // 2. Actualizar paidAmount = totalAmount (pago completo)
+    // 3. Actualizar nextDueDate para el próximo período
     const newNextDueDate = calculateNextDueDate(
       fixedExpense.nextDueDate || fixedExpense.startDate,
       fixedExpense.frequency
     );
 
+    const totalAmount = parseFloat(fixedExpense.totalAmount || fixedExpense.amount || 0);
+
     await fixedExpense.update({ 
       paymentStatus: 'paid',
+      paidAmount: totalAmount, // ✅ Marcar como pagado completamente
       paidDate: finalPaymentDate,
       nextDueDate: newNextDueDate
     });
 
-    console.log(`✅ FixedExpense actualizado: paymentStatus=paid, nextDueDate=${newNextDueDate}`);
+    console.log(`✅ FixedExpense actualizado: paymentStatus=paid, paidAmount=${totalAmount}, nextDueDate=${newNextDueDate}`);
 
     // Si es recurrente y autoCreateExpense está activado, crear el próximo FixedExpense
     if (fixedExpense.frequency !== 'one_time' && fixedExpense.autoCreateExpense) {
+      // Calcular el primer día del mes del siguiente período
+      const nextDueDate = new Date(newNextDueDate);
+      const nextPeriodStart = new Date(nextDueDate.getFullYear(), nextDueDate.getMonth(), 1);
+      const nextPeriodStartStr = nextPeriodStart.toISOString().split('T')[0];
+      
       const nextFixedExpense = await FixedExpense.create({
         name: fixedExpense.name,
         description: fixedExpense.description,
-        amount: fixedExpense.amount,
+        totalAmount: fixedExpense.totalAmount || fixedExpense.amount, // ✅ Retrocompatibilidad
+        paidAmount: 0, // ✅ Nuevo período sin pagos
         frequency: fixedExpense.frequency,
         category: fixedExpense.category,
         paymentMethod: fixedExpense.paymentMethod,
         paymentAccount: fixedExpense.paymentAccount,
-        startDate: newNextDueDate,
+        startDate: nextPeriodStartStr, // ✅ Primer día del mes siguiente
         endDate: fixedExpense.endDate,
-        nextDueDate: calculateNextDueDate(newNextDueDate, fixedExpense.frequency),
+        nextDueDate: newNextDueDate, // ✅ Fecha de vencimiento (ej: 30 de nov)
         isActive: true,
         autoCreateExpense: fixedExpense.autoCreateExpense,
         vendor: fixedExpense.vendor,
@@ -508,7 +562,7 @@ const generateExpenseFromFixed = async (req, res) => {
         paymentStatus: 'unpaid' // El nuevo período empieza sin pagar
       });
 
-      console.log(`🔄 Próximo FixedExpense creado automáticamente: ${nextFixedExpense.idFixedExpense}`);
+      console.log(`🔄 Próximo FixedExpense creado automáticamente: ${nextFixedExpense.idFixedExpense} (startDate: ${nextPeriodStartStr}, nextDueDate: ${newNextDueDate})`);
     }
 
     res.status(201).json({

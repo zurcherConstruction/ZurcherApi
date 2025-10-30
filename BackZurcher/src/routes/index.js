@@ -16,6 +16,7 @@ const receiptRoutes = require('./receiptRoutes'); // Asegúrate de que la ruta s
 const incomeRoutes = require('./incomeRoutes'); // Asegúrate de que la ruta sea correcta
 const expenseRoutes = require('./expenseRoutes'); // Asegúrate de que la ruta sea correcta
 const fixedExpenseRoutes = require('./fixedExpenseRoutes'); // 🆕 Rutas para gastos fijos
+const fixedExpensePaymentRoutes = require('./fixedExpensePaymentRoutes'); // 🆕 Rutas para pagos parciales
 const supplierInvoiceRoutes = require('./supplierInvoiceRoutes'); // 🆕 Rutas para invoices de proveedores
 const balanceRoutes = require('./balanceRoutes'); // Asegúrate de que la ruta sea correcta
 const systemRoutes = require('./systemRoutes'); // Asegúrate de que la ruta sea correcta
@@ -66,6 +67,7 @@ router.use('/balance', balanceRoutes)
 router.use('/income', incomeRoutes); // Ruta para ingresos
 router.use('/expense', expenseRoutes); // Ruta para gastos
 router.use('/fixed-expenses', fixedExpenseRoutes); // 🆕 Ruta para gastos fijos (plural para consistencia)
+router.use('/fixed-expense-payments', fixedExpensePaymentRoutes); // 🆕 Ruta para pagos parciales
 router.use('/supplier-invoices', supplierInvoiceRoutes); // 🆕 Ruta para invoices de proveedores
 router.use('/system', systemRoutes); // Ruta para comprobantes
 router.use('/final-invoice', finalInvoiceRoutes); // Ruta para comprobantes

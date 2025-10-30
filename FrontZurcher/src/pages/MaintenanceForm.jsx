@@ -356,7 +356,7 @@ const MaintenanceForm = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nivel salida
+                  Nivel salida tanque
                 </label>
                 <input
                   type="number"
@@ -420,7 +420,7 @@ const MaintenanceForm = () => {
               />
 
               <CheckboxField
-                label="¿Tapa inspección cap verde OK?"
+                label="¿Tapa inspección cap verde?"
                 name="cap_green_inspected"
                 checked={formData.cap_green_inspected}
                 notes={formData.cap_green_notes}
@@ -579,7 +579,7 @@ const MaintenanceForm = () => {
                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                         />
                         <label htmlFor={`sample-${index}`} className="ml-2 block text-sm text-gray-700">
-                          Muestra encontrada
+                          Cantidad de well point encontrados
                         </label>
                       </div>
 
