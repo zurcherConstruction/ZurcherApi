@@ -14,6 +14,9 @@ router.post(
 );
 router.get('/:changeOrderId/preview-pdf', verifyToken, allowRoles(['admin', 'recept', 'owner','worker']), ChangeOrderController.previewChangeOrderPDF);
 
+// 🆕 Ruta para aprobación manual de Change Order
+router.post('/:changeOrderId/manual-approval', verifyToken, allowRoles(['admin', 'recept', 'owner']), ChangeOrderController.approveChangeOrderManually);
+
 router.get('/respond', ChangeOrderController.handleClientChangeOrderResponse);
 
 router.delete('/:changeOrderId', verifyToken, allowRoles(['admin', 'recept', 'owner','worker']), ChangeOrderController.deleteChangeOrder);

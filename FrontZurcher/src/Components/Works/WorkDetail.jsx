@@ -14,6 +14,7 @@ import InspectionFlowManager from "./InspectionFlowManager";
 import FinalInspectionFlowManager from "./FinalInspectionFlowManager"
 import { ExclamationTriangleIcon } from '@heroicons/react/24/solid'; // Para el banner
 import CreateChangeOrderModal from './CreateChangeOrderModal'; // Importar el nuevo modal
+import ManualApprovalModal from './ManualApprovalModal'; // 🆕 Modal de aprobación manual
 import api from "../../utils/axios";
 import useAutoRefresh from "../../utils/useAutoRefresh";
 import PdfModal from "../Budget/PdfModal"; 
@@ -127,6 +128,8 @@ const workRef = useRef(work);
   const [showCreateCOModal, setShowCreateCOModal] = useState(false);
   const [showEditCOModal, setShowEditCOModal] = useState(false); // Estado para el modal de edición
   const [editingCO, setEditingCO] = useState(null); // Estado para la CO que se está editando
+  const [showManualApprovalModal, setShowManualApprovalModal] = useState(false); // 🆕 Modal de aprobación manual
+  const [approvingCO, setApprovingCO] = useState(null); // 🆕 CO que se está aprobando manualmente
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [showWorkNotesModal, setShowWorkNotesModal] = useState(false); // 📝 Modal de notas
   const [pdfUrlCo, setPdfUrlCo] = useState('');
@@ -366,6 +369,12 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
    
     setEditingCO(coToEdit);
     setShowEditCOModal(true);
+  };
+
+  // 🆕 Handler para abrir el modal de aprobación manual
+  const handleManualApprove = (coToApprove) => {
+    setApprovingCO(coToApprove);
+    setShowManualApprovalModal(true);
   };
 
   const handleDeleteCO = async (coId) => {
@@ -2014,6 +2023,17 @@ const handleUploadImage = async () => {
                               </button>
                             )}
 
+                            {/* 🆕 Botón de Aprobación Manual */}
+                            {!isViewOnly && (co.status === 'draft' || co.status === 'pendingAdminReview' || co.status === 'pendingClientApproval') && (
+                              <button
+                                onClick={() => handleManualApprove(co)}
+                                className="ml-2 px-3 py-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1"
+                                title="Registrar aprobación verbal/telefónica del cliente"
+                              >
+                                ✓ Aprobar Manualmente
+                              </button>
+                            )}
+
                             {/* Enlace para ver el PDF enviado/actual */}
                             {co.pdfUrl && !co.pdfUrl.startsWith('file:///') && (co.status === 'pendingClientApproval' || co.status === 'approved' || co.status === 'rejected') && (
                               <a
@@ -2356,6 +2376,19 @@ const handleUploadImage = async () => {
         <WorkNotesModal
           work={work}
           onClose={() => setShowWorkNotesModal(false)}
+        />
+      )}
+
+      {/* 🆕 Modal de Aprobación Manual de Change Order */}
+      {showManualApprovalModal && approvingCO && (
+        <ManualApprovalModal
+          isOpen={showManualApprovalModal}
+          onClose={() => {
+            setShowManualApprovalModal(false);
+            setApprovingCO(null);
+          }}
+          changeOrder={approvingCO}
+          workId={idWork}
         />
       )}
     </div>

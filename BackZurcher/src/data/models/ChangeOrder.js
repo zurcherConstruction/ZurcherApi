@@ -98,6 +98,37 @@ module.exports = (sequelize) => {
     signedAt: {
       type: DataTypes.DATE,
       allowNull: true,
+    },
+    // 🆕 Campos para aprobación manual
+    approvalMethod: {
+      type: DataTypes.ENUM('email', 'manual'),
+      allowNull: true,
+      
+    },
+    manualApprovalNotes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'Notas sobre la aprobación manual: día, hora, cómo se contactó al cliente, etc.'
+    },
+    manualApprovedBy: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Usuario/Staff que registró la aprobación manual'
+    },
+    manualApprovedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Fecha y hora en que se registró la aprobación manual en el sistema'
+    },
+    clientNotifiedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Fecha y hora en que se notificó al cliente (por teléfono, presencial, etc.)'
+    },
+    clientNotificationMethod: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Método usado para notificar: teléfono, presencial, WhatsApp, etc.'
     }
   }, {
     // Opciones adicionales del modelo

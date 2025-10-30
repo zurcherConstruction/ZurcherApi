@@ -1,4 +1,4 @@
-const { FinalInvoice, WorkExtraItem, Work, Budget, Permit, ChangeOrder, conn } = require('../data'); // Asegúrate que los modelos se exportan correctamente desde data/index.js
+const { FinalInvoice, WorkExtraItem, Work, Budget, Permit, ChangeOrder, WorkNote, conn } = require('../data'); // Asegúrate que los modelos se exportan correctamente desde data/index.js
 const { Op } = require('sequelize');
 const { generateAndSaveFinalInvoicePDF } = require('../utils/pdfGenerators'); // Necesitarás crear esta función
 const fs = require('fs'); // <-- AÑADIR ESTA LÍNEA
@@ -108,6 +108,28 @@ const FinalInvoiceController = {
       const finalInvoiceWithDetails = await FinalInvoice.findByPk(newFinalInvoice.id, {
         include: [{ model: WorkExtraItem, as: 'extraItems' }]
       });
+
+      // 🆕 Crear nota automática para generación de Final Invoice
+      try {
+        const invoiceNum = newFinalInvoice.invoiceNumber || newFinalInvoice.id.substring(0, 8);
+        const totalAmount = newFinalInvoice.finalAmountDue ? `$${parseFloat(newFinalInvoice.finalAmountDue).toFixed(2)}` : 'monto pendiente';
+        const changeOrdersCount = extraItemsFromChangeOrdersInput.length;
+        const changeOrdersNote = changeOrdersCount > 0 ? ` (incluye ${changeOrdersCount} Change Order${changeOrdersCount > 1 ? 's' : ''})` : '';
+        
+        await WorkNote.create({
+          workId: workId,
+          staffId: null, // Sistema automático
+          message: `Factura Final #${invoiceNum} generada - Total: ${totalAmount}${changeOrdersNote}`,
+          noteType: 'payment',
+          priority: 'high',
+          relatedStatus: null,
+          isResolved: false,
+          mentionedStaffIds: []
+        });
+        console.log(`✅ WorkNote creado para generación de Final Invoice #${invoiceNum}`);
+      } catch (noteError) {
+        console.error('⚠️ Error al crear WorkNote para Final Invoice:', noteError);
+      }
 
       res.status(201).json(finalInvoiceWithDetails);
 
@@ -620,6 +642,26 @@ async emailFinalInvoicePDF(req, res) {
            ]
        };
        await sendEmail(mailOptions);
+       
+       // 🆕 Crear nota automática para envío de Final Invoice
+       try {
+         const invoiceNum = finalInvoice.invoiceNumber || finalInvoice.id.substring(0, 8);
+         const totalAmount = correctTotalAmount ? `$${correctTotalAmount.toFixed(2)}` : 'monto pendiente';
+         
+         await WorkNote.create({
+           workId: finalInvoice.workId,
+           staffId: null, // Sistema automático
+           message: `Factura Final #${invoiceNum} ENVIADA al cliente - Total: ${totalAmount} - Email: ${clientEmail}`,
+           noteType: 'payment',
+           priority: 'high',
+           relatedStatus: 'invoiceFinal',
+           isResolved: false,
+           mentionedStaffIds: []
+         });
+         console.log(`✅ WorkNote creado para envío de Final Invoice #${invoiceNum}`);
+       } catch (noteError) {
+         console.error('⚠️ Error al crear WorkNote para envío de Final Invoice:', noteError);
+       }
        
        // ✅ AUTOMATIZAR: Cambiar estado del work de 'covered' a 'invoiceFinal'
        const work = finalInvoice.Work;
