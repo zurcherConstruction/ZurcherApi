@@ -162,7 +162,8 @@ const BudgetList = () => {
   const canEdit = userRole === 'owner' || userRole === 'admin';
   const isReadOnly = !canEdit;
   
-
+  // ✅ Permisos para exportar Excel (owner, admin, finance)
+  const canExportExcel = ['owner', 'admin', 'finance'].includes(userRole);
 
   
   // ✅ Estados para paginación local
@@ -759,23 +760,23 @@ const BudgetList = () => {
   };
 
   return (
-    <div className="w-full min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-2 sm:p-4 md:p-6 lg:p-8 overflow-x-hidden">
-      <div className="max-w-full sm:max-w-7xl mx-auto px-2 sm:px-0">
-        <h1 className="text-2xl md:text-3xl font-bold mb-8 text-blue-900 flex items-center gap-3">
-          <span className="inline-block bg-blue-100 text-blue-700 rounded-full px-3 py-1 text-lg font-semibold">
+    <div className="w-full min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 p-2 sm:p-3 md:p-4 overflow-x-hidden">
+      <div className="max-w-full mx-auto px-2 sm:px-3 md:px-4">
+        <h1 className="text-xl md:text-2xl font-bold mb-4 md:mb-6 text-blue-900 flex items-center gap-2">
+          <span className="inline-block bg-blue-100 text-blue-700 rounded-full px-2.5 py-0.5 text-base md:text-lg font-semibold">
             Monthly Budgets
           </span>
-          <span className="text-base font-normal text-gray-400">
+          <span className="text-sm md:text-base font-normal text-gray-400">
             Overview & Management
           </span>
         </h1>
 
         {/* Filter Section */}
-        <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 mb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl shadow-lg p-3 md:p-4 mb-4 md:mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
             {/* Search Input */}
             <div className="sm:col-span-2 lg:col-span-1">
-              <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="search" className="block text-xs md:text-sm font-medium text-gray-700 mb-1.5">
                 Search
               </label>
               <div className="relative">
@@ -785,7 +786,7 @@ const BudgetList = () => {
                   placeholder="Search budgets..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-1.5 md:py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
                 {/* Indicador de búsqueda activa */}
                 {searchTerm && searchTerm !== debouncedSearchTerm && (
@@ -798,14 +799,14 @@ const BudgetList = () => {
 
             {/* Status Filter */}
             <div>
-              <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="status" className="block text-xs md:text-sm font-medium text-gray-700 mb-1.5">
                 Status
               </label>
               <select
                 id="status"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-1.5 md:py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="all">All Statuses</option>
                 <option value="draft">Draft</option>
@@ -823,14 +824,14 @@ const BudgetList = () => {
 
             {/* Month Filter */}
             <div>
-              <label htmlFor="month" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="month" className="block text-xs md:text-sm font-medium text-gray-700 mb-1.5">
                 Month
               </label>
               <select
                 id="month"
                 value={monthFilter}
                 onChange={(e) => setMonthFilter(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-1.5 md:py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="all">All Months</option>
                 <option value="0">January</option>
@@ -850,14 +851,14 @@ const BudgetList = () => {
 
             {/* Year Filter */}
             <div>
-              <label htmlFor="year" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="year" className="block text-xs md:text-sm font-medium text-gray-700 mb-1.5">
                 Year
               </label>
               <select
                 id="year"
                 value={yearFilter}
                 onChange={(e) => setYearFilter(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-1.5 md:py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="all">All Years</option>
                 <option value="2024">2024</option>
@@ -868,14 +869,14 @@ const BudgetList = () => {
           </div>
 
           {/* 🆕 BOTÓN EXPORTAR A EXCEL */}
-          {!isReadOnly && (
-            <div className="mt-4 flex justify-end">
+          {canExportExcel && (
+            <div className="mt-3 md:mt-4 flex justify-end">
               <button
                 onClick={handleExportToExcel}
                 title="Exporta los budgets según los filtros aplicados"
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 shadow-md hover:shadow-lg font-medium text-sm"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 shadow-md hover:shadow-lg font-medium text-sm"
               >
-                <ArrowDownTrayIcon className="h-5 w-5" />
+                <ArrowDownTrayIcon className="h-4 w-4" />
                 <span className="hidden sm:inline">Export to Excel</span>
                 <span className="sm:hidden">Export</span>
               </button>
@@ -888,39 +889,35 @@ const BudgetList = () => {
         {!loading && !error && (
           <>
             {/* Tabla optimizada para tablets/desktop */}
-            <div className="hidden md:block overflow-x-auto shadow-2xl rounded-2xl mb-8 max-w-full">
-              <div className="min-w-[1200px] lg:min-w-0">
-                <table className="w-full table-auto border-collapse bg-white rounded-2xl overflow-hidden">
+            <div className="hidden md:block overflow-x-auto shadow-2xl rounded-2xl mb-8">
+              <table className="w-full table-auto border-collapse bg-white rounded-2xl overflow-hidden text-xs">
                 <thead>
-                  <tr className="bg-blue-50 text-xs lg:text-sm text-blue-800 uppercase tracking-wider">
-                    <th className="border border-gray-200 px-4 py-3 text-left">
+                  <tr className="bg-blue-50 text-[10px] text-blue-800 uppercase tracking-tight">
+                    <th className="border border-gray-200 px-2 py-2 text-left whitespace-nowrap">
                       Applicant
                     </th>
-                    <th className="border border-gray-200 px-4 py-3 text-left">
+                    <th className="border border-gray-200 px-1.5 py-2 text-left whitespace-nowrap">
                       Date
                     </th>
-                    <th className="border border-gray-200 px-4 py-3 text-left">
+                    <th className="border border-gray-200 px-1.5 py-2 text-left whitespace-nowrap">
                       End Date
                     </th>
-                    <th className="border border-gray-200 px-4 py-3 text-right">
+                    <th className="border border-gray-200 px-2 py-2 text-right whitespace-nowrap">
                       Total Price
                     </th>
-                    <th className="border border-gray-200 px-4 py-3 text-right">
+                    <th className="border border-gray-200 px-2 py-2 text-right whitespace-nowrap">
                       Pay
                     </th>
-                    <th className="border border-gray-200 px-4 py-3 text-center">
+                    <th className="border border-gray-200 px-2 py-2 text-center whitespace-nowrap">
                       Status
                     </th>
-                    <th className="border border-gray-200 px-4 py-3 text-left">
+                    <th className="border border-gray-200 px-2 py-2 text-left whitespace-nowrap">
                       Address
                     </th>
-                    <th className="border border-gray-200 px-4 py-3 text-left">
-                      System
-                    </th>
-                    <th className="border border-gray-200 px-4 py-3 text-left">
+                    <th className="border border-gray-200 px-2 py-2 text-left whitespace-nowrap">
                       Notes
                     </th>
-                    <th className="border border-gray-200 px-4 py-3 text-center">
+                    <th className="border border-gray-200 px-2 py-2 text-center whitespace-nowrap">
                       Actions
                     </th>
                   </tr>
@@ -995,95 +992,91 @@ const BudgetList = () => {
                             budget
                           )}`}
                         >
-                          <td className="border border-gray-300 px-4 py-2 text-xs">
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">{budget.applicantName}</span>
+                          <td className="border border-gray-300 px-2 py-1.5 text-[11px]">
+                            <div className="flex flex-col gap-0.5">
+                              <div className="flex items-center gap-1">
+                                <span className="font-medium truncate max-w-[120px]">{budget.applicantName}</span>
                                 {permitExpirationAlertIcon}
                               </div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-1">
                                 {/* Badge: Draft o Invoice */}
                                 {isDraft ? (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-200 text-gray-700">
-                                    <DocumentCheckIcon className="h-3 w-3" />
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-gray-200 text-gray-700">
+                                    <DocumentCheckIcon className="h-2.5 w-2.5" />
                                     {displayNumber}
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-200 text-green-800">
-                                    <DocumentCheckIcon className="h-3 w-3" />
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-green-200 text-green-800">
+                                    <DocumentCheckIcon className="h-2.5 w-2.5" />
                                     {displayNumber}
                                   </span>
                                 )}
                               </div>
                             </div>
                           </td>
-                          <td className="border border-gray-300 px-4 py-2 text-xs">
+                          <td className="border border-gray-300 px-1.5 py-1.5 text-[11px] whitespace-nowrap">
                             {formatDate(budget.date)}
                           </td>
-                          <td className="border border-gray-300 px-4 py-2 text-xs">
+                          <td className="border border-gray-300 px-1.5 py-1.5 text-[11px] whitespace-nowrap">
                             {budget.expirationDate
                               ? formatDate(budget.expirationDate)
                               : "N/A"}
                           </td>
-                          <td className="border border-gray-300 px-4 py-2 text-xs text-right">
+                          <td className="border border-gray-300 px-2 py-1.5 text-[11px] text-right whitespace-nowrap">
                             ${budget.totalPrice}
                           </td>
-                          <td className="border border-gray-300 px-4 py-2 text-xs text-right">
+                          <td className="border border-gray-300 px-2 py-1.5 text-[11px] text-right whitespace-nowrap">
                             ${budget.initialPayment}
                           </td>
-                          <td className="border border-gray-300 px-4 py-2 text-xs text-center">
-                            {budget.status}
+                          <td className="border border-gray-300 px-1.5 py-1.5 text-[10px] text-center">
+                            <span className="px-1 py-0.5 rounded-full bg-opacity-20 whitespace-nowrap text-[9px]">
+                              {budget.status}
+                            </span>
                           </td>
-                          <td className="border border-gray-300 px-4 py-2 text-xs">
-                            {budget.propertyAddress || "N/A"}
+                          <td className="border border-gray-300 px-2 py-1.5 text-[11px] max-w-[150px]">
+                            <span 
+                              className="truncate block" 
+                              title={budget.propertyAddress || "N/A"}
+                            >
+                              {budget.propertyAddress || "N/A"}
+                            </span>
                           </td>
-                          <td className="border border-gray-300 px-4 py-2 text-xs">
-                            {" "}
-                            {budget.Permit?.systemType ||
-                              budget.systemType ||
-                              "N/A"}
-                          </td>
-                          <td className="border border-gray-300 px-4 py-2 text-xs align-top">
+                          <td className="border border-gray-300 px-2 py-1.5 text-[11px] align-top max-w-[120px]">
                             {editingBudgetId === budget.idBudget ? (
                               <div className="flex flex-col">
                                 <textarea
                                   value={currentNote}
                                   onChange={handleNoteChange}
-                                  className="w-full p-1 border rounded text-xs resize-y min-h-[50px]" // textarea en lugar de input
-                                  rows={3} // Altura inicial
-                                  disabled={isSavingNote} // Deshabilitar mientras guarda
+                                  className="w-full p-1 border rounded text-[10px] resize-y min-h-[40px]"
+                                  rows={2}
+                                  disabled={isSavingNote}
                                 />
-                                <div className="flex justify-end space-x-1 mt-1">
+                                <div className="flex justify-end space-x-1 mt-0.5">
                                   <button
                                     onClick={handleSaveNote}
                                     disabled={isSavingNote}
-                                    className="p-1 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
+                                    className="p-0.5 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
                                     title="Save Notes"
                                   >
                                     {isSavingNote ? (
-                                      <svg
-                                        className="animate-spin h-4 w-4 text-white" /* ... spinner ... */
-                                      ></svg>
+                                      <svg className="animate-spin h-3 w-3 text-white"></svg>
                                     ) : (
-                                      <CheckIcon className="h-4 w-4" />
+                                      <CheckIcon className="h-3 w-3" />
                                     )}
                                   </button>
                                   <button
                                     onClick={handleCancelEditNote}
                                     disabled={isSavingNote}
-                                    className="p-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
+                                    className="p-0.5 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
                                     title="Cancel Edit"
                                   >
-                                    <XMarkIcon className="h-4 w-4" />
+                                    <XMarkIcon className="h-3 w-3" />
                                   </button>
                                 </div>
                               </div>
                             ) : (
-                              // Modo Visualización
-                              <div className="flex justify-between items-start">
-                                <span className="whitespace-pre-wrap break-words max-w-[200px]">
-                                  {" "}
-                                  {/* Permitir saltos de línea y limitar ancho */}
+                              <div className="flex justify-between items-start gap-1">
+                                <span className="text-[10px] break-words flex-1 line-clamp-2">
                                   {budget.generalNotes || (
                                     <span className="text-gray-400 italic">
                                       No notes
@@ -1093,78 +1086,70 @@ const BudgetList = () => {
                                 <button
                                   onClick={() => handleEditNoteClick(budget)}
                                   disabled={isReadOnly}
-                                  className={`ml-2 p-1 ${
+                                  className={`p-0.5 flex-shrink-0 ${
                                     isReadOnly 
                                       ? 'text-gray-400 cursor-not-allowed' 
                                       : 'text-blue-600 hover:text-blue-800'
                                   }`}
                                   title={isReadOnly ? "View only - No edit permissions" : "Edit Notes"}
                                 >
-                                  <PencilIcon className="h-4 w-4" />
+                                  <PencilIcon className="h-3 w-3" />
                                 </button>
                               </div>
                             )}
                           </td>
                           {/* --- FIN CELDA DE NOTAS --- */}
-                          <td className="border border-gray-300 px-2 py-2">
-                            <div className="flex flex-row items-center justify-center gap-1.5">
-                              {" "}
-                              {/* Cambio: flex-row y gap-1.5 para mejor separación */}
+                          <td className="border border-gray-300 px-1.5 py-1.5">
+                            <div className="flex flex-row items-center justify-center gap-1">
                               {/* ESTADO: DRAFT - Solo enviar para revisión del cliente */}
                               {budget.status === "draft" && (
-                                <div className="flex flex-col gap-1 w-full min-w-[100px]">
-                                  {/* Botón: Enviar para Revisión del Cliente */}
+                                <div className="flex flex-col gap-0.5 w-full">
                                   <button
                                     onClick={() => handleSendForReview(budget)}
                                     disabled={isReadOnly}
-                                    className={`inline-flex items-center justify-center px-3 py-1.5 rounded text-[10px] font-medium w-full shadow-sm ${
+                                    className={`inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm ${
                                       isReadOnly 
                                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
                                         : 'bg-blue-500 text-white hover:bg-blue-600'
                                     }`}
                                     title={isReadOnly ? "View only - No edit permissions" : "Send for Client Review"}
                                   >
-                                    📧 Send Quote
+                                    📧 Send
                                   </button>
                                 </div>
                               )}
                               
                               {/* ESTADO: CREATED (Invoice convertido después de aprobación) */}
                               {((budget.status === "created" || budget.status === "client_approved") && !isDraft) && (
-                                <div className="flex flex-col gap-1 w-full min-w-[100px]">
-                                  <p className="text-green-700 text-[10px] font-semibold bg-green-100 px-2 py-1 rounded leading-tight text-center">
-                                    ✅ Approved
+                                <div className="flex flex-col gap-0.5 w-full">
+                                  <p className="text-green-700 text-[10px] font-semibold bg-green-100 px-1.5 py-0.5 rounded text-center">
+                                    ✅ Ready
                                   </p>
-                                  {/* Botón: Send to SignNow (para firma y pago) */}
                                   <button
                                     onClick={() => handleSendToSignNow(budget)}
                                     disabled={isReadOnly}
-                                    className={`inline-flex items-center justify-center px-3 py-1.5 rounded text-[10px] font-medium w-full shadow-sm ${
+                                    className={`inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm ${
                                       isReadOnly 
                                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
                                         : 'bg-purple-500 text-white hover:bg-purple-600'
                                     }`}
                                     title={isReadOnly ? "View only - No edit permissions" : "Send to SignNow for Signature & Payment"}
                                   >
-                                    📝 Send SignNow
+                                    📝 Sign
                                   </button>
                                 </div>
                               )}
                               
                               {/* 🆕 ESTADO: PENDING_REVIEW - Esperando aprobación del cliente */}
                               {budget.status === "pending_review" && (
-                                <div className="flex flex-col gap-1 w-full">
-                                  <p className="text-blue-700 text-[10px] font-semibold bg-blue-100 px-1 py-0.5 rounded leading-tight text-center">
-                                    📧 In Review
+                                <div className="flex flex-col gap-0.5 w-full">
+                                  <p className="text-blue-700 text-[10px] font-semibold bg-blue-100 px-1.5 py-0.5 rounded text-center">
+                                    📧 Review
                                   </p>
-                                  <p className="text-gray-600 text-[8px] text-center">
-                                    Awaiting client
-                                  </p>
-                                  {/* 🆕 Botón: Reenviar presupuesto editado */}
                                   <button
                                     onClick={() => handleResendBudget(budget)}
                                     disabled={isReadOnly}
-                                    className={`inline-flex items-center justify-center px-1 py-0.5 rounded text-[8px] w-16 h-5 ${
+                                    className={`inline-flex items-center justify-center px-2 py-1 rounded text-[10px] ${
                                       isReadOnly 
                                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
                                         : 'bg-orange-500 text-white hover:bg-orange-600'
@@ -1178,57 +1163,44 @@ const BudgetList = () => {
                               
                               {/* 🆕 ESTADO: CLIENT_APPROVED - Cliente aprobó, ya convertido a Invoice automáticamente */}
                               {budget.status === "client_approved" && (
-                                <div className="flex flex-col gap-1 w-full min-w-[100px]">
-                                  <p className="text-green-700 text-[10px] font-semibold bg-green-100 px-2 py-1 rounded leading-tight text-center">
-                                    ✅ Approved
+                                <div className="flex flex-col gap-0.5 w-full">
+                                  <p className="text-green-700 text-[10px] font-semibold bg-green-100 px-1.5 py-0.5 rounded text-center">
+                                    ✅ OK
                                   </p>
                                   
-                                  {/* Botón: Send to SignNow (para firma y pago) */}
                                   <button
                                     onClick={() => handleSendToSignNow(budget)}
                                     disabled={isReadOnly}
-                                    className={`inline-flex items-center justify-center px-3 py-1.5 rounded text-[10px] font-medium w-full shadow-sm ${
+                                    className={`inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm ${
                                       isReadOnly 
                                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
                                         : 'bg-purple-500 text-white hover:bg-purple-600'
                                     }`}
                                     title={isReadOnly ? "View only - No edit permissions" : "Send to SignNow for Signature & Payment"}
                                   >
-                                    📝 SignNow
+                                    📝 Sign
                                   </button>
                                 </div>
                               )}
                               
                               {/* ESTADO: SEND - Estado + botón reject + resend */}
                               {budget.status === "send" && (
-                                <div className="flex flex-col gap-1 w-full min-w-[100px]">
-                                  <div className="text-center">
-                                    <p className="text-yellow-700 text-[10px] font-semibold bg-yellow-100 px-2 py-1 rounded leading-tight">
-                                      Sent
-                                    </p>
-                                    {budget.paymentInvoice ? (
-                                      <p className="text-green-600 text-[8px] font-semibold mt-0.5">
-                                        ✓ Invoice
-                                      </p>
-                                    ) : (
-                                      <p className="text-orange-600 text-[8px] font-semibold mt-0.5">
-                                        ⚠ Invoice
-                                      </p>
-                                    )}
-                                  </div>
-                                  <div className="flex gap-1">
-                                    {/* 🆕 Botón: Reenviar */}
+                                <div className="flex flex-col gap-0.5 w-full">
+                                  <p className="text-yellow-700 text-[10px] font-semibold bg-yellow-100 px-1.5 py-0.5 rounded text-center">
+                                    📤 Sent
+                                  </p>
+                                  <div className="flex gap-0.5">
                                     <button
                                       onClick={() => handleResendBudget(budget)}
                                       disabled={isReadOnly}
-                                      className={`inline-flex items-center justify-center px-2 py-1.5 rounded text-[10px] font-medium flex-1 shadow-sm ${
+                                      className={`inline-flex items-center justify-center px-1.5 py-1 rounded text-[9px] font-medium flex-1 shadow-sm ${
                                         isReadOnly 
                                           ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
                                           : 'bg-orange-500 text-white hover:bg-orange-600'
                                       }`}
                                       title={isReadOnly ? "View only - No edit permissions" : "Resend updated budget"}
                                     >
-                                      🔄 Resend
+                                      🔄
                                     </button>
                                     <button
                                       onClick={() =>
@@ -1239,23 +1211,23 @@ const BudgetList = () => {
                                         )
                                       }
                                       disabled={isReadOnly}
-                                      className={`inline-flex items-center justify-center px-2 py-1.5 rounded text-[10px] font-medium shadow-sm ${
+                                      className={`inline-flex items-center justify-center px-1.5 py-1 rounded text-[9px] font-medium flex-1 shadow-sm ${
                                         isReadOnly 
                                           ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
                                           : 'bg-red-500 text-white hover:bg-red-600'
                                       }`}
                                       title={isReadOnly ? "View only - No edit permissions" : "Reject Budget"}
                                     >
-                                      Reject
+                                      ✗
                                     </button>
                                   </div>
                                 </div>
                               )}
                               {/* ESTADO: SENT_FOR_SIGNATURE - Estado + botón reject horizontalmente */}
                               {budget.status === "sent_for_signature" && (
-                                <div className="flex flex-col gap-1 w-full min-w-[100px]">
-                                  <p className="text-blue-700 text-[10px] font-semibold bg-blue-100 px-2 py-1 rounded text-center leading-tight">
-                                    To Sign
+                                <div className="flex flex-col gap-0.5 w-full">
+                                  <p className="text-blue-700 text-[10px] font-semibold bg-blue-100 px-1.5 py-0.5 rounded text-center">
+                                    ✍️ Signing
                                   </p>
                                   <button
                                     onClick={() =>
@@ -1266,44 +1238,43 @@ const BudgetList = () => {
                                       )
                                     }
                                     disabled={isReadOnly}
-                                    className={`inline-flex items-center justify-center px-3 py-1.5 rounded text-[10px] font-medium w-full shadow-sm ${
+                                    className={`inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm ${
                                       isReadOnly 
                                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
                                         : 'bg-red-500 text-white hover:bg-red-600'
                                     }`}
                                     title={isReadOnly ? "View only - No edit permissions" : "Reject Budget"}
                                   >
-                                    Reject
+                                    ✗ Reject
                                   </button>
                                 </div>
                               )}
                               {/* ESTADO: APPROVED */}
                               {budget.status === "approved" && (
-                                <div className="w-full min-w-[100px]">
-                                  <p className="text-green-700 text-[10px] font-semibold bg-green-100 px-2 py-1.5 rounded text-center leading-tight">
-                                    Approved
+                                <div className="w-full">
+                                  <p className="text-green-700 text-[10px] font-semibold bg-green-100 px-1.5 py-1 rounded text-center whitespace-nowrap">
+                                    ✓ Approved
                                   </p>
                                 </div>
                               )}
                               {/* ESTADO: SIGNED (incluye firma manual) */}
                               {(budget.status === "signed" || (budget.signatureMethod === 'manual' && budget.manualSignedPdfPath)) && (
-                                <div className="w-full min-w-[100px]">
-                                  <p className="text-green-800 text-[10px] font-semibold bg-green-200 px-2 py-1.5 rounded text-center leading-tight">
-                                    Signed
+                                <div className="w-full">
+                                  <p className="text-green-800 text-[10px] font-semibold bg-green-200 px-1.5 py-1 rounded text-center whitespace-nowrap">
+                                    ✓ Signed
                                   </p>
                                 </div>
                               )}
                               {/* ESTADO: REJECTED - Puede reenviarse para revisión */}
                               {budget.status === "rejected" && (
-                                <div className="flex flex-col gap-1 w-full min-w-[100px]">
-                                  <p className="text-red-700 text-[10px] font-semibold bg-red-100 px-2 py-1 rounded text-center leading-tight">
-                                    ❌ Rejected
+                                <div className="flex flex-col gap-0.5 w-full">
+                                  <p className="text-red-700 text-[10px] font-semibold bg-red-100 px-1.5 py-0.5 rounded text-center">
+                                    ✗ Rejected
                                   </p>
-                                  {/* Botón: Reenviar para Revisión */}
                                   <button
                                     onClick={() => handleResendBudget(budget)}
                                     disabled={isReadOnly}
-                                    className={`inline-flex items-center justify-center px-3 py-1.5 rounded text-[10px] font-medium w-full shadow-sm ${
+                                    className={`inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm ${
                                       isReadOnly 
                                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
                                         : 'bg-blue-500 text-white hover:bg-blue-600'
@@ -1316,9 +1287,9 @@ const BudgetList = () => {
                               )}
                               {/* ESTADO: NOT RESPONDED - Estado + botón reject horizontalmente */}
                               {budget.status === "notResponded" && (
-                                <div className="flex flex-col gap-1 w-full min-w-[100px]">
-                                  <p className="text-orange-700 text-[10px] font-semibold bg-orange-100 px-2 py-1 rounded text-center leading-tight">
-                                    No Response
+                                <div className="flex flex-col gap-0.5 w-full">
+                                  <p className="text-orange-700 text-[10px] font-semibold bg-orange-100 px-1.5 py-0.5 rounded text-center">
+                                    ⏳ Waiting
                                   </p>
                                   <button
                                     onClick={() =>
@@ -1329,20 +1300,20 @@ const BudgetList = () => {
                                       )
                                     }
                                     disabled={isReadOnly}
-                                    className={`inline-flex items-center justify-center px-3 py-1.5 rounded text-[10px] font-medium w-full shadow-sm ${
+                                    className={`inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm ${
                                       isReadOnly 
                                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
                                         : 'bg-red-500 text-white hover:bg-red-600'
                                     }`}
                                     title={isReadOnly ? "View only - No edit permissions" : "Reject Budget"}
                                   >
-                                    Reject
+                                    ✗ Reject
                                   </button>
                                 </div>
                               )}
                               {/* Separador visual si hay PDFs */}
                               {hasBudgetPdfItself && (
-                                <div className="border-l border-gray-300 h-8 mx-1"></div>
+                                <div className="border-l border-gray-300 h-6 mx-0.5"></div>
                               )}
                               {/* Botones PDF horizontalmente */}
                               {hasBudgetPdfItself && (
@@ -1352,12 +1323,12 @@ const BudgetList = () => {
                                       handleViewPdf(budget.idBudget)
                                     }
                                     disabled={viewingPdfId === budget.idBudget}
-                                    className="inline-flex items-center justify-center bg-teal-600 text-white p-1.5 rounded hover:bg-teal-700 disabled:opacity-50 shadow-sm"
+                                    className="inline-flex items-center justify-center bg-teal-600 text-white p-1 rounded hover:bg-teal-700 disabled:opacity-50 shadow-sm"
                                     title="View Budget PDF"
                                   >
                                     {viewingPdfId === budget.idBudget ? (
                                       <svg
-                                        className="animate-spin h-4 w-4"
+                                        className="animate-spin h-3 w-3"
                                         viewBox="0 0 24 24"
                                       >
                                         <circle
@@ -1375,7 +1346,7 @@ const BudgetList = () => {
                                         ></path>
                                       </svg>
                                     ) : (
-                                      <EyeIcon className="h-4 w-4" />
+                                      <EyeIcon className="h-3 w-3" />
                                     )}
                                   </button>
 
@@ -1389,12 +1360,12 @@ const BudgetList = () => {
                                     disabled={
                                       downloadingPdfId === budget.idBudget
                                     }
-                                    className="inline-flex items-center justify-center bg-blue-600 text-white p-1.5 rounded hover:bg-blue-700 disabled:opacity-50 shadow-sm"
+                                    className="inline-flex items-center justify-center bg-blue-600 text-white p-1 rounded hover:bg-blue-700 disabled:opacity-50 shadow-sm"
                                     title="Download Budget PDF"
                                   >
                                     {downloadingPdfId === budget.idBudget ? (
                                       <svg
-                                        className="animate-spin h-4 w-4"
+                                        className="animate-spin h-3 w-3"
                                         viewBox="0 0 24 24"
                                       >
                                         <circle
@@ -1412,7 +1383,7 @@ const BudgetList = () => {
                                         ></path>
                                       </svg>
                                     ) : (
-                                      <DocumentArrowDownIcon className="h-4 w-4" />
+                                      <DocumentArrowDownIcon className="h-3 w-3" />
                                     )}
                                   </button>
                                 </>
@@ -1430,13 +1401,13 @@ const BudgetList = () => {
                                     isLoadingPdfInModal ===
                                     `${budget.idBudget}-pdfData`
                                   }
-                                  className="inline-flex items-center justify-center bg-indigo-600 text-white p-1.5 rounded hover:bg-indigo-700 disabled:opacity-50 shadow-sm"
+                                  className="inline-flex items-center justify-center bg-indigo-600 text-white p-1 rounded hover:bg-indigo-700 disabled:opacity-50 shadow-sm"
                                   title="View Permit PDF"
                                 >
                                   {isLoadingPdfInModal ===
                                   `${budget.idBudget}-pdfData` ? (
                                     <svg
-                                      className="animate-spin h-4 w-4"
+                                      className="animate-spin h-3 w-3"
                                       viewBox="0 0 24 24"
                                     >
                                       <circle
@@ -1454,7 +1425,7 @@ const BudgetList = () => {
                                       ></path>
                                     </svg>
                                   ) : (
-                                    <PaperClipIcon className="h-4 w-4" />
+                                    <PaperClipIcon className="h-3 w-3" />
                                   )}
                                 </button>
                               )}
@@ -1470,13 +1441,13 @@ const BudgetList = () => {
                                     isLoadingPdfInModal ===
                                     `${budget.idBudget}-optionalDocs`
                                   }
-                                  className="inline-flex items-center justify-center bg-purple-600 text-white p-1.5 rounded hover:bg-purple-700 disabled:opacity-50 shadow-sm"
+                                  className="inline-flex items-center justify-center bg-purple-600 text-white p-1 rounded hover:bg-purple-700 disabled:opacity-50 shadow-sm"
                                   title="View Optional Docs"
                                 >
                                   {isLoadingPdfInModal ===
                                   `${budget.idBudget}-optionalDocs` ? (
                                     <svg
-                                      className="animate-spin h-4 w-4"
+                                      className="animate-spin h-3 w-3"
                                       viewBox="0 0 24 24"
                                     >
                                       <circle
@@ -1506,16 +1477,16 @@ const BudgetList = () => {
                                     handleViewLegacyBudgetPdf(budget.idBudget, budget.legacySignedPdfUrl)
                                   }
                                   disabled={viewingPdfId === budget.idBudget}
-                                  className="inline-flex items-center justify-center bg-amber-600 text-white p-1.5 rounded hover:bg-amber-700 disabled:opacity-50 shadow-sm"
+                                  className="inline-flex items-center justify-center bg-amber-600 text-white p-1 rounded hover:bg-amber-700 disabled:opacity-50 shadow-sm"
                                   title="Ver PDF Legacy"
                                 >
                                   {viewingPdfId === budget.idBudget ? (
-                                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                    <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
                                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
                                   ) : (
-                                    <DocumentArrowDownIcon className="h-4 w-4" />
+                                    <DocumentArrowDownIcon className="h-3 w-3" />
                                   )}
                                 </button>
                               )}
@@ -1524,14 +1495,14 @@ const BudgetList = () => {
                               <button
                                 onClick={() => handleEditClientData(budget.idBudget)}
                                 disabled={isReadOnly}
-                                className={`inline-flex items-center justify-center p-1.5 rounded shadow-sm ${
+                                className={`inline-flex items-center justify-center p-1 rounded shadow-sm ${
                                   isReadOnly 
                                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
                                     : 'bg-indigo-600 text-white hover:bg-indigo-700'
                                 }`}
                                 title={isReadOnly ? "View only - No edit permissions" : "Edit Client Data"}
                               >
-                                <UserIcon className="h-4 w-4" />
+                                <UserIcon className="h-3 w-3" />
                               </button>
                             </div>
                           </td>
@@ -1540,7 +1511,6 @@ const BudgetList = () => {
                     })}
                 </tbody>
               </table>
-              </div>
             </div>
 
             {/* Vista de cards optimizada para tablet/móvil */}
@@ -1973,7 +1943,7 @@ const BudgetList = () => {
                               </div>
                             )}
 
-                            /* Botones de PDF (usando grid para mejor distribución si hay varios) */
+                           
                             {(hasBudgetPdfItself ||
                               hasLegacyBudgetPdf ||
                               (permitId &&
@@ -2220,22 +2190,22 @@ const BudgetList = () => {
             </div>
 
             {/* Paginación - Mobile */}
-            <div className="md:hidden mt-6 pb-4">
-              <div className="flex items-center justify-between px-4">
+            <div className="md:hidden mt-4 pb-4">
+              <div className="flex items-center justify-between px-2">
                 <button
                   onClick={() => handlePageChange(page - 1)}
                   disabled={page === 1}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
+                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
                 >
                   Previous
                 </button>
-                <span className="text-sm text-gray-700">
+                <span className="text-xs text-gray-700">
                   Page {page} of {totalPages}
                 </span>
                 <button
                   onClick={() => handlePageChange(page + 1)}
                   disabled={page === totalPages}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
+                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
                 >
                   Next
                 </button>
@@ -2243,9 +2213,9 @@ const BudgetList = () => {
             </div>
 
             {/* Paginación - Desktop */}
-            <div className="hidden md:flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pb-4 px-4">
+            <div className="hidden md:flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 pb-4 px-2">
               {/* Info de resultados */}
-              <div className="text-sm text-gray-700">
+              <div className="text-xs md:text-sm text-gray-700">
                 Showing{" "}
                 <span className="font-medium">
                   {totalRecords === 0 ? 0 : (page - 1) * pageSize + 1}
@@ -2258,11 +2228,11 @@ const BudgetList = () => {
               </div>
 
               {/* Controles de paginación */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => handlePageChange(page - 1)}
                   disabled={page === 1}
-                  className="px-3 py-1 bg-white border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                  className="px-2.5 py-1 text-sm bg-white border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
                 >
                   Previous
                 </button>
@@ -2311,7 +2281,7 @@ const BudgetList = () => {
                       <button
                         key={`page-${num}`}
                         onClick={() => handlePageChange(num)}
-                        className={`px-3 py-1 rounded-lg transition-colors ${
+                        className={`px-2.5 py-1 text-sm rounded-lg transition-colors ${
                           page === num
                             ? 'bg-blue-600 text-white'
                             : 'bg-white border border-gray-300 hover:bg-gray-50'
@@ -2326,7 +2296,7 @@ const BudgetList = () => {
                 <button
                   onClick={() => handlePageChange(page + 1)}
                   disabled={page === totalPages}
-                  className="px-3 py-1 bg-white border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                  className="px-2.5 py-1 text-sm bg-white border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
                 >
                   Next
                 </button>
@@ -2334,14 +2304,14 @@ const BudgetList = () => {
 
               {/* Selector de tamaño de página */}
               <div className="flex items-center gap-2">
-                <label htmlFor="pageSize" className="text-sm text-gray-700">
+                <label htmlFor="pageSize" className="text-xs md:text-sm text-gray-700">
                   Show:
                 </label>
                 <select
                   id="pageSize"
                   value={pageSize}
                   onChange={handlePageSizeChange}
-                  className="px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="px-2.5 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value={5}>5</option>
                   <option value={10}>10</option>

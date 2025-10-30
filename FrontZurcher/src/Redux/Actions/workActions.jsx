@@ -352,6 +352,35 @@ export const deleteChangeOrder = (changeOrderId) => async (dispatch, getState) =
   }
 };
 
+// 🆕 Aprobación Manual de Change Order
+export const approveChangeOrderManually = (changeOrderId, approvalData) => async (dispatch, getState) => {
+  const { token } = getState().auth;
+
+  if (!changeOrderId) {
+    console.error('[WorkActions] approveChangeOrderManually - CRITICAL: changeOrderId is undefined.');
+    return { error: true, message: 'ID de la Orden de Cambio es indefinido.' };
+  }
+
+  try {
+    const config = {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+    };
+    
+    const response = await api.post(`/change-orders/${changeOrderId}/manual-approval`, approvalData, config);
+    
+    console.log('[WorkActions] approveChangeOrderManually - Success:', response.data);
+    return response.data;
+
+  } catch (error) {
+    const errorMessage = error.response?.data?.message || error.message || 'Error al aprobar manualmente la Orden de Cambio.';
+    console.error('[WorkActions] approveChangeOrderManually - Error:', error.response || error);
+    return { error: true, message: errorMessage, details: error.response?.data?.details };
+  }
+};
+
 //images front 
 export const addImagesToWork = (idWork, formData) => async (dispatch) => {
   dispatch(addImagesRequest());

@@ -4922,32 +4922,71 @@ async optionalDocs(req, res) {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Budgets');
 
-      // Configurar columnas con ancho adecuado (optimizado para impresión)
+      // 🆕 Configurar propiedades del workbook para mejor compatibilidad
+      workbook.creator = 'Zurcher Construction';
+      workbook.lastModifiedBy = 'Zurcher System';
+      workbook.created = new Date();
+      workbook.modified = new Date();
+
+      // 🆕 Configurar propiedades de impresión de la hoja
+      worksheet.pageSetup = {
+        paperSize: 9, // A4
+        orientation: 'landscape', // Horizontal para más columnas
+        fitToPage: true,
+        fitToWidth: 1,
+        fitToHeight: 0, // Permite múltiples páginas verticales
+        margins: {
+          left: 0.25, top: 0.25, right: 0.25, bottom: 0.25,
+          header: 0.3, footer: 0.3
+        }
+      };
+
+      // Configurar columnas con ancho optimizado (ajustado para mejor visualización)
       worksheet.columns = [
-        { header: 'ID/INVOICE', key: 'identifier', width: 15 },
-        { header: 'FECHA CREACIÓN', key: 'date', width: 15 },
+        { header: 'ID/INVOICE', key: 'identifier', width: 16 },
+        { header: 'FECHA CREACIÓN', key: 'date', width: 13 },
         { header: 'FECHA EXPIRACIÓN', key: 'expirationDate', width: 15 },
-        { header: 'CLIENTE', key: 'applicantName', width: 25 },
-        { header: 'EMAIL', key: 'email', width: 30 },
-        { header: 'TELÉFONO', key: 'phone', width: 15 },
-        { header: 'DIRECCIÓN', key: 'propertyAddress', width: 40 },
+        { header: 'CLIENTE', key: 'applicantName', width: 20 },
+        { header: 'EMAIL', key: 'email', width: 25 },
+        { header: 'TELÉFONO', key: 'phone', width: 13 },
+        { header: 'DIRECCIÓN', key: 'propertyAddress', width: 32 },
         { header: 'SISTEMA', key: 'systemType', width: 20 },
-        { header: 'PRECIO TOTAL', key: 'totalPrice', width: 15 },
-        { header: 'PAGO INICIAL', key: 'initialPayment', width: 15 },
-        { header: 'NOTAS', key: 'generalNotes', width: 40 }
+        { header: 'PRECIO TOTAL', key: 'totalPrice', width: 12 },
+        { header: 'PAGO INICIAL', key: 'initialPayment', width: 12 },
+        { header: 'NOTAS', key: 'generalNotes', width: 30 }
       ];
 
-      // Estilizar encabezado
-      worksheet.getRow(1).font = { bold: true, size: 12 };
-      worksheet.getRow(1).fill = {
+      // 🆕 Mejorar estilización del encabezado
+      const headerRow = worksheet.getRow(1);
+      headerRow.height = 22; // Altura un poco más compacta
+      headerRow.font = { 
+        bold: true, 
+        size: 8, // Reducido de 11 a 10
+        color: { argb: 'FFFFFFFF' },
+        name: 'Arial' // Fuente universal
+      };
+      headerRow.fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: 'FF4472C4' }
+        fgColor: { argb: 'FF4472C4' } // Azul
       };
-      worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-      worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+      headerRow.alignment = { 
+        vertical: 'middle', 
+        horizontal: 'center',
+        wrapText: true // Permite wrap en encabezados
+      };
+      
+      // 🆕 Agregar bordes al encabezado
+      headerRow.eachCell({ includeEmpty: true }, (cell) => {
+        cell.border = {
+          top: { style: 'medium', color: { argb: 'FF000000' } },
+          left: { style: 'medium', color: { argb: 'FF000000' } },
+          bottom: { style: 'medium', color: { argb: 'FF000000' } },
+          right: { style: 'medium', color: { argb: 'FF000000' } }
+        };
+      });
 
-      // Agregar datos (solo campos esenciales)
+      // Agregar datos con formato mejorado
       budgets.forEach((budget, index) => {
         // Determinar identificador: invoice number si existe, sino idBudget
         const identifier = budget.invoiceNumber 
@@ -4977,10 +5016,34 @@ async optionalDocs(req, res) {
           phone: budget.Permit?.applicantPhone || 'N/A',
           propertyAddress: (budget.propertyAddress || budget.Permit?.propertyAddress || 'N/A').toUpperCase(),
           systemType: (budget.Permit?.systemType || 'N/A').toUpperCase(),
-          totalPrice: budget.totalPrice ? `$${parseFloat(budget.totalPrice).toFixed(2)}` : '$0.00',
-          initialPayment: budget.initialPayment ? `$${parseFloat(budget.initialPayment).toFixed(2)}` : '$0.00',
+          totalPrice: budget.totalPrice ? parseFloat(budget.totalPrice) : 0,
+          initialPayment: budget.initialPayment ? parseFloat(budget.initialPayment) : 0,
           generalNotes: (budget.generalNotes || '').toUpperCase()
         });
+
+        // 🆕 Configurar altura mínima y fuente para mejor legibilidad
+        row.height = 22; // Altura mínima con espacio para respirar
+        row.font = { 
+          size: 8, // Tamaño compacto pero legible
+          name: 'Arial' // Fuente universal
+        };
+
+        // 🆕 Aplicar alineación con padding para mejor legibilidad
+        row.getCell('identifier').alignment = { vertical: 'middle', horizontal: 'center', indent: 1 };
+        row.getCell('date').alignment = { vertical: 'middle', horizontal: 'center', indent: 1 };
+        row.getCell('expirationDate').alignment = { vertical: 'middle', horizontal: 'center', indent: 1 };
+        row.getCell('applicantName').alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+        row.getCell('email').alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+        row.getCell('phone').alignment = { vertical: 'middle', horizontal: 'center', indent: 1 };
+        row.getCell('propertyAddress').alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
+        row.getCell('systemType').alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+        row.getCell('totalPrice').alignment = { vertical: 'middle', horizontal: 'right', indent: 1 };
+        row.getCell('initialPayment').alignment = { vertical: 'middle', horizontal: 'right', indent: 1 };
+        row.getCell('generalNotes').alignment = { vertical: 'middle', horizontal: 'left', wrapText: true, indent: 1 };
+
+        // 🆕 Formatear columnas de precios con formato de moneda
+        row.getCell('totalPrice').numFmt = '"$"#,##0.00';
+        row.getCell('initialPayment').numFmt = '"$"#,##0.00';
 
         // Colorear fila según estado
         let fillColor = 'FFFFFFFF'; // Blanco por defecto
@@ -5000,28 +5063,22 @@ async optionalDocs(req, res) {
             break;
         }
 
-        row.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: fillColor }
-        };
-
-        // Alternar color de fila para mejor legibilidad
-        if (index % 2 === 0) {
-          row.eachCell({ includeEmpty: true }, (cell) => {
-            if (fillColor === 'FFFFFFFF') {
-              cell.fill = {
-                type: 'pattern',
-                pattern: 'solid',
-                fgColor: { argb: 'FFF8F9FA' }
-              };
-            }
-          });
+        // Alternar color de fila para mejor legibilidad (solo si es blanco)
+        if (index % 2 === 0 && fillColor === 'FFFFFFFF') {
+          fillColor = 'FFF8F9FA'; // Gris muy claro
         }
+
+        row.eachCell({ includeEmpty: true }, (cell) => {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: fillColor }
+          };
+        });
       });
 
-      // Aplicar bordes a todas las celdas
-      worksheet.eachRow({ includeEmpty: false }, (row) => {
+      // 🆕 Aplicar bordes consistentes a todas las celdas con datos
+      worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
         row.eachCell({ includeEmpty: true }, (cell) => {
           cell.border = {
             top: { style: 'thin', color: { argb: 'FFD3D3D3' } },
@@ -5031,6 +5088,24 @@ async optionalDocs(req, res) {
           };
         });
       });
+
+      // 🆕 Agregar autofiltro al encabezado (útil en Excel, Google Sheets, etc.)
+      if (budgets.length > 0) {
+        worksheet.autoFilter = {
+          from: { row: 1, column: 1 },
+          to: { row: 1, column: 11 }
+        };
+      }
+
+      // 🆕 Congelar fila de encabezado para navegación fácil
+      worksheet.views = [
+        { 
+          state: 'frozen', 
+          xSplit: 0, 
+          ySplit: 1, // Congela la primera fila
+          activeCell: 'A2'
+        }
+      ];
 
       // Generar nombre de archivo con fecha y filtros aplicados
       let fileNameParts = ['Budgets'];

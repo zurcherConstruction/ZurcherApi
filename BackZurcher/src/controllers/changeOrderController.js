@@ -1,4 +1,4 @@
-const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, ChangeOrder } = require('../data');
+const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, ChangeOrder, WorkNote } = require('../data');
 const { sendEmail } = require('../utils/notifications/emailService');
 const path = require('path');
 const { generateAndSaveChangeOrderPDF } = require('../utils/pdfGenerators');
@@ -121,6 +121,29 @@ const recordOrUpdateChangeOrderDetails = async (req, res) => {
     const finalChangeOrder = await ChangeOrder.findByPk(changeOrder.id, {
         include: [{ model: Work, as: 'work' }] 
     });
+
+    // 🆕 Crear nota automática si es un nuevo CO
+    if (isNew && finalChangeOrder) {
+      try {
+        const coNumber = finalChangeOrder.changeOrderNumber || finalChangeOrder.id.substring(0, 8);
+        const coAmount = finalChangeOrder.totalCost ? `$${parseFloat(finalChangeOrder.totalCost).toFixed(2)}` : 'monto pendiente';
+        
+        await WorkNote.create({
+          workId: workIdFromParams,
+          staffId: req.user?.id || null,
+          message: `Change Order #${coNumber} creado - ${finalChangeOrder.description} (${coAmount})`,
+          noteType: 'progress',
+          priority: 'medium',
+          relatedStatus: null,
+          isResolved: false,
+          mentionedStaffIds: []
+        });
+        console.log(`✅ WorkNote creado para nuevo Change Order #${coNumber}`);
+      } catch (noteError) {
+        console.error('⚠️ Error al crear WorkNote para Change Order:', noteError);
+        // No fallar la request si falla la nota
+      }
+    }
 
     res.status(isNew ? 201 : 200).json({
       message: `Change Order ${isNew ? 'creado' : 'actualizado'} exitosamente. Estado: ${finalChangeOrder.status}`,
@@ -660,9 +683,31 @@ const handleClientChangeOrderResponse = async (req, res) => {
       // Step 1: Mark as 'approved'
       changeOrder.status = 'approved';
       changeOrder.respondedAt = new Date();
+      changeOrder.approvalMethod = 'email'; // 🆕 Marcar como aprobación por email
       changeOrder.approvalToken = null;
       changeOrder.rejectionToken = null;
       await changeOrder.save();
+
+      // 🆕 Crear nota automática de aprobación por email
+      try {
+        const coNumber = changeOrder.changeOrderNumber || changeOrder.id.substring(0, 8);
+        const coAmount = changeOrder.totalCost ? `$${parseFloat(changeOrder.totalCost).toFixed(2)}` : 'monto pendiente';
+        const clientName = changeOrder.work?.Permit?.applicantName || changeOrder.work?.budget?.applicantName || 'Cliente';
+        
+        await WorkNote.create({
+          workId: changeOrder.workId,
+          staffId: null, // Aprobación del cliente, no de staff
+          message: `Change Order #${coNumber} APROBADO POR EMAIL - ${changeOrder.description} (${coAmount}) - Cliente: ${clientName}`,
+          noteType: 'client_contact',
+          priority: 'high',
+          relatedStatus: null,
+          isResolved: true,
+          mentionedStaffIds: []
+        });
+        console.log(`✅ WorkNote creado para aprobación por email de CO #${coNumber}`);
+      } catch (noteError) {
+        console.error('⚠️ Error al crear WorkNote para aprobación por email:', noteError);
+      }
 
       // Internal notification of APPROVAL (in English, with more details)
       try {
@@ -846,11 +891,125 @@ const deleteChangeOrder = async (req, res) => {
   }
 };
 
-module.exports = {
+/**
+ * 🆕 Aprobación Manual de Change Order
+ * Permite registrar la aprobación verbal/telefónica del cliente
+ */
+const approveChangeOrderManually = async (req, res) => {
+  try {
+    const { changeOrderId } = req.params;
+    const { 
+      clientNotifiedAt,           // Fecha/hora en que se llamó al cliente
+      clientNotificationMethod,   // ej: "Teléfono", "Presencial", "WhatsApp"
+      manualApprovalNotes,        // Notas detalladas: "Cliente llamado el 29/10/2025 a las 14:30..."
+    } = req.body;
 
+    // Validaciones
+    if (!clientNotificationMethod) {
+      return res.status(400).json({ 
+        error: true, 
+        message: 'Se requiere especificar el método de notificación al cliente.' 
+      });
+    }
+
+    if (!manualApprovalNotes) {
+      return res.status(400).json({ 
+        error: true, 
+        message: 'Se requieren notas sobre la aprobación manual (día, hora, detalles de la llamada).' 
+      });
+    }
+
+    // Buscar el Change Order
+    const changeOrder = await ChangeOrder.findByPk(changeOrderId, {
+      include: [{ model: Work, as: 'work' }]
+    });
+
+    if (!changeOrder) {
+      return res.status(404).json({ error: true, message: 'Change Order no encontrado.' });
+    }
+
+    // Validar que esté en un estado apropiado para aprobación manual
+    const validStates = ['draft', 'pendingAdminReview', 'pendingClientApproval'];
+    if (!validStates.includes(changeOrder.status)) {
+      return res.status(400).json({
+        error: true,
+        message: `No se puede aprobar manualmente un Change Order en estado '${changeOrder.status}'. Estados válidos: draft, pendingAdminReview, pendingClientApproval.`
+      });
+    }
+
+    // Obtener información del usuario que aprueba (si está autenticado)
+    const approvedBy = req.user ? `${req.user.firstName} ${req.user.lastName}` : 'Sistema';
+
+    // Actualizar el Change Order con la aprobación manual
+    changeOrder.status = 'approved';
+    changeOrder.approvalMethod = 'manual';
+    changeOrder.manualApprovalNotes = manualApprovalNotes;
+    changeOrder.manualApprovedBy = approvedBy;
+    changeOrder.manualApprovedAt = new Date();
+    changeOrder.clientNotifiedAt = clientNotifiedAt ? new Date(clientNotifiedAt) : new Date();
+    changeOrder.clientNotificationMethod = clientNotificationMethod;
+    changeOrder.respondedAt = new Date(); // Fecha de respuesta del cliente
+
+    await changeOrder.save();
+
+    console.log(`✅ Change Order ${changeOrderId} aprobado manualmente por ${approvedBy}`);
+    console.log(`   Método de notificación: ${clientNotificationMethod}`);
+    console.log(`   Notas: ${manualApprovalNotes.substring(0, 100)}...`);
+
+    // 🆕 Crear nota automática de aprobación manual
+    try {
+      const coNumber = changeOrder.changeOrderNumber || changeOrder.id.substring(0, 8);
+      const coAmount = changeOrder.totalCost ? `$${parseFloat(changeOrder.totalCost).toFixed(2)}` : 'monto pendiente';
+      
+      await WorkNote.create({
+        workId: changeOrder.workId,
+        staffId: req.user?.id || null,
+        message: `Change Order #${coNumber} APROBADO MANUALMENTE - ${changeOrder.description} (${coAmount}) - Método: ${clientNotificationMethod}`,
+        noteType: 'client_contact',
+        priority: 'high',
+        relatedStatus: null,
+        isResolved: true,
+        mentionedStaffIds: []
+      });
+      console.log(`✅ WorkNote creado para aprobación manual de CO #${coNumber}`);
+    } catch (noteError) {
+      console.error('⚠️ Error al crear WorkNote para aprobación manual:', noteError);
+      // No fallar la request si falla la nota
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Change Order aprobado manualmente exitosamente.',
+      changeOrder: {
+        id: changeOrder.id,
+        changeOrderNumber: changeOrder.changeOrderNumber,
+        status: changeOrder.status,
+        approvalMethod: changeOrder.approvalMethod,
+        manualApprovedBy: changeOrder.manualApprovedBy,
+        manualApprovedAt: changeOrder.manualApprovedAt,
+        clientNotifiedAt: changeOrder.clientNotifiedAt,
+        clientNotificationMethod: changeOrder.clientNotificationMethod,
+        manualApprovalNotes: changeOrder.manualApprovalNotes,
+        totalCost: changeOrder.totalCost,
+        workId: changeOrder.workId
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error al aprobar Change Order manualmente:', error);
+    res.status(500).json({ 
+      error: true, 
+      message: 'Error interno del servidor al aprobar manualmente el Change Order.', 
+      details: error.message 
+    });
+  }
+};
+
+module.exports = {
   recordOrUpdateChangeOrderDetails,
   sendChangeOrderToClient,
   handleClientChangeOrderResponse,
   previewChangeOrderPDF,
   deleteChangeOrder,
+  approveChangeOrderManually, // 🆕 Nueva función
 };
