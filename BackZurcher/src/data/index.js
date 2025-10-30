@@ -75,7 +75,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, SupplierInvoice, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -367,6 +367,37 @@ FixedExpense.belongsTo(SupplierInvoiceItem, {
   foreignKey: 'supplierInvoiceItemId',
   as: 'paidViaInvoiceItem'
 });
+
+// 🆕 FixedExpense tiene muchos pagos parciales
+FixedExpense.hasMany(FixedExpensePayment, {
+  foreignKey: 'fixedExpenseId',
+  as: 'payments'
+});
+FixedExpensePayment.belongsTo(FixedExpense, {
+  foreignKey: 'fixedExpenseId',
+  as: 'fixedExpense'
+});
+
+// 🆕 Cada pago parcial puede generar un Expense
+Expense.hasOne(FixedExpensePayment, {
+  foreignKey: 'expenseId',
+  as: 'relatedPayment'
+});
+FixedExpensePayment.belongsTo(Expense, {
+  foreignKey: 'expenseId',
+  as: 'generatedExpense'
+});
+
+// 🆕 Un Staff puede registrar pagos parciales
+Staff.hasMany(FixedExpensePayment, {
+  foreignKey: 'createdByStaffId',
+  as: 'fixedExpensePaymentsCreated'
+});
+FixedExpensePayment.belongsTo(Staff, {
+  foreignKey: 'createdByStaffId',
+  as: 'createdBy'
+});
+
 
 // Un SupplierInvoice fue creado por un Staff
 Staff.hasMany(SupplierInvoice, {
