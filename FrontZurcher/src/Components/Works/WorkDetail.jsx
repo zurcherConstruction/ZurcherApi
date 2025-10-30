@@ -756,9 +756,9 @@ const handleUploadImage = async () => {
             {/* 📝 Botón de Notas de Seguimiento */}
             <button
               onClick={() => setShowWorkNotesModal(true)}
-              className="flex items-center justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-md transition-colors duration-200 w-full sm:w-auto"
+              className="flex items-center justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white border-2 border-yellow-500 rounded-lg shadow-md transition-colors duration-200 w-full sm:w-auto"
             >
-              <ChatBubbleLeftRightIcon className="h-5 w-5 mr-2" />
+              <ChatBubbleLeftRightIcon className="h-5 w-5 mr-2 text-yellow-500" />
               <span className="font-medium">Notas</span>
             </button>
 
@@ -835,7 +835,19 @@ const handleUploadImage = async () => {
 
                   {pdfUrl && (
                     <div className="mt-4">
-                      <h3 className="text-lg font-semibold">Permit</h3>
+                      <div className="flex justify-between items-center mb-2">
+                        <h3 className="text-lg font-semibold">Permit</h3>
+                        <a
+                          href={pdfUrl}
+                          download={`Permit_${work.propertyAddress?.replace(/[^a-z0-9]/gi, '_') || 'documento'}.pdf`}
+                          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded shadow text-xs font-medium transition-colors flex items-center gap-1"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          Descargar
+                        </a>
+                      </div>
                       <iframe
                         src={pdfUrl}
                         width="100%"
@@ -847,7 +859,19 @@ const handleUploadImage = async () => {
                   )}
                   {optionalDocs && (
                     <div className="mt-4">
-                      <h3 className="text-lg font-semibold">Optional Docs</h3>
+                      <div className="flex justify-between items-center mb-2">
+                        <h3 className="text-lg font-semibold">Optional Docs</h3>
+                        <a
+                          href={optionalDocs}
+                          download={`OptionalDocs_${work.propertyAddress?.replace(/[^a-z0-9]/gi, '_') || 'documento'}.pdf`}
+                          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded shadow text-xs font-medium transition-colors flex items-center gap-1"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          Descargar
+                        </a>
+                      </div>
                       <iframe
                         src={optionalDocs}
                         width="100%"
