@@ -333,6 +333,18 @@ const Summary = () => {
     try {
       const newVerifiedState = !mov.verified;
       
+      // 🛡️ Si está intentando desmarcar algo que ya está verificado, pedir confirmación
+      if (mov.verified && !newVerifiedState) {
+        const confirmUncheck = window.confirm(
+          '¿Estás seguro que deseas desmarcar este movimiento como NO verificado?\n\n' +
+          'Esto indicará que el movimiento requiere revisión nuevamente.'
+        );
+        
+        if (!confirmUncheck) {
+          return; // Cancelar la acción
+        }
+      }
+      
       if (mov.movimiento === "Ingreso") {
         await incomeActions.update(mov.idIncome, {
           verified: newVerifiedState
