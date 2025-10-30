@@ -1,32 +1,42 @@
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
+const axios = require('axios');
 const { format, parseISO } = require('date-fns');
 
-// Constantes de diseño
+// === ESTILOS ===
 const PAGE_MARGIN = 50;
 const PRIMARY_COLOR = '#063260';
-const TEXT_COLOR = '#333333';
-const TEXT_LIGHT = '#666666';
-const BORDER_COLOR = '#DDDDDD';
-const HEADER_BG = '#F3F4F6';
+const HEADER_BG = '#E9EFF5';
+const BORDER_COLOR = '#CCCCCC';
+const TEXT_COLOR = '#222222';
+const TEXT_LIGHT = '#555555';
 
-// Helper para formatear fechas
+// === Helper para fechas ===
 const formatDate = (dateInput) => {
   if (!dateInput) return 'N/A';
   try {
     const dateObj = typeof dateInput === 'string' ? parseISO(dateInput) : dateInput;
     return format(dateObj, 'MM/dd/yyyy');
-  } catch (e) {
+  } catch {
     return 'N/A';
   }
 };
 
+// === Descarga temporal de imágenes desde Cloudinary ===
+async function downloadImage(url, destFolder) {
+  const fileName = path.basename(url.split('?')[0]);
+  const filePath = path.join(destFolder, fileName);
+  const response = await axios({ url, responseType: 'arraybuffer' });
+  fs.writeFileSync(filePath, response.data);
+  return filePath;
+}
+
 async function generateMaintenancePDF(visitData) {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     try {
-      console.log('📊 Generando PDF compacto para visita:', visitData.id);
-      
+      console.log('📋 Generando PDF de mantenimiento con estilo mejorado...');
+
       const {
         id,
         visit_number,
@@ -77,355 +87,358 @@ async function generateMaintenancePDF(visitData) {
         // Generales
         general_notes,
         worker_signature_url,
-        mediaFiles
+        mediaFiles = []
       } = visitData;
 
-      const doc = new PDFDocument({ 
-        margin: PAGE_MARGIN, 
-        size: 'LETTER',
-        bufferPages: true
-      });
+      // 🆕 Organizar imágenes por campo
+      const tmpDir = path.join(__dirname, '../tmp/pdf-images');
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
       
-      const uploadsDir = path.join(__dirname, '../uploads/maintenance_reports');
-      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+      const imagesByField = {};
+      const generalImages = [];
       
-      // Nombre del archivo con dirección
-      const propertyAddress = work?.propertyAddress || 'unknown';
-      const safeAddress = propertyAddress.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      for (const item of mediaFiles) {
+        const url = typeof item === 'string' ? item : item.mediaUrl || item.url;
+        const fieldName = typeof item === 'string' ? 'general' : item.fieldName || 'general';
+        
+        try {
+          const localPath = await downloadImage(url, tmpDir);
+          if (fieldName === 'general' || fieldName === 'system_overview_video') {
+            generalImages.push({ path: localPath, label: fieldName, url });
+          } else {
+            if (!imagesByField[fieldName]) imagesByField[fieldName] = [];
+            imagesByField[fieldName].push(localPath);
+          }
+        } catch (err) {
+          console.warn(`⚠️ Could not download image: ${url}`);
+        }
+      }
+
+      const doc = new PDFDocument({ margin: PAGE_MARGIN, size: 'LETTER' });
+
+      const outputDir = path.join(__dirname, '../uploads/maintenance_reports');
+      if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+
+      const safeAddress = (work?.propertyAddress || 'unknown').replace(/[^a-z0-9]/gi, '_').toLowerCase();
       const fileName = `maintenance_${safeAddress}_${formatDate(actual_visit_date).replace(/\//g, '-')}.pdf`;
-      const pdfPath = path.join(uploadsDir, fileName);
+      const pdfPath = path.join(outputDir, fileName);
       const stream = fs.createWriteStream(pdfPath);
       doc.pipe(stream);
 
-      const contentWidth = doc.page.width - PAGE_MARGIN * 2;
-      let currentY = PAGE_MARGIN;
-
-      // ===== ENCABEZADO =====
+      // === ENCABEZADO ===
       const logoPath = path.join(__dirname, '../assets/logo.png');
       if (fs.existsSync(logoPath)) {
-        doc.image(logoPath, PAGE_MARGIN, currentY, { width: 60 });
+        doc.image(logoPath, PAGE_MARGIN, PAGE_MARGIN, { width: 70 });
       }
 
+      // Título centrado debajo del logo
       doc.font('Helvetica-Bold').fontSize(18).fillColor(PRIMARY_COLOR)
-        .text('MAINTENANCE VISIT REPORT', PAGE_MARGIN + 80, currentY + 5, { align: 'center' });
+        .text('MAINTENANCE INSPECTION REPORT', PAGE_MARGIN, PAGE_MARGIN + 50, { align: 'center' });
       
-      currentY += 35;
-      doc.fontSize(9).fillColor(TEXT_COLOR).font('Helvetica')
-        .text('ZURCHER CONSTRUCTION - SEPTIC TANK DIVISION', PAGE_MARGIN, currentY, { align: 'center' });
-      currentY += 12;
-      doc.fontSize(8).text('CFC1433240 | (407) 419-4495 | zurcherseptic@gmail.com', PAGE_MARGIN, currentY, { align: 'center' });
+      // 🆕 Número de visita prominente
+      doc.fontSize(14).fillColor('#DC2626')
+        .text(`Visit #${visit_number || 'N/A'}`, PAGE_MARGIN, PAGE_MARGIN + 70, { align: 'center' });
       
-      currentY += 20;
-      doc.moveTo(PAGE_MARGIN, currentY).lineTo(doc.page.width - PAGE_MARGIN, currentY)
-        .strokeColor(BORDER_COLOR).stroke();
-      currentY += 15;
+      doc.fontSize(9).fillColor(TEXT_LIGHT)
+        .text('Zurcher Construction - Septic Tank Division', PAGE_MARGIN, PAGE_MARGIN + 88, { align: 'center' });
 
-      // ===== INFO GENERAL (COMPACTA) =====
-      const colWidth = contentWidth / 2;
-      const col1X = PAGE_MARGIN;
-      const col2X = PAGE_MARGIN + colWidth;
+      let y = PAGE_MARGIN + 105;
 
-      // Columna 1
-      doc.fontSize(9).font('Helvetica-Bold').fillColor(TEXT_COLOR);
-      doc.text('Visit #:', col1X, currentY, { continued: true, width: 60 });
-      doc.font('Helvetica').fillColor(TEXT_LIGHT).text(visit_number || id?.substring(0, 8) || 'N/A', { width: colWidth - 60 });
-      currentY += 14;
+      // === DATOS GENERALES ===
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(TEXT_COLOR);
+      doc.text(`Scheduled:`, PAGE_MARGIN, y, { continued: true }).font('Helvetica').text(formatDate(scheduled_date));
+      doc.text(`Completed:`, PAGE_MARGIN + 220, y, { continued: true }).font('Helvetica').text(formatDate(actual_visit_date));
+      y += 12;
+      doc.font('Helvetica-Bold').text(`Status:`, PAGE_MARGIN, y, { continued: true }).font('Helvetica').text((status || 'N/A').toUpperCase());
+      doc.text(`Property:`, PAGE_MARGIN + 220, y, { continued: true }).font('Helvetica').text(work?.propertyAddress || 'N/A', { width: 280 });
+      y += 12;
+      doc.font('Helvetica-Bold').text(`Technician:`, PAGE_MARGIN, y, { continued: true }).font('Helvetica').text(completedByStaff?.name || assignedStaff?.name || 'N/A');
+      y += 25;
 
-      doc.font('Helvetica-Bold').fillColor(TEXT_COLOR);
-      doc.text('Property:', col1X, currentY, { width: colWidth });
-      currentY += 11;
-      doc.font('Helvetica').fontSize(8).fillColor(TEXT_LIGHT);
-      doc.text(work?.propertyAddress || 'N/A', col1X + 5, currentY, { width: colWidth - 10 });
-      currentY += 18;
-
-      doc.fontSize(9).font('Helvetica-Bold').fillColor(TEXT_COLOR);
-      doc.text('Client:', col1X, currentY, { continued: true, width: 60 });
-      doc.font('Helvetica').fillColor(TEXT_LIGHT).text(work?.Permit?.applicantName || 'N/A', { width: colWidth - 60 });
-      currentY += 14;
-
-      doc.font('Helvetica-Bold').fillColor(TEXT_COLOR);
-      doc.text('Worker:', col1X, currentY, { continued: true, width: 60 });
-      doc.font('Helvetica').fillColor(TEXT_LIGHT).text(completedByStaff?.name || assignedStaff?.name || 'N/A', { width: colWidth - 60 });
-
-      // Columna 2
-      let col2Y = currentY - (14 * 3) - 18;
-      doc.fontSize(9).font('Helvetica-Bold').fillColor(TEXT_COLOR);
-      doc.text('Status:', col2X, col2Y, { continued: true, width: 70 });
-      const statusColor = status === 'completed' ? '#059669' : status === 'assigned' ? '#F59E0B' : '#6B7280';
-      doc.font('Helvetica-Bold').fillColor(statusColor)
-        .text((status || 'N/A').toUpperCase(), { width: colWidth - 70 });
-      col2Y += 14;
-
-      doc.font('Helvetica-Bold').fillColor(TEXT_COLOR);
-      doc.text('Scheduled:', col2X, col2Y, { continued: true, width: 70 });
-      doc.font('Helvetica').fillColor(TEXT_LIGHT).text(formatDate(scheduled_date), { width: colWidth - 70 });
-      col2Y += 14;
-
-      doc.font('Helvetica-Bold').fillColor(TEXT_COLOR);
-      doc.text('Completed:', col2X, col2Y, { continued: true, width: 70 });
-      doc.font('Helvetica').fillColor(TEXT_LIGHT).text(formatDate(actual_visit_date), { width: colWidth - 70 });
-      col2Y += 14;
-
-      doc.font('Helvetica-Bold').fillColor(TEXT_COLOR);
-      doc.text('System:', col2X, col2Y, { continued: true, width: 70 });
-      doc.font('Helvetica').fontSize(8).fillColor(TEXT_LIGHT).text(work?.Permit?.systemType || 'N/A', { width: colWidth - 70 });
-
-      currentY += 25;
-      doc.moveTo(PAGE_MARGIN, currentY).lineTo(doc.page.width - PAGE_MARGIN, currentY)
-        .strokeColor(BORDER_COLOR).stroke();
-      currentY += 12;
-
-      // ===== NIVELES (SI EXISTEN) =====
-      if (level_inlet || level_outlet) {
-        doc.fontSize(10).font('Helvetica-Bold').fillColor(PRIMARY_COLOR)
-          .text('TANK LEVELS', PAGE_MARGIN, currentY);
-        currentY += 15;
-
-        doc.fontSize(9).font('Helvetica').fillColor(TEXT_COLOR);
-        const levelCol1 = col1X;
-        const levelCol2 = col2X;
+      // === Helper secciones ===
+      const drawSectionTitle = (title) => {
+        // Verificar si necesitamos nueva página (si quedan menos de 100px)
+        if (y > doc.page.height - 150) {
+          doc.addPage();
+          y = PAGE_MARGIN;
+        }
         
-        if (level_inlet) {
-          doc.font('Helvetica-Bold').text('Inlet Level:', levelCol1, currentY, { continued: true, width: 80 });
-          doc.font('Helvetica').fillColor(TEXT_LIGHT).text(` ${level_inlet} inches`, { width: colWidth - 80 });
-        }
-        if (level_outlet) {
-          doc.fillColor(TEXT_COLOR).font('Helvetica-Bold')
-            .text('Outlet Level:', levelCol2, currentY, { continued: true, width: 80 });
-          doc.font('Helvetica').fillColor(TEXT_LIGHT).text(` ${level_outlet} inches`, { width: colWidth - 80 });
-        }
-        currentY += 18;
-      }
+        doc.rect(PAGE_MARGIN, y, doc.page.width - PAGE_MARGIN * 2, 18)
+          .fillAndStroke(HEADER_BG, BORDER_COLOR);
+        doc.fillColor(PRIMARY_COLOR).font('Helvetica-Bold').fontSize(10)
+          .text(title, PAGE_MARGIN + 5, y + 4);
+        y += 25;
+      };
 
-      // ===== INSPECCIÓN GENERAL =====
-      doc.fontSize(11).font('Helvetica-Bold').fillColor(PRIMARY_COLOR)
-        .text('GENERAL INSPECTION', PAGE_MARGIN, currentY);
-      currentY += 15;
+      const drawRow = (label, value, notes = '', fieldImages = []) => {
+        const colX = [PAGE_MARGIN, PAGE_MARGIN + 230, PAGE_MARGIN + 270, PAGE_MARGIN + 360];
+        const baseRowHeight = 20;
+        let rowHeight = baseRowHeight;
+        
+        // Calcular altura necesaria para notas e imágenes
+        const hasNotes = notes && notes.trim().length > 0;
+        const hasImages = fieldImages && fieldImages.length > 0;
+        
+        if (hasNotes) rowHeight += 25; // Espacio para notas
+        if (hasImages) rowHeight += 45; // Espacio para miniaturas
 
-      const inspectionItems = [
-        { label: 'Strong Odors', value: strong_odors, notes: strong_odors_notes },
-        { label: 'Water Level OK', value: water_level_ok, notes: water_level_notes },
-        { label: 'Visible Leaks', value: visible_leaks, notes: visible_leaks_notes },
-        { label: 'Area Around Dry', value: area_around_dry, notes: area_around_notes },
-        { label: 'Green Cap Inspected', value: cap_green_inspected, notes: cap_green_notes },
-        { label: 'Needs Pumping', value: needs_pumping, notes: null }
-      ];
-
-      currentY = drawCompactChecklist(doc, currentY, inspectionItems, contentWidth);
-
-      // ===== ATU SYSTEM (SI APLICA) =====
-      const hasATU = blower_working !== undefined || blower_filter_clean !== undefined;
-      if (hasATU) {
-        currentY += 8;
-        doc.fontSize(11).font('Helvetica-Bold').fillColor(PRIMARY_COLOR)
-          .text('ATU SYSTEM', PAGE_MARGIN, currentY);
-        currentY += 15;
-
-        const atuItems = [
-          { label: 'Blower Working', value: blower_working, notes: blower_working_notes },
-          { label: 'Blower Filter Clean', value: blower_filter_clean, notes: blower_filter_notes },
-          { label: 'Diffusers Bubbling', value: diffusers_bubbling, notes: diffusers_bubbling_notes },
-          { label: 'Discharge Pump OK', value: discharge_pump_ok, notes: discharge_pump_notes },
-          { label: 'Clarified Water Outlet', value: clarified_water_outlet, notes: clarified_water_notes }
-        ];
-
-        currentY = drawCompactChecklist(doc, currentY, atuItems, contentWidth);
-      }
-
-      // ===== LIFT STATION (SI APLICA) =====
-      const hasLift = alarm_panel_working !== undefined || pump_working !== undefined;
-      if (hasLift) {
-        currentY += 8;
-        doc.fontSize(11).font('Helvetica-Bold').fillColor(PRIMARY_COLOR)
-          .text('LIFT STATION', PAGE_MARGIN, currentY);
-        currentY += 15;
-
-        const liftItems = [
-          { label: 'Alarm Panel Working', value: alarm_panel_working, notes: alarm_panel_notes },
-          { label: 'Pump Working', value: pump_working, notes: pump_working_notes },
-          { label: 'Float Switch Good', value: float_switch_good, notes: float_switch_notes }
-        ];
-
-        currentY = drawCompactChecklist(doc, currentY, liftItems, contentWidth);
-      }
-
-      // ===== PBTS/ATU SAMPLES =====
-      if (well_points_quantity) {
-        currentY += 8;
-        doc.fontSize(11).font('Helvetica-Bold').fillColor(PRIMARY_COLOR)
-          .text('PBTS/ATU WELL SAMPLES', PAGE_MARGIN, currentY);
-        currentY += 15;
-
-        doc.fontSize(9).font('Helvetica-Bold').fillColor(TEXT_COLOR);
-        doc.text('Well Points Quantity:', PAGE_MARGIN, currentY, { continued: true, width: 130 });
-        doc.font('Helvetica').fillColor(TEXT_LIGHT).text(` ${well_points_quantity}`, { width: 100 });
-        currentY += 15;
-
-        const samples = [well_sample_1_url, well_sample_2_url, well_sample_3_url].filter(Boolean);
-        if (samples.length > 0) {
-          doc.fontSize(8).fillColor(TEXT_LIGHT);
-          doc.text(`✓ ${samples.length} sample photo${samples.length > 1 ? 's' : ''} attached to this visit`, PAGE_MARGIN, currentY);
-          currentY += 12;
-        }
-      }
-
-      // ===== NOTAS GENERALES =====
-      if (general_notes && general_notes.trim()) {
-        if (currentY > doc.page.height - 150) {
+        // Verificar si necesitamos nueva página
+        if (y + rowHeight > doc.page.height - PAGE_MARGIN) {
           doc.addPage();
-          currentY = PAGE_MARGIN;
+          y = PAGE_MARGIN;
         }
-        currentY += 10;
-        doc.fontSize(11).font('Helvetica-Bold').fillColor(PRIMARY_COLOR)
-          .text('ADDITIONAL NOTES', PAGE_MARGIN, currentY);
-        currentY += 15;
 
-        doc.fontSize(9).font('Helvetica').fillColor(TEXT_COLOR)
-          .text(general_notes, PAGE_MARGIN, currentY, { width: contentWidth, align: 'justify', lineGap: 2 });
-        currentY = doc.y + 15;
+        const yes = (value === true || value === 'yes') ? 'YES' : '';
+        const no = (value === false || value === 'no') ? 'NO' : '';
+
+        doc.rect(PAGE_MARGIN, y, doc.page.width - PAGE_MARGIN * 2, rowHeight)
+          .strokeColor(BORDER_COLOR).stroke();
+
+        doc.font('Helvetica').fontSize(8).fillColor(TEXT_COLOR);
+        doc.text(label, colX[0] + 3, y + 5, { width: 220 });
+        doc.fillColor(yes ? '#059669' : TEXT_COLOR).text(yes, colX[1], y + 5);
+        doc.fillColor(no ? '#DC2626' : TEXT_COLOR).text(no, colX[2], y + 5);
+        
+        let currentY = y + 5;
+        
+        // Mostrar notas si existen
+        if (hasNotes) {
+          doc.fillColor(TEXT_LIGHT).fontSize(7).text(notes, colX[0] + 3, currentY + 15, { 
+            width: doc.page.width - PAGE_MARGIN * 2 - 10 
+          });
+          currentY += 25;
+        }
+        
+        // Mostrar miniaturas si existen
+        if (hasImages) {
+          const thumbSize = 35;
+          const thumbSpacing = 5;
+          let thumbX = colX[0] + 3;
+          
+          for (let i = 0; i < Math.min(fieldImages.length, 4); i++) { // Máximo 4 miniaturas por fila
+            try {
+              doc.image(fieldImages[i], thumbX, currentY + 5, { 
+                width: thumbSize, 
+                height: thumbSize,
+                fit: [thumbSize, thumbSize]
+              });
+              doc.rect(thumbX, currentY + 5, thumbSize, thumbSize).strokeColor('#DDD').stroke();
+              thumbX += thumbSize + thumbSpacing;
+            } catch (err) {
+              console.warn(`⚠️ Error rendering thumbnail: ${err.message}`);
+            }
+          }
+          
+          if (fieldImages.length > 4) {
+            doc.fontSize(6).fillColor(TEXT_LIGHT).text(
+              `+${fieldImages.length - 4} more`, 
+              thumbX, 
+              currentY + 15
+            );
+          }
+        }
+        
+        y += rowHeight;
+      };
+
+      // === NIVELES ===
+      if (level_inlet || level_outlet) {
+        drawSectionTitle('Tank Levels');
+        doc.font('Helvetica').fontSize(9).fillColor(TEXT_COLOR);
+        if (level_inlet) doc.text(`Inlet Level: ${level_inlet}`, PAGE_MARGIN, y);
+        if (level_outlet) doc.text(`Outlet Level: ${level_outlet}`, PAGE_MARGIN + 200, y);
+        y += 20;
       }
 
-      // ===== ARCHIVOS ADJUNTOS =====
-      if (mediaFiles && mediaFiles.length > 0) {
-        if (currentY > doc.page.height - 100) {
+      // === INSPECCIÓN GENERAL ===
+      drawSectionTitle('General Inspection');
+      drawRow('Strong Odors', strong_odors, strong_odors_notes, imagesByField.strong_odors || []);
+      drawRow('Water Level OK', water_level_ok, water_level_notes, imagesByField.water_level_ok || []);
+      drawRow('Visible Leaks', visible_leaks, visible_leaks_notes, imagesByField.visible_leaks || []);
+      drawRow('Area Around Dry', area_around_dry, area_around_notes, imagesByField.area_around_dry || []);
+      drawRow('Green Cap Inspected', cap_green_inspected, cap_green_notes, imagesByField.cap_green_inspected || []);
+      drawRow('Needs Pumping', needs_pumping, '', []);
+      y += 15;
+
+      // === SISTEMA ATU ===
+      drawSectionTitle('ATU System');
+      drawRow('Blower Working', blower_working, blower_working_notes, imagesByField.blower_working || []);
+      drawRow('Blower Filter Clean', blower_filter_clean, blower_filter_notes, imagesByField.blower_filter_clean || []);
+      drawRow('Diffusers Bubbling', diffusers_bubbling, diffusers_bubbling_notes, imagesByField.diffusers_bubbling || []);
+      drawRow('Discharge Pump OK', discharge_pump_ok, discharge_pump_notes, imagesByField.discharge_pump_ok || []);
+      drawRow('Clarified Water Outlet', clarified_water_outlet, clarified_water_notes, imagesByField.clarified_water_outlet || []);
+      y += 15;
+
+      // === LIFT STATION ===
+      if (alarm_panel_working !== undefined || pump_working !== undefined) {
+        drawSectionTitle('Lift Station');
+        drawRow('Alarm Panel Working', alarm_panel_working, alarm_panel_notes, imagesByField.alarm_panel_working || []);
+        drawRow('Pump Working', pump_working, pump_working_notes, imagesByField.pump_working || []);
+        drawRow('Float Switch Good', float_switch_good, float_switch_notes, imagesByField.float_switch_good || []);
+        y += 15;
+      }
+
+      // === PBTS / ATU - Muestras individuales ===
+      if (well_points_quantity || well_sample_1_url || well_sample_2_url || well_sample_3_url) {
+        drawSectionTitle('PBTS / ATU Well Samples');
+        
+        if (well_points_quantity) {
+          doc.font('Helvetica').fontSize(9).fillColor(TEXT_COLOR);
+          doc.text(`Total Well Points: ${well_points_quantity}`, PAGE_MARGIN, y);
+          y += 15;
+        }
+        
+        // Mostrar cada muestra individualmente
+        const samples = [
+          { url: well_sample_1_url, label: 'Well Sample 1' },
+          { url: well_sample_2_url, label: 'Well Sample 2' },
+          { url: well_sample_3_url, label: 'Well Sample 3' }
+        ];
+        
+        for (const sample of samples) {
+          if (sample.url) {
+            // Verificar si necesitamos nueva página (imagen + label + link = ~130px)
+            if (y > doc.page.height - 180) {
+              doc.addPage();
+              y = PAGE_MARGIN;
+            }
+            
+            try {
+              const samplePath = await downloadImage(sample.url, tmpDir);
+              
+              doc.font('Helvetica-Bold').fontSize(8).fillColor(TEXT_COLOR);
+              doc.text(sample.label, PAGE_MARGIN, y);
+              y += 12;
+              
+              doc.image(samplePath, PAGE_MARGIN + 10, y, { 
+                width: 100, 
+                height: 100,
+                fit: [100, 100]
+              });
+              doc.rect(PAGE_MARGIN + 10, y, 100, 100).strokeColor('#DDD').stroke();
+              y += 105;
+              
+              // Link para ver imagen completa
+              doc.fontSize(7).fillColor('#0066CC')
+                .text('View image', PAGE_MARGIN + 10, y, { 
+                  link: sample.url,
+                  underline: true 
+                });
+              y += 15;
+            } catch (err) {
+              console.warn(`⚠️ Could not download sample image: ${sample.url}`);
+              doc.font('Helvetica-Oblique').fontSize(7).fillColor(TEXT_LIGHT);
+              doc.text(`${sample.label}: Image not available`, PAGE_MARGIN + 10, y);
+              
+              // Aún así mostrar link
+              doc.fontSize(7).fillColor('#0066CC')
+                .text('View online', PAGE_MARGIN + 10, y + 10, { 
+                  link: sample.url,
+                  underline: true 
+                });
+              y += 25;
+            }
+          }
+        }
+        y += 10;
+      }
+
+      // === NOTAS GENERALES ===
+      if (general_notes) {
+        // Verificar si necesitamos nueva página
+        if (y > doc.page.height - 150) {
           doc.addPage();
-          currentY = PAGE_MARGIN;
+          y = PAGE_MARGIN;
         }
-        currentY += 10;
-        doc.fontSize(11).font('Helvetica-Bold').fillColor(PRIMARY_COLOR)
-          .text('ATTACHED FILES', PAGE_MARGIN, currentY);
-        currentY += 15;
-
-        doc.fontSize(9).font('Helvetica').fillColor(TEXT_COLOR);
-        doc.text(`✓ ${mediaFiles.length} file${mediaFiles.length > 1 ? 's' : ''} (photos/videos) attached to this maintenance visit`, PAGE_MARGIN, currentY);
-        currentY += 18;
+        
+        drawSectionTitle('Additional Notes');
+        doc.font('Helvetica').fontSize(9).fillColor(TEXT_COLOR)
+          .text(general_notes, PAGE_MARGIN + 5, y, { width: doc.page.width - PAGE_MARGIN * 2 - 10, align: 'justify' });
+        y = doc.y + 20;
       }
 
-      // ===== FIRMA =====
+      // === IMÁGENES GENERALES ===
+      if (generalImages.length > 0) {
+        drawSectionTitle('Additional Photos');
+        
+        const thumbSize = 120;
+        const spacing = 20;
+        const perRow = 3;
+        let col = 0;
+
+        for (let i = 0; i < generalImages.length; i++) {
+          const { path: img, label, url } = generalImages[i];
+          const x = PAGE_MARGIN + (col * (thumbSize + spacing));
+          
+          // Verificar si necesitamos nueva página (imagen + label + link = ~160px)
+          if (y > doc.page.height - 210) {
+            doc.addPage();
+            y = PAGE_MARGIN;
+            col = 0;
+          }
+          
+          doc.image(img, x, y, { width: thumbSize, height: thumbSize, fit: [thumbSize, thumbSize] })
+             .rect(x, y, thumbSize, thumbSize).strokeColor('#DDD').stroke();
+          
+          doc.font('Helvetica').fontSize(8).fillColor(TEXT_COLOR)
+             .text(label === 'general' ? `Photo ${i + 1}` : label, x, y + thumbSize + 4, { width: thumbSize, align: 'center' });
+          
+          // Link para ver imagen completa
+          if (url) {
+            doc.fontSize(6).fillColor('#0066CC')
+              .text('View', x, y + thumbSize + 16, { 
+                width: thumbSize, 
+                align: 'center',
+                link: url,
+                underline: true 
+              });
+          }
+          
+          col++;
+          if (col >= perRow) {
+            col = 0;
+            y += thumbSize + spacing + 30;
+          }
+        }
+        
+        if (col > 0) {
+          y += thumbSize + 30;
+        }
+      }
+
+      // === FIRMA ===
       if (worker_signature_url) {
-        if (currentY > doc.page.height - 120) {
-          doc.addPage();
-          currentY = PAGE_MARGIN;
+        drawSectionTitle('Technician Signature');
+        try {
+          const sigPath = await downloadImage(worker_signature_url, path.join(__dirname, '../tmp/pdf-images'));
+          doc.image(sigPath, PAGE_MARGIN + 100, y, { width: 120 });
+        } catch {
+          doc.font('Helvetica-Oblique').fontSize(8).fillColor(TEXT_LIGHT)
+            .text('Digital signature available in record.', PAGE_MARGIN + 10, y + 10);
         }
-        currentY += 10;
-        doc.fontSize(9).font('Helvetica-Bold').fillColor(TEXT_COLOR)
-          .text('Worker Signature:', PAGE_MARGIN, currentY);
-        currentY += 5;
-        doc.fontSize(7).font('Helvetica').fillColor(TEXT_LIGHT)
-          .text('Digital signature on file', PAGE_MARGIN, currentY);
-        currentY += 15;
+        y += 50;
       }
 
-      // ===== PIE DE PÁGINA =====
+      // === FOOTER ===
       const footerY = doc.page.height - 40;
-      doc.fontSize(7).font('Helvetica').fillColor(TEXT_LIGHT);
-      doc.text(
-        `Generated on ${formatDate(new Date())} | Zurcher Construction - Septic Tank Division`,
-        PAGE_MARGIN,
-        footerY,
-        { width: contentWidth, align: 'center' }
-      );
+      doc.fontSize(7).font('Helvetica').fillColor(TEXT_LIGHT)
+        .text(`Generated on ${formatDate(new Date())} | Zurcher Construction - Septic Tank Division`,
+          PAGE_MARGIN, footerY, { width: doc.page.width - PAGE_MARGIN * 2, align: 'center' });
 
       doc.end();
 
       stream.on('finish', () => {
-        console.log(`✅ PDF de mantenimiento generado: ${pdfPath}`);
+        console.log(`✅ PDF generado: ${pdfPath}`);
         resolve(pdfPath);
       });
-
-      stream.on('error', (err) => {
-        console.error('❌ Error al escribir PDF:', err);
-        reject(err);
-      });
-
-    } catch (error) {
-      console.error('❌ Error al generar PDF de mantenimiento:', error);
-      reject(error);
+      stream.on('error', reject);
+    } catch (err) {
+      console.error('❌ Error generando PDF:', err);
+      reject(err);
     }
   });
-}
-
-// Helper para dibujar checklist compacto
-function drawCompactChecklist(doc, startY, items, contentWidth) {
-  const colWidth = contentWidth / 2 - 10;
-  const col1X = PAGE_MARGIN;
-  const col2X = PAGE_MARGIN + colWidth + 20;
-  let currentY = startY;
-  let leftColY = startY;
-  let rightColY = startY;
-  let colIndex = 0;
-
-  doc.fontSize(8).font('Helvetica');
-
-  items.forEach((item) => {
-    // Skip si no hay datos relevantes
-    if (item.value === undefined && item.value !== false && !item.notes) return;
-
-    const useLeftCol = colIndex % 2 === 0;
-    const colX = useLeftCol ? col1X : col2X;
-    const itemY = useLeftCol ? leftColY : rightColY;
-
-    // Determinar el símbolo y color
-    let symbol = '□';
-    let symbolColor = TEXT_LIGHT;
-    let valueText = '';
-
-    if (item.value === true || item.value === 'true' || item.value === 'yes') {
-      symbol = '☑';
-      symbolColor = '#059669'; // Verde
-      valueText = 'YES';
-    } else if (item.value === false || item.value === 'false' || item.value === 'no') {
-      symbol = '☐';
-      symbolColor = '#DC2626'; // Rojo
-      valueText = 'NO';
-    } else if (item.value === 'ok' || item.value === 'good') {
-      symbol = '☑';
-      symbolColor = '#059669';
-      valueText = 'OK';
-    } else if (item.value === 'p' || item.value === 'poor' || item.value === 'needs_attention') {
-      symbol = '⚠';
-      symbolColor = '#F59E0B'; // Amarillo
-      valueText = 'ATTENTION';
-    } else if (item.value) {
-      valueText = String(item.value).toUpperCase();
-    }
-
-    // Símbolo
-    doc.fontSize(10).fillColor(symbolColor).text(symbol, colX, itemY);
-
-    // Label
-    doc.fontSize(8).fillColor(TEXT_COLOR)
-      .text(item.label, colX + 15, itemY + 1, { width: colWidth - 15, continued: true });
-    
-    // Value (si existe y es diferente del símbolo)
-    if (valueText) {
-      doc.fontSize(7).fillColor(symbolColor)
-        .text(` (${valueText})`, { width: colWidth - 15 });
-    } else {
-      doc.text('');
-    }
-
-    let noteY = doc.y;
-
-    // Notes (si existen)
-    if (item.notes && item.notes.trim()) {
-      doc.fontSize(7).fillColor(TEXT_LIGHT)
-        .text(`   → ${item.notes}`, colX + 15, noteY, { width: colWidth - 15 });
-      noteY = doc.y;
-    }
-
-    // Actualizar la posición Y de la columna correspondiente
-    if (useLeftCol) {
-      leftColY = noteY + 8;
-    } else {
-      rightColY = noteY + 8;
-    }
-
-    colIndex++;
-  });
-
-  // Retornar el Y más alto de ambas columnas
-  return Math.max(leftColY, rightColY);
 }
 
 module.exports = { generateMaintenancePDF };
+
+
