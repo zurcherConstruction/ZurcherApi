@@ -1708,6 +1708,24 @@ const BudgetList = () => {
                           </p>
                           <div className="space-y-3">
                             {/* Status action buttons */}
+                            {/* 🆕 ESTADO: DRAFT - Solo enviar para revisión del cliente */}
+                            {budget.status === "draft" && (
+                              <div className="w-full">
+                                <button
+                                  onClick={() => handleSendForReview(budget)}
+                                  disabled={isReadOnly}
+                                  className={`w-full px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                                    isReadOnly 
+                                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                      : 'bg-blue-500 text-white hover:bg-blue-600'
+                                  }`}
+                                  title={isReadOnly ? "View only - No edit permissions" : "Send for Client Review"}
+                                >
+                                  📧 Send for Review
+                                </button>
+                              </div>
+                            )}
+                            
                             {budget.status === "created" && (
                               <div className="w-full space-y-2">
                                 {/* 🆕 Botón: Enviar para Revisión */}

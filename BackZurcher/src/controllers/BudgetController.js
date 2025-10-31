@@ -1056,8 +1056,8 @@ async getBudgets(req, res) {
       if (status === 'draft') {
         whereClause.status = { [Op.in]: ['draft', 'created'] };
       }
-      // ✅ "en_revision" - Todos los estados intermedios (esperando firma)
-      else if (status === 'en_revision') {
+      // ✅ "en_revision" o "en_seguimiento" (alias) - Todos los estados intermedios (esperando firma)
+      else if (status === 'en_revision' || status === 'en_seguimiento') {
         whereClause.status = {
           [Op.in]: ['send', 'pending_review', 'client_approved', 'notResponded', 'sent_for_signature']
         };
@@ -1082,8 +1082,17 @@ async getBudgets(req, res) {
       else if (status === 'legacy') {
         whereClause.isLegacy = true;
       }
+      // 🛡️ Validar que el status es un valor válido del ENUM antes de usarlo
       else {
-        whereClause.status = status;
+        const validStatuses = ['draft', 'pending_review', 'client_approved', 'created', 'send', 
+                               'sent_for_signature', 'signed', 'approved', 'notResponded', 'rejected'];
+        
+        if (validStatuses.includes(status)) {
+          whereClause.status = status;
+        } else {
+          // Si el status no es válido, ignorarlo y no aplicar filtro
+          console.warn(`⚠️ Status inválido recibido: "${status}". Ignorando filtro.`);
+        }
       }
     }
 

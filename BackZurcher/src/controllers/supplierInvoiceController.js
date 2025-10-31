@@ -239,7 +239,7 @@ const createSupplierInvoice = async (req, res) => {
             {
               model: FixedExpense,
               as: 'relatedFixedExpense',
-              attributes: ['idFixedExpense', 'description', 'amount'],
+              attributes: ['idFixedExpense', 'description', 'totalAmount'],
               required: false
             }
           ]
@@ -338,7 +338,7 @@ const getSupplierInvoices = async (req, res) => {
           {
             model: FixedExpense,
             as: 'relatedFixedExpense',
-            attributes: ['idFixedExpense', 'description', 'amount'],
+            attributes: ['idFixedExpense', 'description', 'totalAmount'],
             required: false
           }
         ]
@@ -646,7 +646,7 @@ const updateSupplierInvoice = async (req, res) => {
           {
             model: FixedExpense,
             as: 'relatedFixedExpense',
-            attributes: ['idFixedExpense', 'description', 'amount']
+            attributes: ['idFixedExpense', 'description', 'totalAmount']
           }
         ]
       }]
