@@ -79,12 +79,74 @@ module.exports = (sequelize) => {
       allowNull: true,
       defaultValue: false,
       comment: 'Indica si este trabajo fue importado desde sistema externo'
+    },
+
+    // --- NOTICE TO OWNER & LIEN TRACKING ---
+    installationStartDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      comment: 'Fecha cuando se inicia la instalación (status = inProgress). Inicia el período de 45 días'
+    },
+    noticeToOwnerRequired: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: true,
+      comment: 'Si este trabajo requiere Notice to Owner'
+    },
+    noticeToOwnerFiled: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      comment: 'Si el Notice to Owner ya fue archivado'
+    },
+    noticeToOwnerFiledDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      comment: 'Fecha cuando se archivó el Notice to Owner'
+    },
+    noticeToOwnerDocumentUrl: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'URL del documento Notice to Owner'
+    },
+    lienRequired: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      comment: 'Si este trabajo requiere Lien'
+    },
+    lienFiled: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      comment: 'Si el Lien ya fue archivado'
+    },
+    lienFiledDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      comment: 'Fecha cuando se archivó el Lien'
+    },
+    lienDocumentUrl: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'URL del documento Lien'
+    },
+    noticeToOwnerNotes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'Notas sobre Notice to Owner y Lien'
     }
 
   }, {
     hooks: {
       // 🔄 Hook automático: Registrar cambios de estado en WorkStateHistory Y crear WorkNote
       beforeUpdate: async (work, options) => {
+        // 📅 GUARDAR FECHA DE INICIO DE INSTALACIÓN
+        if (work.changed('status') && work.status === 'inProgress' && !work.installationStartDate) {
+          work.installationStartDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+          console.log(`📅 Installation start date guardada: ${work.installationStartDate}`);
+        }
+
         // Solo registrar si cambió el status
         if (work.changed('status')) {
           const WorkStateHistory = sequelize.models.WorkStateHistory;

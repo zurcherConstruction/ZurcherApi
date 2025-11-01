@@ -119,6 +119,57 @@ const ProgressTracker = () => {
           }
 
 
+          // --- ALERTA DE NOTICE TO OWNER ---
+          let noticeToOwnerAlert = null;
+          // Solo mostrar si hay installationStartDate, no está archivado y el trabajo NO está completamente pago
+          const isFullyPaid = work.totalPaid >= work.totalCost;
+          
+          if (work.installationStartDate && !work.noticeToOwnerFiled && !isFullyPaid) {
+            const calculateDaysRemaining = (startDate) => {
+              if (!startDate) return null;
+              const [year, month, day] = startDate.split('-').map(Number);
+              const start = new Date(year, month - 1, day);
+              const deadline = new Date(start);
+              deadline.setDate(deadline.getDate() + 45);
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const diffTime = deadline - today;
+              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+              return diffDays;
+            };
+
+            const daysRemaining = calculateDaysRemaining(work.installationStartDate);
+            
+            // Mostrar alerta solo a partir del día 30 (15 días restantes)
+            if (daysRemaining !== null && daysRemaining <= 15) {
+              let alertColorClass, textColorClass, message;
+              
+              if (daysRemaining <= 0) {
+                // Vencido (día 45+) - Rojo
+                alertColorClass = "text-red-500";
+                textColorClass = "text-red-600";
+                message = `⚠️ Notice to Owner vencido (${Math.abs(daysRemaining)} días)`;
+              } else if (daysRemaining <= 5) {
+                // Día 40-45 - Amarillo
+                alertColorClass = "text-yellow-500";
+                textColorClass = "text-yellow-600";
+                message = `⚠️ Notice to Owner - ${daysRemaining} días restantes`;
+              } else {
+                // Día 30-40 - Azul
+                alertColorClass = "text-blue-500";
+                textColorClass = "text-blue-600";
+                message = `📋 Notice to Owner - ${daysRemaining} días restantes`;
+              }
+              
+              noticeToOwnerAlert = (
+                <div className={`flex items-center justify-center mt-2 text-xs ${textColorClass} font-semibold`}>
+                  <ExclamationTriangleIcon className={`h-4 w-4 mr-1 ${alertColorClass} ${daysRemaining <= 5 ? 'animate-pulse' : ''}`} />
+                  {message}
+                </div>
+              );
+            }
+          }
+
           // --- ALERTA DE PRESUPUESTO NO FIRMADO ---
           let budgetNotSignedAlert = null;
           if (work.budget) {
@@ -166,7 +217,8 @@ const ProgressTracker = () => {
                 {permitExpirationAlertIcon}
               </h3>
 
-              {/* Mostrar primero la alerta de presupuesto no firmado, luego la de inspección si corresponde */}
+              {/* Mostrar alertas: Notice to Owner, presupuesto no firmado, inspección */}
+              {noticeToOwnerAlert}
               {budgetNotSignedAlert}
               {initialInspectionAlert}
     
