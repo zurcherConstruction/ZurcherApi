@@ -45,8 +45,8 @@ const WorkDetail = () => {
     return `${month}-${day}-${year}`;
   };
 
-  // Refresco automático cada 60 segundos
-  useAutoRefresh(() => fetchWorkById(idWork), 360000, [idWork]);
+  // Refresco automático cada 10 min
+  useAutoRefresh(() => fetchWorkById(idWork), 600000, [idWork]);
 
 
 

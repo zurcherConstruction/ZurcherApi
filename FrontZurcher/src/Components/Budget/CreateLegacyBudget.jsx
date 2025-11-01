@@ -635,7 +635,16 @@ const CreateLegacyBudget = () => {
                 <option value="installed">Instalado</option>
                 <option value="firstInspectionPending">Pendiente Primera Inspección</option>
                 <option value="approvedInspection">Inspección Aprobada</option>
+                <option value="rejectedInspection">Inspección Rechazada</option>
+                <option value="coverPending">Pendiente de Cubrir</option>
+                <option value="covered">Cubierto</option>
+                <option value="invoiceFinal">Invoice Final</option>
                 <option value="paymentReceived">Pago Final Recibido</option>
+                <option value="finalInspectionPending">Pendiente Inspección Final</option>
+                <option value="finalApproved">Final Aprobada</option>
+                <option value="finalRejected">Final Rechazada</option>
+                <option value="maintenance">🔧 Mantenimiento</option>
+                <option value="cancelled">Cancelado</option>
               </select>
             </div>
             <div>
