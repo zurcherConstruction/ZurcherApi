@@ -214,6 +214,10 @@ async function importExistingWork(req, res) {
     const currentDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
     const expirationDate = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+    // Determinar el estado basado en si el presupuesto tiene PDF firmado
+    const budgetStatus = req.body.status || 'approved';
+    const hasSignedPdf = !!documentosGuardados.presupuesto?.url;
+    
     const nuevoPresupuesto = await Budget.create({
       PermitIdPermit: nuevoPermit.idPermit,
       propertyAddress,
@@ -221,8 +225,13 @@ async function importExistingWork(req, res) {
       date: currentDate,
       expirationDate: expirationDate,
       
-      // ✅ Estado: approved porque los legacy ya vienen firmados Y pagados (completos)
-      status: 'approved',
+      // Estado según lo que viene del formulario
+      status: budgetStatus,
+      
+      // ✅ Si tiene PDF firmado, marcar como firma manual
+      signatureMethod: hasSignedPdf ? 'manual' : 'none',
+      manualSignedPdfPath: hasSignedPdf ? documentosGuardados.presupuesto.url : null,
+      manualSignedPdfPublicId: hasSignedPdf ? documentosGuardados.presupuesto.publicId : null,
       
       // Montos
       subtotalPrice: finalTotal,

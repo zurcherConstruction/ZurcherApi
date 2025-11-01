@@ -1310,10 +1310,98 @@ const getWorksInMaintenance = async (req, res) => {
   }
 };
 
+// Actualizar información de Notice to Owner y Lien
+const updateNoticeToOwner = async (req, res) => {
+  try {
+    const { idWork } = req.params;
+    const {
+      noticeToOwnerFiled,
+      noticeToOwnerDocumentUrl,
+      noticeToOwnerFiledDate,
+      lienFiled,
+      lienDocumentUrl,
+      lienFiledDate,
+      noticeToOwnerNotes
+    } = req.body;
 
+    console.log(`📋 Actualizando Notice to Owner para trabajo ${idWork}:`, req.body);
 
+    // Buscar el trabajo
+    const work = await Work.findByPk(idWork);
+    if (!work) {
+      return res.status(404).json({ error: true, message: 'Trabajo no encontrado' });
+    }
 
+    // Verificar que tenga installationStartDate
+    if (!work.installationStartDate) {
+      return res.status(400).json({ 
+        error: true, 
+        message: 'Este trabajo no tiene fecha de inicio de instalación registrada' 
+      });
+    }
 
+    // Preparar datos para actualizar
+    const updateData = {};
+    
+    if (noticeToOwnerFiled !== undefined) {
+      updateData.noticeToOwnerFiled = noticeToOwnerFiled;
+      // Si se marca como archivado y no tiene fecha, usar hoy
+      if (noticeToOwnerFiled && !noticeToOwnerFiledDate && !work.noticeToOwnerFiledDate) {
+        updateData.noticeToOwnerFiledDate = new Date().toISOString().split('T')[0];
+      }
+    }
+    
+    if (noticeToOwnerDocumentUrl !== undefined) {
+      updateData.noticeToOwnerDocumentUrl = noticeToOwnerDocumentUrl;
+    }
+    
+    if (noticeToOwnerFiledDate !== undefined) {
+      updateData.noticeToOwnerFiledDate = noticeToOwnerFiledDate;
+    }
+    
+    if (lienFiled !== undefined) {
+      updateData.lienFiled = lienFiled;
+      // Si se marca como archivado y no tiene fecha, usar hoy
+      if (lienFiled && !lienFiledDate && !work.lienFiledDate) {
+        updateData.lienFiledDate = new Date().toISOString().split('T')[0];
+      }
+    }
+    
+    if (lienDocumentUrl !== undefined) {
+      updateData.lienDocumentUrl = lienDocumentUrl;
+    }
+    
+    if (lienFiledDate !== undefined) {
+      updateData.lienFiledDate = lienFiledDate;
+    }
+    
+    if (noticeToOwnerNotes !== undefined) {
+      updateData.noticeToOwnerNotes = noticeToOwnerNotes;
+    }
+
+    // Actualizar el trabajo
+    await work.update(updateData);
+
+    console.log('✅ Notice to Owner actualizado exitosamente');
+
+    // Devolver el trabajo actualizado
+    const updatedWork = await Work.findByPk(idWork);
+
+    res.status(200).json({
+      success: true,
+      message: 'Notice to Owner actualizado exitosamente',
+      work: updatedWork
+    });
+
+  } catch (error) {
+    console.error('❌ Error actualizando Notice to Owner:', error);
+    res.status(500).json({ 
+      error: true, 
+      message: 'Error al actualizar Notice to Owner',
+      details: error.message 
+    });
+  }
+};
 
 module.exports = {
   createWork,
@@ -1330,4 +1418,5 @@ module.exports = {
   changeWorkStatus,
   validateStatusChangeOnly,
   getWorksInMaintenance,
+  updateNoticeToOwner,
 };

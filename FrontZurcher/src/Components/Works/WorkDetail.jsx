@@ -20,6 +20,7 @@ import useAutoRefresh from "../../utils/useAutoRefresh";
 import PdfModal from "../Budget/PdfModal"; 
 import { fetchInspectionsByWork, registerQuickInspectionResult } from '../../Redux/Actions/inspectionActions';
 import WorkNotesModal from './WorkNotesModal';
+import NoticeToOwnerCard from './NoticeToOwnerCard';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
   // --- Estado para modal de resultado rápido de inspección ---
   
@@ -45,8 +46,8 @@ const WorkDetail = () => {
     return `${month}-${day}-${year}`;
   };
 
-  // Refresco automático cada 60 segundos
-  useAutoRefresh(() => fetchWorkById(idWork), 360000, [idWork]);
+  // Refresco automático cada 10 min
+  useAutoRefresh(() => fetchWorkById(idWork), 600000, [idWork]);
 
 
 
@@ -1737,6 +1738,25 @@ const handleUploadImage = async () => {
 
           {/* Columna derecha: Tarjetas de gastos e ingresos */}
           <div className="space-y-6">
+            {/* Notice to Owner & Lien Card */}
+            {work && work.installationStartDate && (
+              <NoticeToOwnerCard 
+                work={work}
+                isOpen={openSections.noticeToOwner}
+                onToggle={() => toggleSection('noticeToOwner')}
+                onUpdate={async (data) => {
+                  try {
+                    await api.put(`/work/${idWork}/notice-to-owner`, data);
+                    // Refrescar el trabajo después de actualizar
+                    dispatch(fetchWorkById(idWork));
+                  } catch (error) {
+                    console.error('Error updating Notice to Owner:', error);
+                    alert('Error al actualizar Notice to Owner');
+                  }
+                }}
+              />
+            )}
+
             {/* --- 2. TARJETA DE BALANCE TOTAL --- */}
             <div className={`
               shadow-lg rounded-lg p-4 md:p-6 border-l-8

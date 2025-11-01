@@ -52,6 +52,9 @@ router.post('/:idWork/images',
 
 router.delete('/:idWork/images/:imageId', verifyToken, allowRoles(['owner', 'worker']), WorkController.deleteImagesFromWork);
 
+// Actualizar Notice to Owner y Lien
+router.put('/:idWork/notice-to-owner', verifyToken, allowRoles(['admin', 'owner', 'finance']), WorkController.updateNoticeToOwner);
+
 router.post('/:idWork/validate-status-change',verifyToken, allowRoles(['admin', 'owner']), WorkController.validateStatusChangeOnly);
 router.post('/:idWork/change-status', verifyToken, allowRoles(['admin', 'owner',]), WorkController.changeWorkStatus);
 
