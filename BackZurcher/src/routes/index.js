@@ -33,6 +33,7 @@ const contactRoutes = require('./contactRoutes'); // Asegúrate de que la ruta s
 const importRoutes = require('./importRoutes'); // Rutas para importar trabajos legacy
 const budgetPublicRoutes = require('./BudgetPublicRoutes');
 const stripeWebhookRoutes = require('./stripeWebhookRoutes'); // 🆕 Webhooks de Stripe
+const docusignRoutes = require('./docusign.routes'); // 🆕 OAuth de DocuSign
 
 router.use('/auth', authRoutes); // Registro y login no requieren token
 router.use('/change-orders',changeOrdersRoutes); // Ruta para change orders (incluye rutas públicas)
@@ -41,6 +42,7 @@ router.use('/change-orders',changeOrdersRoutes); // Ruta para change orders (inc
 router.use('/stripe', stripeWebhookRoutes); // 🆕 Webhooks de Stripe (público, sin auth)
 router.use('/signnow', signNowRoutes);
 router.use('/contact', contactRoutes); // Ruta pública para formulario de contacto
+router.use('/docusign', docusignRoutes); // 🆕 OAuth de DocuSign (público, sin auth)
 
 // 🆕 RUTAS PÚBLICAS DE BUDGETS (antes del verifyToken)
 // Estas rutas permiten a los clientes revisar presupuestos sin autenticación
