@@ -2305,246 +2305,128 @@ async optionalDocs(req, res) {
       budget.paymentProofType = proofType;
       if (parsedUploadedAmount !== null) {
         budget.paymentProofAmount = parsedUploadedAmount;
-        console.log("Monto del comprobante guardado:", parsedUploadedAmount);
+        console.log(`Budget #${budget.idBudget}: Comprobante guardado - Monto: $${parsedUploadedAmount}`);
       }
       // 🆕 GUARDAR MÉTODO DE PAGO
       if (paymentMethod) {
         budget.paymentProofMethod = paymentMethod;
-        console.log("Método de pago guardado en Budget:", paymentMethod);
       }
+      
       await budget.save({ transaction });
-      console.log("Presupuesto actualizado con comprobante y monto (si aplica):", budget.toJSON());
+      
+      // ✅ RECARGAR el budget desde la BD para obtener el estado REAL después del hook
+      await budget.reload({ transaction });
 
-      // ✅ MEJORAR: Manejo de Income y Receipt para presupuestos aprobados
-      if (budget.status === 'approved') {
-        const existingWork = await Work.findOne({
-          where: { idBudget: budget.idBudget },
-          transaction
-        });
+      // ✅ LÓGICA UNIVERSAL: SIEMPRE crear/actualizar Work + Income cuando hay pago inicial
+      // No importa el estado - si hay pago, debe haber Work + Income
+      const amountForIncome = parsedUploadedAmount || budget.initialPayment;
+      const now = new Date();
+      const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-        if (existingWork) {
-          console.log(`Work encontrado: ${existingWork.idWork}`);
-
-          // Buscar Income de pago inicial
-          let relatedIncome = await Income.findOne({
-            where: {
-              workId: existingWork.idWork,
-              typeIncome: 'Factura Pago Inicial Budget'
-            },
-            transaction
-          });
-
-          // ✅ CREAR Income si no existe (caso cuando se eliminó)
-          if (!relatedIncome) {
-            console.log('No se encontró Income de pago inicial, creando uno nuevo...');
-            const amountForIncome = parsedUploadedAmount || budget.initialPayment;
-            const now = new Date();
-            const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-
-            relatedIncome = await Income.create({
-              amount: amountForIncome,
-              date: localDate,
-              typeIncome: 'Factura Pago Inicial Budget',
-              notes: `Pago inicial para Budget #${budget.idBudget}`,
-              workId: existingWork.idWork,
-              staffId: req.user?.id,
-              paymentMethod: paymentMethod || null, // 🆕 Agregar método de pago
-              verified: false // 🆕 Por defecto no verificado
-            }, { transaction });
-
-            console.log(`Nuevo Income creado: ${relatedIncome.idIncome}`);
-            
-            // 🚀 NOTIFICACIÓN DE INCOME RECREADO DESDE BUDGET
-            setImmediate(async () => {
-              try {
-                const notificationData = {
-                  ...relatedIncome.toJSON(),
-                  propertyAddress: budget.propertyAddress || existingWork.propertyAddress || 'Obra no especificada',
-                  Staff: { name: 'Sistema - Budget Recreación' }
-                };
-                await sendNotifications('incomeRegistered', notificationData);
-                console.log(`✅ Notificación de income recreado enviada: $${amountForIncome} - Budget #${budget.idBudget}`);
-              } catch (notificationError) {
-                console.error('❌ Error enviando notificación de income recreado:', notificationError.message);
-              }
-            });
-          } else {
-            // ✅ ACTUALIZAR Income existente si el monto cambió
-            const newAmount = parsedUploadedAmount || relatedIncome.amount;
-            if (parseFloat(relatedIncome.amount) !== parseFloat(newAmount)) {
-              await relatedIncome.update({
-                amount: newAmount,
-                date: new Date(),
-                notes: `Pago inicial actualizado para Budget #${budget.idBudget}`,
-                staffId: req.user?.id,
-                paymentMethod: paymentMethod || relatedIncome.paymentMethod // 🆕 Actualizar método de pago si se proporciona
-              }, { transaction });
-              console.log(`Income actualizado con nuevo monto: ${newAmount}`);
-            } else if (paymentMethod && paymentMethod !== relatedIncome.paymentMethod) {
-              // 🆕 Actualizar solo el método de pago si cambió
-              await relatedIncome.update({
-                paymentMethod: paymentMethod
-              }, { transaction });
-              console.log(`Income actualizado con nuevo método de pago: ${paymentMethod}`);
-            }
-          }
-
-          // ✅ MANEJAR Receipt
-          if (relatedIncome && uploadResult?.secure_url) {
-            let existingReceipt = await Receipt.findOne({
-              where: {
-                relatedModel: 'Income',
-                relatedId: relatedIncome.idIncome
-              },
-              transaction
-            });
-
-            const receiptData = {
-              fileUrl: uploadResult.secure_url,
-              publicId: uploadResult.public_id,
-              mimeType: req.file?.mimetype || 'application/pdf',
-              originalName: req.file?.originalname || 'comprobante_pago_inicial.pdf',
-              staffId: req.user?.id
-            };
-
-            if (existingReceipt) {
-              // ✅ ACTUALIZAR Receipt existente
-              await existingReceipt.update({
-                ...receiptData,
-                notes: `Comprobante de pago inicial actualizado para Budget #${budget.idBudget}`
-              }, { transaction });
-              console.log(`Receipt actualizado para Income: ${relatedIncome.idIncome}`);
-            } else {
-              // ✅ CREAR nuevo Receipt
-              await Receipt.create({
-                relatedModel: 'Income',
-                relatedId: relatedIncome.idIncome,
-                type: 'income',
-                notes: `Comprobante de pago inicial para Budget #${budget.idBudget}`,
-                ...receiptData
-              }, { transaction });
-              console.log(`Nuevo Receipt creado para Income: ${relatedIncome.idIncome}`);
-            }
-          }
-        } else {
-          console.log('No se encontró Work asociado a este Budget');
-        }
+      // 🆕 BUSCAR O CREAR WORK PRIMERO
+      let existingWork = await Work.findOne({
+        where: { idBudget: budget.idBudget },
+        transaction
+      });
+      
+      if (!existingWork) {
+        existingWork = await Work.create({
+          propertyAddress: budget.propertyAddress,
+          status: 'pending',
+          idBudget: budget.idBudget,
+          notes: `Work creado al registrar pago inicial de Budget #${budget.idBudget}`,
+          initialPayment: amountForIncome,
+          staffId: req.user?.id
+        }, { transaction });
+        console.log(`✅ Work creado para Budget #${budget.idBudget} - ID: ${existingWork.idWork}`);
       } else {
-        // 🆕 Budget AÚN NO está approved → Crear Work + Income inmediatamente
-        console.log('Budget aún no está aprobado, creando Work + Income...');
-        
-        const amountForIncome = parsedUploadedAmount || budget.initialPayment;
-        const now = new Date();
-        const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-
-        // 🆕 BUSCAR O CREAR WORK PRIMERO
-        let existingWork = await Work.findOne({
-          where: { idBudget: budget.idBudget },
-          transaction
-        });
-
-        if (!existingWork) {
-          console.log('Creando nuevo Work para el Budget...');
-          existingWork = await Work.create({
-            propertyAddress: budget.propertyAddress,
-            status: 'pending',
-            idBudget: budget.idBudget,
-            notes: `Work creado al registrar pago inicial de Budget #${budget.idBudget}`,
+        // Actualizar monto si cambió
+        if (parseFloat(existingWork.initialPayment) !== parseFloat(amountForIncome)) {
+          await existingWork.update({
             initialPayment: amountForIncome
           }, { transaction });
-          console.log(`✅ Work creado: ${existingWork.idWork}`);
-        } else {
-          // Actualizar monto si cambió
-          if (parseFloat(existingWork.initialPayment) !== parseFloat(amountForIncome)) {
-            await existingWork.update({
-              initialPayment: amountForIncome
-            }, { transaction });
-            console.log(`✅ Work actualizado con nuevo monto: $${amountForIncome}`);
-          }
+          console.log(`Work #${existingWork.idWork} actualizado - Nuevo monto: $${amountForIncome}`);
         }
+      }
 
-        // BUSCAR O CREAR INCOME asociado al Work
-        let existingIncome = await Income.findOne({
+      // BUSCAR O CREAR INCOME asociado al Work
+      let existingIncome = await Income.findOne({
+        where: {
+          workId: existingWork.idWork,
+          typeIncome: 'Factura Pago Inicial Budget'
+        },
+        transaction
+      });
+      
+      if (existingIncome) {
+        // Actualizar Income existente
+        await existingIncome.update({
+          amount: amountForIncome,
+          paymentMethod: paymentMethod || existingIncome.paymentMethod,
+          notes: `Pago inicial actualizado para Budget #${budget.idBudget}`,
+          staffId: req.user?.id
+        }, { transaction });
+        console.log(`Income #${existingIncome.idIncome} actualizado - $${amountForIncome}`);
+      } else {
+        // Crear nuevo Income
+        existingIncome = await Income.create({
+          date: localDate,
+          amount: amountForIncome,
+          typeIncome: 'Factura Pago Inicial Budget',
+          notes: `Pago inicial para Budget #${budget.idBudget}`,
+          workId: existingWork.idWork,
+          staffId: req.user?.id,
+          paymentMethod: paymentMethod || null,
+          verified: false
+        }, { transaction });
+        console.log(`✅ Income creado para Budget #${budget.idBudget} - ID: ${existingIncome.idIncome} - $${amountForIncome}`);
+        
+        // 🚀 Notificación de Income inmediata
+        setImmediate(async () => {
+          try {
+            const notificationData = {
+              ...existingIncome.toJSON(),
+              propertyAddress: budget.propertyAddress,
+              Staff: req.user ? { name: req.user.name } : { name: 'Sistema' }
+            };
+            await sendNotifications('incomeRegistered', notificationData);
+          } catch (notificationError) {
+            console.error('❌ Error enviando notificación de pago inicial:', notificationError.message);
+          }
+        });
+      }
+
+      // ✅ Crear/Actualizar Receipt para el Income
+      if (existingIncome && uploadResult?.secure_url) {
+        let existingReceipt = await Receipt.findOne({
           where: {
-            workId: existingWork.idWork,
-            typeIncome: 'Factura Pago Inicial Budget'
+            relatedModel: 'Income',
+            relatedId: existingIncome.idIncome
           },
           transaction
         });
 
-        if (existingIncome) {
-          // Actualizar Income existente
-          await existingIncome.update({
-            amount: amountForIncome,
-            paymentMethod: paymentMethod || existingIncome.paymentMethod,
-            notes: `Pago inicial actualizado para Budget #${budget.idBudget}`,
-            staffId: req.user?.id
+        const receiptData = {
+          fileUrl: uploadResult.secure_url,
+          publicId: uploadResult.public_id,
+          mimeType: req.file?.mimetype || 'application/pdf',
+          originalName: req.file?.originalname || 'comprobante_pago_inicial.pdf',
+          staffId: req.user?.id
+        };
+
+        if (existingReceipt) {
+          await existingReceipt.update({
+            ...receiptData,
+            notes: `Comprobante actualizado para Budget #${budget.idBudget}`
           }, { transaction });
-          console.log(`✅ Income existente actualizado: ${existingIncome.idIncome} - $${amountForIncome}`);
         } else {
-          // Crear nuevo Income
-          existingIncome = await Income.create({
-            date: localDate,
-            amount: amountForIncome,
-            typeIncome: 'Factura Pago Inicial Budget',
-            notes: `Pago inicial para Budget #${budget.idBudget}`,
-            workId: existingWork.idWork, // ✅ Asociado directamente al Work
-            staffId: req.user?.id,
-            paymentMethod: paymentMethod || null,
-            verified: false
+          await Receipt.create({
+            relatedModel: 'Income',
+            relatedId: existingIncome.idIncome,
+            type: 'Factura Pago Inicial Budget',
+            notes: `Comprobante de pago inicial para Budget #${budget.idBudget}`,
+            ...receiptData
           }, { transaction });
-          console.log(`✅ Income creado: ${existingIncome.idIncome} - $${amountForIncome}`);
-          
-          // 🚀 Notificación de Income inmediata
-          setImmediate(async () => {
-            try {
-              const notificationData = {
-                ...existingIncome.toJSON(),
-                propertyAddress: budget.propertyAddress,
-                Staff: req.user ? { name: req.user.name } : { name: 'Sistema' }
-              };
-              await sendNotifications('incomeRegistered', notificationData);
-              console.log(`✅ Notificación de pago inicial enviada: $${amountForIncome} - Budget #${budget.idBudget}`);
-            } catch (notificationError) {
-              console.error('❌ Error enviando notificación:', notificationError.message);
-            }
-          });
-        }
-
-        // Crear/Actualizar Receipt para el Income
-        if (uploadResult?.secure_url) {
-          let existingReceipt = await Receipt.findOne({
-            where: {
-              relatedModel: 'Income',
-              relatedId: existingIncome.idIncome
-            },
-            transaction
-          });
-
-          const receiptData = {
-            fileUrl: uploadResult.secure_url,
-            publicId: uploadResult.public_id,
-            mimeType: req.file?.mimetype || 'application/pdf',
-            originalName: req.file?.originalname || 'comprobante_pago_inicial.pdf',
-            staffId: req.user?.id
-          };
-
-          if (existingReceipt) {
-            await existingReceipt.update({
-              ...receiptData,
-              notes: `Comprobante actualizado para Budget #${budget.idBudget}`
-            }, { transaction });
-            console.log(`Receipt actualizado para Income: ${existingIncome.idIncome}`);
-          } else {
-            await Receipt.create({
-              relatedModel: 'Income',
-              relatedId: existingIncome.idIncome,
-              type: 'Factura Pago Inicial Budget', // ✅ Usar valor del ENUM correcto
-              notes: `Comprobante de pago inicial para Budget #${budget.idBudget}`,
-              ...receiptData
-            }, { transaction });
-            console.log(`Nuevo Receipt creado para Income: ${existingIncome.idIncome}`);
-          }
         }
       }
 
