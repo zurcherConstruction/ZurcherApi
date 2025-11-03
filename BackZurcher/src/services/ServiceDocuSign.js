@@ -25,35 +25,10 @@ class DocuSignService {
   }
 
   /**
-   * Obtener token de acceso usando Authorization Code Grant
+   * Obtener token de acceso usando JWT (Service Integration)
+   * Este método NO requiere autorización manual del usuario
    */
   async getAccessToken() {
-    try {
-      console.log('🔐 Obteniendo access token de DocuSign...');
-
-      // Cargar tokens de Authorization Code Grant
-      const DocuSignController = require('../controllers/DocuSignController');
-      const accessToken = await DocuSignController.getValidAccessToken();
-
-      if (!accessToken) {
-        throw new Error('No hay access token disponible. Autoriza la aplicación en: ' + process.env.API_URL + '/docusign/auth');
-      }
-
-      // Configurar el token en el cliente API
-      this.apiClient.addDefaultHeader('Authorization', 'Bearer ' + accessToken);
-
-      return accessToken;
-    } catch (error) {
-      console.error('❌ Error obteniendo access token:', error.message);
-      throw error;
-    }
-  }
-
-  /**
-   * Obtener token de acceso usando JWT (DEPRECADO - usar Authorization Code)
-   * Mantener por si se resuelve el problema de JWT en el futuro
-   */
-  async getAccessTokenJWT() {
     try {
       console.log('🔐 Obteniendo access token de DocuSign con JWT...');
 
@@ -65,11 +40,18 @@ class DocuSignService {
 
       const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
 
+      // Configurar el OAuth basePath para el ambiente correcto
+      const oAuthBasePath = this.environment === 'demo'
+        ? 'account-d.docusign.com'
+        : 'account.docusign.com';
+      
+      this.apiClient.setOAuthBasePath(oAuthBasePath);
+
       // Configurar JWT
       const jwtLifeSec = 3600; // 1 hora
       const scopes = ['signature', 'impersonation'];
 
-      // Solicitar token
+      // Solicitar token JWT
       const results = await this.apiClient.requestJWTUserToken(
         this.integrationKey,
         this.userId,
@@ -83,13 +65,18 @@ class DocuSignService {
       // Configurar el token en el API client
       this.apiClient.addDefaultHeader('Authorization', `Bearer ${accessToken}`);
       
-      console.log('✅ Access token obtenido exitosamente');
+      console.log('✅ Access token JWT obtenido exitosamente');
       return accessToken;
     } catch (error) {
-      console.error('❌ Error obteniendo access token:', error.message);
+      console.error('❌ Error obteniendo access token JWT:', error.message);
+      
+      // Si el error es de consentimiento, mostrar URL para dar consentimiento
       if (error.response?.body?.error === 'consent_required') {
-        console.error('⚠️ Se requiere consentimiento. Visita este URL en el navegador:');
-        console.error(`https://account-d.docusign.com/oauth/auth?response_type=code&scope=signature%20impersonation&client_id=${this.integrationKey}&redirect_uri=https://www.docusign.com`);
+        console.error('\n⚠️  ACCIÓN REQUERIDA: Se necesita consentimiento de usuario (solo una vez)');
+        console.error('👉 Visita este URL en el navegador para autorizar la aplicación:\n');
+        const consentUrl = `https://${this.environment === 'demo' ? 'account-d' : 'account'}.docusign.com/oauth/auth?response_type=code&scope=signature%20impersonation&client_id=${this.integrationKey}&redirect_uri=https://www.docusign.com`;
+        console.error(consentUrl);
+        console.error('\nDespués de autorizar, vuelve a intentar enviar el documento.\n');
       }
       throw error;
     }
@@ -103,12 +90,17 @@ class DocuSignService {
    * @param {string} fileName - Nombre del archivo
    * @param {string} subject - Asunto del email
    * @param {string} message - Mensaje del email
+   * @param {boolean} getSigningUrl - Si true, retorna URL de firma en lugar de enviar email
    */
-  async sendBudgetForSignature(pdfPath, clientEmail, clientName, fileName, subject, message) {
+  async sendBudgetForSignature(pdfPath, clientEmail, clientName, fileName, subject, message, getSigningUrl = true) {
     try {
+      // 🔧 Normalizar email a minúsculas para evitar problemas de entrega
+      const normalizedEmail = clientEmail.toLowerCase();
+      
       console.log('\n🚀 === ENVIANDO DOCUMENTO A DOCUSIGN ===');
-      console.log('📧 Cliente:', clientEmail, '-', clientName);
+      console.log('📧 Cliente:', normalizedEmail, '-', clientName);
       console.log('📄 Archivo:', fileName);
+      console.log('🔗 Generar URL de firma:', getSigningUrl ? 'Sí' : 'No (enviar email)');
 
       // Obtener token
       await this.getAccessToken();
@@ -131,10 +123,11 @@ class DocuSignService {
       const envelopeDefinition = this.createEnvelopeDefinition(
         pdfBase64,
         fileName,
-        clientEmail,
+        normalizedEmail, // Usar email normalizado
         clientName,
         subject,
-        message
+        message,
+        getSigningUrl // Pasar flag para usar clientUserId
       );
 
       // Enviar el envelope
@@ -147,13 +140,27 @@ class DocuSignService {
       console.log('📋 Envelope ID:', results.envelopeId);
       console.log('📊 Status:', results.status);
 
-      return {
+      const response = {
         success: true,
         envelopeId: results.envelopeId,
         status: results.status,
         uri: results.uri,
         statusDateTime: results.statusDateTime
       };
+
+      // Si se solicitó URL de firma, generarla
+      if (getSigningUrl) {
+        console.log('🔗 Generando URL de firma embebida...');
+        const signingUrl = await this.getRecipientViewUrl(
+          results.envelopeId,
+          normalizedEmail,
+          clientName
+        );
+        response.signingUrl = signingUrl;
+        console.log('✅ URL de firma generada exitosamente');
+      }
+
+      return response;
 
     } catch (error) {
       console.error('❌ Error enviando documento a DocuSign:', error.message);
@@ -167,7 +174,7 @@ class DocuSignService {
   /**
    * Crear definición del envelope para firma
    */
-  createEnvelopeDefinition(pdfBase64, fileName, clientEmail, clientName, subject, message) {
+  createEnvelopeDefinition(pdfBase64, fileName, clientEmail, clientName, subject, message, useEmbeddedSigning = true) {
     // Documento
     const document = docusign.Document.constructFromObject({
       documentBase64: pdfBase64,
@@ -177,39 +184,64 @@ class DocuSignService {
     });
 
     // Firmante
+    // Si useEmbeddedSigning = true, usar clientUserId para poder generar URL
+    // Además, suprimir notificación de email de DocuSign
     const signer = docusign.Signer.constructFromObject({
       email: clientEmail,
       name: clientName,
       recipientId: '1',
       routingOrder: '1',
-      clientUserId: null // null = firma por email (no embedded)
+      clientUserId: useEmbeddedSigning ? clientEmail : null, // clientUserId necesario para RecipientView
+      emailNotification: useEmbeddedSigning ? { 
+        emailSubject: 'Please sign this document',
+        emailBody: 'Please sign this document',
+        supportedLanguage: 'en'
+      } : undefined
     });
 
-    // Tab de firma (dónde firmar)
+    // Tab de firma (dónde firmar) - Usar Anchor Text para ubicación automática
     const signHereTab = docusign.SignHere.constructFromObject({
       documentId: '1',
-      pageNumber: '1',
-      xPosition: '100',
-      yPosition: '650',
+      anchorString: 'Client Signature:', // Buscar este texto en el PDF
+      anchorUnits: 'pixels',
+      anchorXOffset: '90',     // ✅ Mover 90px a la derecha (después del texto y sobre la línea)
+      anchorYOffset: '-5',     // ✅ Mantener arriba para alineación
       name: 'SignHere',
       optional: 'false',
       scaleValue: '1'
     });
 
-    // Tab de fecha
+    // Tab de fecha - Usar Anchor Text para ubicación automática
     const dateSignedTab = docusign.DateSigned.constructFromObject({
       documentId: '1',
-      pageNumber: '1',
-      xPosition: '300',
-      yPosition: '650',
+      anchorString: 'Date:',  // Buscar "Date:" que está después de Client Signature
+      anchorUnits: 'pixels',
+      anchorXOffset: '35',     // ✅ Mover 35px a la derecha del texto "Date:"
+      anchorYOffset: '-5',     // ✅ Mantener arriba para alineación
       name: 'DateSigned',
-      optional: 'false'
+      optional: 'false',
+      fontSize: 'size9'
     });
 
     // Asignar tabs al firmante
     signer.tabs = docusign.Tabs.constructFromObject({
       signHereTabs: [signHereTab],
       dateSignedTabs: [dateSignedTab]
+    });
+
+    // Configurar notificaciones de email
+    const notification = docusign.Notification.constructFromObject({
+      useAccountDefaults: 'false',
+      reminders: docusign.Reminders.constructFromObject({
+        reminderEnabled: 'true',
+        reminderDelay: '2',
+        reminderFrequency: '2'
+      }),
+      expirations: docusign.Expirations.constructFromObject({
+        expireEnabled: 'true',
+        expireAfter: '120',
+        expireWarn: '5'
+      })
     });
 
     // Definición del envelope
@@ -220,10 +252,59 @@ class DocuSignService {
       recipients: docusign.Recipients.constructFromObject({
         signers: [signer]
       }),
-      status: 'sent' // Enviar inmediatamente
+      notification: notification,
+      status: useEmbeddedSigning ? 'sent' : 'sent', // ✅ Debe ser 'sent' para poder generar RecipientView
+      enableWetSign: 'false', // No permitir firma manual (solo digital)
+      allowMarkup: 'false',
+      allowReassign: 'false'
     });
 
     return envelopeDefinition;
+  }
+
+  /**
+   * Obtener URL de firma embebida para el cliente
+   * @param {string} envelopeId - ID del envelope
+   * @param {string} email - Email del firmante
+   * @param {string} name - Nombre del firmante
+   * @param {string} returnUrl - URL de retorno después de firmar
+   */
+  async getRecipientViewUrl(envelopeId, email, name, returnUrl = null) {
+    try {
+      console.log(`🔗 Generando URL de firma para envelope: ${envelopeId}`);
+      
+      await this.getAccessToken();
+
+      const envelopesApi = new docusign.EnvelopesApi(this.apiClient);
+      
+      // URL de retorno por defecto - redirige a la landing principal
+      const defaultReturnUrl = process.env.FRONTEND_URL || 'https://zurcher-construction.vercel.app';
+      
+      const recipientViewRequest = docusign.RecipientViewRequest.constructFromObject({
+        returnUrl: returnUrl || defaultReturnUrl, // Redirige a la landing (/) directamente
+        authenticationMethod: 'email',
+        email: email.toLowerCase(),
+        userName: name,
+        clientUserId: email.toLowerCase() // Debe coincidir con el usado en createEnvelopeDefinition
+      });
+
+      const results = await envelopesApi.createRecipientView(
+        this.accountId,
+        envelopeId,
+        { recipientViewRequest }
+      );
+
+      console.log(`✅ URL de firma generada exitosamente`);
+      
+      return results.url;
+
+    } catch (error) {
+      console.error('❌ Error generando URL de firma:', error.message);
+      if (error.response) {
+        console.error('Response:', JSON.stringify(error.response.body, null, 2));
+      }
+      throw error;
+    }
   }
 
   /**
