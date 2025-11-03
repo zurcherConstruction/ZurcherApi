@@ -304,6 +304,7 @@ module.exports = (sequelize) => {
         if (budget.status === 'signed' && budget.changed('paymentProofAmount')) {
           const paymentAmount = parseFloat(budget.paymentProofAmount);
           if (paymentAmount && paymentAmount > 0) {
+            console.log(`✅ Budget #${budget.idBudget}: signed → approved (pago agregado: $${paymentAmount})`);
             budget.status = 'approved';
           }
         }
@@ -313,6 +314,7 @@ module.exports = (sequelize) => {
         if (budget.changed('status') && budget.status === 'signed' && budget.paymentProofAmount) {
           const paymentAmount = parseFloat(budget.paymentProofAmount);
           if (paymentAmount && paymentAmount > 0) {
+            console.log(`✅ Budget #${budget.idBudget}: signed → approved (firma + pago existente: $${paymentAmount})`);
             budget.status = 'approved';
           }
         }
@@ -321,6 +323,7 @@ module.exports = (sequelize) => {
         if (budget.manualSignedPdfPath && budget.paymentProofAmount) {
           const paymentAmount = parseFloat(budget.paymentProofAmount);
           if (paymentAmount && paymentAmount > 0 && budget.status === 'signed') {
+            console.log(`✅ Budget #${budget.idBudget}: signed → approved (firma manual + pago: $${paymentAmount})`);
             budget.status = 'approved';
           }
         }
