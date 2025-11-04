@@ -9,9 +9,13 @@ const path = require('path');
 const { sendEmail } = require('../utils/notifications/emailService.js');
 const { generateAndSaveBudgetPDF } = require('../utils/pdfGenerators');
 const SignNowService = require('../services/ServiceSignNow');
+const DocuSignService = require('../services/ServiceDocuSign'); // 🆕 DOCUSIGN
 const { getNextInvoiceNumber } = require('../utils/invoiceNumberManager'); // 🆕 HELPER DE NUMERACIÓN UNIFICADA
 const ExcelJS = require('exceljs'); // 🆕 Para exportar a Excel
 require('dotenv').config();
+
+// 🆕 Variable de configuración para elegir servicio de firma
+const USE_DOCUSIGN = process.env.USE_DOCUSIGN === 'true'; // true = DocuSign, false = SignNow
 
 // AGREGAR esta función auxiliar después de los imports:
 function getPublicPdfUrl(localPath, req) {
@@ -526,14 +530,15 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
           }
         } catch (clientEmailError) {
           console.error(`❌ Error al enviar correo con PDF al cliente ${budget.Permit.applicantEmail}:`, clientEmailError);
-          // No fallar la operación, continuar con SignNow
+          // No fallar la operación, continuar con servicio de firma
         }
       }
 
-      // Inicializar servicio de SignNow
-      console.log('🔧 Inicializando servicio SignNow...');
-      const SignNowService = require('../services/ServiceSignNow');
-      const signNowService = new SignNowService();
+      // 🆕 Inicializar servicio de firma (SignNow o DocuSign según configuración)
+      const serviceName = USE_DOCUSIGN ? 'DocuSign' : 'SignNow';
+      console.log(`🔧 Inicializando servicio ${serviceName}...`);
+      
+      const signatureService = USE_DOCUSIGN ? new DocuSignService() : new SignNowService();
 
       // Preparar información para el documento
       const propertyAddress = budget.Permit?.propertyAddress || budget.propertyAddress || 'Property';
@@ -545,25 +550,48 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
       
       const fileName = `${documentIdentifier}_${propertyAddress.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
 
-      console.log(`📁 Nombre del archivo para SignNow: ${fileName}`);
+      console.log(`📁 Nombre del archivo para ${serviceName}: ${fileName}`);
       console.log(`📋 Tipo de documento: ${budget.invoiceNumber ? `Invoice #${budget.invoiceNumber}` : `Budget #${budget.idBudget}`}`);
+      console.log(`📧 Cliente: ${budget.Permit.applicantEmail} - ${budget.Permit.applicantName}`);
 
-      // Enviar documento para firma
-      console.log('📤 Enviando documento a SignNow...');
-      const signNowResult = await signNowService.sendBudgetForSignature(
-        localPdfPath,
-        fileName,
-        budget.Permit.applicantEmail,
-        budget.Permit.applicantName || 'Valued Client'
-      );
+      // Preparar subject y message para DocuSign
+      const emailSubject = budget.invoiceNumber 
+        ? `Please sign Invoice #${budget.invoiceNumber} - ${propertyAddress}`
+        : `Please sign Budget for ${propertyAddress}`;
+      
+      const emailMessage = `Dear ${budget.Permit.applicantName || 'Valued Client'},\n\n` +
+        `Please review and sign the attached ${budget.invoiceNumber ? 'invoice' : 'budget'} document.\n\n` +
+        `${budget.generalNotes ? budget.generalNotes + '\n\n' : ''}` +
+        `If you have any questions, please contact us.\n\n` +
+        `Best regards,\nZurcher Construction`;
 
-      console.log('✅ Resultado exitoso de SignNow:');
-      console.log(JSON.stringify(signNowResult, null, 2));
+      // Enviar documento para firma (ambos servicios tienen el mismo método)
+      console.log(`📤 Enviando documento a ${serviceName}...`);
+      const signatureResult = USE_DOCUSIGN
+        ? await signatureService.sendBudgetForSignature(
+            localPdfPath,
+            budget.Permit.applicantEmail,
+            budget.Permit.applicantName || 'Valued Client',
+            fileName,
+            emailSubject,
+            emailMessage
+          )
+        : await signatureService.sendBudgetForSignature(
+            localPdfPath,
+            fileName,
+            budget.Permit.applicantEmail,
+            budget.Permit.applicantName || 'Valued Client'
+          );
 
-      // Actualizar presupuesto con información de SignNow
+      console.log(`✅ Resultado exitoso de ${serviceName}:`);
+      console.log(JSON.stringify(signatureResult, null, 2));
+
+      // Actualizar presupuesto con información del servicio de firma
       console.log('💾 Actualizando presupuesto en la base de datos...');
       const updateData = {
-        signNowDocumentId: signNowResult.documentId, // Reutilizar este campo para SignNow
+        signatureDocumentId: USE_DOCUSIGN ? signatureResult.envelopeId : signatureResult.documentId,
+        signNowDocumentId: USE_DOCUSIGN ? null : signatureResult.documentId, // Mantener compatibilidad
+        signatureMethod: USE_DOCUSIGN ? 'docusign' : 'signnow',
         status: 'sent_for_signature',
         sentForSignatureAt: new Date()
       };
@@ -574,15 +602,15 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
       await transaction.commit();
       console.log('✅ Transacción confirmada');
 
-      // Enviar notificación interna de que se envió a SignNow
+      // Enviar notificación interna de que se envió para firma
       try {
-
         await sendNotifications('budgetSentToSignNow', {
           propertyAddress: budget.Permit?.propertyAddress || budget.propertyAddress,
           applicantEmail: budget.Permit.applicantEmail,
           applicantName: budget.Permit.applicantName,
           idBudget: budget.idBudget,
-          documentId: signNowResult.documentId
+          documentId: updateData.signatureDocumentId,
+          service: serviceName
         }, null, req.io);
         console.log('📧 Notificaciones internas enviadas');
       } catch (notificationError) {
@@ -592,15 +620,18 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
 
       const responseData = {
         error: false,
-        message: 'Presupuesto enviado a SignNow exitosamente. El cliente recibirá un email para firmar el documento.',
+        message: `Presupuesto enviado a ${serviceName} exitosamente. El cliente recibirá un email para firmar el documento.`,
         data: {
           budgetId: budget.idBudget,
-          documentId: signNowResult.documentId,
-          inviteId: signNowResult.inviteId,
+          documentId: updateData.signatureDocumentId,
+          inviteId: USE_DOCUSIGN ? null : signatureResult.inviteId,
+          envelopeId: USE_DOCUSIGN ? signatureResult.envelopeId : null,
           status: 'sent_for_signature',
           signerEmail: budget.Permit.applicantEmail,
           signerName: budget.Permit.applicantName,
           fileName: fileName,
+          signatureMethod: updateData.signatureMethod,
+          service: serviceName,
           sentAt: new Date().toISOString()
         }
       };
@@ -644,7 +675,10 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
         });
       }
 
-      if (!budget.signNowDocumentId) {
+      // Verificar si tiene documento de firma (nuevo campo genérico o viejo SignNow)
+      const documentId = budget.signatureDocumentId || budget.signNowDocumentId;
+      
+      if (!documentId) {
         return res.status(400).json({
           error: true,
           message: 'Este presupuesto no ha sido enviado para firma',
@@ -656,34 +690,111 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
         });
       }
 
-      // Inicializar servicio de SignNow
-      const SignNowService = require('../services/ServiceSignNow');
-      const signNowService = new SignNowService();
+      // 🆕 Determinar qué servicio usar según signatureMethod
+      const isDocuSign = budget.signatureMethod === 'docusign';
+      const serviceName = isDocuSign ? 'DocuSign' : 'SignNow';
+      
+      console.log(`🔍 Verificando en ${serviceName}...`);
+      console.log(`📋 Document ID: ${documentId}`);
+
+      // Inicializar el servicio correspondiente
+      const signatureService = isDocuSign ? new DocuSignService() : new SignNowService();
 
       // Verificar estado del documento
-      const signatureStatus = await signNowService.isDocumentSigned(budget.signNowDocumentId);
+      const signatureStatus = await signatureService.isDocumentSigned(documentId);
 
-      console.log('📊 Estado de firma:', signatureStatus);
+      console.log(`📊 Estado de firma en ${serviceName}:`, signatureStatus);
 
-      // ✅ Actualizar a 'signed' si está firmado (el hook del modelo lo pasará a 'approved' si tiene pago)
-      if (signatureStatus.isSigned && budget.status !== 'signed' && budget.status !== 'approved') {
-        await budget.update({
-          status: 'signed',
-          signedAt: new Date()
-        });
+      // ✅ Si está firmado, descargar PDF y subir a Cloudinary (como hace el cron job)
+      const isSigned = isDocuSign ? signatureStatus.signed : signatureStatus.isSigned;
+      
+      if (isSigned && budget.status !== 'signed' && budget.status !== 'approved') {
+        console.log(`✅ Documento firmado detectado! Descargando y procesando...`);
+
+        try {
+          // 1. Descargar PDF firmado
+          const path = require('path');
+          const uploadsDir = path.join(__dirname, '..', '..', 'uploads', 'signed-budgets');
+          
+          if (!fs.existsSync(uploadsDir)) {
+            fs.mkdirSync(uploadsDir, { recursive: true });
+          }
+
+          const signedFileName = `Budget_${budget.idBudget}_signed_${Date.now()}.pdf`;
+          const signedFilePath = path.join(uploadsDir, signedFileName);
+
+          console.log(`📥 Descargando PDF firmado de ${serviceName}...`);
+          await signatureService.downloadSignedDocument(documentId, signedFilePath);
+          console.log(`✅ PDF descargado: ${signedFilePath}`);
+
+          // 2. Subir a Cloudinary
+          console.log(`☁️  Subiendo PDF firmado a Cloudinary...`);
+          const cloudinary = require('cloudinary').v2;
+          
+          const uploadResult = await cloudinary.uploader.upload(signedFilePath, {
+            folder: 'budgets/signed',
+            resource_type: 'raw',
+            public_id: `budget_${budget.idBudget}_signed`,
+            overwrite: true
+          });
+
+          console.log(`✅ PDF subido a Cloudinary: ${uploadResult.secure_url}`);
+
+          // 3. Actualizar presupuesto con URL de Cloudinary y estado
+          await budget.update({
+            status: 'signed',
+            signedAt: new Date(),
+            signedPdfPath: uploadResult.secure_url,
+            signedPdfPublicId: uploadResult.public_id
+          });
+
+          console.log(`✅ Presupuesto ${budget.idBudget} actualizado a 'signed'`);
+
+          // 4. Eliminar archivo local temporal
+          try {
+            fs.unlinkSync(signedFilePath);
+            console.log(`🗑️  Archivo temporal eliminado`);
+          } catch (cleanupError) {
+            console.warn(`⚠️  No se pudo eliminar archivo temporal:`, cleanupError.message);
+          }
+
+          // 5. Enviar notificaciones
+          try {
+            await sendNotifications('budgetSigned', {
+              idBudget: budget.idBudget,
+              propertyAddress: budget.Permit?.propertyAddress || budget.propertyAddress,
+              applicantName: budget.Permit?.applicantName || budget.applicantName,
+              service: serviceName
+            }, null, req.io);
+            console.log(`📧 Notificaciones enviadas`);
+          } catch (notifError) {
+            console.warn(`⚠️  Error enviando notificaciones:`, notifError.message);
+          }
+
+        } catch (downloadError) {
+          console.error(`❌ Error procesando documento firmado:`, downloadError);
+          // Continuar y devolver respuesta aunque falle el procesamiento
+        }
       }
 
       res.status(200).json({
         error: false,
-        message: 'Estado de firma obtenido exitosamente',
+        message: isSigned 
+          ? 'Documento firmado detectado y procesado exitosamente' 
+          : 'Estado de firma obtenido exitosamente',
         data: {
           budgetId: budget.idBudget,
-          documentId: budget.signNowDocumentId,
-          isSigned: signatureStatus.isSigned,
+          documentId: documentId,
+          signatureMethod: budget.signatureMethod,
+          service: serviceName,
+          isSigned: isSigned,
           status: signatureStatus.status,
-          signatures: signatureStatus.signatures,
-          invites: signatureStatus.invites,
-          currentBudgetStatus: signatureStatus.isSigned ? 'signed' : budget.status
+          signatures: signatureStatus.signatures || null,
+          invites: signatureStatus.invites || null,
+          statusDateTime: signatureStatus.statusDateTime || null,
+          completedDateTime: signatureStatus.completedDateTime || null,
+          currentBudgetStatus: isSigned ? 'signed' : budget.status,
+          signedPdfPath: isSigned ? budget.signedPdfPath : null
         }
       });
 
@@ -716,28 +827,37 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
         });
       }
 
-      if (!budget.signNowDocumentId) {
+      // Verificar si tiene documento de firma
+      const documentId = budget.signatureDocumentId || budget.signNowDocumentId;
+      
+      if (!documentId) {
         return res.status(400).json({
           error: true,
           message: 'Este presupuesto no ha sido enviado para firma'
         });
       }
 
-      // Inicializar servicio de SignNow
-      const SignNowService = require('../services/ServiceSignNow');
-      const signNowService = new SignNowService();
+      // 🆕 Determinar qué servicio usar
+      const isDocuSign = budget.signatureMethod === 'docusign';
+      const serviceName = isDocuSign ? 'DocuSign' : 'SignNow';
+      
+      console.log(`📥 Descargando desde ${serviceName}...`);
+
+      // Inicializar servicio correspondiente
+      const signatureService = isDocuSign ? new DocuSignService() : new SignNowService();
 
       // Verificar si está firmado
-      const signatureStatus = await signNowService.isDocumentSigned(budget.signNowDocumentId);
+      const signatureStatus = await signatureService.isDocumentSigned(documentId);
+      const isSigned = isDocuSign ? signatureStatus.signed : signatureStatus.isSigned;
 
-      if (!signatureStatus.isSigned) {
+      if (!isSigned) {
         return res.status(400).json({
           error: true,
           message: 'El documento aún no ha sido firmado',
           data: {
             budgetId: budget.idBudget,
             status: signatureStatus.status,
-            signatures: signatureStatus.signatures
+            service: serviceName
           }
         });
       }
@@ -754,8 +874,8 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
       const signedFileName = `Budget_${budget.idBudget}_signed.pdf`;
       const signedFilePath = path.join(uploadsDir, signedFileName);
 
-      // Descargar documento firmado
-      await signNowService.downloadSignedDocument(budget.signNowDocumentId, signedFilePath);
+      // Descargar documento firmado desde el servicio correspondiente
+      await signatureService.downloadSignedDocument(documentId, signedFilePath);
 
       // ✅ Actualizar a 'signed' (el hook del modelo lo pasará a 'approved' si tiene pago)
       await budget.update({
@@ -817,21 +937,29 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
       }
 
       // Si no existe localmente, descargarlo de SignNow
-      if (!budget.signNowDocumentId) {
+      // Validar que exista un documento para firma
+      if (!budget.signatureDocumentId && !budget.signNowDocumentId) {
         return res.status(400).json({
           error: true,
           message: 'Este presupuesto no tiene documento firmado disponible'
         });
       }
 
-      // Inicializar servicio de SignNow
-      const SignNowService = require('../services/ServiceSignNow');
-      const signNowService = new SignNowService();
+      // Detectar qué servicio se usó basado en signatureMethod
+      const isDocuSign = budget.signatureMethod === 'docusign';
+      const isSignNow = budget.signatureMethod === 'signnow' || budget.signNowDocumentId;
+      const serviceName = isDocuSign ? 'DocuSign' : 'SignNow';
+      const documentId = budget.signatureDocumentId || budget.signNowDocumentId;
+
+      console.log(`📋 Visualizando documento de ${serviceName} (ID: ${documentId})...`);
+
+      // Inicializar servicio apropiado
+      const signatureService = isDocuSign ? new DocuSignService() : new SignNowService();
 
       // Verificar si está firmado
-      const signatureStatus = await signNowService.isDocumentSigned(budget.signNowDocumentId);
+      const signatureStatus = await signatureService.isDocumentSigned(documentId);
 
-      if (!signatureStatus.isSigned) {
+      if (!signatureStatus.isSigned && !signatureStatus.signed) {
         return res.status(400).json({
           error: true,
           message: 'El documento aún no ha sido firmado'
@@ -850,8 +978,8 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
       const signedFileName = `Budget_${budget.idBudget}_signed.pdf`;
       const signedFilePath = path.join(uploadsDir, signedFileName);
 
-      // Descargar documento firmado de SignNow
-      await signNowService.downloadSignedDocument(budget.signNowDocumentId, signedFilePath);
+      // Descargar documento firmado del servicio apropiado
+      await signatureService.downloadSignedDocument(documentId, signedFilePath);
 
       // Actualizar presupuesto con path del archivo firmado
       await budget.update({
@@ -1003,7 +1131,7 @@ async getBudgets(req, res) {
     const pageSize = parseInt(req.query.pageSize) || 10;
     const offset = (page - 1) * pageSize;
 
-    const { search, status, month, year } = req.query;
+    const { search, status, month, year, signatureMethod } = req.query;
 
     // 🆕 WHERE CLAUSE BASE (sin filtro de status, para estadísticas globales)
     const baseWhereClause = {};
@@ -1096,6 +1224,34 @@ async getBudgets(req, res) {
       }
     }
 
+    // 🆕 Filtro por método de firma
+    if (signatureMethod && signatureMethod !== 'all') {
+      if (signatureMethod === 'none') {
+        // Sin firmar: signatureMethod es null, 'none', o vacío
+        const noneConditions = [
+          { signatureMethod: null },
+          { signatureMethod: 'none' },
+          { signatureMethod: '' }
+        ];
+        
+        // Si ya existe un Op.or, combinarlo; si no, crear uno nuevo
+        if (whereClause[Op.or]) {
+          whereClause[Op.and] = whereClause[Op.and] || [];
+          whereClause[Op.and].push({
+            [Op.or]: noneConditions
+          });
+        } else {
+          whereClause[Op.or] = noneConditions;
+        }
+      } else if (signatureMethod === 'legacy') {
+        // Legacy: isLegacy=true
+        whereClause.isLegacy = true;
+      } else {
+        // SignNow, DocuSign o Manual: filtrar por signatureMethod exacto
+        whereClause.signatureMethod = signatureMethod;
+      }
+    }
+
     const { rows: budgetsInstances, count: totalBudgets } = await Budget.findAndCountAll({
       where: whereClause,
       include: [
@@ -1162,7 +1318,15 @@ async getBudgets(req, res) {
       created: allBudgetsForStats.filter(b => b.status === 'created').length,
       send: allBudgetsForStats.filter(b => b.status === 'send').length,
       notResponded: allBudgetsForStats.filter(b => b.status === 'notResponded').length,
-      sent_for_signature: allBudgetsForStats.filter(b => b.status === 'sent_for_signature').length
+      sent_for_signature: allBudgetsForStats.filter(b => b.status === 'sent_for_signature').length,
+      // 🆕 Estadísticas por método de firma
+      signatureStats: {
+        signnow: allBudgetsForStats.filter(b => b.signatureMethod === 'signnow').length,
+        docusign: allBudgetsForStats.filter(b => b.signatureMethod === 'docusign').length,
+        manual: allBudgetsForStats.filter(b => b.signatureMethod === 'manual').length,
+        legacy: allBudgetsForStats.filter(b => b.isLegacy === true).length,
+        none: allBudgetsForStats.filter(b => !b.signatureMethod || b.signatureMethod === 'none' || b.signatureMethod === '').length
+      }
     };
     
     const budgetsWithDetails = budgetsInstances.map(budgetInstance => {
@@ -1894,15 +2058,21 @@ async optionalDocs(req, res) {
             console.log(`   - Nombre: ${budget.Permit.applicantName}`);
             console.log(`   - Dirección: ${budget.Permit.propertyAddress}`);
 
-            // Inicializar servicio de SignNow
-            console.log('🔧 Inicializando servicio SignNow desde updateBudget...');
-            const signNowService = new SignNowService();
+            // Inicializar servicio de firma (DocuSign o SignNow)
+            const serviceName = USE_DOCUSIGN ? 'DocuSign' : 'SignNow';
+            console.log(`🔧 Inicializando servicio ${serviceName} desde updateBudget...`);
+            const signatureService = USE_DOCUSIGN ? new DocuSignService() : new SignNowService();
+
+            // 🆕 Normalizar email a minúsculas para evitar problemas de deliverability
+            const clientEmail = (budget.Permit.applicantEmail || '').toLowerCase().trim();
+            const clientName = budget.Permit.applicantName || 'Valued Client';
 
             // Preparar información para el documento
             const propertyAddress = budget.Permit?.propertyAddress || budget.propertyAddress || 'Property';
             const fileName = `Budget_${budget.idBudget}_${propertyAddress.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
 
-            console.log(`📁 Nombre del archivo para SignNow: ${fileName}`);
+            console.log(`📁 Nombre del archivo para ${serviceName}: ${fileName}`);
+            console.log(`📧 Email normalizado: ${clientEmail} (desde ${budget.Permit.applicantEmail})`);
 
             // Convertir URL pública a ruta local para SignNow
             let localPdfPath = null;
@@ -1917,57 +2087,77 @@ async optionalDocs(req, res) {
                 console.error(`❌ PDF no encontrado en ruta local: ${localPdfPath}`);
                 localPdfPath = null;
               } else {
-                console.log(`✅ PDF encontrado para SignNow: ${localPdfPath}`);
+                console.log(`✅ PDF encontrado para ${serviceName}: ${localPdfPath}`);
               }
             }
 
             if (localPdfPath) {
+              // Preparar parámetros según el servicio
+              const emailSubject = `Please sign Budget for ${propertyAddress}`;
+              const emailMessage = `Dear ${clientName},\n\n` +
+                `Please review and sign the attached budget document.\n\n` +
+                `If you have any questions, please contact us.\n\n` +
+                `Best regards,\nZurcher Construction`;
+
               // Enviar documento para firma
-              console.log('📤 Enviando documento a SignNow desde updateBudget...');
-              const signNowResult = await signNowService.sendBudgetForSignature(
-                localPdfPath, // ✅ Usar ruta local
-                fileName,
-                budget.Permit.applicantEmail,
-                budget.Permit.applicantName || 'Valued Client'
-              );
+              console.log(`📤 Enviando documento a ${serviceName} desde updateBudget...`);
+              const signatureResult = USE_DOCUSIGN
+                ? await signatureService.sendBudgetForSignature(
+                    localPdfPath,
+                    clientEmail,
+                    clientName,
+                    fileName,
+                    emailSubject,
+                    emailMessage
+                  )
+                : await signatureService.sendBudgetForSignature(
+                    localPdfPath,
+                    fileName,
+                    clientEmail,
+                    clientName
+                  );
 
-              console.log('✅ Resultado exitoso de SignNow desde updateBudget:');
-              console.log(JSON.stringify(signNowResult, null, 2));
+              console.log(`✅ Resultado exitoso de ${serviceName} desde updateBudget:`);
+              console.log(JSON.stringify(signatureResult, null, 2));
 
-              // Actualizar presupuesto con información de SignNow
-              // ⚠️ NO asignar signatureMethod aquí - se asignará cuando el cron detecte la firma
-              console.log('💾 Actualizando presupuesto con datos de SignNow...');
+              // Obtener document ID según el servicio
+              const documentId = USE_DOCUSIGN ? signatureResult.envelopeId : signatureResult.documentId;
+
+              // Actualizar presupuesto con información del servicio de firma
+              console.log(`💾 Actualizando presupuesto con datos de ${serviceName}...`);
               await budget.update({
-                signNowDocumentId: signNowResult.documentId,
-                signatureMethod: 'none', // Mantener en 'none' hasta que se firme
-                status: 'sent_for_signature', // Cambiar status a 'sent_for_signature'
+                signatureDocumentId: documentId,
+                signNowDocumentId: USE_DOCUSIGN ? null : signatureResult.documentId, // Mantener compatibilidad
+                signatureMethod: USE_DOCUSIGN ? 'docusign' : 'signnow',
+                status: 'sent_for_signature',
                 sentForSignatureAt: new Date()
               }, { transaction });
 
-              console.log('✅ Budget actualizado con datos de SignNow');
+              console.log(`✅ Budget actualizado con datos de ${serviceName}`);
 
-              // Notificar al staff interno que se envió a SignNow
+              // Notificar al staff interno que se envió para firma
               try {
                 await sendNotifications('budgetSentToSignNow', {
                   propertyAddress: budget.Permit?.propertyAddress || budget.propertyAddress,
                   applicantEmail: budget.Permit.applicantEmail,
                   applicantName: budget.Permit.applicantName,
                   idBudget: budget.idBudget,
-                  documentId: signNowResult.documentId
+                  documentId: documentId,
+                  service: serviceName
                 }, null, req.io);
-                console.log('📧 Notificaciones internas de SignNow enviadas');
+                console.log(`📧 Notificaciones internas de ${serviceName} enviadas`);
               } catch (notificationError) {
-                console.log('⚠️ Error enviando notificaciones internas de SignNow:', notificationError.message);
+                console.log(`⚠️ Error enviando notificaciones internas de ${serviceName}:`, notificationError.message);
                 // No fallar la operación principal por esto
               }
 
-              console.log('🎉 === ENVÍO AUTOMÁTICO A SIGNNOW COMPLETADO ===\n');
+              console.log(`🎉 === ENVÍO AUTOMÁTICO A ${serviceName.toUpperCase()} COMPLETADO ===\n`);
             } else {
-              console.log('⚠️ No se pudo obtener ruta local del PDF para SignNow');
+              console.log(`⚠️ No se pudo obtener ruta local del PDF para ${serviceName}`);
             }
           }
-        } catch (signNowError) {
-          console.error('❌ ERROR enviando a SignNow:', signNowError);
+        } catch (signatureServiceError) {
+          console.error(`❌ ERROR enviando a ${USE_DOCUSIGN ? 'DocuSign' : 'SignNow'}:`, signatureServiceError);
           console.error('   - Mensaje:', signNowError.message);
           console.error('   - Stack:', signNowError.stack);
 
@@ -4028,32 +4218,67 @@ async optionalDocs(req, res) {
               await updatedBudget.update({ pdfPath: newPdfPath });
               console.log(`✅ PDF regenerado exitosamente: ${newPdfPath}`);
 
-              // 🆕 ENVIAR AUTOMÁTICAMENTE A SIGNNOW Y EMAIL CON BOTÓN DE PAGO
+              // 🆕 ENVIAR AUTOMÁTICAMENTE A SERVICIO DE FIRMA Y EMAIL CON BOTÓN DE PAGO
+              // 🔧 Definir serviceName fuera del try para usarlo en catch
+              const serviceName = USE_DOCUSIGN ? 'DocuSign' : 'SignNow';
+              
               try {
-                console.log(`📤 Enviando Invoice #${invoiceNumber} a SignNow automáticamente...`);
+                console.log(`📤 Enviando Invoice #${invoiceNumber} a ${serviceName} automáticamente...`);
                 
-                const signNowService = new SignNowService();
+                const signatureService = USE_DOCUSIGN ? new DocuSignService() : new SignNowService();
                 const propertyAddress = updatedBudget.Permit?.propertyAddress || 'Property';
                 const fileName = `Invoice_${invoiceNumber}_${propertyAddress.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
 
-                const signNowResult = await signNowService.sendBudgetForSignature(
-                  newPdfPath,
-                  fileName,
-                  updatedBudget.Permit.applicantEmail,
-                  updatedBudget.Permit.applicantName || 'Valued Client'
-                );
+                // 🆕 Normalizar email a minúsculas para evitar problemas de deliverability
+                const clientEmail = (updatedBudget.Permit.applicantEmail || '').toLowerCase().trim();
+                const clientName = updatedBudget.Permit.applicantName || 'Valued Client';
 
-                // ✅ Solo actualizar si SignNow respondió exitosamente con documentId
-                if (!signNowResult || !signNowResult.documentId) {
-                  throw new Error('SignNow no devolvió un documentId válido');
+                // Preparar parámetros según el servicio
+                const emailSubject = `Please sign Invoice #${invoiceNumber} - ${propertyAddress}`;
+                const emailMessage = `Dear ${clientName},\n\n` +
+                  `Please review and sign the attached invoice document.\n\n` +
+                  `If you have any questions, please contact us.\n\n` +
+                  `Best regards,\nZurcher Construction`;
+
+                console.log(`📧 Enviando a: ${clientEmail} (normalizado desde ${updatedBudget.Permit.applicantEmail})`);
+
+                // Enviar según el servicio configurado
+                const signatureResult = USE_DOCUSIGN
+                  ? await signatureService.sendBudgetForSignature(
+                      newPdfPath,
+                      clientEmail,
+                      clientName,
+                      fileName,
+                      emailSubject,
+                      emailMessage,
+                      true // ✅ Generar URL de firma en lugar de enviar email
+                    )
+                  : await signatureService.sendBudgetForSignature(
+                      newPdfPath,
+                      fileName,
+                      clientEmail,
+                      clientName
+                    );
+
+                // ✅ Validar respuesta según el servicio
+                const documentId = USE_DOCUSIGN ? signatureResult.envelopeId : signatureResult.documentId;
+                if (!documentId) {
+                  throw new Error(`${serviceName} no devolvió un ${USE_DOCUSIGN ? 'envelopeId' : 'documentId'} válido`);
                 }
 
-                console.log(`✅ Invoice #${invoiceNumber} enviado a SignNow exitosamente con documentId: ${signNowResult.documentId}`);
+                // 🔗 Obtener URL de firma si está disponible (DocuSign)
+                const signingUrl = signatureResult.signingUrl || null;
+                if (signingUrl) {
+                  console.log(`✅ URL de firma generada: ${signingUrl.substring(0, 50)}...`);
+                }
 
-                // ⚠️ NO asignar signatureMethod aquí - se asignará cuando el cron detecte la firma
+                console.log(`✅ Invoice #${invoiceNumber} enviado a ${serviceName} exitosamente con ${USE_DOCUSIGN ? 'envelopeId' : 'documentId'}: ${documentId}`);
+
+                // Actualizar con campos genéricos
                 await updatedBudget.update({
-                  signNowDocumentId: signNowResult.documentId,
-                  signatureMethod: 'none', // Mantener en 'none' hasta que se firme
+                  signatureDocumentId: documentId,
+                  signNowDocumentId: USE_DOCUSIGN ? null : signatureResult.documentId, // Mantener compatibilidad
+                  signatureMethod: USE_DOCUSIGN ? 'docusign' : 'signnow',
                   status: 'sent_for_signature',
                   sentForSignatureAt: new Date()
                 });
@@ -4073,7 +4298,23 @@ async optionalDocs(req, res) {
 
                 // 📧 ENVIAR EMAIL AL CLIENTE
                 try {
-                  console.log(`📧 Enviando email adicional con botón de pago a ${updatedBudget.Permit.applicantEmail}...`);
+                  console.log(`📧 Enviando email adicional con botón de pago a ${clientEmail}...`);
+
+                  // Construir sección de botón de firma (solo si tenemos URL de DocuSign)
+                  let signatureButtonHtml = '';
+                  if (signingUrl) {
+                    signatureButtonHtml = `
+                      <div style="text-align: center; margin: 30px 0;">
+                        <a href="${signingUrl}" 
+                           style="display: inline-block; background-color: #4CAF50; color: white; padding: 15px 40px; text-decoration: none; border-radius: 5px; font-size: 16px; font-weight: bold;">
+                          📝 Sign Document Now
+                        </a>
+                        <p style="margin-top: 10px; font-size: 13px; color: #666;">
+                          Click the button above to sign your invoice electronically
+                        </p>
+                      </div>
+                    `;
+                  }
 
                   // Construir sección de montos
                   let paymentInfoHtml = '';
@@ -4106,13 +4347,13 @@ async optionalDocs(req, res) {
                   }
 
                   await sendEmail({
-                    to: updatedBudget.Permit.applicantEmail,
-                    subject: `Invoice #${invoiceNumber} - Payment & Document - ${propertyAddress}`,
+                    to: clientEmail,
+                    subject: `Invoice #${invoiceNumber} - Sign & Payment - ${propertyAddress}`,
                     html: `
                       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                         <h2 style="color: #2c5f2d;">✅ Your Budget Has Been Approved!</h2>
                         
-                        <p>Dear ${updatedBudget.Permit.applicantName || 'Valued Client'},</p>
+                        <p>Dear ${clientName},</p>
                         
                         <p>Thank you for approving your budget! We have now generated the official <strong>Invoice #${invoiceNumber}</strong> for your project at:</p>
                         
@@ -4122,10 +4363,12 @@ async optionalDocs(req, res) {
 
                         ${paymentInfoHtml}
 
+                        ${signatureButtonHtml}
+
                         <h3 style="color: #2c5f2d;">📋 Next Steps:</h3>
                         
                         <ol style="line-height: 1.8;">
-                          <li><strong>Sign the Document:</strong> You will receive a separate email from SignNow to digitally sign the invoice.</li>
+                          <li><strong>Sign the Document:</strong> ${signingUrl ? 'Click the green button above to sign digitally.' : 'You will receive a separate email to digitally sign the invoice.'}</li>
                           <li><strong>Make Payment:</strong> Use the payment link in the attached PDF to proceed with ${hasInitialPayment ? 'the initial payment' : 'payment'}.</li>
                         </ol>
 
@@ -4266,14 +4509,15 @@ async optionalDocs(req, res) {
                   applicantEmail: updatedBudget.Permit.applicantEmail,
                   applicantName: updatedBudget.Permit.applicantName,
                   idBudget: updatedBudget.idBudget,
-                  documentId: signNowResult.documentId,
-                  invoiceNumber: invoiceNumber
+                  documentId: documentId,
+                  invoiceNumber: invoiceNumber,
+                  service: serviceName
                 });
 
-                console.log(`✅ Proceso completo: Invoice #${invoiceNumber} aprobado, PDF regenerado, enviado a SignNow, email con pago enviado al cliente y notificación enviada al equipo de finanzas`);
+                console.log(`✅ Proceso completo: Invoice #${invoiceNumber} aprobado, PDF regenerado, enviado a ${serviceName}, email con pago enviado al cliente y notificación enviada al equipo de finanzas`);
 
-              } catch (signNowError) {
-                console.error(`❌ Error al enviar Invoice #${invoiceNumber} a SignNow:`, signNowError);
+              } catch (signatureServiceError) {
+                console.error(`❌ Error al enviar Invoice #${invoiceNumber} a ${serviceName}:`, signatureServiceError);
                 // No fallar todo el proceso, el admin puede reenviar manualmente
               }
             }

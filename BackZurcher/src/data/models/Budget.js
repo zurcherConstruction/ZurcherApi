@@ -118,7 +118,14 @@ module.exports = (sequelize) => {
     type: DataTypes.STRING(200),
     allowNull: true,
   },
-  signNowDocumentId: { // ID del documento de SignNow
+  signNowDocumentId: { // ID del documento de SignNow (mantener para compatibilidad)
+    type: DataTypes.STRING,
+    allowNull: true,
+    unique: false, // Cambiado a false para permitir signatureDocumentId también
+  },
+  
+  // 🆕 Campo genérico para ID de documento (SignNow o DocuSign)
+  signatureDocumentId: { // ID del documento (SignNow o DocuSign envelope)
     type: DataTypes.STRING,
     allowNull: true,
     unique: true,
@@ -126,7 +133,7 @@ module.exports = (sequelize) => {
   
   // --- 🆕 CAMPOS PARA FIRMA MANUAL ---
   signatureMethod: { // Método de firma del presupuesto
-    type: DataTypes.ENUM('signnow', 'manual', 'legacy', 'none'),
+    type: DataTypes.ENUM('signnow', 'docusign', 'manual', 'legacy', 'none'),
     allowNull: true,
     defaultValue: 'none'
   },

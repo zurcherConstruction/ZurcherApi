@@ -87,6 +87,12 @@ web_modules/
 .env.production.local
 .env.local
 
+# 🔐 DocuSign Private Keys (NUNCA subir al repositorio)
+docusign_private.key
+**/docusign_private.key
+*.pem
+*.key
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
