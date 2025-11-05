@@ -89,7 +89,7 @@ const WorkNoteController = {
             senderId: staffId, // 👤 ID del autor que menciona
             type: 'mention',
             title: `${author?.name || 'Alguien'} te mencionó en un seguimiento de obra`,
-            message: `Obra #${workId}: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`,
+            message: `📍 ${work.propertyAddress || `Obra #${workId}`}: ${message.substring(0, 80)}${message.length > 80 ? '...' : ''}`,
             relatedId: workId,
             relatedType: 'work_note',
             isRead: false
@@ -152,6 +152,11 @@ const WorkNoteController = {
             model: Staff,
             as: 'author',
             attributes: ['id', 'name', 'email']
+          },
+          {
+            model: Work,
+            as: 'work',
+            attributes: ['idWork', 'propertyAddress', 'status'] // 🆕 Incluir propertyAddress
           }
         ],
         order: [['createdAt', 'DESC']] // Más recientes primero

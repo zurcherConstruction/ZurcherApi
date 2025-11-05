@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import logo from "../../public/logo.png";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -21,6 +21,8 @@ const Header = () => {
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [hasNewNotification, setHasNewNotification] = useState(false); // 🆕 Para detectar nuevas notificaciones
+  const previousUnreadCountRef = useRef(0); // 🆕 Para comparar cambios
 
   const handleLogout = () => {
     if (window.confirm("¿Estás seguro de que deseas cerrar sesión?")) {
@@ -32,6 +34,21 @@ const Header = () => {
   const unreadCount = Array.isArray(notifications)
     ? notifications.filter((notification) => !notification.isRead).length
     : 0;
+
+  // 🆕 Detectar cambios en notificaciones no leídas
+  useEffect(() => {
+    if (unreadCount > previousUnreadCountRef.current && previousUnreadCountRef.current >= 0) {
+      setHasNewNotification(true);
+      
+      // Detener la animación después de 10 segundos
+      const timer = setTimeout(() => {
+        setHasNewNotification(false);
+      }, 10000);
+      
+      return () => clearTimeout(timer);
+    }
+    previousUnreadCountRef.current = unreadCount;
+  }, [unreadCount]);
 
   const getRoleColor = (role) => {
     switch (role) {
@@ -81,10 +98,11 @@ const Header = () => {
                   e.stopPropagation();
                   setShowNotifications(!showNotifications);
                   setShowUserMenu(false); // Cerrar menú de usuario si está abierto
+                  setHasNewNotification(false); // Detener animación al abrir
                 }}
                 className="relative p-2 md:p-3 rounded-xl bg-gray-700 hover:bg-gray-600 transition-all duration-300 group border border-gray-600 hover:border-blue-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <FaBell className="w-5 h-5 text-gray-300 group-hover:text-blue-400 transition-colors duration-300" />
+                <FaBell className={`w-5 h-5 text-gray-300 group-hover:text-blue-400 transition-colors duration-300 ${hasNewNotification && unreadCount > 0 ? 'animate-shake' : ''}`} />
                 {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center font-bold animate-pulse shadow-md">
                     {unreadCount > 99 ? '99+' : unreadCount}

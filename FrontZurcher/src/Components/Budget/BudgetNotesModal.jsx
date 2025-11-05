@@ -156,7 +156,7 @@ const BudgetNotesModal = ({ budget, onClose }) => {
               Seguimiento de Presupuesto
             </h2>
             <p className="text-blue-100 mt-1">
-              {budget.name} - #{budget.idBudget}
+              📍 {budget.propertyAddress || budget.name} - #{budget.idBudget}
             </p>
             {stats.totalNotes > 0 && (
               <div className="mt-2 flex gap-4 text-sm">
@@ -405,6 +405,11 @@ const BudgetNotesModal = ({ budget, onClose }) => {
                     <div className="flex justify-between items-center text-xs text-gray-500">
                       <span>
                         👤 {note.author?.name || 'Usuario'}
+                        {note.budget?.propertyAddress && (
+                          <span className="ml-2">
+                            📍 {note.budget.propertyAddress}
+                          </span>
+                        )}
                         {note.relatedStatus && (
                           <span className="ml-2">
                             📋 Estado: {note.relatedStatus}
