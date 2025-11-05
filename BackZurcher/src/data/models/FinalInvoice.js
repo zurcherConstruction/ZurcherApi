@@ -26,11 +26,22 @@ module.exports = (sequelize) => {
       allowNull: false,
       defaultValue: 0.00,
     },
+    discount: { // Descuento aplicado al total (valor positivo)
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      defaultValue: 0.00,
+      comment: 'Descuento aplicado al total de la factura final'
+    },
+    discountReason: { // Motivo o descripción del descuento
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'Descripción o motivo del descuento aplicado'
+    },
     initialPaymentMade: { // Copia del Budget.initialPayment
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
     },
-    finalAmountDue: { // Calculado: originalBudgetTotal + subtotalExtras - initialPaymentMade
+    finalAmountDue: { // Calculado: originalBudgetTotal + subtotalExtras - discount - initialPaymentMade
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
     },

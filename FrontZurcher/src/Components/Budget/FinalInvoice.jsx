@@ -7,6 +7,7 @@ import {
    updateExtraItem, 
    removeExtraItem, 
   updateFinalInvoiceStatus,
+  updateFinalInvoiceDiscount, // 🆕
    generateFinalInvoicePdf,
    emailFinalInvoice 
 } from '../../Redux/Actions/finalInvoiceActions';
@@ -65,6 +66,9 @@ const FinalInvoiceComponent = ({ workId }) => {
   const [editingItemId, setEditingItemId] = useState(null);
   const [editFormData, setEditFormData] = useState({ description: '', quantity: 0, unitPrice: 0 });
   const [recipientEmail, setRecipientEmail] = useState(''); 
+  const [isEditingDiscount, setIsEditingDiscount] = useState(false); // 🆕
+  const [discountValue, setDiscountValue] = useState(0); // 🆕
+  const [discountReason, setDiscountReason] = useState(''); // 🆕
 
   // Estado para la carga y error de la descarga del PDF
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
@@ -82,6 +86,14 @@ const FinalInvoiceComponent = ({ workId }) => {
       dispatch(clearFinalInvoiceState());
     };
   }, [dispatch, workId]);
+
+  // 🆕 Sincronizar descuento cuando cambia currentInvoice
+  useEffect(() => {
+    if (currentInvoice) {
+      setDiscountValue(parseFloat(currentInvoice.discount) || 0);
+      setDiscountReason(currentInvoice.discountReason || '');
+    }
+  }, [currentInvoice]);
 
 
    const changeOrders = selectedWork?.changeOrders || [];
@@ -192,6 +204,33 @@ const FinalInvoiceComponent = ({ workId }) => {
             statusData: { status: 'paid', paymentDate: localDate }
         }));
     }
+};
+
+// 🆕 Handlers para descuento
+const handleEditDiscount = () => {
+  setIsEditingDiscount(true);
+};
+
+const handleCancelDiscountEdit = () => {
+  setIsEditingDiscount(false);
+  setDiscountValue(parseFloat(currentInvoice.discount) || 0); // Restaurar valor original
+  setDiscountReason(currentInvoice.discountReason || ''); // Restaurar razón original
+};
+
+const handleSaveDiscount = () => {
+  if (currentInvoice) {
+    const discount = parseFloat(discountValue) || 0;
+    if (discount < 0) {
+      alert('El descuento no puede ser negativo.');
+      return;
+    }
+    dispatch(updateFinalInvoiceDiscount({ 
+      finalInvoiceId: currentInvoice.id, 
+      discount,
+      discountReason: discountReason.trim() || null
+    }));
+    setIsEditingDiscount(false);
+  }
 };
 
 const handleGeneratePdf = () => {
@@ -343,6 +382,57 @@ const handleGeneratePdf = () => {
 
           <span className="text-gray-600">Subtotal Items Extras:</span>
           <span className="text-right font-medium text-orange-600">+${parseFloat(currentInvoice.subtotalExtras || 0).toFixed(2)}</span>
+
+          {/* 🆕 DESCUENTO */}
+          <span className="text-gray-600">Descuento:</span>
+          <div className="text-right">
+            {isEditingDiscount ? (
+              <div className="flex flex-col items-end gap-2">
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="number" 
+                    value={discountValue}
+                    onChange={(e) => setDiscountValue(e.target.value)}
+                    className="w-24 px-2 py-1 text-sm border rounded"
+                    min="0"
+                    step="0.01"
+                    placeholder="$0.00"
+                  />
+                  <button onClick={handleSaveDiscount} className="text-green-600 hover:text-green-800 text-xs font-bold px-2">
+                    ✓
+                  </button>
+                  <button onClick={handleCancelDiscountEdit} className="text-gray-500 hover:text-gray-700 text-xs font-bold px-2">
+                    ✕
+                  </button>
+                </div>
+                <textarea
+                  value={discountReason}
+                  onChange={(e) => setDiscountReason(e.target.value)}
+                  className="w-full px-2 py-1 text-xs border rounded resize-none"
+                  rows="2"
+                  placeholder="Motivo del descuento (opcional)..."
+                />
+              </div>
+            ) : (
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium text-blue-600">-${parseFloat(currentInvoice.discount || 0).toFixed(2)}</span>
+                  <button 
+                    onClick={handleEditDiscount} 
+                    className="text-blue-600 hover:text-blue-800 text-xs"
+                    title="Editar descuento"
+                  >
+                    ✏️
+                  </button>
+                </div>
+                {currentInvoice.discountReason && (
+                  <span className="text-xs text-gray-500 italic text-right max-w-xs">
+                    {currentInvoice.discountReason}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
 
           <span className="text-gray-800 font-bold text-base border-t pt-1 mt-1">Monto Final Pendiente:</span>
           <span className="text-right font-bold text-base border-t pt-1 mt-1">${parseFloat(currentInvoice.finalAmountDue || 0).toFixed(2)}</span>

@@ -32,13 +32,32 @@ class DocuSignService {
     try {
       console.log('🔐 Obteniendo access token de DocuSign con JWT...');
 
-      // Leer la llave privada
-      const privateKeyPath = path.resolve(this.privateKeyPath);
-      if (!fs.existsSync(privateKeyPath)) {
-        throw new Error(`No se encontró la llave privada en: ${privateKeyPath}`);
+      // 🆕 Leer la llave privada desde múltiples fuentes
+      let privateKey;
+      
+      // Prioridad 1: Variable de entorno con contenido directo (PRODUCCIÓN - Railway)
+      if (process.env.DOCUSIGN_PRIVATE_KEY_CONTENT) {
+        console.log('📝 Usando clave privada desde variable de entorno (contenido directo)');
+        privateKey = process.env.DOCUSIGN_PRIVATE_KEY_CONTENT;
       }
-
-      const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
+      // Prioridad 2: Variable de entorno con Base64 (Alternativa para Railway)
+      else if (process.env.DOCUSIGN_PRIVATE_KEY_BASE64) {
+        console.log('📝 Usando clave privada desde variable de entorno (Base64)');
+        const buffer = Buffer.from(process.env.DOCUSIGN_PRIVATE_KEY_BASE64, 'base64');
+        privateKey = buffer.toString('utf8');
+      }
+      // Prioridad 3: Leer desde archivo local (DESARROLLO)
+      else {
+        console.log('📁 Leyendo clave privada desde archivo local');
+        const privateKeyPath = path.resolve(this.privateKeyPath);
+        if (!fs.existsSync(privateKeyPath)) {
+          throw new Error(`No se encontró la llave privada en: ${privateKeyPath}. 
+          
+⚠️  Para DESARROLLO: Coloca el archivo docusign_private.key en la carpeta BackZurcher/
+⚠️  Para PRODUCCIÓN (Railway): Agrega la variable de entorno DOCUSIGN_PRIVATE_KEY_CONTENT con el contenido completo de la clave.`);
+        }
+        privateKey = fs.readFileSync(privateKeyPath, 'utf8');
+      }
 
       // Configurar el OAuth basePath para el ambiente correcto
       const oAuthBasePath = this.environment === 'demo'

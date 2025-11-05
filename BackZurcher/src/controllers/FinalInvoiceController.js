@@ -77,7 +77,8 @@ const FinalInvoiceController = {
       }
       
       const initialSubtotalExtras = subtotalFromChangeOrders;
-      const finalAmountDueInitial = originalBudgetTotal + initialSubtotalExtras - actualInitialPaymentMade;
+      const discount = parseFloat(req.body.discount) || 0; // 🆕 DESCUENTO opcional desde el body
+      const finalAmountDueInitial = originalBudgetTotal + initialSubtotalExtras - discount - actualInitialPaymentMade;
 
       // 🆕 ASIGNAR NÚMERO DE INVOICE USANDO NUMERACIÓN UNIFICADA
       const invoiceNumber = await getNextInvoiceNumber(transaction);
@@ -91,6 +92,7 @@ const FinalInvoiceController = {
         originalBudgetTotal: originalBudgetTotal,
         initialPaymentMade: actualInitialPaymentMade,
         subtotalExtras: initialSubtotalExtras,
+        discount: discount, // 🆕 DESCUENTO
         finalAmountDue: finalAmountDueInitial,
         status: 'pending',
       }, { transaction });
@@ -200,7 +202,8 @@ const FinalInvoiceController = {
 
       // Recalcular totales de la factura
       const updatedSubtotalExtras = parseFloat(finalInvoice.subtotalExtras) + lineTotal;
-      const updatedFinalAmountDue = parseFloat(finalInvoice.originalBudgetTotal) + updatedSubtotalExtras - parseFloat(finalInvoice.initialPaymentMade);
+      const discount = parseFloat(finalInvoice.discount) || 0;
+      const updatedFinalAmountDue = parseFloat(finalInvoice.originalBudgetTotal) + updatedSubtotalExtras - discount - parseFloat(finalInvoice.initialPaymentMade);
 
       // Actualizar la factura
       await finalInvoice.update({
@@ -283,7 +286,8 @@ const FinalInvoiceController = {
        // Recalcular totales de la factura usando la diferencia
        const difference = newLineTotal - originalLineTotal;
        const updatedSubtotalExtras = parseFloat(finalInvoice.subtotalExtras) + difference;
-       const updatedFinalAmountDue = parseFloat(finalInvoice.originalBudgetTotal) + updatedSubtotalExtras - parseFloat(finalInvoice.initialPaymentMade);
+       const discount = parseFloat(finalInvoice.discount) || 0;
+       const updatedFinalAmountDue = parseFloat(finalInvoice.originalBudgetTotal) + updatedSubtotalExtras - discount - parseFloat(finalInvoice.initialPaymentMade);
 
        // Actualizar la factura
        await finalInvoice.update({
@@ -333,7 +337,8 @@ const FinalInvoiceController = {
 
        // Recalcular totales de la factura restando el valor eliminado
        const updatedSubtotalExtras = parseFloat(finalInvoice.subtotalExtras) - removedLineTotal;
-       const updatedFinalAmountDue = parseFloat(finalInvoice.originalBudgetTotal) + updatedSubtotalExtras - parseFloat(finalInvoice.initialPaymentMade);
+       const discount = parseFloat(finalInvoice.discount) || 0;
+       const updatedFinalAmountDue = parseFloat(finalInvoice.originalBudgetTotal) + updatedSubtotalExtras - discount - parseFloat(finalInvoice.initialPaymentMade);
 
        // Actualizar la factura
        await finalInvoice.update({
@@ -354,6 +359,61 @@ const FinalInvoiceController = {
        await transaction.rollback();
        console.error(`Error al eliminar item extra ${itemId}:`, error);
        res.status(500).json({ error: true, message: 'Error interno del servidor al eliminar item.' });
+    }
+ },
+
+ // 🆕 ACTUALIZAR DESCUENTO DE LA FACTURA FINAL
+ async updateDiscount(req, res) {
+    const { finalInvoiceId } = req.params;
+    const { discount, discountReason } = req.body;
+    const transaction = await conn.transaction();
+
+    try {
+       if (discount === undefined || discount === null) {
+         await transaction.rollback();
+         return res.status(400).json({ error: true, message: 'El campo discount es requerido.' });
+       }
+
+       const discountValue = parseFloat(discount);
+       if (isNaN(discountValue) || discountValue < 0) {
+         await transaction.rollback();
+         return res.status(400).json({ error: true, message: 'El descuento debe ser un número positivo o cero.' });
+       }
+
+       const finalInvoice = await FinalInvoice.findByPk(finalInvoiceId, { transaction });
+       if (!finalInvoice) {
+         await transaction.rollback();
+         return res.status(404).json({ error: true, message: 'Factura final no encontrada.' });
+       }
+
+       // Recalcular finalAmountDue con el nuevo descuento
+       const subtotalExtras = parseFloat(finalInvoice.subtotalExtras) || 0;
+       const originalBudgetTotal = parseFloat(finalInvoice.originalBudgetTotal) || 0;
+       const initialPaymentMade = parseFloat(finalInvoice.initialPaymentMade) || 0;
+       const updatedFinalAmountDue = originalBudgetTotal + subtotalExtras - discountValue - initialPaymentMade;
+
+       // Actualizar discount, discountReason y finalAmountDue
+       await finalInvoice.update({
+         discount: discountValue,
+         discountReason: discountReason || null, // 🆕 Guardar razón del descuento
+         finalAmountDue: updatedFinalAmountDue,
+       }, { transaction });
+
+       await transaction.commit();
+
+       // Devolver la factura actualizada completa
+       const updatedInvoiceData = await FinalInvoice.findByPk(finalInvoice.id, {
+           include: [{ model: WorkExtraItem, as: 'extraItems' }]
+       });
+
+       res.status(200).json(updatedInvoiceData);
+
+    } catch (error) {
+       if (transaction && !transaction.finished) {
+         await transaction.rollback();
+       }
+       console.error(`Error al actualizar descuento de finalInvoiceId ${finalInvoiceId}:`, error);
+       res.status(500).json({ error: true, message: 'Error interno del servidor al actualizar descuento.' });
     }
  },
 
@@ -619,20 +679,30 @@ async emailFinalInvoicePDF(req, res) {
        const invoiceNumber = finalInvoice.invoiceNumber || finalInvoice.id.toString().substring(0, 8);
 
        // ✅ INICIO: Recalcular el total para que coincida con el PDF
-       const { originalBudgetTotal, initialPaymentMade, extraItems } = finalInvoice;
+       const { originalBudgetTotal, initialPaymentMade, discount, discountReason, extraItems } = finalInvoice;
        const remainingBudgetAmount = parseFloat(originalBudgetTotal || 0) - parseFloat(initialPaymentMade || 0);
        const totalExtras = extraItems.reduce((acc, item) => acc + parseFloat(item.lineTotal || 0), 0);
-       const correctTotalAmount = remainingBudgetAmount + totalExtras;
+       const discountAmount = parseFloat(discount || 0);
+       const correctTotalAmount = remainingBudgetAmount + totalExtras - discountAmount;
        
        // Opcional pero recomendado: Actualizar el valor en la BD para consistencia
        await finalInvoice.update({ finalAmountDue: correctTotalAmount });
        // ✅ FIN: Recálculo
 
+       // 🆕 Construir mensaje del descuento para el email
+       let discountText = '';
+       if (discountAmount > 0) {
+         discountText = `\nDiscount Applied: -$${discountAmount.toFixed(2)}`;
+         if (discountReason && discountReason.trim()) {
+           discountText += `\n  (${discountReason.trim()})`;
+         }
+       }
+
        const mailOptions = {
            to: clientEmail,
            subject: `Final Invoice #${invoiceNumber} for ${propertyAddress}`,
            // Usar la variable 'correctTotalAmount' para el texto del email
-           text: `Dear ${clientName},\n\nPlease find attached the final invoice #${invoiceNumber} for the work completed at ${propertyAddress}.\n\nTotal Amount Due: $${correctTotalAmount.toFixed(2)}\nStatus: ${finalInvoice.status?.replace('_', ' ').toUpperCase() || 'N/A'}\n\nBest regards,\nZurcher Construction`,
+           text: `Dear ${clientName},\n\nPlease find attached the final invoice #${invoiceNumber} for the work completed at ${propertyAddress}.\n\nSubtotal: $${(remainingBudgetAmount + totalExtras).toFixed(2)}${discountText}\n\nTotal Amount Due: $${correctTotalAmount.toFixed(2)}\nStatus: ${finalInvoice.status?.replace('_', ' ').toUpperCase() || 'N/A'}\n\nBest regards,\nZurcher Construction`,
            attachments: [
                {
                    filename: `final_invoice_${invoiceNumber}.pdf`,

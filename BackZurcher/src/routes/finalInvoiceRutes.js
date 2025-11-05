@@ -24,6 +24,9 @@ router.delete('/items/:itemId', verifyToken, allowRoles(['admin', 'owner']), Fin
 // Actualizar estado de la factura final (Pendiente)
 router.patch('/:finalInvoiceId/status', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance']), FinalInvoiceController.updateFinalInvoiceStatus);
 
+// 🆕 Actualizar descuento de la factura final
+router.patch('/:finalInvoiceId/discount', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance']), FinalInvoiceController.updateDiscount);
+
 // Generar/Obtener PDF de la factura final (Pendiente)
 router.get('/:finalInvoiceId/pdf', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance']), FinalInvoiceController.generateFinalInvoicePDF);
 

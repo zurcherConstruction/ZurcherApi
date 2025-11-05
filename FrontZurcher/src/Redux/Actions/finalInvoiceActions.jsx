@@ -94,6 +94,24 @@ export const updateFinalInvoiceStatus = createAsyncThunk(
   }
 );
 
+// 🆕 --- Actualizar Descuento ---
+export const updateFinalInvoiceDiscount = createAsyncThunk(
+  'finalInvoice/updateDiscount',
+  async ({ finalInvoiceId, discount, discountReason }, { rejectWithValue }) => {
+    try {
+      const response = await api.patch(`/final-invoice/${finalInvoiceId}/discount`, { 
+        discount,
+        discountReason 
+      });
+      // El backend devuelve la FinalInvoice completa actualizada
+      return response.data;
+    } catch (error) {
+      console.error("Error updating final invoice discount:", error.response?.data || error.message);
+      return rejectWithValue({ message: error.response?.data?.message || error.message });
+    }
+  }
+);
+
 // --- PDF (Ejemplo si necesitas acción específica) ---
 
 export const generateFinalInvoicePdf = createAsyncThunk(

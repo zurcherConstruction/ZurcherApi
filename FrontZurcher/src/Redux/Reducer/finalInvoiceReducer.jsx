@@ -6,6 +6,7 @@ import {
   updateExtraItem,
   removeExtraItem,
   updateFinalInvoiceStatus,
+  updateFinalInvoiceDiscount, // 🆕
   generateFinalInvoicePdf,
   emailFinalInvoice, // (Si creas una acción para esto)
 } from '../Actions/finalInvoiceActions'; // Crearemos este archivo a continuación
@@ -138,6 +139,22 @@ const finalInvoiceReducer = createSlice({
         state.loading = false;
         state.error = action.payload?.message || 'Error al actualizar estado.';
       })
+
+      // 🆕 --- Update Discount ---
+      .addCase(updateFinalInvoiceDiscount.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateFinalInvoiceDiscount.fulfilled, (state, action) => {
+        state.loading = false;
+        // Backend devuelve la FinalInvoice COMPLETA actualizada
+        state.currentInvoice = action.payload;
+      })
+      .addCase(updateFinalInvoiceDiscount.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload?.message || 'Error al actualizar descuento.';
+      })
+
       // --- INICIO: NUEVOS CASOS PDF y EMAIL ---
 
       // --- PDF Generation ---

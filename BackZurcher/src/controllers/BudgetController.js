@@ -3815,10 +3815,10 @@ async optionalDocs(req, res) {
       });
 
       // ✅ Validaciones - Permitir reenvío de presupuestos en varios estados
-      const allowedStatuses = ['created', 'draft', 'rejected', 'pending_review', 'send', 'client_approved'];
+      const allowedStatuses = ['created', 'draft', 'rejected', 'pending_review', 'send', 'client_approved', 'sent_for_signature'];
       if (!allowedStatuses.includes(budget.status)) {
         return res.status(400).json({ 
-          error: `No se puede enviar para revisión un presupuesto con estado "${budget.status}". Solo presupuestos en estado "created", "draft", "pending_review", "send", "client_approved" o "rejected" pueden enviarse para revisión.`,
+          error: `No se puede enviar para revisión un presupuesto con estado "${budget.status}". Solo presupuestos en estado "created", "draft", "pending_review", "send", "client_approved", "sent_for_signature" o "rejected" pueden enviarse para revisión.`,
           details: `Por favor, verifica:
 - El presupuesto tiene PDF generado
 - El email del cliente es válido
@@ -3834,7 +3834,7 @@ async optionalDocs(req, res) {
 
       // Generar token único para revisión (si no existe o si es reenvío)
       const crypto = require('crypto');
-      const isResend = ['rejected', 'pending_review', 'send', 'client_approved'].includes(budget.status); // Detectar si es un reenvío
+      const isResend = ['rejected', 'pending_review', 'send', 'client_approved', 'sent_for_signature'].includes(budget.status); // Detectar si es un reenvío
       const reviewToken = budget.reviewToken || crypto.randomBytes(32).toString('hex');
 
       console.log(`🔄 Tipo de envío: ${isResend ? 'REENVÍO' : 'PRIMER ENVÍO'}`);
