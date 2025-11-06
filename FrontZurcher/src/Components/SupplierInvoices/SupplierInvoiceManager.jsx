@@ -42,7 +42,7 @@ const SupplierInvoiceManager = () => {
     } else {
       // Asegurar que response sea un array
       const invoicesArray = Array.isArray(response) ? response : [];
-      console.log('✅ Facturas cargadas:', invoicesArray.length, invoicesArray);
+      
       dispatch(fetchSupplierInvoicesSuccess(invoicesArray));
     }
   };
@@ -79,6 +79,7 @@ const SupplierInvoiceManager = () => {
     setShowDetail(false);
     setSelectedInvoice(null);
     dispatch(clearCurrentInvoice());
+    loadInvoices(); // Recargar lista después de cerrar detalle
   };
 
   const handleFilterChange = (field, value) => {
