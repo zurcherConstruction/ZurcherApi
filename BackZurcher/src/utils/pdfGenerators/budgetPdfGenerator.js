@@ -532,23 +532,29 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
     .text("Thank you for your business!", NEW_PAGE_MARGIN, doc.y, { width: contentWidth, align: 'left' });
   doc.moveDown(1.8);
 
-  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK)
-    .text("PAYMENT INFORMATION", NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-  doc.moveDown(0.3);
-  doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
-  doc.text("BANK: CHASE".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-  doc.moveDown(0.3);
-  doc.text("ACCOUNT NUMBER: 686125371".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-  doc.moveDown(0.3);
-  doc.text("ROUTING NUMBER: 267084131".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-  doc.moveDown(0.5);
- 
-  doc.text("Zelle: zurcherconstruction.fl@gmail.com".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-  doc.moveDown(0.3);
-   doc.text("CREDIT CARD + 3%".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-  doc.moveDown(0.3);
-  doc.text("ASK ABOUT PAYMENT METHODS. ".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
-  doc.moveDown(1.5);
+  // 🆕 DETERMINAR SI ES DRAFT O INVOICE (calcular antes de usar)
+  const isDraft = budgetData.status === 'draft' || budgetData.status === 'pending_review' || !budgetData.invoiceNumber;
+
+  // ✅ MOSTRAR PAYMENT INFORMATION SOLO SI YA ESTÁ APROBADO (NO ES DRAFT)
+  if (!isDraft) {
+    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK)
+      .text("PAYMENT INFORMATION", NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+    doc.moveDown(0.3);
+    doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
+    doc.text("BANK: CHASE".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+    doc.moveDown(0.3);
+    doc.text("ACCOUNT NUMBER: 686125371".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+    doc.moveDown(0.3);
+    doc.text("ROUTING NUMBER: 267084131".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+    doc.moveDown(0.5);
+   
+    doc.text("Zelle: zurcherconstruction.fl@gmail.com".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+    doc.moveDown(0.3);
+    doc.text("CREDIT CARD + 3%".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+    doc.moveDown(0.3);
+    doc.text("ASK ABOUT PAYMENT METHODS. ".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
+    doc.moveDown(1.5);
+  }
 
   const yAfterPaymentInfo = doc.y;
 
@@ -620,8 +626,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
     .stroke();
   doc.moveDown(1.2); // ✅ ESPACIO DESPUÉS DE LA LÍNEA
 
-  // 🆕 DETERMINAR SI ES DRAFT O INVOICE Y CALCULAR VALORES
-  const isDraft = budgetData.status === 'draft' || budgetData.status === 'pending_review' || !budgetData.invoiceNumber;
+  // ✅ CALCULAR VALORES PARA INITIAL PAYMENT
   const initialPaymentPct = budgetData.initialPaymentPercentage || 100;
   const initialPaymentAmt = budgetData.initialPayment || priceAfterDiscountAlreadyApplied;
   const percentageText = parseFloat(initialPaymentPct) === 100 
