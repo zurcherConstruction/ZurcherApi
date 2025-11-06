@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { supplierInvoiceActions } from '../../Redux/Actions/supplierInvoiceActions';
 import { PAYMENT_METHODS_GROUPED } from '../../utils/paymentConstants';
@@ -115,6 +115,7 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
 
 const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
   const dispatch = useDispatch();
+  const [currentInvoice, setCurrentInvoice] = useState(invoice);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [paymentData, setPaymentData] = useState({
@@ -131,6 +132,11 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
     notes: '',
   });
   const [loading, setLoading] = useState(false);
+
+  // Sincronizar con el invoice prop cuando cambie
+  useEffect(() => {
+    setCurrentInvoice(invoice);
+  }, [invoice]);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('es-AR', {
@@ -181,9 +187,9 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
     return colors[status] || 'bg-gray-100 text-gray-800 border-gray-200';
   };
 
-  const remainingAmount = parseFloat(invoice.totalAmount) - parseFloat(invoice.paidAmount || 0);
-  const canRegisterPayment = invoice.paymentStatus !== 'paid' && invoice.paymentStatus !== 'cancelled';
-  const canEdit = invoice.paymentStatus !== 'paid' && invoice.paymentStatus !== 'cancelled';
+  const remainingAmount = parseFloat(currentInvoice.totalAmount) - parseFloat(currentInvoice.paidAmount || 0);
+  const canRegisterPayment = currentInvoice.paymentStatus !== 'paid' && currentInvoice.paymentStatus !== 'cancelled';
+  const canEdit = currentInvoice.paymentStatus !== 'paid' && currentInvoice.paymentStatus !== 'cancelled';
 
   const handlePaymentInputChange = (e) => {
     const { name, value } = e.target;
@@ -209,7 +215,7 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
     dispatch(registerPaymentRequest());
 
     const response = await supplierInvoiceActions.registerPayment(
-      invoice.idSupplierInvoice,
+      currentInvoice.idSupplierInvoice,
       {
         paymentMethod: paymentData.paymentMethod,
         paymentDate: paymentData.paymentDate,
@@ -224,6 +230,10 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
       alert('Error al registrar el pago: ' + response.message);
     } else {
       dispatch(registerPaymentSuccess(response));
+      
+      // Actualizar el estado local inmediatamente con la respuesta del backend
+      setCurrentInvoice(response);
+      
       setShowPaymentForm(false);
       setPaymentData({
         amount: '',
@@ -256,13 +266,13 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
     setLoading(true);
     dispatch(deleteSupplierInvoiceRequest());
 
-    const response = await supplierInvoiceActions.delete(invoice.idSupplierInvoice);
+    const response = await supplierInvoiceActions.delete(currentInvoice.idSupplierInvoice);
 
     if (response.error) {
       dispatch(deleteSupplierInvoiceFailure(response.message));
       alert('Error al eliminar: ' + response.message);
     } else {
-      dispatch(deleteSupplierInvoiceSuccess(invoice.idSupplierInvoice));
+      dispatch(deleteSupplierInvoiceSuccess(currentInvoice.idSupplierInvoice));
       alert('Invoice eliminado exitosamente');
       onClose();
     }
@@ -279,10 +289,10 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
             <FaFileInvoice className="text-white text-3xl" />
             <div>
               <h2 className="text-2xl font-bold text-white">
-                Invoice {invoice.invoiceNumber}
+                Invoice {currentInvoice.invoiceNumber}
               </h2>
               <p className="text-blue-100 text-sm">
-                {invoice.vendor}
+                {currentInvoice.vendor}
               </p>
             </div>
           </div>
@@ -298,9 +308,9 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
       <div className="p-6">
         {/* Estado y Acciones */}
         <div className="flex items-center justify-between mb-6 pb-6 border-b">
-          <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border ${getStatusColor(invoice.paymentStatus)}`}>
-            {getStatusIcon(invoice.paymentStatus)}
-            <span className="font-semibold">{getStatusText(invoice.paymentStatus)}</span>
+          <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border ${getStatusColor(currentInvoice.paymentStatus)}`}>
+            {getStatusIcon(currentInvoice.paymentStatus)}
+            <span className="font-semibold">{getStatusText(currentInvoice.paymentStatus)}</span>
           </div>
           <div className="flex gap-2">
             {canEdit && (
@@ -335,7 +345,7 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
               <FaFileInvoice className="text-gray-400 mt-1" />
               <div>
                 <div className="text-sm text-gray-600">Número de Invoice</div>
-                <div className="font-semibold text-gray-900">{invoice.invoiceNumber}</div>
+                <div className="font-semibold text-gray-900">{currentInvoice.invoiceNumber}</div>
               </div>
             </div>
 
@@ -343,9 +353,9 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
               <FaBuilding className="text-gray-400 mt-1" />
               <div>
                 <div className="text-sm text-gray-600">Proveedor</div>
-                <div className="font-semibold text-gray-900">{invoice.vendor}</div>
-                {invoice.vendorCuit && (
-                  <div className="text-sm text-gray-500">CUIT: {invoice.vendorCuit}</div>
+                <div className="font-semibold text-gray-900">{currentInvoice.vendor}</div>
+                {currentInvoice.vendorCuit && (
+                  <div className="text-sm text-gray-500">CUIT: {currentInvoice.vendorCuit}</div>
                 )}
               </div>
             </div>
@@ -354,7 +364,7 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
               <FaCalendarAlt className="text-gray-400 mt-1" />
               <div>
                 <div className="text-sm text-gray-600">Fecha del Invoice</div>
-                <div className="font-semibold text-gray-900">{formatDate(invoice.issueDate)}</div>
+                <div className="font-semibold text-gray-900">{formatDate(currentInvoice.issueDate)}</div>
               </div>
             </div>
 
@@ -362,19 +372,19 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
               <FaCalendarAlt className="text-gray-400 mt-1" />
               <div>
                 <div className="text-sm text-gray-600">Fecha de Vencimiento</div>
-                <div className="font-semibold text-gray-900">{formatDate(invoice.dueDate)}</div>
+                <div className="font-semibold text-gray-900">{formatDate(currentInvoice.dueDate)}</div>
               </div>
             </div>
 
-            {invoice.description && (
+            {currentInvoice.description && (
               <div>
                 <div className="text-sm text-gray-600 mb-1">Descripción</div>
-                <div className="text-gray-900">{invoice.description}</div>
+                <div className="text-gray-900">{currentInvoice.description}</div>
               </div>
             )}
 
             {/* Comprobante del Invoice */}
-            {invoice.invoicePdfPath && (
+            {currentInvoice.invoicePdfPath && (
               <div>
                 <div className="text-sm text-gray-600 mb-2">Comprobante</div>
                 <button
@@ -400,7 +410,7 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
                 <span className="text-sm text-gray-600">Monto Total</span>
               </div>
               <div className="text-3xl font-bold text-blue-900">
-                {formatCurrency(invoice.totalAmount)}
+                {formatCurrency(currentInvoice.totalAmount)}
               </div>
             </div>
 
@@ -410,7 +420,7 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
                 <span className="text-sm text-gray-600">Monto Pagado</span>
               </div>
               <div className="text-2xl font-bold text-green-900">
-                {formatCurrency(invoice.paidAmount || 0)}
+                {formatCurrency(currentInvoice.paidAmount || 0)}
               </div>
             </div>
 
@@ -445,7 +455,7 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {(invoice.items || invoice.SupplierInvoiceItems || [])?.map((item, index) => (
+                {(currentInvoice.items || currentInvoice.SupplierInvoiceItems || [])?.map((item, index) => (
                   <tr key={index} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
                       <div className="text-sm text-gray-900">{item.description}</div>
@@ -630,8 +640,8 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
       <PdfModal 
         isOpen={showPdfModal}
         onClose={() => setShowPdfModal(false)}
-        pdfUrl={invoice.invoicePdfPath}
-        title={`Comprobante Invoice ${invoice.invoiceNumber}`}
+        pdfUrl={currentInvoice.invoicePdfPath}
+        title={`Comprobante Invoice ${currentInvoice.invoiceNumber}`}
       />
     </div>
   );
