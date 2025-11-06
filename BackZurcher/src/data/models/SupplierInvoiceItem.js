@@ -58,11 +58,27 @@ module.exports = (sequelize) => {
      
     },
     
+    // 🆕 Cantidad del item
+    quantity: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      defaultValue: 1,
+      comment: 'Cantidad de unidades del item'
+    },
+    
+    // 🆕 Precio unitario
+    unitPrice: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      defaultValue: 0,
+      comment: 'Precio por unidad del item'
+    },
+    
     // Monto de este item específico
     amount: {
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
-      comment: 'Monto de este item individual'
+      comment: 'Monto de este item individual (quantity * unitPrice)'
     },
     
     // 🔑 CAMPO CLAVE: Vinculación con Expense existente
