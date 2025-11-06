@@ -31,6 +31,6 @@ router.post('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance',
 router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance', 'worker']), getAllExpenses);
 router.get('/:id', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance', 'worker']), getExpenseById);
 router.put('/:id', verifyToken, allowRoles(['admin', 'recept', 'owner', 'finance', 'worker']), updateExpense);
-router.delete('/:id', verifyToken, allowRoles(['admin', 'owner']), deleteExpense);
+router.delete('/:id', verifyToken, allowRoles(['admin', 'owner', 'finance']), deleteExpense);
 
 module.exports = router;
