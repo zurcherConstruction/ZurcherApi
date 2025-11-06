@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorkById, updateWork, sendChangeOrderToClient, deleteChangeOrder, addImagesToWork } from "../../Redux/Actions/workActions";
 import { balanceActions } from "../../Redux/Actions/balanceActions";
@@ -22,6 +22,8 @@ import { fetchInspectionsByWork, registerQuickInspectionResult } from '../../Red
 import WorkNotesModal from './WorkNotesModal';
 import NoticeToOwnerCard from './NoticeToOwnerCard';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import useDataLoader from '../../hooks/useDataLoader';
+import WorkDetailError from './WorkDetailError';
   // --- Estado para modal de resultado rápido de inspección ---
   
 // Asegúrate de que esta ruta sea correcta
@@ -48,6 +50,73 @@ const WorkDetail = () => {
 
   // Refresco automático cada 10 min
   useAutoRefresh(() => fetchWorkById(idWork), 600000, [idWork]);
+
+  // ✅ **CONSOLIDACIÓN DE useEffects - Carga inicial de datos**
+  // En lugar de 3 useEffects separados, consolidamos en uno con useDataLoader
+  const { 
+    loading: initialLoading, 
+    error: initialError, 
+    load: loadInitialData,
+    retry: retryInitialData,
+    retryCount: initialRetryCount
+  } = useDataLoader(
+    async () => {
+      if (!idWork) return;
+
+      // Cargar todos los datos en paralelo
+      const [workData, inspectionsData, balanceData] = await Promise.all([
+        // 1. Cargar datos de la obra
+        dispatch(fetchWorkById(idWork)),
+        
+        // 2. Cargar inspecciones
+        dispatch(fetchInspectionsByWork(idWork)),
+        
+        // 3. Cargar balance (incomes y expenses)
+        (async () => {
+          dispatch(fetchIncomesAndExpensesRequest());
+          try {
+            const data = await balanceActions.getIncomesAndExpensesByWorkId(idWork);
+            if (data.error) {
+              console.error("Error fetching incomes/expenses:", data.message);
+              dispatch(fetchIncomesAndExpensesFailure(data.message));
+              return null;
+            }
+            dispatch(fetchIncomesAndExpensesSuccess(data));
+            return data;
+          } catch (err) {
+            console.error("Unexpected error fetching incomes/expenses:", err);
+            dispatch(fetchIncomesAndExpensesFailure(err.message));
+            return null;
+          }
+        })()
+      ]);
+
+      return { workData, inspectionsData, balanceData };
+    },
+    {
+      onError: (error) => {
+        console.error("Error loading WorkDetail data:", error);
+      },
+      cacheTimeout: 30000, // Cache de 30 segundos
+    }
+  );
+
+  // Cargar datos cuando cambia idWork
+  useEffect(() => {
+    loadInitialData();
+  }, [idWork]);
+
+  // Mostrar error si falla después de reintentos
+  if (initialError && initialRetryCount >= 3) {
+    return (
+      <WorkDetailError 
+        error={initialError?.message || "Error al cargar los datos de la obra"}
+        onRetry={retryInitialData}
+        retryCount={initialRetryCount}
+      />
+    );
+  }
+
 
 
 
@@ -237,19 +306,10 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
     return consolidated;
   }, [work?.budget, work?.Receipts, incomes, expenses, work?.propertyAddress]); // Dependencias
 
+  // ❌ ELIMINADO: useEffect duplicado para fetchWorkById (ahora en loadInitialData consolidado)
+  // ❌ ELIMINADO: useEffect duplicado para fetchInspectionsByWork (ahora en loadInitialData consolidado)
+  // ❌ ELIMINADO: useEffect duplicado para fetchBalanceData (ahora en loadInitialData consolidado)
 
-  useEffect(() => {
-    if (idWork) { // Asegúrate de que idWork no sea undefined
-      dispatch(fetchWorkById(idWork));
-    }
-  }, [dispatch, idWork]);
-
-  // ✅ Cargar inspecciones cuando se monta el componente o cambia idWork
-  useEffect(() => {
-    if (idWork) {
-      dispatch(fetchInspectionsByWork(idWork));
-    }
-  }, [dispatch, idWork]);
 
   useEffect(() => {
     const setInvoiceUrl = () => {
@@ -269,31 +329,50 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
     setInvoiceUrl();
   }, [work?.budget?.paymentInvoice]);
 
-  useEffect(() => {
-    const fetchBalanceData = async () => {
-      if (!idWork) return; // Asegurarse de que idWork exista
+  // ❌ ELIMINADO: useEffect para fetchBalanceData (ahora en loadInitialData consolidado)
 
-      dispatch(fetchIncomesAndExpensesRequest()); // Inicia la carga
-      try {
-        // Pasar idWork a la acción
+  // ✅ **FUNCIÓN CENTRALIZADA DE REFRESH**
+  // Reemplaza los 16 dispatch(fetchWorkById) dispersos por el componente
+  const refreshWorkData = useCallback(async (options = {}) => {
+    const {
+      fullRefresh = false,
+      workOnly = false,
+      inspectionsOnly = false,
+      balanceOnly = false,
+      optimistic = false // Para actualizaciones optimistas (no esperar respuesta)
+    } = options;
+
+    try {
+      if (fullRefresh) {
+        // Recargar todo (similar a loadInitialData pero sin cache)
+        await loadInitialData(true); // forceRefresh
+      } else if (workOnly) {
+        // Solo recargar la obra
+        await dispatch(fetchWorkById(idWork));
+      } else if (inspectionsOnly) {
+        // Solo recargar inspecciones
+        await dispatch(fetchInspectionsByWork(idWork));
+      } else if (balanceOnly) {
+        // Solo recargar balance
+        dispatch(fetchIncomesAndExpensesRequest());
         const data = await balanceActions.getIncomesAndExpensesByWorkId(idWork);
-        if (data.error) {
-          console.error("Error fetching incomes/expenses:", data.message);
-          dispatch(fetchIncomesAndExpensesFailure(data.message));
-        } else {
-          
-          // El payload debe ser { incomes: [...], expenses: [...] } según el reducer
+        if (!data.error) {
           dispatch(fetchIncomesAndExpensesSuccess(data));
         }
-      } catch (err) {
-        console.error("Unexpected error fetching incomes/expenses:", err);
-        dispatch(fetchIncomesAndExpensesFailure(err.message));
+      } else {
+        // Por defecto, solo recargar la obra (caso más común)
+        await dispatch(fetchWorkById(idWork));
       }
-    };
+    } catch (error) {
+      console.error("Error refreshing work data:", error);
+      if (!optimistic) {
+        // Solo mostrar error si no es actualización optimista
+        throw error;
+      }
+    }
+  }, [idWork, dispatch, loadInitialData]);
 
-    fetchBalanceData();
-    // Dependencia: dispatch y idWork
-  }, [dispatch, idWork]);
+
 
   // Filtrar imágenes de "sistema instalado"
   const installedImages = useMemo(() => {
@@ -356,8 +435,8 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
       const result = await dispatch(sendChangeOrderToClient(coId));
       if (result && !result.error) {
         alert(result.message || 'Orden de Cambio enviada al cliente exitosamente!');
-        // Refrescar los datos de la obra para ver el estado actualizado de la CO
-        dispatch(fetchWorkById(work.idWork));
+        // ✅ Refrescar solo datos de obra (optimizado)
+        await refreshWorkData({ workOnly: true });
       } else {
         alert(`Error al enviar la Orden de Cambio: ${result?.message || 'Error desconocido'}`);
       }
@@ -384,7 +463,8 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
       const result = await dispatch(deleteChangeOrder(coId));
       if (result && result.success) {
         alert("Orden de Cambio eliminada correctamente.");
-        dispatch(fetchWorkById(work.idWork)); // Refresca la lista
+        // ✅ Refrescar solo datos de obra (optimizado)
+        await refreshWorkData({ workOnly: true });
       } else {
         alert(result?.message || "Error al eliminar la Orden de Cambio.");
       }
@@ -419,8 +499,8 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
         alert("Imagen para inspección final subida correctamente.");
         setFinalInspectionImageFile(null);
         setShowUploadFinalInspectionImage(false);
-        // Opcional: refrescar los datos de la obra para ver la nueva imagen inmediatamente
-        dispatch(fetchWorkById(work.idWork));
+        // ✅ Refrescar solo datos de obra (optimizado)
+        await refreshWorkData({ workOnly: true });
       } else {
         alert(`Error al subir la imagen: ${result?.message || 'Error desconocido'}`);
       }
@@ -495,8 +575,8 @@ const handleUploadInstalledImage = async () => {
       setInstalledImageFile(null);
       setInstalledImageComment('');
       setShowUploadInstalledImage(false);
-      // Refrescar los datos de la obra para ver la nueva imagen
-      dispatch(fetchWorkById(work.idWork));
+      // ✅ Refrescar solo datos de obra (optimizado)
+      await refreshWorkData({ workOnly: true });
     } else {
       alert(`Error al subir la imagen: ${result?.message || 'Error desconocido'}`);
     }
@@ -594,8 +674,8 @@ const handleUploadImage = async () => {
       setTruckCount('');
       setSelectedStage('');
       setShowUploadImageModal(false);
-      // Refresh work data
-      dispatch(fetchWorkById(work.idWork));
+      // ✅ Refrescar solo datos de obra (optimizado)
+      await refreshWorkData({ workOnly: true });
     } else {
       alert(`Error al subir la imagen: ${result?.message || 'Error desconocido'}`);
     }
@@ -1637,9 +1717,8 @@ const handleUploadImage = async () => {
                         setQuickInspectionFile(null);
                         setQuickInspectionNotes('');
                         setQuickInspectionLoading(false);
-                        // Recargar datos de la obra e inspecciones
-                        await dispatch(fetchWorkById(work.idWork));
-                        await dispatch(fetchInspectionsByWork(work.idWork));
+                        // ✅ Recargar datos de la obra e inspecciones (optimizado - paralelo)
+                        await refreshWorkData({ fullRefresh: true });
                         alert('✅ Resultado de inspección registrado exitosamente.');
                       } catch (err) {
                         console.error('Error al registrar resultado rápido:', err);
@@ -2179,7 +2258,8 @@ const handleUploadImage = async () => {
               currentTotalBudget={parseFloat(work.budget?.totalPrice || 0)}
               onCOCreated={() => {
                 setShowCreateCOModal(false);
-                dispatch(fetchWorkById(work.idWork));
+                // ✅ Refrescar solo datos de obra (optimizado)
+                refreshWorkData({ workOnly: true });
               }}
             />
           </>
@@ -2198,7 +2278,8 @@ const handleUploadImage = async () => {
             onCOCreated={() => {
               setShowEditCOModal(false);
               setEditingCO(null);
-              dispatch(fetchWorkById(work.idWork));
+              // ✅ Refrescar solo datos de obra (optimizado)
+              refreshWorkData({ workOnly: true });
             }}
           />
         )}
