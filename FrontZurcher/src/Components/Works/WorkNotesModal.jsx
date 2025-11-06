@@ -153,10 +153,10 @@ const WorkNotesModal = ({ work, onClose }) => {
           <div>
             <h2 className="text-2xl font-bold flex items-center gap-2">
               <ChatBubbleLeftRightIcon className="h-7 w-7" />
-              Seguimiento de Presupuesto
+              Seguimiento de Obra
             </h2>
             <p className="text-blue-100 mt-1">
-              {work.name} - #{work.idWork}
+              📍 {work.propertyAddress || work.name}
             </p>
             {stats.totalNotes > 0 && (
               <div className="mt-2 flex gap-4 text-sm">
@@ -405,6 +405,11 @@ const WorkNotesModal = ({ work, onClose }) => {
                     <div className="flex justify-between items-center text-xs text-gray-500">
                       <span>
                         👤 {note.author?.name || 'Usuario'}
+                        {note.work?.propertyAddress && (
+                          <span className="ml-2">
+                            📍 {note.work.propertyAddress}
+                          </span>
+                        )}
                         {note.relatedStatus && (
                           <span className="ml-2">
                             📋 Estado: {note.relatedStatus}

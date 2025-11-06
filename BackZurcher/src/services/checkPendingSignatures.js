@@ -3,6 +3,7 @@ const cron = require('node-cron');
 const { Budget, Permit, ChangeOrder, Work } = require('../data');
 const { Op } = require('sequelize'); // Para operadores de Sequelize
 const SignNowService = require('./ServiceSignNow');
+const DocuSignService = require('./ServiceDocuSign'); // 🆕 DOCUSIGN
 const { sendNotifications } = require('../utils/notifications/notificationManager');
 const path = require('path');
 const fs = require('fs');
@@ -10,40 +11,53 @@ const { cloudinary } = require('../utils/cloudinaryConfig');
 
 const checkPendingSignatures = async () => {
   console.log(`\n⏰ [CRON JOB] Iniciando la verificación de firmas pendientes - ${new Date().toISOString()}`);
+  
+  // 🆕 Inicializar ambos servicios
   const signNowService = new SignNowService();
+  const docuSignService = new DocuSignService();
 
   // --- TAREA 1: VERIFICAR PRESUPUESTOS PENDIENTES ---
   try {
-    // 🆕 Buscar presupuestos que tengan signNowDocumentId pero NO estén firmados ni aprobados
+    // 🆕 Buscar presupuestos que tengan documentId pero NO estén firmados ni aprobados
     const { Op } = require('sequelize');
     const pendingBudgets = await Budget.findAll({
       where: {
-        signNowDocumentId: { [Op.ne]: null }, // Tiene documento en SignNow
+        [Op.or]: [
+          { signatureDocumentId: { [Op.ne]: null } }, // Nuevo campo genérico
+          { signNowDocumentId: { [Op.ne]: null } }    // Campo legacy de SignNow
+        ],
         status: { 
           [Op.notIn]: ['signed', 'approved', 'rejected'] // Excluir los que ya están firmados, aprobados o rechazados
         },
-        // ⚠️ CAMBIO: Buscar los que NO están firmados (signatureMethod 'none' o null)
-        [Op.or]: [
-          { signatureMethod: 'none' },
-          { signatureMethod: null }
-        ]
+        signatureMethod: {
+          [Op.in]: ['signnow', 'docusign'] // Solo los enviados a servicios de firma
+        }
       },
       include: [{ model: Permit, attributes: ['applicantName', 'propertyAddress'] }]
     });
 
     if (pendingBudgets.length > 0) {
-      console.log(`[CRON JOB] Se encontraron ${pendingBudgets.length} presupuestos con SignNow pendientes para verificar.`);
+      console.log(`[CRON JOB] Se encontraron ${pendingBudgets.length} presupuestos pendientes para verificar.`);
       for (const budget of pendingBudgets) {
         try {
-          if (!budget.signNowDocumentId) {
-            console.warn(`⚠️ [CRON JOB] El presupuesto ${budget.idBudget} no tiene signNowDocumentId. Omitiendo.`);
+          // Determinar qué servicio usar y qué documentId
+          const isDocuSign = budget.signatureMethod === 'docusign';
+          const serviceName = isDocuSign ? 'DocuSign' : 'SignNow';
+          const documentId = budget.signatureDocumentId || budget.signNowDocumentId;
+          const signatureService = isDocuSign ? docuSignService : signNowService;
+
+          if (!documentId) {
+            console.warn(`⚠️ [CRON JOB] El presupuesto ${budget.idBudget} no tiene documentId. Omitiendo.`);
             continue;
           }
 
-          const signatureStatus = await signNowService.isDocumentSigned(budget.signNowDocumentId);
+          console.log(`🔍 Verificando presupuesto ${budget.idBudget} en ${serviceName}...`);
+          
+          const signatureStatus = await signatureService.isDocumentSigned(documentId);
+          const isSigned = isDocuSign ? signatureStatus.signed : signatureStatus.isSigned;
 
-          if (signatureStatus.isSigned) {
-            console.log(`✅ ¡Presupuesto FIRMADO! ID: ${budget.idBudget}.`);
+          if (isSigned) {
+            console.log(`✅ ¡Presupuesto FIRMADO! ID: ${budget.idBudget} (${serviceName}).`);
             
             // 🆕 MEJORA: Descargar automáticamente el PDF firmado a Cloudinary
             try {
@@ -54,8 +68,8 @@ const checkPendingSignatures = async () => {
 
               const tempFilePath = path.join(tempDir, `budget_${budget.idBudget}_signed_${Date.now()}.pdf`);
               
-              // Descargar de SignNow
-              await signNowService.downloadSignedDocument(budget.signNowDocumentId, tempFilePath);
+              // Descargar desde el servicio correspondiente
+              await signatureService.downloadSignedDocument(documentId, tempFilePath);
               console.log(`   -> PDF descargado temporalmente: ${tempFilePath}`);
 
               // Subir a Cloudinary con metadata
@@ -67,12 +81,14 @@ const checkPendingSignatures = async () => {
                   `invoice-${budget.idBudget}`,
                   `property-${(budget.Permit?.propertyAddress || '').replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`,
                   'budget',
-                  'signed'
+                  'signed',
+                  serviceName.toLowerCase()
                 ],
                 context: {
                   invoice: budget.idBudget.toString(),
                   property: budget.Permit?.propertyAddress || budget.propertyAddress,
-                  signed_at: new Date().toISOString()
+                  signed_at: new Date().toISOString(),
+                  signature_service: serviceName
                 }
               });
 
@@ -81,7 +97,6 @@ const checkPendingSignatures = async () => {
               // ✅ Actualizar Budget a 'signed' (el hook del modelo lo pasará a 'approved' si tiene pago)
               await budget.update({
                 status: 'signed',
-                signatureMethod: 'signnow',
                 signedAt: new Date(),
                 signedPdfPath: uploadResult.secure_url,
                 signedPdfPublicId: uploadResult.public_id
@@ -96,7 +111,6 @@ const checkPendingSignatures = async () => {
               // Aún así actualizamos el status pero sin el PDF
               await budget.update({
                 status: 'signed',
-                signatureMethod: 'signnow',
                 signedAt: new Date()
               });
             }

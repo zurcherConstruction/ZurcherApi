@@ -53,7 +53,8 @@ export const fetchBudgets = ({
   search = '',
   status = '',
   month = '',
-  year = ''
+  year = '',
+  signatureMethod = ''
 } = {}) => async (dispatch) => {
   dispatch(fetchBudgetsRequest());
   try {
@@ -64,6 +65,7 @@ export const fetchBudgets = ({
     if (status && status !== 'all') params.append('status', status);
     if (month && month !== 'all') params.append('month', month);
     if (year && year !== 'all') params.append('year', year);
+    if (signatureMethod && signatureMethod !== 'all') params.append('signatureMethod', signatureMethod);
 
     const response = await api.get(`/budget/all?${params.toString()}`, {
       headers: {
@@ -71,7 +73,7 @@ export const fetchBudgets = ({
         'Pragma': 'no-cache'
       }
     });
-    dispatch(fetchBudgetsSuccess(response.data)); // { budgets, total, page, pageSize }
+    dispatch(fetchBudgetsSuccess(response.data)); // { budgets, total, page, pageSize, stats }
   } catch (error) {
     const errorMessage =
       error.response?.data?.message || 'Error al obtener los presupuestos';
@@ -298,7 +300,7 @@ export const convertDraftToInvoice = (idBudget) => async (dispatch) => {
 };
 
 // 🆕 NUEVA ACCIÓN: Exportar budgets a Excel
-export const exportBudgetsToExcel = ({ search = '', status = '', month = '', year = '' } = {}) => async () => {
+export const exportBudgetsToExcel = ({ search = '', status = '', month = '', year = '', signatureMethod = '' } = {}) => async () => {
   try {
     // Construir query params con los filtros
     const params = new URLSearchParams();
@@ -306,6 +308,7 @@ export const exportBudgetsToExcel = ({ search = '', status = '', month = '', yea
     if (status && status !== 'all') params.append('status', status);
     if (month && month !== 'all') params.append('month', month);
     if (year && year !== 'all') params.append('year', year);
+    if (signatureMethod && signatureMethod !== 'all') params.append('signatureMethod', signatureMethod);
 
     const queryString = params.toString();
     const url = `/budget/export/excel${queryString ? `?${queryString}` : ''}`;

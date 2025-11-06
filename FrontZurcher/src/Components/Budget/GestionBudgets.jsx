@@ -109,7 +109,7 @@ const GestionBudgets = () => {
   // ✅ useEffect para resetear a página 1 cuando cambien los filtros
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, monthFilter, yearFilter]);
+  }, [statusFilter, monthFilter, yearFilter, signatureFilter]);
 
   // ✅ useEffect para cargar budgets con paginación y filtros
   useEffect(() => {
@@ -119,9 +119,10 @@ const GestionBudgets = () => {
       search: debouncedSearchTerm,
       status: statusFilter,
       month: monthFilter,
-      year: yearFilter
+      year: yearFilter,
+      signatureMethod: signatureFilter
     }));
-  }, [dispatch, page, pageSize, debouncedSearchTerm, statusFilter, monthFilter, yearFilter]);
+  }, [dispatch, page, pageSize, debouncedSearchTerm, statusFilter, monthFilter, yearFilter, signatureFilter]);
 
   // Obtener años únicos de los budgets
   const availableYears = useMemo(() => {
@@ -133,22 +134,9 @@ const GestionBudgets = () => {
     return years.sort((a, b) => b - a);
   }, [budgets]);
 
-  // ✅ Los budgets ya vienen filtrados del backend por status, año y búsqueda
-  // Aplicamos filtro adicional de firma en el cliente
-  const filteredBudgets = useMemo(() => {
-    if (!budgets) return [];
-    
-    // Si no hay filtro de firma o es "all", retornar todos los budgets
-    if (signatureFilter === 'all') {
-      return budgets;
-    }
-    
-    // Filtrar por signatureMethod
-    return budgets.filter(budget => {
-      const signatureMethod = budget.signatureMethod || 'none';
-      return signatureMethod === signatureFilter;
-    });
-  }, [budgets, signatureFilter]);
+  // ✅ Los budgets ya vienen filtrados del backend (status, año, búsqueda Y signatureMethod)
+  // Ya no necesitamos filtro local de signatureMethod
+  const filteredBudgets = budgets || [];
 
   // 🆕 Usar estadísticas del backend si están disponibles, sino calcular localmente (fallback)
   const budgetStats = useMemo(() => {
@@ -189,17 +177,24 @@ const GestionBudgets = () => {
     };
   }, [budgets, totalRecords, statsFromBackend]);
 
-  // 🆕 Estadísticas de métodos de firma
+  // 🆕 Estadísticas de métodos de firma - Priorizar las del backend
   const signatureStats = useMemo(() => {
-    if (!budgets) return { signnow: 0, manual: 0, legacy: 0, none: 0 };
+    // Si tenemos estadísticas del backend, usarlas
+    if (statsFromBackend?.signatureStats) {
+      return statsFromBackend.signatureStats;
+    }
+    
+    // Si no hay backend stats, calcular localmente
+    if (!budgets) return { signnow: 0, docusign: 0, manual: 0, legacy: 0, none: 0 };
     
     return {
       signnow: budgets.filter(b => b.signatureMethod === 'signnow').length,
+      docusign: budgets.filter(b => b.signatureMethod === 'docusign').length,
       manual: budgets.filter(b => b.signatureMethod === 'manual').length,
       legacy: budgets.filter(b => b.signatureMethod === 'legacy').length,
       none: budgets.filter(b => !b.signatureMethod || b.signatureMethod === 'none').length
     };
-  }, [budgets]);
+  }, [budgets, statsFromBackend]);
 
   // ✅ NUEVO: Función para filtrar por estado al hacer click en las tarjetas
   const handleStatCardClick = (status) => {
@@ -359,6 +354,12 @@ const GestionBudgets = () => {
         label: '✓ SignNow',
         icon: '📝'
       },
+      'docusign': { 
+        bg: 'bg-indigo-100', 
+        text: 'text-indigo-800', 
+        label: '✓ DocuSign',
+        icon: '📝'
+      },
       'manual': { 
         bg: 'bg-blue-100', 
         text: 'text-blue-800', 
@@ -424,6 +425,15 @@ const GestionBudgets = () => {
       }
       // 🆕 Si es firma SignNow, descargar desde el backend
       else if (budget.signatureMethod === 'signnow') {
+        const response = await api.get(`/budget/${budget.idBudget}/download-signed`, {
+          responseType: 'blob',
+          withCredentials: true,
+        });
+        const blob = response.data;
+        pdfUrl = window.URL.createObjectURL(blob);
+      }
+      // 🆕 Si es firma DocuSign, descargar desde el backend
+      else if (budget.signatureMethod === 'docusign') {
         const response = await api.get(`/budget/${budget.idBudget}/download-signed`, {
           responseType: 'blob',
           withCredentials: true,
@@ -736,8 +746,9 @@ const GestionBudgets = () => {
           >
             <option value="all">Todas las firmas ({budgets?.length || 0})</option>
             <option value="signnow">✓ SignNow ({signatureStats.signnow})</option>
+            <option value="docusign">✓ DocuSign ({signatureStats.docusign})</option>
             <option value="manual">📄 Manual ({signatureStats.manual})</option>
-            <option value="legacy">� Legacy ({signatureStats.legacy})</option>
+            <option value="legacy">📋 Legacy ({signatureStats.legacy})</option>
             <option value="none">✗ Sin Firmar ({signatureStats.none})</option>
           </select>
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import socket from "../utils/io";
 import {
@@ -9,6 +9,63 @@ import { addNotification } from "../Redux/Reducer/notificationReducer";
 import api from "../utils/axios";
 import { FaBell } from "react-icons/fa";
 
+// 🔊 Sonido de notificación (puedes usar un archivo .mp3 o generar uno programáticamente)
+const playNotificationSound = () => {
+  // Crear un tono simple usando Web Audio API
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const oscillator = audioContext.createOscillator();
+  const gainNode = audioContext.createGain();
+  
+  oscillator.connect(gainNode);
+  gainNode.connect(audioContext.destination);
+  
+  oscillator.frequency.value = 800; // Frecuencia en Hz
+  oscillator.type = 'sine';
+  
+  gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+  gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+  
+  oscillator.start(audioContext.currentTime);
+  oscillator.stop(audioContext.currentTime + 0.5);
+};
+
+// 🎨 Componente Toast para notificaciones emergentes
+const NotificationToast = ({ notification, onClose }) => {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onClose();
+    }, 5000); // Se cierra después de 5 segundos
+    
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className="fixed top-20 right-4 z-[100] animate-slide-in-right">
+      <div className="bg-white shadow-2xl rounded-lg border-l-4 border-blue-500 p-4 max-w-sm hover:shadow-3xl transition-shadow">
+        <div className="flex items-start gap-3">
+          <div className="bg-blue-100 rounded-full p-2 animate-bounce">
+            <FaBell className="text-blue-600 w-5 h-5" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-gray-900 text-sm">
+              {notification.title}
+            </p>
+            <p className="text-gray-600 text-xs mt-1 line-clamp-2">
+              {notification.message}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 const Notifications = ({ isDropdown = false, onClose }) => {
   const dispatch = useDispatch();
@@ -17,9 +74,39 @@ const Notifications = ({ isDropdown = false, onClose }) => {
 
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [responseMessage, setResponseMessage] = useState("");
+  const [showToast, setShowToast] = useState(null); // 🆕 Para mostrar toast
+  const previousCountRef = useRef(0); // 🆕 Para detectar nuevas notificaciones
 
   // Asegúrate de que notifications sea siempre un array
   const validNotifications = Array.isArray(notifications) ? notifications : [];
+
+  // 🆕 Detectar nuevas notificaciones y mostrar alerta
+  useEffect(() => {
+    const unreadNotifications = validNotifications.filter(n => !n.isRead);
+    const currentCount = unreadNotifications.length;
+    
+    // Si hay más notificaciones no leídas que antes
+    if (currentCount > previousCountRef.current && previousCountRef.current > 0) {
+      const newestNotification = unreadNotifications[0];
+      
+      // Reproducir sonido
+      try {
+        playNotificationSound();
+      } catch (error) {
+        console.log('No se pudo reproducir el sonido:', error);
+      }
+      
+      // Mostrar toast
+      setShowToast(newestNotification);
+      
+      // Vibración en dispositivos móviles
+      if ('vibrate' in navigator) {
+        navigator.vibrate([200, 100, 200]);
+      }
+    }
+    
+    previousCountRef.current = currentCount;
+  }, [validNotifications]);
 
   useEffect(() => {
     if (staff) {
@@ -89,7 +176,16 @@ const Notifications = ({ isDropdown = false, onClose }) => {
   if (error) return <p>Error: {error}</p>;
 
   return (
-    <div className={isDropdown ? "bg-white shadow-lg rounded-lg" : ""}>
+    <>
+      {/* 🆕 Toast emergente para nuevas notificaciones */}
+      {showToast && (
+        <NotificationToast
+          notification={showToast}
+          onClose={() => setShowToast(null)}
+        />
+      )}
+      
+      <div className={isDropdown ? "bg-white shadow-lg rounded-lg" : ""}>
       <h2 className="text-sm font-medium bg-blue-600 text-white p-3 rounded-t-lg">
         Notificaciones {validNotifications.length > 0 && `(${validNotifications.length})`}
       </h2>
@@ -224,6 +320,7 @@ const Notifications = ({ isDropdown = false, onClose }) => {
         </div>
       )}
     </div>
+    </>
   );
 };
 

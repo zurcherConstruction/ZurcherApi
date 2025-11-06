@@ -1,0 +1,8 @@
+# 🔐 DocuSign Private Keys - NUNCA SUBIR AL REPOSITORIO
+docusign_private.key
+*.pem
+*.key
+
+# Archivos temporales de pruebas
+temp/
+uploads/signed-budgets/

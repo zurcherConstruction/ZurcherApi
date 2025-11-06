@@ -89,7 +89,7 @@ const BudgetNoteController = {
             senderId: staffId, // 👤 ID del autor que menciona (relación correcta)
             type: 'mention',
             title: `${author?.name || 'Alguien'} te mencionó en un seguimiento`,
-            message: `Presupuesto #${budgetId}: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`,
+            message: `📍 ${budget.propertyAddress || `Presupuesto #${budgetId}`}: ${message.substring(0, 80)}${message.length > 80 ? '...' : ''}`,
             relatedId: budgetId,
             relatedType: 'budget_note',
             isRead: false
@@ -152,6 +152,11 @@ const BudgetNoteController = {
             model: Staff,
             as: 'author',
             attributes: ['id', 'name', 'email']
+          },
+          {
+            model: Budget,
+            as: 'budget', // 🔧 Agregar alias correcto
+            attributes: ['idBudget', 'propertyAddress']
           }
         ],
         order: [['createdAt', 'DESC']] // Más recientes primero

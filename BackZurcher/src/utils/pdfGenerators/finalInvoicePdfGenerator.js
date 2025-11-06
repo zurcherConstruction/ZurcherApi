@@ -132,7 +132,7 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
     try {
       const {
         id: invoiceId, invoiceDate, originalBudgetTotal, initialPaymentMade,
-        subtotalExtras, finalAmountDue, status: invoiceStatus, Work: workData,
+        subtotalExtras, discount, discountReason, finalAmountDue, status: invoiceStatus, Work: workData,
         extraItems = []
       } = invoiceData;
 
@@ -275,15 +275,36 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
       let currentTotalY = doc.y;
 
       const totalExtras = extraItems.reduce((acc, item) => acc + parseFloat(item.lineTotal || 0), 0);
-      const subtotal = remainingBudgetAmount + totalExtras;
+      const discountAmount = parseFloat(discount || 0);
+      const subtotal = remainingBudgetAmount + totalExtras - discountAmount;
       const tax = 0.00;
       const total = subtotal + tax;
 
       doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
       doc.text("SUBTOTAL", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
       doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
-      doc.text(`$${subtotal.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+      doc.text(`$${(remainingBudgetAmount + totalExtras).toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
       doc.moveDown(0.6);
+
+      // 🆕 DESCUENTO (si existe)
+      if (discountAmount > 0) {
+        currentTotalY = doc.y;
+        doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
+        doc.text("DISCOUNT", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
+        doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor('#0066cc');
+        doc.text(`-$${discountAmount.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
+        
+        // Si hay razón del descuento, mostrarla
+        if (discountReason && discountReason.trim()) {
+          doc.moveDown(0.3);
+          doc.font(FONT_FAMILY_MONO).fontSize(7).fillColor(COLOR_TEXT_LIGHT);
+          doc.text(`(${discountReason.trim()})`, totalsStartX, doc.y, { 
+            width: totalsRightEdge - totalsStartX, 
+            align: 'left' 
+          });
+        }
+        doc.moveDown(0.6);
+      }
 
       currentTotalY = doc.y;
       doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
