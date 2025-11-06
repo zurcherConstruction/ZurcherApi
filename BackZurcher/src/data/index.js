@@ -75,7 +75,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceItem, SupplierInvoiceWork, BudgetNote, WorkNote, WorkStateHistory } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -315,6 +315,20 @@ SupplierInvoice.hasMany(SupplierInvoiceItem, {
 SupplierInvoiceItem.belongsTo(SupplierInvoice, {
   foreignKey: 'supplierInvoiceId',
   as: 'invoice'
+});
+
+// 🆕 Un SupplierInvoice puede estar vinculado a múltiples Works (para auto-generar gastos al pagar)
+SupplierInvoice.belongsToMany(Work, {
+  through: SupplierInvoiceWork,
+  foreignKey: 'supplierInvoiceId',
+  otherKey: 'workId',
+  as: 'linkedWorks'
+});
+Work.belongsToMany(SupplierInvoice, {
+  through: SupplierInvoiceWork,
+  foreignKey: 'workId',
+  otherKey: 'supplierInvoiceId',
+  as: 'supplierInvoices'
 });
 
 // Un SupplierInvoiceItem puede estar asociado a un Work (opcional)

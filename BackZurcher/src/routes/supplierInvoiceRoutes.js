@@ -11,7 +11,8 @@ const {
   deleteSupplierInvoice,
   getAccountsPayable,
   getPaymentHistory,
-  uploadInvoicePdf
+  uploadInvoicePdf,
+  distributeInvoiceToWorks
 } = require('../controllers/supplierInvoiceController');
 
 // Middleware de autenticación (ajusta según tu implementación)
@@ -70,6 +71,14 @@ router.patch('/:id/pay', registerPayment);
  * @access  Private
  */
 router.post('/:id/upload-invoice', upload.single('file'), uploadInvoicePdf);
+
+/**
+ * @route   POST /api/supplier-invoices/:id/distribute
+ * @desc    Distribuir invoice entre múltiples trabajos y crear expenses automáticamente
+ * @body    FormData con distribution (JSON string), paymentMethod, paymentDate, referenceNumber, receipt (file opcional)
+ * @access  Private
+ */
+router.post('/:id/distribute', upload.single('receipt'), distributeInvoiceToWorks);
 
 /**
  * @route   PUT /api/supplier-invoices/:id

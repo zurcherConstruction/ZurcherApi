@@ -1,4 +1,4 @@
-const { SupplierInvoice, SupplierInvoiceItem, Expense, FixedExpense, Work, Staff, Receipt } = require('../data');
+const { SupplierInvoice, SupplierInvoiceItem, SupplierInvoiceWork, Expense, FixedExpense, Work, Staff, Receipt } = require('../data');
 const { Op } = require('sequelize');
 const { cloudinary } = require('../utils/cloudinaryConfig');
 
@@ -19,6 +19,7 @@ const createSupplierInvoice = async (req, res) => {
       dueDate,
       notes,
       items,
+      linkedWorks, // 🆕 Works vinculados para auto-generar expenses
       vendorEmail,
       vendorPhone,
       vendorAddress
@@ -182,7 +183,8 @@ const createSupplierInvoice = async (req, res) => {
         console.log(`  🆕 Expense creado automáticamente: ${newExpense.idExpense} (${expenseType})`);
       }
       // 5. Si NO hay workId (gasto general), crear expense sin work
-      else {
+      // 🆕 PERO NO si el invoice tiene linkedWorks (se crearán al pagar)
+      else if (!linkedWorks || linkedWorks.length === 0) {
         // Mapear categoría de SupplierInvoiceItem a typeExpense válido de Expense
         const categoryMap = {
           'Otro': 'Gastos Generales',
@@ -206,18 +208,31 @@ const createSupplierInvoice = async (req, res) => {
         }, { transaction });
 
         console.log(`  🆕 Expense general creado: ${newExpense.idExpense} (${expenseType})`);
+      } else {
+        console.log(`  ⏸️ Item sin expense (se creará al registrar pago con linkedWorks)`);
       }
     }
 
     // 6. Actualizar el total del invoice
     await invoice.update({ totalAmount }, { transaction });
 
+    // 🆕 7. Vincular works si se proporcionaron
+    if (linkedWorks && Array.isArray(linkedWorks) && linkedWorks.length > 0) {
+      for (const workId of linkedWorks) {
+        await SupplierInvoiceWork.create({
+          supplierInvoiceId: invoice.idSupplierInvoice,
+          workId: workId
+        }, { transaction });
+        console.log(`  🔗 Work vinculado: ${workId}`);
+      }
+    }
+
     // Commit de la transacción
     await transaction.commit();
 
-    console.log(`\n✅ Invoice ${invoiceNumber} creado exitosamente con ${createdItems.length} items\n`);
+    console.log(`\n✅ Invoice ${invoiceNumber} creado exitosamente con ${createdItems.length} items${linkedWorks?.length ? ` y ${linkedWorks.length} work(s) vinculado(s)` : ''}\n`);
 
-    // Retornar el invoice con sus items
+    // Retornar el invoice con sus items y works vinculados
     const invoiceWithItems = await SupplierInvoice.findByPk(invoice.idSupplierInvoice, {
       include: [
         {
@@ -248,6 +263,12 @@ const createSupplierInvoice = async (req, res) => {
           model: Staff,
           as: 'createdBy',
           attributes: ['id', 'name', 'email']
+        },
+        {
+          model: Work,
+          as: 'linkedWorks', // 🆕 Works vinculados para auto-distribución
+          attributes: ['idWork', 'propertyAddress'],
+          through: { attributes: [] }
         }
       ]
     });
@@ -258,7 +279,10 @@ const createSupplierInvoice = async (req, res) => {
     });
 
   } catch (error) {
-    await transaction.rollback();
+    // Solo hacer rollback si la transacción no ha sido finalizada
+    if (!transaction.finished) {
+      await transaction.rollback();
+    }
     console.error('❌ Error creando invoice:', error);
     res.status(500).json({
       error: 'Error al crear el invoice',
@@ -342,6 +366,12 @@ const getSupplierInvoices = async (req, res) => {
             required: false
           }
         ]
+      },
+      {
+        model: Work,
+        as: 'linkedWorks', // 🆕 Works vinculados
+        attributes: ['idWork', 'propertyAddress'],
+        through: { attributes: [] }
       }
     ];
 
@@ -400,6 +430,12 @@ const getSupplierInvoiceById = async (req, res) => {
           model: Receipt,
           as: 'Receipts',
           required: false
+        },
+        {
+          model: Work,
+          as: 'linkedWorks', // 🆕 Works vinculados
+          attributes: ['idWork', 'propertyAddress'],
+          through: { attributes: [] }
         }
       ]
     });
@@ -424,8 +460,12 @@ const getSupplierInvoiceById = async (req, res) => {
 /**
  * Registrar pago de un invoice
  * PATCH /api/supplier-invoices/:id/pay
+ * 
+ * 🆕 Si el invoice tiene linkedWorks, auto-genera expenses distribuidos equitativamente
  */
 const registerPayment = async (req, res) => {
+  const transaction = await SupplierInvoice.sequelize.transaction();
+  
   try {
     const { id } = req.params;
     const {
@@ -433,19 +473,32 @@ const registerPayment = async (req, res) => {
       paymentDate,
       paidAmount,
       paymentDetails,
-      notes
+      notes,
+      receipt // 🆕 Opcionalmente puede venir un receipt
     } = req.body;
 
     // Validación
     if (!paymentMethod || !paymentDate || !paidAmount) {
+      await transaction.rollback();
       return res.status(400).json({
         error: 'Faltan campos requeridos: paymentMethod, paymentDate, paidAmount'
       });
     }
 
-    const invoice = await SupplierInvoice.findByPk(id);
+    // Buscar invoice con linkedWorks
+    const invoice = await SupplierInvoice.findByPk(id, {
+      include: [
+        {
+          model: Work,
+          as: 'linkedWorks',
+          attributes: ['idWork', 'propertyAddress']
+        }
+      ],
+      transaction
+    });
 
     if (!invoice) {
+      await transaction.rollback();
       return res.status(404).json({
         error: 'Invoice no encontrado'
       });
@@ -464,6 +517,45 @@ const registerPayment = async (req, res) => {
       newStatus = invoice.paymentStatus;
     }
 
+    // 🆕 Si el invoice tiene works vinculados y está siendo pagado completamente, auto-generar expenses
+    if (invoice.linkedWorks && invoice.linkedWorks.length > 0 && newStatus === 'paid') {
+      console.log(`🔗 Invoice tiene ${invoice.linkedWorks.length} work(s) vinculado(s). Auto-generando expenses...`);
+      
+      const amountPerWork = parseFloat(invoice.totalAmount) / invoice.linkedWorks.length;
+      
+      for (const work of invoice.linkedWorks) {
+        const expense = await Expense.create({
+          workId: work.idWork,
+          date: paymentDate,
+          description: `${invoice.vendor} - Invoice #${invoice.invoiceNumber}`,
+          typeExpense: 'Materiales', // Tipo genérico para supplier invoices
+          amount: amountPerWork,
+          paymentStatus: 'paid',
+          paidAmount: amountPerWork,
+          paymentMethod: paymentMethod,
+          paymentDate: paymentDate,
+          paymentDetails: paymentDetails || '',
+          notes: `Generado automáticamente desde Supplier Invoice #${invoice.invoiceNumber}. Vendor: ${invoice.vendor}. Distribuido equitativamente.`,
+          verified: false,
+          staffId: req.user?.id || null
+        }, { transaction });
+
+        console.log(`  ✅ Expense creado para work ${work.propertyAddress}: $${amountPerWork.toFixed(2)}`);
+
+        // Si hay receipt, vincularlo al expense
+        if (receipt) {
+          await Receipt.create({
+            relatedModel: 'Expense',
+            relatedId: expense.idExpense,
+            type: 'Comprobante de Pago',
+            fileUrl: receipt.receiptUrl,
+            publicId: receipt.cloudinaryPublicId,
+            uploadedBy: req.user?.id || null
+          }, { transaction });
+        }
+      }
+    }
+
     // Actualizar invoice
     await invoice.update({
       paymentMethod,
@@ -472,7 +564,9 @@ const registerPayment = async (req, res) => {
       paymentDetails: paymentDetails || invoice.paymentDetails,
       paymentStatus: newStatus,
       notes: notes || invoice.notes
-    });
+    }, { transaction });
+
+    await transaction.commit();
 
     console.log(`✅ Pago registrado para invoice ${invoice.invoiceNumber}: $${paidAmount}`);
 
@@ -489,16 +583,23 @@ const registerPayment = async (req, res) => {
               attributes: ['idWork', 'propertyAddress']
             }
           ]
+        },
+        {
+          model: Work,
+          as: 'linkedWorks',
+          attributes: ['idWork', 'propertyAddress'],
+          through: { attributes: [] }
         }
       ]
     });
 
     res.json({
-      message: 'Pago registrado exitosamente',
+      message: 'Pago registrado exitosamente' + (invoice.linkedWorks?.length > 0 ? ` y ${invoice.linkedWorks.length} gasto(s) creado(s)` : ''),
       invoice: updatedInvoice
     });
 
   } catch (error) {
+    await transaction.rollback();
     console.error('❌ Error registrando pago:', error);
     res.status(500).json({
       error: 'Error al registrar el pago',
@@ -516,7 +617,7 @@ const updateSupplierInvoice = async (req, res) => {
   
   try {
     const { id } = req.params;
-    const { items, ...invoiceUpdates } = req.body;
+    const { items, linkedWorks, ...invoiceUpdates } = req.body; // 🆕 Extraer linkedWorks
 
     const invoice = await SupplierInvoice.findByPk(id, {
       include: [{
@@ -623,33 +724,61 @@ const updateSupplierInvoice = async (req, res) => {
     // Actualizar invoice principal
     await invoice.update(invoiceUpdates, { transaction });
 
+    // 🆕 Actualizar linkedWorks si se proporcionaron
+    if (linkedWorks !== undefined) {
+      // Eliminar relaciones existentes
+      await SupplierInvoiceWork.destroy({
+        where: { supplierInvoiceId: id },
+        transaction
+      });
+
+      // Crear nuevas relaciones
+      if (Array.isArray(linkedWorks) && linkedWorks.length > 0) {
+        for (const workId of linkedWorks) {
+          await SupplierInvoiceWork.create({
+            supplierInvoiceId: id,
+            workId: workId
+          }, { transaction });
+        }
+        console.log(`  🔗 ${linkedWorks.length} work(s) vinculado(s) al invoice`);
+      }
+    }
+
     await transaction.commit();
 
     console.log(`✅ Invoice ${invoice.invoiceNumber} actualizado`);
 
-    // Retornar invoice actualizado con items
+    // Retornar invoice actualizado con items y linkedWorks
     const updatedInvoice = await SupplierInvoice.findByPk(id, {
-      include: [{
-        model: SupplierInvoiceItem,
-        as: 'items',
-        include: [
-          {
-            model: Work,
-            as: 'work',
-            attributes: ['idWork', 'propertyAddress']
-          },
-          {
-            model: Expense,
-            as: 'relatedExpense',
-            attributes: ['idExpense', 'typeExpense', 'amount']
-          },
-          {
-            model: FixedExpense,
-            as: 'relatedFixedExpense',
-            attributes: ['idFixedExpense', 'description', 'totalAmount']
-          }
-        ]
-      }]
+      include: [
+        {
+          model: SupplierInvoiceItem,
+          as: 'items',
+          include: [
+            {
+              model: Work,
+              as: 'work',
+              attributes: ['idWork', 'propertyAddress']
+            },
+            {
+              model: Expense,
+              as: 'relatedExpense',
+              attributes: ['idExpense', 'typeExpense', 'amount']
+            },
+            {
+              model: FixedExpense,
+              as: 'relatedFixedExpense',
+              attributes: ['idFixedExpense', 'description', 'totalAmount']
+            }
+          ]
+        },
+        {
+          model: Work,
+          as: 'linkedWorks', // 🆕 Incluir works vinculados
+          attributes: ['idWork', 'propertyAddress'],
+          through: { attributes: [] }
+        }
+      ]
     });
 
     res.json({
@@ -1065,6 +1194,233 @@ const uploadInvoicePdf = async (req, res) => {
   }
 };
 
+/**
+ * Distribuir un invoice entre múltiples trabajos y crear expenses automáticamente
+ * POST /api/supplier-invoices/:id/distribute
+ * 
+ * Body (FormData):
+ * - distribution: JSON string con array de { idWork, amount, notes }
+ * - paymentMethod: string
+ * - paymentDate: date string
+ * - referenceNumber: string (optional)
+ * - receipt: file (optional)
+ */
+const distributeInvoiceToWorks = async (req, res) => {
+  const transaction = await SupplierInvoice.sequelize.transaction();
+
+  try {
+    const { id } = req.params;
+    
+    console.log('📊 [DistributeInvoice] Iniciando distribución del invoice:', id);
+    console.log('📊 [DistributeInvoice] Body recibido:', req.body);
+    console.log('📊 [DistributeInvoice] Archivo recibido:', req.file?.originalname);
+
+    // 1. Obtener invoice
+    const invoice = await SupplierInvoice.findByPk(id, { transaction });
+
+    if (!invoice) {
+      await transaction.rollback();
+      return res.status(404).json({ error: 'Invoice no encontrado' });
+    }
+
+    // 2. Verificar que el invoice no esté ya pagado
+    if (invoice.paymentStatus === 'paid') {
+      await transaction.rollback();
+      return res.status(400).json({
+        error: 'Este invoice ya está marcado como pagado',
+        currentStatus: invoice.paymentStatus
+      });
+    }
+
+    // 3. Parsear distribución
+    let distribution;
+    try {
+      distribution = JSON.parse(req.body.distribution);
+    } catch (error) {
+      await transaction.rollback();
+      return res.status(400).json({
+        error: 'Formato de distribución inválido',
+        details: error.message
+      });
+    }
+
+    // 4. Validar distribución
+    if (!Array.isArray(distribution) || distribution.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({ error: 'La distribución debe contener al menos un trabajo' });
+    }
+
+    // Validar que todos tengan idWork y amount
+    for (const item of distribution) {
+      if (!item.idWork || !item.amount || parseFloat(item.amount) <= 0) {
+        await transaction.rollback();
+        return res.status(400).json({
+          error: 'Cada distribución debe tener idWork y amount válidos',
+          invalidItem: item
+        });
+      }
+    }
+
+    // 5. Calcular total distribuido
+    const totalDistributed = distribution.reduce((sum, item) => {
+      return sum + parseFloat(item.amount);
+    }, 0);
+
+    // Validar que coincida con el total del invoice (tolerancia de 1 centavo)
+    const difference = Math.abs(totalDistributed - parseFloat(invoice.totalAmount));
+    if (difference > 0.01) {
+      await transaction.rollback();
+      return res.status(400).json({
+        error: 'El total distribuido no coincide con el total del invoice',
+        invoiceTotal: parseFloat(invoice.totalAmount),
+        distributed: totalDistributed,
+        difference
+      });
+    }
+
+    // 6. Verificar que todos los works existan
+    const workIds = distribution.map(d => d.idWork);
+    const works = await Work.findAll({
+      where: { idWork: { [Op.in]: workIds } },
+      transaction
+    });
+
+    if (works.length !== workIds.length) {
+      await transaction.rollback();
+      return res.status(404).json({
+        error: 'Uno o más trabajos no existen',
+        requestedWorks: workIds.length,
+        foundWorks: works.length
+      });
+    }
+
+    // 7. Subir receipt a Cloudinary si existe
+    let receiptUrl = null;
+    let receiptPublicId = null;
+
+    if (req.file) {
+      console.log('📎 [DistributeInvoice] Subiendo receipt a Cloudinary...');
+      
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'receipts',
+          resource_type: 'auto'
+        },
+        (error, result) => {
+          if (error) {
+            console.error('❌ Error subiendo receipt:', error);
+          } else {
+            receiptUrl = result.secure_url;
+            receiptPublicId = result.public_id;
+            console.log('✅ Receipt subido:', receiptUrl);
+          }
+        }
+      );
+
+      const Readable = require('stream').Readable;
+      const bufferStream = new Readable();
+      bufferStream.push(req.file.buffer);
+      bufferStream.push(null);
+      
+      await new Promise((resolve, reject) => {
+        bufferStream.pipe(uploadStream)
+          .on('finish', resolve)
+          .on('error', reject);
+      });
+    }
+
+    // 8. Crear expenses para cada trabajo
+    const createdExpenses = [];
+    const paymentDate = req.body.paymentDate || new Date().toISOString().split('T')[0];
+    const paymentMethod = req.body.paymentMethod || 'Chase Bank';
+    const referenceNumber = req.body.referenceNumber || '';
+
+    for (const item of distribution) {
+      const work = works.find(w => w.idWork === item.idWork);
+      
+      // Descripción del expense incluye el vendor
+      const expenseDescription = `${invoice.vendor} - Invoice #${invoice.invoiceNumber}${item.notes ? ` (${item.notes})` : ''}`;
+
+      // Crear expense - usar "Materiales" como tipo genérico para supplier invoices
+      const expense = await Expense.create({
+        workId: item.idWork,
+        date: paymentDate, // Fecha del gasto (requerido)
+        description: expenseDescription,
+        typeExpense: 'Materiales', // Tipo genérico para supplier invoices (arena, tierra, etc.)
+        amount: parseFloat(item.amount),
+        paymentStatus: 'paid', // Ya se está pagando
+        paidAmount: parseFloat(item.amount),
+        paymentMethod: paymentMethod,
+        paymentDate: paymentDate,
+        paymentDetails: referenceNumber,
+        notes: `Generado automáticamente desde Supplier Invoice #${invoice.invoiceNumber}. Vendor: ${invoice.vendor}`,
+        verified: false,
+        staffId: req.user?.id || null // 👤 Usuario que realiza la distribución
+      }, { transaction });
+
+      console.log(`✅ Expense creado para work ${work.propertyAddress}: $${item.amount}`);
+
+      // Si hay receipt, crear Receipt vinculado
+      if (receiptUrl) {
+        await Receipt.create({
+          expenseId: expense.idExpense,
+          receiptUrl: receiptUrl,
+          cloudinaryPublicId: receiptPublicId,
+          uploadedByStaffId: req.user?.id || null
+        }, { transaction });
+
+        console.log(`📎 Receipt vinculado al expense ${expense.idExpense}`);
+      }
+
+      createdExpenses.push({
+        idExpense: expense.idExpense,
+        workId: item.idWork,
+        propertyAddress: work.propertyAddress,
+        amount: item.amount
+      });
+    }
+
+    // 9. Marcar invoice como pagado
+    await invoice.update({
+      paymentStatus: 'paid',
+      paidAmount: invoice.totalAmount,
+      paymentMethod: paymentMethod,
+      paymentDate: paymentDate,
+      paymentDetails: referenceNumber,
+      notes: invoice.notes + `\n\n✅ Distribuido entre ${distribution.length} trabajo(s) el ${paymentDate}`
+    }, { transaction });
+
+    console.log(`✅ Invoice #${invoice.invoiceNumber} marcado como PAID`);
+
+    // 10. Commit transaction
+    await transaction.commit();
+
+    res.json({
+      success: true,
+      message: `Invoice distribuido exitosamente entre ${distribution.length} trabajo(s)`,
+      invoice: {
+        idSupplierInvoice: invoice.idSupplierInvoice,
+        invoiceNumber: invoice.invoiceNumber,
+        paymentStatus: 'paid',
+        totalAmount: invoice.totalAmount
+      },
+      expensesCreated: createdExpenses.length,
+      worksUpdated: distribution.length,
+      expenses: createdExpenses,
+      receiptUploaded: !!receiptUrl
+    });
+
+  } catch (error) {
+    await transaction.rollback();
+    console.error('❌ [DistributeInvoice] Error:', error);
+    res.status(500).json({
+      error: true,
+      message: 'Error al distribuir invoice',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   createSupplierInvoice,
   getSupplierInvoices,
@@ -1074,5 +1430,6 @@ module.exports = {
   deleteSupplierInvoice,
   getAccountsPayable,
   getPaymentHistory,
-  uploadInvoicePdf
+  uploadInvoicePdf,
+  distributeInvoiceToWorks
 };

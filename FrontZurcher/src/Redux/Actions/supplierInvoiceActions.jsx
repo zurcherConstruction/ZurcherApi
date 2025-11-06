@@ -101,6 +101,20 @@ export const supplierInvoiceActions = {
       return handleError(error, 'Error al subir el comprobante del invoice');
     }
   },
+
+  // Distribuir invoice entre múltiples works y crear expenses automáticamente
+  distributeToWorks: async (id, formData) => {
+    try {
+      const response = await api.post(`/supplier-invoices/${id}/distribute`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      return response.data;
+    } catch (error) {
+      return handleError(error, 'Error al distribuir el invoice entre trabajos');
+    }
+  },
 };
 
 // Actions extendidas para Expenses (relacionadas con supplier invoices)

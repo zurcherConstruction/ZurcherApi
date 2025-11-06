@@ -23,8 +23,10 @@ import {
   FaCalendarAlt,
   FaMoneyBillWave,
   FaEye,
+  FaProjectDiagram,
 } from 'react-icons/fa';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import DistributeInvoiceModal from './DistributeInvoiceModal';
 
 // Modal para ver PDF
 const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
@@ -118,6 +120,7 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
   const [currentInvoice, setCurrentInvoice] = useState(invoice);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [showPdfModal, setShowPdfModal] = useState(false);
+  const [showDistributeModal, setShowDistributeModal] = useState(false);
   const [paymentData, setPaymentData] = useState({
     amount: '',
     paymentDate: (() => {
@@ -278,6 +281,16 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
     }
 
     setLoading(false);
+  };
+
+  const handleDistributeSuccess = () => {
+    // Recargar el invoice actualizado
+    setShowDistributeModal(false);
+    // El modal ya actualizará el estado automáticamente
+    // Cerrar después de 1 segundo para que el usuario vea el estado actualizado
+    setTimeout(() => {
+      onClose();
+    }, 1000);
   };
 
   return (
@@ -492,17 +505,56 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
           </div>
         </div>
 
+        {/* 🆕 Trabajos Vinculados (si existen) */}
+        {currentInvoice.linkedWorks && currentInvoice.linkedWorks.length > 0 && (
+          <div className="mb-6 bg-blue-50 rounded-lg p-4 border border-blue-200">
+            <h3 className="text-lg font-semibold text-blue-900 mb-3 flex items-center gap-2">
+              <FaProjectDiagram className="text-blue-600" />
+              Trabajos Vinculados ({currentInvoice.linkedWorks.length})
+            </h3>
+            <p className="text-sm text-blue-700 mb-3">
+              Al registrar el pago, se crearán automáticamente gastos distribuidos equitativamente entre estos trabajos.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {currentInvoice.linkedWorks.map((work) => (
+                <div key={work.idWork} className="bg-white rounded p-3 border border-blue-200">
+                  <div className="text-sm font-medium text-gray-900">📍 {work.propertyAddress}</div>
+                  <div className="text-xs text-blue-600 mt-1">
+                    ${(currentInvoice.totalAmount / currentInvoice.linkedWorks.length).toFixed(2)} por trabajo
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Formulario de Pago */}
         {canRegisterPayment && (
           <div className="border-t pt-6">
             {!showPaymentForm ? (
-              <button
-                onClick={() => setShowPaymentForm(true)}
-                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-              >
-                <FaDollarSign />
-                Registrar Pago
-              </button>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <button
+                  onClick={() => setShowPaymentForm(true)}
+                  className="flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <FaDollarSign />
+                  {currentInvoice.linkedWorks && currentInvoice.linkedWorks.length > 0 
+                    ? 'Registrar Pago (Auto-genera Gastos)' 
+                    : 'Registrar Pago'
+                  }
+                </button>
+                
+                {/* Mostrar botón de distribución manual solo si NO tiene works vinculados */}
+                {(!currentInvoice.linkedWorks || currentInvoice.linkedWorks.length === 0) && (
+                  <button
+                    onClick={() => setShowDistributeModal(true)}
+                    className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    <FaProjectDiagram />
+                    Pagar y Distribuir entre Trabajos
+                  </button>
+                )}
+              </div>
             ) : (
               <form onSubmit={handleRegisterPayment} className="bg-gray-50 rounded-lg p-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4">
@@ -643,6 +695,15 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
         pdfUrl={currentInvoice.invoicePdfPath}
         title={`Comprobante Invoice ${currentInvoice.invoiceNumber}`}
       />
+
+      {/* Modal para distribuir invoice */}
+      {showDistributeModal && (
+        <DistributeInvoiceModal
+          invoice={currentInvoice}
+          onClose={() => setShowDistributeModal(false)}
+          onSuccess={handleDistributeSuccess}
+        />
+      )}
     </div>
   );
 };

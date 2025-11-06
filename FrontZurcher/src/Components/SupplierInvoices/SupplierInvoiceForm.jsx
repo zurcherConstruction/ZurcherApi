@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
+import api from '../../utils/axios';
 import { supplierInvoiceActions } from '../../Redux/Actions/supplierInvoiceActions';
 import { expenseActions } from '../../Redux/Actions/balanceActions';
 import { fixedExpenseActions } from '../../Redux/Actions/fixedExpenseActions';
@@ -58,6 +59,12 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   
+  // 🆕 Estado para vincular works
+  const [linkedWorks, setLinkedWorks] = useState([]);
+  const [availableWorks, setAvailableWorks] = useState([]);
+  const [loadingWorks, setLoadingWorks] = useState(false);
+  const [workSearchTerm, setWorkSearchTerm] = useState('');
+  
   // Estado para archivo del invoice
   const [invoiceFile, setInvoiceFile] = useState(null);
   const [invoiceFilePreview, setInvoiceFilePreview] = useState(null);
@@ -95,6 +102,11 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
       }));
       
       setItems(processedItems);
+      
+      // 🆕 Cargar works vinculados si existen
+      if (invoice.linkedWorks && invoice.linkedWorks.length > 0) {
+        setLinkedWorks(invoice.linkedWorks.map(w => w.idWork));
+      }
     }
     
     // Si estamos editando y hay un PDF del invoice, establecer la preview
@@ -106,7 +118,25 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
   // Cargar gastos sin pagar
   useEffect(() => {
     loadUnpaidExpenses();
+    loadAvailableWorks();
   }, []);
+
+  const loadAvailableWorks = async () => {
+    setLoadingWorks(true);
+    try {
+      const response = await api.get('/work');
+      if (!response.data.error) {
+        // Filtrar solo works activos
+        const activeWorks = response.data.filter(w => 
+          w.status !== 'completed' && w.status !== 'cancelled'
+        );
+        setAvailableWorks(activeWorks);
+      }
+    } catch (error) {
+      console.error('Error cargando works:', error);
+    }
+    setLoadingWorks(false);
+  };
 
   const loadUnpaidExpenses = async () => {
     // Cargar gastos regulares sin pagar
@@ -362,6 +392,13 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
       return;
     }
 
+    // 🆕 Verificar que no se usen linkedWorks Y items con work asignado al mismo tiempo
+    const itemsHaveWorks = items.some(item => item.workId);
+    if (linkedWorks.length > 0 && itemsHaveWorks) {
+      alert('⚠️ No puedes vincular trabajos al invoice Y asignar trabajos a items individuales al mismo tiempo. Elige una opción.');
+      return;
+    }
+
     setLoading(true);
 
     // Mapear los campos del frontend a los nombres que espera el backend
@@ -374,6 +411,7 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
       vendorEmail: formData.vendorEmail || null,
       vendorPhone: formData.vendorPhone || null,
       vendorAddress: formData.vendorAddress || null,
+      linkedWorks: linkedWorks, // 🆕 Works vinculados al invoice
       items: items.map(item => ({
         relatedExpenseId: item.relatedExpenseId || null,
         relatedFixedExpenseId: item.relatedFixedExpenseId || null,
@@ -584,6 +622,131 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Descripción general de la factura..."
                 />
+              </div>
+
+              {/* 🆕 Vincular a Works (opcional) */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  🏗️ Vincular a Trabajos (opcional)
+                </label>
+                
+                {/* Verificar si hay items con works asignados */}
+                {items.some(item => item.workId) ? (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <p className="text-sm text-yellow-800">
+                      ⚠️ Ya tienes items con trabajos específicos asignados. 
+                      <br />
+                      No puedes usar "Vincular a Trabajos" cuando los items tienen works individuales.
+                      <br />
+                      <strong>Opciones:</strong>
+                      <br />
+                      • Para distribuir equitativamente: Remueve los works de los items
+                      <br />
+                      • Para montos específicos por trabajo: Continúa asignando works a cada item
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-xs text-gray-500 mb-3">
+                      Usa esta opción cuando quieras <strong>distribuir el monto total equitativamente</strong> entre varios trabajos. Si cada item va a un trabajo específico con su propio monto, asigna el work directamente en cada item.
+                    </p>
+                    
+                    {/* Buscador */}
+                    <div className="relative mb-3">
+                      <input
+                        type="text"
+                        placeholder="🔍 Buscar por dirección..."
+                        value={workSearchTerm}
+                        onChange={(e) => setWorkSearchTerm(e.target.value)}
+                        className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <svg className="absolute left-3 top-3 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
+
+                {/* Lista de trabajos disponibles (filtrados) */}
+                {loadingWorks ? (
+                  <div className="text-center py-4 text-gray-500">
+                    Cargando trabajos...
+                  </div>
+                ) : (
+                  <div className="border border-gray-300 rounded-lg max-h-60 overflow-y-auto mb-3">
+                    {availableWorks
+                      .filter(work => {
+                        if (!workSearchTerm) return true;
+                        const searchLower = workSearchTerm.toLowerCase();
+                        return work.propertyAddress?.toLowerCase().includes(searchLower);
+                      })
+                      .map(work => {
+                        const isSelected = linkedWorks.includes(work.idWork);
+                        return (
+                          <button
+                            key={work.idWork}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                setLinkedWorks(linkedWorks.filter(id => id !== work.idWork));
+                              } else {
+                                setLinkedWorks([...linkedWorks, work.idWork]);
+                              }
+                            }}
+                            className={`w-full text-left px-4 py-3 border-b border-gray-200 hover:bg-blue-50 transition-colors flex items-center justify-between ${
+                              isSelected ? 'bg-blue-100 border-l-4 border-l-blue-600' : ''
+                            }`}
+                          >
+                            <div className="flex-1">
+                              <div className="font-medium text-gray-900">
+                                📍 {work.propertyAddress}
+                              </div>
+                            </div>
+                            {isSelected && (
+                              <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                          </button>
+                        );
+                      })}
+                    {availableWorks.filter(work => {
+                      if (!workSearchTerm) return true;
+                      const searchLower = workSearchTerm.toLowerCase();
+                      return work.propertyAddress?.toLowerCase().includes(searchLower);
+                    }).length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        {workSearchTerm ? 'No se encontraron trabajos' : 'No hay trabajos activos disponibles'}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Trabajos seleccionados */}
+                {linkedWorks.length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-700 mb-2">
+                      ✅ {linkedWorks.length} trabajo{linkedWorks.length !== 1 ? 's' : ''} seleccionado{linkedWorks.length !== 1 ? 's' : ''}:
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {linkedWorks.map(workId => {
+                        const work = availableWorks.find(w => w.idWork === workId);
+                        return work ? (
+                          <span key={workId} className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm">
+                            📍 {work.propertyAddress}
+                            <button
+                              type="button"
+                              onClick={() => setLinkedWorks(linkedWorks.filter(id => id !== workId))}
+                              className="ml-1 text-white hover:text-blue-200 font-bold"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
+                  </div>
+                )}
+                  </>
+                )}
               </div>
 
               {/* Adjuntar comprobante del invoice */}
