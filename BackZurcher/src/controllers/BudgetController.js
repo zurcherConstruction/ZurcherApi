@@ -3921,6 +3921,8 @@ async optionalDocs(req, res) {
             .button { display: inline-block; padding: 16px 32px; text-align: center; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 18px; letter-spacing: 1px; margin: 10px; }
             .btn-approve { background-color: #28a745; color: white; }
             .btn-reject { background-color: #dc3545; color: white; }
+            .btn-approve-top { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; box-shadow: 0 6px 20px rgba(40, 167, 69, 0.5); transform: scale(1); transition: all 0.3s ease; }
+            .btn-approve-top:hover { transform: scale(1.05); box-shadow: 0 8px 25px rgba(40, 167, 69, 0.6); }
             .details { background-color: white; padding: 20px; border-left: 4px solid #2563eb; margin: 20px 0; }
             .resend-notice { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; }
             .info-notice { background-color: #d1ecf1; border-left: 4px solid #0c5460; padding: 15px; margin: 20px 0; }
@@ -3932,6 +3934,25 @@ async optionalDocs(req, res) {
             <div class="header">
               <h1>📋 ${isResend ? 'Updated Budget for Review' : 'Budget Proposal for Review'}</h1>
             </div>
+            
+            ${includeActionButtons ? `
+            <!-- 🆕 BOTÓN DE APROBAR PRINCIPAL - TOP -->
+            <div style="background: linear-gradient(135deg, #f0fff4 0%, #e6f7ed 100%); padding: 30px 25px; margin: 20px 0; border-radius: 12px; border: 3px solid #28a745; box-shadow: 0 4px 15px rgba(40, 167, 69, 0.2);">
+              <div style="text-align: center;">
+                <p style="font-size: 22px; font-weight: bold; color: #155724; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px;">
+                  ✅ Ready to Approve?
+                </p>
+                <p style="font-size: 16px; color: #155724; margin: 0 0 25px 0;">
+                  Click below to approve this budget and move forward!<br/>
+                  <span style="font-size: 15px;">¡Haz clic abajo para aprobar este presupuesto!</span>
+                </p>
+                <a href="${reviewUrl}?action=approve" class="btn-approve-top" style="display: inline-block; width: 85%; max-width: 480px; padding: 24px 30px; text-align: center; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 22px; letter-spacing: 1.5px; color: white; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); box-shadow: 0 6px 20px rgba(40, 167, 69, 0.5);">
+                  ✅ APPROVE BUDGET NOW<br/>
+                  <span style="font-size: 18px; font-weight: normal; margin-top: 8px; display: block;">APROBAR PRESUPUESTO AHORA</span>
+                </a>
+              </div>
+            </div>
+            ` : ''}
             
             <div class="content">
               ${includeActionButtons ? `

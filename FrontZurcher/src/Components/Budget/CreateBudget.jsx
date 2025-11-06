@@ -81,7 +81,7 @@ const CreateBudget = () => {
     commissionAmount: ''
   });
   
-  console.log("📋 PBTS recibido:", pbtsFromQuery);
+  
   const defaultLayoutPluginInstance = defaultLayoutPlugin({
     renderToolbar: (Toolbar) => (
       <Toolbar>
@@ -127,17 +127,16 @@ const CreateBudget = () => {
 
   // --- Estado del Catálogo y Carga ---
   const { items: budgetItemsCatalog = [], loading: loadingCatalog, error: errorCatalog } = useSelector(state => state.budgetItems) || {};
-  console.log("Catálogo de items:", budgetItemsCatalog);
+  
 
   // --- Estado del Permit seleccionado ---
   const { selectedPermit, loading: loadingPermit, error: errorPermit } = useSelector(state => state.permit) || {};
-  console.log("Permit seleccionado:", selectedPermit);
+  
   
   // --- 🆕 Estado de Staff (vendedores) ---
   const { staffList = [], loading: loadingStaff } = useSelector(state => state.admin) || {};
   const salesReps = staffList.filter(s => s.role === 'sales_rep' && s.isActive);
-  console.log("📋 Staff completo:", staffList);
-  console.log("👔 Vendedores disponibles:", salesReps);
+ 
   const [permitExpirationAlert, setPermitExpirationAlert] = useState({ type: "", message: "" });
   const [pdfPreview, setPdfPreview] = useState(null);
   const [optionalDocPreview, setOptionalDocPreview] = useState(null);
@@ -253,9 +252,8 @@ const CreateBudget = () => {
 
   // --- Efecto para poblar el formulario cuando el Permit carga ---
   useEffect(() => {
-    console.log("Effect para poblar formulario ejecutado. selectedPermit:", selectedPermit);
+  
     if (selectedPermit && selectedPermit.idPermit === permitIdFromQuery) { // Asegurarse que es el permit correcto
-      console.log("Poblando formulario desde Permit:", selectedPermit);
       // Construir los lineItems iniciales
       let initialLineItems = [];
       // Si excavationRequired tiene texto, agregar item EXCAVATION incluido
@@ -455,7 +453,7 @@ const handleGeneralInputChange = (e) => {
 
   // --- Función addOrUpdateLineItem (Modificada para reemplazar opcionalmente) ---
   const addOrUpdateLineItem = (itemDetails, replaceIfExists = false) => {
-    console.log("Buscando item con:", itemDetails);
+    
 
     // Buscar el item en el catálogo (comparando también descripción si corresponde)
     const foundItem = normalizedBudgetItemsCatalog.find(catalogItem => {
@@ -473,7 +471,7 @@ const handleGeneralInputChange = (e) => {
       return;
     }
 
-    console.log("Item encontrado en catálogo:", foundItem);
+    
 
     setFormData(prev => {
       const existingItemIndex = prev.lineItems.findIndex(line => line.budgetItemId === foundItem.id);
@@ -491,7 +489,7 @@ const handleGeneralInputChange = (e) => {
       };
 
       if (existingItemIndex > -1) {
-        console.log("Item existente encontrado en índice:", existingItemIndex);
+        
         newLineItems = [...prev.lineItems];
         if (replaceIfExists) {
           newItemData._tempId = newLineItems[existingItemIndex]._tempId;
@@ -502,7 +500,7 @@ const handleGeneralInputChange = (e) => {
           newLineItems[existingItemIndex] = { ...currentItem, quantity: newQuantity, notes: itemDetails.notes || currentItem.notes };
         }
       } else {
-        console.log("Añadiendo nuevo item.");
+       
         newLineItems = [...prev.lineItems, newItemData];
       }
       return { ...prev, lineItems: newLineItems };
@@ -774,7 +772,7 @@ const customCategoryOrder = [
         })),
       };
 
-      console.log("📤 Enviando al backend para CREAR:", dataToSend);
+      
 
       // ✅ MOSTRAR PROGRESO: Enviando al servidor
       setSubmissionProgress(budgetType === 'draft' ? 'Creando borrador...' : 'Creando presupuesto...');
@@ -783,7 +781,7 @@ const customCategoryOrder = [
       const resultAction = await dispatch(createBudget(dataToSend));
       const newBudget = unwrapResult(resultAction);
 
-      console.log("✅ Presupuesto creado exitosamente:", newBudget);
+      
 
       // ✅ MOSTRAR PROGRESO: Completado
       setSubmissionProgress('¡Presupuesto creado exitosamente!');
