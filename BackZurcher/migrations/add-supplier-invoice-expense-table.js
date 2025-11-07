@@ -12,44 +12,40 @@
 require('dotenv').config();
 const { Sequelize } = require('sequelize');
 
-// Determinar qué base de datos usar
-const isDeploy = process.env.DB_DEPLOY;
-const dbConfig = isDeploy ? {
-  database: process.env.DB_NAME_DEPLOY,
-  username: process.env.DB_USER_DEPLOY,
-  password: process.env.DB_PASSWORD_DEPLOY,
-  host: process.env.DB_HOST_DEPLOY,
-  port: process.env.DB_PORT_DEPLOY,
-  dialect: 'postgres',
-  ssl: true
-} : {
-  database: process.env.DB_NAME,
-  username: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT || 5432,
-  dialect: 'postgres'
-};
+// Usar DB_DEPLOY si está disponible, sino usar base de datos local
+const isDeploy = !!process.env.DB_DEPLOY;
+const databaseUrl = isDeploy ? process.env.DB_DEPLOY : null;
 
 console.log(`📊 Base de datos: ${isDeploy ? 'RAILWAY (Producción)' : 'LOCAL (Desarrollo)'}`);
 
-const sequelize = new Sequelize(
-  dbConfig.database,
-  dbConfig.username,
-  dbConfig.password,
-  {
-    host: dbConfig.host,
-    port: dbConfig.port,
-    dialect: dbConfig.dialect,
-    dialectOptions: dbConfig.ssl ? {
+let sequelize;
+
+if (databaseUrl) {
+  // Conexión a Railway usando URL completa
+  sequelize = new Sequelize(databaseUrl, {
+    dialect: 'postgres',
+    dialectOptions: {
       ssl: {
         require: true,
         rejectUnauthorized: false
       }
-    } : {},
+    },
     logging: false
-  }
-);
+  });
+} else {
+  // Conexión local
+  sequelize = new Sequelize(
+    process.env.DB_NAME,
+    process.env.DB_USER,
+    process.env.DB_PASSWORD,
+    {
+      host: process.env.DB_HOST,
+      port: process.env.DB_PORT || 5432,
+      dialect: 'postgres',
+      logging: false
+    }
+  );
+}
 
 async function migrate() {
   try {
