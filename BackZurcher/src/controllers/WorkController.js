@@ -25,7 +25,7 @@ const {
   advanceToStatus,
   logStatusChange,
   deleteReceiptsByWorkAndType,
-} = require('../utils/statusManager'); 
+} = require('../utils/statusManager');
 
 
 
@@ -199,6 +199,9 @@ const getWorks = async (req, res) => {
 const getWorkById = async (req, res) => {
   try {
     const { idWork } = req.params;
+    console.log(`⏱️  [getWorkById] Iniciando búsqueda de work ${idWork}...`);
+    const startTime = Date.now();
+    
     const work = await Work.findByPk(idWork, {
       include: [
         {
@@ -307,10 +310,16 @@ const getWorkById = async (req, res) => {
         }
       ],
     });
+    
+    const queryTime = Date.now() - startTime;
+    console.log(`⏱️  [getWorkById] Query completado en ${queryTime}ms`);
 
     if (!work) {
+      console.log(`❌ [getWorkById] Work ${idWork} no encontrado`);
       return res.status(404).json({ error: true, message: 'Obra no encontrada' });
     }
+    
+    console.log(`✅ [getWorkById] Work ${idWork} encontrado, procesando datos...`);
 
     // Receipts directos
     let directReceipts = [];
@@ -338,6 +347,9 @@ const getWorkById = async (req, res) => {
     // Unir ambos arrays de receipts
     workJson.Receipts = [...directReceipts, ...expenseReceipts];
 
+    const totalTime = Date.now() - startTime;
+    console.log(`✅ [getWorkById] Respuesta enviada. Tiempo total: ${totalTime}ms (Query: ${queryTime}ms, Procesamiento: ${totalTime - queryTime}ms)`);
+    
     res.status(200).json(workJson);
   } catch (error) {
     console.error('Error al obtener la obra:', error);

@@ -77,7 +77,8 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceItem, SupplierInvoiceWork, SupplierInvoiceExpense, BudgetNote, WorkNote, WorkStateHistory } = sequelize.models;
+// ⚠️ SupplierInvoiceWork y SupplierInvoiceItem removidos - ya no se usan (modelo antiguo)
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, BudgetNote, WorkNote, WorkStateHistory } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -309,6 +310,8 @@ FixedExpense.belongsTo(Staff, {
 
 // --- RELACIONES PARA SUPPLIER INVOICES (INVOICES DE PROVEEDORES) ---
 
+// ⚠️ DEPRECADO: Asociaciones antiguas con SupplierInvoiceItem (modelo eliminado)
+/*
 // Un SupplierInvoice tiene muchos Items
 SupplierInvoice.hasMany(SupplierInvoiceItem, {
   foreignKey: 'supplierInvoiceId',
@@ -318,8 +321,11 @@ SupplierInvoiceItem.belongsTo(SupplierInvoice, {
   foreignKey: 'supplierInvoiceId',
   as: 'invoice'
 });
+*/
 
-// 🆕 Un SupplierInvoice puede estar vinculado a múltiples Works (para auto-generar gastos al pagar)
+// ⚠️ DEPRECADO: Asociación antigua con SupplierInvoiceWork (modelo eliminado)
+// Ahora se usa SupplierInvoiceExpense para vincular invoices con expenses directamente
+/*
 SupplierInvoice.belongsToMany(Work, {
   through: SupplierInvoiceWork,
   foreignKey: 'supplierInvoiceId',
@@ -332,7 +338,11 @@ Work.belongsToMany(SupplierInvoice, {
   otherKey: 'supplierInvoiceId',
   as: 'supplierInvoices'
 });
+*/
 
+// ⚠️ DEPRECADO: Asociaciones antiguas con SupplierInvoiceItem (modelo eliminado)
+// Ahora se usa SupplierInvoiceExpense para vincular invoices con expenses directamente
+/*
 // Un SupplierInvoiceItem puede estar asociado a un Work (opcional)
 Work.hasMany(SupplierInvoiceItem, {
   foreignKey: 'workId',
@@ -383,6 +393,7 @@ FixedExpense.belongsTo(SupplierInvoiceItem, {
   foreignKey: 'supplierInvoiceItemId',
   as: 'paidViaInvoiceItem'
 });
+*/
 
 // 🆕 FixedExpense tiene muchos pagos parciales
 FixedExpense.hasMany(FixedExpensePayment, {
