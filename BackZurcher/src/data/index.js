@@ -308,6 +308,8 @@ FixedExpense.belongsTo(Staff, {
 
 // --- RELACIONES PARA SUPPLIER INVOICES (INVOICES DE PROVEEDORES) ---
 
+// ⚠️ DEPRECADO: Asociaciones antiguas con SupplierInvoiceItem (modelo eliminado)
+/*
 // Un SupplierInvoice tiene muchos Items
 SupplierInvoice.hasMany(SupplierInvoiceItem, {
   foreignKey: 'supplierInvoiceId',
@@ -317,6 +319,7 @@ SupplierInvoiceItem.belongsTo(SupplierInvoice, {
   foreignKey: 'supplierInvoiceId',
   as: 'invoice'
 });
+*/
 
 // ⚠️ DEPRECADO: Asociación antigua con SupplierInvoiceWork (modelo eliminado)
 // Ahora se usa SupplierInvoiceExpense para vincular invoices con expenses directamente

@@ -25,7 +25,7 @@ const {
   advanceToStatus,
   logStatusChange,
   deleteReceiptsByWorkAndType,
-} = require('../utils/statusManager'); 
+} = require('../utils/statusManager');
 
 
 
