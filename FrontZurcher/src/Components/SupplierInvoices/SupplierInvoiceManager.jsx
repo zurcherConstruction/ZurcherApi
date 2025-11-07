@@ -10,11 +10,12 @@ import {
   setCurrentInvoice,
   clearCurrentInvoice,
 } from '../../Redux/Reducer/supplierInvoiceReducer';
-import SupplierInvoiceForm from './SupplierInvoiceForm';
+import SimpleInvoiceForm from './SimpleInvoiceForm'; // 🆕 NUEVO formulario simplificado
 import SupplierInvoiceList from './SupplierInvoiceList';
 import SupplierInvoiceDetail from './SupplierInvoiceDetail';
 import AccountsPayableSummary from './AccountsPayableSummary';
-import { FaFileInvoiceDollar, FaPlus, FaFilter, FaTimes } from 'react-icons/fa';
+import VendorsSummary from './VendorsSummary'; // 🆕 NUEVO
+import { FaFileInvoiceDollar, FaPlus, FaFilter, FaTimes, FaBuilding, FaList } from 'react-icons/fa'; // 🆕 Agregados FaBuilding, FaList
 
 const SupplierInvoiceManager = () => {
   const dispatch = useDispatch();
@@ -26,6 +27,7 @@ const SupplierInvoiceManager = () => {
   const [showDetail, setShowDetail] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [activeTab, setActiveTab] = useState('list'); // 🆕 NUEVO: 'list' o 'vendors'
 
   // Cargar facturas al montar el componente
   useEffect(() => {
@@ -137,8 +139,35 @@ const SupplierInvoiceManager = () => {
           </div>
         </div>
 
-        {/* Resumen de Cuentas por Pagar */}
-        <AccountsPayableSummary />
+        {/* Tabs: Lista vs Vista por Proveedores */}
+        {!showForm && !showDetail && (
+          <div className="bg-white rounded-lg shadow-md mb-6">
+            <div className="flex border-b border-gray-200">
+              <button
+                onClick={() => setActiveTab('list')}
+                className={`flex items-center space-x-2 px-6 py-4 font-medium transition-colors ${
+                  activeTab === 'list'
+                    ? 'border-b-2 border-blue-600 text-blue-600'
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                <FaList />
+                <span>Lista de Invoices</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('vendors')}
+                className={`flex items-center space-x-2 px-6 py-4 font-medium transition-colors ${
+                  activeTab === 'vendors'
+                    ? 'border-b-2 border-blue-600 text-blue-600'
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                <FaBuilding />
+                <span>Vista por Proveedores</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Filtros */}
         {showFilters && (
@@ -225,9 +254,10 @@ const SupplierInvoiceManager = () => {
 
         {/* Content */}
         {showForm ? (
-          <SupplierInvoiceForm
+          <SimpleInvoiceForm
             invoice={selectedInvoice}
             onClose={handleFormClose}
+            onSuccess={loadInvoices}
           />
         ) : showDetail ? (
           <SupplierInvoiceDetail
@@ -235,12 +265,17 @@ const SupplierInvoiceManager = () => {
             onClose={handleDetailClose}
             onEdit={handleEdit}
           />
+        ) : activeTab === 'vendors' ? (
+          // 🆕 NUEVA VISTA: Proveedores Agrupados
+          <VendorsSummary onRefreshParent={loadInvoices} />
         ) : (
+          // Vista original de lista
           <SupplierInvoiceList
             invoices={supplierInvoices}
             loading={loading}
             onView={handleView}
             onEdit={handleEdit}
+            onRefresh={loadInvoices}
           />
         )}
       </div>

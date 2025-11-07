@@ -11,7 +11,11 @@ const {
   deleteSupplierInvoice,
   getAccountsPayable,
   getPaymentHistory,
-  uploadInvoicePdf
+  uploadInvoicePdf,
+  distributeInvoiceToWorks,
+  paySupplierInvoice, // 🆕 NUEVO
+  getVendorsSummary, // 🆕 NUEVO
+  createSimpleSupplierInvoice // 🆕 NUEVO formulario simplificado
 } = require('../controllers/supplierInvoiceController');
 
 // Middleware de autenticación (ajusta según tu implementación)
@@ -23,6 +27,13 @@ const {
  * @access  Private
  */
 router.get('/accounts-payable', getAccountsPayable);
+
+/**
+ * 🆕 @route   GET /api/supplier-invoices/vendors/summary
+ * @desc    Obtener resumen de proveedores con totales pendientes agrupados
+ * @access  Private
+ */
+router.get('/vendors/summary', getVendorsSummary);
 
 /**
  * @route   GET /api/supplier-invoices/payment-history
@@ -39,6 +50,14 @@ router.get('/payment-history', getPaymentHistory);
  * @access  Private
  */
 router.post('/', createSupplierInvoice);
+
+/**
+ * 🆕 @route   POST /api/supplier-invoices/simple
+ * @desc    Crear un nuevo invoice SIMPLIFICADO (sin items, solo invoice + comprobante)
+ * @body    FormData con invoiceNumber, vendor, issueDate, dueDate, totalAmount, notes, invoiceFile (archivo)
+ * @access  Private
+ */
+router.post('/simple', upload.single('invoiceFile'), createSimpleSupplierInvoice);
 
 /**
  * @route   GET /api/supplier-invoices
@@ -70,6 +89,22 @@ router.patch('/:id/pay', registerPayment);
  * @access  Private
  */
 router.post('/:id/upload-invoice', upload.single('file'), uploadInvoicePdf);
+
+/**
+ * @route   POST /api/supplier-invoices/:id/distribute
+ * @desc    Distribuir invoice entre múltiples trabajos y crear expenses automáticamente
+ * @body    FormData con distribution (JSON string), paymentMethod, paymentDate, referenceNumber, receipt (file opcional)
+ * @access  Private
+ */
+router.post('/:id/distribute', upload.single('receipt'), distributeInvoiceToWorks);
+
+/**
+ * 🆕 @route   POST /api/supplier-invoices/:id/pay-v2
+ * @desc    Pagar invoice con 3 opciones: vincular a expenses existentes, crear con works, o crear general
+ * @body    FormData con paymentType, paymentMethod, paymentDate, paymentDetails, receipt (file opcional), expenseIds[], workIds[], distribution[]
+ * @access  Private
+ */
+router.post('/:id/pay-v2', upload.single('receipt'), paySupplierInvoice);
 
 /**
  * @route   PUT /api/supplier-invoices/:id

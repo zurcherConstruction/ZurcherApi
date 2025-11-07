@@ -9,7 +9,8 @@ let expo = new Expo();
 const sendNotifications = async (status, work, budget, io, context = {}) => {
   try {
     // Obtener el ID de la entidad para deduplicación
-    const entityId = work?.idWork || budget?.idBudget || work?.id || budget?.id || 'unknown';
+    // 🆕 Incluir idExpense para evitar conflictos cuando se crean múltiples expenses
+    const entityId = work?.idExpense || work?.idWork || budget?.idBudget || work?.id || budget?.id || 'unknown';
     
     // Obtener detalles para notificaciones por correo
     const emailDetails = await getNotificationDetails(status, work || budget, context);
