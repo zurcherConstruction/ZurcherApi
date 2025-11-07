@@ -528,162 +528,25 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
           </div>
         )}
 
-        {/* Formulario de Pago */}
+        {/* 🚫 SECCIÓN DE PAGO REMOVIDA - Ahora solo se paga desde "Vista por Proveedores" */}
+        {/* El pago se gestiona con las 3 opciones nuevas: vincular existentes, crear con works, o crear general */}
+
+        {/* Botón para ir a Vista por Proveedores */}
         {canRegisterPayment && (
           <div className="border-t pt-6">
-            {!showPaymentForm ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <button
-                  onClick={() => setShowPaymentForm(true)}
-                  className="flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                >
-                  <FaDollarSign />
-                  {currentInvoice.linkedWorks && currentInvoice.linkedWorks.length > 0 
-                    ? 'Registrar Pago (Auto-genera Gastos)' 
-                    : 'Registrar Pago'
-                  }
-                </button>
-                
-                {/* Mostrar botón de distribución manual solo si NO tiene works vinculados */}
-                {(!currentInvoice.linkedWorks || currentInvoice.linkedWorks.length === 0) && (
-                  <button
-                    onClick={() => setShowDistributeModal(true)}
-                    className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    <FaProjectDiagram />
-                    Pagar y Distribuir entre Trabajos
-                  </button>
-                )}
-              </div>
-            ) : (
-              <form onSubmit={handleRegisterPayment} className="bg-gray-50 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                  Registrar Nuevo Pago
-                </h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Monto a Pagar *
-                    </label>
-                    <input
-                      type="number"
-                      name="amount"
-                      value={paymentData.amount}
-                      onChange={handlePaymentInputChange}
-                      max={remainingAmount}
-                      step="0.01"
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      placeholder={`Máximo: ${formatCurrency(remainingAmount)}`}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Fecha de Pago *
-                    </label>
-                    <input
-                      type="date"
-                      name="paymentDate"
-                      value={paymentData.paymentDate}
-                      onChange={handlePaymentInputChange}
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Método de Pago *
-                    </label>
-                    <select
-                      name="paymentMethod"
-                      value={paymentData.paymentMethod}
-                      onChange={handlePaymentInputChange}
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    >
-                      <optgroup label="🏦 Cuentas Bancarias">
-                        {PAYMENT_METHODS_GROUPED.bank.map((method) => (
-                          <option key={method.value} value={method.value}>
-                            {method.label}
-                          </option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="💳 Tarjetas">
-                        {PAYMENT_METHODS_GROUPED.card.map((method) => (
-                          <option key={method.value} value={method.value}>
-                            {method.label}
-                          </option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="🌐 Pagos Online">
-                        {PAYMENT_METHODS_GROUPED.online.map((method) => (
-                          <option key={method.value} value={method.value}>
-                            {method.label}
-                          </option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="💰 Otros Métodos">
-                        {PAYMENT_METHODS_GROUPED.other.map((method) => (
-                          <option key={method.value} value={method.value}>
-                            {method.label}
-                          </option>
-                        ))}
-                      </optgroup>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Número de Referencia
-                    </label>
-                    <input
-                      type="text"
-                      name="referenceNumber"
-                      value={paymentData.referenceNumber}
-                      onChange={handlePaymentInputChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      placeholder="Ej: TRANS-12345"
-                    />
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Notas
-                    </label>
-                    <textarea
-                      name="notes"
-                      value={paymentData.notes}
-                      onChange={handlePaymentInputChange}
-                      rows="2"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      placeholder="Notas adicionales sobre el pago..."
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-3">
-                  <button
-                    type="submit"
-                    className="flex-1 flex items-center justify-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                    disabled={loading}
-                  >
-                    <FaCheckCircle />
-                    {loading ? 'Procesando...' : 'Confirmar Pago'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowPaymentForm(false)}
-                    className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    disabled={loading}
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </form>
-            )}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm text-gray-700 mb-3">
+                💡 <strong>Para pagar este invoice:</strong> Ve a la pestaña "Vista por Proveedores" donde podrás:
+              </p>
+              <ul className="text-sm text-gray-600 ml-4 mb-3 list-disc">
+                <li>Vincular a gastos existentes</li>
+                <li>Crear gastos para obras específicas</li>
+                <li>Crear un gasto general</li>
+              </ul>
+              <p className="text-xs text-gray-500">
+                Puedes cerrar esta ventana y usar el nuevo flujo de pago simplificado.
+              </p>
+            </div>
           </div>
         )}
       </div>

@@ -75,7 +75,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceItem, SupplierInvoiceWork, BudgetNote, WorkNote, WorkStateHistory } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceItem, SupplierInvoiceWork, SupplierInvoiceExpense, BudgetNote, WorkNote, WorkStateHistory } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -433,6 +433,37 @@ SupplierInvoice.hasMany(Receipt, {
 Receipt.belongsTo(SupplierInvoice, { 
   foreignKey: 'relatedId', 
   constraints: false 
+});
+
+// 🆕 --- RELACIONES PARA VINCULAR SUPPLIER INVOICES CON EXPENSES EXISTENTES ---
+
+// Relación muchos a muchos: Un SupplierInvoice puede pagar múltiples Expenses
+// y un Expense puede estar vinculado a múltiples SupplierInvoices (pago parcial)
+SupplierInvoice.belongsToMany(Expense, {
+  through: SupplierInvoiceExpense,
+  foreignKey: 'supplierInvoiceId',
+  otherKey: 'expenseId',
+  as: 'linkedExpenses'
+});
+Expense.belongsToMany(SupplierInvoice, {
+  through: SupplierInvoiceExpense,
+  foreignKey: 'expenseId',
+  otherKey: 'supplierInvoiceId',
+  as: 'supplierInvoices'
+});
+
+// Relaciones directas con la tabla intermedia
+SupplierInvoiceExpense.belongsTo(SupplierInvoice, {
+  foreignKey: 'supplierInvoiceId',
+  as: 'invoice'
+});
+SupplierInvoiceExpense.belongsTo(Expense, {
+  foreignKey: 'expenseId',
+  as: 'expense'
+});
+SupplierInvoiceExpense.belongsTo(Staff, {
+  foreignKey: 'linkedByStaffId',
+  as: 'linkedBy'
 });
 
 // --- RELACIONES PARA BUDGET NOTES (SEGUIMIENTO DE PRESUPUESTOS) ---

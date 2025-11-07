@@ -1,4 +1,4 @@
-const { Expense, Staff, Receipt, Work } = require('../data'); // Agregar Work para las notificaciones
+const { Expense, Staff, Receipt, Work, SupplierInvoiceExpense } = require('../data'); // Agregar Work para las notificaciones
 const { Op } = require('sequelize'); // Agregar para las consultas
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader');
 const { sendNotifications } = require('../utils/notifications/notificationManager'); // Importar notificaciones
@@ -117,8 +117,34 @@ const createExpense = async (req, res) => {
 // Obtener todos los gastos CON relaciones
 const getAllExpenses = async (req, res) => {
   try {
+    const { paymentStatus } = req.query;
+    
+    // Construir filtro base
+    const where = {};
+    
+    if (paymentStatus) {
+      where.paymentStatus = paymentStatus;
+      
+      // 🆕 Si buscan "unpaid", excluir los que ya están vinculados a invoices
+      if (paymentStatus === 'unpaid') {
+        const linkedExpenseIds = await SupplierInvoiceExpense.findAll({
+          attributes: ['expenseId'],
+          raw: true
+        });
+
+        const linkedIds = linkedExpenseIds.map(item => item.expenseId);
+
+        if (linkedIds.length > 0) {
+          where.idExpense = {
+            [Op.notIn]: linkedIds
+          };
+        }
+      }
+    }
+
     // Obtener gastos con Staff
     const expenses = await Expense.findAll({
+      where,
       include: [
         {
           model: Staff,
@@ -296,6 +322,21 @@ const getUnpaidExpenses = async (req, res) => {
       where.vendor = { [Op.iLike]: `%${vendor}%` };
     }
 
+    // 🆕 Obtener IDs de expenses que YA están vinculados a invoices
+    const linkedExpenseIds = await SupplierInvoiceExpense.findAll({
+      attributes: ['expenseId'],
+      raw: true
+    });
+
+    const linkedIds = linkedExpenseIds.map(item => item.expenseId);
+
+    // 🆕 Excluir expenses que ya están vinculados a un invoice
+    if (linkedIds.length > 0) {
+      where.idExpense = {
+        [Op.notIn]: linkedIds
+      };
+    }
+
     const unpaidExpenses = await Expense.findAll({
       where,
       include: [
@@ -312,6 +353,11 @@ const getUnpaidExpenses = async (req, res) => {
       ],
       order: [['date', 'DESC']]
     });
+
+    console.log(`🔍 Expenses sin pagar y SIN vincular a invoices: ${unpaidExpenses.length}`);
+    if (linkedIds.length > 0) {
+      console.log(`   ⛔ Excluidos ${linkedIds.length} expenses ya vinculados a invoices`);
+    }
 
     // Devolver array directamente para compatibilidad con frontend
     res.json(unpaidExpenses);
@@ -347,6 +393,22 @@ const getExpensesByPaymentStatus = async (req, res) => {
 
     if (workId) {
       where.workId = workId;
+    }
+
+    // 🆕 Si se buscan expenses "unpaid", excluir los que ya están vinculados a invoices
+    if (status === 'unpaid') {
+      const linkedExpenseIds = await SupplierInvoiceExpense.findAll({
+        attributes: ['expenseId'],
+        raw: true
+      });
+
+      const linkedIds = linkedExpenseIds.map(item => item.expenseId);
+
+      if (linkedIds.length > 0) {
+        where.idExpense = {
+          [Op.notIn]: linkedIds
+        };
+      }
     }
 
     const expenses = await Expense.findAll({
