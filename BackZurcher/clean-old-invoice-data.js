@@ -23,14 +23,53 @@ async function cleanOldInvoiceData() {
     console.log('═'.repeat(80));
     console.log('');
 
-    // 1. Contar lo que vamos a eliminar
-    const [itemCount] = await sequelize.query(`
-      SELECT COUNT(*) as total FROM "SupplierInvoiceItems";
+    // Verificar si las tablas antiguas existen
+    const [itemsTableExists] = await sequelize.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'SupplierInvoiceItems'
+      );
     `);
 
-    const [workCount] = await sequelize.query(`
-      SELECT COUNT(*) as total FROM "SupplierInvoiceWorks";
+    const [worksTableExists] = await sequelize.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name = 'SupplierInvoiceWorks'
+      );
     `);
+
+    const hasItemsTable = itemsTableExists[0].exists;
+    const hasWorksTable = worksTableExists[0].exists;
+
+    console.log('🔍 Verificando tablas antiguas:');
+    console.log(`   SupplierInvoiceItems: ${hasItemsTable ? '✅ Existe' : '❌ No existe'}`);
+    console.log(`   SupplierInvoiceWorks: ${hasWorksTable ? '✅ Existe' : '❌ No existe'}`);
+    console.log('');
+
+    if (!hasItemsTable && !hasWorksTable) {
+      console.log('✅ Base de datos limpia - No existen tablas antiguas');
+      console.log('   El sistema ya está listo para usar el nuevo modelo');
+      await sequelize.close();
+      return;
+    }
+
+    // 1. Contar lo que vamos a eliminar
+    let itemCount = [{ total: 0 }];
+    let workCount = [{ total: 0 }];
+
+    if (hasItemsTable) {
+      [itemCount] = await sequelize.query(`
+        SELECT COUNT(*) as total FROM "SupplierInvoiceItems";
+      `);
+    }
+
+    if (hasWorksTable) {
+      [workCount] = await sequelize.query(`
+        SELECT COUNT(*) as total FROM "SupplierInvoiceWorks";
+      `);
+    }
 
     const [invoiceCount] = await sequelize.query(`
       SELECT COUNT(*) as total FROM "SupplierInvoices";
@@ -54,7 +93,7 @@ async function cleanOldInvoiceData() {
     console.log('');
 
     // 2. Eliminar items
-    if (itemCount[0].total > 0) {
+    if (hasItemsTable && itemCount[0].total > 0) {
       console.log(`🗑️  Eliminando ${itemCount[0].total} items...`);
       await sequelize.query(`DELETE FROM "SupplierInvoiceItems";`);
       console.log('   ✅ Items eliminados');
@@ -62,7 +101,7 @@ async function cleanOldInvoiceData() {
     }
 
     // 3. Eliminar works
-    if (workCount[0].total > 0) {
+    if (hasWorksTable && workCount[0].total > 0) {
       console.log(`🗑️  Eliminando ${workCount[0].total} works...`);
       await sequelize.query(`DELETE FROM "SupplierInvoiceWorks";`);
       console.log('   ✅ Works eliminados');

@@ -338,7 +338,7 @@ const getSupplierInvoices = async (req, res) => {
 
     console.log('🔍 Filtros aplicados:', where);
 
-    // Siempre incluir items con sus relaciones para que el frontend tenga la info completa
+    // 🆕 Nuevo sistema: incluir expenses vinculados
     const include = [
       {
         model: Staff,
@@ -346,34 +346,14 @@ const getSupplierInvoices = async (req, res) => {
         attributes: ['id', 'name', 'email']
       },
       {
-        model: SupplierInvoiceItem,
-        as: 'items',
-        include: [
-          {
-            model: Work,
-            as: 'work',
-            attributes: ['idWork', 'propertyAddress'],
-            required: false
-          },
-          {
-            model: Expense,
-            as: 'relatedExpense',
-            attributes: ['idExpense', 'typeExpense', 'amount'],
-            required: false
-          },
-          {
-            model: FixedExpense,
-            as: 'relatedFixedExpense',
-            attributes: ['idFixedExpense', 'description', 'totalAmount'],
-            required: false
-          }
-        ]
-      },
-      {
-        model: Work,
-        as: 'linkedWorks', // 🆕 Works vinculados
-        attributes: ['idWork', 'propertyAddress'],
-        through: { attributes: [] }
+        model: Expense,
+        as: 'linkedExpenses',
+        attributes: ['idExpense', 'typeExpense', 'amount', 'date', 'description', 'paymentStatus'],
+        through: { 
+          attributes: ['amountApplied', 'notes', 'createdAt'],
+          as: 'linkInfo'
+        },
+        required: false
       }
     ];
 
@@ -405,43 +385,24 @@ const getSupplierInvoiceById = async (req, res) => {
   try {
     const { id } = req.params;
     
-    // 🔍 Obtener invoice sin linkedWorks por error de tipo UUID vs VARCHAR
+    // 🆕 Obtener invoice con nuevo sistema de linkedExpenses
     const invoice = await SupplierInvoice.findByPk(id, {
       include: [
-        {
-          model: SupplierInvoiceItem,
-          as: 'items',
-          include: [
-            {
-              model: Work,
-              as: 'work',
-              attributes: ['idWork', 'propertyAddress']
-            },
-            {
-              model: Expense,
-              as: 'relatedExpense',
-              attributes: ['idExpense', 'typeExpense', 'amount', 'date', 'paymentStatus']
-            }
-          ]
-        },
         {
           model: Staff,
           as: 'createdBy',
           attributes: ['id', 'name', 'email']
+        },
+        {
+          model: Expense,
+          as: 'linkedExpenses',
+          attributes: ['idExpense', 'typeExpense', 'amount', 'date', 'description', 'paymentStatus'],
+          through: { 
+            attributes: ['amountApplied', 'notes', 'createdAt'],
+            as: 'linkInfo'
+          },
+          required: false
         }
-        // ⚠️ Receipts comentado temporalmente por error de tipos en JOIN (relatedId es STRING, debería ser UUID)
-        // {
-        //   model: Receipt,
-        //   as: 'Receipts',
-        //   required: false
-        // }
-        // ⚠️ linkedWorks comentado temporalmente por error de tipos en JOIN
-        // {
-        //   model: Work,
-        //   as: 'linkedWorks',
-        //   attributes: ['idWork', 'propertyAddress'],
-        //   through: { attributes: [] }
-        // }
       ]
     });
 
