@@ -348,7 +348,7 @@ const getSupplierInvoices = async (req, res) => {
       {
         model: Expense,
         as: 'linkedExpenses',
-        attributes: ['idExpense', 'typeExpense', 'amount', 'date', 'description', 'paymentStatus'],
+        attributes: ['idExpense', 'typeExpense', 'amount', 'date', 'paymentStatus'],
         through: { 
           attributes: ['amountApplied', 'notes', 'createdAt'],
           as: 'linkInfo'
@@ -396,7 +396,7 @@ const getSupplierInvoiceById = async (req, res) => {
         {
           model: Expense,
           as: 'linkedExpenses',
-          attributes: ['idExpense', 'typeExpense', 'amount', 'date', 'description', 'paymentStatus'],
+          attributes: ['idExpense', 'typeExpense', 'amount', 'date', 'paymentStatus', 'notes'],
           through: { 
             attributes: ['amountApplied', 'notes', 'createdAt'],
             as: 'linkInfo'
@@ -424,10 +424,10 @@ const getSupplierInvoiceById = async (req, res) => {
 };
 
 /**
- * Registrar pago de un invoice
+ * Registrar pago de un invoice (MÉTODO ANTIGUO - DEPRECADO)
  * PATCH /api/supplier-invoices/:id/pay
  * 
- * 🆕 Si el invoice tiene linkedWorks, auto-genera expenses distribuidos equitativamente
+ * ⚠️ Este endpoint está deprecado. Usar /api/supplier-invoices/:id/pay-v2
  */
 const registerPayment = async (req, res) => {
   const transaction = await SupplierInvoice.sequelize.transaction();
@@ -451,17 +451,8 @@ const registerPayment = async (req, res) => {
       });
     }
 
-    // Buscar invoice con linkedWorks
-    const invoice = await SupplierInvoice.findByPk(id, {
-      include: [
-        {
-          model: Work,
-          as: 'linkedWorks',
-          attributes: ['idWork', 'propertyAddress']
-        }
-      ],
-      transaction
-    });
+    // Buscar invoice simple
+    const invoice = await SupplierInvoice.findByPk(id, { transaction });
 
     if (!invoice) {
       await transaction.rollback();
@@ -483,44 +474,14 @@ const registerPayment = async (req, res) => {
       newStatus = invoice.paymentStatus;
     }
 
-    // 🆕 Si el invoice tiene works vinculados y está siendo pagado completamente, auto-generar expenses
+    // ⚠️ DEPRECADO: Código de auto-generación de expenses comentado
+    // El nuevo sistema usa /pay-v2 que maneja esto de manera diferente
+    /*
     if (invoice.linkedWorks && invoice.linkedWorks.length > 0 && newStatus === 'paid') {
       console.log(`🔗 Invoice tiene ${invoice.linkedWorks.length} work(s) vinculado(s). Auto-generando expenses...`);
-      
-      const amountPerWork = parseFloat(invoice.totalAmount) / invoice.linkedWorks.length;
-      
-      for (const work of invoice.linkedWorks) {
-        const expense = await Expense.create({
-          workId: work.idWork,
-          date: paymentDate,
-          description: `${invoice.vendor} - Invoice #${invoice.invoiceNumber}`,
-          typeExpense: 'Materiales', // Tipo genérico para supplier invoices
-          amount: amountPerWork,
-          paymentStatus: 'paid',
-          paidAmount: amountPerWork,
-          paymentMethod: paymentMethod,
-          paymentDate: paymentDate,
-          paymentDetails: paymentDetails || '',
-          notes: `Generado automáticamente desde Supplier Invoice #${invoice.invoiceNumber}. Vendor: ${invoice.vendor}. Distribuido equitativamente.`,
-          verified: false,
-          staffId: req.user?.id || null
-        }, { transaction });
-
-        console.log(`  ✅ Expense creado para work ${work.propertyAddress}: $${amountPerWork.toFixed(2)}`);
-
-        // Si hay receipt, vincularlo al expense
-        if (receipt) {
-          await Receipt.create({
-            relatedModel: 'Expense',
-            relatedId: expense.idExpense,
-            type: 'Comprobante de Pago',
-            fileUrl: receipt.receiptUrl,
-            publicId: receipt.cloudinaryPublicId,
-            uploadedBy: req.user?.id || null
-          }, { transaction });
-        }
-      }
+      ... código antiguo removido ...
     }
+    */
 
     // Actualizar invoice
     await invoice.update({
