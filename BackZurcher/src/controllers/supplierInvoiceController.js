@@ -53,10 +53,14 @@ const createSupplierInvoice = async (req, res) => {
       });
     }
 
+    // 🆕 Normalizar vendor name (trim y espacios múltiples)
+    const normalizedVendor = vendor.trim().replace(/\s+/g, ' ');
+    console.log(`✨ Vendor normalizado: "${vendor}" → "${normalizedVendor}"`);
+
     // 1. Crear el invoice principal
     const invoice = await SupplierInvoice.create({
       invoiceNumber,
-      vendor,
+      vendor: normalizedVendor, // 🆕 Usar vendor normalizado
       issueDate: finalIssueDate,
       dueDate,
       totalAmount: 0,
@@ -1817,28 +1821,30 @@ const getVendorsSummary = async (req, res) => {
         'paymentStatus',
         'notes'
       ],
-      order: [['vendor', 'ASC'], ['issueDate', 'DESC']]
+      order: [['vendor', 'ASC'], ['issueDate', 'ASC']]
     });
 
-    // Agrupar por vendor
+    // Agrupar por vendor (normalizando nombres para evitar duplicados)
     const vendorMap = {};
 
     invoices.forEach(invoice => {
-      const vendor = invoice.vendor;
+      // Normalizar vendor: trim + convertir a lowercase para agrupación
+      const vendorKey = invoice.vendor.trim().toLowerCase();
+      const vendorDisplay = invoice.vendor.trim(); // Mantener el formato original para mostrar
       const pendingAmount = parseFloat(invoice.totalAmount) - parseFloat(invoice.paidAmount);
 
-      if (!vendorMap[vendor]) {
-        vendorMap[vendor] = {
-          vendor,
+      if (!vendorMap[vendorKey]) {
+        vendorMap[vendorKey] = {
+          vendor: vendorDisplay,
           totalPending: 0,
           invoiceCount: 0,
           invoices: []
         };
       }
 
-      vendorMap[vendor].totalPending += pendingAmount;
-      vendorMap[vendor].invoiceCount += 1;
-      vendorMap[vendor].invoices.push({
+      vendorMap[vendorKey].totalPending += pendingAmount;
+      vendorMap[vendorKey].invoiceCount += 1;
+      vendorMap[vendorKey].invoices.push({
         idSupplierInvoice: invoice.idSupplierInvoice,
         invoiceNumber: invoice.invoiceNumber,
         issueDate: invoice.issueDate,
@@ -1854,9 +1860,11 @@ const getVendorsSummary = async (req, res) => {
     // Convertir a array y ordenar por total pendiente (mayor a menor)
     const vendors = Object.values(vendorMap).sort((a, b) => b.totalPending - a.totalPending);
 
-    // Redondear los totales
+    // Redondear los totales y ordenar invoices dentro de cada vendor por fecha (más antigua primero)
     vendors.forEach(v => {
       v.totalPending = parseFloat(v.totalPending.toFixed(2));
+      // Ordenar invoices por fecha ascendente (más antigua primero)
+      v.invoices.sort((a, b) => new Date(a.issueDate) - new Date(b.issueDate));
     });
 
     const totalPendingAllVendors = vendors.reduce((sum, v) => sum + v.totalPending, 0);
@@ -1922,6 +1930,10 @@ const createSimpleSupplierInvoice = async (req, res) => {
       });
     }
 
+    // 🆕 Normalizar vendor name (trim y espacios múltiples)
+    const normalizedVendor = vendor.trim().replace(/\s+/g, ' ');
+    console.log(`✨ Vendor normalizado: "${vendor}" → "${normalizedVendor}"`);
+
     // Verificar si ya existe un invoice con ese número
     const existing = await SupplierInvoice.findOne({
       where: { invoiceNumber },
@@ -1938,7 +1950,7 @@ const createSimpleSupplierInvoice = async (req, res) => {
     // Crear el invoice
     const newInvoice = await SupplierInvoice.create({
       invoiceNumber,
-      vendor,
+      vendor: normalizedVendor, // 🆕 Usar vendor normalizado
       issueDate: issueDate || new Date().toISOString().split('T')[0],
       dueDate: dueDate || null,
       totalAmount: parseFloat(totalAmount),
@@ -1996,6 +2008,54 @@ const createSimpleSupplierInvoice = async (req, res) => {
   }
 };
 
+/**
+ * 🆕 Obtener lista de vendors únicos para autocomplete
+ * GET /api/supplier-invoices/vendors
+ */
+const getVendorsList = async (req, res) => {
+  try {
+    console.log('📋 [VendorsList] Obteniendo lista de vendors únicos...');
+
+    // Obtener todos los vendors únicos de la base de datos
+    const invoices = await SupplierInvoice.findAll({
+      attributes: ['vendor'],
+      group: ['vendor'],
+      order: [['vendor', 'ASC']]
+    });
+
+    // Normalizar y eliminar duplicados
+    const vendorsSet = new Set();
+    
+    invoices.forEach(invoice => {
+      const normalized = invoice.vendor.trim();
+      if (normalized) {
+        vendorsSet.add(normalized);
+      }
+    });
+
+    // Convertir a array y ordenar alfabéticamente
+    const vendors = Array.from(vendorsSet).sort((a, b) => 
+      a.toLowerCase().localeCompare(b.toLowerCase())
+    );
+
+    console.log(`✅ ${vendors.length} vendor(s) único(s) encontrado(s)`);
+
+    res.json({
+      success: true,
+      count: vendors.length,
+      vendors
+    });
+
+  } catch (error) {
+    console.error('❌ [VendorsList] Error:', error);
+    res.status(500).json({
+      error: true,
+      message: 'Error al obtener lista de vendors',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   createSupplierInvoice,
   getSupplierInvoices,
@@ -2009,5 +2069,6 @@ module.exports = {
   distributeInvoiceToWorks,
   paySupplierInvoice, // 🆕 NUEVO
   getVendorsSummary, // 🆕 NUEVO
-  createSimpleSupplierInvoice // 🆕 NUEVO formulario simplificado
+  createSimpleSupplierInvoice, // 🆕 NUEVO formulario simplificado
+  getVendorsList // 🆕 NUEVO lista de vendors para autocomplete
 };

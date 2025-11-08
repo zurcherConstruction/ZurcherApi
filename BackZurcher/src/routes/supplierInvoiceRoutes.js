@@ -15,7 +15,8 @@ const {
   distributeInvoiceToWorks,
   paySupplierInvoice, // 🆕 NUEVO
   getVendorsSummary, // 🆕 NUEVO
-  createSimpleSupplierInvoice // 🆕 NUEVO formulario simplificado
+  createSimpleSupplierInvoice, // 🆕 NUEVO formulario simplificado
+  getVendorsList // 🆕 NUEVO lista de vendors para autocomplete
 } = require('../controllers/supplierInvoiceController');
 
 // Middleware de autenticación (ajusta según tu implementación)
@@ -34,6 +35,13 @@ router.get('/accounts-payable', getAccountsPayable);
  * @access  Private
  */
 router.get('/vendors/summary', getVendorsSummary);
+
+/**
+ * 🆕 @route   GET /api/supplier-invoices/vendors/list
+ * @desc    Obtener lista de vendors únicos para autocomplete
+ * @access  Private
+ */
+router.get('/vendors/list', getVendorsList);
 
 /**
  * @route   GET /api/supplier-invoices/payment-history
