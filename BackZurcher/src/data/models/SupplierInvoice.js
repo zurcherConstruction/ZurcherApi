@@ -85,6 +85,25 @@ module.exports = (sequelize) => {
       comment: 'Monto que se ha pagado (puede ser parcial)'
     },
     
+    // 🆕 Campos para manejo de tarjeta de crédito
+    transactionType: {
+      type: DataTypes.ENUM('charge', 'payment', 'interest'),
+      allowNull: false,
+      defaultValue: 'charge',
+     
+    },
+    isCreditCard: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      comment: 'Indica si esta transacción es de tarjeta de crédito (para balance acumulado)'
+    },
+    balanceAfter: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: true,
+      comment: 'Balance de la tarjeta después de aplicar esta transacción'
+    },
+    
     // Metadata
     notes: {
       type: DataTypes.TEXT,

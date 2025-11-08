@@ -16,7 +16,9 @@ const {
   paySupplierInvoice, // 🆕 NUEVO
   getVendorsSummary, // 🆕 NUEVO
   createSimpleSupplierInvoice, // 🆕 NUEVO formulario simplificado
-  getVendorsList // 🆕 NUEVO lista de vendors para autocomplete
+  getVendorsList, // 🆕 NUEVO lista de vendors para autocomplete
+  createCreditCardTransaction, // 💳 NUEVO transacciones de tarjeta
+  getCreditCardBalance // 💳 NUEVO balance de tarjeta
 } = require('../controllers/supplierInvoiceController');
 
 // Middleware de autenticación (ajusta según tu implementación)
@@ -42,6 +44,21 @@ router.get('/vendors/summary', getVendorsSummary);
  * @access  Private
  */
 router.get('/vendors/list', getVendorsList);
+
+/**
+ * 💳 @route   GET /api/supplier-invoices/credit-card/balance
+ * @desc    Obtener balance actual y transacciones de Chase Credit Card
+ * @access  Private
+ */
+router.get('/credit-card/balance', getCreditCardBalance);
+
+/**
+ * 💳 @route   POST /api/supplier-invoices/credit-card/transaction
+ * @desc    Crear una transacción de tarjeta de crédito (cargo, pago o interés)
+ * @body    { transactionType, amount, date, description, invoiceNumber, paymentMethod?, paymentDetails? }
+ * @access  Private
+ */
+router.post('/credit-card/transaction', createCreditCardTransaction);
 
 /**
  * @route   GET /api/supplier-invoices/payment-history

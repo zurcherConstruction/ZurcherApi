@@ -1,4 +1,4 @@
-const { SupplierInvoice, SupplierInvoiceItem, SupplierInvoiceWork, SupplierInvoiceExpense, Expense, FixedExpense, Work, Staff, Receipt } = require('../data');
+const { SupplierInvoice, SupplierInvoiceItem, SupplierInvoiceWork, SupplierInvoiceExpense, Expense, FixedExpense, Work, Staff, Receipt, sequelize } = require('../data');
 const { Op } = require('sequelize');
 const { cloudinary } = require('../utils/cloudinaryConfig');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader'); // 🆕 Para subir receipts
@@ -2056,6 +2056,380 @@ const getVendorsList = async (req, res) => {
   }
 };
 
+// ==========================================
+// 💳 FUNCIONES PARA TARJETA DE CRÉDITO
+// ==========================================
+
+/**
+ * 💳 Crear transacción de tarjeta de crédito (cargo, pago o interés)
+ * POST /api/supplier-invoices/credit-card/transaction
+ * 
+ * - CARGO: Crea un Expense con paymentMethod = 'Chase Credit Card'
+ * - PAGO: Aplica FIFO sobre expenses pendientes
+ * - INTERÉS: Crea un Expense de tipo interés
+ */
+const createCreditCardTransaction = async (req, res) => {
+  const dbTransaction = await sequelize.transaction();
+
+  try {
+    const {
+      transactionType, // 'charge', 'payment', 'interest'
+      description,
+      amount,
+      date,
+      paymentMethod, // Solo para tipo 'payment'
+      paymentDetails, // Solo para tipo 'payment'
+      notes,
+      vendor, // Opcional para cargos
+      workId // Opcional: asociar a un trabajo
+    } = req.body;
+
+    console.log(`💳 [CreditCard] Creando transacción tipo: ${transactionType}`);
+
+    // Validaciones
+    if (!['charge', 'payment', 'interest'].includes(transactionType)) {
+      return res.status(400).json({
+        error: true,
+        message: 'transactionType debe ser: charge, payment o interest'
+      });
+    }
+
+    if (!amount || parseFloat(amount) <= 0) {
+      return res.status(400).json({
+        error: true,
+        message: 'El monto debe ser mayor a 0'
+      });
+    }
+
+    const transactionAmount = parseFloat(amount);
+    let createdExpense = null;
+    let updatedExpenses = [];
+
+    // ==========================================
+    // CARGO: Crear Expense con Chase Credit Card
+    // ==========================================
+    if (transactionType === 'charge') {
+      console.log(`💳 [CARGO] Creando expense con Chase Credit Card...`);
+
+      createdExpense = await Expense.create({
+        date: date || new Date().toISOString().split('T')[0],
+        amount: transactionAmount,
+        typeExpense: 'Comprobante Gasto', // O el tipo que prefieras
+        notes: description || notes || 'Cargo manual en tarjeta',
+        paymentMethod: 'Chase Credit Card',
+        paymentStatus: 'unpaid',
+        paidAmount: 0,
+        vendor: vendor || 'Chase Credit Card',
+        verified: false,
+        workId: workId || null,
+        staffId: req.staff?.id || null
+      }, { transaction: dbTransaction });
+
+      console.log(`✅ Expense creado: ${createdExpense.idExpense}`);
+    }
+
+    // ==========================================
+    // INTERÉS: Crear Expense de tipo especial
+    // ==========================================
+    if (transactionType === 'interest') {
+      console.log(`📈 [INTERÉS] Creando expense de interés...`);
+
+      createdExpense = await Expense.create({
+        date: date || new Date().toISOString().split('T')[0],
+        amount: transactionAmount,
+        typeExpense: 'Gastos Generales', // Intereses como gasto general
+        notes: description || notes || 'Intereses Chase Credit Card',
+        paymentMethod: 'Chase Credit Card',
+        paymentStatus: 'unpaid',
+        paidAmount: 0,
+        vendor: 'Chase Credit Card - Intereses',
+        verified: false,
+        workId: null, // Intereses no se asocian a trabajos
+        staffId: req.staff?.id || null
+      }, { transaction: dbTransaction });
+
+      console.log(`✅ Expense de interés creado: ${createdExpense.idExpense}`);
+    }
+
+    // ==========================================
+    // PAGO: Aplicar FIFO sobre expenses pendientes
+    // ==========================================
+    if (transactionType === 'payment') {
+      console.log(`💰 [FIFO] Aplicando pago de $${transactionAmount} sobre expenses pendientes...`);
+
+      // Obtener expenses pendientes ordenados por fecha (FIFO)
+      const pendingExpenses = await Expense.findAll({
+        where: {
+          paymentMethod: 'Chase Credit Card',
+          paymentStatus: ['unpaid', 'partial']
+        },
+        order: [['date', 'ASC']], // FIFO: más antiguos primero
+        transaction: dbTransaction
+      });
+
+      let remainingPayment = transactionAmount;
+
+      for (const expense of pendingExpenses) {
+        if (remainingPayment <= 0) break;
+
+        const expenseAmount = parseFloat(expense.amount);
+        const paidAmount = parseFloat(expense.paidAmount || 0);
+        const pendingAmount = expenseAmount - paidAmount;
+
+        if (pendingAmount > 0) {
+          const amountToApply = Math.min(remainingPayment, pendingAmount);
+          const newPaidAmount = paidAmount + amountToApply;
+
+          // Actualizar expense
+          await expense.update({
+            paidAmount: newPaidAmount,
+            paymentStatus: newPaidAmount >= expenseAmount ? 'paid' : 'partial',
+            paidDate: newPaidAmount >= expenseAmount ? (date || new Date()) : expense.paidDate
+          }, { transaction: dbTransaction });
+
+          updatedExpenses.push({
+            idExpense: expense.idExpense,
+            notes: expense.notes,
+            amount: expenseAmount,
+            appliedPayment: amountToApply,
+            newStatus: newPaidAmount >= expenseAmount ? 'paid' : 'partial'
+          });
+
+          remainingPayment -= amountToApply;
+          console.log(`  ✅ Expense ${expense.notes}: $${amountToApply} aplicado (${newPaidAmount >= expenseAmount ? 'PAGADO' : 'PARCIAL'})`);
+        }
+      }
+
+      console.log(`💰 [FIFO] ${updatedExpenses.length} expense(s) actualizados. Sobrante: $${remainingPayment}`);
+
+      // Registrar el pago en SupplierInvoice para tracking
+      await SupplierInvoice.create({
+        invoiceNumber: `CC-PAYMENT-${Date.now()}`,
+        vendor: 'Chase Credit Card',
+        issueDate: date || new Date(),
+        dueDate: null,
+        totalAmount: transactionAmount,
+        paymentStatus: 'paid',
+        paymentMethod: paymentMethod,
+        paymentDetails: paymentDetails,
+        paymentDate: date || new Date(),
+        paidAmount: transactionAmount,
+        notes: description || notes || 'Pago de tarjeta',
+        transactionType: 'payment',
+        isCreditCard: true,
+        balanceAfter: 0, // Se recalcula después
+        createdByStaffId: req.staff?.id || null
+      }, { transaction: dbTransaction });
+    }
+
+    await dbTransaction.commit();
+
+    // Recalcular balance después del commit
+    const stats = await calculateCreditCardBalance();
+
+    console.log(`✅ Transacción ${transactionType} completada | Balance actual: $${stats.currentBalance}`);
+
+    res.status(201).json({
+      success: true,
+      message: `${transactionType === 'payment' ? 'Pago' : transactionType === 'interest' ? 'Interés' : 'Cargo'} registrado exitosamente`,
+      createdExpense: createdExpense || null,
+      updatedExpenses: updatedExpenses.length > 0 ? updatedExpenses : null,
+      currentBalance: stats.currentBalance,
+      statistics: stats
+    });
+
+  } catch (error) {
+    await dbTransaction.rollback();
+    console.error('❌ [CreditCard] Error:', error);
+    res.status(500).json({
+      error: true,
+      message: 'Error al crear transacción de tarjeta',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * 💳 Función auxiliar para calcular balance actual de Chase Credit Card
+ * Balance = Suma de montos pendientes (amount - paidAmount) de cada expense
+ */
+const calculateCreditCardBalance = async (transaction = null) => {
+  // 1. Obtener todos los expenses con Chase Credit Card (CARGOS)
+  const expenses = await Expense.findAll({
+    where: {
+      paymentMethod: 'Chase Credit Card'
+    },
+    attributes: ['amount', 'paidAmount', 'paymentStatus'],
+    transaction
+  });
+
+  // Total de cargos y pendientes
+  const totalCharges = expenses.reduce((sum, exp) => sum + parseFloat(exp.amount), 0);
+  const totalPaidViaExpenses = expenses.reduce((sum, exp) => sum + parseFloat(exp.paidAmount || 0), 0);
+  
+  // Balance pendiente de expenses = suma de (amount - paidAmount)
+  const pendingFromExpenses = expenses.reduce((sum, exp) => {
+    const amount = parseFloat(exp.amount);
+    const paid = parseFloat(exp.paidAmount || 0);
+    return sum + (amount - paid);
+  }, 0);
+
+  // 2. Obtener intereses de SupplierInvoices (estos también son deuda)
+  const interests = await SupplierInvoice.findAll({
+    where: {
+      vendor: 'Chase Credit Card',
+      isCreditCard: true,
+      transactionType: 'interest'
+    },
+    attributes: ['totalAmount'],
+    transaction
+  });
+
+  const totalInterests = interests.reduce((sum, int) => sum + parseFloat(int.totalAmount), 0);
+
+  // 3. Obtener pagos de SupplierInvoices (para referencia)
+  const payments = await SupplierInvoice.findAll({
+    where: {
+      vendor: 'Chase Credit Card',
+      isCreditCard: true,
+      transactionType: 'payment'
+    },
+    attributes: ['totalAmount'],
+    transaction
+  });
+
+  const totalPayments = payments.reduce((sum, pay) => sum + parseFloat(pay.totalAmount), 0);
+
+  // Balance actual = Monto pendiente de expenses + Intereses NO pagados
+  // Los pagos ya están reflejados en paidAmount de los expenses (FIFO)
+  const currentBalance = pendingFromExpenses;
+
+  return {
+    currentBalance,
+    totalCharges,
+    totalInterests,
+    totalPayments,
+    totalPaidViaExpenses
+  };
+};
+
+/**
+ * 💳 Obtener balance y transacciones de Chase Credit Card
+ * GET /api/supplier-invoices/credit-card/balance
+ * 
+ * Combina:
+ * - Expenses con paymentMethod = 'Chase Credit Card' (CARGOS)
+ * - SupplierInvoices con isCreditCard = true (PAGOS e INTERESES)
+ */
+const getCreditCardBalance = async (req, res) => {
+  try {
+    console.log('💳 [CreditCard] Obteniendo balance y transacciones...');
+
+    // 1. Obtener expenses (CARGOS)
+    const expenses = await Expense.findAll({
+      where: {
+        paymentMethod: 'Chase Credit Card'
+      },
+      attributes: [
+        'idExpense',
+        'date',
+        'amount',
+        'paidAmount',
+        'paymentStatus',
+        'notes',
+        'vendor',
+        'typeExpense',
+        'createdAt'
+      ],
+      order: [['date', 'DESC']]
+    });
+
+    // 2. Obtener pagos e intereses (SupplierInvoices)
+    const transactions = await SupplierInvoice.findAll({
+      where: { 
+        vendor: 'Chase Credit Card',
+        isCreditCard: true 
+      },
+      order: [['issueDate', 'DESC'], ['createdAt', 'DESC']],
+      attributes: [
+        'idSupplierInvoice',
+        'invoiceNumber',
+        'transactionType',
+        'issueDate',
+        'totalAmount',
+        'balanceAfter',
+        'paymentMethod',
+        'paymentDetails',
+        'notes',
+        'createdAt'
+      ]
+    });
+
+    // 3. Calcular balance y estadísticas
+    const stats = await calculateCreditCardBalance();
+
+    // 4. Combinar todo en una sola lista cronológica
+    const allTransactions = [
+      // Expenses como cargos
+      ...expenses.map(exp => ({
+        id: exp.idExpense,
+        type: 'charge',
+        transactionType: 'charge',
+        date: exp.date,
+        description: exp.notes || exp.vendor || exp.typeExpense,
+        amount: parseFloat(exp.amount),
+        paidAmount: parseFloat(exp.paidAmount || 0),
+        pendingAmount: parseFloat(exp.amount) - parseFloat(exp.paidAmount || 0),
+        paymentStatus: exp.paymentStatus,
+        createdAt: exp.createdAt,
+        source: 'expense'
+      })),
+      // SupplierInvoices (pagos e intereses)
+      ...transactions.map(trans => ({
+        id: trans.idSupplierInvoice,
+        type: trans.transactionType,
+        transactionType: trans.transactionType,
+        date: trans.issueDate,
+        description: trans.notes || `${trans.transactionType === 'payment' ? 'Pago' : 'Interés'} de tarjeta`,
+        amount: parseFloat(trans.totalAmount),
+        paymentMethod: trans.paymentMethod,
+        paymentDetails: trans.paymentDetails,
+        balanceAfter: parseFloat(trans.balanceAfter || 0),
+        createdAt: trans.createdAt,
+        source: 'supplier_invoice'
+      }))
+    ];
+
+    // Ordenar por fecha descendente
+    allTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    console.log(`✅ Balance actual: $${stats.currentBalance} | ${allTransactions.length} transacciones`);
+
+    res.json({
+      success: true,
+      currentBalance: stats.currentBalance,
+      statistics: {
+        totalCharges: stats.totalCharges,
+        totalInterests: stats.totalInterests,
+        totalPayments: stats.totalPayments,
+        transactionCount: allTransactions.length,
+        expensesCount: expenses.length,
+        paymentsCount: transactions.filter(t => t.transactionType === 'payment').length,
+        interestsCount: transactions.filter(t => t.transactionType === 'interest').length
+      },
+      transactions: allTransactions
+    });
+
+  } catch (error) {
+    console.error('❌ [CreditCard] Error:', error);
+    res.status(500).json({
+      error: true,
+      message: 'Error al obtener balance de tarjeta',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   createSupplierInvoice,
   getSupplierInvoices,
@@ -2070,5 +2444,7 @@ module.exports = {
   paySupplierInvoice, // 🆕 NUEVO
   getVendorsSummary, // 🆕 NUEVO
   createSimpleSupplierInvoice, // 🆕 NUEVO formulario simplificado
-  getVendorsList // 🆕 NUEVO lista de vendors para autocomplete
+  getVendorsList, // 🆕 NUEVO lista de vendors para autocomplete
+  createCreditCardTransaction, // 💳 NUEVO transacciones de tarjeta
+  getCreditCardBalance // 💳 NUEVO balance de tarjeta
 };
