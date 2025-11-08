@@ -15,7 +15,8 @@ import SupplierInvoiceList from './SupplierInvoiceList';
 import SupplierInvoiceDetail from './SupplierInvoiceDetail';
 import AccountsPayableSummary from './AccountsPayableSummary';
 import VendorsSummary from './VendorsSummary'; // 🆕 NUEVO
-import { FaFileInvoiceDollar, FaPlus, FaFilter, FaTimes, FaBuilding, FaList } from 'react-icons/fa'; // 🆕 Agregados FaBuilding, FaList
+import ChaseCreditCard from './ChaseCreditCard'; // 💳 NUEVO Chase Credit Card
+import { FaFileInvoiceDollar, FaPlus, FaFilter, FaTimes, FaBuilding, FaList, FaCreditCard } from 'react-icons/fa'; // 💳 Agregado FaCreditCard
 
 const SupplierInvoiceManager = () => {
   const dispatch = useDispatch();
@@ -27,7 +28,7 @@ const SupplierInvoiceManager = () => {
   const [showDetail, setShowDetail] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [activeTab, setActiveTab] = useState('list'); // 🆕 NUEVO: 'list' o 'vendors'
+  const [activeTab, setActiveTab] = useState('list'); // 🆕 NUEVO: 'list', 'vendors' o 'credit-card'
 
   // Cargar facturas al montar el componente
   useEffect(() => {
@@ -165,6 +166,17 @@ const SupplierInvoiceManager = () => {
                 <FaBuilding />
                 <span>Vista por Proveedores</span>
               </button>
+              <button
+                onClick={() => setActiveTab('credit-card')}
+                className={`flex items-center space-x-2 px-6 py-4 font-medium transition-colors ${
+                  activeTab === 'credit-card'
+                    ? 'border-b-2 border-blue-600 text-blue-600'
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                <FaCreditCard />
+                <span>Chase Credit Card</span>
+              </button>
             </div>
           </div>
         )}
@@ -268,6 +280,9 @@ const SupplierInvoiceManager = () => {
         ) : activeTab === 'vendors' ? (
           // 🆕 NUEVA VISTA: Proveedores Agrupados
           <VendorsSummary onRefreshParent={loadInvoices} />
+        ) : activeTab === 'credit-card' ? (
+          // 💳 NUEVA VISTA: Chase Credit Card
+          <ChaseCreditCard token={localStorage.getItem('token')} />
         ) : (
           // Vista original de lista
           <SupplierInvoiceList

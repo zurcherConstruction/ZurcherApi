@@ -102,6 +102,7 @@ module.exports = (sequelize) => {
     paymentStatus: {
       type: DataTypes.ENUM(
         'unpaid',              // No pagado (gasto comprometido pero sin pagar)
+        'partial',             // Pagado parcialmente (para Chase Credit Card con FIFO)
         'paid',                // Pagado directamente (sin invoice de proveedor)
         'paid_via_invoice'     // Pagado a través de un SupplierInvoice
       ),
@@ -115,6 +116,14 @@ module.exports = (sequelize) => {
       type: DataTypes.DATEONLY,
       allowNull: true,
       
+    },
+    
+    // 🆕 Monto pagado (para pagos parciales)
+    paidAmount: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false,
+      defaultValue: 0,
+      comment: 'Monto pagado del gasto (para pagos parciales, especialmente Chase Credit Card)'
     },
     
     // 🔑 Vinculación con SupplierInvoiceItem (cuando se paga vía invoice)
