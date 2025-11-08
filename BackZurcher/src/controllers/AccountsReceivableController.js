@@ -24,20 +24,15 @@ const AccountsReceivableController = {
 
   /**
    * Obtener resumen completo de cuentas por cobrar
-   * Incluye: Budgets pendientes, FinalInvoices pendientes, ChangeOrders aprobados
+   * ✅ ACTUALIZADO: Muestra TODOS los Works sin importar el status
    */
   async getAccountsReceivableSummary(req, res) {
     try {
-      // ✅ CAMBIO: Solo mostrar WORKS (budgets que YA tienen pago inicial y son seguros)
-      // Los budgets sin work NO son seguros, no deberían estar en cuentas por cobrar
+      console.log('📊 [AccountsReceivable] Obteniendo resumen de cuentas por cobrar (TODOS los Works)...');
       
-      // 1. OBRAS EN PROGRESO O COMPLETADAS (LO QUE REALMENTE VAMOS A COBRAR)
+      // 1. OBTENER TODOS LOS WORKS (sin filtro de status)
       const worksInProgress = await Work.findAll({
-        where: {
-          status: {
-            [Op.in]: ['inProgress', 'finalInspectionPending', 'firstInspectionPending', 'finalApproved', 'paymentReceived']
-          }
-        },
+        // ✅ CAMBIO: Removido el filtro de status para mostrar TODOS los Works
         include: [
           {
             model: Budget,
@@ -45,7 +40,7 @@ const AccountsReceivableController = {
             include: [
               {
                 model: Staff,
-                as: 'createdByStaff', // ✅ Alias correcto según definición en data/index.js
+                as: 'createdByStaff',
                 attributes: ['id', 'name', 'email']
               }
             ]
@@ -67,7 +62,8 @@ const AccountsReceivableController = {
             where: { status: 'approved' },
             required: false
           }
-        ]
+        ],
+        order: [['createdAt', 'DESC']]
       });
 
       // Calcular total pendiente de obras en progreso
@@ -542,6 +538,10 @@ const AccountsReceivableController = {
    * 🆕 Obtener budgets aprobados (invoices activos) con tracking de pagos
    * Muestra todos los budgets que ya están aprobados/signed y se convirtieron en invoices
    */
+  /**
+   * Obtener invoices activos con detalles de cobros
+   * ✅ ACTUALIZADO: Muestra solo WORKS (no budgets sueltos)
+   */
   async getActiveInvoices(req, res) {
     try {
       const { 
@@ -552,92 +552,99 @@ const AccountsReceivableController = {
         searchTerm 
       } = req.query;
 
-      // Condiciones base: budgets aprobados/firmados
-      const whereConditions = {
-        status: {
-          [Op.in]: ['signed', 'approved']
-        }
-      };
+      // ✅ CAMBIO: Buscar WORKS en lugar de BUDGETS
+      // Condiciones para filtrar Works
+      const workWhereConditions = {};
+
+      // Filtro por búsqueda (dirección)
+      if (searchTerm) {
+        workWhereConditions.propertyAddress = { [Op.iLike]: `%${searchTerm}%` };
+      }
+
+      // Condiciones para Budget asociado
+      const budgetWhereConditions = {};
 
       // Filtro de fechas
       if (startDate && endDate) {
-        whereConditions.date = {
+        budgetWhereConditions.date = {
           [Op.between]: [startDate, endDate]
         };
       } else if (startDate) {
-        whereConditions.date = {
+        budgetWhereConditions.date = {
           [Op.gte]: startDate
         };
       } else if (endDate) {
-        whereConditions.date = {
+        budgetWhereConditions.date = {
           [Op.lte]: endDate
         };
       }
 
       // Filtro por vendedor
       if (salesRepId) {
-        whereConditions.createdByStaffId = salesRepId;
+        budgetWhereConditions.createdByStaffId = salesRepId;
       }
 
-      // Filtro de búsqueda (por dirección o cliente)
+      // Filtro de búsqueda en cliente (dentro de budget)
       if (searchTerm) {
-        whereConditions[Op.or] = [
-          { propertyAddress: { [Op.iLike]: `%${searchTerm}%` } },
-          { applicantName: { [Op.iLike]: `%${searchTerm}%` } }
-        ];
+        budgetWhereConditions.applicantName = { [Op.iLike]: `%${searchTerm}%` };
       }
 
-      const budgets = await Budget.findAll({
-        where: whereConditions,
+      // Buscar WORKS con sus budgets asociados
+      const works = await Work.findAll({
+        where: workWhereConditions,
         include: [
           {
-            model: Staff,
-            as: 'createdByStaff',
-            attributes: ['id', 'name', 'email']
-          },
-          {
-            model: Work,
-            attributes: ['idWork', 'status'],
+            model: Budget,
+            as: 'budget',
+            where: budgetWhereConditions,
+            required: true, // Solo Works que tengan Budget
             include: [
               {
-                model: ChangeOrder,
-                as: 'changeOrders',
-                where: { status: 'approved' },
-                required: false
-              },
-              {
-                model: FinalInvoice,
-                as: 'finalInvoice',
-                required: false
+                model: Staff,
+                as: 'createdByStaff',
+                attributes: ['id', 'name', 'email']
               }
             ]
+          },
+          {
+            model: ChangeOrder,
+            as: 'changeOrders',
+            where: { status: 'approved' },
+            required: false
+          },
+          {
+            model: FinalInvoice,
+            as: 'finalInvoice',
+            required: false
           }
         ],
-        order: [['date', 'DESC']]
+        order: [[{ model: Budget, as: 'budget' }, 'date', 'DESC']]
       });
 
-      const invoicesData = budgets.map(budget => {
-        const budgetTotal = parseFloat(budget.clientTotalPrice || budget.totalPrice || 0);
-        const initialPayment = parseFloat(budget.paymentProofAmount || 0);
+      const invoicesData = works.map(work => {
+        const budgetTotal = parseFloat(work.budget?.clientTotalPrice || work.budget?.totalPrice || 0);
+        const initialPayment = parseFloat(work.budget?.paymentProofAmount || 0);
         
         // Calcular change orders aprobados
-        const changeOrders = budget.Work?.changeOrders || [];
+        const changeOrders = work.changeOrders || [];
         const changeOrdersTotal = changeOrders.reduce((sum, co) => {
           return sum + (parseFloat(co.newTotalPrice || 0) - parseFloat(co.previousTotalPrice || 0));
         }, 0);
 
-        // Total esperado = Budget + Change Orders
-        const expectedTotal = budgetTotal + changeOrdersTotal;
+        // Calcular extras de Final Invoice
+        const finalInvoiceExtras = parseFloat(work.finalInvoice?.subtotalExtras || 0);
+
+        // Total esperado = Budget + Change Orders + Extras
+        const expectedTotal = budgetTotal + changeOrdersTotal + finalInvoiceExtras;
         
         // Total cobrado hasta ahora
         let totalCollected = initialPayment;
         
         // Si hay final invoice pagado, sumarlo
-        if (budget.Work?.finalInvoice?.status === 'paid') {
-          totalCollected += parseFloat(budget.Work.finalInvoice.finalAmountDue || 0);
-        } else if (budget.Work?.finalInvoice?.status === 'partially_paid') {
-          // Si está parcialmente pagado, sumar lo que se haya cobrado
-          totalCollected += parseFloat(budget.Work.finalInvoice.amountPaid || 0);
+        if (work.finalInvoice?.status === 'paid') {
+          totalCollected += parseFloat(work.finalInvoice.finalAmountDue || 0);
+        } else if (work.finalInvoice?.status === 'partially_paid') {
+          totalCollected += parseFloat(work.finalInvoice.amountPaid || 0);
         }
 
         // Monto restante por cobrar
@@ -646,54 +653,55 @@ const AccountsReceivableController = {
         // Determinar estado de pago
         let paymentStatus;
         if (remainingAmount <= 0) {
-          paymentStatus = 'completed'; // Completamente cobrado
+          paymentStatus = 'completed';
         } else if (totalCollected > initialPayment) {
-          paymentStatus = 'partial'; // Pago parcial (más allá del initial)
+          paymentStatus = 'partial';
         } else if (initialPayment > 0) {
-          paymentStatus = 'initial_only'; // Solo initial payment
+          paymentStatus = 'initial_only';
         } else {
-          paymentStatus = 'pending_payment'; // Sin pagos
+          paymentStatus = 'pending_payment';
         }
 
         return {
-          budgetId: budget.idBudget,
-          invoiceNumber: budget.invoiceNumber,
-          propertyAddress: budget.propertyAddress,
-          clientName: budget.applicantName,
-          budgetDate: budget.date,
-          budgetStatus: budget.status,
+          budgetId: work.budget?.idBudget,
+          invoiceNumber: work.budget?.invoiceNumber,
+          propertyAddress: work.propertyAddress,
+          clientName: work.budget?.applicantName,
+          budgetDate: work.budget?.date,
+          budgetStatus: work.budget?.status,
           
           // Información del vendedor/referido
-          leadSource: budget.leadSource,
-          salesRepName: budget.createdByStaff?.name || null,
-          salesRepId: budget.createdByStaffId || null,
-          externalReferralName: budget.externalReferralName || null,
-          externalReferralCompany: budget.externalReferralCompany || null,
+          leadSource: work.budget?.leadSource,
+          salesRepName: work.budget?.createdByStaff?.name || null,
+          salesRepId: work.budget?.createdByStaffId || null,
+          externalReferralName: work.budget?.externalReferralName || null,
+          externalReferralCompany: work.budget?.externalReferralCompany || null,
           
           // Desglose financiero
           budgetTotal,
           initialPayment,
           changeOrdersCount: changeOrders.length,
           changeOrdersTotal,
+          finalInvoiceExtras,
           expectedTotal,
           totalCollected,
           remainingAmount,
           paymentStatus,
           
           // Estado del trabajo
-          hasWork: !!budget.Work,
-          workId: budget.Work?.idWork || null,
-          workStatus: budget.Work?.status || 'not_created',
+          hasWork: true, // Siempre true porque estamos buscando Works
+          workId: work.idWork,
+          workStatus: work.status,
           
           // Final Invoice
-          hasFinalInvoice: !!budget.Work?.finalInvoice,
-          finalInvoiceId: budget.Work?.finalInvoice?.id || null,
-          finalInvoiceStatus: budget.Work?.finalInvoice?.status || 'not_created',
-          finalInvoiceAmount: budget.Work?.finalInvoice?.finalAmountDue || 0,
+          hasFinalInvoice: !!work.finalInvoice,
+          finalInvoiceId: work.finalInvoice?.id || null,
+          finalInvoiceStatus: work.finalInvoice?.status || 'not_created',
+          finalInvoiceAmount: work.finalInvoice?.finalAmountDue || 0,
           
           // Comisión
-          commissionAmount: parseFloat(budget.commissionAmount || 0),
-          commissionPaid: budget.commissionPaid || false
+          commissionAmount: parseFloat(work.budget?.commissionAmount || 0),
+          commissionPaid: work.budget?.commissionPaid || false
         };
       });
 
@@ -925,6 +933,132 @@ const AccountsReceivableController = {
       res.status(500).json({
         error: true,
         message: 'Error al actualizar estado de comisión',
+        details: error.message
+      });
+    }
+  },
+
+  /**
+   * Obtener todos los ingresos recibidos (Income)
+   * Muestra todos los pagos recibidos de clientes
+   */
+  async getIncome(req, res) {
+    try {
+      console.log('💰 [Income] Obteniendo todos los ingresos recibidos...');
+
+      // 1. Obtener todos los Budgets con Initial Payment
+      const budgetsWithInitialPayment = await Budget.findAll({
+        where: {
+          initialPayment: { [Op.gt]: 0 }
+        },
+        attributes: [
+          'idBudget',
+          'invoiceNumber',
+          'propertyAddress',
+          'totalPrice',
+          'initialPayment',
+          'paymentProofMethod',
+          'createdAt'
+        ],
+        include: [
+          {
+            model: Work,
+            attributes: ['idWork', 'status'],
+            required: false
+          }
+        ],
+        order: [['createdAt', 'DESC']]
+      });
+
+      // 2. Obtener todos los Final Invoices pagados (con monto > 0)
+      const finalInvoicePayments = await FinalInvoice.findAll({
+        where: {
+          [Op.or]: [
+            { status: 'paid' },
+            { totalAmountPaid: { [Op.gt]: 0 } }
+          ]
+        },
+        attributes: [
+          'id',
+          'finalAmountDue',
+          'totalAmountPaid',
+          'paymentDate',
+          'paymentNotes',
+          'createdAt'
+        ],
+        include: [
+          {
+            model: Work,
+            attributes: ['idWork', 'status'],
+            include: [
+              {
+                model: Budget,
+                as: 'budget',
+                attributes: ['idBudget', 'invoiceNumber', 'propertyAddress']
+              }
+            ]
+          }
+        ],
+        order: [['paymentDate', 'DESC']]
+      });
+
+      // 3. Formatear datos de Initial Payments
+      const initialPayments = budgetsWithInitialPayment.map(budget => ({
+        id: `initial-${budget.idBudget}`,
+        type: 'initial_payment',
+        date: formatDateLocal(budget.createdAt),
+        amount: parseFloat(budget.initialPayment || 0),
+        paymentMethod: budget.paymentProofMethod || 'No especificado',
+        budgetNumber: budget.invoiceNumber || budget.idBudget,
+        propertyAddress: budget.propertyAddress,
+        workId: budget.Work?.idWork || null,
+        workStatus: budget.Work?.status || 'Sin Work',
+        notes: 'Initial Payment'
+      }));
+
+      // 4. Formatear datos de Final Invoice Payments
+      const finalPayments = finalInvoicePayments.map(invoice => ({
+        id: `final-${invoice.id}`,
+        type: 'final_payment',
+        date: formatDateLocal(invoice.paymentDate || invoice.createdAt),
+        amount: parseFloat(invoice.totalAmountPaid || 0),
+        paymentMethod: invoice.paymentNotes || 'No especificado',
+        budgetNumber: invoice.Work?.budget?.invoiceNumber || invoice.Work?.budget?.idBudget || 'N/A',
+        propertyAddress: invoice.Work?.budget?.propertyAddress || 'N/A',
+        workId: invoice.Work?.idWork || null,
+        workStatus: invoice.Work?.status || 'N/A',
+        notes: `Final Invoice #${invoice.id}`
+      }));
+
+      // 5. Combinar y ordenar por fecha (más reciente primero)
+      const allIncome = [...initialPayments, ...finalPayments].sort((a, b) => {
+        return new Date(b.date) - new Date(a.date);
+      });
+
+      // 6. Calcular totales
+      const totalIncome = allIncome.reduce((sum, income) => sum + income.amount, 0);
+      const totalInitialPayments = initialPayments.reduce((sum, p) => sum + p.amount, 0);
+      const totalFinalPayments = finalPayments.reduce((sum, p) => sum + p.amount, 0);
+
+      console.log(`✅ [Income] ${allIncome.length} ingresos encontrados (${initialPayments.length} initial + ${finalPayments.length} final)`);
+
+      res.json({
+        summary: {
+          totalIncome,
+          totalInitialPayments,
+          totalFinalPayments,
+          totalTransactions: allIncome.length,
+          initialPaymentsCount: initialPayments.length,
+          finalPaymentsCount: finalPayments.length
+        },
+        income: allIncome
+      });
+
+    } catch (error) {
+      console.error('❌ [Income] Error:', error);
+      res.status(500).json({
+        error: true,
+        message: 'Error al obtener ingresos',
         details: error.message
       });
     }

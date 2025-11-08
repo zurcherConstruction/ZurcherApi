@@ -57,6 +57,14 @@ router.get(
   AccountsReceivableController.getActiveInvoices
 );
 
+// 🆕 Obtener todos los ingresos recibidos (Income)
+router.get(
+  '/income',
+  verifyToken,
+  allowRoles(['admin', 'owner', 'finance']),
+  AccountsReceivableController.getIncome
+);
+
 // Marcar comisión como pagada o no pagada (con soporte para archivo de comprobante)
 router.put(
   '/:budgetId/commission-paid',
