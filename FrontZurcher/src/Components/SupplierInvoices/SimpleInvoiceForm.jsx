@@ -1,25 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { FaSave, FaTimes, FaFileUpload, FaEye } from 'react-icons/fa';
-
-// Lista de proveedores frecuentes
-const COMMON_VENDORS = [
-  'ACELIO GARCIA',
-  'Arian transport Inc',
-  'DRAKE',
-  'H P TRUCKING, INC.',
-  'HAJOCA',
-  'Hugo & AY Professional Pavers',
-  'JY&Trucking Transportation LLC',
-  'Kye motors llc',
-  'Lopez-Concrete Services LLC',
-  'VCCG Partner corp',
-  'Otro (Escribir manualmente)'
-];
+import axios from 'axios';
 
 const SimpleInvoiceForm = ({ invoice, onClose, onSuccess }) => {
   const token = useSelector((state) => state.auth.token);
   const isEditing = !!invoice;
+
+  // Estado para vendors dinámicos
+  const [vendorsList, setVendorsList] = useState([]);
+  const [loadingVendors, setLoadingVendors] = useState(true);
 
   const [formData, setFormData] = useState({
     invoiceNumber: invoice?.invoiceNumber || '',
@@ -31,30 +21,99 @@ const SimpleInvoiceForm = ({ invoice, onClose, onSuccess }) => {
   });
 
   const [selectedVendor, setSelectedVendor] = useState(
-    COMMON_VENDORS.slice(0, -1).includes(invoice?.vendor) 
-      ? invoice?.vendor 
-      : invoice?.vendor 
-        ? 'Otro (Escribir manualmente)' 
-        : ''
+    invoice?.vendor || ''
   );
-  const [customVendor, setCustomVendor] = useState(
-    COMMON_VENDORS.slice(0, -1).includes(invoice?.vendor) ? '' : invoice?.vendor || ''
-  );
+  const [customVendor, setCustomVendor] = useState('');
+  const [showCustomInput, setShowCustomInput] = useState(false);
 
   const [invoiceFile, setInvoiceFile] = useState(null);
   const [invoicePreview, setInvoicePreview] = useState(invoice?.invoicePdfPath || null);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
+  // 🆕 Cargar vendors desde el backend
+  useEffect(() => {
+    const fetchVendors = async () => {
+      try {
+        const response = await axios.get(
+          `${import.meta.env.VITE_API_URL}/supplier-invoices/vendors/list`,
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+        
+        if (response.data.success && response.data.vendors.length > 0) {
+          const finalList = [...response.data.vendors, 'Otro (Escribir manualmente)'];
+          setVendorsList(finalList);
+        } else {
+          // Fallback si no hay vendors en BD
+          setVendorsList([
+            'ACELIO GARCIA',
+            'ACK Environmental Solutions LLC',
+            'Arian transport Inc',
+            'DRAKE',
+            'GDG Trucking Services Corp',
+            'H P TRUCKING, INC.',
+            'HAJOCA',
+            'Hugo & AY Professional Pavers',
+            'JY&Trucking Transportation LLC',
+            'Kye motors llc',
+            'Lopez-Concrete Services LLC',
+            'Master Professional Taxes',
+            'VCCG Partner corp',
+            'Otro (Escribir manualmente)'
+          ]);
+        }
+      } catch (error) {
+        console.error('Error cargando vendors:', error);
+        // Fallback a lista predeterminada si falla la petición
+        setVendorsList([
+          'ACELIO GARCIA',
+          'ACK Environmental Solutions LLC',
+          'Arian transport Inc',
+          'DRAKE',
+          'GDG Trucking Services Corp',
+          'H P TRUCKING, INC.',
+          'HAJOCA',
+          'Hugo & AY Professional Pavers',
+          'JY&Trucking Transportation LLC',
+          'Kye motors llc',
+          'Lopez-Concrete Services LLC',
+          'Master Professional Taxes',
+          'VCCG Partner corp',
+          'Otro (Escribir manualmente)'
+        ]);
+      } finally {
+        setLoadingVendors(false);
+      }
+    };
+
+    fetchVendors();
+  }, [token]);
+
+  // 🆕 Determinar si mostrar input personalizado al cargar
+  useEffect(() => {
+    if (invoice?.vendor && !loadingVendors) {
+      const vendorExists = vendorsList.includes(invoice.vendor);
+      if (!vendorExists && vendorsList.length > 1) {
+        setShowCustomInput(true);
+        setSelectedVendor('Otro (Escribir manualmente)');
+        setCustomVendor(invoice.vendor);
+      }
+    }
+  }, [invoice, vendorsList, loadingVendors]);
+
   const handleVendorChange = (e) => {
     const value = e.target.value;
     setSelectedVendor(value);
     
-    if (value !== 'Otro (Escribir manualmente)') {
+    if (value === 'Otro (Escribir manualmente)') {
+      setShowCustomInput(true);
+      setFormData({ ...formData, vendor: customVendor });
+    } else {
+      setShowCustomInput(false);
       setFormData({ ...formData, vendor: value });
       setCustomVendor('');
-    } else {
-      setFormData({ ...formData, vendor: '' });
     }
   };
 
@@ -62,6 +121,16 @@ const SimpleInvoiceForm = ({ invoice, onClose, onSuccess }) => {
     const value = e.target.value;
     setCustomVendor(value);
     setFormData({ ...formData, vendor: value });
+  };
+
+  // 🆕 Normalizar nombre de vendor (capitalizar primera letra de cada palabra)
+  const normalizeVendorName = (name) => {
+    return name
+      .trim()
+      .split(' ')
+      .filter(word => word.length > 0)
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
   };
 
   const handleFileChange = (e) => {
@@ -104,11 +173,38 @@ const SimpleInvoiceForm = ({ invoice, onClose, onSuccess }) => {
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+  
+  // 🆕 Normalizar vendor solo al momento del submit
+  const normalizeVendorBeforeSubmit = () => {
+    // Si el usuario escribió manualmente, normalizar y buscar match
+    if (showCustomInput && customVendor) {
+      const normalizedInput = normalizeVendorName(customVendor);
+      
+      // Buscar vendor existente (case-insensitive)
+      const existingVendor = vendorsList.find(
+        v => v.toLowerCase().trim() === normalizedInput.toLowerCase().trim() && 
+             v !== 'Otro (Escribir manualmente)'
+      );
+      
+      if (existingVendor) {
+        console.log(`✅ Usando vendor existente: "${existingVendor}" (escribiste: "${customVendor}")`);
+        return existingVendor;
+      } else {
+        console.log(`✅ Creando vendor nuevo: "${normalizedInput}" (escribiste: "${customVendor}")`);
+        return normalizedInput;
+      }
+    }
+    
+    return formData.vendor;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     if (!validateForm()) return;
+    
+    // 🆕 Normalizar vendor justo antes de enviar
+    const finalVendor = normalizeVendorBeforeSubmit();
 
     try {
       setSubmitting(true);
@@ -116,7 +212,7 @@ const SimpleInvoiceForm = ({ invoice, onClose, onSuccess }) => {
       // Crear FormData
       const data = new FormData();
       data.append('invoiceNumber', formData.invoiceNumber);
-      data.append('vendor', formData.vendor);
+      data.append('vendor', finalVendor); // Usar el vendor normalizado
       data.append('issueDate', formData.issueDate);
       data.append('totalAmount', formData.totalAmount);
       
@@ -223,33 +319,41 @@ const SimpleInvoiceForm = ({ invoice, onClose, onSuccess }) => {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Proveedor *
             </label>
-            <select
-              value={selectedVendor}
-              onChange={handleVendorChange}
-              className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent ${
-                errors.vendor ? 'border-red-500' : 'border-gray-300'
-              }`}
-            >
-              <option value="">Seleccionar proveedor...</option>
-              {COMMON_VENDORS.map((vendor) => (
-                <option key={vendor} value={vendor}>
-                  {vendor}
-                </option>
-              ))}
-            </select>
-            
-            {selectedVendor === 'Otro (Escribir manualmente)' && (
-              <input
-                type="text"
-                value={customVendor}
-                onChange={handleCustomVendorChange}
-                placeholder="Escribir nombre del proveedor"
-                className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-              />
-            )}
-            
-            {errors.vendor && (
-              <p className="text-red-500 text-sm mt-1">{errors.vendor}</p>
+            {loadingVendors ? (
+              <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500">
+                Cargando proveedores...
+              </div>
+            ) : (
+              <>
+                <select
+                  value={selectedVendor}
+                  onChange={handleVendorChange}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent ${
+                    errors.vendor ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                >
+                  <option value="">Seleccionar proveedor...</option>
+                  {vendorsList.map((vendor, index) => (
+                    <option key={`${vendor}-${index}`} value={vendor}>
+                      {vendor}
+                    </option>
+                  ))}
+                </select>
+                
+                {showCustomInput && (
+                  <input
+                    type="text"
+                    value={customVendor}
+                    onChange={handleCustomVendorChange}
+                    placeholder="Escribir nombre del proveedor"
+                    className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                )}
+                
+                {errors.vendor && (
+                  <p className="text-red-500 text-sm mt-1">{errors.vendor}</p>
+                )}
+              </>
             )}
           </div>
 
