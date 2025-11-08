@@ -1,30 +1,49 @@
 const { Sequelize } = require('sequelize');
 require('dotenv').config();
 
-const sequelize = new Sequelize(
-  process.env.DB_NAME,
-  process.env.DB_USER,
-  process.env.DB_PASSWORD,
-  {
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT || 5432,
-    dialect: 'postgres',
-    logging: false,
-    dialectOptions: {
-      ssl: process.env.DB_SSL === 'true' ? {
-        require: true,
-        rejectUnauthorized: false
-      } : false
-    }
-  }
-);
+// Detectar si usar Railway o Local
+const useRailway = process.env.DB_DEPLOY && process.env.DB_DEPLOY.includes('railway');
+const dbConfig = useRailway 
+  ? process.env.DB_DEPLOY 
+  : {
+      database: process.env.DB_NAME,
+      username: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      host: process.env.DB_HOST,
+      port: process.env.DB_PORT || 5432,
+      dialect: 'postgres',
+      dialectOptions: {
+        ssl: process.env.DB_SSL === 'true' ? {
+          require: true,
+          rejectUnauthorized: false
+        } : false
+      }
+    };
+
+const sequelize = useRailway 
+  ? new Sequelize(dbConfig, {
+      logging: false,
+      dialectOptions: {
+        ssl: {
+          require: true,
+          rejectUnauthorized: false
+        }
+      }
+    })
+  : new Sequelize(dbConfig.database, dbConfig.username, dbConfig.password, {
+      host: dbConfig.host,
+      port: dbConfig.port,
+      dialect: 'postgres',
+      logging: false,
+      dialectOptions: dbConfig.dialectOptions
+    });
 
 async function quickCheck() {
   try {
     console.log('🔍 Quick Check - Estado Actual\n');
     
     await sequelize.authenticate();
-    console.log('✅ Conectado a base de datos\n');
+    console.log(`✅ Conectado a: ${useRailway ? '🚂 RAILWAY (Producción)' : '💻 LOCAL'}\n`);
 
     // 1. Expenses con Chase Credit Card
     const [expenses] = await sequelize.query(`
@@ -63,11 +82,13 @@ async function quickCheck() {
     console.log('🎯 Resumen:');
     const allReady = cols.length > 0 && enums.length > 0 && siCols.length === 3;
     if (allReady) {
-      console.log('✅ Todas las migraciones YA están aplicadas en LOCAL');
+      console.log(`✅ Todas las migraciones aplicadas en ${useRailway ? 'RAILWAY' : 'LOCAL'}`);
       console.log('   Sistema listo para usar!\n');
     } else {
-      console.log('⚠️  Faltan migraciones (esto es ESPERADO en producción)');
-      console.log('   En producción deberás ejecutar deploy-chase-credit-card.js\n');
+      console.log('⚠️  Faltan migraciones');
+      console.log(`   ${3 - siCols.length} campos de tarjeta faltantes`);
+      console.log(`   paidAmount: ${cols.length > 0 ? 'OK' : 'FALTA'}`);
+      console.log(`   ENUM partial: ${enums.length > 0 ? 'OK' : 'FALTA'}\n`);
     }
 
     process.exit(0);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import axios from 'axios';
 import {
@@ -51,19 +51,17 @@ const AccountsReceivable = () => {
     byExternalReferral: [],
     allBudgets: []
   });
+  const [incomeData, setIncomeData] = useState({
+    summary: {},
+    income: []
+  });
 
   useEffect(() => {
     fetchAccountsReceivable();
     fetchPendingCommissions();
     fetchActiveInvoices();
+    fetchIncome();
   }, []);
-
-  useEffect(() => {
-    // Refetch invoices when filter changes
-    if (activeTab === 'invoices') {
-      fetchActiveInvoices();
-    }
-  }, [invoiceFilter]);
 
   const fetchAccountsReceivable = async () => {
     setLoading(true);
@@ -113,6 +111,57 @@ const AccountsReceivable = () => {
       alert('Error al cargar invoices activos');
     }
   };
+
+  const fetchIncome = async () => {
+    try {
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_URL}/accounts-receivable/income`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setIncomeData(response.data);
+    } catch (error) {
+      console.error('Error fetching income:', error);
+      alert('Error al cargar ingresos');
+    }
+  };
+
+  // 🔥 Filtrado de Invoices en Frontend
+  const filteredInvoices = useMemo(() => {
+    if (!invoicesData.invoices || invoicesData.invoices.length === 0) {
+      return [];
+    }
+
+    return invoicesData.invoices.filter(invoice => {
+      // Filtro por estado de pago
+      if (invoiceFilter.status !== 'all' && invoice.paymentStatus !== invoiceFilter.status) {
+        return false;
+      }
+
+      // Filtro por fecha inicio
+      if (invoiceFilter.startDate) {
+        const invoiceDate = new Date(invoice.budgetDate);
+        const startDate = new Date(invoiceFilter.startDate);
+        if (invoiceDate < startDate) return false;
+      }
+
+      // Filtro por fecha fin
+      if (invoiceFilter.endDate) {
+        const invoiceDate = new Date(invoice.budgetDate);
+        const endDate = new Date(invoiceFilter.endDate);
+        if (invoiceDate > endDate) return false;
+      }
+
+      // Filtro por búsqueda (dirección o cliente)
+      if (invoiceFilter.searchTerm) {
+        const searchLower = invoiceFilter.searchTerm.toLowerCase();
+        const addressMatch = invoice.propertyAddress?.toLowerCase().includes(searchLower);
+        const clientMatch = invoice.clientName?.toLowerCase().includes(searchLower);
+        if (!addressMatch && !clientMatch) return false;
+      }
+
+      return true;
+    });
+  }, [invoicesData.invoices, invoiceFilter]);
 
   const handleToggleCommissionPaid = async (budgetId, currentStatus, workId) => {
     // Validar que exista Work antes de permitir marcar como pagada
@@ -262,77 +311,53 @@ const AccountsReceivable = () => {
         </p>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {/* Total Accounts Receivable */}
-        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white">
+      {/* Summary Cards - Solo lo esencial */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-6 md:mb-8">
+        {/* Total por Cobrar - LO MÁS IMPORTANTE */}
+        <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg shadow-lg p-4 md:p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-green-100 text-sm font-medium">Total por Cobrar</p>
-              <p className="text-3xl font-bold mt-2">
-                {formatCurrency(data.summary.totalAccountsReceivable)}
-              </p>
-              <p className="text-green-100 text-xs mt-1">
-                Solo Works confirmados
-              </p>
-            </div>
-            <FaMoneyBillWave className="text-5xl text-green-200 opacity-50" />
-          </div>
-        </div>
-
-        {/* Active Invoices */}
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-blue-100 text-sm font-medium">Invoices Activos</p>
-              <p className="text-3xl font-bold mt-2">
-                {formatCurrency(invoicesData.summary.totalExpected || 0)}
-              </p>
-              <p className="text-blue-100 text-xs mt-1">
-                {invoicesData.summary.totalInvoices || 0} budgets aprobados
-              </p>
-            </div>
-            <FaFileInvoiceDollar className="text-5xl text-blue-200 opacity-50" />
-          </div>
-        </div>
-
-        {/* Works in Progress */}
-        <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg shadow-lg p-6 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-orange-100 text-sm font-medium">Works en Progreso</p>
-              <p className="text-3xl font-bold mt-2">
-                {formatCurrency(data.summary.totalPendingFromWorks)}
+              <p className="text-orange-100 text-xs md:text-sm font-medium">Total Por Cobrar</p>
+              <p className="text-2xl md:text-3xl font-bold mt-1 md:mt-2">
+                {formatCurrency(invoicesData.summary?.totalRemaining || 0)}
               </p>
               <p className="text-orange-100 text-xs mt-1">
-                {data.summary.worksInProgressCount} obras
+                {invoicesData.summary?.totalInvoices || 0} works activos
               </p>
             </div>
-            <FaChartLine className="text-5xl text-orange-200 opacity-50" />
+            <FaMoneyBillWave className="text-3xl md:text-5xl text-orange-200 opacity-50" />
           </div>
         </div>
 
-        {/* Pending Commissions */}
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-lg p-6 text-white">
+        {/* Total del Contrato */}
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-4 md:p-6 text-white">
           <div className="flex items-center justify-between">
-            <div className="w-full">
-              <p className="text-purple-100 text-sm font-medium">Comisiones</p>
-              <div className="flex items-baseline gap-3 mt-2">
-                <p className="text-3xl font-bold">
-                  {formatCurrency(commissionsData.summary.totalPendingCommissions)}
-                </p>
-                <span className="text-purple-200 text-sm">pendientes</span>
-              </div>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-green-200 text-xs font-semibold">
-                  ✓ {formatCurrency(commissionsData.summary.totalPaidCommissions || 0)} pagadas
-                </span>
-              </div>
-              <p className="text-purple-100 text-xs mt-1">
-                {commissionsData.summary.totalBudgetsWithCommissions} budgets
+            <div>
+              <p className="text-blue-100 text-xs md:text-sm font-medium">Total Contratos</p>
+              <p className="text-2xl md:text-3xl font-bold mt-1 md:mt-2">
+                {formatCurrency(invoicesData.summary?.totalExpected || 0)}
+              </p>
+              <p className="text-blue-100 text-xs mt-1">
+                Suma de todos los contratos
               </p>
             </div>
-            <FaUserTie className="text-5xl text-purple-200 opacity-50" />
+            <FaFileInvoiceDollar className="text-3xl md:text-5xl text-blue-200 opacity-50" />
+          </div>
+        </div>
+
+        {/* Total Cobrado */}
+        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-4 md:p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-xs md:text-sm font-medium">Total Cobrado</p>
+              <p className="text-2xl md:text-3xl font-bold mt-1 md:mt-2">
+                {formatCurrency(invoicesData.summary?.totalCollected || 0)}
+              </p>
+              <p className="text-green-100 text-xs mt-1">
+                Ya recibido
+              </p>
+            </div>
+            <FaCheckCircle className="text-3xl md:text-5xl text-green-200 opacity-50" />
           </div>
         </div>
       </div>
@@ -364,15 +389,15 @@ const AccountsReceivable = () => {
               Resumen General
             </button>
             <button
-              onClick={() => setActiveTab('works')}
+              onClick={() => setActiveTab('income')}
               className={`px-6 py-4 text-sm font-medium ${
-                activeTab === 'works'
+                activeTab === 'income'
                   ? 'border-b-2 border-blue-500 text-blue-600'
                   : 'text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
-              <FaHandHoldingUsd className="inline mr-2" />
-              Works en Progreso
+              <FaDollarSign className="inline mr-2" />
+              Ingresos
             </button>
             <button
               onClick={() => setActiveTab('commissions')}
@@ -478,59 +503,31 @@ const AccountsReceivable = () => {
             </div>
           </div>
 
-          {/* Summary Cards for Invoices */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-6 border border-blue-200">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="bg-blue-500 text-white rounded-full w-10 h-10 flex items-center justify-center">
-                  <FaFileInvoiceDollar className="text-lg" />
+          {/* Summary Cards Simplificadas */}
+          <div className="grid grid-cols-2 md:grid-cols-2 gap-3 md:gap-4 mb-4 md:mb-6">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-3 md:p-4 border border-blue-200">
+              <div className="flex items-center gap-2 md:gap-3">
+                <div className="bg-blue-500 text-white rounded-full w-8 h-8 md:w-10 md:h-10 flex items-center justify-center flex-shrink-0">
+                  <FaFileInvoiceDollar className="text-sm md:text-lg" />
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600">Total Invoices</p>
-                  <p className="text-2xl font-bold text-blue-600">
-                    {invoicesData.summary.totalInvoices || 0}
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-600">Total Works</p>
+                  <p className="text-lg md:text-2xl font-bold text-blue-600 truncate">
+                    {filteredInvoices.length}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-6 border border-green-200">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="bg-green-500 text-white rounded-full w-10 h-10 flex items-center justify-center">
-                  <FaDollarSign className="text-lg" />
+            <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-3 md:p-4 border border-orange-200">
+              <div className="flex items-center gap-2 md:gap-3">
+                <div className="bg-orange-500 text-white rounded-full w-8 h-8 md:w-10 md:h-10 flex items-center justify-center flex-shrink-0">
+                  <FaExclamationTriangle className="text-sm md:text-lg" />
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600">Total Esperado</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    {formatCurrency(invoicesData.summary.totalExpected || 0)}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-6 border border-purple-200">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="bg-purple-500 text-white rounded-full w-10 h-10 flex items-center justify-center">
-                  <FaCheckCircle className="text-lg" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Total Cobrado</p>
-                  <p className="text-2xl font-bold text-purple-600">
-                    {formatCurrency(invoicesData.summary.totalCollected || 0)}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-6 border border-orange-200">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="bg-orange-500 text-white rounded-full w-10 h-10 flex items-center justify-center">
-                  <FaExclamationTriangle className="text-lg" />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Por Cobrar</p>
-                  <p className="text-2xl font-bold text-orange-600">
-                    {formatCurrency(invoicesData.summary.totalRemaining || 0)}
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-600">Por Cobrar</p>
+                  <p className="text-lg md:text-2xl font-bold text-orange-600 truncate">
+                    {formatCurrency(filteredInvoices.reduce((sum, inv) => sum + (inv.remainingAmount || 0), 0))}
                   </p>
                 </div>
               </div>
@@ -538,65 +535,51 @@ const AccountsReceivable = () => {
           </div>
 
           {/* Invoices Table */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <FaFileInvoiceDollar className="text-blue-500" />
-              Invoices Activos - Detalle de Cobros
+          <div className="bg-white rounded-lg shadow-md p-3 md:p-6">
+            <h2 className="text-lg md:text-xl font-bold text-gray-800 mb-3 md:mb-4 flex items-center gap-2">
+              <FaFileInvoiceDollar className="text-blue-500 text-lg md:text-xl" />
+              <span className="truncate">Invoices Activos - Detalle</span>
             </h2>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Invoice #
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Propiedad
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Cliente
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Fecha
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Total Budget
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      C.O.
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Total Esperado
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Initial Payment
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Cobrado
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Restante
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Estado
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Work
-                    </th>
-                  </tr>
-                </thead>
+            <div className="overflow-x-auto -mx-3 md:mx-0">
+              <div className="inline-block min-w-full align-middle">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                        Invoice #
+                      </th>
+                      <th className="px-3 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                        Propiedad
+                      </th>
+                      <th className="px-3 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                        Fecha
+                      </th>
+                      <th className="px-3 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                        Budget
+                      </th>
+                      <th className="px-3 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                        C.O.
+                      </th>
+                      <th className="px-3 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                        Cobrado
+                      </th>
+                      <th className="px-3 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                        Restante
+                      </th>
+                      <th className="px-3 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                        Estado
+                      </th>
+                    </tr>
+                  </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {invoicesData.invoices && invoicesData.invoices.length > 0 ? (
-                    invoicesData.invoices.map((invoice) => (
+                  {filteredInvoices && filteredInvoices.length > 0 ? (
+                    filteredInvoices.map((invoice) => (
                       <tr key={invoice.budgetId} className="hover:bg-gray-50">
                         <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
                           #{invoice.invoiceNumber || invoice.budgetId}
                         </td>
                         <td className="px-4 py-4 text-sm text-gray-900 max-w-xs truncate">
                           {invoice.propertyAddress}
-                        </td>
-                        <td className="px-4 py-4 text-sm text-gray-900">
-                          {invoice.clientName}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
                           {formatDate(invoice.budgetDate)}
@@ -617,12 +600,6 @@ const AccountsReceivable = () => {
                           ) : (
                             <span className="text-gray-400">-</span>
                           )}
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm font-bold text-green-600">
-                          {formatCurrency(invoice.expectedTotal)}
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-sm text-purple-600">
-                          {formatCurrency(invoice.initialPayment)}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm font-semibold text-blue-600">
                           {formatCurrency(invoice.totalCollected)}
@@ -648,37 +625,18 @@ const AccountsReceivable = () => {
                              'Pendiente'}
                           </span>
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          {invoice.hasWork ? (
-                            <div className="flex flex-col gap-1">
-                              <span className="text-xs text-green-600 font-semibold">
-                                ✓ Work #{invoice.workId}
-                              </span>
-                              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                                invoice.workStatus === 'inProgress'
-                                  ? 'bg-blue-100 text-blue-800'
-                                  : invoice.workStatus === 'finalApproved'
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-gray-100 text-gray-800'
-                              }`}>
-                                {invoice.workStatus}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-gray-400">Sin Work</span>
-                          )}
-                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="12" className="px-4 py-8 text-center text-gray-500">
+                      <td colSpan="8" className="px-4 py-8 text-center text-gray-500">
                         No hay invoices activos con los filtros seleccionados
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
+              </div>
             </div>
           </div>
         </div>
@@ -891,6 +849,150 @@ const AccountsReceivable = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'income' && (
+        <div className="space-y-6">
+          {/* Income Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+            <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg p-4 md:p-6 text-white shadow-lg">
+              <div className="flex items-center gap-3">
+                <FaDollarSign className="text-3xl md:text-4xl" />
+                <div>
+                  <p className="text-sm opacity-90">Total Ingresos</p>
+                  <p className="text-2xl md:text-3xl font-bold">
+                    {formatCurrency(incomeData.summary.totalIncome || 0)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-4 md:p-6 text-white shadow-lg">
+              <div className="flex items-center gap-3">
+                <FaMoneyBillWave className="text-3xl md:text-4xl" />
+                <div>
+                  <p className="text-sm opacity-90">Initial Payments</p>
+                  <p className="text-2xl md:text-3xl font-bold">
+                    {formatCurrency(incomeData.summary.totalInitialPayments || 0)}
+                  </p>
+                  <p className="text-xs opacity-75">
+                    {incomeData.summary.initialPaymentsCount || 0} pagos
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg p-4 md:p-6 text-white shadow-lg">
+              <div className="flex items-center gap-3">
+                <FaCheckCircle className="text-3xl md:text-4xl" />
+                <div>
+                  <p className="text-sm opacity-90">Final Payments</p>
+                  <p className="text-2xl md:text-3xl font-bold">
+                    {formatCurrency(incomeData.summary.totalFinalPayments || 0)}
+                  </p>
+                  <p className="text-xs opacity-75">
+                    {incomeData.summary.finalPaymentsCount || 0} pagos
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Income Table */}
+          <div className="bg-white rounded-lg shadow-md p-3 md:p-6">
+            <h2 className="text-lg md:text-xl font-bold text-gray-800 mb-3 md:mb-4 flex items-center gap-2">
+              <FaDollarSign className="text-green-500 text-lg md:text-xl" />
+              <span className="truncate">Historial de Ingresos</span>
+              <span className="ml-auto text-sm text-gray-500">
+                {incomeData.income?.length || 0} transacciones
+              </span>
+            </h2>
+            <div className="overflow-x-auto -mx-3 md:mx-0">
+              <div className="inline-block min-w-full align-middle">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-3 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                        Fecha
+                      </th>
+                      <th className="px-3 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                        Tipo
+                      </th>
+                      <th className="px-3 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                        Propiedad
+                      </th>
+                      <th className="px-3 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                        Invoice #
+                      </th>
+                      <th className="px-3 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                        Método de Pago
+                      </th>
+                      <th className="px-3 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                        Monto
+                      </th>
+                      <th className="px-3 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase whitespace-nowrap">
+                        Estado Work
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {incomeData.income && incomeData.income.length > 0 ? (
+                      incomeData.income.map((income) => (
+                        <tr key={income.id} className="hover:bg-gray-50">
+                          <td className="px-3 md:px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                            {formatDate(income.date)}
+                          </td>
+                          <td className="px-3 md:px-4 py-3 whitespace-nowrap text-sm">
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                              income.type === 'initial_payment'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-purple-100 text-purple-800'
+                            }`}>
+                              {income.type === 'initial_payment' ? 'Initial' : 'Final'}
+                            </span>
+                          </td>
+                          <td className="px-3 md:px-4 py-3 text-sm text-gray-900 max-w-xs truncate">
+                            {income.propertyAddress}
+                          </td>
+                          <td className="px-3 md:px-4 py-3 whitespace-nowrap text-sm font-medium text-blue-600">
+                            #{income.budgetNumber}
+                          </td>
+                          <td className="px-3 md:px-4 py-3 text-sm text-gray-700">
+                            {income.paymentMethod}
+                          </td>
+                          <td className="px-3 md:px-4 py-3 whitespace-nowrap text-sm font-bold text-green-600">
+                            {formatCurrency(income.amount)}
+                          </td>
+                          <td className="px-3 md:px-4 py-3 whitespace-nowrap">
+                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                              income.workStatus === 'completed'
+                                ? 'bg-green-100 text-green-800'
+                                : income.workStatus === 'in_progress'
+                                ? 'bg-blue-100 text-blue-800'
+                                : income.workStatus === 'Sin Work'
+                                ? 'bg-gray-100 text-gray-600'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {income.workStatus === 'in_progress' ? 'En Progreso' :
+                               income.workStatus === 'completed' ? 'Completado' :
+                               income.workStatus}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
+                          No hay ingresos registrados
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       )}
