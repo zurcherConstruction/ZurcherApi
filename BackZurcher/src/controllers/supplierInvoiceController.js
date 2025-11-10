@@ -542,21 +542,17 @@ const registerPayment = async (req, res) => {
 /**
  * Actualizar un invoice
  * PUT /api/supplier-invoices/:id
+ * ⚠️ NOTA: Este endpoint solo actualiza campos básicos del invoice.
+ * El sistema nuevo usa SupplierInvoiceExpense para vincular directamente expenses a invoices.
  */
 const updateSupplierInvoice = async (req, res) => {
   const transaction = await SupplierInvoice.sequelize.transaction();
   
   try {
     const { id } = req.params;
-    const { items, linkedWorks, ...invoiceUpdates } = req.body; // 🆕 Extraer linkedWorks
+    const invoiceUpdates = req.body;
 
-    const invoice = await SupplierInvoice.findByPk(id, {
-      include: [{
-        model: SupplierInvoiceItem,
-        as: 'items'
-      }],
-      transaction
-    });
+    const invoice = await SupplierInvoice.findByPk(id, { transaction });
 
     if (!invoice) {
       await transaction.rollback();
@@ -565,163 +561,30 @@ const updateSupplierInvoice = async (req, res) => {
       });
     }
 
-    // No permitir editar invoices pagados
+    // No permitir editar invoices pagados completamente
     if (invoice.paymentStatus === 'paid') {
       await transaction.rollback();
       return res.status(400).json({
-        error: 'No se puede editar un invoice que ya está pagado'
+        error: 'No se puede editar un invoice que ya está pagado completamente'
       });
     }
 
-    // Si se envían items, procesarlos
-    if (items && Array.isArray(items)) {
-      // Obtener items actuales
-      const currentItems = invoice.items || [];
-      
-      // Revertir expenses de items que serán eliminados
-      for (const currentItem of currentItems) {
-        if (currentItem.relatedExpenseId) {
-          await Expense.update({
-            paymentStatus: 'unpaid',
-            paidDate: null,
-            supplierInvoiceItemId: null
-          }, {
-            where: { idExpense: currentItem.relatedExpenseId },
-            transaction
-          });
-        }
-        if (currentItem.relatedFixedExpenseId) {
-          await FixedExpense.update({
-            paymentStatus: 'unpaid',
-            paidDate: null,
-            supplierInvoiceItemId: null
-          }, {
-            where: { idFixedExpense: currentItem.relatedFixedExpenseId },
-            transaction
-          });
-        }
-      }
-
-      // Eliminar todos los items actuales
-      await SupplierInvoiceItem.destroy({
-        where: { supplierInvoiceId: id },
-        transaction
-      });
-
-      // Crear nuevos items
-      let totalAmount = 0;
-      for (const itemData of items) {
-        const item = await SupplierInvoiceItem.create({
-          supplierInvoiceId: id,
-          workId: itemData.workId || null,
-          description: itemData.description,
-          category: itemData.category,
-          amount: itemData.amount,
-          relatedExpenseId: itemData.relatedExpenseId || null,
-          relatedFixedExpenseId: itemData.relatedFixedExpenseId || null,
-          notes: itemData.notes || null
-        }, { transaction });
-
-        totalAmount += parseFloat(itemData.amount);
-
-        // Vincular expense si existe
-        if (itemData.relatedExpenseId) {
-          await Expense.update({
-            paymentStatus: 'paid_via_invoice',
-            paidDate: invoiceUpdates.issueDate || invoice.issueDate,
-            supplierInvoiceItemId: item.idItem
-          }, {
-            where: { idExpense: itemData.relatedExpenseId },
-            transaction
-          });
-        }
-        
-        if (itemData.relatedFixedExpenseId) {
-          await FixedExpense.update({
-            paymentStatus: 'paid_via_invoice',
-            paidDate: invoiceUpdates.issueDate || invoice.issueDate,
-            supplierInvoiceItemId: item.idItem
-          }, {
-            where: { idFixedExpense: itemData.relatedFixedExpenseId },
-            transaction
-          });
-        }
-      }
-
-      // Actualizar totalAmount
-      invoiceUpdates.totalAmount = totalAmount;
-    }
-
-    // Actualizar invoice principal
+    // Actualizar campos del invoice
     await invoice.update(invoiceUpdates, { transaction });
-
-    // 🆕 Actualizar linkedWorks si se proporcionaron
-    if (linkedWorks !== undefined) {
-      // Eliminar relaciones existentes
-      await SupplierInvoiceWork.destroy({
-        where: { supplierInvoiceId: id },
-        transaction
-      });
-
-      // Crear nuevas relaciones
-      if (Array.isArray(linkedWorks) && linkedWorks.length > 0) {
-        for (const workId of linkedWorks) {
-          await SupplierInvoiceWork.create({
-            supplierInvoiceId: id,
-            workId: workId
-          }, { transaction });
-        }
-        console.log(`  🔗 ${linkedWorks.length} work(s) vinculado(s) al invoice`);
-      }
-    }
 
     await transaction.commit();
 
     console.log(`✅ Invoice ${invoice.invoiceNumber} actualizado`);
 
-    // Retornar invoice actualizado con items y linkedWorks
-    const updatedInvoice = await SupplierInvoice.findByPk(id, {
-      include: [
-        {
-          model: SupplierInvoiceItem,
-          as: 'items',
-          include: [
-            {
-              model: Work,
-              as: 'work',
-              attributes: ['idWork', 'propertyAddress']
-            },
-            {
-              model: Expense,
-              as: 'relatedExpense',
-              attributes: ['idExpense', 'typeExpense', 'amount']
-            },
-            {
-              model: FixedExpense,
-              as: 'relatedFixedExpense',
-              attributes: ['idFixedExpense', 'description', 'totalAmount']
-            }
-          ]
-        },
-        {
-          model: Work,
-          as: 'linkedWorks', // 🆕 Incluir works vinculados
-          attributes: ['idWork', 'propertyAddress'],
-          through: { attributes: [] }
-        }
-      ]
-    });
-
-    res.json({
+    return res.status(200).json({
       message: 'Invoice actualizado exitosamente',
-      invoice: updatedInvoice
+      invoice
     });
-
   } catch (error) {
     await transaction.rollback();
     console.error('❌ Error actualizando invoice:', error);
-    res.status(500).json({
-      error: 'Error al actualizar el invoice',
+    return res.status(500).json({
+      error: 'Error al actualizar invoice',
       details: error.message
     });
   }
