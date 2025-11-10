@@ -74,6 +74,40 @@ module.exports = (sequelize) => {
       allowNull: true,
       defaultValue: [],
       comment: 'IDs de staff mencionados con @ en el mensaje'
+    },
+    // 🔔 SISTEMA DE ALERTAS
+    isRead: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      comment: 'Indica si la nota ha sido vista/leída'
+    },
+    readBy: {
+      type: DataTypes.ARRAY(DataTypes.UUID),
+      allowNull: true,
+      defaultValue: [],
+      comment: 'IDs de staff que han leído esta nota'
+    },
+    // ⏰ SISTEMA DE RECORDATORIOS
+    reminderDate: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Fecha/hora para recordatorio futuro (ej: llamar cliente)'
+    },
+    reminderFor: {
+      type: DataTypes.ARRAY(DataTypes.UUID),
+      allowNull: true,
+      defaultValue: [],
+      comment: 'IDs de staff que deben recibir el recordatorio'
+    },
+    isReminderActive: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      comment: 'Si el recordatorio está activo (no completado/cancelado)'
+    },
+    reminderCompletedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Cuándo se completó/canceló el recordatorio'
     }
   }, {
     timestamps: true, // Crea automáticamente createdAt y updatedAt

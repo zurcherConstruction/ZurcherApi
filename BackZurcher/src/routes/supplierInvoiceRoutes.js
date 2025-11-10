@@ -18,7 +18,9 @@ const {
   createSimpleSupplierInvoice, // 🆕 NUEVO formulario simplificado
   getVendorsList, // 🆕 NUEVO lista de vendors para autocomplete
   createCreditCardTransaction, // 💳 NUEVO transacciones de tarjeta
-  getCreditCardBalance // 💳 NUEVO balance de tarjeta
+  getCreditCardBalance, // 💳 NUEVO balance de tarjeta
+  createAmexTransaction, // 💳 NUEVO transacciones AMEX
+  getAmexBalance // 💳 NUEVO balance AMEX
 } = require('../controllers/supplierInvoiceController');
 
 // Middleware de autenticación (ajusta según tu implementación)
@@ -54,11 +56,26 @@ router.get('/credit-card/balance', getCreditCardBalance);
 
 /**
  * 💳 @route   POST /api/supplier-invoices/credit-card/transaction
- * @desc    Crear una transacción de tarjeta de crédito (cargo, pago o interés)
+ * @desc    Crear una transacción de tarjeta de crédito Chase (cargo, pago o interés)
  * @body    { transactionType, amount, date, description, invoiceNumber, paymentMethod?, paymentDetails? }
  * @access  Private
  */
 router.post('/credit-card/transaction', createCreditCardTransaction);
+
+/**
+ * 💳 @route   GET /api/supplier-invoices/amex/balance
+ * @desc    Obtener balance actual y transacciones de AMEX
+ * @access  Private
+ */
+router.get('/amex/balance', getAmexBalance);
+
+/**
+ * 💳 @route   POST /api/supplier-invoices/amex/transaction
+ * @desc    Crear una transacción de AMEX (cargo, pago o interés)
+ * @body    { transactionType, amount, date, description, invoiceNumber, paymentMethod?, paymentDetails? }
+ * @access  Private
+ */
+router.post('/amex/transaction', createAmexTransaction);
 
 /**
  * @route   GET /api/supplier-invoices/payment-history

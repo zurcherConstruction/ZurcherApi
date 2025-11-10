@@ -26,6 +26,9 @@ export const fetchBudgetNotes = (budgetId, filters = {}) => async (dispatch) => 
     if (filters.noteType) params.append('noteType', filters.noteType);
     if (filters.priority) params.append('priority', filters.priority);
     if (filters.unresolved !== undefined) params.append('unresolved', filters.unresolved);
+    
+    // Agregar timestamp para evitar caché
+    params.append('_t', Date.now());
 
     const response = await api.get(`/budget-notes/budget/${budgetId}?${params.toString()}`);
     dispatch(fetchBudgetNotesSuccess({ budgetId, notes: response.data.notes || [] }));
@@ -40,7 +43,8 @@ export const fetchBudgetNotes = (budgetId, filters = {}) => async (dispatch) => 
 export const fetchBudgetStats = (budgetId) => async (dispatch) => {
   dispatch(fetchBudgetStatsRequest());
   try {
-    const response = await api.get(`/budget-notes/budget/${budgetId}/stats`);
+    // Agregar timestamp para evitar caché
+    const response = await api.get(`/budget-notes/budget/${budgetId}/stats?_t=${Date.now()}`);
     dispatch(fetchBudgetStatsSuccess({ budgetId, stats: response.data }));
   } catch (error) {
     const errorMessage =
@@ -106,4 +110,80 @@ export const deleteBudgetNote = (noteId, budgetId) => async (dispatch) => {
 // Limpiar errores
 export const clearError = () => (dispatch) => {
   dispatch(clearBudgetNoteError());
+};
+
+// 🆕 ===== ACCIONES DE RECORDATORIOS =====
+
+// Configurar recordatorio en una nota
+export const setReminder = (noteId, reminderData) => async (dispatch) => {
+  try {
+    const response = await api.post(`/budget-notes/${noteId}/reminder`, reminderData);
+    return { success: true, data: response.data };
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.error || 'Error al configurar recordatorio';
+    return { success: false, error: errorMessage };
+  }
+};
+
+// Completar recordatorio
+export const completeReminder = (noteId) => async (dispatch) => {
+  try {
+    const response = await api.patch(`/budget-notes/${noteId}/reminder/complete`);
+    return { success: true, data: response.data };
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.error || 'Error al completar recordatorio';
+    return { success: false, error: errorMessage };
+  }
+};
+
+// Obtener recordatorios activos del usuario
+export const fetchActiveReminders = () => async (dispatch) => {
+  try {
+    const response = await api.get('/budget-notes/reminders/active');
+    return { success: true, data: response.data };
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.error || 'Error al cargar recordatorios';
+    return { success: false, error: errorMessage };
+  }
+};
+
+// 🆕 ===== ACCIONES DE ALERTAS =====
+
+// Obtener contador de alertas
+export const fetchAlertCount = () => async (dispatch) => {
+  try {
+    const response = await api.get('/budget-notes/alerts/count');
+    return { success: true, data: response.data };
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.error || 'Error al cargar alertas';
+    return { success: false, error: errorMessage };
+  }
+};
+
+// Marcar nota como leída
+export const markNoteAsRead = (noteId) => async (dispatch) => {
+  try {
+    const response = await api.patch(`/budget-notes/${noteId}/read`);
+    return { success: true, data: response.data };
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.error || 'Error al marcar nota como leída';
+    return { success: false, error: errorMessage };
+  }
+};
+
+// Obtener notas no leídas
+export const fetchUnreadNotes = () => async (dispatch) => {
+  try {
+    const response = await api.get('/budget-notes/alerts/unread');
+    return { success: true, data: response.data };
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.error || 'Error al cargar notas no leídas';
+    return { success: false, error: errorMessage };
+  }
 };

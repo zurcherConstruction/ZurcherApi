@@ -33,7 +33,12 @@ exports.handleStripeWebhook = async (req, res) => {
 
   console.log('📬 Stripe Webhook recibido:', event.type);
 
-  // Manejar diferentes tipos de eventos
+  // ⚠️ IMPORTANTE: Siempre responder 200 a Stripe PRIMERO
+  // Si no, Stripe reintentará el webhook infinitamente
+  res.status(200).json({ received: true });
+
+  // Procesar el webhook de forma asíncrona (sin bloquear la respuesta)
+  // Si hay errores, los logueamos pero no afectamos la respuesta a Stripe
   try {
     switch (event.type) {
       case 'checkout.session.completed':
@@ -52,11 +57,10 @@ exports.handleStripeWebhook = async (req, res) => {
         console.log(`⚡ Evento no manejado: ${event.type}`);
     }
 
-    // Responder a Stripe que recibimos el webhook
-    res.json({ received: true });
+    console.log('✅ Webhook procesado exitosamente');
   } catch (error) {
-    console.error('❌ Error procesando webhook:', error);
-    res.status(500).json({ error: 'Error procesando webhook' });
+    console.error('❌ Error procesando webhook (ya respondimos 200 a Stripe):', error);
+    // No lanzar el error - ya respondimos a Stripe
   }
 };
 
