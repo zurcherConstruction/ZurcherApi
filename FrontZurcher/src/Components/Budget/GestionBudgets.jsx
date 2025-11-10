@@ -24,6 +24,7 @@ import { Worker, Viewer } from '@react-pdf-viewer/core';
 import api from '../../utils/axios';
 import '@react-pdf-viewer/core/lib/styles/index.css';
 import BudgetNotesModal from './BudgetNotesModal';
+import NotesAlertBadge from '../Common/NotesAlertBadge'; // 🆕 Badge de alertas
 
 const GestionBudgets = () => {
   const dispatch = useDispatch();
@@ -93,6 +94,29 @@ const GestionBudgets = () => {
   // 📝 Estado para modal de notas de seguimiento
   const [showNotesModal, setShowNotesModal] = useState(false);
   const [budgetForNotes, setBudgetForNotes] = useState(null);
+
+  // 🆕 Estado para alertas de notas (cargadas una sola vez)
+  const [budgetAlerts, setBudgetAlerts] = useState({});
+  const [loadingAlerts, setLoadingAlerts] = useState(false);
+
+  // 🆕 Función reutilizable para recargar alertas
+  const reloadBudgetAlerts = async () => {
+    try {
+      setLoadingAlerts(true);
+      // Agregar timestamp para evitar caché
+      const response = await api.get(`/budget-notes/alerts/budgets?_t=${Date.now()}`);
+      setBudgetAlerts(response.data.budgetsWithAlerts || {});
+    } catch (error) {
+      console.error('Error al cargar alertas de budgets:', error);
+    } finally {
+      setLoadingAlerts(false);
+    }
+  };
+
+  // 🆕 Cargar alertas de todos los budgets una sola vez
+  useEffect(() => {
+    reloadBudgetAlerts();
+  }, []); // Solo cargar una vez al montar el componente
 
   // ✅ useEffect para debounce del searchTerm (esperar 800ms después de que el usuario deje de escribir)
   useEffect(() => {
@@ -405,6 +429,15 @@ const GestionBudgets = () => {
   const handleViewDetails = (budget) => {
     setSelectedBudget(budget);
     setShowDetailModal(true);
+  };
+
+  // 📝 Handler para cerrar modal de notas y recargar alertas
+  const handleCloseNotesModal = async () => {
+    setShowNotesModal(false);
+    setBudgetForNotes(null);
+    
+    // Recargar alertas para reflejar cambios (notas leídas, nuevos recordatorios, etc.)
+    await reloadBudgetAlerts();
   };
 
   // 📝 Handler para abrir modal de notas de seguimiento
@@ -850,7 +883,11 @@ const GestionBudgets = () => {
                         className="text-purple-600 hover:text-purple-900 p-1 rounded"
                         title="Seguimiento"
                       >
-                        <ChatBubbleLeftRightIcon className="h-4 w-4" />
+                        <NotesAlertBadge 
+                          budgetId={budget.idBudget} 
+                          alertData={budgetAlerts[budget.idBudget]}
+                          onClick={() => handleOpenNotes(budget)}
+                        />
                       </button>
                       <button
                         onClick={() => handleViewDetails(budget)}
@@ -1329,10 +1366,8 @@ const GestionBudgets = () => {
       {showNotesModal && budgetForNotes && (
         <BudgetNotesModal
           budget={budgetForNotes}
-          onClose={() => {
-            setShowNotesModal(false);
-            setBudgetForNotes(null);
-          }}
+          onClose={handleCloseNotesModal}
+          onAlertsChange={reloadBudgetAlerts}
         />
       )}
 
