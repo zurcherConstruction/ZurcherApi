@@ -2293,6 +2293,347 @@ const getCreditCardBalance = async (req, res) => {
   }
 };
 
+// ==========================================
+// 💳 FUNCIONES PARA AMEX
+// ==========================================
+
+/**
+ * 💳 Crear transacción de AMEX (cargo, pago o interés)
+ * POST /api/supplier-invoices/amex/transaction
+ * 
+ * - CARGO: Crea un Expense con paymentMethod = 'AMEX'
+ * - PAGO: Aplica FIFO sobre expenses pendientes
+ * - INTERÉS: Crea un Expense de tipo interés
+ */
+const createAmexTransaction = async (req, res) => {
+  const dbTransaction = await sequelize.transaction();
+
+  try {
+    const {
+      transactionType,
+      description,
+      amount,
+      date,
+      paymentMethod,
+      paymentDetails,
+      notes,
+      vendor,
+      workId
+    } = req.body;
+
+    console.log(`💳 [AMEX] Creando transacción tipo: ${transactionType}`);
+
+    if (!['charge', 'payment', 'interest'].includes(transactionType)) {
+      return res.status(400).json({
+        error: true,
+        message: 'transactionType debe ser: charge, payment o interest'
+      });
+    }
+
+    if (!amount || parseFloat(amount) <= 0) {
+      return res.status(400).json({
+        error: true,
+        message: 'El monto debe ser mayor a 0'
+      });
+    }
+
+    const transactionAmount = parseFloat(amount);
+    let createdExpense = null;
+    let updatedExpenses = [];
+
+    if (transactionType === 'charge') {
+      console.log(`💳 [CARGO] Creando expense con AMEX...`);
+
+      createdExpense = await Expense.create({
+        date: date || new Date().toISOString().split('T')[0],
+        amount: transactionAmount,
+        typeExpense: 'Comprobante Gasto',
+        notes: description || notes || 'Cargo manual en AMEX',
+        paymentMethod: 'AMEX',
+        paymentStatus: 'unpaid',
+        paidAmount: 0,
+        vendor: vendor || 'AMEX',
+        verified: false,
+        workId: workId || null,
+        staffId: req.staff?.id || null
+      }, { transaction: dbTransaction });
+
+      console.log(`✅ Expense creado: ${createdExpense.idExpense}`);
+    }
+
+    if (transactionType === 'interest') {
+      console.log(`📈 [INTERÉS] Creando expense de interés...`);
+
+      createdExpense = await Expense.create({
+        date: date || new Date().toISOString().split('T')[0],
+        amount: transactionAmount,
+        typeExpense: 'Gastos Generales',
+        notes: description || notes || 'Intereses AMEX',
+        paymentMethod: 'AMEX',
+        paymentStatus: 'unpaid',
+        paidAmount: 0,
+        vendor: 'AMEX - Intereses',
+        verified: false,
+        workId: null,
+        staffId: req.staff?.id || null
+      }, { transaction: dbTransaction });
+
+      console.log(`✅ Expense de interés creado: ${createdExpense.idExpense}`);
+    }
+
+    if (transactionType === 'payment') {
+      console.log(`💰 [FIFO] Aplicando pago de $${transactionAmount} sobre expenses pendientes...`);
+
+      const pendingExpenses = await Expense.findAll({
+        where: {
+          paymentMethod: 'AMEX',
+          paymentStatus: ['unpaid', 'partial']
+        },
+        order: [['date', 'ASC']],
+        transaction: dbTransaction
+      });
+
+      let remainingPayment = transactionAmount;
+
+      for (const expense of pendingExpenses) {
+        if (remainingPayment <= 0) break;
+
+        const expenseAmount = parseFloat(expense.amount);
+        const paidAmount = parseFloat(expense.paidAmount || 0);
+        const pendingAmount = expenseAmount - paidAmount;
+
+        if (pendingAmount > 0) {
+          const amountToApply = Math.min(remainingPayment, pendingAmount);
+          const newPaidAmount = paidAmount + amountToApply;
+
+          await expense.update({
+            paidAmount: newPaidAmount,
+            paymentStatus: newPaidAmount >= expenseAmount ? 'paid' : 'partial',
+            paidDate: newPaidAmount >= expenseAmount ? (date || new Date()) : expense.paidDate
+          }, { transaction: dbTransaction });
+
+          updatedExpenses.push({
+            idExpense: expense.idExpense,
+            notes: expense.notes,
+            amount: expenseAmount,
+            appliedPayment: amountToApply,
+            newStatus: newPaidAmount >= expenseAmount ? 'paid' : 'partial'
+          });
+
+          remainingPayment -= amountToApply;
+          console.log(`  ✅ Expense ${expense.notes}: $${amountToApply} aplicado`);
+        }
+      }
+
+      console.log(`💰 [FIFO] ${updatedExpenses.length} expense(s) actualizados`);
+
+      await SupplierInvoice.create({
+        invoiceNumber: `AMEX-PAYMENT-${Date.now()}`,
+        vendor: 'AMEX',
+        issueDate: date || new Date(),
+        dueDate: null,
+        totalAmount: transactionAmount,
+        paymentStatus: 'paid',
+        paymentMethod: paymentMethod,
+        paymentDetails: paymentDetails,
+        paymentDate: date || new Date(),
+        paidAmount: transactionAmount,
+        notes: description || notes || 'Pago de AMEX',
+        transactionType: 'payment',
+        isCreditCard: true,
+        balanceAfter: 0,
+        createdByStaffId: req.staff?.id || null
+      }, { transaction: dbTransaction });
+    }
+
+    await dbTransaction.commit();
+
+    const stats = await calculateAmexBalance();
+
+    console.log(`✅ Transacción ${transactionType} completada | Balance AMEX: $${stats.currentBalance}`);
+
+    res.status(201).json({
+      success: true,
+      message: `${transactionType === 'payment' ? 'Pago' : transactionType === 'interest' ? 'Interés' : 'Cargo'} registrado exitosamente`,
+      createdExpense: createdExpense || null,
+      updatedExpenses: updatedExpenses.length > 0 ? updatedExpenses : null,
+      currentBalance: stats.currentBalance,
+      statistics: stats
+    });
+
+  } catch (error) {
+    await dbTransaction.rollback();
+    console.error('❌ [AMEX] Error:', error);
+    res.status(500).json({
+      error: true,
+      message: 'Error al crear transacción de AMEX',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * 💳 Función auxiliar para calcular balance actual de AMEX
+ */
+const calculateAmexBalance = async (transaction = null) => {
+  const expenses = await Expense.findAll({
+    where: {
+      paymentMethod: 'AMEX'
+    },
+    attributes: ['amount', 'paidAmount', 'paymentStatus'],
+    transaction
+  });
+
+  const totalCharges = expenses.reduce((sum, exp) => sum + parseFloat(exp.amount), 0);
+  const totalPaidViaExpenses = expenses.reduce((sum, exp) => sum + parseFloat(exp.paidAmount || 0), 0);
+  
+  const pendingFromExpenses = expenses.reduce((sum, exp) => {
+    const amount = parseFloat(exp.amount);
+    const paid = parseFloat(exp.paidAmount || 0);
+    return sum + (amount - paid);
+  }, 0);
+
+  const interests = await SupplierInvoice.findAll({
+    where: {
+      vendor: 'AMEX',
+      isCreditCard: true,
+      transactionType: 'interest'
+    },
+    attributes: ['totalAmount'],
+    transaction
+  });
+
+  const totalInterests = interests.reduce((sum, int) => sum + parseFloat(int.totalAmount), 0);
+
+  const payments = await SupplierInvoice.findAll({
+    where: {
+      vendor: 'AMEX',
+      isCreditCard: true,
+      transactionType: 'payment'
+    },
+    attributes: ['totalAmount'],
+    transaction
+  });
+
+  const totalPayments = payments.reduce((sum, pay) => sum + parseFloat(pay.totalAmount), 0);
+
+  const currentBalance = pendingFromExpenses;
+
+  return {
+    currentBalance,
+    totalCharges,
+    totalInterests,
+    totalPayments,
+    totalPaidViaExpenses
+  };
+};
+
+/**
+ * 💳 Obtener balance y transacciones de AMEX
+ * GET /api/supplier-invoices/amex/balance
+ */
+const getAmexBalance = async (req, res) => {
+  try {
+    console.log('💳 [AMEX] Obteniendo balance y transacciones...');
+
+    const expenses = await Expense.findAll({
+      where: {
+        paymentMethod: 'AMEX'
+      },
+      attributes: [
+        'idExpense',
+        'date',
+        'amount',
+        'paidAmount',
+        'paymentStatus',
+        'notes',
+        'vendor',
+        'typeExpense',
+        'createdAt'
+      ],
+      order: [['date', 'DESC']]
+    });
+
+    const transactions = await SupplierInvoice.findAll({
+      where: { 
+        vendor: 'AMEX',
+        isCreditCard: true 
+      },
+      order: [['issueDate', 'DESC'], ['createdAt', 'DESC']],
+      attributes: [
+        'idSupplierInvoice',
+        'invoiceNumber',
+        'transactionType',
+        'issueDate',
+        'totalAmount',
+        'balanceAfter',
+        'paymentMethod',
+        'paymentDetails',
+        'notes',
+        'createdAt'
+      ]
+    });
+
+    const stats = await calculateAmexBalance();
+
+    const allTransactions = [
+      ...expenses.map(exp => ({
+        id: exp.idExpense,
+        type: 'charge',
+        transactionType: 'charge',
+        date: exp.date,
+        description: exp.notes || exp.vendor || exp.typeExpense,
+        amount: parseFloat(exp.amount),
+        paidAmount: parseFloat(exp.paidAmount || 0),
+        pendingAmount: parseFloat(exp.amount) - parseFloat(exp.paidAmount || 0),
+        paymentStatus: exp.paymentStatus,
+        createdAt: exp.createdAt,
+        source: 'expense'
+      })),
+      ...transactions.map(trans => ({
+        id: trans.idSupplierInvoice,
+        type: trans.transactionType,
+        transactionType: trans.transactionType,
+        date: trans.issueDate,
+        description: trans.notes || `${trans.transactionType === 'payment' ? 'Pago' : 'Interés'} de AMEX`,
+        amount: parseFloat(trans.totalAmount),
+        paymentMethod: trans.paymentMethod,
+        paymentDetails: trans.paymentDetails,
+        balanceAfter: parseFloat(trans.balanceAfter || 0),
+        createdAt: trans.createdAt,
+        source: 'supplier_invoice'
+      }))
+    ];
+
+    allTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    console.log(`✅ Balance AMEX actual: $${stats.currentBalance} | ${allTransactions.length} transacciones`);
+
+    res.json({
+      success: true,
+      currentBalance: stats.currentBalance,
+      statistics: {
+        totalCharges: stats.totalCharges,
+        totalInterests: stats.totalInterests,
+        totalPayments: stats.totalPayments,
+        transactionCount: allTransactions.length,
+        expensesCount: expenses.length,
+        paymentsCount: transactions.filter(t => t.transactionType === 'payment').length,
+        interestsCount: transactions.filter(t => t.transactionType === 'interest').length
+      },
+      transactions: allTransactions
+    });
+
+  } catch (error) {
+    console.error('❌ [AMEX] Error:', error);
+    res.status(500).json({
+      error: true,
+      message: 'Error al obtener balance de AMEX',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   createSupplierInvoice,
   getSupplierInvoices,
@@ -2308,6 +2649,8 @@ module.exports = {
   getVendorsSummary, // 🆕 NUEVO
   createSimpleSupplierInvoice, // 🆕 NUEVO formulario simplificado
   getVendorsList, // 🆕 NUEVO lista de vendors para autocomplete
-  createCreditCardTransaction, // 💳 NUEVO transacciones de tarjeta
-  getCreditCardBalance // 💳 NUEVO balance de tarjeta
+  createCreditCardTransaction, // 💳 NUEVO transacciones de tarjeta Chase
+  getCreditCardBalance, // 💳 NUEVO balance de tarjeta Chase
+  createAmexTransaction, // 💳 NUEVO transacciones de AMEX
+  getAmexBalance // 💳 NUEVO balance de AMEX
 };

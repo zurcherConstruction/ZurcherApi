@@ -16,6 +16,7 @@ import SupplierInvoiceDetail from './SupplierInvoiceDetail';
 import AccountsPayableSummary from './AccountsPayableSummary';
 import VendorsSummary from './VendorsSummary'; // 🆕 NUEVO
 import ChaseCreditCard from './ChaseCreditCard'; // 💳 NUEVO Chase Credit Card
+import AmexCreditCard from './AmexCreditCard'; // 💳 NUEVO AMEX Credit Card
 import CommissionsManager from './CommissionsManager'; // 💰 NUEVO Comisiones
 import { FaFileInvoiceDollar, FaPlus, FaFilter, FaTimes, FaBuilding, FaList, FaCreditCard, FaUserTie } from 'react-icons/fa'; // 💳 Agregado FaCreditCard, FaUserTie
 
@@ -29,7 +30,7 @@ const SupplierInvoiceManager = () => {
   const [showDetail, setShowDetail] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [activeTab, setActiveTab] = useState('list'); // 🆕 NUEVO: 'list', 'vendors', 'credit-card', 'commissions'
+  const [activeTab, setActiveTab] = useState('list'); // 🆕 NUEVO: 'list', 'vendors', 'credit-card', 'amex', 'commissions'
 
   // Cargar facturas al montar el componente
   useEffect(() => {
@@ -179,6 +180,17 @@ const SupplierInvoiceManager = () => {
                 <span>Chase Credit Card</span>
               </button>
               <button
+                onClick={() => setActiveTab('amex')}
+                className={`flex items-center space-x-2 px-6 py-4 font-medium transition-colors ${
+                  activeTab === 'amex'
+                    ? 'border-b-2 border-blue-900 text-blue-900'
+                    : 'text-gray-600 hover:text-gray-800'
+                }`}
+              >
+                <FaCreditCard />
+                <span>AMEX</span>
+              </button>
+              <button
                 onClick={() => setActiveTab('commissions')}
                 className={`flex items-center space-x-2 px-6 py-4 font-medium transition-colors ${
                   activeTab === 'commissions'
@@ -295,6 +307,9 @@ const SupplierInvoiceManager = () => {
         ) : activeTab === 'credit-card' ? (
           // 💳 NUEVA VISTA: Chase Credit Card
           <ChaseCreditCard token={localStorage.getItem('token')} />
+        ) : activeTab === 'amex' ? (
+          // 💳 NUEVA VISTA: AMEX Credit Card
+          <AmexCreditCard token={localStorage.getItem('token')} />
         ) : activeTab === 'commissions' ? (
           // 💰 NUEVA VISTA: Comisiones
           <CommissionsManager />
