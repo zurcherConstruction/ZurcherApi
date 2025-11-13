@@ -158,9 +158,15 @@ const GestionBudgets = () => {
     return years.sort((a, b) => b - a);
   }, [budgets]);
 
-  // ✅ Los budgets ya vienen filtrados del backend (status, año, búsqueda Y signatureMethod)
-  // Ya no necesitamos filtro local de signatureMethod
-  const filteredBudgets = budgets || [];
+  // ✅ Filtrar budgets legacy_maintenance para que NO se muestren en la lista
+  const filteredBudgets = useMemo(() => {
+    if (!budgets) return [];
+    
+    // Excluir budgets con status 'legacy_maintenance' o isLegacy = true
+    return budgets.filter(b => 
+      b.status !== 'legacy_maintenance' && !b.isLegacy
+    );
+  }, [budgets]);
 
   // 🆕 Usar estadísticas del backend si están disponibles, sino calcular localmente (fallback)
   const budgetStats = useMemo(() => {
@@ -180,24 +186,29 @@ const GestionBudgets = () => {
       rejected: 0 
     };
 
+    // ✅ FILTRAR budgets legacy_maintenance para que NO se contabilicen
+    const nonLegacyBudgets = budgets.filter(b => 
+      b.status !== 'legacy_maintenance' && !b.isLegacy
+    );
+
     return {
-      total: totalRecords || budgets.length,
-      draft: budgets.filter(b => ['draft', 'created'].includes(b.status)).length,
-      en_revision: budgets.filter(b => 
+      total: nonLegacyBudgets.length,
+      draft: nonLegacyBudgets.filter(b => ['draft', 'created'].includes(b.status)).length,
+      en_revision: nonLegacyBudgets.filter(b => 
         ['send', 'pending_review', 'client_approved', 'notResponded', 'sent_for_signature'].includes(b.status)
       ).length,
-      signed: budgets.filter(b => b.status === 'signed' && !b.isLegacy).length,
-      approved: budgets.filter(b => b.status === 'approved' && !b.isLegacy).length,
-      legacy: budgets.filter(b => b.isLegacy === true).length,
-      rejected: budgets.filter(b => b.status === 'rejected').length,
+      signed: nonLegacyBudgets.filter(b => b.status === 'signed').length,
+      approved: nonLegacyBudgets.filter(b => b.status === 'approved').length,
+      legacy: budgets.filter(b => b.status === 'legacy_maintenance' || b.isLegacy === true).length,
+      rejected: nonLegacyBudgets.filter(b => b.status === 'rejected').length,
       
       // 📊 MANTENER ESTADOS LEGACY para compatibilidad (no se muestran en las tarjetas)
-      pending_review: budgets.filter(b => b.status === 'pending_review').length,
-      client_approved: budgets.filter(b => b.status === 'client_approved').length,
-      created: budgets.filter(b => b.status === 'created').length,
-      send: budgets.filter(b => b.status === 'send').length,
-      notResponded: budgets.filter(b => b.status === 'notResponded').length,
-      sent_for_signature: budgets.filter(b => b.status === 'sent_for_signature').length
+      pending_review: nonLegacyBudgets.filter(b => b.status === 'pending_review').length,
+      client_approved: nonLegacyBudgets.filter(b => b.status === 'client_approved').length,
+      created: nonLegacyBudgets.filter(b => b.status === 'created').length,
+      send: nonLegacyBudgets.filter(b => b.status === 'send').length,
+      notResponded: nonLegacyBudgets.filter(b => b.status === 'notResponded').length,
+      sent_for_signature: nonLegacyBudgets.filter(b => b.status === 'sent_for_signature').length
     };
   }, [budgets, totalRecords, statsFromBackend]);
 
@@ -211,12 +222,17 @@ const GestionBudgets = () => {
     // Si no hay backend stats, calcular localmente
     if (!budgets) return { signnow: 0, docusign: 0, manual: 0, legacy: 0, none: 0 };
     
+    // ✅ FILTRAR budgets legacy_maintenance para que NO se contabilicen
+    const nonLegacyBudgets = budgets.filter(b => 
+      b.status !== 'legacy_maintenance' && !b.isLegacy
+    );
+    
     return {
-      signnow: budgets.filter(b => b.signatureMethod === 'signnow').length,
-      docusign: budgets.filter(b => b.signatureMethod === 'docusign').length,
-      manual: budgets.filter(b => b.signatureMethod === 'manual').length,
-      legacy: budgets.filter(b => b.signatureMethod === 'legacy').length,
-      none: budgets.filter(b => !b.signatureMethod || b.signatureMethod === 'none').length
+      signnow: nonLegacyBudgets.filter(b => b.signatureMethod === 'signnow').length,
+      docusign: nonLegacyBudgets.filter(b => b.signatureMethod === 'docusign').length,
+      manual: nonLegacyBudgets.filter(b => b.signatureMethod === 'manual').length,
+      legacy: budgets.filter(b => b.status === 'legacy_maintenance' || b.isLegacy === true).length,
+      none: nonLegacyBudgets.filter(b => !b.signatureMethod || b.signatureMethod === 'none').length
     };
   }, [budgets, statsFromBackend]);
 

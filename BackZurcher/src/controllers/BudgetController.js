@@ -1137,6 +1137,11 @@ async getBudgets(req, res) {
     const baseWhereClause = {};
     const whereClause = {};
 
+    // ✅ EXCLUIR budgets con status 'legacy_maintenance' (mantenimiento legacy)
+    // Estos budgets NO deben aparecer en la gestión normal
+    baseWhereClause.status = { [Op.ne]: 'legacy_maintenance' };
+    whereClause.status = { [Op.ne]: 'legacy_maintenance' };
+
      if (search && search.trim()) {
       const searchCondition = {
         [Op.or]: [
@@ -1182,13 +1187,20 @@ async getBudgets(req, res) {
     if (status && status !== 'all') {
       // ✅ "draft" - Borradores + creados (antiguos, ya no se usa)
       if (status === 'draft') {
-        whereClause.status = { [Op.in]: ['draft', 'created'] };
+        // Mantener el filtro de legacy_maintenance usando Op.and
+        whereClause[Op.and] = whereClause[Op.and] || [];
+        whereClause[Op.and].push({ 
+          status: { [Op.in]: ['draft', 'created'] }
+        });
       }
       // ✅ "en_revision" o "en_seguimiento" (alias) - Todos los estados intermedios (esperando firma)
       else if (status === 'en_revision' || status === 'en_seguimiento') {
-        whereClause.status = {
-          [Op.in]: ['send', 'pending_review', 'client_approved', 'notResponded', 'sent_for_signature']
-        };
+        whereClause[Op.and] = whereClause[Op.and] || [];
+        whereClause[Op.and].push({
+          status: {
+            [Op.in]: ['send', 'pending_review', 'client_approved', 'notResponded', 'sent_for_signature']
+          }
+        });
       }
       // ✅ "signed" - Firmados (Signow o manual) pero SIN pago (excluye legacy)
       else if (status === 'signed') {
@@ -1208,7 +1220,8 @@ async getBudgets(req, res) {
       }
       // ✅ "legacy" - Presupuestos antiguos (ya vienen completos)
       else if (status === 'legacy') {
-        whereClause.isLegacy = true;
+        whereClause[Op.and] = whereClause[Op.and] || [];
+        whereClause[Op.and].push({ isLegacy: true });
       }
       // 🛡️ Validar que el status es un valor válido del ENUM antes de usarlo
       else {
@@ -1216,7 +1229,8 @@ async getBudgets(req, res) {
                                'sent_for_signature', 'signed', 'approved', 'notResponded', 'rejected'];
         
         if (validStatuses.includes(status)) {
-          whereClause.status = status;
+          whereClause[Op.and] = whereClause[Op.and] || [];
+          whereClause[Op.and].push({ status: status });
         } else {
           // Si el status no es válido, ignorarlo y no aplicar filtro
           console.warn(`⚠️ Status inválido recibido: "${status}". Ignorando filtro.`);
