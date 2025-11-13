@@ -54,6 +54,7 @@ const BarraLateral = () => {
         { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
         { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
         { name: "Maintenance", path: "/maintenance", icon: FaWrench },
+        { name: "Edit Maintenance", path: "/legacy-maintenance", icon: FaHistory }, // 🆕 Editor de todos los maintenance
       ],
     },
     {
@@ -121,6 +122,7 @@ const BarraLateral = () => {
             { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
             { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
             { name: "Maintenance", path: "/maintenance", icon: FaWrench },
+            { name: "Edit Maintenance", path: "/legacy-maintenance", icon: FaHistory }, // 🆕 Editor de todos los maintenance
           ],
         },
         {

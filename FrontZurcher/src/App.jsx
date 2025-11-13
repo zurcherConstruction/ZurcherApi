@@ -60,6 +60,7 @@ import PrivacyPolicy from "./Components/PrivacyPolicy";
 import MaintenanceList from "./Components/Maintenance/MaintenanceList";
 import MaintenanceForm from "./pages/MaintenanceForm";
 import OwnerMaintenanceView from "./Components/Maintenance/OwnerMaintenanceView";
+import LegacyMaintenanceEditor from "./Components/Maintenance/LegacyMaintenanceEditor"; // 🆕 Editor de trabajos legacy
 import SupplierInvoiceManager from './Components/SupplierInvoices/SupplierInvoiceManager';
 // Importar componentes de Workers
 import WorkerDashboard from "./Components/Workers/WorkerDashboard";
@@ -401,6 +402,16 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["owner", "admin", "worker"]}>
                     <WorkerMaintenanceDetail />
+                  </PrivateRoute>
+                }
+              />
+
+              {/* 🆕 Ruta para editar trabajos legacy de mantenimiento */}
+              <Route
+                path="/legacy-maintenance"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "owner", "maintenance"]}>
+                    <LegacyMaintenanceEditor />
                   </PrivateRoute>
                 }
               />

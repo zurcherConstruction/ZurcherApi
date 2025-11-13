@@ -1,40 +1,41 @@
 import React from 'react';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { parseDateOnly } from '../../utils/dateHelpers';
 
-const VisitCard = ({ visit, onClick }) => {
-  const getStatusConfig = (status) => {
-    const statusConfig = {
-      pending_scheduling: {
-        color: 'bg-gray-100 text-gray-800 border-gray-200',
-        icon: '⏳',
-        text: 'Pendiente'
-      },
-      scheduled: {
-        color: 'bg-blue-100 text-blue-800 border-blue-200',
-        icon: '📅',
-        text: 'Programada'
-      },
-      assigned: {
-        color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-        icon: '👤',
-        text: 'Asignada'
-      },
-      completed: {
-        color: 'bg-green-100 text-green-800 border-green-200',
-        icon: '✅',
-        text: 'Completada'
-      },
-      skipped: {
-        color: 'bg-red-100 text-red-800 border-red-200',
-        icon: '⏭️',
-        text: 'Omitida'
-      }
-    };
-    
-    return statusConfig[status] || statusConfig.pending_scheduling;
+function getStatusConfig(status) {
+  const statusConfig = {
+    pending_scheduling: {
+      color: 'bg-gray-100 text-gray-800 border-gray-200',
+      icon: '⏳',
+      text: 'Pendiente'
+    },
+    scheduled: {
+      color: 'bg-blue-100 text-blue-800 border-blue-200',
+      icon: '📅',
+      text: 'Programada'
+    },
+    assigned: {
+      color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      icon: '👤',
+      text: 'Asignada'
+    },
+    completed: {
+      color: 'bg-green-100 text-green-800 border-green-200',
+      icon: '✅',
+      text: 'Completada'
+    },
+    skipped: {
+      color: 'bg-red-100 text-red-800 border-red-200',
+      icon: '⏭️',
+      text: 'Omitida'
+    }
   };
 
+  return statusConfig[status] || statusConfig.pending_scheduling;
+}
+
+const VisitCard = ({ visit, onClick }) => {
   const statusConfig = getStatusConfig(visit.status);
   const hasMedia = visit.mediaFiles && visit.mediaFiles.length > 0;
 
@@ -67,7 +68,7 @@ const VisitCard = ({ visit, onClick }) => {
             <span className="font-medium">Programada:</span>
             <span className="ml-2">
               {visit.scheduledDate 
-                ? format(parseISO(visit.scheduledDate), 'dd/MM/yyyy', { locale: es })
+                ? format(parseDateOnly(visit.scheduledDate), 'dd/MM/yyyy', { locale: es })
                 : 'No programada'
               }
             </span>
@@ -81,7 +82,7 @@ const VisitCard = ({ visit, onClick }) => {
               </svg>
               <span className="font-medium">Realizada:</span>
               <span className="ml-2">
-                {format(parseISO(visit.actualVisitDate), 'dd/MM/yyyy', { locale: es })}
+                {format(parseDateOnly(visit.actualVisitDate), 'dd/MM/yyyy', { locale: es })}
               </span>
             </div>
           )}

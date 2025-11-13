@@ -24,6 +24,7 @@ const budgetItemRoutes = require('./BudgetItemRoutes'); // Asegúrate de que la 
 const finalInvoiceRoutes = require('./finalInvoiceRutes'); // Asegúrate de que la ruta sea correcta
 const changeOrdersRoutes = require('./changeOrderRoutes'); // Asegúrate de que la ruta sea correcta
 const maintenanceRoutes = require('./maintenanceRoutes'); // Asegúrate de que la ruta sea correcta
+const legacyMaintenanceRoutes = require('./legacyMaintenanceRoutes'); // 🆕 Edición de Works legacy
 const accountsReceivableRoutes = require('./accountsReceivableRoutes'); // 🆕 Cuentas por cobrar
 const financialDashboardRoutes = require('./financialDashboardRoutes'); // 🆕 Dashboard financiero consolidado
 //const adobeWebhookRoutes = require('./adobeWebhookRoutes'); // Asegúrate de que la ruta sea correcta
@@ -75,6 +76,7 @@ router.use('/supplier-invoices', supplierInvoiceRoutes); // 🆕 Ruta para invoi
 router.use('/system', systemRoutes); // Ruta para comprobantes
 router.use('/final-invoice', finalInvoiceRoutes); // Ruta para comprobantes
 router.use('/maintenance', maintenanceRoutes); // Ruta para visitas de mantenimiento
+router.use('/legacy-maintenance', legacyMaintenanceRoutes); // 🆕 Edición de trabajos de mantenimiento legacy
 router.use('/accounts-receivable', accountsReceivableRoutes); // 🆕 Ruta para cuentas por cobrar
 router.use('/financial-dashboard', financialDashboardRoutes); // 🆕 Ruta para dashboard financiero consolidado
 router.use('/import', importRoutes); // Ruta para importar trabajos legacy

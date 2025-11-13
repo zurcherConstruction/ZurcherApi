@@ -237,29 +237,79 @@ const scheduleMaintenanceVisits = async (req, res) => {
       return res.status(404).json({ error: true, message: 'Obra no encontrada.' });
     }
 
-    // Verificar si ya existen visitas
-    const existingVisitsCount = await MaintenanceVisit.count({ where: { workId } });
+    // Variables para tracking
+    let visitsToDelete = [];
+    let visitsToPreserve = [];
     
-    if (existingVisitsCount > 0) {
+    // Verificar si ya existen visitas
+    const existingVisits = await MaintenanceVisit.findAll({ 
+      where: { workId },
+      include: [{ model: MaintenanceMedia, as: 'mediaFiles' }]
+    });
+    
+    if (existingVisits.length > 0) {
       if (!forceReschedule) {
         return res.status(400).json({ 
           error: true, 
           message: 'Ya existen visitas programadas para esta obra. Use forceReschedule=true para reprogramar.',
-          existingVisits: existingVisitsCount 
+          existingVisits: existingVisits.length 
         });
       }
       
-      // Si forceReschedule es true, eliminar visitas existentes
-      await MaintenanceVisit.destroy({ where: { workId } });
-      console.log(`Eliminadas ${existingVisitsCount} visitas existentes para reprogramar.`);
+      // Si forceReschedule es true, identificar qué visitas se pueden eliminar
+      for (const visit of existingVisits) {
+        // Preservar visitas que tienen:
+        // 1. Estado completado u omitido
+        // 2. Fotos/documentos subidos
+        // 3. Fecha de visita real registrada
+        const hasMedia = visit.mediaFiles && visit.mediaFiles.length > 0;
+        const isCompleted = visit.status === 'completed' || visit.status === 'skipped';
+        const hasActualDate = visit.actualVisitDate !== null;
+        
+        if (hasMedia || isCompleted || hasActualDate) {
+          visitsToPreserve.push(visit);
+          console.log(`⚠️ Preservando visita #${visit.visitNumber} (tiene datos: media=${hasMedia}, status=${visit.status}, actualDate=${hasActualDate})`);
+        } else {
+          visitsToDelete.push(visit.id);
+        }
+      }
+      
+      // Eliminar solo las visitas sin datos importantes
+      if (visitsToDelete.length > 0) {
+        await MaintenanceVisit.destroy({ 
+          where: { 
+            id: visitsToDelete 
+          } 
+        });
+        console.log(`🗑️ Eliminadas ${visitsToDelete.length} visitas sin datos para reprogramar.`);
+      }
+      
+      if (visitsToPreserve.length > 0) {
+        console.log(`✅ Preservadas ${visitsToPreserve.length} visitas con datos importantes.`);
+      }
     }
 
     // Usar la fecha proporcionada o la fecha actual
     const baseDate = startDate ? new Date(startDate) : new Date();
     
-    // Crear las 4 visitas de mantenimiento
+    // Obtener números de visitas ya existentes (preservadas)
+    const preservedVisitNumbers = await MaintenanceVisit.findAll({
+      where: { workId },
+      attributes: ['visitNumber'],
+      raw: true
+    });
+    const existingNumbers = preservedVisitNumbers.map(v => v.visitNumber);
+    console.log('📋 Números de visitas ya existentes:', existingNumbers);
+    
+    // Crear las 4 visitas de mantenimiento (solo las que no existen)
     const visits = [];
     for (let i = 1; i <= 4; i++) {
+      // Si ya existe una visita con este número, saltarla
+      if (existingNumbers.includes(i)) {
+        console.log(`⏭️ Saltando visita #${i} (ya existe)`);
+        continue;
+      }
+      
       const scheduledDateForVisit = addMonths(baseDate, i * 6);
       const formattedScheduledDate = format(scheduledDateForVisit, 'yyyy-MM-dd');
       
@@ -270,6 +320,7 @@ const scheduleMaintenanceVisits = async (req, res) => {
         status: 'pending_scheduling',
       });
       visits.push(newVisit);
+      console.log(`✅ Creada visita #${i} programada para ${formattedScheduledDate}`);
     }
 
     // Actualizar la fecha de inicio de mantenimiento en la obra si se proporcionó
@@ -278,11 +329,28 @@ const scheduleMaintenanceVisits = async (req, res) => {
       await work.save();
     }
 
+    // Obtener todas las visitas actualizadas
+    const allVisits = await MaintenanceVisit.findAll({
+      where: { workId },
+      include: [
+        { model: MaintenanceMedia, as: 'mediaFiles' },
+        { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] }
+      ],
+      order: [['visitNumber', 'ASC']]
+    });
+
+    const responseMessage = visits.length > 0 
+      ? `Se ${existingVisits.length > 0 ? 'reprogramaron' : 'programaron'} ${visits.length} visita(s) de mantenimiento.`
+      : 'No se crearon nuevas visitas (todas ya existían).';
+
     res.status(201).json({ 
-      message: 'Visitas de mantenimiento programadas correctamente.', 
-      visits,
+      message: responseMessage,
+      visitsCreated: visits.length,
+      visitsPreserved: existingVisits.length > 0 ? existingVisits.length - visitsToDelete.length : 0,
+      visitsDeleted: visitsToDelete ? visitsToDelete.length : 0,
+      allVisits: allVisits, // Devolver todas las visitas actualizadas
       work: work,
-      rescheduled: existingVisitsCount > 0
+      rescheduled: existingVisits.length > 0
     });
   } catch (error) {
     console.error('Error al programar visitas de mantenimiento:', error);

@@ -45,14 +45,36 @@ export const fetchMaintenanceVisitsByWork = (workId) => async (dispatch) => {
 
 // Actualizar una visita de mantenimiento
 export const updateMaintenanceVisit = (visitId, visitData) => async (dispatch) => {
+  console.log('🟢 [REDUX ACTION] updateMaintenanceVisit iniciada');
+  console.log('🟢 [REDUX ACTION] visitId:', visitId);
+  console.log('🟢 [REDUX ACTION] visitData:', visitData);
+  
   dispatch(updateMaintenanceVisitRequest());
+  
   try {
-    const response = await api.put(`/maintenance/${visitId}`, visitData);
+    console.log('📡 [REDUX ACTION] Enviando PUT a /maintenance/' + visitId);
+    
+    // Timeout de 30 segundos para evitar que el botón se quede bloqueado
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Timeout: La solicitud tardó demasiado')), 30000)
+    );
+    
+    const apiPromise = api.put(`/maintenance/${visitId}`, visitData);
+    
+    const response = await Promise.race([apiPromise, timeoutPromise]);
+    
+    console.log('✅ [REDUX ACTION] Respuesta recibida:', response.data);
     dispatch(updateMaintenanceVisitSuccess(response.data.visit));
+    
     return response.data;
   } catch (error) {
+    console.error('❌ [REDUX ACTION] Error capturado:', error);
+    console.error('❌ [REDUX ACTION] Error response:', error.response?.data);
+    console.error('❌ [REDUX ACTION] Error message:', error.message);
+    console.error('❌ [REDUX ACTION] Error stack:', error.stack);
+    
     const errorMessage =
-      error.response?.data?.message || 'Error al actualizar visita de mantenimiento';
+      error.response?.data?.message || error.message || 'Error al actualizar visita de mantenimiento';
     dispatch(updateMaintenanceVisitFailure(errorMessage));
     throw error;
   }
