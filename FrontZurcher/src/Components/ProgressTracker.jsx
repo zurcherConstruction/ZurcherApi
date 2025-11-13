@@ -6,14 +6,14 @@ import { ExclamationTriangleIcon } from '@heroicons/react/24/solid'; // Importar
 import useAutoRefresh from "../utils/useAutoRefresh";
 
 const etapas = [
-  { backend: "assigned", display: "Purchase in Progress" },
-  { backend: "inProgress", display: "Installing" },
-  { backend: "installed", display: "Inspection Pending" },
-  { backend: "coverPending", display: "Cover Pending" },
-  { backend: "covered", display: "Send Final Invoice" },
-  { backend: "invoiceFinal", display: "Payment Received" },
-  { backend: "paymentReceived", display: "Final Inspection Pending" },
-  { backend: "maintenance", display: "Maintenance" },
+  { backend: "assigned", display: "Purchase in Progress", order: 0 },
+  { backend: "inProgress", display: "Installing", order: 1 },
+  { backend: "installed", display: "Inspection Pending", order: 2 },
+  { backend: "coverPending", display: "Cover Pending", order: 3 },
+  { backend: "covered", display: "Send Final Invoice", order: 4 },
+  { backend: "invoiceFinal", display: "Payment Received", order: 5 },
+  { backend: "paymentReceived", display: "Final Inspection Pending", order: 6 },
+  { backend: "maintenance", display: "Maintenance", order: 7 },
 ];
 
 const ProgressTracker = () => {
@@ -31,11 +31,38 @@ const ProgressTracker = () => {
 
   useEffect(() => {
     if (works) {
-      setFilteredData(
-        works.filter((work) =>
-          work.propertyAddress?.toLowerCase().includes(search.toLowerCase())
-        )
+      // Filtrar por búsqueda
+      const filtered = works.filter((work) =>
+        work.propertyAddress?.toLowerCase().includes(search.toLowerCase())
       );
+
+      // Ordenar por orden de progreso (menor a mayor)
+      const sorted = filtered.sort((a, b) => {
+        // Función para obtener el orden de progreso de un work
+        const getProgressOrder = (status) => {
+          // Mapear estados especiales a su etapa visual
+          let mappedStatus = status;
+          if (["installed", "firstInspectionPending", "approvedInspection", "rejectedInspection"].includes(status)) {
+            mappedStatus = "installed";
+          } else if (["paymentReceived", "finalInspectionPending", "finalApproved", "finalRejected"].includes(status)) {
+            mappedStatus = "paymentReceived";
+          }
+
+          // Buscar el orden en las etapas
+          const etapa = etapas.find((e) => e.backend === mappedStatus);
+          
+          // Si no encuentra el estado en las etapas, es un work sin progreso -> va primero (orden -1)
+          if (!etapa) {
+            return -1;
+          }
+          
+          return etapa.order;
+        };
+
+        return getProgressOrder(a.status) - getProgressOrder(b.status);
+      });
+
+      setFilteredData(sorted);
     } else {
       setFilteredData([]);
     }
@@ -206,16 +233,29 @@ const ProgressTracker = () => {
 
           const progressBarIndex = getProgressIndexForBar(status);
 
+          // Fondo especial para works de mantenimiento
+          const isMaintenance = status === "maintenance";
+          const cardBackgroundClass = isMaintenance 
+            ? "bg-blue-50 border-blue-200" 
+            : "bg-white border-gray-200";
+
           return (
             <Link
               to={`/work/${idWork}`}
               key={idWork}
-              className="block bg-white p-4 md:p-4 mb-4 shadow-lg rounded-lg border border-gray-200 hover:shadow-xl transition-shadow duration-300"
+              className={`block ${cardBackgroundClass} p-4 md:p-4 mb-4 shadow-lg rounded-lg border hover:shadow-xl transition-shadow duration-300`}
             >
-              <h3 className="font-varela uppercase text-lg md:text-xl text-gray-700 text-center flex items-center justify-center">
-                {propertyAddress}
-                {permitExpirationAlertIcon}
-              </h3>
+              <div className="flex items-center justify-center">
+                <h3 className="font-varela uppercase text-lg md:text-xl text-gray-700 text-center flex items-center">
+                  {propertyAddress}
+                  {permitExpirationAlertIcon}
+                </h3>
+                {isMaintenance && (
+                  <span className="ml-3 px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full border border-blue-300">
+                    🔧 Mantenimiento
+                  </span>
+                )}
+              </div>
 
               {/* Mostrar alertas: Notice to Owner, presupuesto no firmado, inspección */}
               {noticeToOwnerAlert}
