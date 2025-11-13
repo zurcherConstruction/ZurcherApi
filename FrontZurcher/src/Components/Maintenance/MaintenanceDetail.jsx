@@ -73,7 +73,14 @@ const MaintenanceDetail = ({ work, isOpen, onClose }) => {
       html: `
         <div class="text-left">
           ${hasExistingVisits ? 
-            '<p class="mb-4 text-orange-600 font-medium">⚠️ Esta obra ya tiene visitas programadas. Al continuar se eliminarán las visitas existentes.</p>' : 
+            `<div class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
+              <p class="text-amber-800 font-medium mb-2">⚠️ Reprogramación Inteligente:</p>
+              <ul class="text-sm text-amber-700 space-y-1 ml-4">
+                <li>✅ Se preservarán visitas completadas</li>
+                <li>✅ Se preservarán visitas con fotos/documentos</li>
+                <li>🗑️ Solo se eliminarán visitas pendientes sin datos</li>
+              </ul>
+            </div>` : 
             '<p class="mb-4 text-gray-600">Se programarán 4 visitas de mantenimiento cada 6 meses.</p>'
           }
           <label class="block text-sm font-medium text-gray-700 mb-2">
@@ -111,13 +118,25 @@ const MaintenanceDetail = ({ work, isOpen, onClose }) => {
 
     if (formData !== undefined) {
       try {
-        await dispatch(scheduleMaintenanceVisits(work.idWork, formData.startDate, formData.forceReschedule));
+        const result = await dispatch(scheduleMaintenanceVisits(work.idWork, formData.startDate, formData.forceReschedule));
+        
+        // Construir mensaje detallado basado en la respuesta
+        let successMessage = '';
+        if (result.visitsCreated > 0) {
+          successMessage = `Se crearon ${result.visitsCreated} nueva(s) visita(s).`;
+        }
+        if (result.visitsPreserved > 0) {
+          successMessage += `${successMessage ? '\n' : ''}✅ Se preservaron ${result.visitsPreserved} visita(s) con datos importantes.`;
+        }
+        if (result.visitsDeleted > 0) {
+          successMessage += `${successMessage ? '\n' : ''}🗑️ Se eliminaron ${result.visitsDeleted} visita(s) pendientes sin datos.`;
+        }
         
         Swal.fire({
           icon: 'success',
           title: hasExistingVisits ? 'Visitas Reprogramadas' : 'Visitas Programadas',
-          text: `Las ${hasExistingVisits ? 'visitas han sido reprogramadas' : '4 visitas de mantenimiento han sido programadas'} correctamente.`,
-          timer: 2000
+          html: `<div style="white-space: pre-line;">${successMessage || 'Operación completada correctamente.'}</div>`,
+          timer: 3000
         });
       } catch (error) {
         Swal.fire({

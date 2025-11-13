@@ -42,7 +42,8 @@ module.exports = (sequelize) => {
         "signed",             // Firmado por el cliente
         "approved",           // Aprobado (después de firma y/o pago)
         "notResponded",       // Cliente no respondió
-        "rejected"            // Rechazado por el cliente
+        "rejected",           // Rechazado por el cliente
+        "legacy_maintenance"  // 🆕 LEGACY: Para mantenimientos viejos (no suma estadísticas)
       ),
       allowNull: false,
       defaultValue: "created"   // ✅ MANTENER el default original

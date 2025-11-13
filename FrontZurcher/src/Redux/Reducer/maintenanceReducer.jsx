@@ -164,6 +164,12 @@ const maintenanceSlice = createSlice({
       state.currentWorkDetail = null;
       state.visitsLoadedForWork = {};
     },
+    resetLoadingStates: (state) => {
+      state.loadingAction = false;
+      state.uploadingMedia = false;
+      state.loading = false;
+      state.loadingVisits = false;
+    },
   },
 });
 
@@ -188,6 +194,7 @@ export const {
   setMaintenanceFilters,
   clearMaintenanceError,
   clearMaintenanceData,
+  resetLoadingStates,
 } = maintenanceSlice.actions;
 
 export default maintenanceSlice.reducer;

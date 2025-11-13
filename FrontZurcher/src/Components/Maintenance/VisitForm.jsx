@@ -7,6 +7,8 @@ import {
   fetchMaintenanceVisitsByWork
 } from '../../Redux/Actions/maintenanceActions.jsx';
 import { fetchStaff } from '../../Redux/Actions/adminActions';
+import { resetLoadingStates } from '../../Redux/Reducer/maintenanceReducer';
+import { normalizeDateForInput } from '../../utils/dateHelpers';
 import MediaUpload from './MediaUpload';
 import MediaGallery from './MediaGallery';
 import Swal from 'sweetalert2';
@@ -26,14 +28,33 @@ const VisitForm = ({ visit, isOpen, onClose }) => {
 
   const [showMediaUpload, setShowMediaUpload] = useState(false);
 
+  // Resetear estado cuando se abre el modal
+  useEffect(() => {
+    if (isOpen) {
+      console.log('🔵 [VISIT FORM] Modal abierto, estado inicial de loadingAction:', loadingAction);
+      // Si loadingAction está en true, resetear todos los estados de loading
+      if (loadingAction) {
+        console.warn('⚠️ [VISIT FORM] loadingAction estaba en true al abrir modal, reseteando...');
+        dispatch(resetLoadingStates());
+      }
+    }
+  }, [isOpen, loadingAction, dispatch]);
+
   useEffect(() => {
     if (visit) {
       setFormData({
-        scheduledDate: visit.scheduledDate || '',
-        actualVisitDate: visit.actualVisitDate || '',
+        scheduledDate: normalizeDateForInput(visit.scheduledDate),
+        actualVisitDate: normalizeDateForInput(visit.actualVisitDate),
         notes: visit.notes || '',
         status: visit.status || 'pending_scheduling',
         staffId: visit.staffId || null
+      });
+      
+      console.log('🔵 [VISIT FORM] Fechas normalizadas:', {
+        original_scheduledDate: visit.scheduledDate,
+        normalized_scheduledDate: normalizeDateForInput(visit.scheduledDate),
+        original_actualVisitDate: visit.actualVisitDate,
+        normalized_actualVisitDate: normalizeDateForInput(visit.actualVisitDate)
       });
     }
   }, [visit]);
@@ -77,8 +98,16 @@ const VisitForm = ({ visit, isOpen, onClose }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    console.log('🔵 [VISIT FORM] ==================== INICIO handleSubmit ====================');
+    console.log('🔵 [VISIT FORM] Timestamp:', new Date().toISOString());
+    console.log('🔵 [VISIT FORM] formData:', JSON.stringify(formData, null, 2));
+    console.log('🔵 [VISIT FORM] visit completo:', JSON.stringify(visit, null, 2));
+    console.log('🔵 [VISIT FORM] visit.id:', visit?.id, 'Type:', typeof visit?.id);
+    console.log('🔵 [VISIT FORM] loadingAction actual:', loadingAction);
+
     // Validaciones
     if (formData.status === 'completed' && !formData.actualVisitDate) {
+      console.log('⚠️ [VISIT FORM] Validación fallida: completed sin actualVisitDate');
       Swal.fire({
         icon: 'warning',
         title: 'Fecha requerida',
@@ -88,6 +117,7 @@ const VisitForm = ({ visit, isOpen, onClose }) => {
     }
 
     if (formData.status === 'scheduled' && !formData.scheduledDate) {
+      console.log('⚠️ [VISIT FORM] Validación fallida: scheduled sin scheduledDate');
       Swal.fire({
         icon: 'warning',
         title: 'Fecha requerida',
@@ -99,13 +129,27 @@ const VisitForm = ({ visit, isOpen, onClose }) => {
     try {
       // Validar que tenemos un ID válido
       if (!visit || !visit.id) {
+        console.error('❌ [VISIT FORM] No se encontró visit.id');
         throw new Error('No se encontró el ID de la visita');
       }
 
-      console.log('VisitForm - Actualizando visita con ID:', visit.id);
-      console.log('VisitForm - Datos a enviar:', formData);
+      console.log('✅ [VISIT FORM] Validaciones pasadas, iniciando dispatch');
+      console.log('✅ [VISIT FORM] Actualizando visita con ID:', visit.id);
       
-      const result = await dispatch(updateMaintenanceVisit(visit.id, formData));
+      // Preparar datos asegurando que las fechas estén en formato YYYY-MM-DD
+      const dataToSend = {
+        ...formData,
+        scheduledDate: formData.scheduledDate || null,
+        actualVisitDate: formData.actualVisitDate || null,
+        staffId: formData.staffId || null
+      };
+      
+      console.log('📤 [VISIT FORM] Datos a enviar:', JSON.stringify(dataToSend, null, 2));
+      
+      const result = await dispatch(updateMaintenanceVisit(visit.id, dataToSend));
+
+      console.log('✅ [VISIT FORM] Visita actualizada exitosamente:', result);
+      console.log('🔵 [VISIT FORM] loadingAction después del dispatch:', loadingAction);
 
       Swal.fire({
         icon: 'success',
@@ -116,12 +160,21 @@ const VisitForm = ({ visit, isOpen, onClose }) => {
 
       onClose();
     } catch (error) {
-      console.error('VisitForm - Error al actualizar:', error);
+      console.error('❌ [VISIT FORM] ==================== ERROR ====================');
+      console.error('❌ [VISIT FORM] Error completo:', error);
+      console.error('❌ [VISIT FORM] Error.message:', error.message);
+      console.error('❌ [VISIT FORM] Error.response:', error.response);
+      console.error('❌ [VISIT FORM] Error.response.data:', error.response?.data);
+      console.error('❌ [VISIT FORM] Error.response.status:', error.response?.status);
+      console.error('❌ [VISIT FORM] Stack trace:', error.stack);
+      
       Swal.fire({
         icon: 'error',
         title: 'Error',
         text: error?.response?.data?.message || error?.message || 'Error al actualizar la visita.',
       });
+    } finally {
+      console.log('🔵 [VISIT FORM] ==================== FIN handleSubmit ====================');
     }
   };
 
