@@ -708,12 +708,18 @@ const handleUploadImage = async () => {
     );
   }
 
-  if (!work) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-xl font-semibold">No se encontró la obra.</p>
-      </div>
-    );
+  // ✅ Mostrar loading mientras se carga el work (evita mostrar "No se encontró la obra" prematuramente)
+  if (initialLoading || workLoading || !work) {
+    if (!work) {
+      return (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-lg font-medium text-gray-600">Cargando información de la obra...</p>
+          </div>
+        </div>
+      );
+    }
   }
 
   const groupedImages = Array.isArray(work.images)
