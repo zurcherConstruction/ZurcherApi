@@ -622,7 +622,8 @@ const AccountsReceivableController = {
       });
 
       const invoicesData = works.map(work => {
-        const budgetTotal = parseFloat(work.budget?.clientTotalPrice || work.budget?.totalPrice || 0);
+        // ✅ CORREGIDO: Usar totalPrice (que ya tiene descuento aplicado)
+        const budgetTotal = parseFloat(work.budget?.totalPrice || 0);
         const initialPayment = parseFloat(work.budget?.paymentProofAmount || 0);
         
         // Calcular change orders aprobados
@@ -631,17 +632,25 @@ const AccountsReceivableController = {
           return sum + (parseFloat(co.newTotalPrice || 0) - parseFloat(co.previousTotalPrice || 0));
         }, 0);
 
-        // Calcular extras de Final Invoice
-        const finalInvoiceExtras = parseFloat(work.finalInvoice?.subtotalExtras || 0);
-
-        // Total esperado = Budget + Change Orders + Extras
-        const expectedTotal = budgetTotal + changeOrdersTotal + finalInvoiceExtras;
+        // Calcular extras de Final Invoice (si existe y está aplicado el descuento)
+        const finalInvoice = work.finalInvoice;
+        let finalInvoiceExtras = 0;
+        let finalInvoiceDiscount = 0;
         
-        // Total cobrado hasta ahora
+        if (finalInvoice) {
+          finalInvoiceExtras = parseFloat(finalInvoice.subtotalExtras || 0);
+          finalInvoiceDiscount = parseFloat(finalInvoice.discount || 0);
+        }
+
+        // Total esperado = Budget + Change Orders + Extras - Descuento de Final Invoice
+        const expectedTotal = budgetTotal + changeOrdersTotal + finalInvoiceExtras - finalInvoiceDiscount;
+        
+        // Total cobrado hasta ahora (INCLUYE el pago inicial)
         let totalCollected = initialPayment;
         
-        // Si hay final invoice pagado, sumarlo
+        // Si hay final invoice pagado, sumar lo adicional (sin contar el initial payment que ya está en totalCollected)
         if (work.finalInvoice?.status === 'paid') {
+          // finalAmountDue es el monto de la final invoice (NO incluye initial payment)
           totalCollected += parseFloat(work.finalInvoice.finalAmountDue || 0);
         } else if (work.finalInvoice?.status === 'partially_paid') {
           totalCollected += parseFloat(work.finalInvoice.amountPaid || 0);
