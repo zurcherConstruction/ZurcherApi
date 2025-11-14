@@ -143,7 +143,7 @@ function App() {
               <Route
                 path="/gestionBudgets"
                 element={
-                  <PrivateRoute allowedRoles={["admin", "recept", "owner", "follow-up"]}>
+                  <PrivateRoute allowedRoles={["admin", "recept", "owner", "follow-up", "finance"]}>
                     <GestionBudgets />
                   </PrivateRoute>
                 }
@@ -278,7 +278,7 @@ function App() {
                 path="/send-notifications"
                 element={
                   <PrivateRoute
-                    allowedRoles={["owner", "recept", "worker", "admin"]}
+                    allowedRoles={["owner", "recept", "worker", "admin", "maintenance", "finance", "follow-up"]}
                   >
                     <SendNotification />
                   </PrivateRoute>
@@ -400,7 +400,7 @@ function App() {
               <Route
                 path="/maintenance/:visitId"
                 element={
-                  <PrivateRoute allowedRoles={["owner", "admin", "worker"]}>
+                  <PrivateRoute allowedRoles={["owner", "admin", "worker", "maintenance"]}>
                     <WorkerMaintenanceDetail />
                   </PrivateRoute>
                 }
@@ -436,7 +436,7 @@ function App() {
               <Route
                 path="/worker/maintenance"
                 element={
-                  <PrivateRoute allowedRoles={["worker"]}>
+                  <PrivateRoute allowedRoles={["worker", "maintenance"]}>
                     <WorkerMaintenanceDashboard />
                   </PrivateRoute>
                 }
@@ -444,7 +444,7 @@ function App() {
               <Route
                 path="/worker/maintenance/:visitId"
                 element={
-                  <PrivateRoute allowedRoles={["worker"]}>
+                  <PrivateRoute allowedRoles={["worker", "maintenance"]}>
                     <WorkerMaintenanceDetail />
                   </PrivateRoute>
                 }

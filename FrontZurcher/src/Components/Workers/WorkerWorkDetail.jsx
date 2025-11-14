@@ -9,7 +9,8 @@ import {
   PlayIcon,
   XMarkIcon,
   TrashIcon,
-  CloudArrowUpIcon
+  CloudArrowUpIcon,
+  ExclamationTriangleIcon
 } from "@heroicons/react/24/outline";
 import { toast } from "react-toastify";
 
@@ -146,6 +147,73 @@ const WorkerWorkDetail = () => {
     }
   };
 
+  const handleMarkCovered = async () => {
+    if (!['coverPending', 'rejectedInspection'].includes(currentWork.status)) {
+      toast.warning('El trabajo debe estar pendiente de cobertura');
+      return;
+    }
+
+    // Verificar que tenga imágenes
+    if (!currentWork.images || currentWork.images.length === 0) {
+      toast.warning('Debes subir al menos una imagen antes de marcar como cubierto');
+      return;
+    }
+
+    setChangingStatus(true);
+    try {
+      await dispatch(updateWork(workId, { 
+        status: 'covered'
+      }));
+      toast.success('Trabajo marcado como cubierto');
+      dispatch(fetchWorkById(workId));
+    } catch (error) {
+      toast.error('Error al marcar como cubierto');
+    } finally {
+      setChangingStatus(false);
+    }
+  };
+
+  const handleRequestReinspection = async () => {
+    if (!['rejectedInspection', 'finalRejected'].includes(currentWork.status)) {
+      toast.warning('Solo puedes solicitar reinspección en trabajos rechazados');
+      return;
+    }
+
+    // Verificar que tenga imágenes (debe tener fotos de las correcciones)
+    if (!currentWork.images || currentWork.images.length === 0) {
+      toast.warning('Debes subir al menos una imagen de las correcciones realizadas');
+      return;
+    }
+
+    const confirmMessage = currentWork.status === 'rejectedInspection'
+      ? '¿Confirmas que las correcciones están completas y listas para reinspección?'
+      : '¿Confirmas que las correcciones de la inspección final están completas?';
+
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    setChangingStatus(true);
+    try {
+      // Cambiar a estado que indica que está listo para reinspección
+      const newStatus = currentWork.status === 'rejectedInspection' 
+        ? 'firstInspectionPending'  // Vuelve a inspección inicial
+        : 'finalInspectionPending';  // Vuelve a inspección final
+
+      await dispatch(updateWork(workId, { 
+        status: newStatus,
+        rejectionReason: null // Limpiar el motivo de rechazo
+      }));
+      
+      toast.success('✅ Solicitud de reinspección enviada. La oficina será notificada.');
+      dispatch(fetchWorkById(workId));
+    } catch (error) {
+      toast.error('Error al solicitar reinspección');
+    } finally {
+      setChangingStatus(false);
+    }
+  };
+
   const openImageModal = (imageUrl) => {
     setSelectedImageUrl(imageUrl);
     setShowImageModal(true);
@@ -175,7 +243,9 @@ const WorkerWorkDetail = () => {
 
   const canStart = currentWork.status === 'assigned';
   const canComplete = currentWork.status === 'inProgress';
-  const isCompleted = ['installed', 'coverPending', 'covered', 'invoiceFinal', 'paymentReceived', 'maintenance'].includes(currentWork.status);
+  const canCover = currentWork.status === 'coverPending' || currentWork.status === 'rejectedInspection';
+  const isCompleted = ['covered', 'invoiceFinal', 'paymentReceived', 'maintenance'].includes(currentWork.status);
+  const isRejected = currentWork.status === 'rejectedInspection' || currentWork.status === 'finalRejected';
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -194,6 +264,33 @@ const WorkerWorkDetail = () => {
       </div>
 
       <div className="max-w-7xl mx-auto p-4 space-y-4">
+        {/* Rejection Banner */}
+        {isRejected && (
+          <div className="bg-red-50 border-2 border-red-500 rounded-lg p-4 shadow-lg">
+            <div className="flex items-center justify-center mb-2">
+              <XMarkIcon className="h-6 w-6 text-red-600 mr-2" />
+              <h3 className="text-lg font-bold text-red-700 uppercase">
+                {currentWork.status === 'rejectedInspection' ? 'INSPECCIÓN RECHAZADA' : 'INSPECCIÓN FINAL RECHAZADA'}
+              </h3>
+            </div>
+            {currentWork.rejectionReason && (
+              <div className="bg-white rounded-lg p-3 mt-3">
+                <p className="text-sm font-semibold text-gray-700 mb-1">Motivo del rechazo:</p>
+                <p className="text-sm text-gray-600">{currentWork.rejectionReason}</p>
+              </div>
+            )}
+            <div className="mt-4 bg-orange-50 border border-orange-200 rounded-lg p-3">
+              <p className="text-sm font-semibold text-orange-700 mb-2">📋 Pasos a seguir:</p>
+              <ol className="text-xs text-gray-700 space-y-1 ml-4 list-decimal">
+                <li>Realiza las correcciones necesarias según el motivo de rechazo</li>
+                <li>Sube imágenes que muestren las correcciones realizadas</li>
+                <li>Presiona "✓ Corregido - Solicitar Reinspección"</li>
+                <li>La oficina programará una nueva inspección</li>
+              </ol>
+            </div>
+          </div>
+        )}
+
         {/* Work Info Card */}
         <div className="bg-white rounded-lg shadow-md p-5">
           <h2 className="text-lg font-bold text-gray-800 mb-4">Información del Trabajo</h2>
@@ -264,10 +361,39 @@ const WorkerWorkDetail = () => {
                   {changingStatus ? 'Completando...' : 'Marcar como Instalado'}
                 </button>
               )}
+
+              {/* Botón para trabajos rechazados: Solicitar Reinspección */}
+              {isRejected && (
+                <button
+                  onClick={handleRequestReinspection}
+                  disabled={changingStatus || !currentWork.images || currentWork.images.length === 0}
+                  className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg"
+                >
+                  <CheckCircleIcon className="h-5 w-5 mr-2" />
+                  {changingStatus ? 'Enviando...' : '✓ Corregido - Solicitar Reinspección'}
+                </button>
+              )}
+
+              {/* Botón para coverPending (solo si NO es rechazado) */}
+              {canCover && !isRejected && (
+                <button
+                  onClick={handleMarkCovered}
+                  disabled={changingStatus || !currentWork.images || currentWork.images.length === 0}
+                  className="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <CheckCircleIcon className="h-5 w-5 mr-2" />
+                  {changingStatus ? 'Marcando...' : 'LISTO PARA CUBRIR'}
+                </button>
+              )}
             </div>
             {canComplete && (!currentWork.images || currentWork.images.length === 0) && (
               <p className="text-xs text-orange-600 mt-2 text-center">
                 * Debes subir al menos una imagen antes de completar
+              </p>
+            )}
+            {(canCover || isRejected) && (!currentWork.images || currentWork.images.length === 0) && (
+              <p className="text-xs text-orange-600 mt-2 text-center">
+                * Debes subir al menos una imagen {isRejected ? 'de las correcciones' : 'antes de marcar como cubierto'}
               </p>
             )}
           </div>

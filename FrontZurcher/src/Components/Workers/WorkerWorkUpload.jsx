@@ -340,7 +340,49 @@ const WorkerWorkUpload = () => {
 
   const canMarkInstalled = currentWork.status === 'inProgress';
   const canMarkCovered = currentWork.status === 'coverPending';
+  const isRejected = currentWork.status === 'rejectedInspection' || currentWork.status === 'finalRejected';
   const isCompleted = ['covered', 'invoiceFinal', 'paymentReceived', 'maintenance'].includes(currentWork.status);
+
+  const handleRequestReinspection = async () => {
+    if (!['rejectedInspection', 'finalRejected'].includes(currentWork.status)) {
+      toast.warning('Solo puedes solicitar reinspección en trabajos rechazados');
+      return;
+    }
+
+    // Verificar las imágenes según el tipo de rechazo
+    const isFirstInspectionRejected = currentWork.status === 'rejectedInspection';
+    const requiredStage = isFirstInspectionRejected ? 'sistema instalado' : 'trabajo cubierto';
+    const stageImages = imagesByStage[requiredStage] || [];
+    
+    if (stageImages.length === 0) {
+      toast.warning(`Debes subir imágenes en "${requiredStage.toUpperCase()}" mostrando las correcciones`);
+      return;
+    }
+
+    const confirmMessage = isFirstInspectionRejected
+      ? '¿Confirmas que las correcciones están completas y el sistema está listo para reinspección?'
+      : '¿Confirmas que las correcciones del trabajo cubierto están completas y listas para reinspección final?';
+
+    if (!window.confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      const newStatus = isFirstInspectionRejected 
+        ? 'firstInspectionPending'
+        : 'finalInspectionPending';
+
+      await dispatch(updateWork(workId, { 
+        status: newStatus,
+        rejectionReason: null
+      }));
+      
+      toast.success('✅ Solicitud de reinspección enviada. La oficina será notificada.');
+      dispatch(fetchWorkById(workId));
+    } catch (error) {
+      toast.error('Error al solicitar reinspección');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -366,6 +408,39 @@ const WorkerWorkUpload = () => {
       </div>
 
       <div className="max-w-7xl mx-auto p-4 space-y-4">
+        {/* Rejection Banner */}
+        {isRejected && (
+          <div className="bg-red-50 border-2 border-red-500 rounded-lg p-4 shadow-lg">
+            <div className="flex items-center justify-center mb-2">
+              <XMarkIcon className="h-6 w-6 text-red-600 mr-2" />
+              <h3 className="text-lg font-bold text-red-700 uppercase">
+                {currentWork.status === 'rejectedInspection' ? 'INSPECCIÓN RECHAZADA' : 'INSPECCIÓN FINAL RECHAZADA'}
+              </h3>
+            </div>
+            {currentWork.rejectionReason && (
+              <div className="bg-white rounded-lg p-3 mt-3">
+                <p className="text-sm font-semibold text-gray-700 mb-1">Motivo del rechazo:</p>
+                <p className="text-sm text-gray-600">{currentWork.rejectionReason}</p>
+              </div>
+            )}
+            <div className="mt-4 bg-orange-50 border border-orange-200 rounded-lg p-3">
+              <p className="text-sm font-semibold text-orange-700 mb-2">📋 Pasos a seguir:</p>
+              <ol className="text-xs text-gray-700 space-y-1 ml-4 list-decimal">
+                <li>Realiza las correcciones necesarias según el motivo de rechazo</li>
+                <li>
+                  Sube imágenes en{' '}
+                  <span className="font-bold text-orange-700">
+                    "{currentWork.status === 'rejectedInspection' ? 'SISTEMA INSTALADO' : 'TRABAJO CUBIERTO'}"
+                  </span>
+                  {' '}mostrando las correcciones
+                </li>
+                <li>Presiona "✓ Corregido - Solicitar Reinspección"</li>
+                <li>La oficina programará una nueva inspección</li>
+              </ol>
+            </div>
+          </div>
+        )}
+
         {/* Información del Cliente */}
         <div className="bg-white rounded-lg shadow-md p-5">
           <h2 className="text-lg font-bold text-gray-800 mb-3">Información del Cliente</h2>
@@ -472,6 +547,22 @@ const WorkerWorkUpload = () => {
         {/* Botones de acción */}
         {!isCompleted && (
           <div className="bg-white rounded-lg shadow-md p-5 space-y-3">
+            {/* Botón de Reinspección para trabajos rechazados */}
+            {isRejected && (
+              <button
+                onClick={handleRequestReinspection}
+                disabled={
+                  currentWork.status === 'rejectedInspection'
+                    ? !imagesByStage['sistema instalado']?.length
+                    : !imagesByStage['trabajo cubierto']?.length
+                }
+                className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold py-3 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center shadow-lg"
+              >
+                <CheckCircleIcon className="h-5 w-5 mr-2" />
+                ✓ Corregido - Solicitar Reinspección
+              </button>
+            )}
+            
             {canMarkInstalled && (
               <button
                 onClick={handleWorkInstalled}
@@ -483,7 +574,7 @@ const WorkerWorkUpload = () => {
               </button>
             )}
             
-            {canMarkCovered && (
+            {canMarkCovered && !isRejected && (
               <button
                 onClick={handleMarkCovered}
                 disabled={!imagesByStage['trabajo cubierto']?.length}
@@ -492,6 +583,21 @@ const WorkerWorkUpload = () => {
                 <CheckCircleIcon className="h-5 w-5 mr-2" />
                 TRABAJO CUBIERTO
               </button>
+            )}
+
+            {/* Mensajes de ayuda */}
+            {isRejected && (
+              currentWork.status === 'rejectedInspection'
+                ? !imagesByStage['sistema instalado']?.length && (
+                    <p className="text-xs text-orange-600 text-center mt-2">
+                      * Debes subir imágenes en "Sistema Instalado" mostrando las correcciones antes de solicitar reinspección
+                    </p>
+                  )
+                : !imagesByStage['trabajo cubierto']?.length && (
+                    <p className="text-xs text-orange-600 text-center mt-2">
+                      * Debes subir imágenes en "Trabajo Cubierto" mostrando las correcciones antes de solicitar reinspección
+                    </p>
+                  )
             )}
           </div>
         )}
