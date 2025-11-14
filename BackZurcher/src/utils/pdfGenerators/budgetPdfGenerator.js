@@ -581,7 +581,7 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
   // ✅ DISCOUNT (si existe) - empieza en totalsStartX
   if (discountNum > 0) {
     currentTotalY = doc.y;
-    doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
+    doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor('#DC2626'); // 🔴 Rojo para el descuento
     const discountLabel = discountDescription ? `${discountDescription.toUpperCase()}` : "DISCOUNT";
     // Hacer wrap del label si es muy largo
     doc.text(discountLabel, totalsStartX, currentTotalY, {
