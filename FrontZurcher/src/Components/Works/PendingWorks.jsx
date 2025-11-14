@@ -37,6 +37,13 @@ const PendingWorks = () => {
 
   const localizer = momentLocalizer(moment);
 
+  // ✅ Función para verificar si un trabajo tiene permiso vencido
+  const hasExpiredPermit = (work) => {
+    const permit = work?.Permit; // El Permit está directamente en work, no en budget
+    if (!permit) return false;
+    return permit.expirationStatus === 'expired';
+  };
+
   // Filtrar trabajos
   // Mostrar trabajos pending solo si:
   // El budget está en estado 'approved' (ya tiene firma + pago inicial)
@@ -75,6 +82,13 @@ const PendingWorks = () => {
       toast.error("Por favor selecciona un trabajo y un miembro del staff.");
       return;
     }
+
+    // ✅ Validar que el permiso no esté vencido antes de asignar
+    if (hasExpiredPermit(selectedWork)) {
+      toast.error("No se puede asignar este trabajo porque el permiso está vencido. Por favor, renueva el permiso primero.");
+      return;
+    }
+
     // Tomar la fecha seleccionada del calendario y enviarla como string YYYY-MM-DD sin conversión de zona horaria
     let rawDate;
     if (startDate instanceof Date) {
@@ -125,7 +139,7 @@ const PendingWorks = () => {
   };
 
   const events = works
-    .filter((work) => work.startDate)
+    .filter((work) => work.startDate && !hasExpiredPermit(work)) // ✅ Filtrar trabajos con permiso vencido
     .map((work) => {
       const staffMember = staff.find((member) => member.id === work.staffId);
       const staffName = staffMember ? staffMember.name : "Sin asignar";
@@ -174,16 +188,31 @@ const PendingWorks = () => {
             </div>
           ) : (
             <ul className="space-y-2">
-              {pendingWorks.map((work) => (
-                <li
-                  key={work.idWork}
-                  className={`p-3 border rounded-lg cursor-pointer transition-all hover:bg-blue-50 ${selectedWork?.idWork === work.idWork ? "bg-blue-100 border-blue-400" : "bg-gray-50"}`}
-                  onClick={() => setSelectedWork(work)}
-                >
-                  <span className="font-semibold text-blue-700">{work.propertyAddress}</span>
-                  <span className="ml-2 text-xs px-2 py-0.5 rounded bg-yellow-100 text-yellow-800">Pendiente</span>
-                </li>
-              ))}
+              {pendingWorks.map((work) => {
+                const isExpired = hasExpiredPermit(work);
+                return (
+                  <li
+                    key={work.idWork}
+                    className={`p-3 border rounded-lg cursor-pointer transition-all hover:bg-blue-50 ${
+                      selectedWork?.idWork === work.idWork ? "bg-blue-100 border-blue-400" : "bg-gray-50"
+                    } ${isExpired ? "border-red-400 bg-red-50" : ""}`}
+                    onClick={() => setSelectedWork(work)}
+                  >
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-blue-700">{work.propertyAddress}</span>
+                        <span className="ml-2 text-xs px-2 py-0.5 rounded bg-yellow-100 text-yellow-800">Pendiente</span>
+                      </div>
+                      {isExpired && (
+                        <div className="flex items-center gap-1 text-xs text-red-600 font-medium">
+                          <XCircleIcon className="h-4 w-4" />
+                          <span>Permiso Vencido - No se puede asignar</span>
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
           <h2 className="text-lg font-semibold text-gray-800 mt-6 mb-2">Trabajos Asignados</h2>
@@ -246,6 +275,26 @@ const PendingWorks = () => {
                   <ArrowPathIcon className="h-5 w-5 text-yellow-500" />
                 )}
               </h2>
+
+              {/* ✅ Alerta de permiso vencido */}
+              {hasExpiredPermit(selectedWork) && (
+                <div className="bg-red-50 border-2 border-red-500 rounded-lg p-4 mb-4">
+                  <div className="flex items-center gap-2">
+                    <XCircleIcon className="h-6 w-6 text-red-600 flex-shrink-0" />
+                    <div>
+                      <h3 className="text-sm font-bold text-red-700 uppercase">Permiso Vencido</h3>
+                      <p className="text-sm text-red-600 mt-1">
+                        {selectedWork.Permit?.expirationMessage || 
+                         'Este trabajo no puede ser asignado hasta que se renueve el permiso.'}
+                      </p>
+                      <p className="text-xs text-red-500 mt-2">
+                        Por favor, actualiza el permiso en la sección de Budgets antes de asignar este trabajo.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-col md:flex-row gap-4 items-start">
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Fecha de instalación</label>
@@ -294,12 +343,18 @@ const PendingWorks = () => {
                 <button
                   onClick={handleAssignOrUpdate}
                   className={`flex-1 py-3 rounded-lg font-semibold text-white transition-all duration-200 ${
-                    !selectedWork || !selectedStaff || isReadOnly
+                    !selectedWork || !selectedStaff || isReadOnly || hasExpiredPermit(selectedWork)
                       ? "bg-gray-300 cursor-not-allowed"
                       : "bg-blue-600 hover:bg-blue-700 shadow-md hover:scale-[1.02]"
                   }`}
-                  disabled={!selectedWork || !selectedStaff || isReadOnly}
-                  title={isReadOnly ? "View only - No edit permissions" : ""}
+                  disabled={!selectedWork || !selectedStaff || isReadOnly || hasExpiredPermit(selectedWork)}
+                  title={
+                    hasExpiredPermit(selectedWork) 
+                      ? "No se puede asignar - Permiso vencido" 
+                      : isReadOnly 
+                      ? "View only - No edit permissions" 
+                      : ""
+                  }
                 >
                   {editMode ? "Guardar cambios" : "Asignar trabajo"}
                 </button>
