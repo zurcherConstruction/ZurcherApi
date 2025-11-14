@@ -79,8 +79,24 @@ const BudgetNotesModal = ({ budget, onClose, onAlertsChange }) => {
     }
   }, [dispatch, budget?.idBudget]);
 
-  // Filtrar notas - asegurar que notes sea un array
-  const filteredNotes = Array.isArray(notes) ? notes.filter((note) => {
+  // ✅ Crear una "nota inicial" virtual si el budget tiene generalNotes
+  const initialNote = budget?.generalNotes?.trim() ? {
+    id: 'initial-note',
+    message: budget.generalNotes,
+    noteType: 'other',
+    priority: 'medium',
+    createdAt: budget.createdAt || budget.date,
+    staffId: null,
+    staffName: 'Sistema',
+    isInitialNote: true, // Marcador especial
+  } : null;
+
+  // Filtrar notas - asegurar que notes sea un array e incluir la nota inicial si existe
+  const allNotes = initialNote ? [initialNote, ...notes] : notes;
+  
+  const filteredNotes = Array.isArray(allNotes) ? allNotes.filter((note) => {
+    // La nota inicial siempre se muestra (no se filtra)
+    if (note.isInitialNote) return true;
     if (filterType !== 'all' && note.noteType !== filterType) return false;
     if (filterPriority !== 'all' && note.priority !== filterPriority) return false;
     return true;
@@ -485,7 +501,43 @@ const BudgetNotesModal = ({ budget, onClose, onAlertsChange }) => {
               {filteredNotes.map((note, index) => {
                 const noteTypeInfo = noteTypes[note.noteType] || noteTypes.other;
                 const priorityInfo = priorityLevels[note.priority] || priorityLevels.medium;
-                const canEdit = userRole === 'admin' || note.staffId === userId;
+                const canEdit = !note.isInitialNote && (userRole === 'admin' || note.staffId === userId);
+                
+                // ✅ Estilo especial para nota inicial
+                if (note.isInitialNote) {
+                  return (
+                    <div
+                      key={note.id}
+                      className="border-2 border-blue-300 bg-blue-50 p-4 rounded-lg shadow-sm"
+                    >
+                      <div className="flex items-start gap-3 mb-2">
+                        <span className="text-2xl">📋</span>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="font-bold text-blue-900 text-sm">
+                              Nota Inicial del Presupuesto
+                            </span>
+                            <span className="px-2 py-0.5 text-xs rounded-full bg-blue-200 text-blue-800">
+                              Creación
+                            </span>
+                          </div>
+                          <div className="text-sm text-gray-700 whitespace-pre-wrap break-words">
+                            <MessageWithMentions message={note.message} />
+                          </div>
+                          <div className="text-xs text-gray-500 mt-2">
+                            {new Date(note.createdAt).toLocaleString('en-US', {
+                              month: '2-digit',
+                              day: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
 
                 return (
                   <div
