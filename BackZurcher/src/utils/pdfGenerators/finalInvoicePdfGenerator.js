@@ -289,15 +289,15 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
       // 🆕 DESCUENTO (si existe)
       if (discountAmount > 0) {
         currentTotalY = doc.y;
-        doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor(COLOR_TEXT_MEDIUM);
+        doc.font(FONT_FAMILY_MONO).fontSize(11).fillColor('#DC2626'); // 🔴 Rojo para el descuento
         doc.text("DISCOUNT", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
-        doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor('#0066cc');
+        doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor('#DC2626'); // 🔴 Rojo también para el monto
         doc.text(`-$${discountAmount.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
         
         // Si hay razón del descuento, mostrarla
         if (discountReason && discountReason.trim()) {
           doc.moveDown(0.3);
-          doc.font(FONT_FAMILY_MONO).fontSize(7).fillColor(COLOR_TEXT_LIGHT);
+          doc.font(FONT_FAMILY_MONO).fontSize(7).fillColor('#DC2626'); // 🔴 Rojo también para la razón
           doc.text(`(${discountReason.trim()})`, totalsStartX, doc.y, { 
             width: totalsRightEdge - totalsStartX, 
             align: 'left' 
