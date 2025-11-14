@@ -31,18 +31,27 @@ const WorkerDashboard = () => {
   const myWorks = works.filter(work => work.staffId === staffId);
 
   // Separar por estado
-  const assignedWorks = myWorks.filter(w => w.status === 'assigned');
+  // Asignados: incluye assigned y coverPending (pendiente de cubrir)
+  const assignedWorks = myWorks.filter(w => 
+    ['assigned', 'coverPending'].includes(w.status)
+  );
   const inProgressWorks = myWorks.filter(w => w.status === 'inProgress');
   const completedWorks = myWorks.filter(w => 
-    ['installed', 'coverPending', 'covered', 'invoiceFinal', 'paymentReceived', 'maintenance'].includes(w.status)
+    ['installed', 'covered', 'invoiceFinal', 'paymentReceived', 'maintenance'].includes(w.status)
+  );
+  // Trabajos rechazados que requieren acción
+  const rejectedWorks = myWorks.filter(w => 
+    ['rejectedInspection', 'finalRejected'].includes(w.status)
   );
 
   const getWorksByTab = () => {
     switch(activeTab) {
-      case 'assigned': return assignedWorks;
+      case 'assigned': 
+        // Mostrar rechazados primero, luego asignados
+        return [...rejectedWorks, ...assignedWorks];
       case 'inProgress': return inProgressWorks;
       case 'completed': return completedWorks;
-      default: return assignedWorks;
+      default: return [...rejectedWorks, ...assignedWorks];
     }
   };
 
@@ -54,6 +63,8 @@ const WorkerDashboard = () => {
       coverPending: { label: 'Pendiente Cobertura', color: 'bg-orange-100 text-orange-800' },
       covered: { label: 'Cubierto', color: 'bg-green-100 text-green-800' },
       maintenance: { label: 'Mantenimiento', color: 'bg-purple-100 text-purple-800' },
+      rejectedInspection: { label: 'Inspección Rechazada', color: 'bg-red-100 text-red-800' },
+      finalRejected: { label: 'Inspección Final Rechazada', color: 'bg-red-100 text-red-800' },
     };
     return statusMap[status] || { label: status, color: 'bg-gray-100 text-gray-800' };
   };
@@ -112,8 +123,13 @@ const WorkerDashboard = () => {
           {/* Stats Cards */}
           <div className="grid grid-cols-3 gap-2 sm:gap-4 mt-4">
             <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-lg p-2 sm:p-4 text-center">
-              <div className="text-xl sm:text-3xl font-bold">{assignedWorks.length}</div>
+              <div className="text-xl sm:text-3xl font-bold">{assignedWorks.length + rejectedWorks.length}</div>
               <div className="text-xs sm:text-sm text-green-100">Asignados</div>
+              {rejectedWorks.length > 0 && (
+                <div className="text-xs text-red-200 font-semibold mt-1">
+                  ⚠️ {rejectedWorks.length} rechazado{rejectedWorks.length !== 1 ? 's' : ''}
+                </div>
+              )}
             </div>
             <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-lg p-2 sm:p-4 text-center">
               <div className="text-xl sm:text-3xl font-bold">{inProgressWorks.length}</div>
@@ -140,7 +156,10 @@ const WorkerDashboard = () => {
               }`}
             >
               <BriefcaseIcon className="h-4 sm:h-5 w-4 sm:w-5 inline-block mr-1 sm:mr-2" />
-              <span className="text-xs sm:text-base">Asignados ({assignedWorks.length})</span>
+              <span className="text-xs sm:text-base">Asignados ({assignedWorks.length + rejectedWorks.length})</span>
+              {rejectedWorks.length > 0 && (
+                <span className="ml-1 inline-block w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+              )}
             </button>
             <button
               onClick={() => setActiveTab('inProgress')}
@@ -181,12 +200,23 @@ const WorkerDashboard = () => {
           <div className="space-y-4">
             {getWorksByTab().map((work) => {
               const statusInfo = getStatusDisplay(work.status);
+              const isRejected = ['rejectedInspection', 'finalRejected'].includes(work.status);
+              
               return (
                 <div
                   key={work.idWork}
                   onClick={() => handleWorkClick(work.idWork)}
-                  className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer overflow-hidden"
+                  className={`bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer overflow-hidden ${
+                    isRejected ? 'ring-2 ring-red-500' : ''
+                  }`}
                 >
+                  {/* Rejection Banner */}
+                  {isRejected && (
+                    <div className="bg-red-500 text-white px-5 py-2 text-center font-bold text-sm">
+                      ⚠️ {work.status === 'rejectedInspection' ? 'INSPECCIÓN RECHAZADA' : 'INSPECCIÓN FINAL RECHAZADA'}
+                    </div>
+                  )}
+                  
                   <div className="p-5">
                     {/* Header */}
                     <div className="flex justify-between items-start mb-3">

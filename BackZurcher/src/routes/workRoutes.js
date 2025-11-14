@@ -41,11 +41,11 @@ router.get(
 );
 // Crear una obra (solo administradores)
 router.post('/', verifyToken, allowRoles(['admin', 'recept', 'owner']), WorkController.createWork);
-router.get('/assigned', verifyToken, allowRoles(['owner', 'worker']), WorkController.getAssignedWorks);
-// Obtener todas las obras (personal del hotel)
+router.get('/assigned', verifyToken, allowRoles(['owner', 'worker', 'maintenance']), WorkController.getAssignedWorks);
+// Obtener todas las obras 
 router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker', 'maintenance', 'finance']), WorkController.getWorks);
 
-// Obtener una obra por ID (personal del hotel) - CON CACHÉ de 30 segundos
+// Obtener una obra por ID  - CON CACHÉ de 30 segundos
 router.get('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker', 'maintenance', 'finance']), cacheMiddleware(30), WorkController.getWorkById);
 
 // Actualizar una obra (solo administradores)
