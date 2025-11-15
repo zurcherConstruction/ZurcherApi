@@ -134,14 +134,6 @@ const updateMaintenanceVisit = async (req, res) => {
     const staffAssignmentChanged = req.body.hasOwnProperty('staffId') && previousStaffId !== staffId;
     const scheduledDateChanged = req.body.hasOwnProperty('scheduledDate') && scheduledDate !== undefined;
     
-    console.log('📧 Email notification check:', {
-      previousStaffId,
-      newStaffId: staffId,
-      staffAssignmentChanged,
-      scheduledDateChanged,
-      hasStaffId: req.body.hasOwnProperty('staffId')
-    });
-    
     // Handle staffId: allows assigning a new staff, or unassigning (setting to null)
     // if 'staffId' is explicitly part of the request body.
     if (req.body.hasOwnProperty('staffId')) {
@@ -181,21 +173,11 @@ const updateMaintenanceVisit = async (req, res) => {
     // Send email notification if staff was assigned or if date changed for existing assignment
     const shouldSendEmail = (staffAssignmentChanged && staffId) || (scheduledDateChanged && visit.staffId);
     
-    console.log('📧 Should send email:', shouldSendEmail, {
-      staffAssignmentChanged,
-      staffId,
-      scheduledDateChanged,
-      visitStaffId: visit.staffId,
-      hasAssignedStaff: !!updatedVisit.assignedStaff
-    });
-    
     if (shouldSendEmail && updatedVisit.assignedStaff) {
       try {
         const staff = updatedVisit.assignedStaff;
         const work = updatedVisit.work;
         const permit = work?.Permit;
-        
-        console.log('📧 Preparing email for:', staff.email);
         
         const scheduledDateFormatted = updatedVisit.scheduledDate 
           ? new Date(updatedVisit.scheduledDate + 'T12:00:00').toLocaleDateString('es-ES', { 
@@ -208,22 +190,12 @@ const updateMaintenanceVisit = async (req, res) => {
         // Preparar attachments con los PDFs del permiso
         const emailAttachments = [];
         
-        console.log('📎 Permit data:', {
-          hasPermit: !!permit,
-          permitNumber: permit?.permitNumber,
-          hasPdfData: !!permit?.pdfData,
-          pdfDataType: permit?.pdfData ? typeof permit.pdfData : 'undefined',
-          hasOptionalDocs: !!permit?.optionalDocs,
-          optionalDocsType: permit?.optionalDocs ? typeof permit.optionalDocs : 'undefined'
-        });
-        
         if (permit?.pdfData) {
           emailAttachments.push({
             filename: `Permiso_${permit.permitNumber || 'Principal'}.pdf`,
             content: Buffer.isBuffer(permit.pdfData) ? permit.pdfData : Buffer.from(permit.pdfData, 'base64'),
             contentType: 'application/pdf'
           });
-          console.log('✅ Adjuntado pdfData:', `Permiso_${permit.permitNumber || 'Principal'}.pdf`);
         }
         
         if (permit?.optionalDocs) {
@@ -233,18 +205,14 @@ const updateMaintenanceVisit = async (req, res) => {
               content: permit.optionalDocs,
               contentType: 'application/pdf'
             });
-            console.log('✅ Adjuntado optionalDocs (Buffer)');
           } else if (typeof permit.optionalDocs === 'string') {
             emailAttachments.push({
               filename: `Documentacion_Adicional.pdf`,
               content: Buffer.from(permit.optionalDocs, 'base64'),
               contentType: 'application/pdf'
             });
-            console.log('✅ Adjuntado optionalDocs (string)');
           }
         }
-        
-        console.log('📎 Total attachments:', emailAttachments.length);
 
         const emailSubject = `Nueva Visita de Mantenimiento Asignada - ${work?.propertyAddress || 'Obra'}`;
         const emailText = `Hola ${staff.name},\n\nSe te ha asignado una nueva visita de mantenimiento:\n\n` +
@@ -334,7 +302,7 @@ const updateMaintenanceVisit = async (req, res) => {
           attachments: emailAttachments,
         });
 
-        console.log(`✅ Email de asignación enviado a ${staff.email} para visita ${visitId}`);
+        console.log(`✅ Email enviado a ${staff.email} para visita ${visitId}`);
       } catch (emailError) {
         console.error('❌ Error al enviar email de asignación:', emailError);
         // No fallar la request si el email falla
@@ -832,7 +800,7 @@ const createMaintenanceVisit = async (req, res) => {
           attachments: emailAttachments,
         });
 
-        console.log(`✅ Email de asignación enviado a ${staff.email} para nueva visita ${newVisit.id}`);
+        console.log(`✅ Email enviado a ${staff.email} para nueva visita ${newVisit.id}`);
       } catch (emailError) {
         console.error('❌ Error al enviar email de asignación:', emailError);
         // No fallar la request si el email falla
