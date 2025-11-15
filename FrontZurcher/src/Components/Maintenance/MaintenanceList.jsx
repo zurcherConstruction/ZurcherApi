@@ -12,7 +12,7 @@ import MaintenanceWorkCard from './MaintenanceWorkCard';
 import MaintenanceDetail from './MaintenanceDetail';
 import LoadingSpinner from '../LoadingSpinner';
 import Swal from 'sweetalert2';
-import { ArrowLeftIcon } from '@heroicons/react/24/outline';
+import { ArrowLeftIcon, CalendarIcon } from '@heroicons/react/24/outline';
 
 const MaintenanceList = () => {
   const dispatch = useDispatch();
@@ -80,13 +80,22 @@ const MaintenanceList = () => {
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
-        <button
-          onClick={() => navigate('/maintenance')}
-          className="flex items-center text-blue-600 hover:text-blue-800 mb-3 font-medium"
-        >
-          <ArrowLeftIcon className="h-5 w-5 mr-2" />
-          Volver a Visitas Completadas
-        </button>
+        <div className="flex items-center justify-between mb-3">
+          <button
+            onClick={() => navigate('/maintenance')}
+            className="flex items-center text-blue-600 hover:text-blue-800 font-medium"
+          >
+            <ArrowLeftIcon className="h-5 w-5 mr-2" />
+            Volver a Visitas Completadas
+          </button>
+          <button
+            onClick={() => navigate('/maintenance/calendar')}
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2 font-medium"
+          >
+            <CalendarIcon className="h-5 w-5" />
+            Ver Calendario de Visitas
+          </button>
+        </div>
         <h1 className="text-3xl font-bold text-gray-800 mb-2">
           Gestión de Obras en Mantenimiento
         </h1>

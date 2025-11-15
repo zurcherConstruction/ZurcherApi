@@ -307,7 +307,7 @@ const LegacyMaintenanceEditor = () => {
                     <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
                       <span className="flex items-center">
                         <CalendarDaysIcon className="h-4 w-4 mr-1" />
-                        Visita: {work.scheduledDate ? new Date(work.scheduledDate).toLocaleDateString('es-ES') : 'N/A'}
+                        Visita: {work.scheduledDate ? new Date(work.scheduledDate + 'T12:00:00').toLocaleDateString('es-ES') : 'N/A'}
                       </span>
                       <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
                         Work #{work.idWork}

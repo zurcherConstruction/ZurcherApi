@@ -90,7 +90,8 @@ const WorkerMaintenanceDashboard = () => {
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Sin fecha';
-    const date = new Date(dateString);
+    // Parse como DATEONLY sin conversión de timezone
+    const date = new Date(dateString + 'T12:00:00');
     return date.toLocaleDateString('es-ES', { 
       year: 'numeric', 
       month: 'long', 

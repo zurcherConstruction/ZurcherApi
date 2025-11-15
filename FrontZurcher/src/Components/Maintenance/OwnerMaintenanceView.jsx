@@ -55,7 +55,8 @@ const OwnerMaintenanceView = () => {
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Sin fecha';
-    const date = new Date(dateString);
+    // Parse como DATEONLY sin conversión de timezone
+    const date = new Date(dateString + 'T12:00:00');
     return date.toLocaleDateString('es-ES', { 
       year: 'numeric', 
       month: 'short', 
@@ -157,6 +158,13 @@ const OwnerMaintenanceView = () => {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/maintenance/calendar')}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2 font-medium"
+            >
+              <CalendarIcon className="h-5 w-5" />
+              Ver Calendario
+            </button>
             <button
               onClick={() => navigate('/maintenance/works')}
               className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 font-medium"

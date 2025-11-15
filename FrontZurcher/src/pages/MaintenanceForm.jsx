@@ -320,7 +320,7 @@ const MaintenanceForm = () => {
               <div>
                 <p className="text-sm text-gray-500">Fecha Programada</p>
                 <p className="font-medium text-gray-900">
-                  {new Date(visitData.scheduledDate).toLocaleDateString('es-ES')}
+                  {new Date(visitData.scheduledDate + 'T12:00:00').toLocaleDateString('es-ES')}
                 </p>
               </div>
               <div>
