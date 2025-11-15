@@ -47,10 +47,14 @@ const PendingWorks = () => {
   // Filtrar trabajos
   // Mostrar trabajos pending solo si:
   // El budget está en estado 'approved' (ya tiene firma + pago inicial)
+  // ✅ EXCLUIR trabajos de mantenimiento (status legacy_maintenance)
   const pendingWorks = works.filter((work) => {
     if (work.status === "pending") {
       const budget = work.budget;
       if (!budget) return false;
+      
+      // ✅ Excluir mantenimiento legacy
+      if (budget.status === 'legacy_maintenance') return false;
       
       // ✅ SIMPLIFICADO: Budget 'approved' = Firmado + Pago completo
       // El hook Budget.beforeUpdate ya manejó la transición signed → approved
@@ -58,8 +62,14 @@ const PendingWorks = () => {
     }
     return false;
   });
-  const assignedWorks = works.filter((work) => work.status === "assigned");
-  const inProgressWorks = works.filter((work) => work.status === "inProgress");
+  
+  // ✅ EXCLUIR trabajos de mantenimiento de assigned e inProgress también
+  const assignedWorks = works.filter((work) => 
+    work.status === "assigned" && work.budget?.status !== 'legacy_maintenance'
+  );
+  const inProgressWorks = works.filter((work) => 
+    work.status === "inProgress" && work.budget?.status !== 'legacy_maintenance'
+  );
 
   useEffect(() => {
     dispatch(fetchStaff());
@@ -139,7 +149,15 @@ const PendingWorks = () => {
   };
 
   const events = works
-    .filter((work) => work.startDate && !hasExpiredPermit(work)) // ✅ Filtrar trabajos con permiso vencido
+    .filter((work) => {
+      // ✅ Filtrar trabajos con permiso vencido
+      if (!work.startDate || hasExpiredPermit(work)) return false;
+      
+      // ✅ Filtrar trabajos de mantenimiento (tanto maintenance como legacy_maintenance)
+      if (work.status === 'maintenance' || work.budget?.status === 'legacy_maintenance') return false;
+      
+      return true;
+    })
     .map((work) => {
       const staffMember = staff.find((member) => member.id === work.staffId);
       const staffName = staffMember ? staffMember.name : "Sin asignar";
@@ -394,30 +412,51 @@ const PendingWorks = () => {
           </button>
         </div>
       </div>
-      {/* Modal del calendario (React puro) */}
+      {/* Modal del calendario (React puro) - ✅ RESPONSIVE */}
       {calendarOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-5xl mx-auto p-6">
-            <button
-              onClick={() => setCalendarOpen(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700"
-              aria-label="Cerrar calendario"
-            >
-              <XMarkIcon className="h-6 w-6" />
-            </button>
-            <h2 className="text-xl font-bold text-blue-800 mb-4 flex items-center gap-2">
-              <CalendarIcon className="h-6 w-6 text-blue-500" />
-              Calendario de trabajos
-            </h2>
-            <div className="overflow-x-auto">
-              <BigCalendar
-                localizer={localizer}
-                events={events}
-                startAccessor="start"
-                endAccessor="end"
-                style={{ height: 600, minWidth: 600 }}
-                eventPropGetter={eventStyleGetter}
-              />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 p-2 sm:p-4">
+          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[95vh] flex flex-col">
+            {/* Header fijo con botón cerrar */}
+            <div className="flex items-center justify-between p-4 sm:p-6 border-b flex-shrink-0">
+              <h2 className="text-lg sm:text-xl font-bold text-blue-800 flex items-center gap-2">
+                <CalendarIcon className="h-5 w-5 sm:h-6 sm:w-6 text-blue-500" />
+                Calendario de trabajos
+              </h2>
+              <button
+                onClick={() => setCalendarOpen(false)}
+                className="text-gray-400 hover:text-gray-700 p-1"
+                aria-label="Cerrar calendario"
+              >
+                <XMarkIcon className="h-6 w-6" />
+              </button>
+            </div>
+            
+            {/* Contenedor del calendario con scroll */}
+            <div className="flex-1 overflow-auto p-4 sm:p-6">
+              <div className="min-w-[600px]" style={{ height: 'max(500px, 60vh)' }}>
+                <BigCalendar
+                  localizer={localizer}
+                  events={events}
+                  startAccessor="start"
+                  endAccessor="end"
+                  style={{ height: '100%' }}
+                  eventPropGetter={eventStyleGetter}
+                  messages={{
+                    next: 'Siguiente',
+                    previous: 'Anterior',
+                    today: 'Hoy',
+                    month: 'Mes',
+                    week: 'Semana',
+                    day: 'Día',
+                    agenda: 'Agenda',
+                    date: 'Fecha',
+                    time: 'Hora',
+                    event: 'Trabajo',
+                    noEventsInRange: 'No hay trabajos en este rango.',
+                    showMore: (total) => `+ Ver ${total} más`
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>

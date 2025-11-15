@@ -4,6 +4,7 @@ const { Op } = require('sequelize');
 const { addMonths, format, parseISO  } = require('date-fns'); // Para manipulación de fechas
 const jwt = require('jsonwebtoken');
 const { generateMaintenancePDF } = require('../utils/maintenancePdfGenerator');
+const { sendEmail } = require('../utils/notifications/emailService');
 const fs = require('fs');
 const path = require('path');
 
@@ -36,7 +37,8 @@ const scheduleInitialMaintenanceVisits = async (workId) => {
       return;
     }
 
-   const baseDate = new Date(work.maintenanceStartDate); // Usa el maintenanceStartDate de la obra
+   // Usar parseISO para evitar problemas de timezone con strings YYYY-MM-DD
+   const baseDate = parseISO(work.maintenanceStartDate + 'T12:00:00');
     console.log(`[MaintenanceController - scheduleInitial] Base date for scheduling: ${baseDate.toISOString()}`);
 
     for (let i = 1; i <= 4; i++) {
@@ -127,6 +129,11 @@ const updateMaintenanceVisit = async (req, res) => {
         visit.scheduledDate = scheduledDate; // Frontend sends 'yyyy-MM-dd'
     }
     
+    // Track if staff assignment changed for email notification
+    const previousStaffId = visit.staffId;
+    const staffAssignmentChanged = req.body.hasOwnProperty('staffId') && previousStaffId !== staffId;
+    const scheduledDateChanged = req.body.hasOwnProperty('scheduledDate') && scheduledDate !== undefined;
+    
     // Handle staffId: allows assigning a new staff, or unassigning (setting to null)
     // if 'staffId' is explicitly part of the request body.
     if (req.body.hasOwnProperty('staffId')) {
@@ -149,8 +156,158 @@ const updateMaintenanceVisit = async (req, res) => {
     const updatedVisit = await MaintenanceVisit.findByPk(visitId, {
         include: [
         { model: MaintenanceMedia, as: 'mediaFiles' }, // Good to keep for consistency
-        { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] } // Crucial for frontend update
+        { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] }, // Crucial for frontend update
+        { 
+          model: Work, 
+          as: 'work',
+          attributes: ['idWork', 'propertyAddress'],
+          include: [
+            { 
+              model: Permit, 
+              attributes: ['permitNumber', 'systemType', 'applicantName', 'pdfData', 'optionalDocs']
+            }
+          ]
+        }
       ]});
+
+    // Send email notification if staff was assigned or if date changed for existing assignment
+    const shouldSendEmail = (staffAssignmentChanged && staffId) || (scheduledDateChanged && visit.staffId);
+    
+    if (shouldSendEmail && updatedVisit.assignedStaff) {
+      try {
+        const staff = updatedVisit.assignedStaff;
+        const work = updatedVisit.work;
+        const permit = work?.Permit;
+        
+        const scheduledDateFormatted = updatedVisit.scheduledDate 
+          ? new Date(updatedVisit.scheduledDate + 'T12:00:00').toLocaleDateString('es-ES', { 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })
+          : 'Por programar';
+
+        // Preparar attachments con los PDFs del permiso
+        const emailAttachments = [];
+        
+        if (permit?.pdfData) {
+          emailAttachments.push({
+            filename: `Permiso_${permit.permitNumber || 'Principal'}.pdf`,
+            content: Buffer.isBuffer(permit.pdfData) ? permit.pdfData : Buffer.from(permit.pdfData, 'base64'),
+            contentType: 'application/pdf'
+          });
+        }
+        
+        if (permit?.optionalDocs) {
+          if (Buffer.isBuffer(permit.optionalDocs)) {
+            emailAttachments.push({
+              filename: `Documentacion_Adicional.pdf`,
+              content: permit.optionalDocs,
+              contentType: 'application/pdf'
+            });
+          } else if (typeof permit.optionalDocs === 'string') {
+            emailAttachments.push({
+              filename: `Documentacion_Adicional.pdf`,
+              content: Buffer.from(permit.optionalDocs, 'base64'),
+              contentType: 'application/pdf'
+            });
+          }
+        }
+
+        const emailSubject = `Nueva Visita de Mantenimiento Asignada - ${work?.propertyAddress || 'Obra'}`;
+        const emailText = `Hola ${staff.name},\n\nSe te ha asignado una nueva visita de mantenimiento:\n\n` +
+          `📍 Dirección: ${work?.propertyAddress || 'N/A'}\n` +
+          `🔢 Visita #${updatedVisit.visitNumber}\n` +
+          `📅 Fecha programada: ${scheduledDateFormatted}\n` +
+          `📋 Estado: ${updatedVisit.status === 'scheduled' ? 'Programada' : updatedVisit.status === 'assigned' ? 'Asignada' : 'Pendiente'}\n` +
+          (permit?.permitNumber ? `🎫 Permiso: ${permit.permitNumber}\n` : '') +
+          (permit?.systemType ? `🔧 Sistema: ${permit.systemType}\n` : '') +
+          (permit?.applicantName ? `👤 Cliente: ${permit.applicantName}\n` : '') +
+          (updatedVisit.notes ? `\n📝 Notas: ${updatedVisit.notes}\n` : '') +
+          `\nPor favor, revisa los detalles en la aplicación móvil.\n\nSaludos.`;
+
+        const emailHtml = `
+          <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px;">
+            <h2 style="color: #1a365d; border-bottom: 3px solid #1a365d; padding-bottom: 10px;">
+              🔧 Nueva Visita de Mantenimiento Asignada
+            </h2>
+            <p>Hola <strong>${staff.name}</strong>,</p>
+            <p>Se te ha asignado una nueva visita de mantenimiento:</p>
+            
+            <div style="background: #f7fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 8px 0; color: #718096;"><strong>📍 Dirección:</strong></td>
+                  <td style="padding: 8px 0;">${work?.propertyAddress || 'N/A'}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #718096;"><strong>🔢 Visita:</strong></td>
+                  <td style="padding: 8px 0;">#${updatedVisit.visitNumber}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #718096;"><strong>📅 Fecha programada:</strong></td>
+                  <td style="padding: 8px 0;"><strong style="color: #2d3748;">${scheduledDateFormatted}</strong></td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #718096;"><strong>📋 Estado:</strong></td>
+                  <td style="padding: 8px 0;">
+                    <span style="background: #4299e1; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px;">
+                      ${updatedVisit.status === 'scheduled' ? 'Programada' : updatedVisit.status === 'assigned' ? 'Asignada' : 'Pendiente'}
+                    </span>
+                  </td>
+                </tr>
+                ${permit?.permitNumber ? `
+                <tr>
+                  <td style="padding: 8px 0; color: #718096;"><strong>🎫 Permiso:</strong></td>
+                  <td style="padding: 8px 0;">${permit.permitNumber}</td>
+                </tr>` : ''}
+                ${permit?.systemType ? `
+                <tr>
+                  <td style="padding: 8px 0; color: #718096;"><strong>🔧 Sistema:</strong></td>
+                  <td style="padding: 8px 0;">${permit.systemType}</td>
+                </tr>` : ''}
+                ${permit?.applicantName ? `
+                <tr>
+                  <td style="padding: 8px 0; color: #718096;"><strong>👤 Cliente:</strong></td>
+                  <td style="padding: 8px 0;">${permit.applicantName}</td>
+                </tr>` : ''}
+              </table>
+            </div>
+            
+            ${updatedVisit.notes ? `
+            <div style="background: #fff5e6; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
+              <p style="margin: 0;"><strong>📝 Notas:</strong></p>
+              <p style="margin: 10px 0 0 0;">${updatedVisit.notes}</p>
+            </div>` : ''}
+            
+            ${emailAttachments.length > 0 ? `
+            <div style="background: #e6f7ff; border-left: 4px solid #1890ff; padding: 15px; margin: 20px 0;">
+              <p style="margin: 0;"><strong>📎 Documentos adjuntos:</strong></p>
+              <p style="margin: 10px 0 0 0;">Se han adjuntado los documentos del permiso para tu referencia.</p>
+            </div>` : ''}
+            
+            <p style="margin-top: 30px;">Por favor, revisa los detalles en la <strong>aplicación móvil</strong>.</p>
+            <p style="color: #718096; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+              Saludos,<br>
+              <strong>Sistema de Mantenimiento</strong>
+            </p>
+          </div>
+        `;
+
+        await sendEmail({
+          to: staff.email,
+          subject: emailSubject,
+          text: emailText,
+          html: emailHtml,
+          attachments: emailAttachments,
+        });
+
+        console.log(`✅ Email enviado a ${staff.email} para visita ${visitId}`);
+      } catch (emailError) {
+        console.error('❌ Error al enviar email de asignación:', emailError);
+        // No fallar la request si el email falla
+      }
+    }
 
     res.status(200).json({ message: 'Visita de mantenimiento actualizada.', visit: updatedVisit });
   } catch (error) {
@@ -290,7 +447,8 @@ const scheduleMaintenanceVisits = async (req, res) => {
     }
 
     // Usar la fecha proporcionada o la fecha actual
-    const baseDate = startDate ? new Date(startDate) : new Date();
+    // Usar parseISO para evitar problemas de timezone con strings YYYY-MM-DD
+    const baseDate = startDate ? parseISO(startDate + 'T12:00:00') : new Date();
     
     // Obtener números de visitas ya existentes (preservadas)
     const preservedVisitNumbers = await MaintenanceVisit.findAll({
@@ -497,9 +655,157 @@ const createMaintenanceVisit = async (req, res) => {
     const createdVisit = await MaintenanceVisit.findByPk(newVisit.id, {
       include: [
         { model: MaintenanceMedia, as: 'mediaFiles' },
-        { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] }
+        { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] },
+        { 
+          model: Work, 
+          as: 'work',
+          attributes: ['idWork', 'propertyAddress'],
+          include: [
+            { 
+              model: Permit, 
+              attributes: ['permitNumber', 'systemType', 'applicantName', 'pdfData', 'optionalDocs']
+            }
+          ]
+        }
       ]
     });
+
+    // Send email notification to assigned staff
+    if (finalAssignedStaffId && createdVisit.assignedStaff) {
+      try {
+        const staff = createdVisit.assignedStaff;
+        const workData = createdVisit.work;
+        const permit = workData?.Permit;
+        
+        const scheduledDateFormatted = createdVisit.scheduledDate 
+          ? new Date(createdVisit.scheduledDate + 'T12:00:00').toLocaleDateString('es-ES', { 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })
+          : 'Por programar';
+
+        // Preparar attachments con los PDFs del permiso
+        const emailAttachments = [];
+        
+        if (permit?.pdfData) {
+          emailAttachments.push({
+            filename: `Permiso_${permit.permitNumber || 'Principal'}.pdf`,
+            content: Buffer.isBuffer(permit.pdfData) ? permit.pdfData : Buffer.from(permit.pdfData, 'base64'),
+            contentType: 'application/pdf'
+          });
+        }
+        
+        if (permit?.optionalDocs) {
+          if (Buffer.isBuffer(permit.optionalDocs)) {
+            emailAttachments.push({
+              filename: `Documentacion_Adicional.pdf`,
+              content: permit.optionalDocs,
+              contentType: 'application/pdf'
+            });
+          } else if (typeof permit.optionalDocs === 'string') {
+            emailAttachments.push({
+              filename: `Documentacion_Adicional.pdf`,
+              content: Buffer.from(permit.optionalDocs, 'base64'),
+              contentType: 'application/pdf'
+            });
+          }
+        }
+
+        const emailSubject = `Nueva Visita de Mantenimiento Asignada - ${workData?.propertyAddress || 'Obra'}`;
+        const emailText = `Hola ${staff.name},\n\nSe te ha asignado una nueva visita de mantenimiento:\n\n` +
+          `📍 Dirección: ${workData?.propertyAddress || 'N/A'}\n` +
+          `🔢 Visita #${createdVisit.visitNumber}\n` +
+          `📅 Fecha programada: ${scheduledDateFormatted}\n` +
+          `📋 Estado: Pendiente de programar\n` +
+          (permit?.permitNumber ? `🎫 Permiso: ${permit.permitNumber}\n` : '') +
+          (permit?.systemType ? `🔧 Sistema: ${permit.systemType}\n` : '') +
+          (permit?.applicantName ? `👤 Cliente: ${permit.applicantName}\n` : '') +
+          (createdVisit.notes ? `\n📝 Notas: ${createdVisit.notes}\n` : '') +
+          `\nPor favor, revisa los detalles en la aplicación móvil.\n\nSaludos.`;
+
+        const emailHtml = `
+          <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px;">
+            <h2 style="color: #1a365d; border-bottom: 3px solid #1a365d; padding-bottom: 10px;">
+              🔧 Nueva Visita de Mantenimiento Asignada
+            </h2>
+            <p>Hola <strong>${staff.name}</strong>,</p>
+            <p>Se te ha asignado una nueva visita de mantenimiento:</p>
+            
+            <div style="background: #f7fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 8px 0; color: #718096;"><strong>📍 Dirección:</strong></td>
+                  <td style="padding: 8px 0;">${workData?.propertyAddress || 'N/A'}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #718096;"><strong>🔢 Visita:</strong></td>
+                  <td style="padding: 8px 0;">#${createdVisit.visitNumber}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #718096;"><strong>📅 Fecha programada:</strong></td>
+                  <td style="padding: 8px 0;"><strong style="color: #2d3748;">${scheduledDateFormatted}</strong></td>
+                </tr>
+                <tr>
+                  <td style="padding: 8px 0; color: #718096;"><strong>📋 Estado:</strong></td>
+                  <td style="padding: 8px 0;">
+                    <span style="background: #718096; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px;">
+                      Pendiente de programar
+                    </span>
+                  </td>
+                </tr>
+                ${permit?.permitNumber ? `
+                <tr>
+                  <td style="padding: 8px 0; color: #718096;"><strong>🎫 Permiso:</strong></td>
+                  <td style="padding: 8px 0;">${permit.permitNumber}</td>
+                </tr>` : ''}
+                ${permit?.systemType ? `
+                <tr>
+                  <td style="padding: 8px 0; color: #718096;"><strong>🔧 Sistema:</strong></td>
+                  <td style="padding: 8px 0;">${permit.systemType}</td>
+                </tr>` : ''}
+                ${permit?.applicantName ? `
+                <tr>
+                  <td style="padding: 8px 0; color: #718096;"><strong>👤 Cliente:</strong></td>
+                  <td style="padding: 8px 0;">${permit.applicantName}</td>
+                </tr>` : ''}
+              </table>
+            </div>
+            
+            ${createdVisit.notes ? `
+            <div style="background: #fff5e6; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
+              <p style="margin: 0;"><strong>📝 Notas:</strong></p>
+              <p style="margin: 10px 0 0 0;">${createdVisit.notes}</p>
+            </div>` : ''}
+            
+            ${emailAttachments.length > 0 ? `
+            <div style="background: #e6f7ff; border-left: 4px solid #1890ff; padding: 15px; margin: 20px 0;">
+              <p style="margin: 0;"><strong>📎 Documentos adjuntos:</strong></p>
+              <p style="margin: 10px 0 0 0;">Se han adjuntado los documentos del permiso para tu referencia.</p>
+            </div>` : ''}
+            
+            <p style="margin-top: 30px;">Por favor, revisa los detalles en la <strong>aplicación móvil</strong>.</p>
+            <p style="color: #718096; font-size: 14px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e2e8f0;">
+              Saludos,<br>
+              <strong>Sistema de Mantenimiento</strong>
+            </p>
+          </div>
+        `;
+
+        await sendEmail({
+          to: staff.email,
+          subject: emailSubject,
+          text: emailText,
+          html: emailHtml,
+          attachments: emailAttachments,
+        });
+
+        console.log(`✅ Email enviado a ${staff.email} para nueva visita ${newVisit.id}`);
+      } catch (emailError) {
+        console.error('❌ Error al enviar email de asignación:', emailError);
+        // No fallar la request si el email falla
+      }
+    }
 
     res.status(201).json({ 
       message: 'Visita de mantenimiento creada correctamente.', 

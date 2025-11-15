@@ -61,6 +61,7 @@ import MaintenanceList from "./Components/Maintenance/MaintenanceList";
 import MaintenanceForm from "./pages/MaintenanceForm";
 import OwnerMaintenanceView from "./Components/Maintenance/OwnerMaintenanceView";
 import LegacyMaintenanceEditor from "./Components/Maintenance/LegacyMaintenanceEditor"; // 🆕 Editor de trabajos legacy
+import MaintenanceCalendar from "./Components/Maintenance/MaintenanceCalendar"; // 🆕 Calendario de mantenimiento
 import SupplierInvoiceManager from './Components/SupplierInvoices/SupplierInvoiceManager';
 // Importar componentes de Workers
 import WorkerDashboard from "./Components/Workers/WorkerDashboard";
@@ -394,6 +395,15 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["owner", "admin"]}>
                     <MaintenanceList />
+                  </PrivateRoute>
+                }
+              />
+              {/* 🆕 Calendario de visitas de mantenimiento */}
+              <Route
+                path="/maintenance/calendar"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin", "maintenance"]}>
+                    <MaintenanceCalendar />
                   </PrivateRoute>
                 }
               />
