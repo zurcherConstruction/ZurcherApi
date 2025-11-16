@@ -64,14 +64,14 @@ export const FIXED_EXPENSE_FREQUENCIES = [
 export const INCOME_TYPES = [
   'Factura Pago Inicial Budget',
   'Factura Pago Final Budget',
-  'DiseñoDif',
+  //'DiseñoDif',
   'Comprobante Ingreso',
 ];
 
 // Tipos de Gastos (sincronizado con Expense.js)
 export const EXPENSE_TYPES = [
   'Materiales',
-  'Diseño',
+  //'Diseño',
   // 'Workers', // ❌ Removido - Se maneja en módulo específico de workers
   'Imprevistos',
   // 'Comprobante Gasto', // ❌ Removido - Usar tipos específicos
