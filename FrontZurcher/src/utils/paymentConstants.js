@@ -64,22 +64,22 @@ export const FIXED_EXPENSE_FREQUENCIES = [
 export const INCOME_TYPES = [
   'Factura Pago Inicial Budget',
   'Factura Pago Final Budget',
-  'DiseñoDif',
+  //'DiseñoDif',
   'Comprobante Ingreso',
 ];
 
 // Tipos de Gastos (sincronizado con Expense.js)
 export const EXPENSE_TYPES = [
   'Materiales',
-  'Diseño',
-  'Workers',
+  //'Diseño',
+  // 'Workers', // ❌ Removido - Se maneja en módulo específico de workers
   'Imprevistos',
-  'Comprobante Gasto',
+  // 'Comprobante Gasto', // ❌ Removido - Usar tipos específicos
   'Gastos Generales',
   'Materiales Iniciales',
   'Inspección Inicial',
   'Inspección Final',
-  'Comisión Vendedor',
+  // 'Comisión Vendedor', // ❌ Removido - Se paga desde CommissionsManager.jsx
   'Gasto Fijo',
 ];
 

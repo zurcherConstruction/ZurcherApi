@@ -41,6 +41,10 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
   const isIPadPro = (screenWidth === 1024 && screenHeight === 1366) || 
                     (screenWidth === 1366 && screenHeight === 1024) ||
                     navigator.userAgent.includes('iPad');
+  
+  // 🆕 Detección específica para iPhone/iPod (iOS pequeño)
+  const isIPhone = /iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const isSmallIOS = isIPhone || (isMobile && /iPad|iPhone|iPod/.test(navigator.userAgent));
 
   return (
     <div 
@@ -55,17 +59,21 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: isIPadPro ? '20px' : (isMobile ? '8px' : '16px')
+        padding: isSmallIOS ? '4px' : (isIPadPro ? '20px' : (isMobile ? '8px' : '16px')),
+        overflow: 'hidden', // 🆕 Prevenir scroll del fondo
+        WebkitOverflowScrolling: 'touch' // 🆕 Smooth scroll en iOS
       }}
     >
       <div 
         className="bg-white rounded-lg shadow-2xl flex flex-col overflow-hidden"
         style={{
-          width: isIPadPro ? '90vw' : (isLarge ? '85vw' : isTablet ? '85vw' : '95vw'),
-          height: isIPadPro ? '85vh' : (isLarge ? '80vh' : isTablet ? '88vh' : '96vh'),
-          maxWidth: 'none',
+          width: isSmallIOS ? '98vw' : (isIPadPro ? '90vw' : (isLarge ? '90vw' : isTablet ? '85vw' : '95vw')),
+          height: isSmallIOS ? '98vh' : (isIPadPro ? '85vh' : (isLarge ? '90vh' : isTablet ? '88vh' : '96vh')),
+          maxWidth: isLarge ? '1400px' : 'none', // 🆕 Límite máximo en pantallas muy grandes
           maxHeight: 'none',
-          margin: 'auto'
+          margin: 'auto',
+          display: 'flex',
+          flexDirection: 'column'
         }}
       >
         {/* Header con mejor responsive */}
@@ -74,7 +82,7 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
             {title || "Vista Previa del PDF"}
           </h3>
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-            {(isMobile || isTablet) && (
+            {(isMobile || isTablet || isSmallIOS) && (
               <a
                 href={pdfUrl}
                 target="_blank"
@@ -122,8 +130,8 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
           />
         </div>
         
-        {/* Footer para dispositivos móviles/tablet/iPad */}
-        {(isMobile || isTablet || isIPadPro) && (
+        {/* Footer para dispositivos móviles/tablet/iPad/iPhone */}
+        {(isMobile || isTablet || isIPadPro || isSmallIOS) && (
           <div className="p-3 sm:p-4 bg-gray-50 border-t border-gray-200 text-xs sm:text-sm text-gray-600 text-center flex-shrink-0">
             <p className="leading-relaxed">
               Para mejor navegación,{" "}
@@ -1076,13 +1084,29 @@ const BudgetList = () => {
                               </div>
                             ) : (
                               <div className="flex justify-between items-start gap-1">
-                                <span className="text-[10px] break-words flex-1 line-clamp-2">
-                                  {budget.generalNotes || (
-                                    <span className="text-gray-400 italic">
-                                      No notes
-                                    </span>
+                                <div className="relative group flex-1">
+                                  <span className="text-[10px] break-words line-clamp-2 cursor-help">
+                                    {budget.generalNotes || (
+                                      <span className="text-gray-400 italic">
+                                        No notes
+                                      </span>
+                                    )}
+                                  </span>
+                                  {/* Tooltip bonito con el texto completo */}
+                                  {budget.generalNotes && (
+                                    <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-200 absolute z-50 bottom-full left-0 mb-2 w-64 max-w-sm">
+                                      <div className="bg-gray-900 text-white text-xs rounded-lg py-2 px-3 shadow-xl">
+                                        <div className="whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
+                                          {budget.generalNotes}
+                                        </div>
+                                        {/* Flecha del tooltip */}
+                                        <div className="absolute top-full left-4 -mt-1">
+                                          <div className="border-4 border-transparent border-t-gray-900"></div>
+                                        </div>
+                                      </div>
+                                    </div>
                                   )}
-                                </span>
+                                </div>
                                 <button
                                   onClick={() => handleEditNoteClick(budget)}
                                   disabled={isReadOnly}
@@ -1678,13 +1702,29 @@ const BudgetList = () => {
                             </div>
                           ) : (
                             <div className="flex justify-between items-start">
-                              <span className="text-xs md:text-sm text-gray-600 break-words flex-1 mr-2">
-                                {budget.generalNotes || (
-                                  <span className="text-gray-400 italic">
-                                    No notes
-                                  </span>
+                              <div className="relative group flex-1 mr-2">
+                                <span className="text-xs md:text-sm text-gray-600 break-words cursor-help">
+                                  {budget.generalNotes || (
+                                    <span className="text-gray-400 italic">
+                                      No notes
+                                    </span>
+                                  )}
+                                </span>
+                                {/* Tooltip bonito con el texto completo */}
+                                {budget.generalNotes && (
+                                  <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-200 absolute z-50 bottom-full left-0 mb-2 w-72 max-w-sm">
+                                    <div className="bg-gray-900 text-white text-sm rounded-lg py-3 px-4 shadow-xl">
+                                      <div className="whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
+                                        {budget.generalNotes}
+                                      </div>
+                                      {/* Flecha del tooltip */}
+                                      <div className="absolute top-full left-4 -mt-1">
+                                        <div className="border-4 border-transparent border-t-gray-900"></div>
+                                      </div>
+                                    </div>
+                                  </div>
                                 )}
-                              </span>
+                              </div>
                               <button
                                 onClick={() => handleEditNoteClick(budget)}
                                 disabled={isReadOnly}

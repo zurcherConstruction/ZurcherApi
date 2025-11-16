@@ -18,9 +18,28 @@ const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/clo
 const addPartialPayment = async (req, res) => {
   try {
     const { id: fixedExpenseId } = req.params;
-    const { amount, paymentDate, paymentMethod, notes, staffId } = req.body;
+    const { 
+      amount, 
+      paymentDate, 
+      paymentMethod, 
+      notes, 
+      staffId, 
+      expenseId, // 🆕 Expense ya creado desde el frontend
+      skipExpenseCreation, // 🆕 Flag para no crear Expense duplicado
+      receiptUrl, // 🆕 URL del receipt ya creado
+      receiptPublicId // 🆕 Public ID del receipt ya creado
+    } = req.body;
 
-    console.log('📥 Datos recibidos:', { amount, paymentDate, paymentMethod, notes, staffId });
+    console.log('📥 Datos recibidos:', { 
+      amount, 
+      paymentDate, 
+      paymentMethod, 
+      notes, 
+      staffId, 
+      expenseId, 
+      skipExpenseCreation,
+      hasReceiptUrl: !!receiptUrl 
+    });
     console.log('📎 Archivo:', req.file);
 
     // Validaciones
@@ -41,8 +60,9 @@ const addPartialPayment = async (req, res) => {
 
     console.log('💰 Montos:', { totalAmount, paidAmount, remainingAmount, paymentAmount });
 
-    // Validar que no se pague más del saldo restante
-    if (paymentAmount > remainingAmount + 0.01) { // Tolerancia para decimales
+    // Validar que no se pague más del total SOLO si estamos creando el expense desde el backend
+    // Si viene del frontend (skipExpenseCreation=true), el frontend ya validó y actualizó el balance
+    if (!skipExpenseCreation && paymentAmount > remainingAmount + 0.01) { // Tolerancia para decimales
       return res.status(400).json({ 
         message: `El pago de $${paymentAmount} excede el saldo restante de $${remainingAmount.toFixed(2)}`,
         totalAmount: totalAmount.toFixed(2),
@@ -51,64 +71,71 @@ const addPartialPayment = async (req, res) => {
       });
     }
 
-    // Subir comprobante a Cloudinary si existe
-    let receiptUrl = null;
-    let receiptPublicId = null;
-    
-    console.log('📋 req.file:', req.file ? `${req.file.originalname} (${req.file.size} bytes)` : 'NO FILE');
-    
-    if (req.file) {
-      try {
-        console.log('📤 Subiendo comprobante a Cloudinary...');
-        const uploadResult = await uploadBufferToCloudinary(req.file.buffer, {
-          folder: 'fixed_expense_receipts',
-          resource_type: 'auto' // Permite PDF e imágenes
-        });
-        receiptUrl = uploadResult.secure_url;
-        receiptPublicId = uploadResult.public_id;
-        console.log('✅ Comprobante subido:', receiptUrl);
-      } catch (uploadError) {
-        console.error('❌ Error al subir comprobante:', uploadError);
-        // Continuar sin comprobante si falla la subida
+    let finalExpenseId = expenseId; // Usar el expense ya creado si existe
+    let finalReceiptUrl = receiptUrl; // Usar el receipt ya creado si existe
+    let finalReceiptPublicId = receiptPublicId;
+
+    // 🆕 SOLO crear Expense si NO viene desde el frontend
+    if (!skipExpenseCreation && !expenseId) {
+      console.log('� Creando Expense desde el backend...');
+      
+      // Subir comprobante a Cloudinary si existe
+      if (req.file) {
+        try {
+          console.log('📤 Subiendo comprobante a Cloudinary...');
+          const uploadResult = await uploadBufferToCloudinary(req.file.buffer, {
+            folder: 'fixed_expense_receipts',
+            resource_type: 'auto' // Permite PDF e imágenes
+          });
+          finalReceiptUrl = uploadResult.secure_url;
+          finalReceiptPublicId = uploadResult.public_id;
+          console.log('✅ Comprobante subido:', finalReceiptUrl);
+        } catch (uploadError) {
+          console.error('❌ Error al subir comprobante:', uploadError);
+          // Continuar sin comprobante si falla la subida
+        }
+      } else {
+        console.log('⚠️ No se recibió archivo de comprobante');
+      }
+
+      // 1️⃣ Crear el Expense automáticamente
+      const expense = await Expense.create({
+        date: paymentDate || new Date().toISOString().split('T')[0],
+        amount: paymentAmount,
+        typeExpense: 'Gasto Fijo',
+        paymentMethod: paymentMethod || fixedExpense.paymentMethod || 'Otro',
+        notes: notes || `Pago parcial de: ${fixedExpense.name}`,
+        paymentStatus: 'paid',
+        paidDate: paymentDate || new Date().toISOString().split('T')[0],
+        staffId: staffId || fixedExpense.createdByStaffId,
+        relatedFixedExpenseId: fixedExpenseId,
+        vendor: fixedExpense.vendor
+      });
+
+      finalExpenseId = expense.idExpense;
+      console.log('✅ Expense creado desde backend:', finalExpenseId);
+
+      // 1.5️⃣ Crear el Receipt si hay comprobante
+      if (finalReceiptUrl && finalReceiptPublicId) {
+        try {
+          await Receipt.create({
+            relatedModel: 'Expense',
+            relatedId: finalExpenseId,
+            type: 'Gasto Fijo',
+            notes: notes || `Comprobante de pago parcial: ${fixedExpense.name}`,
+            fileUrl: finalReceiptUrl,
+            publicId: finalReceiptPublicId,
+            mimeType: req.file.mimetype,
+            originalName: req.file.originalname
+          });
+          console.log('✅ Receipt creado para Expense:', finalExpenseId);
+        } catch (receiptError) {
+          console.error('❌ Error al crear Receipt:', receiptError);
+          // Continuar aunque falle el Receipt
+        }
       }
     } else {
-      console.log('⚠️ No se recibió archivo de comprobante');
-    }
-
-    // 1️⃣ Crear el Expense automáticamente
-    const expense = await Expense.create({
-      date: paymentDate || new Date().toISOString().split('T')[0],
-      amount: paymentAmount,
-      typeExpense: 'Gasto Fijo',
-      paymentMethod: paymentMethod || fixedExpense.paymentMethod || 'Otro',
-      notes: notes || `Pago parcial de: ${fixedExpense.name}`,
-      paymentStatus: 'paid',
-      paidDate: paymentDate || new Date().toISOString().split('T')[0],
-      staffId: staffId || fixedExpense.createdByStaffId,
-      relatedFixedExpenseId: fixedExpenseId,
-      vendor: fixedExpense.vendor
-    });
-
-    console.log('✅ Expense creado:', expense.idExpense);
-
-    // 1.5️⃣ Crear el Receipt si hay comprobante
-    if (receiptUrl && receiptPublicId) {
-      try {
-        await Receipt.create({
-          relatedModel: 'Expense',
-          relatedId: expense.idExpense,
-          type: 'Gasto Fijo',
-          notes: notes || `Comprobante de pago parcial: ${fixedExpense.name}`,
-          fileUrl: receiptUrl,
-          publicId: receiptPublicId,
-          mimeType: req.file.mimetype,
-          originalName: req.file.originalname
-        });
-        console.log('✅ Receipt creado para Expense:', expense.idExpense);
-      } catch (receiptError) {
-        console.error('❌ Error al crear Receipt:', receiptError);
-        // Continuar aunque falle el Receipt
-      }
+      console.log('✅ Usando Expense ya creado desde frontend:', finalExpenseId);
     }
 
     // 2️⃣ Registrar el pago parcial
@@ -117,29 +144,18 @@ const addPartialPayment = async (req, res) => {
       amount: paymentAmount,
       paymentDate: paymentDate || new Date().toISOString().split('T')[0],
       paymentMethod: paymentMethod || fixedExpense.paymentMethod || 'Otro',
-      receiptUrl,
-      receiptPublicId,
+      receiptUrl: finalReceiptUrl,
+      receiptPublicId: finalReceiptPublicId,
       notes,
-      expenseId: expense.idExpense,
+      expenseId: finalExpenseId,
       createdByStaffId: staffId || fixedExpense.createdByStaffId
     });
 
     console.log('✅ Payment creado:', payment.idPayment);
 
-    // 3️⃣ Actualizar el monto pagado y estado del gasto fijo
-    const newPaidAmount = paidAmount + paymentAmount;
-    const newRemainingAmount = totalAmount - newPaidAmount;
-    
-    let newPaymentStatus = 'partial';
-    if (newRemainingAmount <= 0.01) { // Tolerancia para decimales
-      newPaymentStatus = 'paid';
-    }
-
-    await fixedExpense.update({
-      paidAmount: newPaidAmount,
-      paymentStatus: newPaymentStatus,
-      paidDate: newPaymentStatus === 'paid' ? (paymentDate || new Date()) : fixedExpense.paidDate
-    });
+    // 3️⃣ Recargar el gasto fijo para obtener valores actualizados
+    // NOTA: El frontend ya actualizó paidAmount y paymentStatus antes de llamar a este endpoint
+    await fixedExpense.reload();
 
     // Recargar con relaciones
     const paymentWithDetails = await FixedExpensePayment.findByPk(payment.idPayment, {
@@ -156,24 +172,29 @@ const addPartialPayment = async (req, res) => {
       ]
     });
 
+    // Calcular valores actualizados desde el fixedExpense recargado
+    const updatedTotalAmount = parseFloat(fixedExpense.totalAmount);
+    const updatedPaidAmount = parseFloat(fixedExpense.paidAmount || 0);
+    const updatedRemainingAmount = updatedTotalAmount - updatedPaidAmount;
+
     res.status(201).json({
       message: 'Pago registrado exitosamente',
       payment: paymentWithDetails,
-      expenseCreated: expense,
+      expenseId: finalExpenseId, // 🔄 Corregido: usar finalExpenseId en lugar de expense
       fixedExpense: {
         idFixedExpense: fixedExpense.idFixedExpense,
         name: fixedExpense.name,
-        totalAmount: totalAmount.toFixed(2),
-        paidAmount: newPaidAmount.toFixed(2),
-        remainingAmount: newRemainingAmount.toFixed(2),
-        paymentStatus: newPaymentStatus
+        totalAmount: updatedTotalAmount.toFixed(2),
+        paidAmount: updatedPaidAmount.toFixed(2),
+        remainingAmount: updatedRemainingAmount.toFixed(2),
+        paymentStatus: fixedExpense.paymentStatus
       },
       fixedExpenseBalance: {
-        totalAmount: totalAmount.toFixed(2),
-        paidAmount: newPaidAmount.toFixed(2),
-        remainingAmount: newRemainingAmount.toFixed(2),
-        paymentStatus: newPaymentStatus,
-        isFullyPaid: newPaymentStatus === 'paid'
+        totalAmount: updatedTotalAmount.toFixed(2),
+        paidAmount: updatedPaidAmount.toFixed(2),
+        remainingAmount: updatedRemainingAmount.toFixed(2),
+        paymentStatus: fixedExpense.paymentStatus,
+        isFullyPaid: fixedExpense.paymentStatus === 'paid'
       }
     });
 

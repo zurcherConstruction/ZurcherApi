@@ -1074,7 +1074,14 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
         include: [
           {
             model: Permit,
-            attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'systemType', 'drainfieldDepth', 'excavationRequired', 'lot', 'block', 'pdfData', 'optionalDocs', 'expirationDate', 'applicantPhone'],
+            attributes: [
+              'idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'systemType', 
+              'drainfieldDepth', 'excavationRequired', 'lot', 'block', 'pdfData', 'optionalDocs', 
+              'expirationDate', 'applicantPhone', 'applicantName',
+              // ✅ Flags virtuales para saber si existen PDFs sin traer los BLOBs completos
+              [sequelize.literal('CASE WHEN "Permit"."pdfData" IS NOT NULL THEN true ELSE false END'), 'hasPermitPdfData'],
+              [sequelize.literal('CASE WHEN "Permit"."optionalDocs" IS NOT NULL THEN true ELSE false END'), 'hasOptionalDocs']
+            ],
           },
           {
             model: BudgetLineItem,

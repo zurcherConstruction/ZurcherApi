@@ -29,10 +29,11 @@ const expenseTypes = EXPENSE_TYPES;
 
 // Tipos que NO requieren Work (son gastos/ingresos generales)
 const generalExpenseTypes = [
-  "Workers",
+  // "Workers", // ❌ Removido del sistema
   "Gastos Generales",
-  "Comisión Vendedor",
-  "Comprobante Gasto" // Puede ser general o específico
+  // "Comisión Vendedor", // ❌ Removido - Las comisiones se pagan desde CommissionsManager.jsx
+  "Gasto Fijo", // 🆕 Los gastos fijos son siempre generales
+  // "Comprobante Gasto" // ❌ Removido del sistema
 ];
 
 const generalIncomeTypes = [
@@ -58,12 +59,63 @@ const AttachReceipt = () => {
   const [isGeneralTransaction, setIsGeneralTransaction] = useState(false); // Nuevo estado para marcar si es transacción general
   const [paymentMethod, setPaymentMethod] = useState(''); // 🆕 Método de pago
   const [paymentDetails, setPaymentDetails] = useState(''); // 🆕 Detalles adicionales del pago
+  const [fixedExpenses, setFixedExpenses] = useState([]); // 🆕 Lista de gastos fijos
+  const [selectedFixedExpense, setSelectedFixedExpense] = useState(''); // 🆕 Gasto fijo seleccionado
+  const [loadingFixedExpenses, setLoadingFixedExpenses] = useState(false); // 🆕 Loading para gastos fijos
+  const [fixedExpensePaymentAmount, setFixedExpensePaymentAmount] = useState(''); // 🆕 Monto del pago parcial para gasto fijo
 
 
 
   useEffect(() => {
     dispatch(fetchWorks());
   }, [dispatch]);
+
+  // 🆕 Cargar gastos fijos cuando se selecciona "Gasto Fijo"
+  useEffect(() => {
+    const loadFixedExpenses = async () => {
+      if (type === 'Gasto Fijo') {
+        setLoadingFixedExpenses(true);
+        try {
+          const response = await api.get('/fixed-expenses');
+          console.log('📋 Respuesta de gastos fijos:', response.data);
+          
+          // El endpoint devuelve { fixedExpenses: [...], stats: {...} }
+          const allExpenses = response.data.fixedExpenses || response.data || [];
+          
+          // Filtrar solo gastos activos y no pagados completamente
+          const activeExpenses = Array.isArray(allExpenses) 
+            ? allExpenses.filter(expense => 
+                expense.isActive && 
+                expense.paymentStatus !== 'paid' && 
+                expense.paymentStatus !== 'paid_via_invoice'
+              )
+            : [];
+          
+          console.log('✅ Gastos fijos activos y pendientes:', activeExpenses.length);
+          setFixedExpenses(activeExpenses);
+        } catch (error) {
+          console.error('❌ Error cargando gastos fijos:', error);
+          toast.error('Error al cargar gastos fijos');
+          setFixedExpenses([]);
+        } finally {
+          setLoadingFixedExpenses(false);
+        }
+      } else {
+        setFixedExpenses([]);
+        setSelectedFixedExpense('');
+      }
+    };
+
+    loadFixedExpenses();
+  }, [type]);
+
+  // 🆕 Auto-marcar como transacción general cuando se selecciona "Gasto Fijo"
+  useEffect(() => {
+    if (type === 'Gasto Fijo') {
+      setIsGeneralTransaction(true);
+      setSelectedWork(""); // Limpiar selección de obra
+    }
+  }, [type]);
 
   // 🆕 Limpiar selección de obra cuando cambie el tipo de comprobante
   useEffect(() => {
@@ -124,6 +176,7 @@ const AttachReceipt = () => {
     }
 
     // Validación de archivo
+    console.log('🔍 Verificando archivo adjunto:', { hasFile: !!file, fileName: file?.name, fileSize: file?.size });
     if (!file) {
       toast.error("Por favor, adjunta un archivo de comprobante.");
       return;
@@ -203,59 +256,207 @@ const AttachReceipt = () => {
         }
 
       } else {
-        // Lógica existente para otros tipos...
-        if (!generalAmount || isNaN(parseFloat(generalAmount)) || parseFloat(generalAmount) <= 0) {
-          toast.error("Por favor, ingrese un monto válido para el ingreso/gasto.");
-          return;
-        }
-
-        let createdRecordId = null;
-        let createdRecord;
-        const isIncome = incomeTypes.includes(type);
+        // Lógica para otros tipos (Income/Expense + Receipt)
         
-        // Generar fecha local
-        const now = new Date();
-        const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-        
-        const incomeExpenseData = {
-          date: localDate,
-          amount: parseFloat(generalAmount),
-          notes,
-          // Solo incluir workId si no es transacción general
-          ...(isGeneralTransaction ? {} : { workId: selectedWork }),
-          staffId: staff?.id,
-          ...(isIncome ? { typeIncome: type } : { typeExpense: type }),
-          // 🆕 Agregar método de pago si se especificó
-          ...(paymentMethod ? { paymentMethod } : {}),
-          // 🆕 Agregar detalles del pago si se especificó
-          ...(paymentDetails ? { paymentDetails } : {}),
-        };
-
-        console.log('Datos a enviar (Income/Expense):', incomeExpenseData);
-
-        if (isIncome) {
-          createdRecord = await incomeActions.create(incomeExpenseData);
-          if (!createdRecord || !createdRecord.idIncome) {
-            throw new Error("No se pudo obtener el ID del ingreso creado.");
+        // 🆕 MANEJO ESPECIAL PARA GASTO FIJO
+        if (type === 'Gasto Fijo') {
+          if (!selectedFixedExpense) {
+            toast.error("Por favor, selecciona un gasto fijo para pagar.");
+            return;
           }
-          createdRecordId = createdRecord.idIncome;
-          toast.success("Ingreso registrado correctamente.");
+
+          if (!fixedExpensePaymentAmount || parseFloat(fixedExpensePaymentAmount) <= 0) {
+            toast.error("Por favor, ingresa un monto válido a pagar.");
+            return;
+          }
+
+          // Obtener detalles del gasto fijo seleccionado
+          const fixedExpense = fixedExpenses.find(fe => fe.idFixedExpense === selectedFixedExpense);
+          if (!fixedExpense) {
+            toast.error("Gasto fijo no encontrado.");
+            return;
+          }
+
+          // 🆕 Definir fecha actual
+          const now = new Date();
+
+          // 🆕 Calcular monto restante (lo que realmente se debe) con redondeo a 2 decimales
+          const totalAmount = Math.round(parseFloat(fixedExpense.totalAmount || 0) * 100) / 100;
+          const paidAmount = Math.round(parseFloat(fixedExpense.paidAmount || 0) * 100) / 100;
+          const remainingAmount = Math.round((totalAmount - paidAmount) * 100) / 100;
+          const paymentAmount = Math.round(parseFloat(fixedExpensePaymentAmount) * 100) / 100;
+
+          // 🆕 Validaciones
+          if (remainingAmount <= 0) {
+            toast.error("Este gasto fijo ya está completamente pagado.");
+            return;
+          }
+
+          if (paymentAmount > remainingAmount + 0.01) {
+            toast.error(`El monto a pagar ($${paymentAmount.toFixed(2)}) no puede exceder el saldo restante ($${remainingAmount.toFixed(2)})`);
+            return;
+          }
+
+          // Determinar si es pago total o parcial (con tolerancia de 1 centavo)
+          const isFullPayment = Math.abs(paymentAmount - remainingAmount) <= 0.01;
+          const newPaidAmount = Math.round((paidAmount + paymentAmount) * 100) / 100;
+          const newStatus = isFullPayment ? 'paid' : 'partial';
+
+          // Crear el expense vinculado al gasto fijo
+          const expenseData = {
+            date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
+            amount: paymentAmount, // 🔄 Usar el monto ingresado por el usuario
+            notes: `${isFullPayment ? 'Pago final' : 'Pago parcial'} de gasto fijo: ${fixedExpense.description || fixedExpense.name} (${fixedExpense.category})${notes ? ` - ${notes}` : ''} - Total: $${totalAmount.toFixed(2)}, Ya pagado: $${paidAmount.toFixed(2)}, Este pago: $${paymentAmount.toFixed(2)}${isFullPayment ? '' : `, Restante: $${(remainingAmount - paymentAmount).toFixed(2)}`}`,
+            staffId: staff?.id,
+            typeExpense: 'Gasto Fijo',
+            fixedExpenseId: fixedExpense.idFixedExpense, // 🔗 Vincular con el gasto fijo (campo correcto)
+            ...(paymentMethod ? { paymentMethod } : {}),
+            ...(paymentDetails ? { paymentDetails } : {}),
+          };
+
+          console.log('📋 Creando expense para Gasto Fijo:', expenseData);
+          console.log(`💰 Tipo de pago: ${isFullPayment ? 'COMPLETO' : 'PARCIAL'} - Nuevo estado: ${newStatus}`);
+
+          try {
+            const createdExpense = await expenseActions.create(expenseData);
+            if (!createdExpense || !createdExpense.idExpense) {
+              throw new Error("No se pudo crear el gasto.");
+            }
+
+            console.log('✅ Expense creado con ID:', createdExpense.idExpense);
+
+            // Adjuntar comprobante
+            formData.append("relatedModel", "Expense");
+            formData.append("relatedId", createdExpense.idExpense.toString());
+            
+            console.log('📎 Adjuntando comprobante al gasto fijo. FormData tiene file?', file ? 'SI' : 'NO');
+            const receiptResponse = await dispatch(createReceipt(formData));
+            
+            console.log('📄 Receipt response:', receiptResponse);
+            
+            // Verificar que el receipt se creó correctamente
+            // Redux puede retornar undefined si la acción no está configurada para retornar payload
+            if (receiptResponse?.error) {
+              console.error('❌ Error en la respuesta del receipt:', receiptResponse.error);
+              throw new Error("Error al adjuntar el comprobante: " + receiptResponse.error.message);
+            }
+
+            console.log('✅ Comprobante adjuntado correctamente');
+
+            // 🆕 ACTUALIZAR EL GASTO FIJO PRIMERO (crítico)
+            console.log(`✅ Actualizando gasto fijo - Estado: ${newStatus}, Nuevo monto pagado: $${newPaidAmount.toFixed(2)}`);
+            
+            const updateData = {
+              paymentStatus: newStatus,
+              paidAmount: newPaidAmount
+            };
+
+            // Si es pago completo, agregar fecha de pago
+            if (isFullPayment) {
+              updateData.paidDate = new Date().toISOString().split('T')[0];
+            }
+
+            await api.patch(`/fixed-expenses/${fixedExpense.idFixedExpense}`, updateData);
+            console.log('✅ Gasto fijo actualizado correctamente');
+
+            // 🆕 CREAR REGISTRO EN HISTORIAL DE PAGOS (FixedExpensePayment) - opcional
+            console.log('📝 Creando registro en historial de pagos...');
+            try {
+              const paymentRecord = {
+                fixedExpenseId: fixedExpense.idFixedExpense,
+                amount: paymentAmount,
+                paymentDate: new Date().toISOString().split('T')[0],
+                paymentMethod: paymentMethod || null,
+                notes: notes || `${isFullPayment ? 'Pago final' : 'Pago parcial'} - ${fixedExpense.description || fixedExpense.name}`,
+                expenseId: createdExpense.idExpense, // 🔑 Enviar el ID del expense ya creado
+                createdByStaffId: staff?.id,
+                skipExpenseCreation: true, // 🆕 Flag para que el backend NO cree otro Expense
+                // Nota: No enviamos receiptUrl porque ya está vinculado al Expense en la BD
+                // El backend puede buscar el receipt por expenseId si lo necesita
+              };
+
+              console.log('💾 Datos del registro de pago:', paymentRecord);
+              await api.post(`/fixed-expenses/${fixedExpense.idFixedExpense}/payments`, paymentRecord);
+              console.log('✅ Registro de pago creado en historial');
+            } catch (paymentError) {
+              console.error('⚠️ Error creando registro de pago (no crítico):', paymentError);
+              // No fallar toda la operación si solo falla el historial
+              toast.warning('El pago se registró pero hubo un problema con el historial. El gasto fijo fue actualizado correctamente.');
+            }
+
+            // Mensajes de éxito
+            if (isFullPayment) {
+              toast.success(`✅ Gasto fijo pagado completamente: ${fixedExpense.description || fixedExpense.name} - $${paymentAmount.toFixed(2)}`);
+            } else {
+              toast.success(`📝 Pago parcial registrado: $${paymentAmount.toFixed(2)}. Saldo restante: $${(remainingAmount - paymentAmount).toFixed(2)}`);
+            }
+          } catch (error) {
+            console.error('❌ Error procesando gasto fijo:', error);
+            throw error; // Re-lanzar para que se capture en el catch principal
+          }
+
         } else {
-          createdRecord = await expenseActions.create(incomeExpenseData);
-          if (!createdRecord || !createdRecord.idExpense) {
-            throw new Error("No se pudo obtener el ID del gasto creado.");
+          // Lógica original para otros tipos de gastos/ingresos
+          if (!generalAmount || isNaN(parseFloat(generalAmount)) || parseFloat(generalAmount) <= 0) {
+            toast.error("Por favor, ingrese un monto válido para el ingreso/gasto.");
+            return;
           }
-          createdRecordId = createdRecord.idExpense;
-          toast.success("Gasto registrado correctamente.");
-        }
 
-        if (createdRecordId) { // Solo adjuntar recibo si el ingreso/gasto se creó
-          formData.append("relatedModel", isIncome ? "Income" : "Expense");
-          formData.append("relatedId", createdRecordId.toString());
+          let createdRecordId = null;
+          let createdRecord;
+          const isIncome = incomeTypes.includes(type);
+          
+          // Generar fecha local en formato YYYY-MM-DD
+          const now = new Date();
+          const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+          
+          const incomeExpenseData = {
+            date: localDate,
+            amount: parseFloat(generalAmount),
+            notes,
+            // Solo incluir workId si no es transacción general
+            ...(isGeneralTransaction ? {} : { workId: selectedWork }),
+            staffId: staff?.id,
+            ...(isIncome ? { typeIncome: type } : { typeExpense: type }),
+            // 🆕 Agregar método de pago si se especificó
+            ...(paymentMethod ? { paymentMethod } : {}),
+            // 🆕 Agregar detalles del pago si se especificó
+            ...(paymentDetails ? { paymentDetails } : {}),
+          };
 
-          console.log('Enviando FormData para Receipt (General):', Object.fromEntries(formData));
-          await dispatch(createReceipt(formData));
-          toast.success("Comprobante adjuntado correctamente.");
+          console.log('💰 Datos a enviar (Income/Expense):', incomeExpenseData);
+
+          try {
+            if (isIncome) {
+              createdRecord = await incomeActions.create(incomeExpenseData);
+              if (!createdRecord || !createdRecord.idIncome) {
+                throw new Error("No se pudo obtener el ID del ingreso creado.");
+              }
+              createdRecordId = createdRecord.idIncome;
+              console.log('✅ Ingreso creado con ID:', createdRecordId);
+              toast.success("Ingreso registrado correctamente.");
+            } else {
+              createdRecord = await expenseActions.create(incomeExpenseData);
+              if (!createdRecord || !createdRecord.idExpense) {
+                throw new Error("No se pudo obtener el ID del gasto creado.");
+              }
+              createdRecordId = createdRecord.idExpense;
+              console.log('✅ Gasto creado con ID:', createdRecordId);
+              toast.success("Gasto registrado correctamente.");
+            }
+
+            if (createdRecordId) {
+              formData.append("relatedModel", isIncome ? "Income" : "Expense");
+              formData.append("relatedId", createdRecordId.toString());
+
+              console.log('📎 Adjuntando comprobante...');
+              await dispatch(createReceipt(formData));
+              toast.success("Comprobante adjuntado correctamente.");
+            }
+          } catch (error) {
+            console.error('❌ Error en Income/Expense:', error);
+            throw error; // Re-lanzar para manejo unificado
+          }
         }
       }
 
@@ -273,11 +474,58 @@ const AttachReceipt = () => {
       setIsGeneralTransaction(false);
       setPaymentMethod(""); // 🆕 Limpiar método de pago
       setPaymentDetails(""); // 🆕 Limpiar detalles del pago
+      setSelectedFixedExpense(""); // 🆕 Limpiar gasto fijo seleccionado
+      setFixedExpensePaymentAmount(""); // 🆕 Limpiar monto de pago de gasto fijo
 
-    } catch (err) { // Cambiado 'error' a 'err' para evitar colisión con 'worksError'
-      console.error("Error al procesar la solicitud:", err);
-      const errorMsg = err?.payload?.message || err?.message || "Hubo un error al procesar la solicitud.";
-      toast.error(errorMsg);
+    } catch (err) {
+      console.error("❌❌❌ Error completo en handleSubmit:", err);
+      
+      // Mensaje de error más específico según el tipo de error
+      let errorMessage = "Error al procesar la transacción.";
+      
+      if (err.response) {
+        // Error de respuesta del servidor
+        const status = err.response.status;
+        const data = err.response.data;
+        
+        console.error('❌ Error del servidor:', {
+          status,
+          data,
+          url: err.config?.url,
+          method: err.config?.method
+        });
+
+        if (status === 400) {
+          errorMessage = data.message || "Datos inválidos. Verifica todos los campos.";
+        } else if (status === 401) {
+          errorMessage = "Sesión expirada. Por favor, inicia sesión nuevamente.";
+        } else if (status === 403) {
+          errorMessage = "No tienes permisos para realizar esta operación.";
+        } else if (status === 404) {
+          errorMessage = data.message || "Recurso no encontrado.";
+        } else if (status === 500) {
+          errorMessage = "Error del servidor. Por favor, contacta al administrador.";
+        } else {
+          errorMessage = data.message || `Error del servidor (${status})`;
+        }
+      } else if (err.request) {
+        // La solicitud se hizo pero no hubo respuesta
+        console.error('❌ No hay respuesta del servidor:', err.request);
+        errorMessage = "No se pudo conectar con el servidor. Verifica tu conexión a internet.";
+      } else if (err.message) {
+        // Error durante la configuración de la solicitud
+        errorMessage = err.message;
+      } else if (err.payload?.message) {
+        // Error de Redux action
+        errorMessage = err.payload.message;
+      }
+
+      toast.error(`❌ ${errorMessage}`);
+      
+      // Log adicional para debugging
+      if (err.stack) {
+        console.error('Stack trace:', err.stack);
+      }
     }
   };
 
@@ -395,8 +643,8 @@ const AttachReceipt = () => {
               </select>
             </div>
 
-            {/* General Transaction Toggle - Only show for applicable types */}
-            {type && canBeGeneral && !requiresWork && (
+            {/* General Transaction Toggle - Only show for applicable types (excepto Gasto Fijo que es siempre general) */}
+            {type && canBeGeneral && !requiresWork && type !== 'Gasto Fijo' && (
               <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-200">
                 <label className="flex items-center cursor-pointer">
                   <input
@@ -417,6 +665,266 @@ const AttachReceipt = () => {
                 <p className="ml-8 mt-1 text-xs text-gray-500">
                   Marca esta opción para gastos como pagos de workers generales, comisiones, o gastos administrativos que no corresponden a una obra en particular.
                 </p>
+              </div>
+            )}
+
+            {/* 🆕 SELECTOR DE GASTO FIJO */}
+            {type === 'Gasto Fijo' && (
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-5">
+                <div className="flex items-center space-x-3 mb-3">
+                  <div className="p-2 bg-orange-500 rounded-lg">
+                    <CurrencyDollarIcon className="h-5 w-5 text-white" />
+                  </div>
+                  <h5 className="font-semibold text-orange-800">
+                    📋 Seleccionar Gasto Fijo a Pagar
+                  </h5>
+                </div>
+
+                {loadingFixedExpenses && (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
+                    <span className="ml-3 text-sm text-gray-600">Cargando gastos fijos...</span>
+                  </div>
+                )}
+
+                {!loadingFixedExpenses && fixedExpenses.length === 0 && (
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div className="flex items-start space-x-2">
+                      <InformationCircleIcon className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-yellow-800">
+                          No hay gastos fijos pendientes
+                        </p>
+                        <p className="text-xs text-yellow-700 mt-1">
+                          Todos los gastos fijos están pagados o no hay gastos configurados.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!loadingFixedExpenses && fixedExpenses.length > 0 && (
+                  <>
+                    <label htmlFor="fixedExpense" className="block text-sm font-medium text-gray-700 mb-2">
+                      Selecciona el gasto fijo que deseas pagar: <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      id="fixedExpense"
+                      value={selectedFixedExpense}
+                      onChange={(e) => setSelectedFixedExpense(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 bg-white"
+                      required
+                    >
+                      <option value="">Seleccionar gasto fijo...</option>
+                      {fixedExpenses.map((fe) => {
+                        const dueDate = new Date(fe.nextDueDate);
+                        const isOverdue = dueDate < new Date();
+                        const formattedDate = dueDate.toLocaleDateString('es-ES', { 
+                          year: 'numeric', 
+                          month: 'short', 
+                          day: 'numeric' 
+                        });
+                        
+                        // 🆕 Calcular monto restante (lo que realmente se debe) con redondeo
+                        const totalAmount = Math.round(parseFloat(fe.totalAmount || 0) * 100) / 100;
+                        const paidAmount = Math.round(parseFloat(fe.paidAmount || 0) * 100) / 100;
+                        const remainingAmount = Math.round((totalAmount - paidAmount) * 100) / 100;
+
+                        return (
+                          <option key={fe.idFixedExpense} value={fe.idFixedExpense}>
+                            {fe.description || fe.name} - ${remainingAmount.toFixed(2)} 
+                            {paidAmount > 0 ? ` (Pagado: $${paidAmount.toFixed(2)} de $${totalAmount.toFixed(2)})` : ''} - 
+                            {fe.category} - Vence: {formattedDate} 
+                            {isOverdue ? ' ⚠️ VENCIDO' : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
+
+                    {/* Detalles del gasto fijo seleccionado */}
+                    {selectedFixedExpense && fixedExpenses.find(fe => fe.idFixedExpense === selectedFixedExpense) && (
+                      <div className="mt-4 p-4 bg-white rounded-lg border border-orange-200">
+                        {(() => {
+                          const selected = fixedExpenses.find(fe => fe.idFixedExpense === selectedFixedExpense);
+                          const dueDate = new Date(selected.nextDueDate);
+                          const isOverdue = dueDate < new Date();
+                          
+                          // 🆕 Calcular montos con redondeo
+                          const totalAmount = Math.round(parseFloat(selected.totalAmount || 0) * 100) / 100;
+                          const paidAmount = Math.round(parseFloat(selected.paidAmount || 0) * 100) / 100;
+                          const remainingAmount = Math.round((totalAmount - paidAmount) * 100) / 100;
+                          const hasPartialPayment = paidAmount > 0;
+                          
+                          return (
+                            <>
+                              <h6 className="font-semibold text-gray-800 mb-3">Detalles del Gasto:</h6>
+                              <div className="grid grid-cols-2 gap-3 text-sm">
+                                <div>
+                                  <p className="text-gray-600 font-medium">Descripción:</p>
+                                  <p className="text-gray-800">{selected.description || selected.name}</p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-600 font-medium">Categoría:</p>
+                                  <p className="text-gray-800">{selected.category}</p>
+                                </div>
+                                
+                                {/* 🆕 Mostrar monto total y pagos parciales */}
+                                <div className="col-span-2 bg-blue-50 rounded-lg p-3 border border-blue-200">
+                                  <div className="grid grid-cols-3 gap-2 text-center">
+                                    <div>
+                                      <p className="text-xs text-gray-600 font-medium mb-1">Monto Total</p>
+                                      <p className="text-gray-800 font-semibold">${totalAmount.toFixed(2)}</p>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-gray-600 font-medium mb-1">Ya Pagado</p>
+                                      <p className={`font-semibold ${hasPartialPayment ? 'text-green-600' : 'text-gray-400'}`}>
+                                        ${paidAmount.toFixed(2)}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <p className="text-xs text-gray-600 font-medium mb-1">🎯 Restante</p>
+                                      <p className="text-orange-600 font-bold text-lg">${remainingAmount.toFixed(2)}</p>
+                                    </div>
+                                  </div>
+                                  
+                                  {hasPartialPayment && (
+                                    <div className="mt-2 pt-2 border-t border-blue-300">
+                                      <div className="flex items-center justify-between text-xs">
+                                        <span className="text-gray-600">Progreso de pago:</span>
+                                        <span className="font-semibold text-blue-700">
+                                          {((paidAmount / totalAmount) * 100).toFixed(1)}%
+                                        </span>
+                                      </div>
+                                      <div className="mt-1 w-full bg-gray-200 rounded-full h-2">
+                                        <div 
+                                          className="bg-blue-500 h-2 rounded-full transition-all"
+                                          style={{ width: `${(paidAmount / totalAmount) * 100}%` }}
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                <div>
+                                  <p className="text-gray-600 font-medium">Fecha de Vencimiento:</p>
+                                  <p className={`font-semibold ${isOverdue ? 'text-red-600' : 'text-green-600'}`}>
+                                    {dueDate.toLocaleDateString('es-ES', { 
+                                      year: 'numeric', 
+                                      month: 'long', 
+                                      day: 'numeric' 
+                                    })}
+                                    {isOverdue && ' ⚠️ VENCIDO'}
+                                  </p>
+                                </div>
+                                {selected.vendor && (
+                                  <div>
+                                    <p className="text-gray-600 font-medium">Proveedor:</p>
+                                    <p className="text-gray-800">{selected.vendor}</p>
+                                  </div>
+                                )}
+                                <div>
+                                  <p className="text-gray-600 font-medium">Frecuencia:</p>
+                                  <p className="text-gray-800 capitalize">{selected.frequency || 'Mensual'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-600 font-medium">Método de Pago:</p>
+                                  <p className="text-gray-800">{selected.paymentMethod}</p>
+                                </div>
+                              </div>
+                              
+                              {selected.notes && (
+                                <div className="mt-3 pt-3 border-t border-gray-200">
+                                  <p className="text-gray-600 font-medium text-xs mb-1">Notas:</p>
+                                  <p className="text-gray-700 text-sm italic">{selected.notes}</p>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+
+                    {/* 🆕 Campo de monto para pago parcial/total */}
+                    {selectedFixedExpense && (
+                      <div className="mt-4">
+                        <label htmlFor="fixedExpensePaymentAmount" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
+                          <CurrencyDollarIcon className="h-5 w-5 mr-2 text-green-500" />
+                          Monto a Pagar <span className="ml-1 text-red-500">*</span>
+                        </label>
+                        {(() => {
+                          const selected = fixedExpenses.find(fe => fe.idFixedExpense === selectedFixedExpense);
+                          if (!selected) return null;
+                          
+                          const totalAmount = Math.round(parseFloat(selected.totalAmount || 0) * 100) / 100;
+                          const paidAmount = Math.round(parseFloat(selected.paidAmount || 0) * 100) / 100;
+                          const remainingAmount = Math.round((totalAmount - paidAmount) * 100) / 100;
+                          
+                          return (
+                            <>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  id="fixedExpensePaymentAmount"
+                                  value={fixedExpensePaymentAmount}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    setFixedExpensePaymentAmount(value);
+                                    
+                                    // Validación en tiempo real con tolerancia de 1 centavo
+                                    if (value && parseFloat(value) > remainingAmount + 0.01) {
+                                      e.target.setCustomValidity(`El monto no puede exceder el saldo restante ($${remainingAmount.toFixed(2)})`);
+                                    } else if (value && parseFloat(value) <= 0) {
+                                      e.target.setCustomValidity('El monto debe ser mayor a cero');
+                                    } else {
+                                      e.target.setCustomValidity('');
+                                    }
+                                  }}
+                                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200"
+                                  placeholder={`Ingrese monto (máx: $${remainingAmount.toFixed(2)})`}
+                                  min="0.01"
+                                  required
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setFixedExpensePaymentAmount(remainingAmount.toFixed(2))}
+                                  className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1 bg-orange-500 text-white text-xs font-semibold rounded hover:bg-orange-600 transition-colors"
+                                >
+                                  Pagar Todo
+                                </button>
+                              </div>
+                              
+                              {/* Indicador visual del monto */}
+                              {fixedExpensePaymentAmount && parseFloat(fixedExpensePaymentAmount) > 0 && (
+                                <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                  <div className="flex items-center justify-between text-sm">
+                                    <span className="text-gray-700">
+                                      {Math.abs(parseFloat(fixedExpensePaymentAmount) - remainingAmount) <= 0.01
+                                        ? '✅ Pago Total - Se marcará como pagado completamente'
+                                        : '📝 Pago Parcial - Quedará pendiente de pago'}
+                                    </span>
+                                    <span className="font-bold text-orange-600">
+                                      ${parseFloat(fixedExpensePaymentAmount).toFixed(2)}
+                                    </span>
+                                  </div>
+                                  
+                                  {Math.abs(parseFloat(fixedExpensePaymentAmount) - remainingAmount) > 0.01 && (
+                                    <div className="mt-2 pt-2 border-t border-blue-200 text-xs text-gray-600">
+                                      Saldo restante después de este pago: 
+                                      <span className="font-semibold text-orange-600 ml-1">
+                                        ${(remainingAmount - parseFloat(fixedExpensePaymentAmount)).toFixed(2)}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             )}
 
@@ -669,8 +1177,8 @@ const AttachReceipt = () => {
               </div>
             )}
 
-            {/* General Amount Input */}
-            {type && type !== "Factura Pago Final Budget" && (
+            {/* General Amount Input - Ocultar para Gasto Fijo ya que el monto viene del gasto seleccionado */}
+            {type && type !== "Factura Pago Final Budget" && type !== "Gasto Fijo" && (
               <div>
                 <label htmlFor="generalAmount" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
                   <CurrencyDollarIcon className="h-5 w-5 mr-2 text-green-500" />
