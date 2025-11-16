@@ -67,9 +67,9 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
       <div 
         className="bg-white rounded-lg shadow-2xl flex flex-col overflow-hidden"
         style={{
-          width: isSmallIOS ? '98vw' : (isIPadPro ? '90vw' : (isLarge ? '85vw' : isTablet ? '85vw' : '95vw')),
-          height: isSmallIOS ? '98vh' : (isIPadPro ? '85vh' : (isLarge ? '80vh' : isTablet ? '88vh' : '96vh')),
-          maxWidth: 'none',
+          width: isSmallIOS ? '98vw' : (isIPadPro ? '90vw' : (isLarge ? '90vw' : isTablet ? '85vw' : '95vw')),
+          height: isSmallIOS ? '98vh' : (isIPadPro ? '85vh' : (isLarge ? '90vh' : isTablet ? '88vh' : '96vh')),
+          maxWidth: isLarge ? '1400px' : 'none', // 🆕 Límite máximo en pantallas muy grandes
           maxHeight: 'none',
           margin: 'auto',
           display: 'flex',
