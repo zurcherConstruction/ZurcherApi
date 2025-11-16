@@ -72,14 +72,14 @@ export const INCOME_TYPES = [
 export const EXPENSE_TYPES = [
   'Materiales',
   'Diseño',
-  'Workers',
+  // 'Workers', // ❌ Removido - Se maneja en módulo específico de workers
   'Imprevistos',
-  'Comprobante Gasto',
+  // 'Comprobante Gasto', // ❌ Removido - Usar tipos específicos
   'Gastos Generales',
   'Materiales Iniciales',
   'Inspección Inicial',
   'Inspección Final',
-  'Comisión Vendedor',
+  // 'Comisión Vendedor', // ❌ Removido - Se paga desde CommissionsManager.jsx
   'Gasto Fijo',
 ];
 

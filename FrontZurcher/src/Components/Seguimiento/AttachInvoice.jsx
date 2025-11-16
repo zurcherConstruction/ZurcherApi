@@ -29,11 +29,11 @@ const expenseTypes = EXPENSE_TYPES;
 
 // Tipos que NO requieren Work (son gastos/ingresos generales)
 const generalExpenseTypes = [
-  "Workers",
+  // "Workers", // ❌ Removido del sistema
   "Gastos Generales",
-  "Comisión Vendedor",
+  // "Comisión Vendedor", // ❌ Removido - Las comisiones se pagan desde CommissionsManager.jsx
   "Gasto Fijo", // 🆕 Los gastos fijos son siempre generales
-  "Comprobante Gasto" // Puede ser general o específico
+  // "Comprobante Gasto" // ❌ Removido del sistema
 ];
 
 const generalIncomeTypes = [
