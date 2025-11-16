@@ -41,6 +41,10 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
   const isIPadPro = (screenWidth === 1024 && screenHeight === 1366) || 
                     (screenWidth === 1366 && screenHeight === 1024) ||
                     navigator.userAgent.includes('iPad');
+  
+  // 🆕 Detección específica para iPhone/iPod (iOS pequeño)
+  const isIPhone = /iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const isSmallIOS = isIPhone || (isMobile && /iPad|iPhone|iPod/.test(navigator.userAgent));
 
   return (
     <div 
@@ -55,17 +59,21 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: isIPadPro ? '20px' : (isMobile ? '8px' : '16px')
+        padding: isSmallIOS ? '4px' : (isIPadPro ? '20px' : (isMobile ? '8px' : '16px')),
+        overflow: 'hidden', // 🆕 Prevenir scroll del fondo
+        WebkitOverflowScrolling: 'touch' // 🆕 Smooth scroll en iOS
       }}
     >
       <div 
         className="bg-white rounded-lg shadow-2xl flex flex-col overflow-hidden"
         style={{
-          width: isIPadPro ? '90vw' : (isLarge ? '85vw' : isTablet ? '85vw' : '95vw'),
-          height: isIPadPro ? '85vh' : (isLarge ? '80vh' : isTablet ? '88vh' : '96vh'),
+          width: isSmallIOS ? '98vw' : (isIPadPro ? '90vw' : (isLarge ? '85vw' : isTablet ? '85vw' : '95vw')),
+          height: isSmallIOS ? '98vh' : (isIPadPro ? '85vh' : (isLarge ? '80vh' : isTablet ? '88vh' : '96vh')),
           maxWidth: 'none',
           maxHeight: 'none',
-          margin: 'auto'
+          margin: 'auto',
+          display: 'flex',
+          flexDirection: 'column'
         }}
       >
         {/* Header con mejor responsive */}
@@ -74,7 +82,7 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
             {title || "Vista Previa del PDF"}
           </h3>
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-            {(isMobile || isTablet) && (
+            {(isMobile || isTablet || isSmallIOS) && (
               <a
                 href={pdfUrl}
                 target="_blank"
@@ -122,8 +130,8 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
           />
         </div>
         
-        {/* Footer para dispositivos móviles/tablet/iPad */}
-        {(isMobile || isTablet || isIPadPro) && (
+        {/* Footer para dispositivos móviles/tablet/iPad/iPhone */}
+        {(isMobile || isTablet || isIPadPro || isSmallIOS) && (
           <div className="p-3 sm:p-4 bg-gray-50 border-t border-gray-200 text-xs sm:text-sm text-gray-600 text-center flex-shrink-0">
             <p className="leading-relaxed">
               Para mejor navegación,{" "}
