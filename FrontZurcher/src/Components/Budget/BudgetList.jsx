@@ -1084,13 +1084,29 @@ const BudgetList = () => {
                               </div>
                             ) : (
                               <div className="flex justify-between items-start gap-1">
-                                <span className="text-[10px] break-words flex-1 line-clamp-2">
-                                  {budget.generalNotes || (
-                                    <span className="text-gray-400 italic">
-                                      No notes
-                                    </span>
+                                <div className="relative group flex-1">
+                                  <span className="text-[10px] break-words line-clamp-2 cursor-help">
+                                    {budget.generalNotes || (
+                                      <span className="text-gray-400 italic">
+                                        No notes
+                                      </span>
+                                    )}
+                                  </span>
+                                  {/* Tooltip bonito con el texto completo */}
+                                  {budget.generalNotes && (
+                                    <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-200 absolute z-50 bottom-full left-0 mb-2 w-64 max-w-sm">
+                                      <div className="bg-gray-900 text-white text-xs rounded-lg py-2 px-3 shadow-xl">
+                                        <div className="whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
+                                          {budget.generalNotes}
+                                        </div>
+                                        {/* Flecha del tooltip */}
+                                        <div className="absolute top-full left-4 -mt-1">
+                                          <div className="border-4 border-transparent border-t-gray-900"></div>
+                                        </div>
+                                      </div>
+                                    </div>
                                   )}
-                                </span>
+                                </div>
                                 <button
                                   onClick={() => handleEditNoteClick(budget)}
                                   disabled={isReadOnly}
@@ -1686,13 +1702,29 @@ const BudgetList = () => {
                             </div>
                           ) : (
                             <div className="flex justify-between items-start">
-                              <span className="text-xs md:text-sm text-gray-600 break-words flex-1 mr-2">
-                                {budget.generalNotes || (
-                                  <span className="text-gray-400 italic">
-                                    No notes
-                                  </span>
+                              <div className="relative group flex-1 mr-2">
+                                <span className="text-xs md:text-sm text-gray-600 break-words cursor-help">
+                                  {budget.generalNotes || (
+                                    <span className="text-gray-400 italic">
+                                      No notes
+                                    </span>
+                                  )}
+                                </span>
+                                {/* Tooltip bonito con el texto completo */}
+                                {budget.generalNotes && (
+                                  <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-200 absolute z-50 bottom-full left-0 mb-2 w-72 max-w-sm">
+                                    <div className="bg-gray-900 text-white text-sm rounded-lg py-3 px-4 shadow-xl">
+                                      <div className="whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
+                                        {budget.generalNotes}
+                                      </div>
+                                      {/* Flecha del tooltip */}
+                                      <div className="absolute top-full left-4 -mt-1">
+                                        <div className="border-4 border-transparent border-t-gray-900"></div>
+                                      </div>
+                                    </div>
+                                  </div>
                                 )}
-                              </span>
+                              </div>
                               <button
                                 onClick={() => handleEditNoteClick(budget)}
                                 disabled={isReadOnly}

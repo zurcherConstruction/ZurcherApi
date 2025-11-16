@@ -10,9 +10,10 @@ import { fetchStaff } from "../../Redux/Actions/adminActions"; // 🆕 Para carg
 import DynamicCategorySection from './DynamicCategorySection';
 import EditClientDataModal from './EditClientDataModal';
 import EditPermitFieldsModal from './EditPermitFieldsModal'; // 🆕 NUEVO
+import PdfModal from './PdfModal'; // 🆕 Para vista previa de PDFs
 import { parseISO, format } from 'date-fns';
 import { unwrapResult } from '@reduxjs/toolkit';
-import { ArrowTopRightOnSquareIcon, PencilIcon } from '@heroicons/react/24/outline';
+import { ArrowTopRightOnSquareIcon, PencilIcon, EyeIcon } from '@heroicons/react/24/outline';
 import api from "../../utils/axios";
 
 // --- Helper para generar IDs temporales ---
@@ -87,6 +88,12 @@ const EditBudget = () => {
   const [showManualSignatureUpload, setShowManualSignatureUpload] = useState(false);
   const [manualSignedPdfFile, setManualSignedPdfFile] = useState(null);
   const [uploadingManualSignedPdf, setUploadingManualSignedPdf] = useState(false);
+
+  // 🆕 Estados para vista previa de PDFs
+  const [pdfModalOpen, setPdfModalOpen] = useState(false);
+  const [pdfModalUrl, setPdfModalUrl] = useState('');
+  const [pdfModalTitle, setPdfModalTitle] = useState('');
+  const [loadingPdfType, setLoadingPdfType] = useState(null); // 'budget', 'permit', 'optional', o null
 
   const [manualItemData, setManualItemData] = useState({
     category: "",
@@ -242,21 +249,11 @@ const editableBudgets = useMemo(() => {
                                     (!formData || formData.idBudget !== selectedBudgetId || forceFormDataRefresh > 0);
     
     if (shouldRecreateFormData) {
-      
-
       try {
         const permitData = currentBudget.Permit || {};
         const lineItemsData = currentBudget.lineItems || [];
 
         console.log('🔄 Recreando formData con datos actualizados del Permit:', permitData);
-        console.log('📝 Valores clave:', {
-          permitNumber: permitData.permitNumber,
-          applicantName: permitData.applicantName,
-          applicantPhone: permitData.applicantPhone,
-          propertyAddress: permitData.propertyAddress,
-          lot: permitData.lot,
-          block: permitData.block
-        });
 
         const newFormData = {
           idBudget: currentBudget.idBudget,
@@ -608,6 +605,9 @@ const editableBudgets = useMemo(() => {
       salesCommissionAmount: formData.leadSource === 'external_referral' ? parseFloat(externalReferralInfo.commissionAmount) || 0 : 0,
     };
 
+    console.log('📤 Datos a enviar al backend:', dataToSend);
+    console.log('📝 generalNotes específicamente:', formData.generalNotes);
+
     const lineItemsPayload = formData.lineItems.map(item => ({
       id: item.id,
       budgetItemId: item.budgetItemId,
@@ -809,6 +809,139 @@ const editableBudgets = useMemo(() => {
     }
   };
 
+  // 🆕 Funciones para abrir modales de vista previa de PDFs
+  const handleViewBudgetPdf = async () => {
+    // Limpiar URL anterior si existe (solo object URLs)
+    if (pdfModalUrl && pdfModalUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(pdfModalUrl);
+      setPdfModalUrl('');
+    }
+
+    setLoadingPdfType('budget');
+    
+    try {
+      const budget = currentBudget;
+      let response;
+
+      // CASO 1: Firma Manual
+      if (budget?.signatureMethod === 'manual' && budget?.manualSignedPdfPath) {
+        response = await api.get(`/budget/${budget.idBudget}/view-manual-signed`, {
+          responseType: 'blob'
+        });
+      }
+      // CASO 2: Firma SignNow
+      else if (budget?.signatureMethod === 'signnow' && budget?.signNowDocumentId) {
+        response = await api.get(`/budget/${budget.idBudget}/view-signed`, {
+          responseType: 'blob'
+        });
+      }
+      // CASO 3: Budget Legacy con PDF firmado
+      else if (budget?.isLegacy && budget?.legacySignedPdfUrl) {
+        // Para legacy, usar proxy del backend si existe endpoint
+        response = await api.get(`/budget/${budget.idBudget}/view/pdf`, {
+          responseType: 'blob'
+        });
+      }
+      // CASO 4: PDF del sistema (generado automáticamente)
+      else if (budget?.pdfPath) {
+        response = await api.get(`/budget/${budget.idBudget}/view/pdf`, {
+          responseType: 'blob'
+        });
+      }
+      else {
+        toast.info('No hay PDF de presupuesto disponible');
+        setLoadingPdfType(null);
+        return;
+      }
+
+      // Crear object URL del blob
+      const objectUrl = URL.createObjectURL(response.data);
+      setPdfModalUrl(objectUrl);
+      setPdfModalTitle(`Presupuesto - ${formData?.propertyAddress || 'Budget'}`);
+      setPdfModalOpen(true);
+
+    } catch (error) {
+      console.error('Error al cargar PDF del presupuesto:', error);
+      toast.error('Error al cargar el PDF del presupuesto');
+    } finally {
+      setLoadingPdfType(null);
+    }
+  };
+
+  const handleViewPermitPdf = async () => {
+    if (!currentBudget?.PermitIdPermit) {
+      toast.info('No hay permit asociado');
+      return;
+    }
+
+    // Limpiar URL anterior si existe (solo object URLs)
+    if (pdfModalUrl && pdfModalUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(pdfModalUrl);
+      setPdfModalUrl('');
+    }
+
+    setLoadingPdfType('permit');
+
+    try {
+      // Fetch del PDF como blob usando el endpoint del BUDGET (no del permit directamente)
+      const response = await api.get(`/budget/${currentBudget.idBudget}/permit-pdf`, {
+        responseType: 'blob'
+      });
+
+      const objectUrl = URL.createObjectURL(response.data);
+      setPdfModalUrl(objectUrl);
+      setPdfModalTitle(`Permit - ${formData?.permitNumber || 'N/A'}`);
+      setPdfModalOpen(true);
+
+    } catch (error) {
+      console.error('Error al cargar PDF del permit:', error);
+      if (error.response?.status === 404) {
+        toast.info('No hay PDF de permit disponible');
+      } else {
+        toast.error('Error al cargar el PDF del permit');
+      }
+    } finally {
+      setLoadingPdfType(null);
+    }
+  };
+
+  const handleViewOptionalDocs = async () => {
+    if (!currentBudget?.PermitIdPermit) {
+      toast.info('No hay permit asociado');
+      return;
+    }
+
+    // Limpiar URL anterior si existe (solo object URLs)
+    if (pdfModalUrl && pdfModalUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(pdfModalUrl);
+      setPdfModalUrl('');
+    }
+
+    setLoadingPdfType('optional');
+
+    try {
+      // Fetch del PDF como blob usando el endpoint del BUDGET (no del permit directamente)
+      const response = await api.get(`/budget/${currentBudget.idBudget}/optional-docs`, {
+        responseType: 'blob'
+      });
+
+      const objectUrl = URL.createObjectURL(response.data);
+      setPdfModalUrl(objectUrl);
+      setPdfModalTitle(`Optional Docs - ${formData?.propertyAddress || 'Budget'}`);
+      setPdfModalOpen(true);
+
+    } catch (error) {
+      console.error('Error al cargar documentos opcionales:', error);
+      if (error.response?.status === 404) {
+        toast.info('No hay documentos opcionales disponibles');
+      } else {
+        toast.error('Error al cargar documentos opcionales');
+      }
+    } finally {
+      setLoadingPdfType(null);
+    }
+  };
+
   // --- Renderizado ---
   return (
     <div className="max-w-4xl mx-auto p-4 min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
@@ -868,7 +1001,72 @@ const editableBudgets = useMemo(() => {
           {currentBudgetError && !formData && <div className="text-center p-4 text-red-600">Error loading data: {currentBudgetError}</div>}
           {formData && (
             <form onSubmit={handleSubmit} className="space-y-8 bg-white shadow-2xl rounded-2xl p-8 border border-gray-200">
-              <h3 className="text-2xl font-bold border-b border-gray-200 pb-3 mb-6 text-blue-900">Edit Budget #{selectedBudgetId}</h3>
+              <div className="border-b border-gray-200 pb-4 mb-6">
+                <h3 className="text-2xl font-bold text-blue-900">Edit Budget #{selectedBudgetId}</h3>
+                
+                {/* 🆕 Barra de Vista Previa de PDFs */}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {/* Presupuesto - Siempre mostrar si hay budget */}
+                  {currentBudget?.pdfPath && (
+                    <button
+                      type="button"
+                      onClick={handleViewBudgetPdf}
+                      disabled={loadingPdfType !== null}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {loadingPdfType === 'budget' ? (
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : (
+                        <EyeIcon className="h-4 w-4" />
+                      )}
+                      Ver Presupuesto
+                    </button>
+                  )}
+                  
+                  {/* Permit PDF - Solo mostrar si está disponible */}
+                  {currentBudget?.Permit?.hasPermitPdfData && (
+                    <button
+                      type="button"
+                      onClick={handleViewPermitPdf}
+                      disabled={loadingPdfType !== null}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {loadingPdfType === 'permit' ? (
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : (
+                        <EyeIcon className="h-4 w-4" />
+                      )}
+                      Ver Permit
+                    </button>
+                  )}
+                  
+                  {/* Optional Docs - Solo mostrar si está disponible */}
+                  {currentBudget?.Permit?.hasOptionalDocs && (
+                    <button
+                      type="button"
+                      onClick={handleViewOptionalDocs}
+                      disabled={loadingPdfType !== null}
+                      className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {loadingPdfType === 'optional' ? (
+                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : (
+                        <EyeIcon className="h-4 w-4" />
+                      )}
+                      Ver Optional Docs
+                    </button>
+                  )}
+                </div>
+              </div>
               
               {/* ⚠️ Mensaje de Advertencia si el Budget está bloqueado */}
               {isBudgetLocked && (
@@ -1012,8 +1210,8 @@ const editableBudgets = useMemo(() => {
                   </div>
                 </div>
                 <div className="mt-4">
-                  <label htmlFor="generalNotes" className="block text-sm font-medium text-gray-700">General Notes</label>
-                  <textarea id="generalNotes" name="generalNotes" value={formData.generalNotes} onChange={handleGeneralInputChange} rows="3" className="input-style mt-1"></textarea>
+                  <label htmlFor="generalNotes" className="block text-sm font-medium text-gray-700">Notas Generales del Presupuesto</label>
+                  <textarea id="generalNotes" name="generalNotes" value={formData.generalNotes} onChange={handleGeneralInputChange} rows="3" className="input-style mt-1" placeholder="Notas generales que aplican a todo el presupuesto..."></textarea>
                 </div>
 
                 {/* 🆕 Lead Source & Commission Management */}
@@ -1383,8 +1581,8 @@ const editableBudgets = useMemo(() => {
                     />
                   </div>
                   <div className="md:col-span-3">
-                    <label htmlFor="manualNotes" className="block text-xs font-medium text-gray-700">Notas (Opcional)</label>
-                    <input type="text" id="manualNotes" name="notes" value={manualItemData.notes} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Detalles adicionales..." />
+                    <label htmlFor="manualNotes" className="block text-xs font-medium text-gray-700">Notas del Item (Opcional)</label>
+                    <input type="text" id="manualNotes" name="notes" value={manualItemData.notes} onChange={handleManualItemChange} className="input-style mt-1 text-sm" placeholder="Detalles específicos de este item..." />
                   </div>
                 </div>
                 <div className="mt-4 text-right">
@@ -1699,6 +1897,22 @@ const editableBudgets = useMemo(() => {
           }}
         />
       )}
+
+      {/* 🆕 MODAL: Vista Previa de PDFs */}
+      <PdfModal
+        isOpen={pdfModalOpen}
+        onClose={() => {
+          // Solo revocar si es un object URL (blob:), no si es una URL de Cloudinary
+          if (pdfModalUrl && pdfModalUrl.startsWith('blob:')) {
+            URL.revokeObjectURL(pdfModalUrl);
+          }
+          setPdfModalOpen(false);
+          setPdfModalUrl('');
+          setPdfModalTitle('');
+        }}
+        pdfUrl={pdfModalUrl}
+        title={pdfModalTitle}
+      />
 
       <style>{`.input-style { border: 1px solid #d1d5db; border-radius: 0.5rem; padding: 0.75rem 1rem; width: 100%; box-sizing: border-box; font-size: 1rem; } .input-style:focus { outline: 2px solid transparent; outline-offset: 2px; border-color: #2563eb; box-shadow: 0 0 0 2px #bfdbfe; }`}</style>
     </div>
