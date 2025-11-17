@@ -2113,7 +2113,134 @@ const createCreditCardTransaction = async (req, res) => {
 };
 
 /**
- * 💳 Función auxiliar para calcular balance actual de Chase Credit Card
+ * � Revertir un pago de tarjeta de crédito Chase
+ * DELETE /api/supplier-invoices/credit-card/payment/:paymentId
+ * 
+ * Revierte un pago aplicado a la tarjeta Chase:
+ * - Encuentra el registro de pago en SupplierInvoice
+ * - Revierte los cambios en los Expenses que fueron pagados
+ * - Elimina el registro de pago
+ * - Recalcula el balance
+ */
+const reverseCreditCardPayment = async (req, res) => {
+  const dbTransaction = await sequelize.transaction();
+
+  try {
+    const { paymentId } = req.params;
+
+    console.log(`🔄 [Reversa] Iniciando reversión del pago ID: ${paymentId}`);
+
+    // 1. Buscar el registro de pago
+    const payment = await SupplierInvoice.findByPk(paymentId, { transaction: dbTransaction });
+
+    if (!payment) {
+      await dbTransaction.rollback();
+      return res.status(404).json({
+        error: true,
+        message: 'Pago no encontrado'
+      });
+    }
+
+    // 2. Validar que sea un pago de Chase Credit Card
+    if (payment.vendor !== 'Chase Credit Card' || payment.transactionType !== 'payment') {
+      await dbTransaction.rollback();
+      return res.status(400).json({
+        error: true,
+        message: 'Este registro no es un pago de Chase Credit Card'
+      });
+    }
+
+    const paymentAmount = parseFloat(payment.totalAmount);
+    const paymentDate = new Date(payment.paymentDate);
+
+    console.log(`💰 Monto a revertir: $${paymentAmount}`);
+    console.log(`📅 Fecha del pago original: ${paymentDate.toISOString()}`);
+
+    // 3. Buscar los expenses que fueron pagados DESPUÉS de la fecha del pago
+    // Usamos FIFO inverso: revertimos desde los más recientes hacia atrás
+    const affectedExpenses = await Expense.findAll({
+      where: {
+        paymentMethod: 'Chase Credit Card',
+        paidAmount: { [Op.gt]: 0 }, // Solo los que tienen algo pagado
+        paidDate: { [Op.gte]: paymentDate } // Pagados después de esta fecha
+      },
+      order: [['paidDate', 'DESC'], ['date', 'DESC']], // Más recientes primero
+      transaction: dbTransaction
+    });
+
+    let remainingToRevert = paymentAmount;
+    const revertedExpenses = [];
+
+    console.log(`📋 Encontrados ${affectedExpenses.length} expense(s) potencialmente afectados`);
+
+    // 4. Revertir pagos aplicados (LIFO - Last In, First Out)
+    for (const expense of affectedExpenses) {
+      if (remainingToRevert <= 0) break;
+
+      const currentPaidAmount = parseFloat(expense.paidAmount || 0);
+      
+      if (currentPaidAmount > 0) {
+        // Calcular cuánto revertir de este expense
+        const amountToRevert = Math.min(remainingToRevert, currentPaidAmount);
+        const newPaidAmount = currentPaidAmount - amountToRevert;
+        const expenseAmount = parseFloat(expense.amount);
+
+        // Actualizar el expense
+        await expense.update({
+          paidAmount: newPaidAmount,
+          paymentStatus: newPaidAmount === 0 ? 'unpaid' : 
+                        newPaidAmount >= expenseAmount ? 'paid' : 'partial',
+          paidDate: newPaidAmount === 0 ? null : expense.paidDate
+        }, { transaction: dbTransaction });
+
+        revertedExpenses.push({
+          idExpense: expense.idExpense,
+          notes: expense.notes,
+          amount: expenseAmount,
+          revertedAmount: amountToRevert,
+          newPaidAmount: newPaidAmount,
+          newStatus: newPaidAmount === 0 ? 'unpaid' : 
+                     newPaidAmount >= expenseAmount ? 'paid' : 'partial'
+        });
+
+        remainingToRevert -= amountToRevert;
+        console.log(`  ↩️ Expense ${expense.notes}: -$${amountToRevert} revertido (${newPaidAmount === 0 ? 'PENDIENTE' : newPaidAmount >= expenseAmount ? 'PAGADO' : 'PARCIAL'})`);
+      }
+    }
+
+    // 5. Eliminar el registro de pago
+    await payment.destroy({ transaction: dbTransaction });
+
+    await dbTransaction.commit();
+
+    // 6. Recalcular balance
+    const stats = await calculateCreditCardBalance();
+
+    console.log(`✅ Reversión completada | ${revertedExpenses.length} expense(s) revertidos | Balance actual: $${stats.currentBalance}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Pago revertido exitosamente',
+      paymentAmount: paymentAmount,
+      revertedExpenses: revertedExpenses,
+      remainingNotReverted: remainingToRevert, // Si quedó algo sin revertir (caso raro)
+      currentBalance: stats.currentBalance,
+      statistics: stats
+    });
+
+  } catch (error) {
+    await dbTransaction.rollback();
+    console.error('❌ [Reversa] Error:', error);
+    res.status(500).json({
+      error: true,
+      message: 'Error al revertir el pago',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * �💳 Función auxiliar para calcular balance actual de Chase Credit Card
  * Balance = Suma de montos pendientes (amount - paidAmount) de cada expense
  */
 const calculateCreditCardBalance = async (transaction = null) => {
@@ -2650,6 +2777,7 @@ module.exports = {
   createSimpleSupplierInvoice, // 🆕 NUEVO formulario simplificado
   getVendorsList, // 🆕 NUEVO lista de vendors para autocomplete
   createCreditCardTransaction, // 💳 NUEVO transacciones de tarjeta Chase
+  reverseCreditCardPayment, // 🔄 NUEVO revertir pagos de Chase
   getCreditCardBalance, // 💳 NUEVO balance de tarjeta Chase
   createAmexTransaction, // 💳 NUEVO transacciones de AMEX
   getAmexBalance // 💳 NUEVO balance de AMEX
