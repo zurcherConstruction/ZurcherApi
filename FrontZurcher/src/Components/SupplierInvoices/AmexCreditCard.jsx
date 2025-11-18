@@ -1,6 +1,15 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 
+// Helper para obtener fecha local (sin conversión UTC)
+const getLocalDateString = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const AmexCreditCard = ({ token }) => {
   const [loading, setLoading] = useState(true);
   const [currentBalance, setCurrentBalance] = useState(0);
@@ -14,7 +23,7 @@ const AmexCreditCard = ({ token }) => {
     transactionType: 'charge', // 'charge', 'payment', 'interest'
     description: '',
     amount: '',
-    date: new Date().toISOString().split('T')[0],
+    date: getLocalDateString(),
     paymentMethod: 'Chase Bank',
     paymentDetails: '',
     vendor: '', // Para cargos manuales
@@ -90,7 +99,7 @@ const AmexCreditCard = ({ token }) => {
           transactionType: 'charge',
           description: '',
           amount: '',
-          date: new Date().toISOString().split('T')[0],
+          date: getLocalDateString(),
           paymentMethod: 'Chase Bank',
           paymentDetails: '',
           vendor: '',
@@ -132,11 +141,14 @@ const AmexCreditCard = ({ token }) => {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('es-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
+    // NO usar new Date() para evitar conversión UTC
+    // Si viene "2025-11-17", parsearlo directamente
+    if (!dateString) return '';
+    
+    const [year, month, day] = dateString.split('T')[0].split('-');
+    const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    
+    return `${parseInt(day)} ${months[parseInt(month) - 1]} ${year}`;
   };
 
   if (loading) {

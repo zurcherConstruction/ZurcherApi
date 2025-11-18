@@ -1949,6 +1949,15 @@ const createCreditCardTransaction = async (req, res) => {
 
     console.log(`💳 [CreditCard] Creando transacción tipo: ${transactionType}`);
 
+    // ✅ Función para obtener fecha local en formato YYYY-MM-DD
+    const getLocalDateString = () => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
     // Validaciones
     if (!['charge', 'payment', 'interest'].includes(transactionType)) {
       return res.status(400).json({
@@ -1975,7 +1984,7 @@ const createCreditCardTransaction = async (req, res) => {
       console.log(`💳 [CARGO] Creando expense con Chase Credit Card...`);
 
       createdExpense = await Expense.create({
-        date: date || new Date().toISOString().split('T')[0],
+        date: date || getLocalDateString(),
         amount: transactionAmount,
         typeExpense: 'Comprobante Gasto', // O el tipo que prefieras
         notes: description || notes || 'Cargo manual en tarjeta',
@@ -1998,7 +2007,7 @@ const createCreditCardTransaction = async (req, res) => {
       console.log(`📈 [INTERÉS] Creando expense de interés...`);
 
       createdExpense = await Expense.create({
-        date: date || new Date().toISOString().split('T')[0],
+        date: date || getLocalDateString(),
         amount: transactionAmount,
         typeExpense: 'Gastos Generales', // Intereses como gasto general
         notes: description || notes || 'Intereses Chase Credit Card',
@@ -2069,13 +2078,13 @@ const createCreditCardTransaction = async (req, res) => {
       await SupplierInvoice.create({
         invoiceNumber: `CC-PAYMENT-${Date.now()}`,
         vendor: 'Chase Credit Card',
-        issueDate: date || new Date(),
+        issueDate: date || getLocalDateString(),
         dueDate: null,
         totalAmount: transactionAmount,
         paymentStatus: 'paid',
         paymentMethod: paymentMethod,
         paymentDetails: paymentDetails,
-        paymentDate: date || new Date(),
+        paymentDate: date || getLocalDateString(),
         paidAmount: transactionAmount,
         notes: description || notes || 'Pago de tarjeta',
         transactionType: 'payment',
@@ -2436,6 +2445,15 @@ const createAmexTransaction = async (req, res) => {
   const dbTransaction = await sequelize.transaction();
 
   try {
+    // Helper para obtener fecha local sin conversión UTC
+    const getLocalDateString = () => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
     const {
       transactionType,
       description,
@@ -2472,7 +2490,7 @@ const createAmexTransaction = async (req, res) => {
       console.log(`💳 [CARGO] Creando expense con AMEX...`);
 
       createdExpense = await Expense.create({
-        date: date || new Date().toISOString().split('T')[0],
+        date: date || getLocalDateString(),
         amount: transactionAmount,
         typeExpense: 'Comprobante Gasto',
         notes: description || notes || 'Cargo manual en AMEX',
@@ -2492,7 +2510,7 @@ const createAmexTransaction = async (req, res) => {
       console.log(`📈 [INTERÉS] Creando expense de interés...`);
 
       createdExpense = await Expense.create({
-        date: date || new Date().toISOString().split('T')[0],
+        date: date || getLocalDateString(),
         amount: transactionAmount,
         typeExpense: 'Gastos Generales',
         notes: description || notes || 'Intereses AMEX',
@@ -2557,13 +2575,13 @@ const createAmexTransaction = async (req, res) => {
       await SupplierInvoice.create({
         invoiceNumber: `AMEX-PAYMENT-${Date.now()}`,
         vendor: 'AMEX',
-        issueDate: date || new Date(),
+        issueDate: date || getLocalDateString(),
         dueDate: null,
         totalAmount: transactionAmount,
         paymentStatus: 'paid',
         paymentMethod: paymentMethod,
         paymentDetails: paymentDetails,
-        paymentDate: date || new Date(),
+        paymentDate: date || getLocalDateString(),
         paidAmount: transactionAmount,
         notes: description || notes || 'Pago de AMEX',
         transactionType: 'payment',
