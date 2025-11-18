@@ -486,6 +486,7 @@ const handleGeneralInputChange = (e) => {
         marca: foundItem.marca || '',
         capacity: foundItem.capacity || '',
         unitPrice: parseFloat(foundItem.unitPrice) || 0,
+        supplierName: itemDetails.supplierName || '', // ✅ Agregar supplierName
       };
 
       if (existingItemIndex > -1) {

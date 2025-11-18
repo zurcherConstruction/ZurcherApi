@@ -18,6 +18,7 @@ const {
   createSimpleSupplierInvoice, // 🆕 NUEVO formulario simplificado
   getVendorsList, // 🆕 NUEVO lista de vendors para autocomplete
   createCreditCardTransaction, // 💳 NUEVO transacciones de tarjeta
+  reverseCreditCardPayment, // 🔄 NUEVO revertir pagos de Chase
   getCreditCardBalance, // 💳 NUEVO balance de tarjeta
   createAmexTransaction, // 💳 NUEVO transacciones AMEX
   getAmexBalance // 💳 NUEVO balance AMEX
@@ -61,6 +62,14 @@ router.get('/credit-card/balance', getCreditCardBalance);
  * @access  Private
  */
 router.post('/credit-card/transaction', createCreditCardTransaction);
+
+/**
+ * 🔄 @route   DELETE /api/supplier-invoices/credit-card/payment/:paymentId
+ * @desc    Revertir un pago de tarjeta Chase (deshace el pago y restaura los expenses)
+ * @params  paymentId - ID del registro de pago en SupplierInvoice
+ * @access  Private
+ */
+router.delete('/credit-card/payment/:paymentId', reverseCreditCardPayment);
 
 /**
  * 💳 @route   GET /api/supplier-invoices/amex/balance
