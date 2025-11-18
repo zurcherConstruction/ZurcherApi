@@ -71,6 +71,8 @@ const createWork = async (req, res) => {
 // Obtener todas las obras
 const getWorks = async (req, res) => {
   try {
+    // OPTIMIZACIÓN: Cargar solo lo esencial en la consulta principal
+    // Evita locks excesivos al no cargar Expenses ni Receipts en el JOIN principal
     const worksInstances = await Work.findAll({
       include: [
         {
@@ -86,40 +88,64 @@ const getWorks = async (req, res) => {
           model: FinalInvoice,
           as: 'finalInvoice',
           required: false
-        },
-        {
-          model: Expense,
-          as: 'expenses',
-        },
-        {
-          model: Receipt,
-          as: 'Receipts',
-          required: false,
-          on: {
-            [Op.and]: [
-              literal(`"Receipts"."relatedModel" = 'Work'`),
-              literal(`"Work"."idWork" = CAST("Receipts"."relatedId" AS UUID)`)
-            ]
-          },
-          attributes: ['idReceipt', 'type', 'notes', 'fileUrl', 'publicId', 'mimeType', 'originalName','createdAt'],
         }
+        // ❌ Removido: Expense y Receipt de la consulta principal
+        // ✅ Se cargarán después en consultas separadas (más eficiente)
       ],
       order: [['createdAt', 'DESC']],
     });
 
+    // OPTIMIZACIÓN: Cargar expenses y receipts en consultas separadas
+    // Esto reduce dramáticamente el número de locks necesarios
+    const workIds = worksInstances.map(w => w.idWork);
+    
+    // Cargar todos los expenses de una vez (en lugar de JOIN)
+    const allExpenses = await Expense.findAll({
+      where: { workId: workIds },
+      raw: true
+    });
+    
+    // Agrupar expenses por workId
+    const expensesByWork = allExpenses.reduce((acc, exp) => {
+      if (!acc[exp.workId]) acc[exp.workId] = [];
+      acc[exp.workId].push(exp);
+      return acc;
+    }, {});
+    
+    // Cargar receipts directos de Works
+    const workReceipts = await Receipt.findAll({
+      where: {
+        relatedModel: 'Work',
+        relatedId: workIds
+      },
+      attributes: ['idReceipt', 'type', 'notes', 'fileUrl', 'publicId', 'mimeType', 'originalName', 'createdAt', 'relatedId'],
+      raw: true
+    });
+    
+    // Agrupar receipts por workId
+    const receiptsByWork = workReceipts.reduce((acc, receipt) => {
+      if (!acc[receipt.relatedId]) acc[receipt.relatedId] = [];
+      acc[receipt.relatedId].push(receipt);
+      return acc;
+    }, {});
+
     // Para cada work, combinar los receipts directos y los de expenses (sin romper la estructura original)
     const worksWithDetails = await Promise.all(worksInstances.map(async (workInstance) => {
       const workJson = workInstance.get({ plain: true });
+      
+      // Agregar expenses desde el objeto precargado
+      workJson.expenses = expensesByWork[workJson.idWork] || [];
 
-      // Receipts directos (como siempre)
+      // Receipts directos desde el objeto precargado
       let directReceipts = [];
-      if (workJson.Receipts && Array.isArray(workJson.Receipts)) {
-        directReceipts = convertPdfDataToUrl(workJson.Receipts);
+      const workReceiptsData = receiptsByWork[workJson.idWork] || [];
+      if (workReceiptsData.length > 0) {
+        directReceipts = convertPdfDataToUrl(workReceiptsData);
       }
 
-      // Receipts de tipo Inspección Inicial asociados a Expenses (agregado, no rompe nada)
+      // Receipts de tipo Inspección Inicial asociados a Expenses
       let expenseReceipts = [];
-      if (workJson.expenses && Array.isArray(workJson.expenses) && workJson.expenses.length > 0) {
+      if (workJson.expenses && workJson.expenses.length > 0) {
         const expenseIds = workJson.expenses.map(e => e.idExpense);
         if (expenseIds.length > 0) {
           const foundReceipts = await Receipt.findAll({
