@@ -27,6 +27,8 @@ const maintenanceRoutes = require('./maintenanceRoutes'); // Asegúrate de que l
 const legacyMaintenanceRoutes = require('./legacyMaintenanceRoutes'); // 🆕 Edición de Works legacy
 const accountsReceivableRoutes = require('./accountsReceivableRoutes'); // 🆕 Cuentas por cobrar
 const financialDashboardRoutes = require('./financialDashboardRoutes'); // 🆕 Dashboard financiero consolidado
+const bankAccountRoutes = require('./bankAccountRoutes'); // 🆕 Gestión de cuentas bancarias
+const bankTransactionRoutes = require('./bankTransactionRoutes'); // 🆕 Transacciones bancarias
 //const adobeWebhookRoutes = require('./adobeWebhookRoutes'); // Asegúrate de que la ruta sea correcta
 const adobeRoutes = require('./adobeRoutes'); // Asegúrate de que la ruta sea correcta
 
@@ -79,6 +81,8 @@ router.use('/maintenance', maintenanceRoutes); // Ruta para visitas de mantenimi
 router.use('/legacy-maintenance', legacyMaintenanceRoutes); // 🆕 Edición de trabajos de mantenimiento legacy
 router.use('/accounts-receivable', accountsReceivableRoutes); // 🆕 Ruta para cuentas por cobrar
 router.use('/financial-dashboard', financialDashboardRoutes); // 🆕 Ruta para dashboard financiero consolidado
+router.use('/bank-accounts', bankAccountRoutes); // 🆕 Ruta para gestión de cuentas bancarias
+router.use('/bank-transactions', bankTransactionRoutes); // 🆕 Ruta para transacciones bancarias
 router.use('/import', importRoutes); // Ruta para importar trabajos legacy
 
 module.exports = router;

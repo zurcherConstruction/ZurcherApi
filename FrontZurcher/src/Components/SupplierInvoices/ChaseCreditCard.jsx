@@ -185,14 +185,17 @@ const ChaseCreditCard = ({ token }) => {
   };
 
   const formatDate = (dateString) => {
-    // NO usar new Date() para evitar conversión UTC
-    // Si viene "2025-11-17", parsearlo directamente
     if (!dateString) return '';
     
-    const [year, month, day] = dateString.split('T')[0].split('-');
+    // Extraer solo la parte de fecha (YYYY-MM-DD) ignorando hora/timezone si existe
+    const datePart = dateString.split('T')[0];
+    const [year, month, day] = datePart.split('-').map(Number);
+    
+    // Crear fecha local (sin conversión UTC)
+    const date = new Date(year, month - 1, day);
     const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
     
-    return `${parseInt(day)} ${months[parseInt(month) - 1]} ${year}`;
+    return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
   };
 
   if (loading) {

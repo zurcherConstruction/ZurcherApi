@@ -10,6 +10,7 @@
 
 const { FixedExpensePayment, FixedExpense, Expense, Staff, Receipt } = require('../data');
 const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryUploader');
+const { createWithdrawalTransaction } = require('../utils/bankTransactionHelper');
 
 /**
  * 💰 Registrar un pago parcial
@@ -114,6 +115,22 @@ const addPartialPayment = async (req, res) => {
 
       finalExpenseId = expense.idExpense;
       console.log('✅ Expense creado desde backend:', finalExpenseId);
+
+      // 🏦 Crear BankTransaction si paymentMethod es cuenta bancaria
+      try {
+        await createWithdrawalTransaction({
+          paymentMethod: paymentMethod || fixedExpense.paymentMethod || 'Otro',
+          amount: paymentAmount,
+          date: paymentDate || new Date().toISOString().split('T')[0],
+          description: `Pago parcial: ${fixedExpense.name}`,
+          relatedExpenseId: finalExpenseId,
+          notes: notes || `Gasto fijo: ${fixedExpense.name}`,
+          createdByStaffId: staffId || fixedExpense.createdByStaffId
+        });
+      } catch (bankError) {
+        console.error('❌ Error creando transacción bancaria:', bankError.message);
+        // No bloqueamos el pago si falla la transacción bancaria
+      }
 
       // 1.5️⃣ Crear el Receipt si hay comprobante
       if (finalReceiptUrl && finalReceiptPublicId) {

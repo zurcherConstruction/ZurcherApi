@@ -76,7 +76,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
 // ⚠️ SupplierInvoiceWork y SupplierInvoiceItem removidos - ya no se usan (modelo antiguo)
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, BudgetNote, WorkNote, WorkStateHistory } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -541,6 +541,81 @@ Staff.hasMany(WorkStateHistory, {
 WorkStateHistory.belongsTo(Staff, {
   foreignKey: 'changedBy',
   as: 'changedByStaff'
+});
+
+// --- RELACIONES PARA BANK ACCOUNTS Y TRANSACCIONES ---
+
+// Un BankAccount tiene muchas BankTransactions
+BankAccount.hasMany(BankTransaction, {
+  foreignKey: 'bankAccountId',
+  as: 'transactions'
+});
+BankTransaction.belongsTo(BankAccount, {
+  foreignKey: 'bankAccountId',
+  as: 'account'
+});
+
+// Relaciones de BankTransaction con Income, Expense, SupplierInvoice
+BankTransaction.belongsTo(Income, {
+  foreignKey: 'relatedIncomeId',
+  as: 'relatedIncome'
+});
+Income.hasMany(BankTransaction, {
+  foreignKey: 'relatedIncomeId',
+  as: 'bankTransactions'
+});
+
+BankTransaction.belongsTo(Expense, {
+  foreignKey: 'relatedExpenseId',
+  as: 'relatedExpense'
+});
+Expense.hasMany(BankTransaction, {
+  foreignKey: 'relatedExpenseId',
+  as: 'bankTransactions'
+});
+
+BankTransaction.belongsTo(SupplierInvoice, {
+  foreignKey: 'relatedCreditCardPaymentId',
+  as: 'relatedCreditCardPayment'
+});
+SupplierInvoice.hasMany(BankTransaction, {
+  foreignKey: 'relatedCreditCardPaymentId',
+  as: 'bankTransactions'
+});
+
+// Relaciones para transferencias entre cuentas
+BankTransaction.belongsTo(BankAccount, {
+  foreignKey: 'transferToAccountId',
+  as: 'transferToAccount'
+});
+BankAccount.hasMany(BankTransaction, {
+  foreignKey: 'transferToAccountId',
+  as: 'transfersIn'
+});
+
+BankTransaction.belongsTo(BankAccount, {
+  foreignKey: 'transferFromAccountId',
+  as: 'transferFromAccount'
+});
+BankAccount.hasMany(BankTransaction, {
+  foreignKey: 'transferFromAccountId',
+  as: 'transfersOut'
+});
+
+// Relación de transacción con transacción relacionada (para transferencias)
+BankTransaction.belongsTo(BankTransaction, {
+  foreignKey: 'relatedTransferId',
+  as: 'relatedTransfer'
+});
+
+// Staff que creó la transacción
+BankTransaction.belongsTo(Staff, {
+  foreignKey: 'createdByStaffId',
+  as: 'createdBy'
+});
+Staff.hasMany(BankTransaction, {
+  foreignKey: 'createdByStaffId',
+  as: 'bankTransactions'
 });
 
 

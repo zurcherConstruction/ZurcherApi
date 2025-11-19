@@ -63,6 +63,10 @@ import OwnerMaintenanceView from "./Components/Maintenance/OwnerMaintenanceView"
 import LegacyMaintenanceEditor from "./Components/Maintenance/LegacyMaintenanceEditor"; // 🆕 Editor de trabajos legacy
 import MaintenanceCalendar from "./Components/Maintenance/MaintenanceCalendar"; // 🆕 Calendario de mantenimiento
 import SupplierInvoiceManager from './Components/SupplierInvoices/SupplierInvoiceManager';
+// Importar componentes de Bank Accounts
+import BankAccountsDashboard from './Components/BankAccounts/BankAccountsDashboard';
+import BankAccountDetail from './Components/BankAccounts/BankAccountDetail';
+import NewTransactionModal from './Components/BankAccounts/NewTransactionModal';
 // Importar componentes de Workers
 import WorkerDashboard from "./Components/Workers/WorkerDashboard";
 import WorkerWorkUpload from "./Components/Workers/WorkerWorkUpload";
@@ -390,6 +394,33 @@ function App() {
                   </PrivateRoute>
                 }
               />
+
+              {/* 🏦 Rutas de Bank Accounts */}
+              <Route
+                path="/bank-accounts"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin", "finance"]}>
+                    <BankAccountsDashboard />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/bank-accounts/:id"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin", "finance"]}>
+                    <BankAccountDetail />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/bank-accounts/new-transaction"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin", "finance"]}>
+                    <NewTransactionModal />
+                  </PrivateRoute>
+                }
+              />
+
               <Route
                 path="/maintenance/works"
                 element={

@@ -2,6 +2,7 @@ const { Budget, Permit, Work, Income, BudgetItem, BudgetLineItem, Receipt, conn,
 const { Op, literal } = require('sequelize'); 
 const { cloudinary } = require('../utils/cloudinaryConfig.js');
 const { sendNotifications } = require('../utils/notifications/notificationManager.js');
+const { createDepositTransaction } = require('../utils/bankTransactionHelper');
 const fs = require('fs');
 const multer = require('multer');
 const upload = multer();
@@ -2247,6 +2248,23 @@ async optionalDocs(req, res) {
               verified: createdIncome.verified
             });
             
+            // 🏦 AUTO-CREAR BANK TRANSACTION
+            try {
+              await createDepositTransaction({
+                paymentMethod: createdIncome.paymentMethod,
+                amount: createdIncome.amount,
+                date: createdIncome.date,
+                description: `Pago Inicial Budget #${budget.idBudget} - Work #${workRecord.idWork.slice(0, 8)}`,
+                relatedIncomeId: createdIncome.idIncome,
+                notes: createdIncome.notes,
+                createdByStaffId: createdIncome.staffId,
+                transaction
+              });
+            } catch (bankError) {
+              console.error('❌ Error creando transacción bancaria en Budget approval:', bankError.message);
+              // No hacer rollback, continuar con el proceso
+            }
+            
             // 🚀 NOTIFICACIÓN DE INGRESO DESDE BUDGET
             setImmediate(async () => {
               try {
@@ -2297,6 +2315,22 @@ async optionalDocs(req, res) {
                 verified: false // 🆕 Por defecto no verificado
               }, { transaction });
               console.log(`Income (tardío) creado exitosamente con staffId:`, createdLateIncome.staffId);
+              
+              // 🏦 AUTO-CREAR BANK TRANSACTION
+              try {
+                await createDepositTransaction({
+                  paymentMethod: createdLateIncome.paymentMethod,
+                  amount: createdLateIncome.amount,
+                  date: createdLateIncome.date,
+                  description: `Pago Inicial (tardío) Budget #${budget.idBudget} - Work #${workRecord.idWork.slice(0, 8)}`,
+                  relatedIncomeId: createdLateIncome.idIncome,
+                  notes: createdLateIncome.notes,
+                  createdByStaffId: createdLateIncome.staffId,
+                  transaction
+                });
+              } catch (bankError) {
+                console.error('❌ Error creando transacción bancaria en late Income:', bankError.message);
+              }
               
               // 🚀 NOTIFICACIÓN DE INGRESO TARDÍO DESDE BUDGET
               setImmediate(async () => {
@@ -2591,6 +2625,22 @@ async optionalDocs(req, res) {
           verified: false
         }, { transaction });
         console.log(`✅ Income creado para Budget #${budget.idBudget} - ID: ${existingIncome.idIncome} - $${amountForIncome}`);
+        
+        // 🏦 AUTO-CREAR BANK TRANSACTION
+        try {
+          await createDepositTransaction({
+            paymentMethod: existingIncome.paymentMethod,
+            amount: existingIncome.amount,
+            date: existingIncome.date,
+            description: `Pago Inicial Budget #${budget.idBudget} - Work #${existingWork.idWork.slice(0, 8)}`,
+            relatedIncomeId: existingIncome.idIncome,
+            notes: existingIncome.notes,
+            createdByStaffId: existingIncome.staffId,
+            transaction
+          });
+        } catch (bankError) {
+          console.error('❌ Error creando transacción bancaria en Budget payment:', bankError.message);
+        }
         
         // 🚀 Notificación de Income inmediata
         setImmediate(async () => {

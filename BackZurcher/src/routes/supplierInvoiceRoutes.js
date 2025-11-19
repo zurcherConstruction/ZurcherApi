@@ -21,6 +21,7 @@ const {
   reverseCreditCardPayment, // 🔄 NUEVO revertir pagos de Chase
   getCreditCardBalance, // 💳 NUEVO balance de tarjeta
   createAmexTransaction, // 💳 NUEVO transacciones AMEX
+  reverseAmexPayment, // 🔄 NUEVO revertir pagos de AMEX
   getAmexBalance // 💳 NUEVO balance AMEX
 } = require('../controllers/supplierInvoiceController');
 
@@ -85,6 +86,14 @@ router.get('/amex/balance', getAmexBalance);
  * @access  Private
  */
 router.post('/amex/transaction', createAmexTransaction);
+
+/**
+ * 🔄 @route   DELETE /api/supplier-invoices/amex/payment/:paymentId
+ * @desc    Revertir un pago de AMEX (deshace el pago y restaura los expenses)
+ * @params  paymentId - ID del registro de pago en SupplierInvoice
+ * @access  Private
+ */
+router.delete('/amex/payment/:paymentId', reverseAmexPayment);
 
 /**
  * @route   GET /api/supplier-invoices/payment-history

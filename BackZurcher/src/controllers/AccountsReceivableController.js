@@ -2,6 +2,7 @@ const { Work, Budget, FinalInvoice, ChangeOrder, WorkExtraItem, Staff, Expense, 
 const { Sequelize, Op } = require('sequelize');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader');
 const { sendNotifications } = require('../utils/notifications/notificationManager');
+const { createWithdrawalTransaction } = require('../utils/bankTransactionHelper'); // 🏦 Para pagos de comisiones
 
 /**
  * Helper para formatear fecha sin conversión UTC
@@ -851,6 +852,29 @@ const AccountsReceivableController = {
         });
 
         console.log(`✅ Expense creado: ${createdExpense.idExpense}`);
+
+        // 🏦 Crear BankTransaction si paymentMethod es cuenta bancaria
+        const isBankPayment = ['Chase Bank', 'Capital Proyectos Septic', 'Cap Trabajos Septic'].includes(paymentMethod);
+        if (isBankPayment) {
+          console.log(`💸 Detectado pago de comisión con cuenta bancaria: ${paymentMethod}`);
+          try {
+            await createWithdrawalTransaction({
+              paymentMethod,
+              amount: commissionAmount,
+              date: expenseDate,
+              description: `Comisión: ${vendor}`,
+              relatedExpenseId: createdExpense.idExpense,
+              notes: expenseNotes,
+              createdByStaffId: req.user?.id || null
+            });
+            console.log(`✅ BankTransaction (withdrawal) creada para comisión desde ${paymentMethod}`);
+          } catch (bankError) {
+            console.error('❌ Error creando transacción bancaria:', bankError.message);
+            // No bloqueamos el pago si falla la transacción bancaria
+          }
+        } else {
+          console.log(`ℹ️ Comisión pagada con ${paymentMethod} (no requiere transacción bancaria)`);
+        }
 
         // ✅ Si hay archivo adjunto, crear Receipt
         if (req.file) {
