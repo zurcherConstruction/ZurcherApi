@@ -553,18 +553,25 @@ const updateSupplierInvoice = async (req, res) => {
     const { id } = req.params;
     const invoiceUpdates = req.body;
 
+    console.log(`📝 [Update Invoice] ID: ${id}`);
+    console.log(`📝 [Update Invoice] Datos recibidos:`, invoiceUpdates);
+
     const invoice = await SupplierInvoice.findByPk(id, { transaction });
 
     if (!invoice) {
       await transaction.rollback();
+      console.log(`❌ [Update Invoice] Invoice ${id} no encontrado`);
       return res.status(404).json({
         error: 'Invoice no encontrado'
       });
     }
 
+    console.log(`📋 [Update Invoice] Estado actual: ${invoice.paymentStatus}`);
+
     // No permitir editar invoices pagados completamente
     if (invoice.paymentStatus === 'paid') {
       await transaction.rollback();
+      console.log(`⛔ [Update Invoice] No se puede editar invoice pagado: ${invoice.invoiceNumber}`);
       return res.status(400).json({
         error: 'No se puede editar un invoice que ya está pagado completamente'
       });
@@ -575,7 +582,7 @@ const updateSupplierInvoice = async (req, res) => {
 
     await transaction.commit();
 
-    console.log(`✅ Invoice ${invoice.invoiceNumber} actualizado`);
+    console.log(`✅ [Update Invoice] Invoice ${invoice.invoiceNumber} actualizado exitosamente`);
 
     return res.status(200).json({
       message: 'Invoice actualizado exitosamente',
@@ -583,7 +590,7 @@ const updateSupplierInvoice = async (req, res) => {
     });
   } catch (error) {
     await transaction.rollback();
-    console.error('❌ Error actualizando invoice:', error);
+    console.error('❌ [Update Invoice] Error:', error);
     return res.status(500).json({
       error: 'Error al actualizar invoice',
       details: error.message

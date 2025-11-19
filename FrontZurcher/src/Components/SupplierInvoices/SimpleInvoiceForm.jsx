@@ -209,41 +209,82 @@ const SimpleInvoiceForm = ({ invoice, onClose, onSuccess }) => {
     try {
       setSubmitting(true);
 
-      // Crear FormData
-      const data = new FormData();
-      data.append('invoiceNumber', formData.invoiceNumber);
-      data.append('vendor', finalVendor); // Usar el vendor normalizado
-      data.append('issueDate', formData.issueDate);
-      data.append('totalAmount', formData.totalAmount);
-      
-      if (formData.dueDate) {
-        data.append('dueDate', formData.dueDate);
-      }
-      
-      if (formData.notes) {
-        data.append('notes', formData.notes);
-      }
-
-      // Agregar archivo si existe
-      if (invoiceFile) {
-        data.append('invoiceFile', invoiceFile);
-      }
-
       let response;
       if (isEditing) {
-        // Actualizar
-        response = await fetch(
-          `${import.meta.env.VITE_API_URL}/supplier-invoices/${invoice.idSupplierInvoice}`,
-          {
-            method: 'PUT',
-            headers: {
-              Authorization: `Bearer ${token}`
-            },
-            body: data
+        // ✅ ACTUALIZAR: Si hay archivo nuevo, usar FormData; sino, JSON
+        if (invoiceFile) {
+          // Con archivo nuevo → FormData
+          const formDataWithFile = new FormData();
+          formDataWithFile.append('invoiceNumber', formData.invoiceNumber);
+          formDataWithFile.append('vendor', finalVendor);
+          formDataWithFile.append('issueDate', formData.issueDate);
+          formDataWithFile.append('totalAmount', formData.totalAmount);
+          
+          if (formData.dueDate) {
+            formDataWithFile.append('dueDate', formData.dueDate);
           }
-        );
+          
+          if (formData.notes) {
+            formDataWithFile.append('notes', formData.notes);
+          }
+          
+          formDataWithFile.append('invoiceFile', invoiceFile);
+
+          response = await fetch(
+            `${import.meta.env.VITE_API_URL}/supplier-invoices/${invoice.idSupplierInvoice}`,
+            {
+              method: 'PUT',
+              headers: {
+                Authorization: `Bearer ${token}`
+              },
+              body: formDataWithFile
+            }
+          );
+        } else {
+          // Sin archivo nuevo → JSON
+          const jsonData = {
+            invoiceNumber: formData.invoiceNumber,
+            vendor: finalVendor,
+            issueDate: formData.issueDate,
+            totalAmount: parseFloat(formData.totalAmount),
+            dueDate: formData.dueDate || null,
+            notes: formData.notes || null
+          };
+
+          console.log('📤 Enviando actualización:', jsonData);
+
+          response = await fetch(
+            `${import.meta.env.VITE_API_URL}/supplier-invoices/${invoice.idSupplierInvoice}`,
+            {
+              method: 'PUT',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(jsonData)
+            }
+          );
+        }
       } else {
-        // Crear
+        // ✅ CREAR: Siempre usar FormData (archivo obligatorio en creación)
+        const data = new FormData();
+        data.append('invoiceNumber', formData.invoiceNumber);
+        data.append('vendor', finalVendor);
+        data.append('issueDate', formData.issueDate);
+        data.append('totalAmount', formData.totalAmount);
+        
+        if (formData.dueDate) {
+          data.append('dueDate', formData.dueDate);
+        }
+        
+        if (formData.notes) {
+          data.append('notes', formData.notes);
+        }
+
+        if (invoiceFile) {
+          data.append('invoiceFile', invoiceFile);
+        }
+
         response = await fetch(
           `${import.meta.env.VITE_API_URL}/supplier-invoices/simple`,
           {
