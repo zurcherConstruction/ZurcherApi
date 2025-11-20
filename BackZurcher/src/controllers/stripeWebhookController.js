@@ -136,12 +136,13 @@ async function processInvoicePayment(budgetId, amountPaid, session) {
     const now = new Date();
     const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const income = await Income.create({
-      type: 'Factura Pago Inicial Budget',
+      typeIncome: 'Factura Pago Inicial Budget', // ✅ Corregido: era 'type'
       amount: amountPaid,
       date: localDate,
-      description: `Initial payment received via Stripe for Invoice #${budget.invoiceNumber || budgetId} - ${budget.Permit?.propertyAddress || budget.propertyAddress || 'N/A'}`,
-      budgetId: budgetId,
-      paymentMethod: 'Stripe', // Stripe se procesa en esta cuenta
+      notes: `Initial payment received via Stripe for Invoice #${budget.invoiceNumber || budgetId} - ${budget.Permit?.propertyAddress || budget.propertyAddress || 'N/A'}`,
+      workId: null, // Budget aún no tiene Work
+      staffId: null,
+      paymentMethod: 'Stripe',
       stripePaymentIntentId: session.payment_intent,
       stripeSessionId: session.id,
       verified: false
@@ -215,13 +216,13 @@ async function processFinalInvoicePayment(metadata, amountPaid, session) {
     const now = new Date();
     const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const income = await Income.create({
-      type: 'Factura Pago Final Budget',
+      typeIncome: 'Factura Pago Final Budget', // ✅ Corregido: era 'type'
       amount: amountPaid,
       date: localDate,
-      description: `Final payment received via Stripe for Final Invoice #${finalInvoiceId}${work ? ` - ${work.propertyAddress}` : ''}`,
+      notes: `Final payment received via Stripe for Final Invoice #${finalInvoiceId}${work ? ` - ${work.propertyAddress}` : ''}`,
       workId: effectiveWorkId || null,
-      budgetId: budgetId || work?.budgetId || null,
-      paymentMethod: 'Stripe', // Stripe se procesa en esta cuenta
+      staffId: null,
+      paymentMethod: 'Stripe',
       stripePaymentIntentId: session.payment_intent,
       stripeSessionId: session.id,
       verified: false

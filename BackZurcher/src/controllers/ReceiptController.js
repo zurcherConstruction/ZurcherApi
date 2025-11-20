@@ -1,7 +1,8 @@
 const { Receipt, FinalInvoice, Work, Income, Staff, conn } = require('../data');
-const { cloudinary } = require('../utils/cloudinaryConfig'); // Asegúrate de importar la configuración de Cloudinary
+const { cloudinary } = require('../utils/cloudinaryConfig');
 const { Op } = require('sequelize'); 
-const { sendNotifications } = require('../utils/notifications/notificationManager'); // Importar notificaciones 
+const { sendNotifications } = require('../utils/notifications/notificationManager');
+const { createDepositTransaction } = require('../utils/bankTransactionHelper'); 
 
 const createReceipt = async (req, res) => {
   console.log('-----------------------------------------');
@@ -181,6 +182,22 @@ const createReceipt = async (req, res) => {
               const createdIncome = await Income.create(incomeDataForFinalInvoice, { transaction });
               createdIncomeId = createdIncome.idIncome;
               console.log('[ReceiptController] Income para pago de FinalInvoice creado exitosamente.');
+              
+              // 🏦 AUTO-CREAR BANK TRANSACTION
+              try {
+                await createDepositTransaction({
+                  paymentMethod: createdIncome.paymentMethod,
+                  amount: createdIncome.amount,
+                  date: createdIncome.date,
+                  description: `Pago Final Invoice #${finalInvoiceInstanceForUpdate.id}`,
+                  relatedIncomeId: createdIncome.idIncome,
+                  notes: createdIncome.notes,
+                  createdByStaffId: createdIncome.staffId,
+                  transaction
+                });
+              } catch (bankError) {
+                console.error('❌ Error creando transacción bancaria en Final Invoice payment:', bankError.message);
+              }
               
               // 🚀 ENVIAR NOTIFICACIÓN DE INGRESO DESDE RECEIPT
               try {

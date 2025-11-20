@@ -22,7 +22,8 @@ import {
   FaReceipt,
   FaWrench,
   FaHistory,
-  FaFileInvoice
+  FaFileInvoice,
+  FaUniversity
 } from "react-icons/fa";
 
 const BarraLateral = () => {
@@ -79,6 +80,7 @@ const BarraLateral = () => {
         { name: "Initial Pay", path: "/initialPay", icon: FaMoneyBillWave },
         { name: "Upload Vouchers", path: "/attachInvoice", icon: FaReceipt },
         { name: "Supplier Invoices", path: "/supplier-invoices", icon: FaFileInvoice },
+        { name: "Bank Accounts", path: "/bank-accounts", icon: FaUniversity }, // 🏦 NUEVO
         { name: "Balance", path: "/balance", icon: FaChartBar },
         { name: "Income & Expenses", path: "/summary", icon: FaFileInvoiceDollar },
         { name: "Fixed Expenses", path: "/fixed-expenses", icon: FaDollarSign }, // 🆕 Gastos Fijos
@@ -211,6 +213,7 @@ const BarraLateral = () => {
           items: [
             { name: "Upload Vouchers", path: "/attachInvoice", icon: FaReceipt },
             { name: "Supplier Invoices", path: "/supplier-invoices", icon: FaFileInvoice },
+            { name: "Bank Accounts", path: "/bank-accounts", icon: FaUniversity }, // 🏦 FINANCE
             { name: "Income & Expenses", path: "/summary", icon: FaFileInvoiceDollar },
             { name: "Fixed Expenses", path: "/fixed-expenses", icon: FaDollarSign },
             { name: "Accounts Receivable", path: "/accounts-receivable", icon: FaDollarSign },

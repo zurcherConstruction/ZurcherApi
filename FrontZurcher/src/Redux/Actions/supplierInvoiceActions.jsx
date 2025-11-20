@@ -41,9 +41,15 @@ export const supplierInvoiceActions = {
   // Actualizar factura
   update: async (id, invoiceData) => {
     try {
+      console.log('📤 [Redux Action] PUT /supplier-invoices/' + id);
+      console.log('📤 [Redux Action] Datos enviados:', invoiceData);
+      
       const response = await api.put(`/supplier-invoices/${id}`, invoiceData);
+      
+      console.log('📥 [Redux Action] Respuesta recibida:', response.data);
       return response.data;
     } catch (error) {
+      console.error('❌ [Redux Action] Error en update:', error);
       return handleError(error, 'Error al actualizar la factura del proveedor');
     }
   },

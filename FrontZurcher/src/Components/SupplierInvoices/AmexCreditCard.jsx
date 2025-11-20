@@ -124,6 +124,54 @@ const AmexCreditCard = ({ token }) => {
     }
   };
 
+  const handleReversePayment = async (paymentId, paymentAmount) => {
+    // Confirmar con el usuario
+    const confirmed = window.confirm(
+      `⚠️ ¿Estás seguro de revertir este pago?\n\n` +
+      `Monto: ${formatCurrency(paymentAmount)}\n` +
+      `ID: ${paymentId}\n\n` +
+      `Esta acción:\n` +
+      `✓ Eliminará el registro de pago\n` +
+      `✓ Revertirá los cambios en los expenses pagados\n` +
+      `✓ Actualizará el balance de AMEX\n` +
+      `✓ Revertirá la transacción bancaria (si existe)\n\n` +
+      `Esta acción NO se puede deshacer.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      const response = await axios.delete(
+        `${import.meta.env.VITE_API_URL}/supplier-invoices/amex/payment/${paymentId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      if (response.data.success) {
+        alert(
+          `✅ Pago revertido exitosamente\n\n` +
+          `Monto revertido: ${formatCurrency(response.data.paymentAmount)}\n` +
+          `Expenses afectados: ${response.data.revertedExpenses.length}\n` +
+          (response.data.revertedBankTransaction 
+            ? `Cuenta bancaria restaurada: ${response.data.revertedBankTransaction.accountName} (+${formatCurrency(response.data.revertedBankTransaction.amount)})\n`
+            : '') +
+          `Nuevo balance AMEX: ${formatCurrency(response.data.currentBalance)}`
+        );
+        fetchBalance(); // Recargar datos
+      }
+    } catch (error) {
+      console.error('Error revirtiendo pago:', error);
+      alert('❌ Error al revertir pago:\n' + (error.response?.data?.message || error.message));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const getTransactionColor = (type) => {
     switch (type) {
       case 'charge': return 'text-red-600';
@@ -385,8 +433,8 @@ const AmexCreditCard = ({ token }) => {
             </div>
           ) : (
             transactions.map((transaction) => (
-              <div key={transaction.id} className="p-4 hover:bg-gray-50 transition-colors">
-                <div className="flex justify-between items-start">
+              <div key={transaction.id} className="p-4 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0">
+                <div className="flex justify-between items-start gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`font-semibold ${getTransactionColor(transaction.transactionType)}`}>
@@ -394,6 +442,12 @@ const AmexCreditCard = ({ token }) => {
                       </span>
                       <span className="text-gray-400">•</span>
                       <span className="text-sm text-gray-600">{formatDate(transaction.date)}</span>
+                      {transaction.transactionType === 'payment' && (
+                        <>
+                          <span className="text-gray-400">•</span>
+                          <span className="text-xs text-gray-500">ID: {transaction.id}</span>
+                        </>
+                      )}
                     </div>
                     <div className="text-gray-800">{transaction.description}</div>
                     {transaction.paymentMethod && (
@@ -408,7 +462,7 @@ const AmexCreditCard = ({ token }) => {
                       </div>
                     )}
                   </div>
-                  <div className="text-right">
+                  <div className="text-right flex flex-col items-end gap-2">
                     <div className={`text-lg font-bold ${getTransactionColor(transaction.transactionType)}`}>
                       {transaction.transactionType === 'payment' ? '-' : '+'}
                       {formatCurrency(transaction.amount)}
@@ -417,6 +471,20 @@ const AmexCreditCard = ({ token }) => {
                       <div className="text-sm text-gray-500">
                         Balance: {formatCurrency(transaction.balanceAfter)}
                       </div>
+                    )}
+                    {/* Botón de revertir solo para pagos */}
+                    {transaction.transactionType === 'payment' && (
+                      <button
+                        onClick={() => handleReversePayment(transaction.id, transaction.amount)}
+                        disabled={submitting}
+                        className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-md border border-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                        title="Revertir este pago"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                        </svg>
+                        Revertir
+                      </button>
                     )}
                   </div>
                 </div>

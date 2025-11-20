@@ -195,45 +195,29 @@ const Summary = () => {
   const handleDelete = async (mov) => {
     if (window.confirm("¿Seguro que deseas eliminar este movimiento?")) {
       try {
+        console.log('🗑️ Eliminando movimiento:', mov); // DEBUG
+        
         if (mov.movimiento === "Ingreso") {
           const isInitialPayment = mov.typeIncome === "Factura Pago Inicial Budget";
           const isFinalPayment = mov.typeIncome === "Factura Pago Final Budget";
 
           if (isInitialPayment || isFinalPayment) {
-            // Para pagos de facturas, verificar si tiene comprobantes
-            if (mov.Receipts && mov.Receipts.length > 0) {
-              const receiptToDelete = mov.Receipts[0];
-              
-              // Si el comprobante viene del Budget (pago inicial)
-              if (receiptToDelete.source === 'budget') {
-                
-                await incomeActions.delete(mov.idIncome);
-                toast.success("Movimiento de ingreso eliminado. El comprobante del budget se mantiene.");
-              } 
-              // Si el comprobante viene de FinalInvoice (pago final)
-              else if (receiptToDelete.source === 'finalInvoice') {
-                
-                await incomeActions.delete(mov.idIncome);
-                toast.success("Movimiento de ingreso eliminado. El comprobante de la factura final se mantiene.");
-              }
-              // Si es un Receipt real (no vinculado a Budget o FinalInvoice)
-              else if (receiptToDelete.idReceipt && !receiptToDelete.idReceipt.toString().startsWith('budget-')) {
-                
-                await deleteReceipt(receiptToDelete.idReceipt);
-                toast.success("Comprobante y movimiento asociado eliminados correctamente.");
-              } else {
-                // Fallback para casos edge
-                await incomeActions.delete(mov.idIncome);
-                toast.success("Movimiento de ingreso eliminado.");
-              }
+            // Para pagos de facturas, SIEMPRE eliminar el income
+            // El Receipt se maneja automáticamente en el backend cuando se elimina el Income
+            console.log('🗑️ Eliminando income de pago de factura (inicial o final)...'); // DEBUG
+            const result = await incomeActions.delete(mov.idIncome);
+            console.log('✅ Resultado eliminación:', result); // DEBUG
+            
+            if (isInitialPayment) {
+              toast.success("Pago inicial eliminado. El comprobante del budget se mantiene.");
             } else {
-              // Sin comprobantes, eliminar solo el income
-              await incomeActions.delete(mov.idIncome);
-              toast.success("Movimiento de ingreso eliminado.");
+              toast.success("Pago final eliminado. Los datos de la factura se actualizarán.");
             }
           } else {
             // No es un ingreso de factura
-            await incomeActions.delete(mov.idIncome);
+            console.log('🗑️ Eliminando income regular...'); // DEBUG
+            const result = await incomeActions.delete(mov.idIncome);
+            console.log('✅ Resultado eliminación:', result); // DEBUG
             toast.success("Movimiento de ingreso eliminado.");
           }
         } else if (mov.movimiento === "Gasto") {
@@ -241,22 +225,31 @@ const Summary = () => {
           if (mov.Receipts && mov.Receipts.length > 0) {
             const receiptToDelete = mov.Receipts[0];
             if (receiptToDelete && receiptToDelete.idReceipt) {
+              console.log('🗑️ Eliminando receipt de gasto...'); // DEBUG
               await deleteReceipt(receiptToDelete.idReceipt);
               // Después de borrar el comprobante, borrar el gasto
-              await expenseActions.delete(mov.idExpense);
+              console.log('🗑️ Eliminando expense...'); // DEBUG
+              const result = await expenseActions.delete(mov.idExpense);
+              console.log('✅ Resultado eliminación:', result); // DEBUG
               toast.success("Comprobante y movimiento de gasto asociado eliminados correctamente.");
             } else {
-              await expenseActions.delete(mov.idExpense);
+              console.log('🗑️ Eliminando expense sin receipt válido...'); // DEBUG
+              const result = await expenseActions.delete(mov.idExpense);
+              console.log('✅ Resultado eliminación:', result); // DEBUG
               toast.warn("Movimiento de gasto eliminado, pero hubo un problema al procesar el comprobante asociado.");
             }
           } else {
-            await expenseActions.delete(mov.idExpense);
+            console.log('🗑️ Eliminando expense sin comprobantes...'); // DEBUG
+            const result = await expenseActions.delete(mov.idExpense);
+            console.log('✅ Resultado eliminación:', result); // DEBUG
             toast.success("Movimiento de gasto eliminado.");
           }
         }
+        
+        console.log('🔄 Recargando movimientos...'); // DEBUG
         fetchMovements();
       } catch (error) {
-       
+        console.error('❌ Error eliminando movimiento:', error); // DEBUG
         const displayError = error.response?.data?.message || error.message || "Error desconocido al eliminar.";
         toast.error(displayError);
       }

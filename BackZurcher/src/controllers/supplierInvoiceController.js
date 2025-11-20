@@ -3,6 +3,7 @@ const { Op } = require('sequelize');
 const { cloudinary } = require('../utils/cloudinaryConfig');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader'); // 🆕 Para subir receipts
 const { sendNotifications } = require('../utils/notifications/notificationManager'); // 🆕 Para notificaciones
+const { createCreditCardPaymentTransaction, isBankAccount, createWithdrawalTransaction } = require('../utils/bankTransactionHelper'); // 🏦 Para pagos de tarjetas
 
 /**
  * Crear un nuevo invoice de proveedor
@@ -552,18 +553,25 @@ const updateSupplierInvoice = async (req, res) => {
     const { id } = req.params;
     const invoiceUpdates = req.body;
 
+    console.log(`📝 [Update Invoice] ID: ${id}`);
+    console.log(`📝 [Update Invoice] Datos recibidos:`, invoiceUpdates);
+
     const invoice = await SupplierInvoice.findByPk(id, { transaction });
 
     if (!invoice) {
       await transaction.rollback();
+      console.log(`❌ [Update Invoice] Invoice ${id} no encontrado`);
       return res.status(404).json({
         error: 'Invoice no encontrado'
       });
     }
 
+    console.log(`📋 [Update Invoice] Estado actual: ${invoice.paymentStatus}`);
+
     // No permitir editar invoices pagados completamente
     if (invoice.paymentStatus === 'paid') {
       await transaction.rollback();
+      console.log(`⛔ [Update Invoice] No se puede editar invoice pagado: ${invoice.invoiceNumber}`);
       return res.status(400).json({
         error: 'No se puede editar un invoice que ya está pagado completamente'
       });
@@ -574,7 +582,7 @@ const updateSupplierInvoice = async (req, res) => {
 
     await transaction.commit();
 
-    console.log(`✅ Invoice ${invoice.invoiceNumber} actualizado`);
+    console.log(`✅ [Update Invoice] Invoice ${invoice.invoiceNumber} actualizado exitosamente`);
 
     return res.status(200).json({
       message: 'Invoice actualizado exitosamente',
@@ -582,7 +590,7 @@ const updateSupplierInvoice = async (req, res) => {
     });
   } catch (error) {
     await transaction.rollback();
-    console.error('❌ Error actualizando invoice:', error);
+    console.error('❌ [Update Invoice] Error:', error);
     return res.status(500).json({
       error: 'Error al actualizar invoice',
       details: error.message
@@ -1621,7 +1629,52 @@ const paySupplierInvoice = async (req, res) => {
 
     console.log(`✅ Invoice #${invoice.invoiceNumber} marcado como PAID`);
 
-    // 5. Commit transaction
+    // 5. 🏦 Crear BankTransaction si se pagó con cuenta bancaria
+    const creditCardNames = ['chase credit card', 'amex'];
+    const isCreditCardInvoice = creditCardNames.includes((invoice.vendor || '').toLowerCase().trim());
+    const paidWithBankAccount = isBankAccount(paymentMethod);
+
+    if (paidWithBankAccount) {
+      if (isCreditCardInvoice) {
+        // 💳 Pago de tarjeta de crédito desde cuenta bancaria
+        console.log(`💳 Detectado pago de tarjeta ${invoice.vendor} con cuenta bancaria ${paymentMethod}`);
+        try {
+          await createCreditCardPaymentTransaction({
+            fromAccount: paymentMethod,
+            creditCardName: invoice.vendor,
+            amount: parseFloat(invoice.totalAmount),
+            date: finalPaymentDate,
+            supplierInvoiceId: invoice.idSupplierInvoice,
+            notes: `Pago de ${invoice.vendor} - Invoice #${invoice.invoiceNumber}`,
+            createdByStaffId: req.user?.id || null,
+            transaction
+          });
+          console.log(`✅ BankTransaction creada para pago de tarjeta desde ${paymentMethod}`);
+        } catch (bankError) {
+          console.error('❌ Error creando BankTransaction para pago de tarjeta:', bankError.message);
+        }
+      } else {
+        // 🏦 Pago de proveedor regular desde cuenta bancaria
+        console.log(`💸 Detectado pago a proveedor ${invoice.vendor} con cuenta bancaria ${paymentMethod}`);
+        try {
+          await createWithdrawalTransaction({
+            paymentMethod: paymentMethod,
+            amount: parseFloat(invoice.totalAmount),
+            date: finalPaymentDate,
+            description: `Pago a ${invoice.vendor} - Invoice #${invoice.invoiceNumber}`,
+            relatedExpenseId: createdExpenses.length > 0 ? createdExpenses[0].idExpense : null,
+            notes: `Supplier Invoice: ${invoice.idSupplierInvoice}`,
+            createdByStaffId: req.user?.id || null,
+            transaction
+          });
+          console.log(`✅ BankTransaction (withdrawal) creada para pago a proveedor desde ${paymentMethod}`);
+        } catch (bankError) {
+          console.error('❌ Error creando BankTransaction para pago a proveedor:', bankError.message);
+        }
+      }
+    }
+
+    // 6. Commit transaction
     await transaction.commit();
 
     // 6. Responder
@@ -1958,6 +2011,31 @@ const createCreditCardTransaction = async (req, res) => {
       return `${year}-${month}-${day}`;
     };
 
+    // ✅ Función para normalizar fechas (UTC o local a YYYY-MM-DD local)
+    const normalizeDateToLocal = (dateInput) => {
+      if (!dateInput) return getLocalDateString();
+      
+      // Si ya es formato YYYY-MM-DD (10 caracteres), devolverlo tal cual
+      if (typeof dateInput === 'string' && dateInput.length === 10 && dateInput.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return dateInput;
+      }
+      
+      // Si es formato ISO completo (ej: 2025-11-19T12:34:56.789Z), convertir a fecha local
+      try {
+        const dateObj = new Date(dateInput);
+        const year = dateObj.getFullYear();
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      } catch (e) {
+        console.error('Error normalizando fecha:', dateInput, e);
+        return getLocalDateString(); // Devolver fecha actual si falla
+      }
+    };
+
+    // ✅ Normalizar la fecha recibida
+    const normalizedDate = normalizeDateToLocal(date);
+
     // Validaciones
     if (!['charge', 'payment', 'interest'].includes(transactionType)) {
       return res.status(400).json({
@@ -1984,7 +2062,7 @@ const createCreditCardTransaction = async (req, res) => {
       console.log(`💳 [CARGO] Creando expense con Chase Credit Card...`);
 
       createdExpense = await Expense.create({
-        date: date || getLocalDateString(),
+        date: normalizedDate,
         amount: transactionAmount,
         typeExpense: 'Comprobante Gasto', // O el tipo que prefieras
         notes: description || notes || 'Cargo manual en tarjeta',
@@ -2007,7 +2085,7 @@ const createCreditCardTransaction = async (req, res) => {
       console.log(`📈 [INTERÉS] Creando expense de interés...`);
 
       createdExpense = await Expense.create({
-        date: date || getLocalDateString(),
+        date: normalizedDate,
         amount: transactionAmount,
         typeExpense: 'Gastos Generales', // Intereses como gasto general
         notes: description || notes || 'Intereses Chase Credit Card',
@@ -2056,7 +2134,7 @@ const createCreditCardTransaction = async (req, res) => {
           await expense.update({
             paidAmount: newPaidAmount,
             paymentStatus: newPaidAmount >= expenseAmount ? 'paid' : 'partial',
-            paidDate: newPaidAmount >= expenseAmount ? (date || new Date()) : expense.paidDate
+            paidDate: newPaidAmount >= expenseAmount ? normalizedDate : expense.paidDate
           }, { transaction: dbTransaction });
 
           updatedExpenses.push({
@@ -2074,17 +2152,43 @@ const createCreditCardTransaction = async (req, res) => {
 
       console.log(`💰 [FIFO] ${updatedExpenses.length} expense(s) actualizados. Sobrante: $${remainingPayment}`);
 
+      // 🏦 CREAR TRANSACCIÓN BANCARIA DE RETIRO (WITHDRAWAL) EN LA CUENTA DESDE DONDE SE PAGÓ
+      if (paymentMethod) {
+        try {
+          const { createWithdrawalTransaction } = require('../utils/bankTransactionHelper');
+          
+          await createWithdrawalTransaction({
+            paymentMethod,
+            amount: transactionAmount,
+            date: normalizedDate,
+            description: `Pago Tarjeta Chase Credit Card - ${description || notes || 'Pago de tarjeta'}`,
+            notes: `Pago de tarjeta de crédito. ${updatedExpenses.length} expense(s) pagados.`,
+            createdByStaffId: req.staff?.id || null,
+            transaction: dbTransaction
+          });
+
+          console.log(`✅ [BANK] Transacción de retiro creada en ${paymentMethod} por $${transactionAmount}`);
+        } catch (bankError) {
+          console.error('❌ [BANK] Error creando transacción bancaria:', bankError.message);
+          await dbTransaction.rollback();
+          return res.status(400).json({
+            error: true,
+            message: `Error procesando transacción bancaria: ${bankError.message}`
+          });
+        }
+      }
+
       // Registrar el pago en SupplierInvoice para tracking
       await SupplierInvoice.create({
         invoiceNumber: `CC-PAYMENT-${Date.now()}`,
         vendor: 'Chase Credit Card',
-        issueDate: date || getLocalDateString(),
+        issueDate: normalizedDate,
         dueDate: null,
         totalAmount: transactionAmount,
         paymentStatus: 'paid',
         paymentMethod: paymentMethod,
         paymentDetails: paymentDetails,
-        paymentDate: date || getLocalDateString(),
+        paymentDate: normalizedDate,
         paidAmount: transactionAmount,
         notes: description || notes || 'Pago de tarjeta',
         transactionType: 'payment',
@@ -2217,12 +2321,61 @@ const reverseCreditCardPayment = async (req, res) => {
       }
     }
 
-    // 5. Eliminar el registro de pago
+    // 5. 🏦 REVERTIR TRANSACCIÓN BANCARIA (si existe)
+    let revertedBankTransaction = null;
+    if (payment.paymentMethod) {
+      try {
+        const { BankAccount, BankTransaction } = require('../data');
+        
+        // Buscar la transacción bancaria relacionada con este pago
+        const bankTransaction = await BankTransaction.findOne({
+          where: {
+            transactionType: 'withdrawal',
+            amount: paymentAmount,
+            description: { [Op.like]: `%Chase Credit Card%` },
+            date: payment.paymentDate
+          },
+          transaction: dbTransaction
+        });
+
+        if (bankTransaction) {
+          // Buscar la cuenta bancaria
+          const bankAccount = await BankAccount.findByPk(bankTransaction.bankAccountId, {
+            transaction: dbTransaction
+          });
+
+          if (bankAccount) {
+            // Restaurar el balance (devolver el dinero)
+            const newBalance = parseFloat(bankAccount.currentBalance) + paymentAmount;
+            await bankAccount.update({ currentBalance: newBalance }, { transaction: dbTransaction });
+
+            // Eliminar la transacción bancaria
+            await bankTransaction.destroy({ transaction: dbTransaction });
+
+            revertedBankTransaction = {
+              accountName: bankAccount.accountName,
+              amount: paymentAmount,
+              previousBalance: parseFloat(bankAccount.currentBalance),
+              newBalance: newBalance
+            };
+
+            console.log(`✅ [BANK] Transacción bancaria revertida: ${bankAccount.accountName} +$${paymentAmount} → Balance: $${newBalance.toFixed(2)}`);
+          }
+        } else {
+          console.warn(`⚠️ [BANK] No se encontró transacción bancaria para revertir`);
+        }
+      } catch (bankError) {
+        console.error('❌ [BANK] Error revirtiendo transacción bancaria:', bankError.message);
+        // Continuar con la reversión aunque falle el banco (para no bloquear)
+      }
+    }
+
+    // 6. Eliminar el registro de pago
     await payment.destroy({ transaction: dbTransaction });
 
     await dbTransaction.commit();
 
-    // 6. Recalcular balance
+    // 7. Recalcular balance
     const stats = await calculateCreditCardBalance();
 
     console.log(`✅ Reversión completada | ${revertedExpenses.length} expense(s) revertidos | Balance actual: $${stats.currentBalance}`);
@@ -2232,6 +2385,7 @@ const reverseCreditCardPayment = async (req, res) => {
       message: 'Pago revertido exitosamente',
       paymentAmount: paymentAmount,
       revertedExpenses: revertedExpenses,
+      revertedBankTransaction: revertedBankTransaction, // 🆕 Info de transacción bancaria revertida
       remainingNotReverted: remainingToRevert, // Si quedó algo sin revertir (caso raro)
       currentBalance: stats.currentBalance,
       statistics: stats
@@ -2402,7 +2556,36 @@ const getCreditCardBalance = async (req, res) => {
     // Ordenar por fecha descendente
     allTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    console.log(`✅ Balance actual: $${stats.currentBalance} | ${allTransactions.length} transacciones`);
+    // ✅ Formatear fechas a YYYY-MM-DD para evitar problemas de zona horaria
+    const formatDateToLocal = (date) => {
+      if (!date) return null;
+      
+      // Si ya es un string en formato YYYY-MM-DD, devolverlo tal cual
+      if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return date;
+      }
+      
+      // Si es un string ISO o Date object, extraer la parte de fecha
+      const dateStr = date.toString();
+      if (dateStr.includes('T') || dateStr.includes('-')) {
+        return dateStr.split('T')[0]; // Toma solo YYYY-MM-DD antes de la T
+      }
+      
+      // Fallback: crear fecha local
+      const dateObj = new Date(date);
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const formattedTransactions = allTransactions.map(trans => ({
+      ...trans,
+      date: formatDateToLocal(trans.date),
+      createdAt: trans.createdAt // Mantener createdAt como está para ordenamiento
+    }));
+
+    console.log(`✅ Balance actual: $${stats.currentBalance} | ${formattedTransactions.length} transacciones`);
 
     res.json({
       success: true,
@@ -2411,12 +2594,12 @@ const getCreditCardBalance = async (req, res) => {
         totalCharges: stats.totalCharges,
         totalInterests: stats.totalInterests,
         totalPayments: stats.totalPayments,
-        transactionCount: allTransactions.length,
+        transactionCount: formattedTransactions.length,
         expensesCount: expenses.length,
         paymentsCount: transactions.filter(t => t.transactionType === 'payment').length,
         interestsCount: transactions.filter(t => t.transactionType === 'interest').length
       },
-      transactions: allTransactions
+      transactions: formattedTransactions
     });
 
   } catch (error) {
@@ -2572,6 +2755,7 @@ const createAmexTransaction = async (req, res) => {
 
       console.log(`💰 [FIFO] ${updatedExpenses.length} expense(s) actualizados`);
 
+      // 💳 Crear registro del pago en SupplierInvoice
       await SupplierInvoice.create({
         invoiceNumber: `AMEX-PAYMENT-${Date.now()}`,
         vendor: 'AMEX',
@@ -2589,6 +2773,30 @@ const createAmexTransaction = async (req, res) => {
         balanceAfter: 0,
         createdByStaffId: req.staff?.id || null
       }, { transaction: dbTransaction });
+
+      // 🏦 CREAR RETIRO BANCARIO (igual que Chase)
+      if (paymentMethod && paymentMethod !== 'AMEX') {
+        console.log(`🏦 [BankTransaction] Creando retiro de $${transactionAmount} desde ${paymentMethod}...`);
+
+        try {
+          await createWithdrawalTransaction({
+            paymentMethod: paymentMethod, // ✅ Nombre correcto del parámetro
+            amount: transactionAmount,
+            description: `Pago de AMEX${description ? ': ' + description : ''}`,
+            date: date || getLocalDateString(),
+            notes: `Pago de tarjeta AMEX${paymentDetails ? ' - ' + paymentDetails : ''}`,
+            createdByStaffId: req.staff?.id || null,
+            relatedExpenseId: null,
+            relatedCreditCardPaymentId: null,
+            transaction: dbTransaction // ✅ Pasar la transacción de Sequelize
+          });
+
+          console.log(`✅ [BankTransaction] Retiro bancario creado exitosamente`);
+        } catch (bankError) {
+          console.error('❌ [BankTransaction] Error al crear retiro bancario:', bankError);
+          throw new Error(`Error al crear retiro bancario: ${bankError.message}`);
+        }
+      }
     }
 
     await dbTransaction.commit();
@@ -2618,7 +2826,184 @@ const createAmexTransaction = async (req, res) => {
 };
 
 /**
- * 💳 Función auxiliar para calcular balance actual de AMEX
+ * � Revertir pago de AMEX
+ * DELETE /api/supplier-invoices/amex/payment/:paymentId
+ * 
+ * Revierte un pago aplicado a AMEX:
+ * 1. Deshace los pagos aplicados a expenses (LIFO)
+ * 2. Elimina el registro de pago
+ * 3. 🏦 Revierte la transacción bancaria (restaura el balance)
+ * 4. Recalcula el balance de AMEX
+ */
+const reverseAmexPayment = async (req, res) => {
+  const dbTransaction = await sequelize.transaction();
+
+  try {
+    const { paymentId } = req.params;
+
+    console.log(`🔄 [AMEX Reversa] Iniciando reversión del pago ID: ${paymentId}`);
+
+    // 1. Buscar el registro de pago
+    const payment = await SupplierInvoice.findByPk(paymentId, { transaction: dbTransaction });
+
+    if (!payment) {
+      await dbTransaction.rollback();
+      return res.status(404).json({
+        error: true,
+        message: 'Pago no encontrado'
+      });
+    }
+
+    // 2. Validar que sea un pago de AMEX
+    if (payment.vendor !== 'AMEX' || payment.transactionType !== 'payment') {
+      await dbTransaction.rollback();
+      return res.status(400).json({
+        error: true,
+        message: 'Este registro no es un pago de AMEX'
+      });
+    }
+
+    const paymentAmount = parseFloat(payment.totalAmount);
+    const paymentDate = new Date(payment.paymentDate);
+
+    console.log(`💰 Monto a revertir: $${paymentAmount}`);
+    console.log(`📅 Fecha del pago original: ${paymentDate.toISOString()}`);
+
+    // 3. Buscar los expenses que fueron pagados DESPUÉS de la fecha del pago
+    // Usamos FIFO inverso: revertimos desde los más recientes hacia atrás
+    const affectedExpenses = await Expense.findAll({
+      where: {
+        paymentMethod: 'AMEX',
+        paidAmount: { [Op.gt]: 0 }, // Solo los que tienen algo pagado
+        paidDate: { [Op.gte]: paymentDate } // Pagados después de esta fecha
+      },
+      order: [['paidDate', 'DESC'], ['date', 'DESC']], // Más recientes primero
+      transaction: dbTransaction
+    });
+
+    let remainingToRevert = paymentAmount;
+    const revertedExpenses = [];
+
+    console.log(`📋 Encontrados ${affectedExpenses.length} expense(s) potencialmente afectados`);
+
+    // 4. Revertir pagos aplicados (LIFO - Last In, First Out)
+    for (const expense of affectedExpenses) {
+      if (remainingToRevert <= 0) break;
+
+      const currentPaidAmount = parseFloat(expense.paidAmount || 0);
+      
+      if (currentPaidAmount > 0) {
+        // Calcular cuánto revertir de este expense
+        const amountToRevert = Math.min(remainingToRevert, currentPaidAmount);
+        const newPaidAmount = currentPaidAmount - amountToRevert;
+        const expenseAmount = parseFloat(expense.amount);
+
+        // Actualizar el expense
+        await expense.update({
+          paidAmount: newPaidAmount,
+          paymentStatus: newPaidAmount === 0 ? 'unpaid' : 
+                        newPaidAmount >= expenseAmount ? 'paid' : 'partial',
+          paidDate: newPaidAmount === 0 ? null : expense.paidDate
+        }, { transaction: dbTransaction });
+
+        revertedExpenses.push({
+          idExpense: expense.idExpense,
+          notes: expense.notes,
+          amount: expenseAmount,
+          revertedAmount: amountToRevert,
+          newPaidAmount: newPaidAmount,
+          newStatus: newPaidAmount === 0 ? 'unpaid' : 
+                     newPaidAmount >= expenseAmount ? 'paid' : 'partial'
+        });
+
+        remainingToRevert -= amountToRevert;
+        console.log(`  ↩️ Expense ${expense.notes}: -$${amountToRevert} revertido (${newPaidAmount === 0 ? 'PENDIENTE' : newPaidAmount >= expenseAmount ? 'PAGADO' : 'PARCIAL'})`);
+      }
+    }
+
+    // 5. 🏦 REVERTIR TRANSACCIÓN BANCARIA (si existe)
+    let revertedBankTransaction = null;
+    if (payment.paymentMethod) {
+      try {
+        const { BankAccount, BankTransaction } = require('../data');
+        
+        // Buscar la transacción bancaria relacionada con este pago
+        const bankTransaction = await BankTransaction.findOne({
+          where: {
+            transactionType: 'withdrawal',
+            amount: paymentAmount,
+            description: { [Op.like]: `%AMEX%` },
+            date: payment.paymentDate
+          },
+          transaction: dbTransaction
+        });
+
+        if (bankTransaction) {
+          // Buscar la cuenta bancaria
+          const bankAccount = await BankAccount.findByPk(bankTransaction.bankAccountId, {
+            transaction: dbTransaction
+          });
+
+          if (bankAccount) {
+            // Restaurar el balance (devolver el dinero)
+            const newBalance = parseFloat(bankAccount.currentBalance) + paymentAmount;
+            await bankAccount.update({ currentBalance: newBalance }, { transaction: dbTransaction });
+
+            // Eliminar la transacción bancaria
+            await bankTransaction.destroy({ transaction: dbTransaction });
+
+            revertedBankTransaction = {
+              accountName: bankAccount.accountName,
+              amount: paymentAmount,
+              previousBalance: parseFloat(bankAccount.currentBalance),
+              newBalance: newBalance
+            };
+
+            console.log(`✅ [BANK] Transacción bancaria revertida: ${bankAccount.accountName} +$${paymentAmount} → Balance: $${newBalance.toFixed(2)}`);
+          }
+        } else {
+          console.warn(`⚠️ [BANK] No se encontró transacción bancaria para revertir`);
+        }
+      } catch (bankError) {
+        console.error('❌ [BANK] Error revirtiendo transacción bancaria:', bankError.message);
+        // Continuar con la reversión aunque falle el banco (para no bloquear)
+      }
+    }
+
+    // 6. Eliminar el registro de pago
+    await payment.destroy({ transaction: dbTransaction });
+
+    await dbTransaction.commit();
+
+    // 7. Recalcular balance
+    const stats = await calculateAmexBalance();
+
+    console.log(`✅ Reversión completada | ${revertedExpenses.length} expense(s) revertidos | Balance actual: $${stats.currentBalance}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Pago de AMEX revertido exitosamente',
+      paymentAmount: paymentAmount,
+      revertedExpenses: revertedExpenses,
+      revertedBankTransaction: revertedBankTransaction, // 🆕 Info de transacción bancaria revertida
+      remainingNotReverted: remainingToRevert, // Si quedó algo sin revertir (caso raro)
+      currentBalance: stats.currentBalance,
+      statistics: stats
+    });
+
+  } catch (error) {
+    await dbTransaction.rollback();
+    console.error('❌ [AMEX Reversa] Error:', error);
+    res.status(500).json({
+      error: true,
+      message: 'Error al revertir el pago de AMEX',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * �💳 Función auxiliar para calcular balance actual de AMEX
  */
 const calculateAmexBalance = async (transaction = null) => {
   const expenses = await Expense.findAll({
@@ -2752,7 +3137,35 @@ const getAmexBalance = async (req, res) => {
 
     allTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    console.log(`✅ Balance AMEX actual: $${stats.currentBalance} | ${allTransactions.length} transacciones`);
+    // ✅ Formatear fechas a YYYY-MM-DD para evitar problemas de zona horaria
+    const formatDateToLocal = (date) => {
+      if (!date) return null;
+      
+      // Si ya es un string en formato YYYY-MM-DD, devolverlo tal cual
+      if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return date;
+      }
+      
+      // Si es un string ISO o Date object, extraer la parte de fecha
+      const dateStr = date.toString();
+      if (dateStr.includes('T') || dateStr.includes('-')) {
+        return dateStr.split('T')[0]; // Toma solo YYYY-MM-DD antes de la T
+      }
+      
+      // Fallback: crear fecha local
+      const dateObj = new Date(date);
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    const formattedTransactions = allTransactions.map(trans => ({
+      ...trans,
+      date: formatDateToLocal(trans.date)
+    }));
+
+    console.log(`✅ Balance AMEX actual: $${stats.currentBalance} | ${formattedTransactions.length} transacciones`);
 
     res.json({
       success: true,
@@ -2761,12 +3174,12 @@ const getAmexBalance = async (req, res) => {
         totalCharges: stats.totalCharges,
         totalInterests: stats.totalInterests,
         totalPayments: stats.totalPayments,
-        transactionCount: allTransactions.length,
+        transactionCount: formattedTransactions.length,
         expensesCount: expenses.length,
         paymentsCount: transactions.filter(t => t.transactionType === 'payment').length,
         interestsCount: transactions.filter(t => t.transactionType === 'interest').length
       },
-      transactions: allTransactions
+      transactions: formattedTransactions
     });
 
   } catch (error) {
@@ -2798,5 +3211,6 @@ module.exports = {
   reverseCreditCardPayment, // 🔄 NUEVO revertir pagos de Chase
   getCreditCardBalance, // 💳 NUEVO balance de tarjeta Chase
   createAmexTransaction, // 💳 NUEVO transacciones de AMEX
+  reverseAmexPayment, // 🔄 NUEVO revertir pagos de AMEX
   getAmexBalance // 💳 NUEVO balance de AMEX
 };

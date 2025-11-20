@@ -1,6 +1,7 @@
-const { Income, Staff, Receipt, Work } = require('../data'); // Agregar Work
+const { Income, Staff, Receipt, Work, sequelize } = require('../data');
 const { Op } = require('sequelize');
-const { sendNotifications } = require('../utils/notifications/notificationManager'); // Importar notificaciones
+const { sendNotifications } = require('../utils/notifications/notificationManager');
+const { createDepositTransaction } = require('../utils/bankTransactionHelper');
 
 // 🔧 Helper: Normalizar fecha de ISO a YYYY-MM-DD (acepta ambos formatos)
 const normalizeDateToLocal = (dateInput) => {
@@ -31,9 +32,13 @@ const createIncome = async (req, res) => {
   // ✅ Normalizar fecha (acepta ISO completo o YYYY-MM-DD)
   date = normalizeDateToLocal(date);
   
+  // Iniciar transacción de base de datos
+  const transaction = await sequelize.transaction();
+  
   try {
     // ✅ VALIDACIÓN: paymentMethod es OBLIGATORIO
     if (!paymentMethod) {
+      await transaction.rollback();
       return res.status(400).json({
         error: 'El método de pago es obligatorio',
         message: 'Debe seleccionar un método de pago para registrar el ingreso'
@@ -50,7 +55,32 @@ const createIncome = async (req, res) => {
       paymentMethod, 
       paymentDetails,
       verified: verified || false 
-    });
+    }, { transaction });
+    
+    // 🏦 AUTO-CREAR BANK TRANSACTION SI EL PAGO ES A CUENTA BANCARIA
+    try {
+      await createDepositTransaction({
+        paymentMethod,
+        amount,
+        date,
+        description: `Ingreso: ${typeIncome}${workId ? ` (Work #${workId.slice(0, 8)})` : ''}`,
+        relatedIncomeId: newIncome.idIncome,
+        notes,
+        createdByStaffId: staffId,
+        transaction
+      });
+    } catch (bankError) {
+      console.error('❌ Error creando transacción bancaria:', bankError.message);
+      // No hacer rollback si es solo warning de cuenta no encontrada
+      if (bankError.message.includes('Fondos insuficientes') || 
+          bankError.message.includes('no encontrada')) {
+        // Es un error crítico, hacer rollback
+        throw bankError;
+      }
+    }
+    
+    // Commit de la transacción
+    await transaction.commit();
     
     // Enviar notificaciones al equipo de finanzas
     try {
@@ -77,6 +107,7 @@ const createIncome = async (req, res) => {
     
     res.status(201).json(newIncome);
   } catch (error) {
+    await transaction.rollback();
     res.status(500).json({ message: 'Error al crear el ingreso', error: error.message });
   }
 };
@@ -188,14 +219,14 @@ const updateIncome = async (req, res) => {
         const incomeWithDetails = await Income.findByPk(id, {
           include: [
             { model: Staff, as: 'Staff', attributes: ['id', 'name', 'email'] },
-            { model: Work, as: 'Work', attributes: ['idWork', 'propertyAddress'] }
+            { model: Work, as: 'work', attributes: ['idWork', 'propertyAddress'] } // ✅ Cambio de 'Work' a 'work'
           ]
         });
 
         // Preparar datos para la notificación
         const notificationData = {
           ...incomeWithDetails.toJSON(),
-          propertyAddress: incomeWithDetails.Work?.propertyAddress || 'Obra no especificada',
+          propertyAddress: incomeWithDetails.work?.propertyAddress || 'Obra no especificada', // ✅ Cambio de Work a work
           // Agregar información del cambio
           previousAmount: originalAmount,
           newAmount: newAmount
@@ -218,13 +249,87 @@ const updateIncome = async (req, res) => {
 // Eliminar un ingreso
 const deleteIncome = async (req, res) => {
   const { id } = req.params;
+  const transaction = await sequelize.transaction();
+  
   try {
-    const income = await Income.findByPk(id);
-    if (!income) return res.status(404).json({ message: 'Ingreso no encontrado' });
+    const income = await Income.findByPk(id, { transaction });
+    if (!income) {
+      await transaction.rollback();
+      return res.status(404).json({ message: 'Ingreso no encontrado' });
+    }
 
-    await income.destroy();
-    res.status(200).json({ message: 'Ingreso eliminado correctamente' });
+    // 🏦 REVERTIR TRANSACCIÓN BANCARIA si existe
+    let revertedBankTransaction = null;
+    const { isBankAccount } = require('../utils/bankTransactionHelper');
+    
+    if (isBankAccount(income.paymentMethod)) {
+      try {
+        const { BankAccount, BankTransaction } = require('../data');
+        
+        // Buscar la transacción bancaria relacionada (deposit)
+        const bankTransaction = await BankTransaction.findOne({
+          where: {
+            relatedIncomeId: income.idIncome,
+            transactionType: 'deposit'
+          },
+          transaction
+        });
+
+        if (bankTransaction) {
+          // Buscar la cuenta bancaria
+          const bankAccount = await BankAccount.findByPk(bankTransaction.bankAccountId, { transaction });
+
+          if (bankAccount) {
+            // Restar el monto del balance (revertir el depósito)
+            const transactionAmount = parseFloat(bankTransaction.amount);
+            const newBalance = parseFloat(bankAccount.currentBalance) - transactionAmount;
+            
+            // Validar que no quede negativo
+            if (newBalance < 0) {
+              await transaction.rollback();
+              return res.status(400).json({
+                message: 'No se puede eliminar el ingreso: el balance de la cuenta quedaría negativo',
+                accountName: bankAccount.accountName,
+                currentBalance: parseFloat(bankAccount.currentBalance),
+                incomeAmount: transactionAmount
+              });
+            }
+            
+            await bankAccount.update({ currentBalance: newBalance }, { transaction });
+
+            // Eliminar la transacción bancaria
+            await bankTransaction.destroy({ transaction });
+
+            revertedBankTransaction = {
+              accountName: bankAccount.accountName,
+              amount: transactionAmount,
+              newBalance: newBalance
+            };
+
+            console.log(`✅ [BANK] Transacción revertida al eliminar income: ${bankAccount.accountName} -$${transactionAmount} → Balance: $${newBalance.toFixed(2)}`);
+          }
+        }
+      } catch (bankError) {
+        console.error('❌ [BANK] Error revirtiendo transacción bancaria:', bankError.message);
+        await transaction.rollback();
+        return res.status(500).json({
+          message: 'Error al revertir transacción bancaria',
+          error: bankError.message
+        });
+      }
+    }
+
+    // Eliminar el income
+    await income.destroy({ transaction });
+    
+    await transaction.commit();
+
+    res.status(200).json({
+      message: 'Ingreso eliminado correctamente',
+      revertedBankTransaction: revertedBankTransaction
+    });
   } catch (error) {
+    await transaction.rollback();
     res.status(500).json({ message: 'Error al eliminar el ingreso', error: error.message });
   }
 };

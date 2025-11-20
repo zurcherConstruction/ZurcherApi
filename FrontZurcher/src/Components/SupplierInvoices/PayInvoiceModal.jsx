@@ -20,6 +20,7 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
   // Para create_with_works
   const [availableWorks, setAvailableWorks] = useState([]);
   const [distribution, setDistribution] = useState([]); // { workId, amount, description }
+  const [workSearchTerm, setWorkSearchTerm] = useState(''); // 🆕 Para filtrar works
   
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -45,7 +46,23 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
       if (!response.ok) throw new Error('Error al cargar expenses');
       
       const data = await response.json();
-      setAvailableExpenses(data || []);
+      
+      // ✅ Filtrar expenses que NO sean de:
+      // - Tarjetas de crédito (Chase CC o AMEX)
+      // - Gastos fijos
+      const filteredExpenses = (data || []).filter(expense => {
+        const paymentMethod = expense.paymentMethod?.toLowerCase() || '';
+        const typeExpense = expense.typeExpense?.toLowerCase() || '';
+        
+        const isCreditCard = paymentMethod.includes('chase credit card') || 
+                            paymentMethod.includes('amex');
+        const isFixedExpense = typeExpense.includes('gasto fijo') || 
+                              typeExpense.includes('fixed expense');
+        
+        return !isCreditCard && !isFixedExpense;
+      });
+      
+      setAvailableExpenses(filteredExpenses);
     } catch (error) {
       console.error('Error:', error);
       alert('Error al cargar expenses disponibles');
@@ -459,30 +476,65 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
                     Agregar Works y Distribución
                   </h3>
 
-                  {/* Selector de Work con buscador */}
+                  {/* Buscador de Works */}
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Seleccionar Obra
+                      Buscar y Seleccionar Obra
                     </label>
-                    <select
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          addWorkToList(e.target.value);
-                          e.target.value = ''; // Reset select
+                    <input
+                      type="text"
+                      value={workSearchTerm}
+                      onChange={(e) => setWorkSearchTerm(e.target.value)}
+                      placeholder="Buscar por dirección o ID..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent mb-2"
+                    />
+                    
+                    {/* Lista de Works Filtrados */}
+                    {workSearchTerm && (
+                      <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg bg-white shadow-sm">
+                        {availableWorks
+                          .filter(w => {
+                            // Filtrar works que ya están en la distribución
+                            if (distribution.some(d => d.workId === w.idWork)) return false;
+                            
+                            // Filtrar por término de búsqueda
+                            const searchLower = workSearchTerm.toLowerCase();
+                            const addressMatch = w.propertyAddress?.toLowerCase().includes(searchLower);
+                            const idMatch = w.idWork?.toString().includes(searchLower);
+                            
+                            return addressMatch || idMatch;
+                          })
+                          .map(work => (
+                            <button
+                              key={work.idWork}
+                              type="button"
+                              onClick={() => {
+                                addWorkToList(work.idWork);
+                                setWorkSearchTerm(''); // Limpiar búsqueda
+                              }}
+                              className="w-full text-left px-4 py-2 hover:bg-purple-50 border-b border-gray-100 last:border-b-0 transition-colors"
+                            >
+                              <p className="text-sm font-medium text-gray-800">
+                                {work.propertyAddress}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                ID: {work.idWork} • Status: {work.status}
+                              </p>
+                            </button>
+                          ))
                         }
-                      }}
-                    >
-                      <option value="">-- Seleccionar obra --</option>
-                      {availableWorks
-                        .filter(w => !distribution.some(d => d.workId === w.idWork))
-                        .map(work => (
-                          <option key={work.idWork} value={work.idWork}>
-                            {work.propertyAddress} ({work.status})
-                          </option>
-                        ))
-                      }
-                    </select>
+                        {availableWorks.filter(w => {
+                          if (distribution.some(d => d.workId === w.idWork)) return false;
+                          const searchLower = workSearchTerm.toLowerCase();
+                          return w.propertyAddress?.toLowerCase().includes(searchLower) || 
+                                 w.idWork?.toString().includes(searchLower);
+                        }).length === 0 && (
+                          <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                            No se encontraron obras
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Lista de Works Agregados con Montos */}

@@ -67,12 +67,11 @@ const CONDITIONAL_INCLUDED_ITEMS = {
 function _generateIncludedItems(lineItems = []) {
   // Empezamos con los items que siempre deben estar
   let finalItems = [...DEFAULT_INCLUDED_ITEMS];
-
+  
   // Revisamos los items del presupuesto para ver si activan alguna condición
   lineItems.forEach(lineItem => {
-    // Condición: El item es de categoría "System Type"
-    if (lineItem.category === 'System Type' && lineItem.name) {
-      // Buscamos si el nombre del item (ej: "ATU 1500 GPD") contiene alguna de nuestras claves (ej: "ATU")
+    // ✅ BÚSQUEDA MÁS FLEXIBLE: Buscar "ATU" en el NOMBRE del item, sin importar la categoría
+    if (lineItem.name) {
       for (const key in CONDITIONAL_INCLUDED_ITEMS) {
         if (lineItem.name.toUpperCase().includes(key.toUpperCase())) {
           // Si la clave "ATU" se encuentra, agregamos todos sus items a la lista final
@@ -441,7 +440,8 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
       doc.moveDown(3.0);
 
       // ✅ SI ES UN TANK ATU, INMEDIATAMENTE DESPUÉS RENDERIZAR EL KIT
-      if (item.category === 'System Type' && item.name && item.name.toUpperCase().includes('ATU')) {
+      // ✅ COMPARACIÓN CASE-INSENSITIVE para category
+      if (item.category && item.category.toUpperCase() === 'SYSTEM TYPE' && item.name && item.name.toUpperCase().includes('ATU')) {
         // Buscar el KIT en los items incluidos y renderizarlo aquí
         const kitItem = CONDITIONAL_INCLUDED_ITEMS["ATU"]?.find(conditionalItem => 
           conditionalItem.name.toUpperCase().includes('KIT')
@@ -472,18 +472,19 @@ async function _buildInvoicePage_v2(doc, budgetData, formattedDate, formattedExp
     });
   }
 
-  // ✅ 3. GENERAR Y MOSTRAR ITEMS INCLUIDOS ADICIONALES (Warranty, etc.)
-  // PERO EXCLUIR EL KIT SI YA SE RENDERIZÓ CON EL TANK ATU
+  // ✅ 3. GENERAR Y MOSTRAR ITEMS INCLUIDOS ADICIONALES (Warranty, Service Maintenance, etc.)
+  // PERO EXCLUIR SOLO EL KIT SI YA SE RENDERIZÓ CON EL TANK ATU
   const includedItems = _generateIncludedItems(budgetData.lineItems);
+  // ✅ COMPARACIÓN CASE-INSENSITIVE para category
   const hasATUTank = budgetData.lineItems?.some(item => 
-    item.category === 'System Type' && item.name && item.name.toUpperCase().includes('ATU')
+    item.category && item.category.toUpperCase() === 'SYSTEM TYPE' && item.name && item.name.toUpperCase().includes('ATU')
   );
 
   if (includedItems && includedItems.length > 0) {
     includedItems.forEach(item => {
-      // ✅ SI YA RENDERIZAMOS EL KIT CON EL TANK ATU, NO LO VOLVEMOS A RENDERIZAR
-      if (hasATUTank && item.name.toUpperCase().includes('KIT')) {
-        return; // Saltar este item
+      // ✅ SOLO SALTAR EL KIT (que ya se renderizó arriba), PERO NO EL SERVICE MAINTENANCE CONTRACT
+      if (hasATUTank && item.name.toUpperCase().includes('KIT') && !item.name.toUpperCase().includes('SERVICE') && !item.name.toUpperCase().includes('MAINTENANCE')) {
+        return; // Saltar solo el KIT TANK ATU
       }
 
       const estimatedDescHeight = doc.heightOfString(item.description, { width: wDesc });

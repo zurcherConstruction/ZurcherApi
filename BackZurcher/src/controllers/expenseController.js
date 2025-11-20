@@ -1,7 +1,8 @@
-const { Expense, Staff, Receipt, Work, SupplierInvoiceExpense } = require('../data'); // Agregar Work para las notificaciones
-const { Op } = require('sequelize'); // Agregar para las consultas
+const { Expense, Staff, Receipt, Work, SupplierInvoiceExpense, sequelize } = require('../data');
+const { Op } = require('sequelize');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader');
-const { sendNotifications } = require('../utils/notifications/notificationManager'); // Importar notificaciones
+const { sendNotifications } = require('../utils/notifications/notificationManager');
+const { createWithdrawalTransaction } = require('../utils/bankTransactionHelper');
 
 // 🔧 Helper: Normalizar fecha de ISO a YYYY-MM-DD (acepta ambos formatos)
 const normalizeDateToLocal = (dateInput) => {
@@ -32,9 +33,13 @@ const createExpense = async (req, res) => {
   // ✅ Normalizar fecha (acepta ISO completo o YYYY-MM-DD)
   date = normalizeDateToLocal(date);
   
+  // Iniciar transacción de base de datos
+  const transaction = await sequelize.transaction();
+  
   try {
     // ✅ VALIDACIÓN: paymentMethod es OBLIGATORIO
     if (!paymentMethod) {
+      await transaction.rollback();
       return res.status(400).json({
         error: 'El método de pago es obligatorio',
         message: 'Debe seleccionar un método de pago para registrar el gasto'
@@ -53,7 +58,52 @@ const createExpense = async (req, res) => {
       paymentDetails,
       verified: verified || false,
       paymentStatus: 'unpaid'  // 🆕 Todos los gastos inician como no pagados
-    });
+    }, { transaction });
+
+    // 🏦 AUTO-CREAR BANK TRANSACTION SI EL PAGO ES DESDE CUENTA BANCARIA
+    try {
+      await createWithdrawalTransaction({
+        paymentMethod,
+        amount,
+        date,
+        description: `Gasto: ${typeExpense}${workId ? ` (Work #${workId.slice(0, 8)})` : ''}`,
+        relatedExpenseId: newExpense.idExpense,
+        notes,
+        createdByStaffId: staffId,
+        transaction
+      });
+    } catch (bankError) {
+      console.error('❌ Error creando transacción bancaria:', bankError.message);
+      // Si hay error de fondos, hacer rollback completo
+      await transaction.rollback();
+      return res.status(400).json({
+        error: 'Error procesando transacción bancaria',
+        message: bankError.message
+      });
+    }
+
+    // 🆕 AUTO-CAMBIAR ESTADO DEL TRABAJO A inProgress CUANDO SE CARGA MATERIALES INICIALES
+    if (typeExpense === 'Materiales Iniciales' && workId) {
+      try {
+        const work = await Work.findByPk(workId, { transaction });
+        if (work && work.status === 'assigned') {
+          await work.update({ status: 'inProgress' }, { transaction });
+          console.log(`✅ Trabajo ${workId.slice(0, 8)} cambiado de 'assigned' a 'inProgress' automáticamente`);
+        } else if (work) {
+          console.log(`ℹ️  Trabajo ${workId.slice(0, 8)} no cambió de estado. Status actual: ${work.status}`);
+        }
+      } catch (statusError) {
+        console.error('❌ Error actualizando estado del trabajo:', statusError.message);
+        await transaction.rollback();
+        return res.status(500).json({
+          error: 'Error actualizando estado del trabajo',
+          message: statusError.message
+        });
+      }
+    }
+
+    // Commit de la transacción
+    await transaction.commit();
 
     // 2. Si es Inspección Inicial o Inspección Final y hay archivo, crear Receipt asociado
     let createdReceipt = null;
@@ -270,13 +320,75 @@ const updateExpense = async (req, res) => {
 // Eliminar un gasto
 const deleteExpense = async (req, res) => {
   const { id } = req.params;
+  const transaction = await sequelize.transaction();
+  
   try {
-    const expense = await Expense.findByPk(id);
-    if (!expense) return res.status(404).json({ message: 'Gasto no encontrado' });
+    const expense = await Expense.findByPk(id, { transaction });
+    if (!expense) {
+      await transaction.rollback();
+      return res.status(404).json({ message: 'Gasto no encontrado' });
+    }
 
-    await expense.destroy();
-    res.status(200).json({ message: 'Gasto eliminado correctamente' });
+    // 🏦 REVERTIR TRANSACCIÓN BANCARIA si existe
+    let revertedBankTransaction = null;
+    const { isBankAccount } = require('../utils/bankTransactionHelper');
+    
+    if (isBankAccount(expense.paymentMethod)) {
+      try {
+        const { BankAccount, BankTransaction } = require('../data');
+        
+        // Buscar la transacción bancaria relacionada (withdrawal)
+        const bankTransaction = await BankTransaction.findOne({
+          where: {
+            relatedExpenseId: expense.idExpense,
+            transactionType: 'withdrawal'
+          },
+          transaction
+        });
+
+        if (bankTransaction) {
+          // Buscar la cuenta bancaria
+          const bankAccount = await BankAccount.findByPk(bankTransaction.bankAccountId, { transaction });
+
+          if (bankAccount) {
+            // Restaurar el balance (devolver el dinero)
+            const transactionAmount = parseFloat(bankTransaction.amount);
+            const newBalance = parseFloat(bankAccount.currentBalance) + transactionAmount;
+            await bankAccount.update({ currentBalance: newBalance }, { transaction });
+
+            // Eliminar la transacción bancaria
+            await bankTransaction.destroy({ transaction });
+
+            revertedBankTransaction = {
+              accountName: bankAccount.accountName,
+              amount: transactionAmount,
+              newBalance: newBalance
+            };
+
+            console.log(`✅ [BANK] Transacción revertida al eliminar expense: ${bankAccount.accountName} +$${transactionAmount} → Balance: $${newBalance.toFixed(2)}`);
+          }
+        }
+      } catch (bankError) {
+        console.error('❌ [BANK] Error revirtiendo transacción bancaria:', bankError.message);
+        await transaction.rollback();
+        return res.status(500).json({
+          message: 'Error al revertir transacción bancaria',
+          error: bankError.message
+        });
+      }
+    }
+
+    // Eliminar el expense
+    await expense.destroy({ transaction });
+    
+    await transaction.commit();
+
+    res.status(200).json({
+      message: 'Gasto eliminado correctamente',
+      revertedBankTransaction: revertedBankTransaction
+    });
   } catch (error) {
+    await transaction.rollback();
     res.status(500).json({ message: 'Error al eliminar el gasto', error: error.message });
   }
 };
