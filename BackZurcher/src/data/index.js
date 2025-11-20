@@ -76,7 +76,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
 // ⚠️ SupplierInvoiceWork y SupplierInvoiceItem removidos - ya no se usan (modelo antiguo)
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -541,6 +541,28 @@ Staff.hasMany(WorkStateHistory, {
 WorkStateHistory.belongsTo(Staff, {
   foreignKey: 'changedBy',
   as: 'changedByStaff'
+});
+
+// --- RELACIONES PARA WORK CHECKLIST (VERIFICACIÓN MANUAL) ---
+
+// Un Work tiene un WorkChecklist (relación 1:1)
+Work.hasOne(WorkChecklist, {
+  foreignKey: 'workId',
+  as: 'checklist'
+});
+WorkChecklist.belongsTo(Work, {
+  foreignKey: 'workId',
+  as: 'work'
+});
+
+// Un Staff puede haber revisado muchos checklists
+Staff.hasMany(WorkChecklist, {
+  foreignKey: 'reviewedBy',
+  as: 'checklistsReviewed'
+});
+WorkChecklist.belongsTo(Staff, {
+  foreignKey: 'reviewedBy',
+  as: 'reviewer'
 });
 
 // --- RELACIONES PARA BANK ACCOUNTS Y TRANSACCIONES ---

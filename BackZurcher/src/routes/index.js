@@ -29,6 +29,7 @@ const accountsReceivableRoutes = require('./accountsReceivableRoutes'); // 🆕 
 const financialDashboardRoutes = require('./financialDashboardRoutes'); // 🆕 Dashboard financiero consolidado
 const bankAccountRoutes = require('./bankAccountRoutes'); // 🆕 Gestión de cuentas bancarias
 const bankTransactionRoutes = require('./bankTransactionRoutes'); // 🆕 Transacciones bancarias
+const workChecklistRoutes = require('./workChecklistRoutes'); // 🆕 Checklist de verificación de obras
 //const adobeWebhookRoutes = require('./adobeWebhookRoutes'); // Asegúrate de que la ruta sea correcta
 const adobeRoutes = require('./adobeRoutes'); // Asegúrate de que la ruta sea correcta
 
@@ -83,6 +84,7 @@ router.use('/accounts-receivable', accountsReceivableRoutes); // 🆕 Ruta para 
 router.use('/financial-dashboard', financialDashboardRoutes); // 🆕 Ruta para dashboard financiero consolidado
 router.use('/bank-accounts', bankAccountRoutes); // 🆕 Ruta para gestión de cuentas bancarias
 router.use('/bank-transactions', bankTransactionRoutes); // 🆕 Ruta para transacciones bancarias
+router.use('/works', workChecklistRoutes); // 🆕 Ruta para checklist de verificación (usa /works/:workId/checklist)
 router.use('/import', importRoutes); // Ruta para importar trabajos legacy
 
 module.exports = router;
