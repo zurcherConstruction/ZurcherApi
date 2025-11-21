@@ -265,8 +265,7 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
   };
 
   const paymentMethods = [
-    'Cap Trabajos Septic',
-    'Capital Proyectos Septic',
+    'Proyecto Septic BOFA',
     'Chase Bank',
     'AMEX',
     'Chase Credit Card',

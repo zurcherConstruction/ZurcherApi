@@ -1,10 +1,9 @@
 /**
  * Script para inicializar las cuentas bancarias del sistema
  * 
- * Crea las 4 cuentas principales con balance inicial en $0.00:
+ * Crea las 3 cuentas principales con balance inicial en $0.00:
  * - Chase Bank (cuenta corriente)
- * - Cap Trabajos Septic (cuenta corriente)
- * - Capital Proyectos Septic (cuenta corriente)
+ * - Proyecto Septic BOFA (cuenta corriente)
  * - Caja Chica (efectivo)
  * 
  * EJECUTAR: node seed-bank-accounts.js
@@ -24,24 +23,14 @@ const initialAccounts = [
     notes: 'Cuenta bancaria principal de Chase Bank'
   },
   {
-    accountName: 'Cap Trabajos Septic',
+    accountName: 'Proyecto Septic BOFA',
     accountType: 'checking',
     currentBalance: 0.00,
     currency: 'USD',
     isActive: true,
-    bankName: 'Capital One',
+    bankName: 'Bank of America',
     accountNumber: null,
-    notes: 'Cuenta para trabajos relacionados con sistemas sépticos'
-  },
-  {
-    accountName: 'Capital Proyectos Septic',
-    accountType: 'checking',
-    currentBalance: 0.00,
-    currency: 'USD',
-    isActive: true,
-    bankName: 'Capital One',
-    accountNumber: null,
-    notes: 'Cuenta para proyectos de gran escala en sistemas sépticos'
+    notes: 'Cuenta para proyectos de sistemas sépticos - BOFA'
   },
   {
     accountName: 'Caja Chica',

@@ -22,7 +22,7 @@ import { PAYMENT_METHODS_GROUPED, INCOME_TYPES, EXPENSE_TYPES } from "../../util
 
 // 🚫 EXCLUIR solo "Factura Pago Inicial Budget" - se maneja en UploadInitialPay.jsx
 // ✅ "Factura Pago Final Budget" SÍ se maneja aquí (tiene lógica de pagos parciales)
-const incomeTypes = INCOME_TYPES.filter(type => 
+const incomeTypes = INCOME_TYPES.filter(type =>
   type !== 'Factura Pago Inicial Budget'
 );
 const expenseTypes = EXPENSE_TYPES;
@@ -78,19 +78,19 @@ const AttachReceipt = () => {
         try {
           const response = await api.get('/fixed-expenses');
           console.log('📋 Respuesta de gastos fijos:', response.data);
-          
+
           // El endpoint devuelve { fixedExpenses: [...], stats: {...} }
           const allExpenses = response.data.fixedExpenses || response.data || [];
-          
+
           // Filtrar solo gastos activos y no pagados completamente
-          const activeExpenses = Array.isArray(allExpenses) 
-            ? allExpenses.filter(expense => 
-                expense.isActive && 
-                expense.paymentStatus !== 'paid' && 
-                expense.paymentStatus !== 'paid_via_invoice'
-              )
+          const activeExpenses = Array.isArray(allExpenses)
+            ? allExpenses.filter(expense =>
+              expense.isActive &&
+              expense.paymentStatus !== 'paid' &&
+              expense.paymentStatus !== 'paid_via_invoice'
+            )
             : [];
-          
+
           console.log('✅ Gastos fijos activos y pendientes:', activeExpenses.length);
           setFixedExpenses(activeExpenses);
         } catch (error) {
@@ -257,7 +257,7 @@ const AttachReceipt = () => {
 
       } else {
         // Lógica para otros tipos (Income/Expense + Receipt)
-        
+
         // 🆕 MANEJO ESPECIAL PARA GASTO FIJO
         if (type === 'Gasto Fijo') {
           if (!selectedFixedExpense) {
@@ -328,12 +328,12 @@ const AttachReceipt = () => {
             // Adjuntar comprobante
             formData.append("relatedModel", "Expense");
             formData.append("relatedId", createdExpense.idExpense.toString());
-            
+
             console.log('📎 Adjuntando comprobante al gasto fijo. FormData tiene file?', file ? 'SI' : 'NO');
             const receiptResponse = await dispatch(createReceipt(formData));
-            
+
             console.log('📄 Receipt response:', receiptResponse);
-            
+
             // Verificar que el receipt se creó correctamente
             // Redux puede retornar undefined si la acción no está configurada para retornar payload
             if (receiptResponse?.error) {
@@ -345,7 +345,7 @@ const AttachReceipt = () => {
 
             // 🆕 ACTUALIZAR EL GASTO FIJO PRIMERO (crítico)
             console.log(`✅ Actualizando gasto fijo - Estado: ${newStatus}, Nuevo monto pagado: $${newPaidAmount.toFixed(2)}`);
-            
+
             const updateData = {
               paymentStatus: newStatus,
               paidAmount: newPaidAmount
@@ -405,11 +405,11 @@ const AttachReceipt = () => {
           let createdRecordId = null;
           let createdRecord;
           const isIncome = incomeTypes.includes(type);
-          
+
           // Generar fecha local en formato YYYY-MM-DD
           const now = new Date();
           const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-          
+
           const incomeExpenseData = {
             date: localDate,
             amount: parseFloat(generalAmount),
@@ -479,15 +479,15 @@ const AttachReceipt = () => {
 
     } catch (err) {
       console.error("❌❌❌ Error completo en handleSubmit:", err);
-      
+
       // Mensaje de error más específico según el tipo de error
       let errorMessage = "Error al procesar la transacción.";
-      
+
       if (err.response) {
         // Error de respuesta del servidor
         const status = err.response.status;
         const data = err.response.data;
-        
+
         console.error('❌ Error del servidor:', {
           status,
           data,
@@ -521,7 +521,7 @@ const AttachReceipt = () => {
       }
 
       toast.error(`❌ ${errorMessage}`);
-      
+
       // Log adicional para debugging
       if (err.stack) {
         console.error('Stack trace:', err.stack);
@@ -533,7 +533,7 @@ const AttachReceipt = () => {
   const calculatedRemainingBalance = finalInvoiceDetails
     ? (parseFloat(finalInvoiceDetails.finalAmountDue || 0) - parseFloat(finalInvoiceDetails.totalAmountPaid || 0)).toFixed(2)
     : "0.00";
-  
+
   // Determinar si el tipo actual permite ser general
   const canBeGeneral = generalExpenseTypes.includes(type) || generalIncomeTypes.includes(type);
   const requiresWork = type === "Factura Pago Final Budget"; // Los pagos de factura final SIEMPRE requieren work
@@ -547,16 +547,16 @@ const AttachReceipt = () => {
       return works.filter(work => {
         // Debe tener finalInvoice
         if (!work.finalInvoice || !work.finalInvoice.id) return false;
-        
+
         // El invoice NO debe estar cancelado ni completamente pagado
         const validStatuses = ['pending', 'partially_paid', 'send', 'sent'];
         if (!validStatuses.includes(work.finalInvoice.status)) return false;
-        
+
         // Verificar que aún tenga saldo pendiente
         const totalDue = parseFloat(work.finalInvoice.finalAmountDue || 0);
         const totalPaid = parseFloat(work.finalInvoice.totalAmountPaid || 0);
         const remainingBalance = totalDue - totalPaid;
-        
+
         return remainingBalance > 0;
       });
     }
@@ -608,7 +608,7 @@ const AttachReceipt = () => {
         {/* Main Form Card */}
         <div className="bg-white rounded-xl shadow-lg p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
-            
+
             {/* Receipt Type Selection - Moved to top */}
             <div>
               <label htmlFor="type" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
@@ -626,16 +626,38 @@ const AttachReceipt = () => {
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
               >
                 <option value="">Seleccione un tipo</option>
-                <optgroup label="💰 Ingresos">
+                <optgroup
+                  label="💰 Ingresos"
+                  style={{
+                    backgroundColor: '#86efac',
+                    fontWeight: 'bold',
+                    color: '#065f46'
+                  }}
+                >
                   {incomeTypes.map((incomeType) => (
-                    <option key={incomeType} value={incomeType}>
+                    <option
+                      key={incomeType}
+                      value={incomeType}
+                      style={{ backgroundColor: 'white', color: 'black' }}
+                    >
                       {incomeType}
                     </option>
                   ))}
                 </optgroup>
-                <optgroup label="💳 Gastos">
+                <optgroup
+                  label="💳 Gastos"
+                  style={{
+                    backgroundColor: '#fca5a5',
+                    fontWeight: 'bold',
+                    color: '#7f1d1d'
+                  }}
+                >
                   {expenseTypes.map((expenseType) => (
-                    <option key={expenseType} value={expenseType}>
+                    <option
+                      key={expenseType}
+                      value={expenseType}
+                      style={{ backgroundColor: 'white', color: 'black' }}
+                    >
                       {expenseType}
                     </option>
                   ))}
@@ -719,12 +741,12 @@ const AttachReceipt = () => {
                       {fixedExpenses.map((fe) => {
                         const dueDate = new Date(fe.nextDueDate);
                         const isOverdue = dueDate < new Date();
-                        const formattedDate = dueDate.toLocaleDateString('es-ES', { 
-                          year: 'numeric', 
-                          month: 'short', 
-                          day: 'numeric' 
+                        const formattedDate = dueDate.toLocaleDateString('es-ES', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
                         });
-                        
+
                         // 🆕 Calcular monto restante (lo que realmente se debe) con redondeo
                         const totalAmount = Math.round(parseFloat(fe.totalAmount || 0) * 100) / 100;
                         const paidAmount = Math.round(parseFloat(fe.paidAmount || 0) * 100) / 100;
@@ -732,9 +754,9 @@ const AttachReceipt = () => {
 
                         return (
                           <option key={fe.idFixedExpense} value={fe.idFixedExpense}>
-                            {fe.description || fe.name} - ${remainingAmount.toFixed(2)} 
-                            {paidAmount > 0 ? ` (Pagado: $${paidAmount.toFixed(2)} de $${totalAmount.toFixed(2)})` : ''} - 
-                            {fe.category} - Vence: {formattedDate} 
+                            {fe.description || fe.name} - ${remainingAmount.toFixed(2)}
+                            {paidAmount > 0 ? ` (Pagado: $${paidAmount.toFixed(2)} de $${totalAmount.toFixed(2)})` : ''} -
+                            {fe.category} - Vence: {formattedDate}
                             {isOverdue ? ' ⚠️ VENCIDO' : ''}
                           </option>
                         );
@@ -748,13 +770,13 @@ const AttachReceipt = () => {
                           const selected = fixedExpenses.find(fe => fe.idFixedExpense === selectedFixedExpense);
                           const dueDate = new Date(selected.nextDueDate);
                           const isOverdue = dueDate < new Date();
-                          
+
                           // 🆕 Calcular montos con redondeo
                           const totalAmount = Math.round(parseFloat(selected.totalAmount || 0) * 100) / 100;
                           const paidAmount = Math.round(parseFloat(selected.paidAmount || 0) * 100) / 100;
                           const remainingAmount = Math.round((totalAmount - paidAmount) * 100) / 100;
                           const hasPartialPayment = paidAmount > 0;
-                          
+
                           return (
                             <>
                               <h6 className="font-semibold text-gray-800 mb-3">Detalles del Gasto:</h6>
@@ -767,7 +789,7 @@ const AttachReceipt = () => {
                                   <p className="text-gray-600 font-medium">Categoría:</p>
                                   <p className="text-gray-800">{selected.category}</p>
                                 </div>
-                                
+
                                 {/* 🆕 Mostrar monto total y pagos parciales */}
                                 <div className="col-span-2 bg-blue-50 rounded-lg p-3 border border-blue-200">
                                   <div className="grid grid-cols-3 gap-2 text-center">
@@ -786,7 +808,7 @@ const AttachReceipt = () => {
                                       <p className="text-orange-600 font-bold text-lg">${remainingAmount.toFixed(2)}</p>
                                     </div>
                                   </div>
-                                  
+
                                   {hasPartialPayment && (
                                     <div className="mt-2 pt-2 border-t border-blue-300">
                                       <div className="flex items-center justify-between text-xs">
@@ -796,7 +818,7 @@ const AttachReceipt = () => {
                                         </span>
                                       </div>
                                       <div className="mt-1 w-full bg-gray-200 rounded-full h-2">
-                                        <div 
+                                        <div
                                           className="bg-blue-500 h-2 rounded-full transition-all"
                                           style={{ width: `${(paidAmount / totalAmount) * 100}%` }}
                                         />
@@ -804,14 +826,14 @@ const AttachReceipt = () => {
                                     </div>
                                   )}
                                 </div>
-                                
+
                                 <div>
                                   <p className="text-gray-600 font-medium">Fecha de Vencimiento:</p>
                                   <p className={`font-semibold ${isOverdue ? 'text-red-600' : 'text-green-600'}`}>
-                                    {dueDate.toLocaleDateString('es-ES', { 
-                                      year: 'numeric', 
-                                      month: 'long', 
-                                      day: 'numeric' 
+                                    {dueDate.toLocaleDateString('es-ES', {
+                                      year: 'numeric',
+                                      month: 'long',
+                                      day: 'numeric'
                                     })}
                                     {isOverdue && ' ⚠️ VENCIDO'}
                                   </p>
@@ -831,7 +853,7 @@ const AttachReceipt = () => {
                                   <p className="text-gray-800">{selected.paymentMethod}</p>
                                 </div>
                               </div>
-                              
+
                               {selected.notes && (
                                 <div className="mt-3 pt-3 border-t border-gray-200">
                                   <p className="text-gray-600 font-medium text-xs mb-1">Notas:</p>
@@ -854,11 +876,11 @@ const AttachReceipt = () => {
                         {(() => {
                           const selected = fixedExpenses.find(fe => fe.idFixedExpense === selectedFixedExpense);
                           if (!selected) return null;
-                          
+
                           const totalAmount = Math.round(parseFloat(selected.totalAmount || 0) * 100) / 100;
                           const paidAmount = Math.round(parseFloat(selected.paidAmount || 0) * 100) / 100;
                           const remainingAmount = Math.round((totalAmount - paidAmount) * 100) / 100;
-                          
+
                           return (
                             <>
                               <div className="relative">
@@ -870,7 +892,7 @@ const AttachReceipt = () => {
                                   onChange={(e) => {
                                     const value = e.target.value;
                                     setFixedExpensePaymentAmount(value);
-                                    
+
                                     // Validación en tiempo real con tolerancia de 1 centavo
                                     if (value && parseFloat(value) > remainingAmount + 0.01) {
                                       e.target.setCustomValidity(`El monto no puede exceder el saldo restante ($${remainingAmount.toFixed(2)})`);
@@ -893,7 +915,7 @@ const AttachReceipt = () => {
                                   Pagar Todo
                                 </button>
                               </div>
-                              
+
                               {/* Indicador visual del monto */}
                               {fixedExpensePaymentAmount && parseFloat(fixedExpensePaymentAmount) > 0 && (
                                 <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
@@ -907,10 +929,10 @@ const AttachReceipt = () => {
                                       ${parseFloat(fixedExpensePaymentAmount).toFixed(2)}
                                     </span>
                                   </div>
-                                  
+
                                   {Math.abs(parseFloat(fixedExpensePaymentAmount) - remainingAmount) > 0.01 && (
                                     <div className="mt-2 pt-2 border-t border-blue-200 text-xs text-gray-600">
-                                      Saldo restante después de este pago: 
+                                      Saldo restante después de este pago:
                                       <span className="font-semibold text-orange-600 ml-1">
                                         ${(remainingAmount - parseFloat(fixedExpensePaymentAmount)).toFixed(2)}
                                       </span>
@@ -974,7 +996,7 @@ const AttachReceipt = () => {
                   disabled={type === "Factura Pago Final Budget" && availableWorks.length === 0}
                 >
                   <option value="">
-                    {type === "Factura Pago Final Budget" 
+                    {type === "Factura Pago Final Budget"
                       ? "Seleccione una obra con factura final pendiente"
                       : "Seleccione una obra"}
                   </option>
@@ -984,7 +1006,7 @@ const AttachReceipt = () => {
                       const totalDue = parseFloat(work.finalInvoice.finalAmountDue || 0);
                       const totalPaid = parseFloat(work.finalInvoice.totalAmountPaid || 0);
                       const remainingBalance = (totalDue - totalPaid).toFixed(2);
-                      
+
                       return (
                         <option key={work.idWork} value={work.idWork}>
                           {work.propertyAddress} - Pendiente: ${remainingBalance}
@@ -1016,25 +1038,24 @@ const AttachReceipt = () => {
                   <InformationCircleIcon className="h-5 w-5 text-blue-500" />
                   <h5 className="font-semibold text-gray-800">Estado de la Obra</h5>
                 </div>
-                
+
                 <div className="space-y-2">
                   <p className="text-sm text-gray-700">
                     <span className="font-medium">Obra:</span> {currentWorkDetails.propertyAddress}
                   </p>
                   <div className="flex items-center space-x-2">
                     <span className="text-sm font-medium text-gray-700">Estado:</span>
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      currentWorkDetails.status === 'paymentReceived' 
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${currentWorkDetails.status === 'paymentReceived'
                         ? 'bg-green-100 text-green-800 border border-green-200' :
-                      currentWorkDetails.status === 'invoiceFinal' 
-                        ? 'bg-blue-100 text-blue-800 border border-blue-200' :
-                      'bg-gray-100 text-gray-800 border border-gray-200'
-                    }`}>
+                        currentWorkDetails.status === 'invoiceFinal'
+                          ? 'bg-blue-100 text-blue-800 border border-blue-200' :
+                          'bg-gray-100 text-gray-800 border border-gray-200'
+                      }`}>
                       {currentWorkDetails.status}
                     </span>
                   </div>
                 </div>
-                
+
                 {/* Alert for Missing Final Invoice */}
                 {type === "Factura Pago Final Budget" && !currentWorkDetails.finalInvoice && (
                   <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -1108,12 +1129,12 @@ const AttachReceipt = () => {
                     Detalles de Factura Final
                   </h5>
                 </div>
-                
+
                 <div className="bg-white rounded-lg p-4 space-y-3">
                   <p className="text-sm font-medium text-gray-800">
                     Obra: {currentWorkDetails.propertyAddress}
                   </p>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     <div className="space-y-2">
                       <p className="text-gray-600">
@@ -1122,7 +1143,7 @@ const AttachReceipt = () => {
                           ${parseFloat(finalInvoiceDetails.originalBudgetTotal || 0).toFixed(2)}
                         </span>
                       </p>
-                      
+
                       {parseFloat(finalInvoiceDetails.subtotalExtras || 0) > 0 && (
                         <p className="text-gray-600">
                           <span className="font-medium">Subtotal Extras:</span>
@@ -1131,7 +1152,7 @@ const AttachReceipt = () => {
                           </span>
                         </p>
                       )}
-                      
+
                       <p className="text-gray-600">
                         <span className="font-medium">Monto Total Adeudado:</span>
                         <span className="font-bold text-gray-800 ml-2">
@@ -1139,7 +1160,7 @@ const AttachReceipt = () => {
                         </span>
                       </p>
                     </div>
-                    
+
                     <div className="space-y-2">
                       <p className="text-gray-600">
                         <span className="font-medium">Total Pagado:</span>
@@ -1147,7 +1168,7 @@ const AttachReceipt = () => {
                           ${parseFloat(finalInvoiceDetails.totalAmountPaid || 0).toFixed(2)}
                         </span>
                       </p>
-                      
+
                       <p className="text-gray-600">
                         <span className="font-medium">Saldo Pendiente:</span>
                         <span className="font-bold text-red-600 ml-2">
@@ -1279,9 +1300,9 @@ const AttachReceipt = () => {
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                   placeholder={
                     paymentMethod === 'Cheque' ? 'Ej: Check #1234' :
-                    paymentMethod.includes('Card') || paymentMethod.includes('Débito') ? 'Ej: Últimos 4 dígitos: 5678' :
-                    paymentMethod === 'Transferencia Bancaria' ? 'Ej: Ref #ABC123' :
-                    'Detalles adicionales...'
+                      paymentMethod.includes('Card') || paymentMethod.includes('Débito') ? 'Ej: Últimos 4 dígitos: 5678' :
+                        paymentMethod === 'Transferencia Bancaria' ? 'Ej: Ref #ABC123' :
+                          'Detalles adicionales...'
                   }
                 />
               </div>
@@ -1318,11 +1339,11 @@ const AttachReceipt = () => {
                 <div className="flex items-center justify-center space-x-2">
                   <PaperClipIcon className="h-5 w-5" />
                   <span>
-                    {type === "Factura Pago Final Budget" && finalInvoiceDetails?.status === 'paid' 
-                      ? 'Factura completamente pagada' 
+                    {type === "Factura Pago Final Budget" && finalInvoiceDetails?.status === 'paid'
+                      ? 'Factura completamente pagada'
                       : type === "Factura Pago Final Budget" && finalInvoiceDetails?.status === 'cancelled'
-                      ? 'Factura cancelada - No se permiten pagos'
-                      : 'Adjuntar Comprobante'
+                        ? 'Factura cancelada - No se permiten pagos'
+                        : 'Adjuntar Comprobante'
                     }
                   </span>
                 </div>

@@ -11,8 +11,7 @@ const { BankAccount, BankTransaction } = require('../data');
  * Mapeo de paymentMethod a accountName
  */
 const PAYMENT_METHOD_TO_ACCOUNT = {
-  'Cap Trabajos Septic': 'Cap Trabajos Septic',
-  'Capital Proyectos Septic': 'Capital Proyectos Septic',
+  'Proyecto Septic BOFA': 'Proyecto Septic BOFA',
   'Chase Bank': 'Chase Bank',
   'Efectivo': 'Caja Chica'
 };

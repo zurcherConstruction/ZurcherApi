@@ -16,16 +16,11 @@ const { conn } = require('./src/data');
 const REAL_BALANCES = [
   {
     accountName: 'Chase Bank',
-    realBalance: 7899.86,
+    realBalance: 37664.86,
     description: 'Balance inicial registrado al implementar el sistema de tracking'
   },
   {
-    accountName: 'Cap Trabajos Septic',
-    realBalance: 0.00,  // No mencionado por el cliente - se asume $0
-    description: 'Balance inicial registrado al implementar el sistema de tracking'
-  },
-  {
-    accountName: 'Capital Proyectos Septic',
+    accountName: 'Proyecto Septic BOFA',
     realBalance: 2965.12,
     description: 'Balance inicial registrado al implementar el sistema de tracking'
   },
