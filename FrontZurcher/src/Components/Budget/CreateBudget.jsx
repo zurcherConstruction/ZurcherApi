@@ -762,6 +762,7 @@ const customCategoryOrder = [
           budgetItemId: item.budgetItemId || null,
           quantity: item.quantity,
           notes: item.notes || null,
+          supplierName: item.supplierName || null, // ✅ Incluir supplierName seleccionado
           ...(item.budgetItemId === null && {
             category: item.category,
             name: item.name,
