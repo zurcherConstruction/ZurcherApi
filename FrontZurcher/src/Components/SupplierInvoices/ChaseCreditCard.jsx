@@ -261,7 +261,7 @@ const ChaseCreditCard = ({ token }) => {
                       : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
                   }`}
                 >
-                  💳 Cargo
+                  💳 Gasto no registrado
                 </button>
                 <button
                   type="button"
