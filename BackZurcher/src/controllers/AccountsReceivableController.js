@@ -854,7 +854,7 @@ const AccountsReceivableController = {
         console.log(`✅ Expense creado: ${createdExpense.idExpense}`);
 
         // 🏦 Crear BankTransaction si paymentMethod es cuenta bancaria
-        const isBankPayment = ['Chase Bank', 'Capital Proyectos Septic', 'Cap Trabajos Septic'].includes(paymentMethod);
+        const isBankPayment = ['Chase Bank', 'Proyecto Septic BOFA'].includes(paymentMethod);
         if (isBankPayment) {
           console.log(`💸 Detectado pago de comisión con cuenta bancaria: ${paymentMethod}`);
           try {

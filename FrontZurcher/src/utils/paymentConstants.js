@@ -2,9 +2,8 @@
 // Sincronizado con backend: Income.js, Expense.js, Receipt.js, FixedExpense.js
 
 export const PAYMENT_METHODS = [
-  // Cuentas Bancarias
-  { value: 'Cap Trabajos Septic', label: 'Cap Trabajos Septic', category: 'bank' },
-  { value: 'Capital Proyectos Septic', label: 'Capital Proyectos Septic', category: 'bank' },
+  // 🏦 Cuentas Bancarias
+  { value: 'Proyecto Septic BOFA', label: 'Proyecto Septic BOFA', category: 'bank' },
   { value: 'Chase Bank', label: 'Chase Bank', category: 'bank' },
   
   // Tarjetas

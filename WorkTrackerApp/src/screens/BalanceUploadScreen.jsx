@@ -31,8 +31,7 @@ const expenseTypes = [
 
 // ✅ Métodos de pago sincronizados con el backend
 const paymentMethods = [
-  'Cap Trabajos Septic',
-  'Capital Proyectos Septic',
+  'Proyecto Septic BOFA',
   'Chase Bank',
   'AMEX',
   'Chase Credit Card',

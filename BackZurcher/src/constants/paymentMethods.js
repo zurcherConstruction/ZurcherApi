@@ -6,8 +6,7 @@
 // 🏦 MÉTODOS DE PAGO - ENUM para Income, Expense y FixedExpense
 const PAYMENT_METHODS = {
   // Cuentas Bancarias
-  CAP_TRABAJOS: 'Cap Trabajos Septic',
-  CAP_PROYECTOS: 'Capital Proyectos Septic',
+  CAP_PROYECTOS: 'Proyecto Septic BOFA',
   CHASE_BANK: 'Chase Bank',
   
   // Tarjetas de Crédito
@@ -26,8 +25,7 @@ const PAYMENT_METHODS = {
 
 // Array para selects en el frontend
 const PAYMENT_METHODS_ARRAY = [
-  { value: PAYMENT_METHODS.CAP_TRABAJOS, label: 'Cap de Trabajos Septic', type: 'bank' },
-  { value: PAYMENT_METHODS.CAP_PROYECTOS, label: 'Capital de Proyectos Septic', type: 'bank' },
+  { value: PAYMENT_METHODS.CAP_PROYECTOS, label: 'Proyecto Septic BOFA', type: 'bank' },
   { value: PAYMENT_METHODS.CHASE_BANK, label: 'Chase Bank', type: 'bank' },
   { value: PAYMENT_METHODS.AMEX, label: 'AMEX', type: 'credit_card' },
   { value: PAYMENT_METHODS.CHASE_CREDIT, label: 'Chase Credit Card', type: 'credit_card' },

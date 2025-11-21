@@ -65,8 +65,7 @@ module.exports = (sequelize) => {
     paymentMethod: {
       type: DataTypes.ENUM(
         // Bancos
-        'Cap Trabajos Septic',
-        'Capital Proyectos Septic',
+        'Proyecto Septic BOFA',
         'Chase Bank',
         // Tarjetas
         'AMEX',

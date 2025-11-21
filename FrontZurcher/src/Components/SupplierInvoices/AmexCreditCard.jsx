@@ -262,7 +262,7 @@ const AmexCreditCard = ({ token }) => {
                       : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
                   }`}
                 >
-                  💳 Cargo
+                  💳 Gasto no registrado
                 </button>
                 <button
                   type="button"
@@ -365,8 +365,7 @@ const AmexCreditCard = ({ token }) => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent"
                   >
                     <option value="Chase Bank">Chase Bank</option>
-                    <option value="Capital Proyectos Septic">Capital Proyectos Septic</option>
-                    <option value="Cap Trabajos Septic">Cap Trabajos Septic</option>
+                    <option value="Proyecto Septic BOFA">Proyecto Septic BOFA</option>
                     <option value="Transferencia Bancaria">Transferencia Bancaria</option>
                     <option value="Cheque">Cheque</option>
                   </select>

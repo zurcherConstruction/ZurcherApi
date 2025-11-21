@@ -346,11 +346,10 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
       // ✅ INICIO: Lógica del botón de pago de Stripe
       let paymentLinkUrl = null;
       const paymentAmountForStripe = total;
-      const paymentAmountWithFee = Math.round(paymentAmountForStripe * 1.03 * 100); // suma el 3% y convierte a centav
+      const paymentAmountWithFee = Math.round(paymentAmountForStripe * 1.03 * 100); // suma el 3% y convierte a centavos
 
       if (invoiceStatus !== 'paid' && paymentAmountForStripe > 0 && process.env.STRIPE_SECRET_KEY) {
         try {
-          // Configurar expiración del link de pago para 30 días desde ahora
           // Crear producto y precio en Stripe
           const product = await stripe.products.create({
             name: `Final Invoice #${invoiceNumber} - ${clientName}`,
@@ -409,12 +408,12 @@ async function generateAndSaveFinalInvoicePDF(invoiceData) {
         doc.text('Click Here to Pay Online', buttonX, buttonY + (buttonHeight / 2) - 4, { width: buttonWidth, align: 'center' });
         doc.restore();
         doc.link(buttonX, buttonY, buttonWidth, buttonHeight, paymentLinkUrl);
-          doc.y = buttonY + buttonHeight + 5;
+        doc.y = buttonY + buttonHeight + 5;
 
-    // Agregar aclaración del 3% fee debajo del botón
-    doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
-    doc.text('Note: Online payments via this button include a 3% processing fee.', buttonX, doc.y, { width: buttonWidth, align: 'center' });
-    doc.y += 5;
+        // Agregar aclaración del 3% fee debajo del botón
+        doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_MEDIUM);
+        doc.text('Note: Online payments via this button include a 3% processing fee.', buttonX, doc.y, { width: buttonWidth, align: 'center' });
+        doc.y += 5;
       }
       // ✅ FIN: Lógica del botón de pago de Stripe
 
