@@ -85,7 +85,8 @@ router.post('/:visitId/complete',
         { name: 'maintenanceFiles', maxCount: 20 }, // Archivos generales de la inspección
         { name: 'wellSample1', maxCount: 1 },       // Muestra 1 PBTS/ATU
         { name: 'wellSample2', maxCount: 1 },       // Muestra 2 PBTS/ATU
-        { name: 'wellSample3', maxCount: 1 }        // Muestra 3 PBTS/ATU
+        { name: 'wellSample3', maxCount: 1 },       // Muestra 3 PBTS/ATU
+        { name: 'systemVideo', maxCount: 1 }        // Video general del sistema
     ]),
     MaintenanceController.completeMaintenanceVisit
 );
@@ -93,7 +94,7 @@ router.post('/:visitId/complete',
 // 📄 Descargar PDF de visita de mantenimiento completada
 router.get('/:visitId/download-pdf',
     verifyToken,
-    allowRoles(['admin', 'owner', 'maintenance']),
+    allowRoles(['admin', 'owner', 'maintenance', 'worker']),
     MaintenanceController.downloadMaintenancePDF
 );
 
