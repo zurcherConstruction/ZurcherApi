@@ -242,10 +242,10 @@ const WorkZoneMap = () => {
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-slate-800 mb-3 flex items-center gap-3">
             <MapPinIcon className="h-10 w-10 text-blue-600" />
-            Mapa de Obras por Zona
+            Obras por Zona
           </h1>
           <p className="text-slate-600 text-lg">
-            Obras activas agrupadas por ubicación geográfica
+            Obras activas agrupadas por ubicación
           </p>
         </div>
 
