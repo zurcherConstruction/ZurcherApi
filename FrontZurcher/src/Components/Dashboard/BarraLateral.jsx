@@ -23,7 +23,8 @@ import {
   FaWrench,
   FaHistory,
   FaFileInvoice,
-  FaUniversity
+  FaUniversity,
+  FaMapMarkedAlt // 🆕 Icono para mapa de zonas
 } from "react-icons/fa";
 
 const BarraLateral = () => {
@@ -53,6 +54,7 @@ const BarraLateral = () => {
         { name: "Works", path: "/works", icon: FaTasks },
         { name: "Tracking Work", path: "/check", icon: FaClipboardCheck },
         { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
+        { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
         { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
         { name: "Maintenance", path: "/maintenance", icon: FaWrench },
         { name: "Edit Maintenance", path: "/legacy-maintenance", icon: FaHistory }, // 🆕 Editor de todos los maintenance
@@ -122,6 +124,7 @@ const BarraLateral = () => {
             { name: "Works", path: "/works", icon: FaTasks },
             // Tracking Work removido para admin
             { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
+            { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
             { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
             { name: "Maintenance", path: "/maintenance", icon: FaWrench },
             { name: "Edit Maintenance", path: "/legacy-maintenance", icon: FaHistory }, // 🆕 Editor de todos los maintenance
@@ -175,6 +178,7 @@ const BarraLateral = () => {
             { name: "Send Message", path: "/send-notifications", icon: FaBell },
             { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
             { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
+            { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
           ],
         },
       ];
@@ -196,6 +200,7 @@ const BarraLateral = () => {
           items: [
             { name: "Works (View Only)", path: "/works", icon: FaTasks },
             { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
+            { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
           ],
         },
         {
