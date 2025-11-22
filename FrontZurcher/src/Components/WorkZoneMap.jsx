@@ -56,8 +56,9 @@ const ZONES = {
   }
 };
 
-// Estados activos (desde purchase in progress hasta payment received)
+// Estados activos (desde pending hasta payment received)
 const ACTIVE_STATUSES = [
+  'pending',            // Sin progreso
   'assigned',           // Purchase in Progress
   'inProgress',         // Installing
   'installed',          // Inspection Pending
@@ -70,7 +71,23 @@ const ACTIVE_STATUSES = [
   'paymentReceived'
 ];
 
+// Orden de progreso para sorting (menor número = menos progreso)
+const STATUS_ORDER = {
+  'pending': 0,
+  'assigned': 1,
+  'inProgress': 2,
+  'installed': 3,
+  'firstInspectionPending': 4,
+  'rejectedInspection': 5,
+  'approvedInspection': 6,
+  'coverPending': 7,
+  'covered': 8,
+  'invoiceFinal': 9,
+  'paymentReceived': 10
+};
+
 const STATUS_LABELS = {
+  'pending': 'Pending',
   'assigned': 'Purchase in Progress',
   'inProgress': 'Installing',
   'installed': 'Inspection Pending',
@@ -84,6 +101,7 @@ const STATUS_LABELS = {
 };
 
 const STATUS_COLORS = {
+  'pending': 'bg-gray-100 text-gray-800 border-gray-300',
   'assigned': 'bg-yellow-100 text-yellow-800 border-yellow-300',
   'inProgress': 'bg-blue-100 text-blue-800 border-blue-300',
   'installed': 'bg-purple-100 text-purple-800 border-purple-300',
@@ -160,9 +178,13 @@ const WorkZoneMap = () => {
       }
     });
 
-    // Ordenar obras dentro de cada zona por ID (más recientes primero)
+    // Ordenar obras dentro de cada zona por progreso (menos progreso primero)
     Object.keys(grouped).forEach(zone => {
-      grouped[zone].sort((a, b) => b.idWork - a.idWork);
+      grouped[zone].sort((a, b) => {
+        const orderA = STATUS_ORDER[a.status] ?? 999;
+        const orderB = STATUS_ORDER[b.status] ?? 999;
+        return orderA - orderB;
+      });
     });
 
     setZoneData(grouped);
