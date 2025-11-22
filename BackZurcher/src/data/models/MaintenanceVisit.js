@@ -47,7 +47,27 @@ module.exports = (sequelize) => {
     },
     
     // === Campos del formulario de inspección ===
-    // Niveles
+    // Niveles del tanque (nuevos campos con STRING para medidas descriptivas)
+    tank_inlet_level: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Nivel de entrada del tanque (ej: "12 pulgadas")'
+    },
+    tank_inlet_notes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    tank_outlet_level: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Nivel de salida del tanque (ej: "8 pulgadas")'
+    },
+    tank_outlet_notes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    
+    // Niveles legacy (mantener por compatibilidad)
     level_inlet: {
       type: DataTypes.FLOAT,
       allowNull: true,
@@ -90,9 +110,19 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    septic_access_clear: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      comment: '¿Acceso al séptico despejado?'
+    },
+    septic_access_notes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
     cap_green_inspected: {
       type: DataTypes.BOOLEAN,
       allowNull: true,
+      comment: '¿T de inspección cap verde?'
     },
     cap_green_notes: {
       type: DataTypes.TEXT,
@@ -101,6 +131,11 @@ module.exports = (sequelize) => {
     needs_pumping: {
       type: DataTypes.BOOLEAN,
       allowNull: true,
+    },
+    needs_pumping_notes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'Notas sobre si necesita bombeo'
     },
     
     // Sistema ATU / ATU PBTS
@@ -144,8 +179,54 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true,
     },
+    alarm_test: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      comment: '¿Prueba de alarma funcionando?'
+    },
+    alarm_test_notes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
     
     // Lift Station
+    pump_running: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      comment: '¿Bomba funcionando?'
+    },
+    pump_running_notes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    float_switches: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      comment: '¿Flotantes en buena condición?'
+    },
+    float_switches_notes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    alarm_working: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      comment: '¿Panel de alarma funcionando?'
+    },
+    alarm_working_notes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    pump_condition: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      comment: '¿Bomba en buena condición?'
+    },
+    pump_condition_notes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    // Lift Station (campos legacy)
     alarm_panel_working: {
       type: DataTypes.BOOLEAN,
       allowNull: true,
@@ -197,6 +278,13 @@ module.exports = (sequelize) => {
       allowNull: true,
       defaultValue: [],
       comment: 'Datos adicionales de las muestras (legacy field)'
+    },
+    
+    // Video del sistema
+    system_video_url: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'URL del video general del sistema'
     },
     
     // Observaciones generales y firma

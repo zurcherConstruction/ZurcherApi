@@ -946,9 +946,26 @@ const completeMaintenanceVisit = async (req, res) => {
     const files = req.files; // Objeto con arrays por fieldname cuando usamos upload.fields()
     const currentUserId = req.staff?.id;
 
+    // LOG: Ver qué está llegando
+    console.log('🔍 BACKEND - Datos recibidos para visitId:', visitId);
+    console.log('🔍 tank_inlet_level:', req.body.tank_inlet_level);
+    console.log('🔍 tank_outlet_level:', req.body.tank_outlet_level);
+    console.log('🔍 septic_access_clear:', req.body.septic_access_clear);
+    console.log('🔍 needs_pumping:', req.body.needs_pumping);
+    console.log('🔍 alarm_test:', req.body.alarm_test);
+    console.log('🔍 pump_running:', req.body.pump_running);
+    console.log('🔍 float_switches:', req.body.float_switches);
+    console.log('🔍 alarm_working:', req.body.alarm_working);
+
     // Extraer todos los campos del formulario
     const {
-      // Niveles
+      // Niveles del tanque
+      tank_inlet_level,
+      tank_inlet_notes,
+      tank_outlet_level,
+      tank_outlet_notes,
+      
+      // Niveles (legacy - mantener por compatibilidad)
       level_inlet,
       level_outlet,
       
@@ -961,9 +978,12 @@ const completeMaintenanceVisit = async (req, res) => {
       visible_leaks_notes,
       area_around_dry,
       area_around_notes,
+      septic_access_clear,
+      septic_access_notes,
       cap_green_inspected,
       cap_green_notes,
       needs_pumping,
+      needs_pumping_notes,
       
       // Sistema ATU
       blower_working,
@@ -976,8 +996,18 @@ const completeMaintenanceVisit = async (req, res) => {
       discharge_pump_notes,
       clarified_water_outlet,
       clarified_water_notes,
+      alarm_test,
+      alarm_test_notes,
       
       // Lift Station
+      pump_running,
+      pump_running_notes,
+      float_switches,
+      float_switches_notes,
+      alarm_working,
+      alarm_working_notes,
+      pump_condition,
+      pump_condition_notes,
       alarm_panel_working,
       alarm_panel_notes,
       pump_working,
@@ -990,6 +1020,9 @@ const completeMaintenanceVisit = async (req, res) => {
       
       // PBTS/ATU - Nuevos campos
       well_points_quantity,
+      
+      // VIDEO
+      system_video_url,
       
       // Generales
       general_notes,
@@ -1015,8 +1048,17 @@ const completeMaintenanceVisit = async (req, res) => {
     }
 
     // Actualizar campos del formulario
-    visit.level_inlet = level_inlet || null;
-    visit.level_outlet = level_outlet || null;
+    // Niveles del tanque (nuevos campos)
+    visit.tank_inlet_level = tank_inlet_level || null;
+    visit.tank_inlet_notes = tank_inlet_notes || null;
+    visit.tank_outlet_level = tank_outlet_level || null;
+    visit.tank_outlet_notes = tank_outlet_notes || null;
+    
+    // Niveles legacy (mantener por compatibilidad)
+    visit.level_inlet = level_inlet || tank_inlet_level || null;
+    visit.level_outlet = level_outlet || tank_outlet_level || null;
+    
+    // Inspección General
     visit.strong_odors = strong_odors === 'true' || strong_odors === true;
     visit.strong_odors_notes = strong_odors_notes || null;
     visit.water_level_ok = water_level_ok === 'true' || water_level_ok === true;
@@ -1025,23 +1067,36 @@ const completeMaintenanceVisit = async (req, res) => {
     visit.visible_leaks_notes = visible_leaks_notes || null;
     visit.area_around_dry = area_around_dry === 'true' || area_around_dry === true;
     visit.area_around_notes = area_around_notes || null;
-    visit.cap_green_inspected = cap_green_inspected === 'true' || cap_green_inspected === true;
+    visit.septic_access_clear = septic_access_clear === 'true' || septic_access_clear === true || septic_access_clear === 'SI';
+    visit.septic_access_notes = septic_access_notes || null;
+    visit.cap_green_inspected = cap_green_inspected === 'true' || cap_green_inspected === true || cap_green_inspected === 'SI';
     visit.cap_green_notes = cap_green_notes || null;
-    visit.needs_pumping = needs_pumping === 'true' || needs_pumping === true;
+    visit.needs_pumping = needs_pumping === 'true' || needs_pumping === true || needs_pumping === 'SI';
+    visit.needs_pumping_notes = needs_pumping_notes || null;
     
-    // ATU
+    // Sistema ATU
     visit.blower_working = blower_working === 'true' || blower_working === true;
     visit.blower_working_notes = blower_working_notes || null;
     visit.blower_filter_clean = blower_filter_clean === 'true' || blower_filter_clean === true;
     visit.blower_filter_notes = blower_filter_notes || null;
     visit.diffusers_bubbling = diffusers_bubbling === 'true' || diffusers_bubbling === true;
     visit.diffusers_bubbling_notes = diffusers_bubbling_notes || null;
-    visit.discharge_pump_ok = discharge_pump_ok === 'true' || discharge_pump_ok === true;
+    visit.discharge_pump_ok = discharge_pump_ok === 'true' || discharge_pump_ok === true || discharge_pump_ok === 'SI';
     visit.discharge_pump_notes = discharge_pump_notes || null;
     visit.clarified_water_outlet = clarified_water_outlet === 'true' || clarified_water_outlet === true;
     visit.clarified_water_notes = clarified_water_notes || null;
+    visit.alarm_test = alarm_test === 'true' || alarm_test === true || alarm_test === 'SI';
+    visit.alarm_test_notes = alarm_test_notes || null;
     
     // Lift Station
+    visit.pump_running = pump_running === 'true' || pump_running === true || pump_running === 'SI';
+    visit.pump_running_notes = pump_running_notes || null;
+    visit.float_switches = float_switches === 'true' || float_switches === true || float_switches === 'SI';
+    visit.float_switches_notes = float_switches_notes || null;
+    visit.alarm_working = alarm_working === 'true' || alarm_working === true || alarm_working === 'SI';
+    visit.alarm_working_notes = alarm_working_notes || null;
+    visit.pump_condition = pump_condition === 'true' || pump_condition === true || pump_condition === 'SI';
+    visit.pump_condition_notes = pump_condition_notes || null;
     visit.alarm_panel_working = alarm_panel_working === 'true' || alarm_panel_working === true;
     visit.alarm_panel_notes = alarm_panel_notes || null;
     visit.pump_working = pump_working === 'true' || pump_working === true;
@@ -1063,6 +1118,9 @@ const completeMaintenanceVisit = async (req, res) => {
     if (well_points_quantity) {
       visit.well_points_quantity = parseInt(well_points_quantity, 10);
     }
+    
+    // Video del sistema
+    visit.system_video_url = system_video_url || null;
     
     visit.general_notes = general_notes || null;
     
@@ -1105,28 +1163,47 @@ const completeMaintenanceVisit = async (req, res) => {
     
     await visit.save(); // Guardar nuevamente con las URLs de las muestras
 
+    // Procesar video del sistema (systemVideo)
+    const systemVideoArray = files?.systemVideo;
+    if (systemVideoArray && systemVideoArray.length > 0) {
+      const videoFile = systemVideoArray[0];
+      try {
+        console.log('🎬 Subiendo video del sistema:', videoFile.originalname);
+        const cloudinaryResult = await uploadBufferToCloudinary(videoFile.buffer, {
+          folder: `maintenance/${visit.workId}/${visit.id}/system_video`,
+          resource_type: 'video',
+        });
+        
+        visit.system_video_url = cloudinaryResult.secure_url;
+        await visit.save();
+        console.log('✅ Video del sistema guardado:', cloudinaryResult.secure_url);
+      } catch (error) {
+        console.error('❌ Error subiendo video del sistema:', error);
+      }
+    }
+
     // Procesar archivos subidos (maintenanceFiles)
     const uploadedMedia = [];
     const maintenanceFiles = files?.maintenanceFiles || []; // Extraer array de maintenanceFiles
+    
+    // Obtener el array de fieldNames enviado desde el frontend
+    const fieldNames = req.body.fieldNames || [];
+    console.log('📸 Archivos recibidos:', maintenanceFiles.length);
+    console.log('📸 FieldNames recibidos:', fieldNames);
+    
     if (maintenanceFiles.length > 0) {
-      let fieldMapping = {};
-      if (fileFieldMapping) {
-        try {
-          fieldMapping = typeof fileFieldMapping === 'string' ? JSON.parse(fileFieldMapping) : fileFieldMapping;
-        } catch (e) {
-          console.error('Error parsing fileFieldMapping:', e);
-        }
-      }
-
-      for (const file of maintenanceFiles) {
+      for (let i = 0; i < maintenanceFiles.length; i++) {
+        const file = maintenanceFiles[i];
+        // Obtener el fieldName correspondiente del array (mismo índice)
+        const fieldName = Array.isArray(fieldNames) ? fieldNames[i] : (fieldNames || 'general');
+        
+        console.log(`📸 Procesando archivo ${i + 1}/${maintenanceFiles.length}: ${file.originalname} -> campo: ${fieldName}`);
+        
         const resourceType = file.mimetype.startsWith('video/') ? 'video' : (file.mimetype.startsWith('image/') ? 'image' : 'raw');
         const cloudinaryResult = await uploadBufferToCloudinary(file.buffer, {
           folder: `maintenance/${visit.workId}/${visit.id}`,
           resource_type: resourceType,
         });
-
-        // Determinar a qué campo pertenece este archivo
-        const fieldName = fieldMapping[file.originalname] || 'general';
 
         const newMedia = await MaintenanceMedia.create({
           maintenanceVisitId: visit.id,
@@ -1134,9 +1211,10 @@ const completeMaintenanceVisit = async (req, res) => {
           publicId: cloudinaryResult.public_id,
           mediaType: resourceType === 'raw' ? 'document' : resourceType,
           originalName: file.originalname,
-          fieldName: fieldName,
+          fieldName: fieldName, // Usar el fieldName del array
         });
         uploadedMedia.push(newMedia);
+        console.log(`✅ Archivo guardado con fieldName: ${fieldName}`);
       }
     }
 
@@ -1294,12 +1372,35 @@ const downloadMaintenancePDF = async (req, res) => {
       return res.status(404).json({ error: true, message: 'Visita de mantenimiento no encontrada.' });
     }
 
-    // Verificar que la visita esté completada
-    if (visit.status !== 'completed') {
-      return res.status(400).json({ 
+    // Verificar permisos: worker asignado, completador, o admin/owner
+    const currentUserId = req.staff?.id;
+    const userRole = req.staff?.rol || req.staff?.role; // Puede ser 'rol' o 'role'
+    
+    console.log('🔍 DEBUG PDF Download:');
+    console.log('  Current User ID:', currentUserId);
+    console.log('  User Role:', userRole);
+    console.log('  Visit Staff ID:', visit.staffId);
+    console.log('  Completed By Staff ID:', visit.completed_by_staff_id);
+    
+    const isAuthorized = 
+      visit.staffId === currentUserId || 
+      visit.completed_by_staff_id === currentUserId ||
+      ['admin', 'owner', 'maintenance', 'worker'].includes(userRole?.toLowerCase());
+
+    if (!isAuthorized) {
+      console.log('❌ Acceso denegado para usuario:', currentUserId, 'con rol:', userRole);
+      return res.status(403).json({ 
         error: true, 
-        message: 'Solo se pueden generar PDFs para visitas completadas.' 
+        message: 'No tienes permiso para descargar este reporte.' 
       });
+    }
+
+    console.log('✅ Acceso autorizado para usuario:', currentUserId, 'con rol:', userRole);
+
+    // PERMITIR descargar PDF aunque no esté completada (para preview)
+    // Solo advertir si no está completada
+    if (visit.status !== 'completed') {
+      console.log(`⚠️ Generando PDF de visita en progreso (status: ${visit.status})`);
     }
 
     // Generar el PDF

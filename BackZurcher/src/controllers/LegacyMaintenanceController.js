@@ -71,6 +71,10 @@ const updateLegacyMaintenanceWork = async (req, res) => {
       // Permit
       permitId, // ID del permit a vincular
       
+      // System info (NUEVO)
+      systemType,
+      isPBTS,
+      
       // Opcional
       notes
     } = req.body;
@@ -81,6 +85,8 @@ const updateLegacyMaintenanceWork = async (req, res) => {
       clientEmail,
       clientPhone,
       permitId,
+      systemType,
+      isPBTS,
       notes
     });
 
@@ -131,13 +137,17 @@ const updateLegacyMaintenanceWork = async (req, res) => {
       if (clientName) permitUpdates.applicantName = clientName;
       if (clientEmail) permitUpdates.applicantEmail = clientEmail;
       if (clientPhone) permitUpdates.applicantPhone = clientPhone;
+      if (systemType !== undefined) permitUpdates.systemType = systemType;
+      if (isPBTS !== undefined) permitUpdates.isPBTS = isPBTS;
 
       if (Object.keys(permitUpdates).length > 0) {
         await permit.update(permitUpdates);
         console.log('✅ [UPDATE PERMIT] Datos DESPUÉS:', {
           applicantName: permit.applicantName,
           applicantEmail: permit.applicantEmail,
-          applicantPhone: permit.applicantPhone
+          applicantPhone: permit.applicantPhone,
+          systemType: permit.systemType,
+          isPBTS: permit.isPBTS
         });
       }
     } else {
