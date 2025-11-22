@@ -15,6 +15,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import * as ImagePicker from 'expo-image-picker';
 import { createGeneralExpenseWithReceipt } from '../Redux/features/balanceSlice'; // Ajusta la ruta
 import { useNavigation } from '@react-navigation/native';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import * as FileSystem from 'expo-file-system';
 
 const GeneralExpenseScreen = () => {
   const dispatch = useDispatch();
@@ -44,6 +46,42 @@ const GeneralExpenseScreen = () => {
     })();
   }, []);
 
+  // ✅ Función para optimizar imágenes de comprobantes
+  const optimizeReceiptImage = async (imageUri) => {
+    try {
+      console.log('🧾 Optimizando comprobante...');
+      
+      // Reducir a 1024px de ancho (suficiente para leer texto/números)
+      const resizedImage = await manipulateAsync(
+        imageUri,
+        [{ resize: { width: 1024 } }],
+        { compress: 0.3, format: SaveFormat.JPEG } // 30% de calidad
+      );
+      
+      const imageInfo = await FileSystem.getInfoAsync(resizedImage.uri);
+      const sizeKB = imageInfo.size / 1024;
+      
+      console.log(`🧾 Comprobante optimizado: ${sizeKB.toFixed(0)}KB`);
+      
+      // Si aún es muy pesado (>2MB), comprimir más
+      if (sizeKB > 2048) {
+        console.log('⚠️ Comprobante muy pesado, comprimiendo más...');
+        const extraCompressed = await manipulateAsync(
+          resizedImage.uri,
+          [{ resize: { width: 800 } }],
+          { compress: 0.2, format: SaveFormat.JPEG }
+        );
+        return extraCompressed.uri;
+      }
+      
+      return resizedImage.uri;
+    } catch (error) {
+      console.error('Error optimizando comprobante:', error);
+      // Si falla la optimización, usar imagen original
+      return imageUri;
+    }
+  };
+
   const handlePickImage = async () => {
     Alert.alert(
         "Seleccionar Imagen",
@@ -56,12 +94,14 @@ const GeneralExpenseScreen = () => {
                         mediaTypes: ImagePicker.MediaTypeOptions.Images,
                         allowsEditing: true,
                         aspect: [4, 3],
-                        quality: 0.7, // Reducir calidad para tamaño
+                        quality: 0.3, // ✅ OPTIMIZACIÓN: Comprobantes no necesitan alta calidad
                     });
 
                     if (!result.canceled) {
                         const asset = result.assets[0];
-                        setImage({ uri: asset.uri, mimeType: asset.mimeType, fileName: asset.fileName });
+                        // ✅ Optimizar imagen antes de guardarla
+                        const optimizedUri = await optimizeReceiptImage(asset.uri);
+                        setImage({ uri: optimizedUri, mimeType: 'image/jpeg', fileName: asset.fileName || `receipt_${Date.now()}.jpg` });
                     }
                 },
             },
@@ -71,11 +111,13 @@ const GeneralExpenseScreen = () => {
                      let result = await ImagePicker.launchCameraAsync({
                         allowsEditing: true,
                         aspect: [4, 3],
-                        quality: 0.7,
+                        quality: 0.3, // ✅ OPTIMIZACIÓN: Comprobantes no necesitan alta calidad
                     });
                      if (!result.canceled) {
                         const asset = result.assets[0];
-                        setImage({ uri: asset.uri, mimeType: asset.mimeType, fileName: asset.fileName || `camera_${Date.now()}.jpg` });
+                        // ✅ Optimizar imagen antes de guardarla
+                        const optimizedUri = await optimizeReceiptImage(asset.uri);
+                        setImage({ uri: optimizedUri, mimeType: 'image/jpeg', fileName: asset.fileName || `receipt_${Date.now()}.jpg` });
                     }
                 },
             },
@@ -85,36 +127,53 @@ const GeneralExpenseScreen = () => {
   };
 
   const handleSubmit = () => {
-    // Validación básica
+    // Validación mejorada
     const numericAmount = parseFloat(amount);
+    
+    console.log('💰 GASTO GENERAL - Validando monto:', {
+      original: amount,
+      parsed: numericAmount,
+      type: typeof numericAmount
+    });
+    
     if (isNaN(numericAmount) || numericAmount <= 0) {
-      Alert.alert('Error', 'Por favor, ingresa un monto válido.');
+      Alert.alert('Error', 'Por favor, ingresa un monto válido mayor a $0.00');
       return;
     }
+    
     if (!notes.trim() && !image) {
         Alert.alert('Error', 'Por favor, añade una nota o una imagen para el gasto.');
         return;
     }
 
+    // ✅ Formatear a exactamente 2 decimales
+    const formattedAmount = parseFloat(numericAmount.toFixed(2));
+    
+    console.log('💰 GASTO GENERAL - Enviando:', {
+      formatted: formattedAmount,
+      asString: formattedAmount.toString(),
+      staffId: user?.id
+    });
 
     dispatch(createGeneralExpenseWithReceipt({ 
-      amount: numericAmount, 
+      amount: formattedAmount, // ✅ Usar valor formateado
       notes, 
       image,
-      staffId: user?.id // Agregar staffId del usuario autenticado
+      staffId: user?.id
     }))
       .unwrap() // Permite usar .then() y .catch() en el dispatch
-      .then(() => {
-        Alert.alert('Éxito', 'Gasto general guardado correctamente.');
+      .then((response) => {
+        console.log('✅ GASTO GENERAL - Respuesta exitosa:', response);
+        Alert.alert('Éxito', `Gasto de $${formattedAmount.toFixed(2)} guardado correctamente.`);
         // Limpiar formulario y navegar atrás o a otra pantalla
         setAmount('');
         setNotes('');
         setImage(null);
-        navigation.goBack(); // O a donde sea apropiado
+        navigation.goBack();
       })
       .catch((err) => {
-        // El error ya se guarda en el estado de Redux, pero mostramos alerta
-        Alert.alert('Error al guardar', err || 'No se pudo guardar el gasto.');
+        console.error('❌ GASTO GENERAL - Error:', err);
+        Alert.alert('Error al guardar', err?.message || err || 'No se pudo guardar el gasto.');
       });
   };
 
@@ -129,9 +188,15 @@ const GeneralExpenseScreen = () => {
         style={styles.input}
         value={amount}
         onChangeText={setAmount}
-        keyboardType="numeric"
+        keyboardType="decimal-pad" // ✅ CAMBIO: decimal-pad en lugar de numeric para iOS
         placeholder="Ej: 50.75"
       />
+      {/* Vista previa del monto */}
+      {amount && amount.length > 0 && (
+        <Text style={styles.previewAmount}>
+          Vista previa: ${parseFloat(amount || 0).toFixed(2)}
+        </Text>
+      )}
 
       <Text style={styles.label}>Notas / Descripción</Text>
       <TextInput
@@ -240,6 +305,13 @@ const styles = StyleSheet.create({
       color: '#dc2626', // red-600
       textAlign: 'center',
       marginBottom: 10,
+  },
+  previewAmount: {
+    fontSize: 14,
+    color: '#059669', // green-600
+    marginTop: -10,
+    marginBottom: 10,
+    fontWeight: '600',
   }
 });
 

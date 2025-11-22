@@ -349,7 +349,7 @@ const UploadScreen = () => {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.5,
+      quality: 0.3, // ✅ OPTIMIZACIÓN iPhone: Calidad al 30% desde el picker
       allowsMultipleSelection: allowMultiple, 
     });
 
@@ -469,7 +469,7 @@ const UploadScreen = () => {
 
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.5,
+      quality: 0.3, // ✅ OPTIMIZACIÓN iPhone: Calidad al 30% desde la cámara
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -575,18 +575,54 @@ const UploadScreen = () => {
 
     let tempImageId = `temp-${Date.now()}-${Math.random()}`;
     try {
+      // ✅ OPTIMIZACIÓN AGRESIVA para iPhone: 
+      // Las fotos de iPhone pueden pesar 3-8MB, las reducimos a ~100-300KB
       const resizedImage = await manipulateAsync(
         imageUri,
-        [{ resize: { width: 800 } }],
-        { compress: 0.7, format: SaveFormat.JPEG }
+        [{ resize: { width: 800 } }], // ✅ 800px es suficiente para ver detalles de instalación
+        { compress: 0.3, format: SaveFormat.JPEG } // ✅ Compresión agresiva al 30%
       );
+      
+      // Validar tamaño de imagen
+      const imageInfo = await FileSystem.getInfoAsync(resizedImage.uri);
+      const imageSizeMB = imageInfo.size / (1024 * 1024);
+      const imageSizeKB = imageInfo.size / 1024;
+      
+      console.log(`📸 Imagen procesada: ${imageSizeKB.toFixed(0)}KB (${imageSizeMB.toFixed(2)}MB)`);
+      
+      // Si aún es muy pesada (más de 3MB), comprimir más
+      let finalImage = resizedImage;
+      if (imageSizeMB > 3) {
+        console.log('⚠️ Imagen aún muy pesada, aplicando compresión extra...');
+        finalImage = await manipulateAsync(
+          resizedImage.uri,
+          [{ resize: { width: 600 } }], // Reducir más
+          { compress: 0.2, format: SaveFormat.JPEG } // Compresión extrema
+        );
+        const finalInfo = await FileSystem.getInfoAsync(finalImage.uri);
+        const finalSizeKB = finalInfo.size / 1024;
+        console.log(`📸 Imagen re-comprimida: ${finalSizeKB.toFixed(0)}KB`);
+      }
+      
+      // Validación final: rechazar si supera 5MB (caso extremo)
+      const finalInfo = await FileSystem.getInfoAsync(finalImage.uri);
+      const finalSizeMB = finalInfo.size / (1024 * 1024);
+      
+      if (finalSizeMB > 5) {
+        Alert.alert(
+          'Imagen muy grande', 
+          `La imagen (${finalSizeMB.toFixed(1)}MB) es demasiado pesada. Por favor, toma la foto con menor resolución en la configuración de la cámara.`
+        );
+        return Promise.reject(new Error('Imagen demasiado grande'));
+      }
+      
       const now = new Date();
       const dateTimeString = now.toLocaleString();
 
       const optimisticImagePayload = {
         id: tempImageId,
         stage: stageToUse, // Usar stageToUse
-        imageUrl: resizedImage.uri,
+        imageUrl: finalImage.uri, // ✅ Usar finalImage en lugar de resizedImage
         comment: comment,
         dateTime: dateTimeString,
         truckCount: truckCount,
@@ -599,7 +635,7 @@ const UploadScreen = () => {
       }));
       setImagesWithDataURLs(prev => ({
         ...prev,
-        [tempImageId]: resizedImage.uri
+        [tempImageId]: finalImage.uri // ✅ Usar finalImage
       }));
 
 
@@ -610,19 +646,27 @@ const UploadScreen = () => {
       if (truckCount !== null) {
         formData.append('truckCount', truckCount.toString());
       }
-      const filename = resizedImage.uri.split('/').pop();
+      const filename = finalImage.uri.split('/').pop(); // ✅ Usar finalImage
       const match = /\.(\w+)$/.exec(filename);
       const type = match ? `image/${match[1]}` : `image/jpeg`;
       
-      // 🌐 SOPORTE PARA WEB: Convertir URI a Blob
-      if (Platform.OS === 'web') {
-        const response = await fetch(resizedImage.uri);
-        const blob = await response.blob();
-        formData.append('imageFile', blob, filename);
+      // ✅ OPTIMIZACIÓN iOS: FormData simplificado para iOS
+      if (Platform.OS === 'ios') {
+        formData.append('imageFile', { 
+          uri: finalImage.uri,  // ✅ Usar finalImage
+          name: filename, 
+          type: type 
+        });
       } else {
-        // 📱 MÓVIL: Usar el formato estándar de React Native
-        formData.append('imageFile', { uri: resizedImage.uri, name: filename, type: type });
+        // Para otros OS si alguna vez se usa
+        formData.append('imageFile', { 
+          uri: finalImage.uri,  // ✅ Usar finalImage
+          name: filename, 
+          type: type 
+        });
       }
+
+      console.log(`📤 Subiendo imagen: ${filename} (${(finalInfo.size / 1024).toFixed(0)}KB)`);
 
       const resultAction = await dispatch(addImagesToWork(idWork, formData));
       

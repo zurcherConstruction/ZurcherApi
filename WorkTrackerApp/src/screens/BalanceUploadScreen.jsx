@@ -6,6 +6,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import { createIncome, createExpense, createReceipt } from '../Redux/features/balanceSlice';
 import { useDispatch, useSelector } from 'react-redux';
 import { Picker } from '@react-native-picker/picker';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import * as FileSystem from 'expo-file-system';
 
 // ✅ Tipos sincronizados con el backend
 const incomeTypes = [
@@ -77,6 +79,44 @@ const BalanceUploadScreen = () => {
     }
   }, [uploadType]);
 
+  // ✅ Función para optimizar imágenes de comprobantes
+  const optimizeReceiptImage = async (imageUri) => {
+    try {
+      console.log('🧾 Optimizando comprobante de balance...');
+      
+      // Reducir a 1024px de ancho (suficiente para leer facturas/recibos)
+      const resizedImage = await manipulateAsync(
+        imageUri,
+        [{ resize: { width: 1024 } }],
+        { compress: 0.3, format: SaveFormat.JPEG }
+      );
+      
+      const imageInfo = await FileSystem.getInfoAsync(resizedImage.uri);
+      const sizeKB = imageInfo.size / 1024;
+      
+      console.log(`🧾 Comprobante optimizado: ${sizeKB.toFixed(0)}KB`);
+      
+      // Si aún es muy pesado (>2MB), comprimir más
+      if (sizeKB > 2048) {
+        console.log('⚠️ Comprobante muy pesado, comprimiendo más...');
+        const extraCompressed = await manipulateAsync(
+          resizedImage.uri,
+          [{ resize: { width: 800 } }],
+          { compress: 0.2, format: SaveFormat.JPEG }
+        );
+        const finalInfo = await FileSystem.getInfoAsync(extraCompressed.uri);
+        console.log(`🧾 Comprobante re-comprimido: ${(finalInfo.size / 1024).toFixed(0)}KB`);
+        return extraCompressed.uri;
+      }
+      
+      return resizedImage.uri;
+    } catch (error) {
+      console.error('Error optimizando comprobante:', error);
+      // Si falla la optimización, usar imagen original
+      return imageUri;
+    }
+  };
+
 
   const handlePickDocument = async () => {
     try {
@@ -94,11 +134,26 @@ const BalanceUploadScreen = () => {
              setSelectedFile(null);
              return;
         }
+        
+        // ✅ Si es imagen, optimizarla antes de guardar
+        let finalUri = asset.uri;
+        let finalSize = asset.size;
+        
+        if (asset.mimeType && asset.mimeType.startsWith('image/')) {
+          console.log('📸 Es imagen, optimizando...');
+          finalUri = await optimizeReceiptImage(asset.uri);
+          const optimizedInfo = await FileSystem.getInfoAsync(finalUri);
+          finalSize = optimizedInfo.size;
+          console.log(`✅ Tamaño reducido: ${(asset.size / 1024).toFixed(0)}KB → ${(finalSize / 1024).toFixed(0)}KB`);
+        } else {
+          console.log('📄 Es PDF, no se optimiza');
+        }
+        
         setSelectedFile({
-            uri: asset.uri,
+            uri: finalUri,
             name: asset.name,
             mimeType: asset.mimeType,
-            size: asset.size,
+            size: finalSize,
         });
       } else {
         setSelectedFile(null);
@@ -113,7 +168,7 @@ const BalanceUploadScreen = () => {
   const handleUpload = async () => {
     // Validaciones
     if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
-      Alert.alert('Error de Validación', 'Por favor, ingresa un monto válido.');
+      Alert.alert('Error de Validación', 'Por favor, ingresa un monto válido mayor a $0.00');
       return;
     }
     if (!typeDetail.trim()) {
@@ -130,6 +185,19 @@ const BalanceUploadScreen = () => {
       return;
     }
 
+    // ✅ Formatear monto a 2 decimales exactos
+    const numericAmount = parseFloat(amount);
+    const formattedAmount = parseFloat(numericAmount.toFixed(2));
+    
+    console.log('💰 BALANCE - Preparando datos:', {
+      type: uploadType,
+      original: amount,
+      parsed: numericAmount,
+      formatted: formattedAmount,
+      typeDetail,
+      paymentMethod
+    });
+
      // Para guardar el resultado de createIncome/createExpense
 
     try {
@@ -138,30 +206,32 @@ const BalanceUploadScreen = () => {
       if (uploadType === 'income') {
         const incomeData = {
           date: new Date().toISOString(),
-          amount: parseFloat(amount),
+          amount: formattedAmount, // ✅ Usar formattedAmount
           typeIncome: typeDetail,
           notes: notes,
           workId: idWork,
           staffId: user?.id, // Agregar staffId del usuario autenticado
           paymentMethod: paymentMethod, // 🆕 Método de pago
         };
+        console.log('📥 Enviando Income:', incomeData);
         // Despachar y esperar el resultado usando unwrap()
         createdRecord = await dispatch(createIncome(incomeData)).unwrap();
-        console.log('Income creado:', createdRecord);
+        console.log('✅ Income creado:', createdRecord);
 
       } else { // 'expense'
         const expenseData = {
           date: new Date().toISOString(),
-          amount: parseFloat(amount),
+          amount: formattedAmount, // ✅ Usar formattedAmount
           typeExpense: typeDetail,
           notes: notes,
           workId: idWork,
           staffId: user?.id, // Agregar staffId del usuario autenticado
           paymentMethod: paymentMethod, // 🆕 Método de pago
         };
+        console.log('📥 Enviando Expense:', expenseData);
         // Despachar y esperar el resultado usando unwrap()
         createdRecord = await dispatch(createExpense(expenseData)).unwrap();
-        console.log('Expense creado:', createdRecord);
+        console.log('✅ Expense creado:', createdRecord);
         console.log('archivo seleccionado:', selectedFile);
       }
       console.log('Verificando condición para subir Receipt:', {
@@ -210,7 +280,7 @@ const BalanceUploadScreen = () => {
         console.log('Receipt creado y asociado.');
       }
 
-      Alert.alert('Éxito', `${uploadType === 'income' ? 'Ingreso' : 'Gasto'} ${selectedFile ? 'y comprobante cargados' : 'cargado'} correctamente.`);
+      Alert.alert('Éxito', `${uploadType === 'income' ? 'Ingreso' : 'Gasto'} de $${formattedAmount.toFixed(2)} ${selectedFile ? 'y comprobante cargados' : 'cargado'} correctamente.`);
       // Limpiar formulario
       setAmount('');
       setTypeDetail('');
@@ -222,7 +292,7 @@ const BalanceUploadScreen = () => {
 
     } catch (error) {
       // unwrap() rechaza con el valor de rejectWithValue o un error serializado
-      console.error(`Error al cargar ${uploadType}:`, error);
+      console.error(`❌ Error al cargar ${uploadType}:`, error);
       Alert.alert(
         'Error',
         `No se pudo cargar el ${uploadType}. ${error?.message || error || 'Error desconocido'}`
@@ -262,10 +332,16 @@ const BalanceUploadScreen = () => {
         <TextInput
           style={styles.input}
           placeholder="Ej: 150.75"
-          keyboardType="numeric"
+          keyboardType="decimal-pad" // ✅ CAMBIO: decimal-pad para iOS
           value={amount}
           onChangeText={setAmount}
         />
+        {/* Vista previa del monto */}
+        {amount && amount.length > 0 && (
+          <Text style={styles.previewAmount}>
+            Vista previa: ${parseFloat(amount || 0).toFixed(2)}
+          </Text>
+        )}
       </View>
 
       <View style={styles.pickerContainer}>
@@ -462,6 +538,12 @@ const styles = StyleSheet.create({
       marginTop: 10,
       textAlign: 'center',
       fontWeight: 'bold',
+  },
+  previewAmount: {
+    fontSize: 14,
+    color: '#059669', // green-600
+    marginTop: 5,
+    fontWeight: '600',
   }
 });
 
