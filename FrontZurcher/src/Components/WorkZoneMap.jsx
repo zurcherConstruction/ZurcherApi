@@ -12,12 +12,20 @@ import useAutoRefresh from "../utils/useAutoRefresh";
 
 // Definir las zonas y sus variantes de nombres
 const ZONES = {
+  'La Belle': {
+    name: 'La Belle',
+    color: 'orange',
+    keywords: [
+      'la belle', 'labelle', 'la bell', 'labell',
+      'la. belle', 'l belle', ' belle '
+    ]
+  },
   'Lehigh': {
     name: 'Lehigh Acres',
     color: 'purple',
     keywords: [
       'lehigh', 'lehigh acres', 'lehigh acre', 'leigh', 
-      'leheigh', 'leihgh', 'l acres', 'la'
+      'leheigh', 'leihgh', 'l acres'
     ]
   },
   'North Port': {
@@ -39,14 +47,6 @@ const ZONES = {
     keywords: [
       'cape coral', 'cape', 'cc', 'c coral', 'capecoral',
       'cap coral', 'c. coral', 'coral'
-    ]
-  },
-  'La Belle': {
-    name: 'La Belle',
-    color: 'orange',
-    keywords: [
-      'la belle', 'labelle', 'belle', 'la bell', 'labell',
-      'la. belle', 'l belle'
     ]
   },
   'Other': {
