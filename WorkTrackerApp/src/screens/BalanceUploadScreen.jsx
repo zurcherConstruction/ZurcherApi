@@ -6,6 +6,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import { createIncome, createExpense, createReceipt } from '../Redux/features/balanceSlice';
 import { useDispatch, useSelector } from 'react-redux';
 import { Picker } from '@react-native-picker/picker';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import * as FileSystem from 'expo-file-system';
 
 // ✅ Tipos sincronizados con el backend
 const incomeTypes = [
@@ -77,6 +79,44 @@ const BalanceUploadScreen = () => {
     }
   }, [uploadType]);
 
+  // ✅ Función para optimizar imágenes de comprobantes
+  const optimizeReceiptImage = async (imageUri) => {
+    try {
+      console.log('🧾 Optimizando comprobante de balance...');
+      
+      // Reducir a 1024px de ancho (suficiente para leer facturas/recibos)
+      const resizedImage = await manipulateAsync(
+        imageUri,
+        [{ resize: { width: 1024 } }],
+        { compress: 0.3, format: SaveFormat.JPEG }
+      );
+      
+      const imageInfo = await FileSystem.getInfoAsync(resizedImage.uri);
+      const sizeKB = imageInfo.size / 1024;
+      
+      console.log(`🧾 Comprobante optimizado: ${sizeKB.toFixed(0)}KB`);
+      
+      // Si aún es muy pesado (>2MB), comprimir más
+      if (sizeKB > 2048) {
+        console.log('⚠️ Comprobante muy pesado, comprimiendo más...');
+        const extraCompressed = await manipulateAsync(
+          resizedImage.uri,
+          [{ resize: { width: 800 } }],
+          { compress: 0.2, format: SaveFormat.JPEG }
+        );
+        const finalInfo = await FileSystem.getInfoAsync(extraCompressed.uri);
+        console.log(`🧾 Comprobante re-comprimido: ${(finalInfo.size / 1024).toFixed(0)}KB`);
+        return extraCompressed.uri;
+      }
+      
+      return resizedImage.uri;
+    } catch (error) {
+      console.error('Error optimizando comprobante:', error);
+      // Si falla la optimización, usar imagen original
+      return imageUri;
+    }
+  };
+
 
   const handlePickDocument = async () => {
     try {
@@ -94,11 +134,26 @@ const BalanceUploadScreen = () => {
              setSelectedFile(null);
              return;
         }
+        
+        // ✅ Si es imagen, optimizarla antes de guardar
+        let finalUri = asset.uri;
+        let finalSize = asset.size;
+        
+        if (asset.mimeType && asset.mimeType.startsWith('image/')) {
+          console.log('📸 Es imagen, optimizando...');
+          finalUri = await optimizeReceiptImage(asset.uri);
+          const optimizedInfo = await FileSystem.getInfoAsync(finalUri);
+          finalSize = optimizedInfo.size;
+          console.log(`✅ Tamaño reducido: ${(asset.size / 1024).toFixed(0)}KB → ${(finalSize / 1024).toFixed(0)}KB`);
+        } else {
+          console.log('📄 Es PDF, no se optimiza');
+        }
+        
         setSelectedFile({
-            uri: asset.uri,
+            uri: finalUri,
             name: asset.name,
             mimeType: asset.mimeType,
-            size: asset.size,
+            size: finalSize,
         });
       } else {
         setSelectedFile(null);

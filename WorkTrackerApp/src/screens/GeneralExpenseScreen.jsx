@@ -15,6 +15,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import * as ImagePicker from 'expo-image-picker';
 import { createGeneralExpenseWithReceipt } from '../Redux/features/balanceSlice'; // Ajusta la ruta
 import { useNavigation } from '@react-navigation/native';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import * as FileSystem from 'expo-file-system';
 
 const GeneralExpenseScreen = () => {
   const dispatch = useDispatch();
@@ -44,6 +46,42 @@ const GeneralExpenseScreen = () => {
     })();
   }, []);
 
+  // ✅ Función para optimizar imágenes de comprobantes
+  const optimizeReceiptImage = async (imageUri) => {
+    try {
+      console.log('🧾 Optimizando comprobante...');
+      
+      // Reducir a 1024px de ancho (suficiente para leer texto/números)
+      const resizedImage = await manipulateAsync(
+        imageUri,
+        [{ resize: { width: 1024 } }],
+        { compress: 0.3, format: SaveFormat.JPEG } // 30% de calidad
+      );
+      
+      const imageInfo = await FileSystem.getInfoAsync(resizedImage.uri);
+      const sizeKB = imageInfo.size / 1024;
+      
+      console.log(`🧾 Comprobante optimizado: ${sizeKB.toFixed(0)}KB`);
+      
+      // Si aún es muy pesado (>2MB), comprimir más
+      if (sizeKB > 2048) {
+        console.log('⚠️ Comprobante muy pesado, comprimiendo más...');
+        const extraCompressed = await manipulateAsync(
+          resizedImage.uri,
+          [{ resize: { width: 800 } }],
+          { compress: 0.2, format: SaveFormat.JPEG }
+        );
+        return extraCompressed.uri;
+      }
+      
+      return resizedImage.uri;
+    } catch (error) {
+      console.error('Error optimizando comprobante:', error);
+      // Si falla la optimización, usar imagen original
+      return imageUri;
+    }
+  };
+
   const handlePickImage = async () => {
     Alert.alert(
         "Seleccionar Imagen",
@@ -56,12 +94,14 @@ const GeneralExpenseScreen = () => {
                         mediaTypes: ImagePicker.MediaTypeOptions.Images,
                         allowsEditing: true,
                         aspect: [4, 3],
-                        quality: 0.7, // Reducir calidad para tamaño
+                        quality: 0.3, // ✅ OPTIMIZACIÓN: Comprobantes no necesitan alta calidad
                     });
 
                     if (!result.canceled) {
                         const asset = result.assets[0];
-                        setImage({ uri: asset.uri, mimeType: asset.mimeType, fileName: asset.fileName });
+                        // ✅ Optimizar imagen antes de guardarla
+                        const optimizedUri = await optimizeReceiptImage(asset.uri);
+                        setImage({ uri: optimizedUri, mimeType: 'image/jpeg', fileName: asset.fileName || `receipt_${Date.now()}.jpg` });
                     }
                 },
             },
@@ -71,11 +111,13 @@ const GeneralExpenseScreen = () => {
                      let result = await ImagePicker.launchCameraAsync({
                         allowsEditing: true,
                         aspect: [4, 3],
-                        quality: 0.7,
+                        quality: 0.3, // ✅ OPTIMIZACIÓN: Comprobantes no necesitan alta calidad
                     });
                      if (!result.canceled) {
                         const asset = result.assets[0];
-                        setImage({ uri: asset.uri, mimeType: asset.mimeType, fileName: asset.fileName || `camera_${Date.now()}.jpg` });
+                        // ✅ Optimizar imagen antes de guardarla
+                        const optimizedUri = await optimizeReceiptImage(asset.uri);
+                        setImage({ uri: optimizedUri, mimeType: 'image/jpeg', fileName: asset.fileName || `receipt_${Date.now()}.jpg` });
                     }
                 },
             },
