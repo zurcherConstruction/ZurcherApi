@@ -53,30 +53,43 @@ export const restoreSession = () => async (dispatch) => {
     const staffData = await AsyncStorage.getItem('staff');
 
     if (token && staffData) {
-      const staff = JSON.parse(staffData);
-      
-      // Configurar el token en el header de axios antes de verificar
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      
       try {
-        // Verificar que el token aún sea válido
-        const verifyResponse = await api.get('/auth/verify-token');
+        const staff = JSON.parse(staffData);
+        
+        // Validar que staff tenga la estructura correcta
+        if (!staff || !staff.id) {
+          if (__DEV__) {
+            console.log('⚠️ Datos de staff inválidos, limpiando sesión');
+          }
+          await AsyncStorage.removeItem('token');
+          await AsyncStorage.removeItem('staff');
+          dispatch(sessionCheckComplete());
+          return;
+        }
         
         dispatch(loginSuccess({ token, staff }));
-        console.log('✅ Sesión restaurada. Staff ID:', staff.id);
+        if (__DEV__) {
+          console.log('✅ Sesión restaurada. Staff ID:', staff.id);
+        }
         
-        // Cargar trabajos después de restaurar la sesión
-        dispatch(fetchWorks(staff.id));
-      } catch (tokenError) {
-        // Si el token no es válido, limpiar el almacenamiento
-        console.log('❌ Token expirado o inválido, limpiando sesión');
+        // Cargar trabajos después de restaurar la sesión (esto validará el token)
+        try {
+          await dispatch(fetchWorks(staff.id));
+        } catch (error) {
+          if (__DEV__) {
+            console.log('⚠️ Error cargando trabajos, token puede estar expirado');
+          }
+        }
+      } catch (parseError) {
+        console.error('❌ Error parseando staff data:', parseError);
         await AsyncStorage.removeItem('token');
         await AsyncStorage.removeItem('staff');
-        delete api.defaults.headers.common['Authorization'];
         dispatch(sessionCheckComplete());
       }
     } else {
-      console.log('ℹ️ No hay sesión guardada');
+      if (__DEV__) {
+        console.log('ℹ️ No hay sesión guardada');
+      }
       dispatch(sessionCheckComplete());
     }
   } catch (error) {

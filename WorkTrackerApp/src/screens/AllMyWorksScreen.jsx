@@ -3,10 +3,10 @@ import { useSelector, useDispatch } from "react-redux";
 import { fetchAssignedWorks } from "../Redux/Actions/workActions";
 import { View, Text, FlatList, TouchableOpacity, TextInput, ActivityIndicator, StyleSheet } from "react-native";
 import UploadScreen from "./UploadScreen";
-import { createStackNavigator } from "@react-navigation/stack";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
-const Stack = createStackNavigator();
+const Stack = createNativeStackNavigator();
 
 // Función para obtener el estilo del item basado en el estado
 const getItemStyleByStatus = (status) => {

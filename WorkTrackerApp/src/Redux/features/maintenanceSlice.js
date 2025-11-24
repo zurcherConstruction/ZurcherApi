@@ -85,16 +85,18 @@ export const fetchAssignedMaintenances = createAsyncThunk(
   'maintenance/fetchAssignedMaintenances',
   async (workerId, { rejectWithValue }) => {
     try {
-      console.log('[fetchAssignedMaintenances] Iniciando request con workerId:', workerId);
+      if (__DEV__) {
+        console.log('[fetchAssignedMaintenances] Consultando para workerId:', workerId);
+      }
       const { data } = await api.get(`/maintenance/assigned`, {
         params: { workerId }
       });
-      console.log('[fetchAssignedMaintenances] Response recibida:', data);
-      console.log('[fetchAssignedMaintenances] Cantidad de visitas:', data.visits?.length || 0);
+      if (__DEV__) {
+        console.log('[fetchAssignedMaintenances] Visitas:', data.visits?.length || 0);
+      }
       return data.visits || [];
     } catch (error) {
       console.error("[fetchAssignedMaintenances] Error:", error.response?.data || error.message);
-      console.error("[fetchAssignedMaintenances] Error completo:", error);
       return rejectWithValue(error.response?.data?.message || error.message || 'Error al obtener mantenimientos asignados');
     }
   }

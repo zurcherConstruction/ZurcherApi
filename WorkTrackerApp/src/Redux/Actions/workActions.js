@@ -46,9 +46,9 @@ export const fetchWorks = (staffId = null, skipLoading = false) => async (dispat
     }
 
     dispatch(fetchWorksSuccess(works));
-      // Solo loggear cuando es background refresh
-    if (skipLoading) {
-      console.log('🔄 Background refresh completado:', works?.length || 0, 'trabajos');
+      // Solo loggear cuando es background refresh y en desarrollo
+    if (skipLoading && __DEV__) {
+      console.log('🔄 Background refresh:', works?.length || 0, 'trabajos');
     }
     
     return works;
@@ -60,7 +60,7 @@ export const fetchWorks = (staffId = null, skipLoading = false) => async (dispat
     // Solo mostrar alert si no es background refresh
     if (!skipLoading) {
       Alert.alert('Error', errorMessage);
-    } else {
+    } else if (__DEV__) {
       console.log('❌ Error en background refresh:', errorMessage);
     }
     throw error;
@@ -69,10 +69,14 @@ export const fetchWorks = (staffId = null, skipLoading = false) => async (dispat
 
 export const refreshWorksInBackground = (staffId) => async (dispatch, getState) => {
   try {
-    console.log('🔄 Actualizando trabajos en segundo plano...');
+    if (__DEV__) {
+      console.log('🔄 Actualizando trabajos en segundo plano');
+    }
     await dispatch(fetchWorks(staffId, true));
   } catch (error) {
-    console.log('❌ Error en actualización en background:', error);
+    if (__DEV__) {
+      console.log('❌ Error en actualización:', error.message);
+    }
   }
 };
 
@@ -240,7 +244,7 @@ export const markInspectionCorrectedByWorker = (inspectionId) => async (dispatch
 
     if (response.data && response.data.inspection) {
       dispatch(markInspectionCorrectedSuccess(response.data.inspection));
-      Alert.alert('Éxito', response.data.message || 'Correcciones marcadas exitosamente.');
+      // ✅ ALERT REMOVIDO - se muestra inmediatamente en UploadScreen para mejor UX
       
       if (response.data.inspection.workId) {
         dispatch(fetchWorkById(response.data.inspection.workId)); // Clave para actualizar la UI

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { store } from '../Redux/store';
+// ⚡ NO importar store directamente para evitar ciclos
 import { logout } from '../Redux/features/authSlice';
 
 // Crear instancia de Axios con la URL base
@@ -8,7 +8,7 @@ const api = axios.create({
   baseURL: __DEV__ 
     ? 'http://192.168.1.8:3001/' // Desarrollo local
     : 'https://zurcherapi.up.railway.app/', // Producción
-  timeout: 20000,
+  timeout: 30000,
 });
 
 // Interceptor para requests
@@ -41,6 +41,9 @@ api.interceptors.response.use(
       // Si el token es inválido o ha expirado, cerrar sesión
       await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('staff');
+      
+      // ⚡ Lazy import del store para evitar ciclos
+      const { store } = await import('../Redux/store');
       store.dispatch(logout());
     }
     return Promise.reject(error);

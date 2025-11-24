@@ -4,7 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useDispatch, useSelector } from 'react-redux';
 import { addImagesToWork, markInspectionCorrectedByWorker, updateWork, deleteImagesFromWork, fetchWorkById } from '../Redux/Actions/workActions';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy'; // ⚡ Usar API legacy
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { Buffer } from "buffer";
@@ -29,6 +29,25 @@ const UploadScreen = () => {
   const [selectedPdfUri, setSelectedPdfUri] = useState(null);
   const [currentWorkData, setCurrentWorkData] = useState({ /* ... initial state ... */ });
   const [largeImageModalVisible, setLargeImageModalVisible] = useState(false);
+
+  // ⚡ Helper para obtener tamaño de archivo (compatible web y nativo)
+  const getFileSize = async (uri) => {
+    if (Platform.OS === 'web') {
+      // En web, intentar obtener el tamaño del blob
+      try {
+        const response = await fetch(uri);
+        const blob = await response.blob();
+        return blob.size;
+      } catch (error) {
+        console.warn('No se pudo obtener tamaño en web, asumiendo OK');
+        return 0; // Asumir que está bien si no podemos verificar
+      }
+    } else {
+      // En nativo, usar FileSystem
+      const info = await FileSystem.getInfoAsync(uri);
+      return info.size;
+    }
+  };
   const [selectedImageUri, setSelectedImageUri] = useState(null);
   const [imageSelectionModalWasOpen, setImageSelectionModalWasOpen] = useState(false); // New state
   const [isUploading, setIsUploading] = useState(false);
@@ -583,10 +602,10 @@ const UploadScreen = () => {
         { compress: 0.3, format: SaveFormat.JPEG } // ✅ Compresión agresiva al 30%
       );
       
-      // Validar tamaño de imagen
-      const imageInfo = await FileSystem.getInfoAsync(resizedImage.uri);
-      const imageSizeMB = imageInfo.size / (1024 * 1024);
-      const imageSizeKB = imageInfo.size / 1024;
+      // Validar tamaño de imagen (compatible web y nativo)
+      const imageSize = await getFileSize(resizedImage.uri);
+      const imageSizeMB = imageSize / (1024 * 1024);
+      const imageSizeKB = imageSize / 1024;
       
       console.log(`📸 Imagen procesada: ${imageSizeKB.toFixed(0)}KB (${imageSizeMB.toFixed(2)}MB)`);
       
@@ -599,14 +618,14 @@ const UploadScreen = () => {
           [{ resize: { width: 600 } }], // Reducir más
           { compress: 0.2, format: SaveFormat.JPEG } // Compresión extrema
         );
-        const finalInfo = await FileSystem.getInfoAsync(finalImage.uri);
-        const finalSizeKB = finalInfo.size / 1024;
+        const finalSize = await getFileSize(finalImage.uri);
+        const finalSizeKB = finalSize / 1024;
         console.log(`📸 Imagen re-comprimida: ${finalSizeKB.toFixed(0)}KB`);
       }
       
       // Validación final: rechazar si supera 5MB (caso extremo)
-      const finalInfo = await FileSystem.getInfoAsync(finalImage.uri);
-      const finalSizeMB = finalInfo.size / (1024 * 1024);
+      const finalSize = await getFileSize(finalImage.uri);
+      const finalSizeMB = finalSize / (1024 * 1024);
       
       if (finalSizeMB > 5) {
         Alert.alert(
@@ -666,7 +685,7 @@ const UploadScreen = () => {
         });
       }
 
-      console.log(`📤 Subiendo imagen: ${filename} (${(finalInfo.size / 1024).toFixed(0)}KB)`);
+      console.log(`📤 Subiendo imagen: ${filename} (${(finalSize / 1024).toFixed(0)}KB)`);
 
       const resultAction = await dispatch(addImagesToWork(idWork, formData));
       
@@ -820,24 +839,23 @@ const UploadScreen = () => {
     }
   };
 
-  // const handleRequestFinalInspection = async () => {
-  //   if (isFinalInspectionRequested || isRequestingFinalInspection) return; // Evitar múltiples envíos
-  //   setIsRequestingFinalInspection(true);
-  //   try {
-  //     await dispatch(updateWork(idWork, { status: 'coverPending' }));
-  //     // await dispatch(fetchAssignedWorks()); // <--- NECESARIO AQUÍ para actualizar la lista
-  //     setIsFinalInspectionRequested(true);
-  //     Alert.alert('Éxito', 'Se solicitó la inspección final.');
-  //     if (navigation.canGoBack()) {
-  //       navigation.goBack(); // Esto te llevará de vuelta a WorksListScreen
-  //     }
-  //   } catch (error) {
-  //     console.error('Error al solicitar la inspección final:', error);
-  //     Alert.alert('Error', 'No se pudo solicitar la inspección final.');
-  //   } finally {
-  //     setIsRequestingFinalInspection(false); // Finalizar carga
-  //   }
-  // };
+  const handleRequestFinalInspection = async () => {
+    if (isFinalInspectionRequested || isRequestingFinalInspection) return; // Evitar múltiples envíos
+    setIsRequestingFinalInspection(true);
+    try {
+      await dispatch(updateWork(idWork, { status: 'finalInspectionPending' }));
+      setIsFinalInspectionRequested(true);
+      Alert.alert('Éxito', 'Se solicitó la inspección final.');
+      if (navigation.canGoBack()) {
+        navigation.goBack(); // Esto te llevará de vuelta a WorksListScreen
+      }
+    } catch (error) {
+      console.error('Error al solicitar la inspección final:', error);
+      Alert.alert('Error', 'No se pudo solicitar la inspección final.');
+    } finally {
+      setIsRequestingFinalInspection(false); // Finalizar carga
+    }
+  };
 
   const handleOpenLargeImage = (uri) => {
     console.log('handleOpenLargeImage called with URI:', uri);
@@ -871,13 +889,31 @@ const UploadScreen = () => {
       return;
     }
 
+    // ✅ Prevenir múltiples clicks - deshabilitar INMEDIATAMENTE
+    if (isMarkingCorrected) return;
+    
     setIsMarkingCorrected(true);
+    
     try {
       // El backend espera el ID de la inspección, no de la obra.
       await dispatch(markInspectionCorrectedByWorker(relevantInitialInspection.idInspection));
       // La acción markInspectionCorrectedByWorker ya debería despachar fetchWorkById,
       // por lo que currentWork y relevantInitialInspection se actualizarán.
-       Alert.alert("Éxito", "Correcciones marcadas. La oficina será notificada para solicitar la reinspección.");
+      
+      // ✅ MOSTRAR FEEDBACK Y NAVEGAR DE VUELTA
+      Alert.alert(
+        "✅ Correcciones Marcadas", 
+        "Las correcciones han sido registradas exitosamente.\n\nLa oficina ha sido notificada y solicitará la reinspección.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              // Navegar de vuelta a la lista de trabajos
+              navigation.goBack();
+            }
+          }
+        ]
+      );
     } catch (error) {
       // El Alert de error ya se maneja en la acción
       console.error("Error al marcar correcciones:", error);
@@ -892,7 +928,7 @@ const UploadScreen = () => {
   const showWorkInstalledButton =
     hasSystemInstalledImages &&
     currentWork &&
-    currentWork.status === 'inProgress';
+    (currentWork.status === 'inProgress' || currentWork.status === 'rejectedInspection');
 
   // Condición para mostrar el botón de solicitar inspección final
   const showRequestFinalInspectionButton =
@@ -948,39 +984,51 @@ const UploadScreen = () => {
 
        {/* --- BLOQUE DE INSPECCIÓN RECHAZADA MODIFICADO --- */}
        {currentWork.status === 'rejectedInspection' && relevantInitialInspection && relevantInitialInspection.finalStatus === 'rejected' && (
-          <View className="my-4 p-4 border border-red-400 bg-red-50 rounded-lg">
-            <Text className="text-lg font-bold text-red-700 mb-2 text-center">¡INSPECCIÓN INICIAL RECHAZADA!</Text>
-            <Text className="text-sm text-red-600 mb-1">
-              <Text className="font-semibold">Notas del Inspector:</Text>
-            </Text>
-            
-
-            {/* Botón para ver documento/imagen de rechazo */}
-            {relevantInitialInspection.resultDocumentUrl && (
-              <Pressable
-                onPress={() => {
-                  const url = relevantInitialInspection.resultDocumentUrl;
-                  if (isCommonImageUrl(url)) {
-                    // Si es una imagen, la abrimos en el modal grande
-                    handleOpenLargeImage(url); 
-                  } else {
-                    // Si no, intentamos abrirla como PDF
-                    handleOpenPdf(url); 
-                  }
-                }}
-                className="bg-red-200 py-2 px-4 rounded-lg shadow-sm mb-3 flex-row justify-center items-center"
-              >
-                <Ionicons name="document-attach-outline" size={20} color="rgb(185 28 28)" style={{ marginRight: 8 }} />
-                <Text className="text-red-700 font-semibold text-center">Ver Documento/Imagen de Rechazo</Text>
-              </Pressable>
-            )}
-
+          <View className="my-4 p-4 border rounded-lg" style={{
+            borderColor: relevantInitialInspection.workerHasCorrected ? '#16a34a' : '#f87171',
+            backgroundColor: relevantInitialInspection.workerHasCorrected ? '#f0fdf4' : '#fef2f2'
+          }}>
             {relevantInitialInspection.workerHasCorrected ? (
-              <Text className="text-md font-semibold text-green-700 text-center p-3 bg-green-100 rounded">
-                Correcciones marcadas. La oficina solicitará la reinspección.
-              </Text>
-            ) : (
+              // ✅ MENSAJE VERDE PROMINENTE - Sin botones adicionales
               <>
+                <View className="flex-row items-center justify-center mb-2">
+                  <Ionicons name="checkmark-circle" size={32} color="#16a34a" style={{ marginRight: 8 }} />
+                  <Text className="text-xl font-bold text-green-700">¡Correcciones Marcadas!</Text>
+                </View>
+                <Text className="text-md text-green-700 text-center leading-5">
+                  Las correcciones han sido registradas exitosamente.{'\n'}
+                  La oficina ha sido notificada y solicitará la reinspección.
+                </Text>
+              </>
+            ) : (
+              // ⚠️ SECCIÓN ROJA - Solo cuando NO están marcadas
+              <>
+                <Text className="text-lg font-bold text-red-700 mb-2 text-center">¡INSPECCIÓN INICIAL RECHAZADA!</Text>
+                <Text className="text-sm text-red-600 mb-1">
+                  <Text className="font-semibold">Notas del Inspector:</Text>
+                </Text>
+                
+
+                {/* Botón para ver documento/imagen de rechazo */}
+                {relevantInitialInspection.resultDocumentUrl && (
+                  <Pressable
+                    onPress={() => {
+                      const url = relevantInitialInspection.resultDocumentUrl;
+                      if (isCommonImageUrl(url)) {
+                        // Si es una imagen, la abrimos en el modal grande
+                        handleOpenLargeImage(url); 
+                      } else {
+                        // Si no, intentamos abrirla como PDF
+                        handleOpenPdf(url); 
+                      }
+                    }}
+                    className="bg-red-200 py-2 px-4 rounded-lg shadow-sm mb-3 flex-row justify-center items-center"
+                  >
+                    <Ionicons name="document-attach-outline" size={20} color="rgb(185 28 28)" style={{ marginRight: 8 }} />
+                    <Text className="text-red-700 font-semibold text-center">Ver Documento/Imagen de Rechazo</Text>
+                  </Pressable>
+                )}
+
                 {/* Botones para subir foto de corrección a "Sistema Instalado" */}
                 <Text className="text-sm text-gray-700 mb-2 text-center mt-2">
                   Sube una foto de la corrección realizada a "Sistema Instalado":

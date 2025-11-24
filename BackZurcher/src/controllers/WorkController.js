@@ -858,15 +858,24 @@ const attachInvoiceToWork = async (req, res) => {
 
 const getAssignedWorks = async (req, res) => {
   try {
-    
+    console.log('📋 [getAssignedWorks] Iniciando para staff:', req.staff.id);
 
     // Obtener las obras asignadas al worker autenticado
     const works = await Work.findAll({
       where: { staffId: req.staff.id }, // Filtrar por el ID del usuario autenticado
+      attributes: [
+        'idWork',
+        'propertyAddress', 
+        'status',
+        'staffId',
+        'stoneExtractionCONeeded',
+        'updatedAt',
+        'createdAt'
+      ], // ✅ Solo atributos que existen en Work
       include: [
         {
           model: Permit,
-          attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'pdfData', 'optionalDocs'],
+          attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantName', 'applicantEmail', 'applicantPhone'], // ✅ Datos del cliente desde Permit
         },
         {
           model: Material,
@@ -874,33 +883,22 @@ const getAssignedWorks = async (req, res) => {
         },
         {
           model: Inspection,
-          as: 'inspections', // <--- ALIAS AÑADIDO
-          attributes: [     // <--- ATRIBUTOS ACTUALIZADOS
+          as: 'inspections',
+          attributes: [
             'idInspection',
             'type',
             'processStatus',
             'finalStatus',
-            'dateRequestedToInspectors',
-            'inspectorScheduledDate',
-            'documentForApplicantUrl',
-            'dateDocumentSentToApplicant',
-            'signedDocumentFromApplicantUrl',
-            'dateSignedDocumentReceived',
-            'dateInspectionPerformed',
-            'resultDocumentUrl',
-            'dateResultReceived',
-            'notes',
-            'workerHasCorrected', // <--- AÑADIR ESTE CAMPO
-            'dateWorkerCorrected', // <--- AÑADIR ESTE CAMPO
+            'workerHasCorrected',
+            'dateWorkerCorrected',
             'createdAt',
-            'updatedAt',
-          ],
-          order: [['createdAt', 'DESC']], // Opcional, pero consistente con otros includes
+          ], // ✅ Solo campos críticos para worker
+          order: [['createdAt', 'DESC']],
         },
         {
           model: Image,
           as: 'images',
-          attributes: ['id', 'stage', 'dateTime', 'imageUrl', 'publicId', 'comment', 'truckCount'],
+          attributes: ['id', 'stage'], // ✅ SOLO id y stage - sin imageUrl
         },
       ],
     });
@@ -909,7 +907,30 @@ const getAssignedWorks = async (req, res) => {
       return res.status(404).json({ error: false, message: 'No tienes tareas asignadas actualmente' });
     }
 
-    res.status(200).json({ error: false, works });
+    // ✅ Transformar para enviar solo metadata de imágenes
+    const optimizedWorks = works.map(work => {
+      const workData = work.toJSON();
+      
+      // Contar imágenes por etapa
+      const imageStats = {};
+      if (workData.images) {
+        workData.images.forEach(img => {
+          imageStats[img.stage] = (imageStats[img.stage] || 0) + 1;
+        });
+      }
+      
+      return {
+        ...workData,
+        imageCount: workData.images?.length || 0,
+        imagesByStage: imageStats,
+        images: undefined // Remover array completo
+      };
+    });
+
+    const dataSize = JSON.stringify(optimizedWorks).length;
+    console.log(`✅ [getAssignedWorks] ${works.length} obras. Tamaño: ${(dataSize / 1024).toFixed(2)}KB (antes ~193MB)`);
+
+    res.status(200).json({ error: false, works: optimizedWorks });
   } catch (error) {
     console.error('Error al obtener las tareas asignadas:', error);
     res.status(500).json({ error: true, message: 'Error interno del servidor' });
@@ -1081,6 +1102,47 @@ const deleteImagesFromWork = async (req, res) => {
   } catch (error) {
     console.error('Error al eliminar imagen (Cloudinary):', error);
     res.status(500).json({ error: true, message: 'Error interno del servidor al eliminar imagen.' });
+  }
+};
+
+// ✅ NUEVA FUNCIÓN: Obtener imágenes de una obra específica (para mobile app)
+const getWorkImages = async (req, res) => {
+  try {
+    const { idWork } = req.params;
+    const { stage } = req.query; // Opcional: filtrar por etapa
+    
+    console.log('🖼️ [getWorkImages] Obteniendo imágenes para work:', idWork, 'stage:', stage || 'todas');
+
+    // Verificar que el trabajo existe
+    const work = await Work.findByPk(idWork);
+    if (!work) {
+      return res.status(404).json({ error: true, message: 'Trabajo no encontrado' });
+    }
+
+    // Construir filtro
+    const whereClause = { idWork };
+    if (stage) {
+      whereClause.stage = stage;
+    }
+
+    const images = await Image.findAll({
+      where: whereClause,
+      attributes: ['id', 'stage', 'dateTime', 'imageUrl', 'publicId', 'comment', 'truckCount'],
+      order: [['dateTime', 'DESC'], ['id', 'DESC']],
+    });
+
+    console.log(`✅ [getWorkImages] ${images.length} imágenes encontradas`);
+
+    res.status(200).json({ 
+      error: false, 
+      workId: idWork,
+      stage: stage || 'todas',
+      count: images.length,
+      images 
+    });
+  } catch (error) {
+    console.error('❌ [getWorkImages] Error:', error);
+    res.status(500).json({ error: true, message: 'Error al obtener imágenes' });
   }
 };
 
@@ -1452,6 +1514,7 @@ module.exports = {
   getAssignedWorks,
   addImagesToWork,
   deleteImagesFromWork,
+  getWorkImages, // ✅ Nuevo endpoint para imágenes
   getMaintenanceOverviewWorks,
   changeWorkStatus,
   validateStatusChangeOnly,

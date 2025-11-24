@@ -19,19 +19,17 @@ export const getIncomesAndExpensesByWorkId = createAsyncThunk(
   'balance/getIncomesAndExpensesByWorkId',
   async (idWork, { rejectWithValue }) => {
     try {
-      // Usamos la URL que funcionó según tus logs
       const url = `/balance/balance/${idWork}`;
-      console.log(`Llamando a ${url}`);
+      if (__DEV__) {
+        console.log(`Obteniendo balance para work ${idWork}`);
+      }
       const response = await api.get(url);
-      console.log('Respuesta del backend:', response.data);
 
-      // --- AJUSTE CLAVE ---
       // Extraer los arrays desde la propiedad 'details'
       return {
-         incomes: response.data?.details?.incomes || [], // Accede a response.data.details.incomes
-         expenses: response.data?.details?.expenses || [] // Accede a response.data.details.expenses
+         incomes: response.data?.details?.incomes || [],
+         expenses: response.data?.details?.expenses || []
       };
-      // --- FIN AJUSTE ---
 
     } catch (error) {
       console.error("Error en getIncomesAndExpensesByWorkId:", error.response?.data || error.message);
@@ -138,10 +136,11 @@ export const createGeneralExpenseWithReceipt = createAsyncThunk(
         paymentMethod: "Chase Credit Card", // Método de pago por defecto para gastos generales
         // NO incluimos workId
       };
-      console.log("Enviando datos de gasto general:", expenseData);
+      if (__DEV__) {
+        console.log("Creando gasto general:", { amount, notes });
+      }
       const expenseResponse = await api.post('/expense', expenseData);
       const newExpense = expenseResponse.data;
-      console.log("Gasto general creado:", newExpense);
 
       // 2. Si hay imagen, subir el Recibo asociado
       if (image && newExpense.idExpense) {
@@ -151,37 +150,28 @@ export const createGeneralExpenseWithReceipt = createAsyncThunk(
           name: image.fileName || `general_expense_${newExpense.idExpense}.jpg`,
           type: image.mimeType || 'image/jpeg',
         });
-        // Asociar con el ID del gasto recién creado
-        formData.append('relatedModel', 'Expense'); // Nombre del modelo asociado
+        formData.append('relatedModel', 'Expense');
         formData.append('relatedId', newExpense.idExpense);
-        formData.append('type', 'Gastos Generales');  // ID del gasto creado
-        // Puedes añadir notas al recibo si quieres, aquí usamos las mismas del gasto
+        formData.append('type', 'Gastos Generales');
         if (notes) {
             formData.append('notes', notes);
         }
 
-
-        // Log actualizado para incluir 'type'
-        console.log("Subiendo recibo para:", {
-          relatedModel: 'Expense',
-          relatedId: newExpense.idExpense,
-          type: 'Gastos Generales' // Ajusta este valor si cambias el de arriba
-      });
+        if (__DEV__) {
+          console.log("Subiendo recibo para gasto:", newExpense.idExpense);
+        }
         const receiptResponse = await api.post('/receipt', formData, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
         });
-        console.log("Recibo subido:", receiptResponse.data);
-        // Podrías retornar el gasto con la info del recibo si el backend lo devuelve
         return { ...newExpense, Receipt: receiptResponse.data };
       }
 
-      // Si no hay imagen, solo retornar el gasto creado
       return newExpense;
 
     } catch (error) {
-      console.error("Error creando gasto general con recibo:", error.response?.data || error.message);
+      console.error("Error creando gasto general:", error.response?.data || error.message);
       return rejectWithValue(error.response?.data?.message || error.message || 'Error al crear el gasto general');
     }
   }
@@ -203,16 +193,17 @@ const balanceSlice = createSlice({
       .addCase(getIncomesAndExpensesByWorkId.pending, (state) => { state.loading = true; state.error = null; })
       .addCase(getIncomesAndExpensesByWorkId.fulfilled, (state, action) => {
         state.loading = false;
-        console.log("Payload recibido en extraReducer.fulfilled:", action.payload);
         state.incomes = action.payload.incomes || [];
         state.expenses = action.payload.expenses || [];
-      // --- AÑADIR ESTOS LOGS ---
-      console.log("Estado 'incomes' actualizado en Redux:", JSON.stringify(state.incomes, null, 2));
-      console.log("Estado 'expenses' actualizado en Redux:", JSON.stringify(state.expenses, null, 2));
-      // --- FIN LOGS ---
-     
+        if (__DEV__) {
+          console.log("Balance actualizado:", state.incomes.length, "incomes,", state.expenses.length, "expenses");
+        }
       })
-      .addCase(getIncomesAndExpensesByWorkId.rejected, (state, action) => { state.loading = false; state.error = action.payload; console.error("Error recibido en extraReducer.rejected:", action.payload);}) // Usa action.payload
+      .addCase(getIncomesAndExpensesByWorkId.rejected, (state, action) => { 
+        state.loading = false; 
+        state.error = action.payload; 
+        console.error("Error obteniendo balance:", action.payload);
+      })
 
       // Get Balance by Work ID
       .addCase(getBalanceByWorkId.pending, (state) => { state.loading = true; state.error = null; })
@@ -245,14 +236,14 @@ const balanceSlice = createSlice({
       .addCase(getReceipts.rejected, (state, action) => { state.loading = false; state.error = action.payload; })
       // Create General Expense with Receipt
       .addCase(createGeneralExpenseWithReceipt.pending, (state) => {
-        state.loading = true; // O un loading específico
+        state.loading = true;
         state.error = null;
       })
       .addCase(createGeneralExpenseWithReceipt.fulfilled, (state, action) => {
         state.loading = false;
-        // Opcional: podrías añadir el gasto a una lista si necesitas mostrarla
-        console.log("Gasto general añadido exitosamente (con/sin recibo):", action.payload);
-        // state.generalExpenses = [...state.generalExpenses, action.payload]; // Si tienes un array state.generalExpenses
+        if (__DEV__) {
+          console.log("Gasto general añadido exitosamente");
+        }
       })
       .addCase(createGeneralExpenseWithReceipt.rejected, (state, action) => {
         state.loading = false;

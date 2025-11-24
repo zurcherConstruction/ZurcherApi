@@ -70,6 +70,9 @@ router.post('/:idWork/images',
 
 router.delete('/:idWork/images/:imageId', verifyToken, allowRoles(['owner', 'worker']), invalidateWorkCache, WorkController.deleteImagesFromWork);
 
+// ✅ Obtener imágenes de una obra específica (para mobile app)
+router.get('/:idWork/images', verifyToken, allowRoles(['owner', 'worker', 'admin']), WorkController.getWorkImages);
+
 // Actualizar Notice to Owner y Lien
 router.put('/:idWork/notice-to-owner', verifyToken, allowRoles(['admin', 'owner', 'finance']), invalidateWorkCache, WorkController.updateNoticeToOwner);
 

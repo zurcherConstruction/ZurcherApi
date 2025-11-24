@@ -16,7 +16,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { createGeneralExpenseWithReceipt } from '../Redux/features/balanceSlice'; // Ajusta la ruta
 import { useNavigation } from '@react-navigation/native';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy'; // ⚡ Usar API legacy
 
 const GeneralExpenseScreen = () => {
   const dispatch = useDispatch();
@@ -58,8 +58,20 @@ const GeneralExpenseScreen = () => {
         { compress: 0.3, format: SaveFormat.JPEG } // 30% de calidad
       );
       
-      const imageInfo = await FileSystem.getInfoAsync(resizedImage.uri);
-      const sizeKB = imageInfo.size / 1024;
+      // ⚡ Compatible con web y nativo
+      let sizeKB = 0;
+      if (Platform.OS === 'web') {
+        try {
+          const response = await fetch(resizedImage.uri);
+          const blob = await response.blob();
+          sizeKB = blob.size / 1024;
+        } catch (error) {
+          console.warn('No se pudo verificar tamaño en web');
+        }
+      } else {
+        const imageInfo = await FileSystem.getInfoAsync(resizedImage.uri);
+        sizeKB = imageInfo.size / 1024;
+      }
       
       console.log(`🧾 Comprobante optimizado: ${sizeKB.toFixed(0)}KB`);
       
@@ -127,14 +139,18 @@ const GeneralExpenseScreen = () => {
   };
 
   const handleSubmit = () => {
-    // Validación mejorada
-    const numericAmount = parseFloat(amount);
+    // ✅ Normalizar el monto: reemplazar coma por punto
+    const normalizedAmount = amount.replace(',', '.');
+    const numericAmount = parseFloat(normalizedAmount);
     
-    console.log('💰 GASTO GENERAL - Validando monto:', {
-      original: amount,
-      parsed: numericAmount,
-      type: typeof numericAmount
-    });
+    if (__DEV__) {
+      console.log('💰 GASTO GENERAL - Validando monto:', {
+        original: amount,
+        normalized: normalizedAmount,
+        parsed: numericAmount,
+        type: typeof numericAmount
+      });
+    }
     
     if (isNaN(numericAmount) || numericAmount <= 0) {
       Alert.alert('Error', 'Por favor, ingresa un monto válido mayor a $0.00');
@@ -149,11 +165,13 @@ const GeneralExpenseScreen = () => {
     // ✅ Formatear a exactamente 2 decimales
     const formattedAmount = parseFloat(numericAmount.toFixed(2));
     
-    console.log('💰 GASTO GENERAL - Enviando:', {
-      formatted: formattedAmount,
-      asString: formattedAmount.toString(),
-      staffId: user?.id
-    });
+    if (__DEV__) {
+      console.log('💰 GASTO GENERAL - Enviando:', {
+        formatted: formattedAmount,
+        asString: formattedAmount.toString(),
+        staffId: user?.id
+      });
+    }
 
     dispatch(createGeneralExpenseWithReceipt({ 
       amount: formattedAmount, // ✅ Usar valor formateado
@@ -189,12 +207,12 @@ const GeneralExpenseScreen = () => {
         value={amount}
         onChangeText={setAmount}
         keyboardType="decimal-pad" // ✅ CAMBIO: decimal-pad en lugar de numeric para iOS
-        placeholder="Ej: 50.75"
+        placeholder="Ej: 50.75 o 50,75"
       />
       {/* Vista previa del monto */}
       {amount && amount.length > 0 && (
         <Text style={styles.previewAmount}>
-          Vista previa: ${parseFloat(amount || 0).toFixed(2)}
+          Vista previa: ${parseFloat(amount.replace(',', '.') || 0).toFixed(2)}
         </Text>
       )}
 

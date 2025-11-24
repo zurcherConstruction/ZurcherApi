@@ -111,6 +111,14 @@ const stateNotificationMap = {
     roles: ['admin','owner'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido rechazado en la inspección inicial. Por favor, revisa los detalles y toma las medidas necesarias.`,
   },
+  initial_correction_ready: {
+    roles: ['admin', 'owner'],
+    message: (work, context) => `El trabajador ha marcado las correcciones como realizadas para la inspección inicial rechazada en ${work.propertyAddress}. Por favor, solicita la reinspección. Inspección ID: ${context?.inspectionId || 'N/A'}.`,
+  },
+  final_correction_ready: {
+    roles: ['admin', 'owner'],
+    message: (work, context) => `El trabajador ha marcado las correcciones como realizadas para la inspección final rechazada en ${work.propertyAddress}. Por favor, solicita la reinspección final. Inspección ID: ${context?.inspectionId || 'N/A'}.`,
+  },
    reinspection_initial_requested: { // Added new status
     roles: ['admin', 'owner'], // Define appropriate roles
     message: (work, context) => `Se ha solicitado una reinspección inicial para la obra en ${work.propertyAddress}. Inspección ID: ${context?.inspectionId || 'N/A'}.`,
