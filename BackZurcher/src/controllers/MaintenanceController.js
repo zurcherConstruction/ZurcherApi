@@ -1300,12 +1300,17 @@ const getAllCompletedMaintenances = async (req, res) => {
 
     const whereClause = {};
     
-    // Filtrar por estado (por defecto solo completadas)
-    if (status) {
-      whereClause.status = status;
-    } else {
-      whereClause.status = 'completed';
+    // ✅ Filtrar por estado(s) - puede ser un estado o múltiples separados por coma
+    if (status && status !== 'all') {
+      // Si contiene comas, dividir en array
+      if (status.includes(',')) {
+        const statusArray = status.split(',').map(s => s.trim());
+        whereClause.status = { [Op.in]: statusArray };
+      } else {
+        whereClause.status = status;
+      }
     }
+    // Si status es 'all' o undefined, NO filtramos por status (devolvemos todas)
 
     // Filtrar por work específico
     if (workId) {
