@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList, DrawerItem } from '@react-navigation/drawer';
 import { useSelector, useDispatch } from 'react-redux';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, View, Alert } from 'react-native';
 // --- Screen Imports ---
 import LoginScreen from '../screens/LoginScreen';
 import AssignedWorksScreen from '../screens/AssignedWorksScreen';
@@ -50,6 +50,24 @@ function CustomDrawerContent(props) {
 // --- DRAWER NAVIGATOR SIMPLIFICADO PARA WORKER Y MAINTENANCE ---
 const AppDrawerNavigator = () => {
   const { staff } = useSelector((state) => state.auth);
+  const dispatch = useDispatch();
+
+  // ✅ VALIDACIÓN DE SEGURIDAD: Si el rol no es permitido, cerrar sesión
+  useEffect(() => {
+    const allowedRoles = ['worker', 'maintenance'];
+    if (staff && !allowedRoles.includes(staff.role)) {
+      Alert.alert(
+        'Acceso No Permitido',
+        'Esta aplicación es solo para trabajadores y personal de mantenimiento. Use la versión web para su rol.',
+        [
+          {
+            text: 'Entendido',
+            onPress: () => dispatch(logout())
+          }
+        ]
+      );
+    }
+  }, [staff, dispatch]);
 
   return (
     <Drawer.Navigator
