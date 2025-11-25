@@ -12,6 +12,18 @@ export const login = (email, password) => async (dispatch) => {
     const response = await api.post('/auth/login', { email, password });
     const { token, staff } = response.data.data;
 
+    // ✅ VALIDAR QUE EL ROL SEA PERMITIDO EN LA APP MÓVIL
+    const allowedRoles = ['worker', 'maintenance'];
+    if (!allowedRoles.includes(staff.role)) {
+      dispatch(loginFailure('Acceso no permitido'));
+      Alert.alert(
+        'Acceso No Permitido', 
+        'Esta aplicación es solo para trabajadores y personal de mantenimiento. Por favor, use la versión web para acceder con su rol.',
+        [{ text: 'Entendido' }]
+      );
+      return { error: true, message: 'Acceso no permitido para este rol' };
+    }
+
     // Guardar el token y el staff en AsyncStorage
     await AsyncStorage.setItem('token', token);
     await AsyncStorage.setItem('staff', JSON.stringify(staff));
@@ -67,9 +79,26 @@ export const restoreSession = () => async (dispatch) => {
           return;
         }
         
+        // ✅ VALIDAR QUE EL ROL SEA PERMITIDO
+        const allowedRoles = ['worker', 'maintenance'];
+        if (!allowedRoles.includes(staff.role)) {
+          if (__DEV__) {
+            console.log('⚠️ Rol no permitido en app móvil:', staff.role);
+          }
+          await AsyncStorage.removeItem('token');
+          await AsyncStorage.removeItem('staff');
+          dispatch(sessionCheckComplete());
+          Alert.alert(
+            'Acceso No Permitido', 
+            'Esta aplicación es solo para trabajadores y personal de mantenimiento. Por favor, use la versión web.',
+            [{ text: 'Entendido' }]
+          );
+          return;
+        }
+        
         dispatch(loginSuccess({ token, staff }));
         if (__DEV__) {
-          console.log('✅ Sesión restaurada. Staff ID:', staff.id);
+          console.log('✅ Sesión restaurada. Staff ID:', staff.id, 'Role:', staff.role);
         }
         
         // Cargar trabajos después de restaurar la sesión (esto validará el token)
