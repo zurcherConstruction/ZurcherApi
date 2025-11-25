@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
+import { PAYMENT_METHODS } from '../../utils/paymentConstants'; // ✅ Importar constantes
 import { FaTimes, FaLink, FaBriefcase, FaGlobe, FaCheckCircle, FaEye, FaFileInvoiceDollar } from 'react-icons/fa';
 import LoadingSpinner from '../LoadingSpinner';
 
@@ -264,19 +265,8 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
     }).format(amount || 0);
   };
 
-  const paymentMethods = [
-    'Proyecto Septic BOFA',
-    'Chase Bank',
-    'AMEX',
-    'Chase Credit Card',
-    'Cheque',
-    'Transferencia Bancaria',
-    'Efectivo',
-    'Zelle',
-    'Tarjeta Débito',
-    'PayPal',
-    'Otro'
-  ];
+  // ✅ Usar constantes sincronizadas en lugar de array hardcodeado
+  const paymentMethods = PAYMENT_METHODS.map(pm => pm.value);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

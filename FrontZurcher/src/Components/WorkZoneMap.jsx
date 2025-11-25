@@ -57,6 +57,7 @@ const ZONES = {
 // Estados de campo que debe controlar (solo trabajo de campo activo)
 const FIELD_WORK_STATUSES = [
   'pending',                    // Sin progreso - necesita asignación
+  'inProgress',                 // Instalando - trabajadores en campo
   'installed',                  // Instalado - esperando inspección
   'firstInspectionPending',     // Primera inspección pendiente
   'rejectedInspection',         // Inspección rechazada - necesita reinspección
@@ -66,7 +67,8 @@ const FIELD_WORK_STATUSES = [
 // Orden de progreso para sorting (menor número = menos progreso)
 const STATUS_ORDER = {
   'pending': 0,
-  'installed': 1,
+  'inProgress': 1,
+  'installed': 2,
   'firstInspectionPending': 2,
   'rejectedInspection': 2,      // Mismo nivel que firstInspectionPending (ambos esperan inspección)
   'coverPending': 3
@@ -74,7 +76,8 @@ const STATUS_ORDER = {
 
 const STATUS_LABELS = {
   'pending': 'COMENZAR',
-  'installed': 'INSTALANDO',
+  'inProgress': 'INSTALANDO',
+  'installed': 'INSPECCIÓN',
   'firstInspectionPending': 'INSPECCIÓN',
   'rejectedInspection': 'INSPECCIÓN',
   'coverPending': 'CUBRIR'
@@ -82,6 +85,7 @@ const STATUS_LABELS = {
 
 const STATUS_COLORS = {
   'pending': 'bg-gray-100 text-gray-700 border-gray-300',
+  'inProgress': 'bg-blue-100 text-blue-700 border-blue-300',
   'installed': 'bg-purple-100 text-purple-700 border-purple-300',
   'firstInspectionPending': 'bg-purple-100 text-purple-700 border-purple-300',
   'rejectedInspection': 'bg-red-100 text-red-700 border-red-300',

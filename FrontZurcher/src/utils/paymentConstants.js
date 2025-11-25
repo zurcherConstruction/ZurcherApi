@@ -6,21 +6,13 @@ export const PAYMENT_METHODS = [
   { value: 'Proyecto Septic BOFA', label: 'Proyecto Septic BOFA', category: 'bank' },
   { value: 'Chase Bank', label: 'Chase Bank', category: 'bank' },
   
-  // Tarjetas
+  // 💳 Tarjetas
   { value: 'AMEX', label: 'AMEX', category: 'card' },
   { value: 'Chase Credit Card', label: 'Chase Credit Card', category: 'card' },
-  { value: 'Tarjeta Débito', label: 'Tarjeta Débito', category: 'card' },
   
-  // Pagos Online
-  { value: 'Stripe', label: '💳 Stripe', category: 'online' },
-  { value: 'PayPal', label: 'PayPal', category: 'online' },
-  
-  // Otros Métodos
-  { value: 'Cheque', label: 'Cheque', category: 'other' },
+  // � Otros Métodos
   { value: 'Transferencia Bancaria', label: 'Transferencia Bancaria', category: 'other' },
   { value: 'Efectivo', label: 'Efectivo', category: 'other' },
-  { value: 'Zelle', label: 'Zelle', category: 'other' },
-  { value: 'Otro', label: 'Otro', category: 'other' },
 ];
 
 // Métodos de pago agrupados por categoría
@@ -125,13 +117,8 @@ export const getPaymentMethodIcon = (value) => {
       return '🏦';
     case 'card':
       return '💳';
-    case 'online':
-      if (value === 'Stripe') return '💳';
-      if (value === 'PayPal') return '💰';
-      return '🌐';
     case 'other':
       if (value === 'Efectivo') return '💵';
-      if (value === 'Cheque') return '📝';
       if (value === 'Transferencia Bancaria') return '🔄';
       return '💰';
     default:
