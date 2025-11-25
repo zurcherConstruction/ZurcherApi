@@ -32,11 +32,9 @@ const LegacyMaintenanceEditor = () => {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
 
-  // Estados para upload de PDFs
-  const [uploadingPermitPdf, setUploadingPermitPdf] = useState(false);
-  const [uploadingOptionalDocs, setUploadingOptionalDocs] = useState(false);
-  const [permitPdfSuccess, setPermitPdfSuccess] = useState(false);
-  const [optionalDocsSuccess, setOptionalDocsSuccess] = useState(false);
+  // Estados para upload de PDFs - Ahora se guardan en memoria hasta hacer submit
+  const [permitPdfFile, setPermitPdfFile] = useState(null);
+  const [optionalDocsFile, setOptionalDocsFile] = useState(null);
 
   // Cargar trabajos legacy al montar
   useEffect(() => {
@@ -71,9 +69,9 @@ const LegacyMaintenanceEditor = () => {
       notes: work.notes || ''
     });
     setSaveError('');
-    // Resetear estados de éxito de upload
-    setPermitPdfSuccess(false);
-    setOptionalDocsSuccess(false);
+    // Resetear archivos seleccionados
+    setPermitPdfFile(null);
+    setOptionalDocsFile(null);
   };
 
   const handleCancelEdit = () => {
@@ -88,6 +86,9 @@ const LegacyMaintenanceEditor = () => {
       notes: ''
     });
     setSaveError('');
+    // Resetear archivos seleccionados
+    setPermitPdfFile(null);
+    setOptionalDocsFile(null);
   };
 
   const handleInputChange = (e) => {
@@ -103,150 +104,132 @@ const LegacyMaintenanceEditor = () => {
     setSaving(true);
     setSaveError('');
 
-    console.log('🟢 [FRONTEND] Enviando datos:', {
-      idWork: editingWork.idWork,
-      clientName: editFormData.clientName,
-      clientEmail: editFormData.clientEmail,
-      clientPhone: editFormData.clientPhone,
-      permitId: editFormData.permitId,
-      notes: editFormData.notes
-    });
+    const savingSteps = [];
+    let allSuccess = true;
 
     try {
+      // 🔵 PASO 1: Guardar datos del cliente y trabajo
+      console.log('� [PASO 1/3] Guardando datos del cliente...');
+      savingSteps.push('Guardando datos del cliente');
+
       const response = await api.put(`/legacy-maintenance/${editingWork.idWork}`, {
         clientName: editFormData.clientName,
         clientEmail: editFormData.clientEmail,
         clientPhone: editFormData.clientPhone,
-        systemType: editFormData.systemType, // ✅ Nuevo
-        isPBTS: editFormData.isPBTS, // ✅ Nuevo
-        // permitId se omite - el Permit está vinculado automáticamente por propertyAddress
+        systemType: editFormData.systemType,
+        isPBTS: editFormData.isPBTS,
         notes: editFormData.notes
       });
 
-      console.log('🟢 [FRONTEND] Respuesta recibida:', response.data);
-
-      // Backend retorna { error: false, message, data }
-      if (!response.data.error) {
-        console.log('🟢 [FRONTEND] Datos del Work actualizado:', {
-          'Permit.applicantName': response.data.data.Permit?.applicantName,
-          'Permit.applicantEmail': response.data.data.Permit?.applicantEmail,
-          'Permit.applicantPhone': response.data.data.Permit?.applicantPhone
-        });
-
-        // Actualizar la lista local con los datos frescos
-        setLegacyWorks(prev => prev.map(work => 
-          work.idWork === editingWork.idWork ? response.data.data : work
-        ));
-        alert('✅ Datos guardados correctamente');
-        handleCancelEdit();
+      if (response.data.error) {
+        throw new Error(response.data.message || 'Error al guardar datos del cliente');
       }
+
+      console.log('✅ [PASO 1/3] Datos del cliente guardados');
+
+      // 🔵 PASO 2: Subir Permit PDF si fue seleccionado
+      if (permitPdfFile && editingWork?.Permit?.idPermit) {
+        console.log('🔵 [PASO 2/3] Subiendo Permit PDF...');
+        savingSteps.push('Subiendo PDF del Permit');
+
+        const formDataToSend = new FormData();
+        formDataToSend.append('pdfData', permitPdfFile);
+
+        try {
+          const pdfResponse = await api.put(
+            `/permit/${editingWork.Permit.idPermit}/replace-pdf`, 
+            formDataToSend,
+            { headers: { 'Content-Type': 'multipart/form-data' } }
+          );
+          console.log('✅ [PASO 2/3] Permit PDF subido exitosamente');
+        } catch (pdfError) {
+          console.error('❌ [PASO 2/3] Error al subir Permit PDF:', pdfError);
+          savingSteps.push('⚠️ Error al subir Permit PDF');
+          allSuccess = false;
+        }
+      } else {
+        console.log('⏭️ [PASO 2/3] No hay Permit PDF para subir');
+      }
+
+      // 🔵 PASO 3: Subir Optional Docs si fueron seleccionados
+      if (optionalDocsFile && editingWork?.Permit?.idPermit) {
+        console.log('� [PASO 3/3] Subiendo Optional Docs...');
+        savingSteps.push('Subiendo documentos opcionales');
+
+        const formDataToSend = new FormData();
+        formDataToSend.append('optionalDocs', optionalDocsFile);
+
+        try {
+          const docsResponse = await api.put(
+            `/permit/${editingWork.Permit.idPermit}/replace-optional-docs`,
+            formDataToSend,
+            { headers: { 'Content-Type': 'multipart/form-data' } }
+          );
+          console.log('✅ [PASO 3/3] Optional Docs subidos exitosamente');
+        } catch (docsError) {
+          console.error('❌ [PASO 3/3] Error al subir Optional Docs:', docsError);
+          savingSteps.push('⚠️ Error al subir documentos opcionales');
+          allSuccess = false;
+        }
+      } else {
+        console.log('⏭️ [PASO 3/3] No hay Optional Docs para subir');
+      }
+
+      // 🟢 RECARGAR datos y mostrar confirmación
+      await loadLegacyWorks();
+
+      // Actualizar la lista local
+      setLegacyWorks(prev => prev.map(work => 
+        work.idWork === editingWork.idWork ? response.data.data : work
+      ));
+
+      // Mensaje de confirmación detallado
+      const successMessage = allSuccess 
+        ? '✅ Todos los cambios se guardaron correctamente:\n\n' + 
+          `• Datos del cliente actualizados\n` +
+          (permitPdfFile ? '• PDF del Permit subido\n' : '') +
+          (optionalDocsFile ? '• Documentos opcionales subidos\n' : '')
+        : '⚠️ Los datos se guardaron pero hubo problemas con algunos archivos.\n\nRevisa los PDFs y vuelve a intentar si es necesario.';
+
+      alert(successMessage);
+      
+      // Cerrar el formulario de edición
+      handleCancelEdit();
+
     } catch (err) {
-      console.error('🔴 [FRONTEND] Error al guardar:', err);
-      setSaveError(err.response?.data?.message || 'Error al guardar los cambios');
+      console.error('🔴 Error al guardar:', err);
+      setSaveError(err.response?.data?.message || err.message || 'Error al guardar los cambios');
+      alert('❌ Error: ' + (err.response?.data?.message || err.message || 'No se pudieron guardar los cambios'));
     } finally {
       setSaving(false);
     }
   };
 
-  // Subir Permit PDF automáticamente cuando se selecciona
-  const handlePermitPdfChange = async (e) => {
+  // Seleccionar Permit PDF (NO se sube automáticamente)
+  const handlePermitPdfChange = (e) => {
     const file = e.target.files[0];
-    
-    if (!file) return;
-
-    if (!editingWork?.Permit?.idPermit) {
-      alert('Error: No se encontró el Permit ID');
-      return;
-    }
-
-    console.log('🔵 [AUTO-UPLOAD PERMIT PDF] Iniciando...', {
-      fileName: file.name,
-      fileSize: file.size,
-      permitId: editingWork.Permit.idPermit
-    });
-
-    setUploadingPermitPdf(true);
-    setPermitPdfSuccess(false);
-    try {
-      const formDataToSend = new FormData();
-      formDataToSend.append('pdfData', file);
-
-      console.log('📤 [AUTO-UPLOAD PERMIT PDF] Enviando a:', `/permit/${editingWork.Permit.idPermit}/replace-pdf`);
-
-      const response = await api.put(`/permit/${editingWork.Permit.idPermit}/replace-pdf`, formDataToSend, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-
-      console.log('✅ [AUTO-UPLOAD PERMIT PDF] Respuesta:', response.data);
-      
-      // Mostrar éxito
-      setPermitPdfSuccess(true);
-      
-      // Recargar la lista
-      await loadLegacyWorks();
-      
-      // Limpiar el input
-      e.target.value = '';
-      
-      // Ocultar mensaje de éxito después de 5 segundos
-      setTimeout(() => setPermitPdfSuccess(false), 5000);
-    } catch (err) {
-      console.error('❌ [AUTO-UPLOAD PERMIT PDF] Error completo:', err);
-      console.error('❌ [AUTO-UPLOAD PERMIT PDF] Response:', err.response?.data);
-      alert(err.response?.data?.message || err.response?.data?.error || 'Error al subir el PDF del Permit');
-    } finally {
-      setUploadingPermitPdf(false);
+    if (file) {
+      if (file.type !== 'application/pdf') {
+        alert('⚠️ Solo se permiten archivos PDF');
+        e.target.value = '';
+        return;
+      }
+      console.log('📎 Permit PDF seleccionado:', file.name, '(', (file.size / 1024).toFixed(2), 'KB)');
+      setPermitPdfFile(file);
     }
   };
 
-  // Subir Optional Docs automáticamente cuando se seleccionan
-  const handleOptionalDocsChange = async (e) => {
+  // Seleccionar Optional Docs (NO se suben automáticamente)
+  const handleOptionalDocsChange = (e) => {
     const file = e.target.files[0];
-    
-    if (!file) return;
-
-    if (!editingWork?.Permit?.idPermit) {
-      alert('Error: No se encontró el Permit ID');
-      return;
-    }
-
-    console.log('🔵 [AUTO-UPLOAD OPTIONAL DOCS] Iniciando...', {
-      fileName: file.name,
-      fileSize: file.size,
-      permitId: editingWork.Permit.idPermit
-    });
-
-    setUploadingOptionalDocs(true);
-    setOptionalDocsSuccess(false);
-    try {
-      const formDataToSend = new FormData();
-      formDataToSend.append('optionalDocs', file);
-
-      console.log('📤 [AUTO-UPLOAD OPTIONAL DOCS] Enviando a:', `/permit/${editingWork.Permit.idPermit}/replace-optional-docs`);
-
-      const response = await api.put(`/permit/${editingWork.Permit.idPermit}/replace-optional-docs`, formDataToSend, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-
-      console.log('✅ [AUTO-UPLOAD OPTIONAL DOCS] Respuesta:', response.data);
-      
-      // Mostrar éxito
-      setOptionalDocsSuccess(true);
-      
-      // Recargar la lista
-      await loadLegacyWorks();
-      
-      // Limpiar el input
-      e.target.value = '';
-      
-      // Ocultar mensaje de éxito después de 5 segundos
-      setTimeout(() => setOptionalDocsSuccess(false), 5000);
-    } catch (err) {
-      console.error('❌ [AUTO-UPLOAD OPTIONAL DOCS] Error completo:', err);
-      console.error('❌ [AUTO-UPLOAD OPTIONAL DOCS] Response:', err.response?.data);
-      alert(err.response?.data?.message || err.response?.data?.error || 'Error al subir Optional Docs');
-    } finally {
-      setUploadingOptionalDocs(false);
+    if (file) {
+      if (file.type !== 'application/pdf') {
+        alert('⚠️ Solo se permiten archivos PDF');
+        e.target.value = '';
+        return;
+      }
+      console.log('📎 Optional Docs seleccionado:', file.name, '(', (file.size / 1024).toFixed(2), 'KB)');
+      setOptionalDocsFile(file);
     }
   };
 
@@ -508,12 +491,12 @@ const LegacyMaintenanceEditor = () => {
                     />
                   </div>
 
-                  {/* Upload de PDFs del Permit - Subida Automática */}
+                  {/* Upload de PDFs del Permit - Se guardan TODO junto */}
                   <div className="border-t pt-4 mt-4">
                     <h4 className="text-md font-semibold text-gray-800 mb-3">📄 Documentos del Permit</h4>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Upload Permit PDF (pdfData) - Automático */}
+                      {/* Seleccionar Permit PDF (pdfData) */}
                       <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           📋 PDF del Permit (Site Plan)
@@ -522,27 +505,15 @@ const LegacyMaintenanceEditor = () => {
                           type="file"
                           accept=".pdf"
                           onChange={handlePermitPdfChange}
-                          disabled={uploadingPermitPdf}
-                          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 disabled:opacity-50"
+                          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700"
                         />
-                        {uploadingPermitPdf && (
-                          <div className="mt-2 flex items-center text-blue-600 text-sm font-medium">
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                            Subiendo PDF...
-                          </div>
-                        )}
-                        {permitPdfSuccess && (
-                          <div className="mt-2 flex items-center text-green-600 text-sm font-medium bg-green-100 p-2 rounded-lg">
+                        {permitPdfFile && (
+                          <div className="mt-2 flex items-center text-blue-700 text-sm font-medium bg-blue-100 p-2 rounded-lg">
                             <CheckIcon className="h-5 w-5 mr-2" />
-                            ¡PDF subido exitosamente!
+                            Seleccionado: {permitPdfFile.name} ({(permitPdfFile.size / 1024).toFixed(2)} KB)
                           </div>
                         )}
-                        {!uploadingPermitPdf && !permitPdfSuccess && (
-                          <p className="text-xs text-gray-500 mt-2">
-                            ℹ️ El archivo se subirá automáticamente al seleccionarlo
-                          </p>
-                        )}
-                        {work.Permit?.pdfDataUrl && (
+                        {!permitPdfFile && work.Permit?.pdfDataUrl && (
                           <a
                             href={work.Permit.pdfDataUrl}
                             target="_blank"
@@ -554,7 +525,7 @@ const LegacyMaintenanceEditor = () => {
                         )}
                       </div>
 
-                      {/* Upload Optional Docs - Automático */}
+                      {/* Seleccionar Optional Docs */}
                       <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           📎 Documentos Opcionales
@@ -563,27 +534,15 @@ const LegacyMaintenanceEditor = () => {
                           type="file"
                           accept=".pdf"
                           onChange={handleOptionalDocsChange}
-                          disabled={uploadingOptionalDocs}
-                          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-600 file:text-white hover:file:bg-green-700 disabled:opacity-50"
+                          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-green-600 file:text-white hover:file:bg-green-700"
                         />
-                        {uploadingOptionalDocs && (
-                          <div className="mt-2 flex items-center text-green-600 text-sm font-medium">
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600 mr-2"></div>
-                            Subiendo documentos...
-                          </div>
-                        )}
-                        {optionalDocsSuccess && (
-                          <div className="mt-2 flex items-center text-green-600 text-sm font-medium bg-green-100 p-2 rounded-lg">
+                        {optionalDocsFile && (
+                          <div className="mt-2 flex items-center text-green-700 text-sm font-medium bg-green-100 p-2 rounded-lg">
                             <CheckIcon className="h-5 w-5 mr-2" />
-                            ¡Documentos subidos exitosamente!
+                            Seleccionado: {optionalDocsFile.name} ({(optionalDocsFile.size / 1024).toFixed(2)} KB)
                           </div>
                         )}
-                        {!uploadingOptionalDocs && !optionalDocsSuccess && (
-                          <p className="text-xs text-gray-500 mt-2">
-                            ℹ️ El archivo se subirá automáticamente al seleccionarlo
-                          </p>
-                        )}
-                        {work.Permit?.optionalDocsUrl && (
+                        {!optionalDocsFile && work.Permit?.optionalDocsUrl && (
                           <a
                             href={work.Permit.optionalDocsUrl}
                             target="_blank"
@@ -594,6 +553,19 @@ const LegacyMaintenanceEditor = () => {
                           </a>
                         )}
                       </div>
+                    </div>
+
+                    {/* Instrucciones claras */}
+                    <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                      <p className="text-sm text-yellow-800">
+                        💡 <strong>Instrucciones:</strong>
+                      </p>
+                      <ul className="text-xs text-yellow-700 mt-2 space-y-1 ml-4 list-disc">
+                        <li>Selecciona los PDFs que quieras actualizar</li>
+                        <li>Completa o modifica los datos del cliente</li>
+                        <li>Presiona <strong>"Guardar Todo"</strong> para subir los cambios juntos</li>
+                        <li>Los archivos NO se suben hasta que presiones el botón</li>
+                      </ul>
                     </div>
                   </div>
 
@@ -610,17 +582,19 @@ const LegacyMaintenanceEditor = () => {
                     <button
                       type="submit"
                       disabled={saving}
-                      className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                      className="px-6 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all flex items-center gap-2 disabled:opacity-50 shadow-lg"
                     >
                       {saving ? (
                         <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          Guardando...
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                          <span className="font-semibold">Guardando Todo...</span>
                         </>
                       ) : (
                         <>
-                          <CheckIcon className="h-4 w-4" />
-                          Guardar Cambios
+                          <CheckIcon className="h-5 w-5" />
+                          <span className="font-semibold">
+                            Guardar Todo {(permitPdfFile || optionalDocsFile) && '(Datos + PDFs)'}
+                          </span>
                         </>
                       )}
                     </button>

@@ -901,17 +901,17 @@ const AccountsReceivableController = {
           console.log(`✅ Receipt creado: ${createdReceipt.idReceipt}`);
         }
 
-        // ✅ Enviar notificación al equipo de finanzas
-        try {
-          await sendNotifications('expenseCreated', {
-            ...createdExpense.toJSON(),
-            propertyAddress: budget.Work.propertyAddress,
-            Staff: budget.createdByStaff
-          });
-          console.log(`✅ Notificación de comisión enviada`);
-        } catch (notificationError) {
-          console.error('❌ Error enviando notificación:', notificationError.message);
-        }
+        // ❌ NOTIFICACIONES DE EXPENSES DESHABILITADAS - Generan demasiado ruido
+        // try {
+        //   await sendNotifications('expenseCreated', {
+        //     ...createdExpense.toJSON(),
+        //     propertyAddress: budget.Work.propertyAddress,
+        //     Staff: budget.createdByStaff
+        //   });
+        //   console.log(`✅ Notificación de comisión enviada`);
+        // } catch (notificationError) {
+        //   console.error('❌ Error enviando notificación:', notificationError.message);
+        // }
       }
 
       // ✅ Actualizar estado de comisión en el Budget (guardar fecha como string)

@@ -115,8 +115,14 @@ async function generateMaintenancePDF(visitData) {
         // PBTS/ATU
         well_points_quantity,
         well_sample_1_url,
+        well_sample_1_observations,
+        well_sample_1_notes,
         well_sample_2_url,
+        well_sample_2_observations,
+        well_sample_2_notes,
         well_sample_3_url,
+        well_sample_3_observations,
+        well_sample_3_notes,
         system_video_url,
         // Generales
         general_notes,
@@ -401,24 +407,51 @@ async function generateMaintenancePDF(visitData) {
           y += 20;
         }
         
-        // Mostrar muestras en línea horizontal
+        // Mostrar muestras con sus observaciones
         const samples = [
-          { url: well_sample_1_url, label: 'Muestra 1' },
-          { url: well_sample_2_url, label: 'Muestra 2' },
-          { url: well_sample_3_url, label: 'Muestra 3' }
+          { 
+            url: well_sample_1_url, 
+            label: 'Muestra 1',
+            observations: well_sample_1_observations,
+            notes: well_sample_1_notes
+          },
+          { 
+            url: well_sample_2_url, 
+            label: 'Muestra 2',
+            observations: well_sample_2_observations,
+            notes: well_sample_2_notes
+          },
+          { 
+            url: well_sample_3_url, 
+            label: 'Muestra 3',
+            observations: well_sample_3_observations,
+            notes: well_sample_3_notes
+          }
         ].filter(s => s.url); // Solo muestras que tienen URL
         
         if (samples.length > 0) {
           // Verificar si necesitamos nueva página
-          if (y > doc.page.height - 200) {
+          if (y > doc.page.height - 250) {
             doc.addPage();
             y = PAGE_MARGIN;
           }
           
-          const thumbSize = 90; // Tamaño más pequeño para que quepan 3 en línea
+          const thumbSize = 90;
           const spacing = 15;
           const startX = PAGE_MARGIN + 20;
           let x = startX;
+          
+          // Calcular altura máxima necesaria para observaciones
+          let maxObservationsHeight = 0;
+          for (const sample of samples) {
+            if (sample.observations || sample.notes) {
+              const textHeight = doc.heightOfString(sample.observations || sample.notes || '', { 
+                width: thumbSize + 40,
+                fontSize: 8
+              });
+              maxObservationsHeight = Math.max(maxObservationsHeight, textHeight);
+            }
+          }
           
           for (let i = 0; i < samples.length; i++) {
             const sample = samples[i];
@@ -449,6 +482,19 @@ async function generateMaintenancePDF(visitData) {
                   underline: true 
                 });
               
+              // Observaciones debajo del link
+              if (sample.observations || sample.notes) {
+                const observationsY = y + thumbSize + 28;
+                doc.font('Helvetica-Bold').fontSize(7).fillColor(TEXT_COLOR);
+                doc.text('Observaciones:', x, observationsY, { width: thumbSize + 40 });
+                
+                doc.font('Helvetica').fontSize(7).fillColor(TEXT_LIGHT);
+                doc.text(sample.observations || sample.notes || '', x, observationsY + 10, { 
+                  width: thumbSize + 40,
+                  align: 'left'
+                });
+              }
+              
             } catch (err) {
               console.warn(`⚠️ Error mostrando imagen: ${sample.url}`);
               doc.font('Helvetica-Oblique').fontSize(7).fillColor(TEXT_LIGHT);
@@ -462,12 +508,25 @@ async function generateMaintenancePDF(visitData) {
                   link: sample.url,
                   underline: true 
                 });
+              
+              // Observaciones incluso si la imagen falló
+              if (sample.observations || sample.notes) {
+                const observationsY = y + 55;
+                doc.font('Helvetica-Bold').fontSize(7).fillColor(TEXT_COLOR);
+                doc.text('Observaciones:', x, observationsY, { width: thumbSize + 40 });
+                
+                doc.font('Helvetica').fontSize(7).fillColor(TEXT_LIGHT);
+                doc.text(sample.observations || sample.notes || '', x, observationsY + 10, { 
+                  width: thumbSize + 40,
+                  align: 'left'
+                });
+              }
             }
             
-            x += thumbSize + spacing; // Mover a la siguiente posición horizontal
+            x += thumbSize + spacing + 40; // Más espacio para las observaciones
           }
           
-          y += thumbSize + 40; // Avanzar después de todas las muestras
+          y += thumbSize + 40 + maxObservationsHeight + 20; // Avanzar después de todas las muestras + observaciones
         }
       }
 

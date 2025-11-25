@@ -1,13 +1,11 @@
 {
   "expo": {
-    "entryPoint": "./index.js",
     "name": "Zurcher Construction",
     "slug": "WorkTrackerMovil",
     "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/logo.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "splash": {
       "image": "./assets/logo.png",
       "resizeMode": "contain",
@@ -23,7 +21,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.zurcher.construction",
-      "buildNumber": "31",
+      "buildNumber": "32",
 
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,

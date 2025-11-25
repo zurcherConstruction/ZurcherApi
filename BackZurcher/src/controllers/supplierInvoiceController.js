@@ -1519,8 +1519,9 @@ const paySupplierInvoice = async (req, res) => {
               transaction
             });
 
-            await sendNotifications('expenseCreated', expenseWithDetails.toJSON());
-            console.log(`  📧 Notificación enviada para expense ${expense.idExpense}`);
+            // ❌ NOTIFICACIONES DE EXPENSES DESHABILITADAS (excepto Materiales Iniciales)
+            // await sendNotifications('expenseCreated', expenseWithDetails.toJSON());
+            // console.log(`  📧 Notificación enviada para expense ${expense.idExpense}`);
           } catch (notificationError) {
             console.error('  ⚠️ Error enviando notificación:', notificationError.message);
           }
@@ -1608,8 +1609,9 @@ const paySupplierInvoice = async (req, res) => {
             transaction
           });
 
-          await sendNotifications('expenseCreated', expenseWithDetails.toJSON());
-          console.log(`  📧 Notificación enviada para expense general ${expense.idExpense}`);
+          // ❌ NOTIFICACIONES DE EXPENSES DESHABILITADAS (excepto Materiales Iniciales)
+          // await sendNotifications('expenseCreated', expenseWithDetails.toJSON());
+          // console.log(`  📧 Notificación enviada para expense general ${expense.idExpense}`);
         } catch (notificationError) {
           console.error('  ⚠️ Error enviando notificación:', notificationError.message);
         }

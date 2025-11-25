@@ -1,6 +1,6 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomeScreen from '../screens/HomeScreen';
 import AssignedWorksScreen from '../screens/AssignedWorksScreen';
 import MaintenanceList from '../screens/MaintenanceList';
@@ -12,7 +12,7 @@ import LogoutScreen from '../screens/LogoutScreen';
 
 
 const Tab = createBottomTabNavigator();
-const Stack = createStackNavigator();
+const Stack = createNativeStackNavigator();
 
 function HomeStackNavigator() {
   return (

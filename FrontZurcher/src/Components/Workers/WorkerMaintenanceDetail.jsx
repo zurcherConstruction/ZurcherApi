@@ -78,8 +78,11 @@ const WorkerMaintenanceDetail = () => {
     // PBTS
     well_points_quantity: '',
     well_sample_1_url: '',
+    well_sample_1_observations: '',
     well_sample_2_url: '',
+    well_sample_2_observations: '',
     well_sample_3_url: '',
+    well_sample_3_observations: '',
 
     // VIDEO GENERAL
     system_video_url: '',
@@ -206,8 +209,11 @@ const WorkerMaintenanceDetail = () => {
         // PBTS
         well_points_quantity: currentVisit.well_points_quantity || '',
         well_sample_1_url: currentVisit.well_sample_1_url || '',
+        well_sample_1_observations: currentVisit.well_sample_1_observations || '',
         well_sample_2_url: currentVisit.well_sample_2_url || '',
+        well_sample_2_observations: currentVisit.well_sample_2_observations || '',
         well_sample_3_url: currentVisit.well_sample_3_url || '',
+        well_sample_3_observations: currentVisit.well_sample_3_observations || '',
 
         // VIDEO
         system_video_url: currentVisit.system_video_url || '',
@@ -1382,6 +1388,22 @@ const WorkerMaintenanceDetail = () => {
                     <span className="text-gray-400 text-sm">Sin foto</span>
                   </div>
                 )}
+                
+                {/* Observaciones Muestra 1 */}
+                <div className="mt-3">
+                  <label className="block text-xs font-bold text-amber-900 mb-1 uppercase">
+                    Observaciones
+                  </label>
+                  <textarea
+                    name="well_sample_1_observations"
+                    value={formData.well_sample_1_observations}
+                    onChange={handleInputChange}
+                    disabled={isDisabled}
+                    rows="2"
+                    className="w-full px-3 py-2 border-2 border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+                    placeholder="Observaciones de la muestra 1"
+                  />
+                </div>
               </div>
 
               {/* Muestra 2 */}
@@ -1430,6 +1452,22 @@ const WorkerMaintenanceDetail = () => {
                     <span className="text-gray-400 text-sm">Sin foto</span>
                   </div>
                 )}
+                
+                {/* Observaciones Muestra 2 */}
+                <div className="mt-3">
+                  <label className="block text-xs font-bold text-amber-900 mb-1 uppercase">
+                    Observaciones
+                  </label>
+                  <textarea
+                    name="well_sample_2_observations"
+                    value={formData.well_sample_2_observations}
+                    onChange={handleInputChange}
+                    disabled={isDisabled}
+                    rows="2"
+                    className="w-full px-3 py-2 border-2 border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+                    placeholder="Observaciones de la muestra 2"
+                  />
+                </div>
               </div>
 
               {/* Muestra 3 */}
@@ -1478,6 +1516,22 @@ const WorkerMaintenanceDetail = () => {
                     <span className="text-gray-400 text-sm">Sin foto</span>
                   </div>
                 )}
+                
+                {/* Observaciones Muestra 3 */}
+                <div className="mt-3">
+                  <label className="block text-xs font-bold text-amber-900 mb-1 uppercase">
+                    Observaciones
+                  </label>
+                  <textarea
+                    name="well_sample_3_observations"
+                    value={formData.well_sample_3_observations}
+                    onChange={handleInputChange}
+                    disabled={isDisabled}
+                    rows="2"
+                    className="w-full px-3 py-2 border-2 border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent disabled:bg-gray-100 text-sm"
+                    placeholder="Observaciones de la muestra 3"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -1527,21 +1581,32 @@ const WorkerMaintenanceDetail = () => {
               {formData.system_video_url && (
                 <div className="mt-3 p-3 bg-pink-100 border border-pink-300 rounded-lg">
                   <p className="text-sm font-semibold text-pink-800 mb-2">
-                    ✓ Video cargado
+                    ✓ Video del Sistema Cargado
                   </p>
                   {formData.system_video_url.startsWith('http') ? (
-                    // Video ya subido a Cloudinary
-                    <a
-                      href={formData.system_video_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center px-3 py-2 bg-pink-600 text-white text-sm font-semibold rounded-lg hover:bg-pink-700 transition-colors"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 mr-2">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
-                      </svg>
-                      Ver Video
-                    </a>
+                    // Video ya subido a Cloudinary - Mostrar player
+                    <div className="space-y-2">
+                      <video 
+                        controls 
+                        className="w-full max-w-2xl rounded-lg shadow-md"
+                        preload="metadata"
+                      >
+                        <source src={formData.system_video_url} type="video/mp4" />
+                        <source src={formData.system_video_url} type="video/quicktime" />
+                        Tu navegador no soporta el elemento de video.
+                      </video>
+                      <a
+                        href={formData.system_video_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center px-3 py-1 text-pink-600 text-sm hover:text-pink-800 transition-colors"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 mr-1">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                        </svg>
+                        Descargar Video
+                      </a>
+                    </div>
                   ) : (
                     // Archivo recién seleccionado (pendiente de subir)
                     <p className="text-xs text-pink-700">

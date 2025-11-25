@@ -13,7 +13,7 @@ import { Buffer } from "buffer";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorkById } from "../Redux/Actions/workActions";
 import { useRoute, useNavigation } from "@react-navigation/native";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy"; // ⚡ Usar API legacy
 import * as IntentLauncher from "expo-intent-launcher";
 import * as Sharing from "expo-sharing";
 import * as ImageManipulator from "expo-image-manipulator";

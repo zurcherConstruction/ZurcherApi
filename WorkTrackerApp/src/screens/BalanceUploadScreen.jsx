@@ -7,7 +7,7 @@ import { createIncome, createExpense, createReceipt } from '../Redux/features/ba
 import { useDispatch, useSelector } from 'react-redux';
 import { Picker } from '@react-native-picker/picker';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy'; // ⚡ Usar API legacy
 
 // ✅ Tipos sincronizados con el backend
 const incomeTypes = [
@@ -91,8 +91,21 @@ const BalanceUploadScreen = () => {
         { compress: 0.3, format: SaveFormat.JPEG }
       );
       
-      const imageInfo = await FileSystem.getInfoAsync(resizedImage.uri);
-      const sizeKB = imageInfo.size / 1024;
+      // ⚡ Compatible con web y nativo
+      let sizeKB = 0;
+      if (Platform.OS === 'web') {
+        try {
+          const response = await fetch(resizedImage.uri);
+          const blob = await response.blob();
+          sizeKB = blob.size / 1024;
+        } catch (error) {
+          console.warn('No se pudo verificar tamaño en web');
+          return resizedImage.uri;
+        }
+      } else {
+        const imageInfo = await FileSystem.getInfoAsync(resizedImage.uri);
+        sizeKB = imageInfo.size / 1024;
+      }
       
       console.log(`🧾 Comprobante optimizado: ${sizeKB.toFixed(0)}KB`);
       
@@ -104,8 +117,11 @@ const BalanceUploadScreen = () => {
           [{ resize: { width: 800 } }],
           { compress: 0.2, format: SaveFormat.JPEG }
         );
-        const finalInfo = await FileSystem.getInfoAsync(extraCompressed.uri);
-        console.log(`🧾 Comprobante re-comprimido: ${(finalInfo.size / 1024).toFixed(0)}KB`);
+        
+        if (Platform.OS !== 'web') {
+          const finalInfo = await FileSystem.getInfoAsync(extraCompressed.uri);
+          console.log(`🧾 Comprobante re-comprimido: ${(finalInfo.size / 1024).toFixed(0)}KB`);
+        }
         return extraCompressed.uri;
       }
       
@@ -142,8 +158,21 @@ const BalanceUploadScreen = () => {
         if (asset.mimeType && asset.mimeType.startsWith('image/')) {
           console.log('📸 Es imagen, optimizando...');
           finalUri = await optimizeReceiptImage(asset.uri);
-          const optimizedInfo = await FileSystem.getInfoAsync(finalUri);
-          finalSize = optimizedInfo.size;
+          
+          // Obtener tamaño optimizado (compatible web y nativo)
+          if (Platform.OS === 'web') {
+            try {
+              const response = await fetch(finalUri);
+              const blob = await response.blob();
+              finalSize = blob.size;
+            } catch (error) {
+              finalSize = asset.size; // Fallback
+            }
+          } else {
+            const optimizedInfo = await FileSystem.getInfoAsync(finalUri);
+            finalSize = optimizedInfo.size;
+          }
+          
           console.log(`✅ Tamaño reducido: ${(asset.size / 1024).toFixed(0)}KB → ${(finalSize / 1024).toFixed(0)}KB`);
         } else {
           console.log('📄 Es PDF, no se optimiza');

@@ -9,6 +9,12 @@ dist/
 web-build/
 expo-env.d.ts
 
+# Local development scripts (Windows)
+*.bat
+
+# Local testing documentation
+LOCAL_TESTING_GUIDE.md
+
 # Native
 *.orig.*
 *.jks

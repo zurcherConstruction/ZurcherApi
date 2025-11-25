@@ -146,9 +146,11 @@ const createExpense = async (req, res) => {
         propertyAddress: expenseWithDetails.work?.propertyAddress || null
       };
 
-      // Enviar notificación
-      await sendNotifications('expenseCreated', notificationData);
-      console.log(`✅ Notificación de gasto enviada: $${amount} - ${typeExpense}`);
+      // ✅ SOLO ENVIAR NOTIFICACIÓN PARA MATERIALES INICIALES
+      if (typeExpense === 'Materiales Iniciales') {
+        await sendNotifications('expenseCreated', notificationData);
+        console.log(`✅ Notificación de Materiales Iniciales enviada: $${amount}`);
+      }
     } catch (notificationError) {
       console.error('❌ Error enviando notificación de gasto:', notificationError.message);
       // No fallar la creación del gasto por error de notificación
@@ -304,9 +306,9 @@ const updateExpense = async (req, res) => {
         propertyAddress: expenseWithDetails.work?.propertyAddress || null
       };
 
-      // Enviar notificación
-      await sendNotifications('expenseUpdated', notificationData);
-      console.log(`✅ Notificación de actualización de gasto enviada: $${amount} - ${typeExpense}`);
+      // ❌ NOTIFICACIONES DE EXPENSES DESHABILITADAS - Generan demasiado ruido
+      // await sendNotifications('expenseUpdated', notificationData);
+      // console.log(`✅ Notificación de actualización de gasto enviada: $${amount} - ${typeExpense}`);
     } catch (notificationError) {
       console.error('❌ Error enviando notificación de actualización de gasto:', notificationError.message);
     }
@@ -623,8 +625,9 @@ const createGeneralExpenseWithReceipt = async (req, res) => {
         ]
       });
 
-      await sendNotifications('expenseCreated', expenseWithDetails.toJSON());
-      console.log(`✅ Notificación de gasto general enviada: $${amount}`);
+      // ❌ NOTIFICACIONES DE EXPENSES DESHABILITADAS - Generan demasiado ruido
+      // await sendNotifications('expenseCreated', expenseWithDetails.toJSON());
+      // console.log(`✅ Notificación de gasto general enviada: $${amount}`);
     } catch (notificationError) {
       console.error('❌ Error enviando notificación:', notificationError.message);
     }

@@ -226,22 +226,23 @@ const workSlice = createSlice({
       state.loadingMarkCorrection = false;
       const updatedInspection = action.payload; // La inspección actualizada desde el backend
 
-      // Si currentWork está cargado y tiene inspecciones, actualiza la específica.
-      // Esto es opcional si confías en el refetch de fetchWorkById desde la acción.
-      // Pero puede dar una actualización más rápida de la UI si la estructura lo permite.
-      if (state.currentWork && state.currentWork.inspections) {
-        const index = state.currentWork.inspections.findIndex(
-          (insp) => insp.idInspection === updatedInspection.idInspection
-        );
-        if (index !== -1) {
-          state.currentWork.inspections[index] = updatedInspection;
-        } else {
-          // Si no la encuentra, podría ser una nueva (aunque no en este flujo) o un problema.
-          // El refetch de fetchWorkById se encargará de la consistencia.
+      // ✅ Actualizar AMBOS: state.work Y state.currentWork (para compatibilidad)
+      const updateInspectionInWork = (workObj) => {
+        if (workObj && workObj.inspections) {
+          const index = workObj.inspections.findIndex(
+            (insp) => insp.idInspection === updatedInspection.idInspection
+          );
+          if (index !== -1) {
+            workObj.inspections[index] = updatedInspection;
+          }
         }
-      }
-      // También podrías querer actualizar la inspección en la lista `assignedWorks` si está allí
-      // y si `assignedWorks` contiene los detalles completos de las inspecciones.
+      };
+
+      // Actualizar state.work (usado por UploadScreen)
+      updateInspectionInWork(state.work);
+      
+      // Actualizar state.currentWork (por si acaso)
+      updateInspectionInWork(state.currentWork);
     },
     markInspectionCorrectedFailure: (state, action) => {
       state.loadingMarkCorrection = false;

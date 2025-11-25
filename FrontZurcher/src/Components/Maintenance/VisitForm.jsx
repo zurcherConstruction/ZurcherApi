@@ -20,13 +20,10 @@ const VisitForm = ({ visit, isOpen, onClose }) => {
 
   const [formData, setFormData] = useState({
     scheduledDate: '',
-    actualVisitDate: '',
-    notes: '',
-    status: 'pending_scheduling',
     staffId: null
   });
 
-  const [showMediaUpload, setShowMediaUpload] = useState(false);
+  const [showMediaUpload, setShowMediaUpload] = useState(false); // Mantener para compatibilidad pero no se usa
 
   // Resetear estado cuando se abre el modal
   useEffect(() => {
@@ -44,17 +41,13 @@ const VisitForm = ({ visit, isOpen, onClose }) => {
     if (visit) {
       setFormData({
         scheduledDate: normalizeDateForInput(visit.scheduledDate),
-        actualVisitDate: normalizeDateForInput(visit.actualVisitDate),
-        notes: visit.notes || '',
-        status: visit.status || 'pending_scheduling',
         staffId: visit.staffId || null
       });
       
-      console.log('🔵 [VISIT FORM] Fechas normalizadas:', {
+      console.log('🔵 [VISIT FORM] Datos iniciales:', {
         original_scheduledDate: visit.scheduledDate,
         normalized_scheduledDate: normalizeDateForInput(visit.scheduledDate),
-        original_actualVisitDate: visit.actualVisitDate,
-        normalized_actualVisitDate: normalizeDateForInput(visit.actualVisitDate)
+        staffId: visit.staffId
       });
     }
   }, [visit]);
@@ -82,42 +75,17 @@ const VisitForm = ({ visit, isOpen, onClose }) => {
   };
 
   const handleStatusChange = (newStatus) => {
-    setFormData(prev => ({
-      ...prev,
-      status: newStatus,
-      // Si se marca como completada, poner fecha actual si no tiene
-      actualVisitDate: newStatus === 'completed' && !prev.actualVisitDate 
-        ? (() => {
-            const now = new Date();
-            return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-          })()
-        : prev.actualVisitDate
-    }));
+    // Función removida - ya no se cambia status manualmente
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     console.log('🔵 [VISIT FORM] ==================== INICIO handleSubmit ====================');
-    console.log('🔵 [VISIT FORM] Timestamp:', new Date().toISOString());
     console.log('🔵 [VISIT FORM] formData:', JSON.stringify(formData, null, 2));
-    console.log('🔵 [VISIT FORM] visit completo:', JSON.stringify(visit, null, 2));
-    console.log('🔵 [VISIT FORM] visit.id:', visit?.id, 'Type:', typeof visit?.id);
-    console.log('🔵 [VISIT FORM] loadingAction actual:', loadingAction);
 
-    // Validaciones
-    if (formData.status === 'completed' && !formData.actualVisitDate) {
-      console.log('⚠️ [VISIT FORM] Validación fallida: completed sin actualVisitDate');
-      Swal.fire({
-        icon: 'warning',
-        title: 'Fecha requerida',
-        text: 'Debe especificar la fecha en que se realizó la visita.',
-      });
-      return;
-    }
-
-    if (formData.status === 'scheduled' && !formData.scheduledDate) {
-      console.log('⚠️ [VISIT FORM] Validación fallida: scheduled sin scheduledDate');
+    // ✅ Validaciones simples
+    if (!formData.scheduledDate) {
       Swal.fire({
         icon: 'warning',
         title: 'Fecha requerida',
@@ -126,52 +94,51 @@ const VisitForm = ({ visit, isOpen, onClose }) => {
       return;
     }
 
+    if (!formData.staffId) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Personal requerido',
+        text: 'Debe asignar un worker o maintenance a la visita.',
+      });
+      return;
+    }
+
     try {
-      // Validar que tenemos un ID válido
       if (!visit || !visit.id) {
         console.error('❌ [VISIT FORM] No se encontró visit.id');
         throw new Error('No se encontró el ID de la visita');
       }
 
-      console.log('✅ [VISIT FORM] Validaciones pasadas, iniciando dispatch');
-      console.log('✅ [VISIT FORM] Actualizando visita con ID:', visit.id);
+      console.log('✅ [VISIT FORM] Validaciones pasadas, actualizando visita con ID:', visit.id);
       
-      // Preparar datos asegurando que las fechas estén en formato YYYY-MM-DD
+      // ✅ Preparar datos: al asignar fecha y staff, automáticamente se pone en estado 'scheduled'
       const dataToSend = {
-        ...formData,
-        scheduledDate: formData.scheduledDate || null,
-        actualVisitDate: formData.actualVisitDate || null,
-        staffId: formData.staffId || null
+        scheduledDate: formData.scheduledDate,
+        staffId: formData.staffId,
+        status: 'scheduled' // ✅ Automáticamente programada al asignar
       };
       
       console.log('📤 [VISIT FORM] Datos a enviar:', JSON.stringify(dataToSend, null, 2));
       
       const result = await dispatch(updateMaintenanceVisit(visit.id, dataToSend));
 
-      console.log('✅ [VISIT FORM] Visita actualizada exitosamente:', result);
-      console.log('🔵 [VISIT FORM] loadingAction después del dispatch:', loadingAction);
+      console.log('✅ [VISIT FORM] Visita asignada exitosamente:', result);
 
       Swal.fire({
         icon: 'success',
-        title: 'Visita actualizada',
-        text: 'La información de la visita ha sido actualizada correctamente.',
+        title: 'Visita Asignada',
+        text: 'La visita ha sido programada y asignada correctamente.',
         timer: 2000
       });
 
       onClose();
     } catch (error) {
-      console.error('❌ [VISIT FORM] ==================== ERROR ====================');
-      console.error('❌ [VISIT FORM] Error completo:', error);
-      console.error('❌ [VISIT FORM] Error.message:', error.message);
-      console.error('❌ [VISIT FORM] Error.response:', error.response);
-      console.error('❌ [VISIT FORM] Error.response.data:', error.response?.data);
-      console.error('❌ [VISIT FORM] Error.response.status:', error.response?.status);
-      console.error('❌ [VISIT FORM] Stack trace:', error.stack);
+      console.error('❌ [VISIT FORM] Error:', error);
       
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: error?.response?.data?.message || error?.message || 'Error al actualizar la visita.',
+        text: error?.response?.data?.message || error?.message || 'Error al asignar la visita.',
       });
     } finally {
       console.log('🔵 [VISIT FORM] ==================== FIN handleSubmit ====================');
@@ -276,14 +243,19 @@ const VisitForm = ({ visit, isOpen, onClose }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[95vh] overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-blue-700">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900">
-              Gestionar Visita #{visit.visitNumber}
-            </h2>
+            <div>
+              <h2 className="text-xl font-bold text-white">
+                Asignar Visita #{visit.visitNumber}
+              </h2>
+              <p className="text-blue-100 text-sm mt-1">
+                Programa la fecha y asigna el personal para esta visita de mantenimiento
+              </p>
+            </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-white hover:text-gray-200 transition-colors"
             >
               <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -296,70 +268,47 @@ const VisitForm = ({ visit, isOpen, onClose }) => {
         <div className="overflow-y-auto max-h-[calc(95vh-140px)]">
           <div className="p-6">
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Estado de la visita */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">
-                  Estado de la visita
-                </label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {getStatusOptions().map(option => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => handleStatusChange(option.value)}
-                      className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${
-                        formData.status === option.value
-                          ? 'border-blue-500 bg-blue-50 text-blue-700'
-                          : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
+              {/* Info de la obra */}
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <h3 className="font-semibold text-gray-800 mb-2">Información de la Obra</h3>
+                <div className="text-sm text-gray-600 space-y-1">
+                  <p><strong>Dirección:</strong> {visit.work?.propertyAddress || 'N/A'}</p>
+                  <p><strong>Cliente:</strong> {visit.work?.Permit?.applicantName || 'N/A'}</p>
+                  <p><strong>Sistema:</strong> {visit.work?.Permit?.systemType || 'N/A'} {visit.work?.Permit?.isPBTS && '(PBTS)'}</p>
                 </div>
               </div>
 
-              {/* Fechas */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Fecha programada
-                  </label>
-                  <input
-                    type="date"
-                    name="scheduledDate"
-                    value={formData.scheduledDate}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Fecha real de visita
-                  </label>
-                  <input
-                    type="date"
-                    name="actualVisitDate"
-                    value={formData.actualVisitDate}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
+              {/* Fecha programada */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  📅 Fecha Programada *
+                </label>
+                <input
+                  type="date"
+                  name="scheduledDate"
+                  value={formData.scheduledDate}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                />
+                <p className="mt-2 text-xs text-gray-500">
+                  Selecciona la fecha en que se realizará la visita de mantenimiento
+                </p>
               </div>
 
               {/* Asignación de personal */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Asignar a personal (Maintenance o Worker)
+                  👤 Asignar Personal *
                 </label>
                 <select
                   name="staffId"
                   value={formData.staffId || ''}
                   onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
                 >
-                  <option value="">Sin asignar</option>
+                  <option value="">-- Selecciona un worker o maintenance --</option>
                   {staff
                     .filter(member => member.role === 'worker' || member.role === 'maintenance')
                     .map(member => (
@@ -370,58 +319,30 @@ const VisitForm = ({ visit, isOpen, onClose }) => {
                   }
                 </select>
                 {formData.staffId && (
-                  <p className="mt-1 text-xs text-gray-500">
-                    Esta persona recibirá la tarea en su app móvil
+                  <p className="mt-2 text-sm text-green-600 flex items-center">
+                    <svg className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Esta persona recibirá la visita en su app móvil
                   </p>
                 )}
               </div>
 
-              {/* Notas */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Notas de la visita
-                </label>
-                <textarea
-                  name="notes"
-                  value={formData.notes}
-                  onChange={handleInputChange}
-                  rows={4}
-                  placeholder="Escriba aquí los detalles de la visita, observaciones, recomendaciones..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* Sección de multimedia */}
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Documentos y fotos
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => setShowMediaUpload(!showMediaUpload)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
-                  >
-                    {showMediaUpload ? 'Cancelar' : 'Subir archivos'}
-                  </button>
-                </div>
-
-                {/* Upload component */}
-                {showMediaUpload && (
-                  <div className="mb-6">
-                    <MediaUpload
-                      onUpload={handleMediaUpload}
-                      isUploading={uploadingMedia}
-                    />
+              {/* Nota informativa */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start">
+                  <svg className="h-5 w-5 text-blue-600 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="text-sm text-blue-800">
+                    <p className="font-semibold mb-1">ℹ️ Información importante:</p>
+                    <ul className="list-disc ml-4 space-y-1">
+                      <li>La visita quedará en estado <strong>"Programada"</strong> automáticamente</li>
+                      <li>El personal asignado podrá ver y completar la visita desde su app móvil</li>
+                      <li>Los archivos y formulario se completarán durante la visita en campo</li>
+                    </ul>
                   </div>
-                )}
-
-                {/* Gallery component */}
-                <MediaGallery
-                  mediaFiles={visit.mediaFiles || []}
-                  onDelete={handleMediaDelete}
-                  isDeleting={loadingAction}
-                />
+                </div>
               </div>
 
               {/* Botones de acción */}
@@ -429,16 +350,31 @@ const VisitForm = ({ visit, isOpen, onClose }) => {
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 transition-colors"
+                  className="px-5 py-3 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors font-medium"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={loadingAction}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all disabled:opacity-50 font-medium shadow-lg flex items-center gap-2"
                 >
-                  {loadingAction ? 'Guardando...' : 'Guardar cambios'}
+                  {loadingAction ? (
+                    <>
+                      <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Asignando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>Asignar Visita</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

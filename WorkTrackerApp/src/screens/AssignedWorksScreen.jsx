@@ -5,12 +5,12 @@ import { fetchAssignedWorks } from "../Redux/Actions/workActions";
 import { fetchAssignedMaintenances } from "../Redux/features/maintenanceSlice";
 import { View, Text, FlatList, TouchableOpacity, TextInput, ActivityIndicator } from "react-native";
 import UploadScreen from "./UploadScreen";
-import MaintenanceWebView from "./MaintenanceWebView";
-import { createStackNavigator } from "@react-navigation/stack";
+import MaintenanceFormScreen from "./MaintenanceFormScreen"; // ✅ Formulario nativo de mantenimiento
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAutoRefresh} from '../utils/useAutoRefresh'; // Importa el hook de auto-refresh
 // --- 1. Mover la creación del Stack fuera del componente ---
-const Stack = createStackNavigator();
+const Stack = createNativeStackNavigator();
 
 const statusTranslations = {
   pending: "Pendiente",
@@ -39,10 +39,16 @@ const WorksListScreen = ({ navigation }) => { // Recibe navigation como prop
   const [searchQuery, setSearchQuery] = useState('');
   const { works, loading: reduxLoading, error, lastUpdate } = useSelector((state) => state.work);
   const { assignedMaintenances, loadingAssigned } = useSelector((state) => state.maintenance);
-  const { forceRefresh } = useAutoRefresh(60000); // 60 segundos
   
-  console.log("WorksListScreen works", works);
-  console.log("WorksListScreen maintenances", assignedMaintenances);
+  // Auto-refresh: 3 minutos en producción, 1 minuto en desarrollo
+  const refreshInterval = __DEV__ ? 60000 : 180000;
+  const { forceRefresh } = useAutoRefresh(refreshInterval);
+  
+  // 🔧 Solo en desarrollo - evita logs masivos en producción
+  if (__DEV__) {
+    console.log("WorksListScreen - Total works:", works?.length || 0);
+    console.log("WorksListScreen - Total maintenances:", assignedMaintenances?.length || 0);
+  }
   
   useEffect(() => {
     if (staffId) {
@@ -196,23 +202,26 @@ const renderHeader = () => (
           return (
             <TouchableOpacity
               onPress={() => {
-                console.log('🔍 Item clicked:', {
-                  idWork: item.idWork,
-                  status: item.status,
-                  isMaintenance,
-                  hasMaintenanceVisit: !!item.maintenanceVisit,
-                  propertyAddress: item.propertyAddress
-                });
+                if (__DEV__) {
+                  console.log('🔍 Item clicked:', {
+                    idWork: item.idWork,
+                    status: item.status,
+                    isMaintenance,
+                    hasMaintenanceVisit: !!item.maintenanceVisit
+                  });
+                }
                 
                 if (isMaintenance) {
-                  console.log('🔧 Navigating to MaintenanceWebView with visit:', item.maintenanceVisit?.id);
-                  // Navegar al WebView con los datos de la visita de mantenimiento
-                  navigation.navigate("MaintenanceWebView", {
+                  if (__DEV__) {
+                    console.log('🔧 Navigating to MaintenanceFormScreen');
+                  }
+                  navigation.navigate("MaintenanceFormScreen", {
                     visit: item.maintenanceVisit,
                   });
                 } else {
-                  console.log('📸 Navigating to UploadScreen for work:', item.idWork);
-                  // Navegar a la pantalla de carga de archivos para trabajos regulares
+                  if (__DEV__) {
+                    console.log('📸 Navigating to UploadScreen');
+                  }
                   navigation.navigate("UploadScreen", {
                     idWork: item.idWork,
                     propertyAddress: item.propertyAddress,
@@ -276,8 +285,8 @@ const AssignedWorksStackNavigator = () => {
         })}
       />
       <Stack.Screen
-        name="MaintenanceWebView"
-        component={MaintenanceWebView}
+        name="MaintenanceFormScreen"
+        component={MaintenanceFormScreen} // ✅ Formulario nativo de mantenimiento
         options={({ route }) => ({
           title: route.params?.visit?.work?.Permit?.propertyAddress || 'Maintenance Form',
         })}

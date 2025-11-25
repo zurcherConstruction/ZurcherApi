@@ -1687,6 +1687,12 @@ const handleUploadImage = async () => {
                     onSubmit={async e => {
                       e.preventDefault();
                       
+                      // ✅ Prevenir múltiples clicks - guard clause inmediata
+                      if (quickInspectionLoading) {
+                        console.log('⚠️ Ya se está procesando una inspección, ignorando click adicional');
+                        return;
+                      }
+                      
                       // ✅ Validación previa: verificar si el tipo seleccionado ya está aprobado
                       if (quickInspectionType === 'initial' && hasApprovedInitialInspection) {
                         const approvedInsp = initialInspectionsHistory.find(i => i.finalStatus === 'approved');

@@ -852,7 +852,7 @@ const getAssignedMaintenances = async (req, res) => {
     if (addresses.length > 0) {
       const permits = await Permit.findAll({
         where: { propertyAddress: addresses },
-        attributes: ['idPermit', 'propertyAddress', 'applicant', 'systemType', 'optionalDocs']
+        attributes: ['idPermit', 'propertyAddress', 'applicant', 'applicantName', 'systemType', 'permitNumber', 'pdfData', 'optionalDocs']
       });
       permitsByAddress = permits.reduce((acc, p) => {
         acc[p.propertyAddress] = p.get({ plain: true });
@@ -1020,6 +1020,18 @@ const completeMaintenanceVisit = async (req, res) => {
       
       // PBTS/ATU - Nuevos campos
       well_points_quantity,
+      well_sample_1_observations,
+      well_sample_1_notes,
+      well_sample_2_observations,
+      well_sample_2_notes,
+      well_sample_3_observations,
+      well_sample_3_notes,
+      
+      // Lift Station - Opcionales
+      has_lift_station,
+      
+      // PBTS - Opcionales
+      has_pbts,
       
       // VIDEO
       system_video_url,
@@ -1088,7 +1100,10 @@ const completeMaintenanceVisit = async (req, res) => {
     visit.alarm_test = alarm_test === 'true' || alarm_test === true || alarm_test === 'SI';
     visit.alarm_test_notes = alarm_test_notes || null;
     
-    // Lift Station
+    // Lift Station - OPCIONALES
+    console.log('🔍 BACKEND - has_lift_station recibido:', has_lift_station, 'tipo:', typeof has_lift_station);
+    visit.has_lift_station = has_lift_station === 'true' || has_lift_station === true;
+    console.log('🔍 BACKEND - has_lift_station guardado:', visit.has_lift_station);
     visit.pump_running = pump_running === 'true' || pump_running === true || pump_running === 'SI';
     visit.pump_running_notes = pump_running_notes || null;
     visit.float_switches = float_switches === 'true' || float_switches === true || float_switches === 'SI';
@@ -1104,6 +1119,11 @@ const completeMaintenanceVisit = async (req, res) => {
     visit.float_switch_good = float_switch_good === 'true' || float_switch_good === true;
     visit.float_switch_notes = float_switch_notes || null;
     
+    // PBTS - OPCIONALES
+    console.log('🔍 BACKEND - has_pbts recibido:', has_pbts, 'tipo:', typeof has_pbts);
+    visit.has_pbts = has_pbts === 'true' || has_pbts === true;
+    console.log('🔍 BACKEND - has_pbts guardado:', visit.has_pbts);
+    
     // PBTS - parsear JSON
     if (well_samples) {
       try {
@@ -1118,6 +1138,14 @@ const completeMaintenanceVisit = async (req, res) => {
     if (well_points_quantity) {
       visit.well_points_quantity = parseInt(well_points_quantity, 10);
     }
+    
+    // PBTS - Observaciones y notas adicionales
+    visit.well_sample_1_observations = well_sample_1_observations || null;
+    visit.well_sample_1_notes = well_sample_1_notes || null;
+    visit.well_sample_2_observations = well_sample_2_observations || null;
+    visit.well_sample_2_notes = well_sample_2_notes || null;
+    visit.well_sample_3_observations = well_sample_3_observations || null;
+    visit.well_sample_3_notes = well_sample_3_notes || null;
     
     // Video del sistema
     visit.system_video_url = system_video_url || null;
@@ -1186,16 +1214,22 @@ const completeMaintenanceVisit = async (req, res) => {
     const uploadedMedia = [];
     const maintenanceFiles = files?.maintenanceFiles || []; // Extraer array de maintenanceFiles
     
-    // Obtener el array de fieldNames enviado desde el frontend
-    const fieldNames = req.body.fieldNames || [];
+    // Parsear el mapeo de archivos enviado desde el frontend (objeto: filename -> fieldName)
+    let parsedFileMapping = {};
+    try {
+      parsedFileMapping = fileFieldMapping ? JSON.parse(fileFieldMapping) : {};
+    } catch (e) {
+      console.error('❌ Error parseando fileFieldMapping:', e);
+    }
+    
     console.log('📸 Archivos recibidos:', maintenanceFiles.length);
-    console.log('📸 FieldNames recibidos:', fieldNames);
+    console.log('📸 fileFieldMapping:', parsedFileMapping);
     
     if (maintenanceFiles.length > 0) {
       for (let i = 0; i < maintenanceFiles.length; i++) {
         const file = maintenanceFiles[i];
-        // Obtener el fieldName correspondiente del array (mismo índice)
-        const fieldName = Array.isArray(fieldNames) ? fieldNames[i] : (fieldNames || 'general');
+        // Obtener el fieldName del mapping usando el nombre del archivo
+        const fieldName = parsedFileMapping[file.originalname] || 'general';
         
         console.log(`📸 Procesando archivo ${i + 1}/${maintenanceFiles.length}: ${file.originalname} -> campo: ${fieldName}`);
         
@@ -1211,7 +1245,7 @@ const completeMaintenanceVisit = async (req, res) => {
           publicId: cloudinaryResult.public_id,
           mediaType: resourceType === 'raw' ? 'document' : resourceType,
           originalName: file.originalname,
-          fieldName: fieldName, // Usar el fieldName del array
+          fieldName: fieldName, // Usar el fieldName del mapping
         });
         uploadedMedia.push(newMedia);
         console.log(`✅ Archivo guardado con fieldName: ${fieldName}`);
@@ -1266,12 +1300,17 @@ const getAllCompletedMaintenances = async (req, res) => {
 
     const whereClause = {};
     
-    // Filtrar por estado (por defecto solo completadas)
-    if (status) {
-      whereClause.status = status;
-    } else {
-      whereClause.status = 'completed';
+    // ✅ Filtrar por estado(s) - puede ser un estado o múltiples separados por coma
+    if (status && status !== 'all') {
+      // Si contiene comas, dividir en array
+      if (status.includes(',')) {
+        const statusArray = status.split(',').map(s => s.trim());
+        whereClause.status = { [Op.in]: statusArray };
+      } else {
+        whereClause.status = status;
+      }
     }
+    // Si status es 'all' o undefined, NO filtramos por status (devolvemos todas)
 
     // Filtrar por work específico
     if (workId) {

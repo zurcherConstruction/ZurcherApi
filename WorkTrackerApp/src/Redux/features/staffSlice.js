@@ -15,7 +15,9 @@ const staffSlice = createSlice({
       state.error = null;
     },
     fetchStaffSuccess: (state, action) => {
-        console.log("Datos transformados:", action.payload);
+        if (__DEV__) {
+          console.log("Staff actualizado:", action.payload.length, "registros");
+        }
         state.loading = false;
         state.staff = action.payload;
         state.error = null;

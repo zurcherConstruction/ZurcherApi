@@ -3,7 +3,7 @@ import { Modal, View, Text, Image, Pressable, FlatList, Alert } from 'react-nati
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import * as ImagePicker from 'expo-image-picker';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy'; // ⚡ Usar API legacy
 
 const ImageManagerModal = ({ visible, onClose, images, onAddImage, maxImages = 12, work }) => {
   const [imagesWithDataURLs, setImagesWithDataURLs] = useState({});

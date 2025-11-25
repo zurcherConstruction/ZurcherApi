@@ -93,9 +93,8 @@ const registerQuickInspectionResult = async (req, res) => {
         work.status = 'coverPending';
         console.log(`[InspectionController - Quick] Inspección inicial aprobada para work ${work.idWork}. Estado cambiado automáticamente a 'coverPending'.`);
         await work.save();
-        // Enviar notificación para el nuevo estado
-        await sendNotifications('initial_inspection_approved', work, req.app.get('io'), { inspectionId: inspection.idInspection });
-        await sendNotifications('coverPending', work, req.app.get('io'));
+        // ✅ SOLO enviar notificación de coverPending (incluye la info de inspección aprobada)
+        await sendNotifications('coverPending', work, req.app.get('io'), { inspectionId: inspection.idInspection });
       } else {
         work.status = 'rejectedInspection';
         // Incluir la URL del documento de resultado en el objeto work para la notificación
