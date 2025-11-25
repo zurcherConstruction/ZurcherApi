@@ -55,19 +55,24 @@ const MaintenanceWebView = () => {
   const generateTokenAndLoadForm = async () => {
     try {
       setLoading(true);
+      console.log('🔑 [MaintenanceWebView] Generando token para visit:', visit.id);
       const tokenData = await dispatch(generateMaintenanceToken(visit.id)).unwrap();
+      console.log('✅ [MaintenanceWebView] Token recibido:', tokenData.token.substring(0, 20) + '...');
       
-      // URL del formulario web (ajustar según tu dominio)
+      // URL del formulario web
       const baseUrl = __DEV__ 
-        ? 'http://localhost:5173' // Desarrollo local
+        ? 'http://localhost:5173' // ✅ Desarrollo local (cambiado para testing en web)
         : 'https://www.zurcherseptic.com'; // Producción
       
       const formUrl = `${baseUrl}/maintenance-form?visitId=${visit.id}&token=${tokenData.token}`;
       
-      console.log('📱 Abriendo formulario web:', formUrl);
+      console.log('📱 [MaintenanceWebView] __DEV__:', __DEV__);
+      console.log('📱 [MaintenanceWebView] baseUrl:', baseUrl);
+      console.log('📱 [MaintenanceWebView] Cargando URL completa:', formUrl);
+      
       setWebViewUrl(formUrl);
     } catch (error) {
-      console.error('Error generando token:', error);
+      console.error('❌ [MaintenanceWebView] Error generando token:', error);
       Alert.alert(
         'Error',
         error || 'No se pudo generar el token de acceso. Intenta nuevamente.',
@@ -230,10 +235,11 @@ const MaintenanceWebView = () => {
       {loading && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color="#3B82F6" />
+          <Text style={styles.loadingText}>Cargando formulario...</Text>
         </View>
       )}
       
-      {!webViewError && (
+      {!webViewError && webViewUrl && (
         <WebView
           ref={webViewRef}
           source={{ uri: webViewUrl }}

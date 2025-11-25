@@ -189,6 +189,20 @@ module.exports = (sequelize) => {
       allowNull: true,
     },
     
+    // Control de secciones opcionales
+    has_lift_station: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: false,
+      comment: '¿Tiene Lift Station? (controla visibilidad de la sección)'
+    },
+    has_pbts: {
+      type: DataTypes.BOOLEAN,
+      allowNull: true,
+      defaultValue: false,
+      comment: '¿Tiene PBTS? (controla visibilidad de la sección)'
+    },
+    
     // Lift Station
     pump_running: {
       type: DataTypes.BOOLEAN,
@@ -263,15 +277,45 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: 'URL de la foto de la muestra 1 (para sistemas PBTS/ATU)'
     },
+    well_sample_1_observations: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'Observaciones de la muestra 1'
+    },
+    well_sample_1_notes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'Notas adicionales de la muestra 1'
+    },
     well_sample_2_url: {
       type: DataTypes.STRING,
       allowNull: true,
       comment: 'URL de la foto de la muestra 2 (para sistemas PBTS/ATU)'
     },
+    well_sample_2_observations: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'Observaciones de la muestra 2'
+    },
+    well_sample_2_notes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'Notas adicionales de la muestra 2'
+    },
     well_sample_3_url: {
       type: DataTypes.STRING,
       allowNull: true,
       comment: 'URL de la foto de la muestra 3 (para sistemas PBTS/ATU)'
+    },
+    well_sample_3_observations: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'Observaciones de la muestra 3'
+    },
+    well_sample_3_notes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'Notas adicionales de la muestra 3'
     },
     well_samples: {
       type: DataTypes.JSONB,

@@ -4,6 +4,41 @@ import axios from 'axios';
 import MediaUpload from '../Components/Maintenance/MediaUpload';
 import MediaGallery from '../Components/Maintenance/MediaGallery';
 
+// Componente de campo con checkbox y notas (SIN opción de subir archivos)
+const CheckboxFieldNoMedia = ({ label, name, checked, notes, notesName, onCheckChange, onNotesChange }) => (
+  <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+    <div className="flex items-center mb-3">
+      <input
+        type="checkbox"
+        id={name}
+        checked={checked}
+        onChange={(e) => onCheckChange(name, e.target.checked)}
+        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+      />
+      <label htmlFor={name} className="ml-2 block text-sm font-medium text-gray-900">
+        {label}
+      </label>
+    </div>
+    
+    {checked && (
+      <div className="mt-3 space-y-3 pl-6">
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Observaciones
+          </label>
+          <textarea
+            value={notes}
+            onChange={(e) => onNotesChange(notesName, e.target.value)}
+            rows={2}
+            className="w-full text-sm border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Agregue observaciones..."
+          />
+        </div>
+      </div>
+    )}
+  </div>
+);
+
 // Componente de campo con checkbox y notas
 const CheckboxField = ({ label, name, checked, notes, notesName, onCheckChange, onNotesChange, files = [], onFileChange }) => (
   <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
@@ -96,7 +131,8 @@ const MaintenanceForm = () => {
     clarified_water_outlet: false,
     clarified_water_notes: '',
     
-    // Lift Station
+    // Lift Station - OPCIONALES
+    has_lift_station: false, // Control de visibilidad
     alarm_panel_working: false,
     alarm_panel_notes: '',
     pump_working: false,
@@ -104,11 +140,12 @@ const MaintenanceForm = () => {
     float_switch_good: false,
     float_switch_notes: '',
     
-    // PBTS
+    // PBTS - OPCIONALES
+    has_pbts: false, // Control de visibilidad
     well_samples: [
-      { well: 'Muestra 1', samplePresent: false, notes: '', files: [] },
-      { well: 'Muestra 2', samplePresent: false, notes: '', files: [] },
-      { well: 'Muestra 3', samplePresent: false, notes: '', files: [] },
+      { well: 'Muestra 1', samplePresent: false, notes: '', observations: '', files: [] },
+      { well: 'Muestra 2', samplePresent: false, notes: '', observations: '', files: [] },
+      { well: 'Muestra 3', samplePresent: false, notes: '', observations: '', files: [] },
     ],
     
     // Generales
@@ -371,7 +408,7 @@ const MaintenanceForm = () => {
 
             {/* Checkboxes con observaciones */}
             <div className="space-y-4">
-              <CheckboxField
+              <CheckboxFieldNoMedia
                 label="¿Olores fuertes?"
                 name="strong_odors"
                 checked={formData.strong_odors}
@@ -379,11 +416,9 @@ const MaintenanceForm = () => {
                 notesName="strong_odors_notes"
                 onCheckChange={handleInputChange}
                 onNotesChange={handleInputChange}
-                files={files.strong_odors || []}
-                onFileChange={handleFileChange}
               />
 
-              <CheckboxField
+              <CheckboxFieldNoMedia
                 label="¿Nivel de agua correcto?"
                 name="water_level_ok"
                 checked={formData.water_level_ok}
@@ -391,8 +426,6 @@ const MaintenanceForm = () => {
                 notesName="water_level_notes"
                 onCheckChange={handleInputChange}
                 onNotesChange={handleInputChange}
-                files={files.water_level_ok || []}
-                onFileChange={handleFileChange}
               />
 
               <CheckboxField
@@ -513,47 +546,67 @@ const MaintenanceForm = () => {
             </div>
           )}
 
-          {/* Sección Lift Station (condicional) */}
+          {/* Sección Lift Station (condicional por tipo de sistema) */}
           {showLiftStation && (
             <div className="bg-white shadow rounded-lg p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Lift Station</h2>
-              <div className="space-y-4">
-                <CheckboxField
-                  label="¿Panel alarma funcionando?"
-                  name="alarm_panel_working"
-                  checked={formData.alarm_panel_working}
-                  notes={formData.alarm_panel_notes}
-                  notesName="alarm_panel_notes"
-                  onCheckChange={handleInputChange}
-                  onNotesChange={handleInputChange}
-                  files={files.alarm_panel_working || []}
-                  onFileChange={handleFileChange}
-                />
-
-                <CheckboxField
-                  label="¿Bomba funcionando?"
-                  name="pump_working"
-                  checked={formData.pump_working}
-                  notes={formData.pump_working_notes}
-                  notesName="pump_working_notes"
-                  onCheckChange={handleInputChange}
-                  onNotesChange={handleInputChange}
-                  files={files.pump_working || []}
-                  onFileChange={handleFileChange}
-                />
-
-                <CheckboxField
-                  label="¿Flotante en buena condición?"
-                  name="float_switch_good"
-                  checked={formData.float_switch_good}
-                  notes={formData.float_switch_notes}
-                  notesName="float_switch_notes"
-                  onCheckChange={handleInputChange}
-                  onNotesChange={handleInputChange}
-                  files={files.float_switch_good || []}
-                  onFileChange={handleFileChange}
-                />
+              
+              {/* Checkbox para controlar si tiene Lift Station */}
+              <div className="mb-4 border-b border-gray-200 pb-4">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="has_lift_station"
+                    checked={formData.has_lift_station}
+                    onChange={(e) => handleInputChange('has_lift_station', e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="has_lift_station" className="ml-2 block text-sm font-medium text-gray-900">
+                    ¿Tiene Lift Station?
+                  </label>
+                </div>
               </div>
+
+              {/* Campos solo si tiene Lift Station */}
+              {formData.has_lift_station && (
+                <div className="space-y-4">
+                  <CheckboxField
+                    label="¿Panel alarma funcionando?"
+                    name="alarm_panel_working"
+                    checked={formData.alarm_panel_working}
+                    notes={formData.alarm_panel_notes}
+                    notesName="alarm_panel_notes"
+                    onCheckChange={handleInputChange}
+                    onNotesChange={handleInputChange}
+                    files={files.alarm_panel_working || []}
+                    onFileChange={handleFileChange}
+                  />
+
+                  <CheckboxField
+                    label="¿Bomba funcionando?"
+                    name="pump_working"
+                    checked={formData.pump_working}
+                    notes={formData.pump_working_notes}
+                    notesName="pump_working_notes"
+                    onCheckChange={handleInputChange}
+                    onNotesChange={handleInputChange}
+                    files={files.pump_working || []}
+                    onFileChange={handleFileChange}
+                  />
+
+                  <CheckboxField
+                    label="¿Flotante en buena condición?"
+                    name="float_switch_good"
+                    checked={formData.float_switch_good}
+                    notes={formData.float_switch_notes}
+                    notesName="float_switch_notes"
+                    onCheckChange={handleInputChange}
+                    onNotesChange={handleInputChange}
+                    files={files.float_switch_good || []}
+                    onFileChange={handleFileChange}
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -561,82 +614,119 @@ const MaintenanceForm = () => {
           {showPBTS && (
             <div className="bg-white shadow rounded-lg p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">PBTS - Muestras de Pozos</h2>
-              <div className="space-y-4">
-                {formData.well_samples.map((sample, index) => (
-                  <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
-                    <h3 className="font-medium text-gray-900 mb-3">{sample.well}</h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center">
-                        <input
-                          type="checkbox"
-                          id={`sample-${index}`}
-                          checked={sample.samplePresent}
-                          onChange={(e) => {
-                            const newSamples = [...formData.well_samples];
-                            newSamples[index].samplePresent = e.target.checked;
-                            handleInputChange('well_samples', newSamples);
-                          }}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        />
-                        <label htmlFor={`sample-${index}`} className="ml-2 block text-sm text-gray-700">
-                          Cantidad de well point encontrados
-                        </label>
-                      </div>
-
-                      {sample.samplePresent && (
-                        <>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                              Notas
-                            </label>
-                            <textarea
-                              value={sample.notes}
-                              onChange={(e) => {
-                                const newSamples = [...formData.well_samples];
-                                newSamples[index].notes = e.target.value;
-                                handleInputChange('well_samples', newSamples);
-                              }}
-                              rows={2}
-                              className="w-full text-sm border border-gray-300 rounded-md shadow-sm p-2"
-                              placeholder="Observaciones de la muestra..."
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                              Fotos/Videos
-                            </label>
-                            <MediaUpload
-                              onUpload={(newFiles) => {
-                                const newSamples = [...formData.well_samples];
-                                newSamples[index].files = [...(newSamples[index].files || []), ...newFiles];
-                                handleInputChange('well_samples', newSamples);
-                              }}
-                              isUploading={false}
-                            />
-                            {sample.files && sample.files.length > 0 && (
-                              <p className="text-xs text-gray-600 mt-2">{sample.files.length} archivo(s)</p>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                ))}
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleInputChange('well_samples', [
-                      ...formData.well_samples,
-                      { well: `Muestra ${formData.well_samples.length + 1}`, samplePresent: false, notes: '', files: [] }
-                    ]);
-                  }}
-                  className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-500 hover:text-blue-600 transition-colors"
-                >
-                  + Agregar otra muestra
-                </button>
+              
+              {/* Checkbox para controlar si tiene PBTS */}
+              <div className="mb-4 border-b border-gray-200 pb-4">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="has_pbts"
+                    checked={formData.has_pbts}
+                    onChange={(e) => handleInputChange('has_pbts', e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="has_pbts" className="ml-2 block text-sm font-medium text-gray-900">
+                    ¿Tiene PBTS (Pozos)?
+                  </label>
+                </div>
               </div>
+
+              {/* Muestras solo si tiene PBTS */}
+              {formData.has_pbts && (
+                <div className="space-y-4">
+                  {formData.well_samples.map((sample, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                      <h3 className="font-medium text-gray-900 mb-3">{sample.well}</h3>
+                      <div className="space-y-3">
+                        <div className="flex items-center">
+                          <input
+                            type="checkbox"
+                            id={`sample-${index}`}
+                            checked={sample.samplePresent}
+                            onChange={(e) => {
+                              const newSamples = [...formData.well_samples];
+                              newSamples[index].samplePresent = e.target.checked;
+                              handleInputChange('well_samples', newSamples);
+                            }}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          />
+                          <label htmlFor={`sample-${index}`} className="ml-2 block text-sm text-gray-700">
+                            Cantidad de well point encontrados
+                          </label>
+                        </div>
+
+                        {sample.samplePresent && (
+                          <>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Observaciones
+                              </label>
+                              <textarea
+                                value={sample.observations || ''}
+                                onChange={(e) => {
+                                  const newSamples = [...formData.well_samples];
+                                  newSamples[index].observations = e.target.value;
+                                  handleInputChange('well_samples', newSamples);
+                                }}
+                                rows={2}
+                                className="w-full text-sm border border-gray-300 rounded-md shadow-sm p-2"
+                                placeholder="Observaciones de la muestra..."
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Notas adicionales
+                              </label>
+                              <textarea
+                                value={sample.notes}
+                                onChange={(e) => {
+                                  const newSamples = [...formData.well_samples];
+                                  newSamples[index].notes = e.target.value;
+                                  handleInputChange('well_samples', newSamples);
+                                }}
+                                rows={2}
+                                className="w-full text-sm border border-gray-300 rounded-md shadow-sm p-2"
+                                placeholder="Notas adicionales..."
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Fotos/Videos
+                              </label>
+                              <MediaUpload
+                                onUpload={(newFiles) => {
+                                  const newSamples = [...formData.well_samples];
+                                  newSamples[index].files = [...(newSamples[index].files || []), ...newFiles];
+                                  handleInputChange('well_samples', newSamples);
+                                }}
+                                isUploading={false}
+                              />
+                              {sample.files && sample.files.length > 0 && (
+                                <p className="text-xs text-gray-600 mt-2">{sample.files.length} archivo(s)</p>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleInputChange('well_samples', [
+                        ...formData.well_samples,
+                        { well: `Muestra ${formData.well_samples.length + 1}`, samplePresent: false, notes: '', observations: '', files: [] }
+                      ]);
+                    }}
+                    className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-500 hover:text-blue-600 transition-colors"
+                  >
+                    + Agregar otra muestra
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
