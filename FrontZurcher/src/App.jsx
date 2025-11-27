@@ -167,7 +167,7 @@ function App() {
               <Route
                 path="/work-zone-map"
                 element={
-                  <PrivateRoute allowedRoles={["admin", "recept", "owner", "finance"]}>
+                  <PrivateRoute allowedRoles={["admin", "recept", "owner", "finance", "worker"]}>
                     <WorkZoneMap />
                   </PrivateRoute>
                 }

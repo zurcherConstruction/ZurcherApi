@@ -42,10 +42,10 @@ import {
 } from '../Reducer/workReducer';
 
 // Obtener todas las obras
-export const fetchWorks = () => async (dispatch) => {
+export const fetchWorks = (page = 1, limit = 50) => async (dispatch) => {
   dispatch(fetchWorksRequest());
   try {
-    const response = await api.get('/work'); // Ruta del backend
+    const response = await api.get(`/work?page=${page}&limit=${limit}`); // Ruta del backend con paginación
     dispatch(fetchWorksSuccess(response.data));
   } catch (error) {
     const errorMessage =

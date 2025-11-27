@@ -934,11 +934,14 @@ const BudgetList = () => {
                   {budgets &&
                     budgets.map((budget) => {
                       const permitId = budget.Permit?.idPermit;
+                      // ✅ Verificar URL de Cloudinary primero, luego flag legacy
                       const hasPermitPdfData = !!(
-                        budget.Permit && budget.Permit.hasPermitPdfData
+                        budget.Permit && 
+                        (budget.Permit.permitPdfUrl || budget.Permit.hasPermitPdfData)
                       );
                       const hasPermitOptionalDocs = !!(
-                        budget.Permit && budget.Permit.hasOptionalDocs
+                        budget.Permit && 
+                        (budget.Permit.optionalDocsUrl || budget.Permit.hasOptionalDocs)
                       );
                       const hasBudgetPdfItself = !!budget.pdfPath;
                       
@@ -1595,11 +1598,14 @@ const BudgetList = () => {
                     }
                     // Variables para la lógica de los botones PDF (igual que en la tabla)
                     const permitId = budget.Permit?.idPermit;
+                    // ✅ Verificar URL de Cloudinary primero, luego flag legacy
                     const hasPermitPdfData = !!(
-                      budget.Permit && budget.Permit.hasPermitPdfData
+                      budget.Permit && 
+                      (budget.Permit.permitPdfUrl || budget.Permit.hasPermitPdfData)
                     );
                     const hasPermitOptionalDocs = !!(
-                      budget.Permit && budget.Permit.hasOptionalDocs
+                      budget.Permit && 
+                      (budget.Permit.optionalDocsUrl || budget.Permit.hasOptionalDocs)
                     );
                     const hasBudgetPdfItself = !!budget.pdfPath;
                     const isLegacyBudget = !!budget.isLegacy;

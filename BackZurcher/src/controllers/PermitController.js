@@ -165,9 +165,47 @@ const createPermit = async (req, res, next) => {
       }
     }
 
-    // Manejar los archivos enviados
-    const pdfData = req.files?.pdfData ? req.files.pdfData[0].buffer : null; // Archivo principal
-    const optionalDocs = req.files?.optionalDocs ? req.files.optionalDocs[0].buffer : null; // Documentación opcional
+    // Manejar los archivos enviados - SUBIR A CLOUDINARY
+    const cloudinary = require('cloudinary').v2;
+    let permitPdfUrl = null;
+    let permitPdfPublicId = null;
+    let optionalDocsUrl = null;
+    let optionalDocsPublicId = null;
+
+    if (req.files?.pdfData && req.files.pdfData[0]) {
+      console.log('📤 Subiendo Permit PDF a Cloudinary...');
+      // Convertir buffer a base64 para Cloudinary
+      const base64File = req.files.pdfData[0].buffer.toString('base64');
+      const uploadResult = await cloudinary.uploader.upload(
+        `data:application/pdf;base64,${base64File}`,
+        {
+          folder: 'permits',
+          resource_type: 'raw',
+          format: 'pdf',
+          public_id: `permit_${permitNumber.trim().replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}`
+        }
+      );
+      permitPdfUrl = uploadResult.secure_url;
+      permitPdfPublicId = uploadResult.public_id;
+      console.log('✅ Permit PDF subido a Cloudinary:', permitPdfUrl);
+    }
+
+    if (req.files?.optionalDocs && req.files.optionalDocs[0]) {
+      console.log('📤 Subiendo Optional Docs a Cloudinary...');
+      const base64File = req.files.optionalDocs[0].buffer.toString('base64');
+      const uploadResult = await cloudinary.uploader.upload(
+        `data:application/pdf;base64,${base64File}`,
+        {
+          folder: 'permits/optional',
+          resource_type: 'raw',
+          format: 'pdf',
+          public_id: `optional_${permitNumber.trim().replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}`
+        }
+      );
+      optionalDocsUrl = uploadResult.secure_url;
+      optionalDocsPublicId = uploadResult.public_id;
+      console.log('✅ Optional Docs subido a Cloudinary:', optionalDocsUrl);
+    }
 
     // Crear el permiso en la base de datos
     const permitDataToCreate = {
@@ -196,8 +234,11 @@ const createPermit = async (req, res, next) => {
       squareFeetSystem,
       other,
       pump,
-      pdfData,
-      optionalDocs,
+      // ✅ URLs de Cloudinary en vez de BLOBs
+      permitPdfUrl,
+      permitPdfPublicId,
+      optionalDocsUrl,
+      optionalDocsPublicId,
     };
 
     const permit = await Permit.create(permitDataToCreate);
@@ -399,14 +440,25 @@ const getPermitPdfInline = async (req, res) => {
   try {
     const { idPermit } = req.params;
     const permit = await Permit.findByPk(idPermit, {
-      attributes: ['pdfData', 'isLegacy'] // Necesitamos el BLOB principal y flag legacy
+      attributes: ['permitPdfUrl', 'pdfData', 'isLegacy'] // ✅ Incluir URL de Cloudinary
     });
 
-    if (!permit || !permit.pdfData) {
-      return res.status(404).send('PDF principal no encontrado'); // Enviar texto simple para errores
+    if (!permit) {
+      return res.status(404).send('Permit no encontrado');
     }
 
-    // --- DETECTAR SI ES LEGACY Y MANEJAR CLOUDINARY URLs ---
+    // ✅ PRIORIDAD 1: URL de Cloudinary (nuevo)
+    if (permit.permitPdfUrl) {
+      console.log(`🔗 Redirigiendo a Cloudinary URL para permit PDF: ${permit.permitPdfUrl}`);
+      return res.redirect(permit.permitPdfUrl);
+    }
+
+    // ✅ FALLBACK: pdfData (BLOB legacy)
+    if (!permit.pdfData) {
+      return res.status(404).send('PDF principal no encontrado');
+    }
+
+    // --- DETECTAR SI ES LEGACY Y MANEJAR CLOUDINARY URLs EN pdfData ---
     const isLegacy = permit.isLegacy;
     
     if (isLegacy) {
@@ -445,14 +497,25 @@ const getPermitOptionalDocInline = async (req, res) => {
   try {
     const { idPermit } = req.params;
     const permit = await Permit.findByPk(idPermit, {
-      attributes: ['optionalDocs', 'isLegacy'] // Necesitamos el BLOB opcional y flag legacy
+      attributes: ['optionalDocsUrl', 'optionalDocs', 'isLegacy'] // ✅ Incluir URL de Cloudinary
     });
 
-    if (!permit || !permit.optionalDocs) {
-      return res.status(404).send('Documento opcional no encontrado'); // Enviar texto simple
+    if (!permit) {
+      return res.status(404).send('Permit no encontrado');
     }
 
-    // --- DETECTAR SI ES LEGACY Y MANEJAR CLOUDINARY URLs ---
+    // ✅ PRIORIDAD 1: URL de Cloudinary (nuevo)
+    if (permit.optionalDocsUrl) {
+      console.log(`🔗 Redirigiendo a Cloudinary URL para optional docs: ${permit.optionalDocsUrl}`);
+      return res.redirect(permit.optionalDocsUrl);
+    }
+
+    // ✅ FALLBACK: optionalDocs (BLOB legacy)
+    if (!permit.optionalDocs) {
+      return res.status(404).send('Documento opcional no encontrado');
+    }
+
+    // --- DETECTAR SI ES LEGACY Y MANEJAR CLOUDINARY URLs EN optionalDocs ---
     const isLegacy = permit.isLegacy;
     
     if (isLegacy) {
@@ -577,26 +640,37 @@ const replacePermitPdf = async (req, res, next) => {
       });
     }
 
-    // Si es legacy y tiene URL de Cloudinary, eliminar el archivo anterior
-    if (permit.isLegacy && permit.pdfUrl && permit.pdfPublicId) {
+    // ✅ Eliminar PDF anterior de Cloudinary si existe
+    if (permit.permitPdfPublicId) {
       try {
-        const cloudinary = require('../utils/cloudinaryConfig').cloudinary;
-        await cloudinary.uploader.destroy(permit.pdfPublicId, { resource_type: 'raw' });
-        console.log(`✅ PDF anterior eliminado de Cloudinary: ${permit.pdfPublicId}`);
+        const cloudinary = require('cloudinary').v2;
+        await cloudinary.uploader.destroy(permit.permitPdfPublicId, { resource_type: 'raw' });
+        console.log(`✅ PDF anterior eliminado de Cloudinary: ${permit.permitPdfPublicId}`);
       } catch (error) {
         console.warn('⚠️ Error al eliminar PDF anterior de Cloudinary:', error.message);
       }
     }
 
-    // Si tiene pdfData (BLOB), se reemplazará automáticamente
-    const pdfBuffer = req.file.buffer;
+    // ✅ Subir nuevo PDF a Cloudinary
+    const cloudinary = require('cloudinary').v2;
+    const base64File = req.file.buffer.toString('base64');
+    const uploadResult = await cloudinary.uploader.upload(
+      `data:application/pdf;base64,${base64File}`,
+      {
+        folder: 'permits',
+        resource_type: 'raw',
+        format: 'pdf',
+        public_id: `permit_${permit.permitNumber.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}`
+      }
+    );
+
+    console.log(`✅ Nuevo PDF subido a Cloudinary: ${uploadResult.secure_url}`);
     
-    // Actualizar el permit con el nuevo PDF
+    // ✅ Actualizar el permit con la nueva URL de Cloudinary
     await permit.update({
-      pdfData: pdfBuffer,
-      pdfUrl: null, // Limpiar URL si existía
-      pdfPublicId: null, // Limpiar publicId si existía
-      isLegacy: false // Ya no es legacy, ahora tiene BLOB
+      permitPdfUrl: uploadResult.secure_url,
+      permitPdfPublicId: uploadResult.public_id,
+      pdfData: null, // Limpiar BLOB si existía
     });
 
     res.status(200).json({
@@ -605,7 +679,8 @@ const replacePermitPdf = async (req, res, next) => {
       permit: {
         idPermit: permit.idPermit,
         propertyAddress: permit.propertyAddress,
-        permitNumber: permit.permitNumber
+        permitNumber: permit.permitNumber,
+        permitPdfUrl: uploadResult.secure_url
       }
     });
 
@@ -639,10 +714,10 @@ const replaceOptionalDocs = async (req, res, next) => {
       });
     }
 
-    // Si es legacy y tiene URL de Cloudinary, eliminar el archivo anterior
-    if (permit.isLegacy && permit.optionalDocsUrl && permit.optionalDocsPublicId) {
+    // ✅ Eliminar OptionalDocs anterior de Cloudinary si existe
+    if (permit.optionalDocsPublicId) {
       try {
-        const cloudinary = require('../utils/cloudinaryConfig').cloudinary;
+        const cloudinary = require('cloudinary').v2;
         await cloudinary.uploader.destroy(permit.optionalDocsPublicId, { resource_type: 'raw' });
         console.log(`✅ OptionalDocs anterior eliminado de Cloudinary: ${permit.optionalDocsPublicId}`);
       } catch (error) {
@@ -650,15 +725,26 @@ const replaceOptionalDocs = async (req, res, next) => {
       }
     }
 
-    // Si tiene optionalDocs (BLOB), se reemplazará automáticamente
-    const pdfBuffer = req.file.buffer;
+    // ✅ Subir nuevo OptionalDocs a Cloudinary
+    const cloudinary = require('cloudinary').v2;
+    const base64File = req.file.buffer.toString('base64');
+    const uploadResult = await cloudinary.uploader.upload(
+      `data:application/pdf;base64,${base64File}`,
+      {
+        folder: 'permits/optional',
+        resource_type: 'raw',
+        format: 'pdf',
+        public_id: `optional_${permit.permitNumber.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}`
+      }
+    );
+
+    console.log(`✅ Nuevo OptionalDocs subido a Cloudinary: ${uploadResult.secure_url}`);
     
-    // Actualizar el permit con los nuevos docs opcionales
+    // ✅ Actualizar el permit con la nueva URL de Cloudinary
     await permit.update({
-      optionalDocs: pdfBuffer,
-      optionalDocsUrl: null, // Limpiar URL si existía
-      optionalDocsPublicId: null, // Limpiar publicId si existía
-      isLegacy: false // Ya no es legacy, ahora tiene BLOB
+      optionalDocsUrl: uploadResult.secure_url,
+      optionalDocsPublicId: uploadResult.public_id,
+      optionalDocs: null, // Limpiar BLOB si existía
     });
 
     res.status(200).json({
@@ -667,7 +753,8 @@ const replaceOptionalDocs = async (req, res, next) => {
       permit: {
         idPermit: permit.idPermit,
         propertyAddress: permit.propertyAddress,
-        permitNumber: permit.permitNumber
+        permitNumber: permit.permitNumber,
+        optionalDocsUrl: uploadResult.secure_url
       }
     });
 
@@ -680,6 +767,8 @@ const replaceOptionalDocs = async (req, res, next) => {
     });
   }
 };
+
+// Obtener todos los permits (si necesitas este método, puede quedar aquí)
 
 // 🆕 NUEVO MÉTODO: Verificar si un número de permit ya existe
 const checkPermitNumber = async (req, res, next) => {

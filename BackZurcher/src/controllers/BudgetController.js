@@ -1077,11 +1077,14 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
             model: Permit,
             attributes: [
               'idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'systemType', 
-              'drainfieldDepth', 'excavationRequired', 'lot', 'block', 'pdfData', 'optionalDocs', 
+              'drainfieldDepth', 'excavationRequired', 'lot', 'block', 
               'expirationDate', 'applicantPhone', 'applicantName',
-              // ✅ Flags virtuales para saber si existen PDFs sin traer los BLOBs completos
-              [sequelize.literal('CASE WHEN "Permit"."pdfData" IS NOT NULL THEN true ELSE false END'), 'hasPermitPdfData'],
-              [sequelize.literal('CASE WHEN "Permit"."optionalDocs" IS NOT NULL THEN true ELSE false END'), 'hasOptionalDocs']
+              // ✅ URLs de Cloudinary (prioridad)
+              'permitPdfUrl', 'permitPdfPublicId',
+              'optionalDocsUrl', 'optionalDocsPublicId',
+              // ✅ Flags virtuales para saber si existen PDFs (Cloudinary o BLOB legacy)
+              [sequelize.literal('CASE WHEN "Permit"."permitPdfUrl" IS NOT NULL OR "Permit"."pdfData" IS NOT NULL THEN true ELSE false END'), 'hasPermitPdfData'],
+              [sequelize.literal('CASE WHEN "Permit"."optionalDocsUrl" IS NOT NULL OR "Permit"."optionalDocs" IS NOT NULL THEN true ELSE false END'), 'hasOptionalDocs']
             ],
           },
           {
@@ -1282,9 +1285,12 @@ async getBudgets(req, res) {
           attributes: [
             'idPermit', 'propertyAddress', 'systemType', 'expirationDate', 'applicantEmail',  
             'applicantPhone', 'applicantName', 'permitNumber', 'lot', 'block',
-            // ✅ Flags virtuales para saber si existen PDFs sin traer los BLOBs
-            [sequelize.literal('CASE WHEN "Permit"."pdfData" IS NOT NULL THEN true ELSE false END'), 'hasPermitPdfData'],
-            [sequelize.literal('CASE WHEN "Permit"."optionalDocs" IS NOT NULL THEN true ELSE false END'), 'hasOptionalDocs']
+            // ✅ URLs de Cloudinary (prioridad)
+            'permitPdfUrl', 'permitPdfPublicId',
+            'optionalDocsUrl', 'optionalDocsPublicId',
+            // ✅ Flags virtuales para saber si existen PDFs (fallback a BLOB legacy)
+            [sequelize.literal('CASE WHEN "Permit"."permitPdfUrl" IS NOT NULL OR "Permit"."pdfData" IS NOT NULL THEN true ELSE false END'), 'hasPermitPdfData'],
+            [sequelize.literal('CASE WHEN "Permit"."optionalDocsUrl" IS NOT NULL OR "Permit"."optionalDocs" IS NOT NULL THEN true ELSE false END'), 'hasOptionalDocs']
           ],
         }
       ],
@@ -1432,7 +1438,7 @@ async permitPdf(req, res) {
   try {
     const { idBudget } = req.params;
     const budget = await Budget.findByPk(idBudget, {
-      include: [{ model: Permit, attributes: ['pdfData', 'idPermit', 'isLegacy'] }],
+      include: [{ model: Permit, attributes: ['permitPdfUrl', 'pdfData', 'idPermit', 'isLegacy'] }],
       attributes: ['idBudget', 'isLegacy']
     });
 
@@ -1440,7 +1446,17 @@ async permitPdf(req, res) {
       return res.status(404).json({ error: 'Presupuesto o permiso no encontrado.' });
     }
 
+    // ✅ PRIORIZAR permitPdfUrl (Cloudinary), fallback a pdfData (BLOB legacy)
+    const permitPdfUrl = budget.Permit.permitPdfUrl;
     const pdfData = budget.Permit.pdfData;
+    
+    // Si tenemos URL de Cloudinary, redirigir directamente
+    if (permitPdfUrl) {
+      console.log(`🔗 Redirigiendo a Cloudinary URL para Permit PDF: ${permitPdfUrl}`);
+      return res.redirect(permitPdfUrl);
+    }
+    
+    // Fallback a BLOB legacy
     if (!pdfData) {
       return res.status(404).json({ error: 'No hay PDF de permiso asociado a este presupuesto.' });
     }
@@ -1526,7 +1542,7 @@ async optionalDocs(req, res) {
   try {
     const { idBudget } = req.params;
     const budget = await Budget.findByPk(idBudget, {
-      include: [{ model: Permit, attributes: ['optionalDocs', 'idPermit', 'isLegacy'] }],
+      include: [{ model: Permit, attributes: ['optionalDocsUrl', 'optionalDocs', 'idPermit', 'isLegacy'] }],
       attributes: ['idBudget', 'isLegacy']
     });
 
@@ -1534,7 +1550,17 @@ async optionalDocs(req, res) {
       return res.status(404).json({ error: 'Presupuesto o permiso no encontrado.' });
     }
 
+    // ✅ PRIORIZAR optionalDocsUrl (Cloudinary), fallback a optionalDocs (BLOB legacy)
+    const optionalDocsUrl = budget.Permit.optionalDocsUrl;
     const optionalDocs = budget.Permit.optionalDocs;
+    
+    // Si tenemos URL de Cloudinary, redirigir directamente
+    if (optionalDocsUrl) {
+      console.log(`🔗 Redirigiendo a Cloudinary URL para Optional Docs: ${optionalDocsUrl}`);
+      return res.redirect(optionalDocsUrl);
+    }
+    
+    // Fallback a BLOB legacy
     if (!optionalDocs) {
       return res.status(404).json({ error: 'No hay documentos opcionales asociados a este presupuesto.' });
     }
@@ -3452,7 +3478,37 @@ async optionalDocs(req, res) {
 
       console.log("✅ Validaciones básicas pasadas");
 
-      // 1. Crear el Permit primero
+      // 1. Subir PDFs a Cloudinary ANTES de crear Permit
+      let permitPdfUrl = null;
+      let permitPdfPublicId = null;
+      let optionalDocsUrl = null;
+      let optionalDocsPublicId = null;
+
+      if (uploadedFiles.permitPdf) {
+        console.log('📤 Subiendo Permit PDF a Cloudinary...');
+        const permitUpload = await cloudinary.uploader.upload(filePaths.permitPdfPath, {
+          folder: 'permits',
+          resource_type: 'raw',
+          format: 'pdf'
+        });
+        permitPdfUrl = permitUpload.secure_url;
+        permitPdfPublicId = permitUpload.public_id;
+        console.log('✅ Permit PDF subido:', permitPdfUrl);
+      }
+
+      if (uploadedFiles.optionalDocs) {
+        console.log('📤 Subiendo Optional Docs a Cloudinary...');
+        const optionalUpload = await cloudinary.uploader.upload(filePaths.optionalDocsPath, {
+          folder: 'permits/optional',
+          resource_type: 'raw',
+          format: 'pdf'
+        });
+        optionalDocsUrl = optionalUpload.secure_url;
+        optionalDocsPublicId = optionalUpload.public_id;
+        console.log('✅ Optional Docs subido:', optionalDocsUrl);
+      }
+
+      // 2. Crear el Permit con URLs de Cloudinary
       const newPermit = await Permit.create({
         permitNumber,
         propertyAddress,
@@ -3462,22 +3518,20 @@ async optionalDocs(req, res) {
         lot: lot || '',
         block: block || '',
         systemType: systemType || 'Legacy System',
-        // Usar campos existentes para PDFs legacy
-        pdfData: filePaths.permitPdfPath, // Ruta del archivo en lugar de BLOB
-        optionalDocs: filePaths.optionalDocsPath ? JSON.stringify([{ 
-          name: uploadedFiles.optionalDocs.originalname, 
-          path: filePaths.optionalDocsPath, 
-          type: uploadedFiles.optionalDocs.mimetype 
-        }]) : null, // JSON string en lugar de BLOB
+        // ✅ URLs de Cloudinary (nuevo sistema)
+        permitPdfUrl,
+        permitPdfPublicId,
+        optionalDocsUrl,
+        optionalDocsPublicId,
         // Campos específicos para migración
         isLegacy: true,
         migrationDate: new Date(),
         migrationNotes: migrationNotes || 'Migrado desde sistema anterior'
       }, { transaction });
 
-      console.log("✅ Permit legacy creado:", newPermit.idPermit);
+      console.log("✅ Permit legacy creado con Cloudinary URLs:", newPermit.idPermit);
 
-      // 2. Calcular totales según modalidad
+      // 3. Calcular totales según modalidad
       let subtotalPrice = 0;
       let totalPrice = 0;
       let processedLineItems = [];

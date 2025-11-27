@@ -71,9 +71,14 @@ const createWork = async (req, res) => {
 // Obtener todas las obras
 const getWorks = async (req, res) => {
   try {
+    // 📄 PAGINACIÓN: Extraer parámetros de query
+    const page = parseInt(req.query.page) || 1; // Página actual (default: 1)
+    const limit = parseInt(req.query.limit) || 50; // Items por página (default: 50)
+    const offset = (page - 1) * limit;
+
     // OPTIMIZACIÓN: Cargar solo lo esencial en la consulta principal
     // Evita locks excesivos al no cargar Expenses ni Receipts en el JOIN principal
-    const worksInstances = await Work.findAll({
+    const { count, rows: worksInstances } = await Work.findAndCountAll({
       include: [
         {
           model: Budget,
@@ -82,7 +87,19 @@ const getWorks = async (req, res) => {
         },
         {
           model: Permit,
-          attributes: ['idPermit', 'propertyAddress', 'applicantName', 'expirationDate', 'applicantEmail'],
+          attributes: [
+            'idPermit', 
+            'propertyAddress', 
+            'applicantName', 
+            'expirationDate', 
+            'applicantEmail',
+            // ✅ URLs de Cloudinary (livianas)
+            'permitPdfUrl',
+            'permitPdfPublicId',
+            'optionalDocsUrl',
+            'optionalDocsPublicId',
+            // ❌ EXCLUIDOS: pdfData, optionalDocs (BLOBs pesados)
+          ],
         },
         {
           model: FinalInvoice,
@@ -92,7 +109,10 @@ const getWorks = async (req, res) => {
         // ❌ Removido: Expense y Receipt de la consulta principal
         // ✅ Se cargarán después en consultas separadas (más eficiente)
       ],
+      limit,
+      offset,
       order: [['createdAt', 'DESC']],
+      distinct: true, // ✅ Importante para COUNT correcto con includes
     });
 
     // OPTIMIZACIÓN: Cargar expenses y receipts en consultas separadas
@@ -214,10 +234,30 @@ const getWorks = async (req, res) => {
       return workJson;
     }));
 
-    res.status(200).json(worksWithDetails);
+    // 📊 METADATA DE PAGINACIÓN
+    const totalPages = Math.ceil(count / limit);
+    const pagination = {
+      total: count,
+      page,
+      limit,
+      totalPages,
+      hasNextPage: page < totalPages,
+      hasPrevPage: page > 1
+    };
+
+    res.status(200).json({
+      works: worksWithDetails,
+      pagination
+    });
   } catch (error) {
-    console.error('Error al obtener las obras:', error);
-    res.status(500).json({ error: true, message: 'Error interno del servidor' });
+    console.error('❌ [getWorks] Error al obtener las obras:', error);
+    // ✅ SIEMPRE devolver array vacío para evitar crashes en frontend
+    res.status(500).json({ 
+      error: true, 
+      works: [], 
+      pagination: { total: 0, page: 1, limit: 50, totalPages: 0, hasNextPage: false, hasPrevPage: false },
+      message: 'Error interno del servidor' 
+    });
   }
 };
 
@@ -260,9 +300,13 @@ const getWorkById = async (req, res) => {
             'permitNumber',
             'applicantName',
             'applicantEmail',
-            'pdfData',
-            'optionalDocs',
             'expirationDate',
+            // ✅ URLs de Cloudinary (reemplazo de BLOBs)
+            'permitPdfUrl',
+            'permitPdfPublicId',
+            'optionalDocsUrl',
+            'optionalDocsPublicId',
+            // ❌ EXCLUIDOS: pdfData, optionalDocs (BLOBs pesados, migrados a Cloudinary)
           ],
         },
         {
@@ -473,7 +517,7 @@ const updateWork = async (req, res) => {
     const updatedWorkWithAssociations = await Work.findByPk(idWork, {
       include: [
         { model: Budget, as: 'budget', attributes: ['idBudget', 'propertyAddress', 'status', 'paymentInvoice', 'paymentProofType', 'initialPayment', 'date', 'applicantName','totalPrice', 'initialPaymentPercentage']},
-        { model: Permit, attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantName', 'pdfData', 'optionalDocs', 'expirationDate']},
+        { model: Permit, attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantName', 'expirationDate', 'permitPdfUrl', 'permitPdfPublicId', 'optionalDocsUrl', 'optionalDocsPublicId']}, // ✅ URLs de Cloudinary
         { model: Material, attributes: ['idMaterial', 'name', 'quantity', 'cost']},
         {
           model: Inspection,
@@ -875,7 +919,12 @@ const getAssignedWorks = async (req, res) => {
       include: [
         {
           model: Permit,
-          attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantName', 'applicantEmail', 'applicantPhone'], // ✅ Datos del cliente desde Permit
+          attributes: [
+            'idPermit', 'propertyAddress', 'permitNumber', 
+            'applicantName', 'applicantEmail', 'applicantPhone',
+            // ✅ URLs de Cloudinary para PDFs (para visualización en app móvil)
+            'permitPdfUrl', 'optionalDocsUrl'
+          ],
         },
         {
           model: Material,
@@ -903,8 +952,10 @@ const getAssignedWorks = async (req, res) => {
       ],
     });
 
+    // ✅ Si no hay obras, devolver array vacío (no 404)
     if (works.length === 0) {
-      return res.status(404).json({ error: false, message: 'No tienes tareas asignadas actualmente' });
+      console.log('📋 [getAssignedWorks] No hay obras asignadas');
+      return res.status(200).json({ error: false, works: [], message: 'No tienes tareas asignadas actualmente' });
     }
 
     // ✅ Transformar para enviar solo metadata de imágenes
@@ -932,8 +983,9 @@ const getAssignedWorks = async (req, res) => {
 
     res.status(200).json({ error: false, works: optimizedWorks });
   } catch (error) {
-    console.error('Error al obtener las tareas asignadas:', error);
-    res.status(500).json({ error: true, message: 'Error interno del servidor' });
+    console.error('❌ [getAssignedWorks] Error al obtener las tareas asignadas:', error);
+    // ✅ SIEMPRE devolver array vacío en caso de error para evitar crashes en frontend
+    res.status(500).json({ error: true, works: [], message: 'Error interno del servidor' });
   }
 };
 
@@ -1009,7 +1061,7 @@ const addImagesToWork = async (req, res) => {
         {
           model: Permit,
           as: 'Permit', // Asegúrate que el alias 'as' coincida con tu definición de modelo si existe
-          attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'pdfData', 'optionalDocs'],
+          attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'permitPdfUrl', 'permitPdfPublicId', 'optionalDocsUrl', 'optionalDocsPublicId'], // ✅ URLs de Cloudinary
         },
         {
           model: Inspection,

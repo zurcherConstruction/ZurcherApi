@@ -48,10 +48,12 @@ const DistributeInvoiceModal = ({ invoice, onClose, onSuccess }) => {
   const loadWorks = async () => {
     setLoadingWorks(true);
     try {
-      const response = await api.get('/work');
+      const response = await api.get('/work?limit=1000'); // Cargar todos los works para distribución
+      // Manejar respuesta paginada
+      const worksData = response.data.works || response.data;
       if (!response.data.error) {
         // Filtrar solo works activos
-        const activeWorks = response.data.filter(w => w.status !== 'completed' && w.status !== 'cancelled');
+        const activeWorks = worksData.filter(w => w.status !== 'completed' && w.status !== 'cancelled');
         setWorks(activeWorks);
       }
     } catch (error) {

@@ -730,21 +730,26 @@ const handleUploadImage = async () => {
     }, {})
     : {};
 
-  const pdfUrl = work.Permit?.pdfData //optionalDocs
-    ? URL.createObjectURL(
-      new Blob([new Uint8Array(work.Permit.pdfData.data)], {
-        type: "application/pdf",
-      })
-    )
-    : null;
+  // ✅ Priorizar URLs de Cloudinary, fallback a BLOB
+  const pdfUrl = work.Permit?.permitPdfUrl 
+    ? work.Permit.permitPdfUrl
+    : work.Permit?.pdfData 
+      ? URL.createObjectURL(
+          new Blob([new Uint8Array(work.Permit.pdfData.data)], {
+            type: "application/pdf",
+          })
+        )
+      : null;
 
-  const optionalDocs = work.Permit?.optionalDocs //optionalDocs
-    ? URL.createObjectURL(
-      new Blob([new Uint8Array(work.Permit.optionalDocs.data)], {
-        type: "application/pdf",
-      })
-    )
-    : null;
+  const optionalDocs = work.Permit?.optionalDocsUrl
+    ? work.Permit.optionalDocsUrl
+    : work.Permit?.optionalDocs 
+      ? URL.createObjectURL(
+          new Blob([new Uint8Array(work.Permit.optionalDocs.data)], {
+            type: "application/pdf",
+          })
+        )
+      : null;
 
 
 

@@ -57,6 +57,7 @@ const ZONES = {
 // Estados de campo que debe controlar (solo trabajo de campo activo)
 const FIELD_WORK_STATUSES = [
   'pending',                    // Sin progreso - necesita asignación
+  'assigned',                   // Asignado - compra en progreso
   'inProgress',                 // Instalando - trabajadores en campo
   'installed',                  // Instalado - esperando inspección
   'firstInspectionPending',     // Primera inspección pendiente
@@ -67,6 +68,7 @@ const FIELD_WORK_STATUSES = [
 // Orden de progreso para sorting (menor número = menos progreso)
 const STATUS_ORDER = {
   'pending': 0,
+  'assigned': 0,                // Mismo nivel que pending (ambos en COMENZAR)
   'inProgress': 1,
   'installed': 2,
   'firstInspectionPending': 2,
@@ -76,6 +78,7 @@ const STATUS_ORDER = {
 
 const STATUS_LABELS = {
   'pending': 'COMENZAR',
+  'assigned': 'COMENZAR',
   'inProgress': 'INSTALANDO',
   'installed': 'INSPECCIÓN',
   'firstInspectionPending': 'INSPECCIÓN',
@@ -85,6 +88,7 @@ const STATUS_LABELS = {
 
 const STATUS_COLORS = {
   'pending': 'bg-gray-100 text-gray-700 border-gray-300',
+  'assigned': 'bg-yellow-100 text-yellow-700 border-yellow-300',
   'inProgress': 'bg-blue-100 text-blue-700 border-blue-300',
   'installed': 'bg-purple-100 text-purple-700 border-purple-300',
   'firstInspectionPending': 'bg-purple-100 text-purple-700 border-purple-300',
@@ -95,7 +99,11 @@ const STATUS_COLORS = {
 const WorkZoneMap = () => {
   const dispatch = useDispatch();
   const { works, loading, error } = useSelector((state) => state.work);
+  const { user } = useSelector((state) => state.auth); // Obtener usuario actual
   const [zoneData, setZoneData] = useState({});
+
+  // ✅ Verificar si el usuario es worker (solo lectura)
+  const isWorker = user?.role === 'worker';
 
   useEffect(() => {
     dispatch(fetchWorks());
@@ -220,27 +228,39 @@ const WorkZoneMap = () => {
                 {/* Lista Simple - SIEMPRE VISIBLE */}
                 <div className="p-4">
                   <div className="space-y-2">
-                    {worksInZone.map((work, index) => (
-                      <Link
-                        key={work.idWork}
-                        to={`/work/${work.idWork}`}
-                        className="flex items-center justify-between p-3 bg-slate-50 hover:bg-blue-50 border border-slate-200 rounded-lg transition-all duration-200 hover:border-blue-400 hover:shadow-md group"
-                      >
-                        {/* Dirección */}
-                        <div className="flex-1 mr-3">
-                          <p className="text-sm font-semibold text-slate-800 group-hover:text-blue-700 line-clamp-2">
-                            {work.propertyAddress}
-                          </p>
-                        </div>
+                    {worksInZone.map((work, index) => {
+                      // Si es worker, renderizar div (solo lectura), si no, renderizar Link
+                      const WorkItem = isWorker ? 'div' : Link;
+                      const itemProps = isWorker 
+                        ? {
+                            className: "flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-lg cursor-not-allowed opacity-75"
+                          }
+                        : {
+                            to: `/work/${work.idWork}`,
+                            className: "flex items-center justify-between p-3 bg-slate-50 hover:bg-blue-50 border border-slate-200 rounded-lg transition-all duration-200 hover:border-blue-400 hover:shadow-md group"
+                          };
 
-                        {/* Estado */}
-                        <div className="flex-shrink-0">
-                          <span className={`text-xs px-3 py-1.5 rounded-full border font-bold whitespace-nowrap ${STATUS_COLORS[work.status] || 'bg-slate-100 text-slate-800'}`}>
-                            {STATUS_LABELS[work.status] || work.status}
-                          </span>
-                        </div>
-                      </Link>
-                    ))}
+                      return (
+                        <WorkItem
+                          key={work.idWork}
+                          {...itemProps}
+                        >
+                          {/* Dirección */}
+                          <div className="flex-1 mr-3">
+                            <p className={`text-sm font-semibold ${isWorker ? 'text-slate-600' : 'text-slate-800 group-hover:text-blue-700'} line-clamp-2`}>
+                              {work.propertyAddress}
+                            </p>
+                          </div>
+
+                          {/* Estado */}
+                          <div className="flex-shrink-0">
+                            <span className={`text-xs px-3 py-1.5 rounded-full border font-bold whitespace-nowrap ${STATUS_COLORS[work.status] || 'bg-slate-100 text-slate-800'}`}>
+                              {STATUS_LABELS[work.status] || work.status}
+                            </span>
+                          </div>
+                        </WorkItem>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

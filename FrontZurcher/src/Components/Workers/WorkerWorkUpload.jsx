@@ -462,18 +462,18 @@ const WorkerWorkUpload = () => {
         <div className="bg-white rounded-lg shadow-md p-5">
           <h2 className="text-lg font-bold text-gray-800 mb-3">Documentos</h2>
           <div className="flex gap-4">
-            {currentWork.Permit?.pdfData && (
+            {(currentWork.Permit?.permitPdfUrl || currentWork.Permit?.pdfData) && (
               <button
-                onClick={() => openPDF(currentWork.Permit.pdfData)}
+                onClick={() => openPDF(currentWork.Permit.permitPdfUrl || currentWork.Permit.pdfData)}
                 className="flex flex-col items-center p-4 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
               >
                 <DocumentTextIcon className="h-12 w-12 text-gray-600 mb-2" />
                 <span className="text-sm font-semibold text-gray-700">PDF Permit</span>
               </button>
             )}
-            {currentWork.Permit?.optionalDocs && (
+            {(currentWork.Permit?.optionalDocsUrl || currentWork.Permit?.optionalDocs) && (
               <button
-                onClick={() => openPDF(currentWork.Permit.optionalDocs)}
+                onClick={() => openPDF(currentWork.Permit.optionalDocsUrl || currentWork.Permit.optionalDocs)}
                 className="flex flex-col items-center p-4 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
               >
                 <DocumentTextIcon className="h-12 w-12 text-gray-600 mb-2" />
