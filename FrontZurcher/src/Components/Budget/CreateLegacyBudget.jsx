@@ -293,7 +293,13 @@ const CreateLegacyBudget = () => {
         // Error del servidor
         const status = error.response.status;
         const data = error.response.data;
-        errorMessage = `Error ${status}: ${data?.message || data?.error || error.response.statusText}`;
+        
+        // Verificar si es un error de tamaño de archivo
+        if (data?.error && data?.sizeMB) {
+          errorMessage = `❌ ${data.message}`;
+        } else {
+          errorMessage = `Error ${status}: ${data?.message || data?.error || error.response.statusText}`;
+        }
         console.error('❌ Error del servidor:', data);
       } else if (error.request) {
         // No hubo respuesta

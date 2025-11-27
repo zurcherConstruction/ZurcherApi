@@ -3,9 +3,10 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HomeScreen from '../screens/HomeScreen';
 import AssignedWorksScreen from '../screens/AssignedWorksScreen';
+import WorkZoneMapScreen from '../screens/WorkZoneMapScreen';
 import MaintenanceList from '../screens/MaintenanceList';
 import MaintenanceWebView from '../screens/MaintenanceWebView';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import WorkDetail from '../screens/WorkDetail';
 
 import LogoutScreen from '../screens/LogoutScreen'; 
@@ -74,6 +75,9 @@ const BottomTabNavigator = () => {
             iconName = "home";
           } else if (route.name === "AssignedWorks") {
             iconName = "list";
+          } else if (route.name === "WorkZoneMap") {
+            // Usamos MaterialCommunityIcons para el mapa
+            return <MaterialCommunityIcons name="map-marker-multiple" size={size} color={color} />;
           } else if (route.name === "Maintenance") {
             iconName = "build"; // Icono de herramientas para mantenimiento
           } else if (route.name === "Logout") {
@@ -98,6 +102,13 @@ const BottomTabNavigator = () => {
         component={AssignedWorksScreen}
         options={{
           tabBarLabel: "Trabajos Asignados", // Texto en la barra inferior
+        }}
+      />
+      <Tab.Screen
+        name="WorkZoneMap"
+        component={WorkZoneMapScreen}
+        options={{
+          tabBarLabel: "Mapa de Zonas", // Texto en la barra inferior
         }}
       />
       <Tab.Screen

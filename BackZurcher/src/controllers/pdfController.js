@@ -140,6 +140,23 @@ const processPdf = async (req, res) => {
     console.log("=== INICIO PROCESAMIENTO PDF ===");
     console.log("Archivo recibido:", req.file.originalname);
 
+    // ✅ VALIDAR TAMAÑO DEL PDF ANTES DE PROCESAR
+    const fileSizeMB = (req.file.size / 1024 / 1024).toFixed(2);
+    const MAX_SIZE_MB = 10;
+    
+    console.log(`📄 Tamaño del PDF: ${fileSizeMB} MB`);
+    
+    if (req.file.size > MAX_SIZE_MB * 1024 * 1024) {
+      console.error(`❌ PDF demasiado grande: ${fileSizeMB} MB (máximo: ${MAX_SIZE_MB} MB)`);
+      return res.status(400).json({
+        error: true,
+        message: `El PDF es demasiado grande (${fileSizeMB} MB). El tamaño máximo permitido es ${MAX_SIZE_MB} MB. Por favor, comprime el archivo antes de subirlo o contacta a soporte.`,
+        sizeMB: parseFloat(fileSizeMB),
+        maxSizeMB: MAX_SIZE_MB,
+        fileName: req.file.originalname
+      });
+    }
+
     const extractedData = await extractWithPdfJs(req.file.buffer);
 
     // Debug de campos específicos

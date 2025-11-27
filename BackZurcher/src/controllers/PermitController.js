@@ -1,4 +1,50 @@
 const { Permit, Budget } = require('../data');
+const { PDFDocument } = require('pdf-lib');
+
+// ✅ HELPER: Comprimir PDF si es muy grande
+const compressPdfIfNeeded = async (buffer, filename) => {
+  const MAX_SIZE = 8 * 1024 * 1024; // 8 MB (dejamos margen antes del límite de 10 MB)
+  const originalSize = buffer.length;
+  
+  // Si el PDF es menor a 8 MB, no comprimir
+  if (originalSize <= MAX_SIZE) {
+    console.log(`📄 ${filename}: ${(originalSize / 1024 / 1024).toFixed(2)} MB - No requiere compresión`);
+    return buffer;
+  }
+  
+  console.log(`🗜️  ${filename}: ${(originalSize / 1024 / 1024).toFixed(2)} MB - Comprimiendo...`);
+  
+  try {
+    const pdfDoc = await PDFDocument.load(buffer);
+    
+    // Opciones de compresión
+    const compressedBytes = await pdfDoc.save({
+      useObjectStreams: true,
+      addDefaultPage: false,
+      objectsPerTick: 50,
+    });
+    
+    const compressedBuffer = Buffer.from(compressedBytes);
+    const compressedSize = compressedBuffer.length;
+    const reduction = ((originalSize - compressedSize) / originalSize * 100).toFixed(1);
+    
+    console.log(`   📉 Original: ${(originalSize / 1024 / 1024).toFixed(2)} MB`);
+    console.log(`   📉 Comprimido: ${(compressedSize / 1024 / 1024).toFixed(2)} MB`);
+    console.log(`   ✅ Reducción: ${reduction}%`);
+    
+    // Si aún es muy grande después de comprimir, mostrar advertencia
+    if (compressedSize > 10 * 1024 * 1024) {
+      console.warn(`   ⚠️  PDF aún muy grande después de comprimir (${(compressedSize / 1024 / 1024).toFixed(2)} MB > 10 MB)`);
+      console.warn(`   💡 Considera dividir el PDF o contactar soporte`);
+    }
+    
+    return compressedBuffer;
+  } catch (error) {
+    console.error(`   ❌ Error comprimiendo PDF:`, error.message);
+    console.log(`   ⚠️  Usando PDF original sin comprimir`);
+    return buffer; // Retornar original si falla la compresión
+  }
+};
 
 // NUEVO MÉTODO: Verificar Permit por Property Address
 const checkPermitByPropertyAddress = async (req, res, next) => {
@@ -174,8 +220,29 @@ const createPermit = async (req, res, next) => {
 
     if (req.files?.pdfData && req.files.pdfData[0]) {
       console.log('📤 Subiendo Permit PDF a Cloudinary...');
-      // Convertir buffer a base64 para Cloudinary
-      const base64File = req.files.pdfData[0].buffer.toString('base64');
+      
+      // ✅ COMPRIMIR PDF si es necesario
+      const compressedBuffer = await compressPdfIfNeeded(
+        req.files.pdfData[0].buffer,
+        'Permit PDF'
+      );
+      
+      // ✅ VALIDAR TAMAÑO DESPUÉS DE COMPRIMIR
+      const finalSizeMB = (compressedBuffer.length / 1024 / 1024).toFixed(2);
+      const MAX_SIZE_MB = 10;
+      
+      if (compressedBuffer.length > MAX_SIZE_MB * 1024 * 1024) {
+        console.error(`❌ PDF demasiado grande: ${finalSizeMB} MB (máximo: ${MAX_SIZE_MB} MB)`);
+        return res.status(400).json({
+          error: true,
+          message: `El PDF es demasiado grande (${finalSizeMB} MB). El tamaño máximo permitido es ${MAX_SIZE_MB} MB. Por favor, divide el PDF en partes más pequeñas o comprime el archivo antes de subirlo.`,
+          sizeMB: parseFloat(finalSizeMB),
+          maxSizeMB: MAX_SIZE_MB
+        });
+      }
+      
+      // Convertir buffer (comprimido o original) a base64 para Cloudinary
+      const base64File = compressedBuffer.toString('base64');
       const uploadResult = await cloudinary.uploader.upload(
         `data:application/pdf;base64,${base64File}`,
         {
@@ -192,7 +259,28 @@ const createPermit = async (req, res, next) => {
 
     if (req.files?.optionalDocs && req.files.optionalDocs[0]) {
       console.log('📤 Subiendo Optional Docs a Cloudinary...');
-      const base64File = req.files.optionalDocs[0].buffer.toString('base64');
+      
+      // ✅ COMPRIMIR PDF si es necesario
+      const compressedBuffer = await compressPdfIfNeeded(
+        req.files.optionalDocs[0].buffer,
+        'Optional Docs'
+      );
+      
+      // ✅ VALIDAR TAMAÑO DESPUÉS DE COMPRIMIR
+      const finalSizeMB = (compressedBuffer.length / 1024 / 1024).toFixed(2);
+      const MAX_SIZE_MB = 10;
+      
+      if (compressedBuffer.length > MAX_SIZE_MB * 1024 * 1024) {
+        console.error(`❌ Optional Docs demasiado grande: ${finalSizeMB} MB (máximo: ${MAX_SIZE_MB} MB)`);
+        return res.status(400).json({
+          error: true,
+          message: `El documento opcional es demasiado grande (${finalSizeMB} MB). El tamaño máximo permitido es ${MAX_SIZE_MB} MB. Por favor, divide el documento en partes más pequeñas o comprime el archivo antes de subirlo.`,
+          sizeMB: parseFloat(finalSizeMB),
+          maxSizeMB: MAX_SIZE_MB
+        });
+      }
+      
+      const base64File = compressedBuffer.toString('base64');
       const uploadResult = await cloudinary.uploader.upload(
         `data:application/pdf;base64,${base64File}`,
         {
@@ -653,7 +741,28 @@ const replacePermitPdf = async (req, res, next) => {
 
     // ✅ Subir nuevo PDF a Cloudinary
     const cloudinary = require('cloudinary').v2;
-    const base64File = req.file.buffer.toString('base64');
+    
+    // ✅ COMPRIMIR PDF si es necesario
+    const compressedBuffer = await compressPdfIfNeeded(
+      req.file.buffer,
+      'Replacement Permit PDF'
+    );
+    
+    // ✅ VALIDAR TAMAÑO DESPUÉS DE COMPRIMIR
+    const finalSizeMB = (compressedBuffer.length / 1024 / 1024).toFixed(2);
+    const MAX_SIZE_MB = 10;
+    
+    if (compressedBuffer.length > MAX_SIZE_MB * 1024 * 1024) {
+      console.error(`❌ PDF demasiado grande: ${finalSizeMB} MB (máximo: ${MAX_SIZE_MB} MB)`);
+      return res.status(400).json({
+        error: true,
+        message: `El PDF es demasiado grande (${finalSizeMB} MB). El tamaño máximo permitido es ${MAX_SIZE_MB} MB. Por favor, comprime el archivo antes de subirlo.`,
+        sizeMB: parseFloat(finalSizeMB),
+        maxSizeMB: MAX_SIZE_MB
+      });
+    }
+    
+    const base64File = compressedBuffer.toString('base64');
     const uploadResult = await cloudinary.uploader.upload(
       `data:application/pdf;base64,${base64File}`,
       {
@@ -727,7 +836,28 @@ const replaceOptionalDocs = async (req, res, next) => {
 
     // ✅ Subir nuevo OptionalDocs a Cloudinary
     const cloudinary = require('cloudinary').v2;
-    const base64File = req.file.buffer.toString('base64');
+    
+    // ✅ COMPRIMIR PDF si es necesario
+    const compressedBuffer = await compressPdfIfNeeded(
+      req.file.buffer,
+      'Replacement Optional Docs'
+    );
+    
+    // ✅ VALIDAR TAMAÑO DESPUÉS DE COMPRIMIR
+    const finalSizeMB = (compressedBuffer.length / 1024 / 1024).toFixed(2);
+    const MAX_SIZE_MB = 10;
+    
+    if (compressedBuffer.length > MAX_SIZE_MB * 1024 * 1024) {
+      console.error(`❌ Documento demasiado grande: ${finalSizeMB} MB (máximo: ${MAX_SIZE_MB} MB)`);
+      return res.status(400).json({
+        error: true,
+        message: `El documento es demasiado grande (${finalSizeMB} MB). El tamaño máximo permitido es ${MAX_SIZE_MB} MB. Por favor, comprime el archivo antes de subirlo.`,
+        sizeMB: parseFloat(finalSizeMB),
+        maxSizeMB: MAX_SIZE_MB
+      });
+    }
+    
+    const base64File = compressedBuffer.toString('base64');
     const uploadResult = await cloudinary.uploader.upload(
       `data:application/pdf;base64,${base64File}`,
       {

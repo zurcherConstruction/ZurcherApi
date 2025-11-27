@@ -8,6 +8,7 @@ import { StyleSheet, TouchableOpacity, View, Alert } from 'react-native';
 // --- Screen Imports ---
 import LoginScreen from '../screens/LoginScreen';
 import AssignedWorksScreen from '../screens/AssignedWorksScreen';
+import WorkZoneMapScreen from '../screens/WorkZoneMapScreen';
 import WorkDetail from '../screens/WorkDetail';
 import AllMyWorksScreen from '../screens/AllMyWorksScreen';
 import MaintenanceWorkDetailScreen from '../screens/MaintenanceWorkDetailScreen';
@@ -102,6 +103,17 @@ const AppDrawerNavigator = () => {
           </Drawer.Screen>
           
           <Drawer.Screen 
+            name="WorkZoneMap"
+            component={WorkZoneMapScreen}
+            options={{ 
+              title: 'Mapa de Zonas',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="map-outline" color={color} size={size} />
+              ),
+            }} 
+          />
+          
+          <Drawer.Screen 
             name="MyAllWorksView"
             component={AllMyWorksScreen}
             options={{ 
@@ -139,6 +151,17 @@ const AppDrawerNavigator = () => {
           >
             {(props) => <AssignedWorksScreen {...props} staffId={staff?.idStaff} />}
           </Drawer.Screen>
+          
+          <Drawer.Screen 
+            name="WorkZoneMap"
+            component={WorkZoneMapScreen}
+            options={{ 
+              title: 'Mapa de Zonas',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="map-outline" color={color} size={size} />
+              ),
+            }} 
+          />
           
           <Drawer.Screen 
             name="MyAllWorksView"

@@ -1112,6 +1112,16 @@ const addImagesToWork = async (req, res) => {
 
   } catch (error) {
     console.error('Controlador addImagesToWork: ERROR CAPTURADO:', error); // LOG DETALLADO DEL ERROR
+    
+    // Error de conexión de red con Cloudinary
+    if (error.code === 'ECONNRESET' || error.errno === -4077) {
+        console.error('Error de conexión con Cloudinary (ECONNRESET):', error.message);
+        return res.status(503).json({ 
+          error: true, 
+          message: 'Error de conexión con el servidor de almacenamiento. Por favor, intenta de nuevo.' 
+        });
+    }
+    
     if (error instanceof multer.MulterError) {
         console.error('Error de Multer al agregar imagen:', error);
         return res.status(400).json({ error: true, message: `Error de Multer: ${error.message}` });
@@ -1119,8 +1129,12 @@ const addImagesToWork = async (req, res) => {
         console.error('Error de Cloudinary (posiblemente formato):', error);
         return res.status(400).json({ error: true, message: `Error de Cloudinary: ${error.message}` });
     }
+    
     // Error genérico
-    res.status(500).json({ error: true, message: 'Error interno del servidor al subir imagen.' });
+    res.status(500).json({ 
+      error: true, 
+      message: error.message || 'Error interno del servidor al subir imagen.' 
+    });
   }
 };
 
