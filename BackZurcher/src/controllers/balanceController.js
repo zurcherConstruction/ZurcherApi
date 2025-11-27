@@ -134,8 +134,22 @@ const getGeneralBalance = async (req, res) => {
     // Condiciones WHERE para Income
     const incomeWhere = {};
     if (startDate && endDate) {
+      // 🔧 FIX: Ajustar fechas para incluir TODO el día de inicio y fin
+      // Crear fecha de inicio a las 00:00:00 del día
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      
+      // Crear fecha de fin a las 23:59:59 del día
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      
+      console.log('📅 Rango de fechas ajustado (Income):', {
+        original: { startDate, endDate },
+        adjusted: { start: start.toISOString(), end: end.toISOString() }
+      });
+      
       incomeWhere.date = {
-        [Op.between]: [new Date(startDate), new Date(endDate)]
+        [Op.between]: [start, end]
       };
     }
     if (workId) incomeWhere.workId = workId;
@@ -145,8 +159,20 @@ const getGeneralBalance = async (req, res) => {
     // Condiciones WHERE para Expense
     const expenseWhere = {};
     if (startDate && endDate) {
+      // 🔧 FIX: Usar las mismas fechas ajustadas
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      
+      console.log('📅 Rango de fechas ajustado (Expense):', {
+        original: { startDate, endDate },
+        adjusted: { start: start.toISOString(), end: end.toISOString() }
+      });
+      
       expenseWhere.date = {
-        [Op.between]: [new Date(startDate), new Date(endDate)]
+        [Op.between]: [start, end]
       };
     }
     if (workId) expenseWhere.workId = workId;

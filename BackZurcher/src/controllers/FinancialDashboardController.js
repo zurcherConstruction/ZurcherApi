@@ -1,4 +1,4 @@
-const { Work, Budget, FinalInvoice, Expense, FixedExpensePayment, SupplierInvoice } = require('../data');
+const { Work, Budget, FinalInvoice, Expense, FixedExpensePayment, SupplierInvoice, BankTransaction } = require('../data');
 const { Sequelize, Op } = require('sequelize');
 
 /**
@@ -20,6 +20,8 @@ const FinancialDashboardController = {
 
       // Construir filtro de fechas
       let dateFilter = {};
+      let filterDescription = '';
+      
       if (startDate && endDate) {
         dateFilter = {
           [Op.and]: [
@@ -27,6 +29,7 @@ const FinancialDashboardController = {
             { createdAt: { [Op.lte]: new Date(endDate + 'T23:59:59') } }
           ]
         };
+        filterDescription = `Rango: ${startDate} a ${endDate}`;
       } else if (month && year) {
         const firstDay = new Date(year, month - 1, 1);
         const lastDay = new Date(year, month, 0, 23, 59, 59);
@@ -36,23 +39,38 @@ const FinancialDashboardController = {
             { createdAt: { [Op.lte]: lastDay } }
           ]
         };
+        filterDescription = `MES ESPECÍFICO: ${month}/${year} (${firstDay.toISOString().split('T')[0]} a ${lastDay.toISOString().split('T')[0]})`;
+      } else {
+        filterDescription = 'Sin filtros - TODOS LOS REGISTROS';
       }
+      
+      console.log('   📅 Filtro aplicado:', filterDescription);
 
       // =============================================================
       // 1. INGRESOS (Accounts Receivable)
       // =============================================================
       
-      // 1.1 Initial Payments de Budgets
+      // 1.1 Initial Payments de Budgets (solo los que tienen comprobante de pago - paymentProofAmount)
       const initialPaymentsFilter = {
-        initialPayment: { [Op.gt]: 0 }
+        paymentProofAmount: { [Op.gt]: 0 } // Solo contar pagos con comprobante
       };
-      if (Object.keys(dateFilter).length > 0) {
-        Object.assign(initialPaymentsFilter, dateFilter);
+      
+      // Para Budgets usamos el campo 'date' en formato YYYY-MM-DD
+      if (startDate && endDate) {
+        initialPaymentsFilter.date = {
+          [Op.between]: [startDate, endDate]
+        };
+      } else if (month && year) {
+        const monthStr = String(month).padStart(2, '0');
+        const yearMonth = `${year}-${monthStr}`;
+        initialPaymentsFilter.date = {
+          [Op.like]: `${yearMonth}%`
+        };
       }
 
       const budgetsWithInitialPayment = await Budget.findAll({
         where: initialPaymentsFilter,
-        attributes: ['initialPayment', 'paymentProofMethod', 'createdAt']
+        attributes: ['paymentProofAmount', 'paymentProofMethod', 'date']
       });
 
       // 1.2 Final Payments de Final Invoices
@@ -119,7 +137,7 @@ const FinancialDashboardController = {
 
       // Calcular total de ingresos
       const totalInitialPayments = budgetsWithInitialPayment.reduce((sum, b) => 
-        sum + parseFloat(b.initialPayment || 0), 0
+        sum + parseFloat(b.paymentProofAmount || 0), 0
       );
       const totalFinalPayments = finalInvoicePayments.reduce((sum, inv) => 
         sum + parseFloat(inv.totalAmountPaid || 0), 0
@@ -131,7 +149,7 @@ const FinancialDashboardController = {
       
       budgetsWithInitialPayment.forEach(budget => {
         const method = budget.paymentProofMethod || 'No especificado';
-        const amount = parseFloat(budget.initialPayment || 0);
+        const amount = parseFloat(budget.paymentProofAmount || 0);
         incomeByPaymentMethod[method] = (incomeByPaymentMethod[method] || 0) + amount;
       });
 
@@ -146,27 +164,57 @@ const FinancialDashboardController = {
       // 2. EGRESOS (Gastos + Comisiones + Tarjeta)
       // =============================================================
 
-      // 2.1 Gastos regulares (Expenses)
-      const expensesFilter = {};
-      if (Object.keys(dateFilter).length > 0) {
-        // Expenses usa campo 'date' en formato string YYYY-MM-DD
-        if (startDate && endDate) {
-          expensesFilter.date = {
-            [Op.between]: [startDate, endDate]
-          };
-        } else if (month && year) {
-          const monthStr = String(month).padStart(2, '0');
-          const yearMonth = `${year}-${monthStr}`;
-          expensesFilter.date = {
-            [Op.like]: `${yearMonth}%`
-          };
-        }
+      // 2.1 Gastos regulares (Expenses) - SOLO los pagados
+      // EXCLUIR los que fueron generados automáticamente por otros sistemas
+      // EXCLUIR comisiones (se cuentan desde Budget.commissionAmount)
+      const expensesFilter = {
+        paymentStatus: { [Op.in]: ['paid', 'paid_via_invoice'] }, // Solo gastos realmente pagados
+        relatedFixedExpenseId: null, // Excluir gastos auto-generados por pagos de gastos fijos
+        supplierInvoiceItemId: null, // Excluir gastos auto-generados por pagos de proveedores
+        [Op.and]: [
+          Sequelize.where(
+            Sequelize.cast(Sequelize.col('typeExpense'), 'TEXT'),
+            { [Op.notILike]: '%comisión%' }
+          )
+        ]
+      };
+      
+      // Expenses usa campo 'date' en formato string YYYY-MM-DD
+      if (startDate && endDate) {
+        expensesFilter.date = {
+          [Op.between]: [startDate, endDate]
+        };
+      } else if (month && year) {
+        const monthStr = String(month).padStart(2, '0');
+        const yearMonth = `${year}-${monthStr}`;
+        expensesFilter.date = {
+          [Op.like]: `${yearMonth}%`
+        };
       }
 
       const expenses = await Expense.findAll({
         where: expensesFilter,
-        attributes: ['amount', 'typeExpense', 'paymentMethod', 'date']
+        attributes: ['amount', 'typeExpense', 'paymentMethod', 'date', 'paymentStatus', 'relatedFixedExpenseId', 'supplierInvoiceItemId']
       });
+
+      console.log(`   💸 Gastos regulares encontrados: ${expenses.length} expenses`);
+      if (expenses.length > 0) {
+        console.log(`      Primeros 3:`, expenses.slice(0, 3).map(e => ({
+          amount: e.amount,
+          type: e.typeExpense,
+          date: e.date,
+          status: e.paymentStatus,
+          method: e.paymentMethod
+        })));
+        
+        // Mostrar resumen por método de pago para verificar
+        const byMethod = {};
+        expenses.forEach(e => {
+          const method = e.paymentMethod || 'No especificado';
+          byMethod[method] = (byMethod[method] || 0) + parseFloat(e.amount || 0);
+        });
+        console.log(`      Resumen por método:`, byMethod);
+      }
 
       const totalExpenses = expenses.reduce((sum, exp) => 
         sum + parseFloat(exp.amount || 0), 0
@@ -180,16 +228,39 @@ const FinancialDashboardController = {
         expensesByPaymentMethod[method] = (expensesByPaymentMethod[method] || 0) + amount;
       });
 
-      // 2.2 Gastos fijos (FixedExpensePayments)
-      const fixedExpensesFilter = {};
-      if (Object.keys(dateFilter).length > 0) {
-        Object.assign(fixedExpensesFilter, dateFilter);
+      // 2.2 Gastos fijos (FixedExpensePayments - solo pagos realmente efectuados)
+      const fixedExpensesFilter = {
+        amount: { [Op.gt]: 0 } // Solo pagos con monto real
+      };
+      
+      if (startDate && endDate) {
+        fixedExpensesFilter.paymentDate = {
+          [Op.between]: [startDate, endDate]
+        };
+      } else if (month && year) {
+        // paymentDate es DATEONLY, usar between con primer y último día del mes
+        const firstDayStr = `${year}-${String(month).padStart(2, '0')}-01`;
+        const lastDayOfMonth = new Date(year, month, 0).getDate();
+        const lastDayStr = `${year}-${String(month).padStart(2, '0')}-${lastDayOfMonth}`;
+        
+        fixedExpensesFilter.paymentDate = {
+          [Op.between]: [firstDayStr, lastDayStr]
+        };
       }
 
       const fixedExpensePayments = await FixedExpensePayment.findAll({
         where: fixedExpensesFilter,
-        attributes: ['amount', 'paymentMethod', 'createdAt']
+        attributes: ['amount', 'paymentMethod', 'paymentDate']
       });
+
+      console.log(`   💸 Pagos de gastos fijos encontrados: ${fixedExpensePayments.length} payments`);
+      if (fixedExpensePayments.length > 0) {
+        console.log(`      Primeros 3:`, fixedExpensePayments.slice(0, 3).map(p => ({
+          amount: p.amount,
+          method: p.paymentMethod,
+          date: p.paymentDate
+        })));
+      }
 
       const totalFixedExpenses = fixedExpensePayments.reduce((sum, fe) => 
         sum + parseFloat(fe.amount || 0), 0
@@ -260,6 +331,8 @@ const FinancialDashboardController = {
         attributes: ['paidAmount', 'paymentMethod', 'paymentDate', 'createdAt']
       });
 
+      console.log(`   💸 Facturas de proveedores encontradas: ${supplierExpenses.length} invoices`);
+
       const totalSupplierExpenses = supplierExpenses.reduce((sum, se) => 
         sum + parseFloat(se.paidAmount || 0), 0
       );
@@ -302,8 +375,47 @@ const FinancialDashboardController = {
         expensesByPaymentMethod['Comisión'] = (expensesByPaymentMethod['Comisión'] || 0) + totalCommissions;
       }
 
+      // 2.5 Pagos de Tarjetas de Crédito (BankTransactions con relatedCreditCardPaymentId)
+      const creditCardPaymentsFilter = {
+        transactionType: 'withdrawal',
+        relatedCreditCardPaymentId: { [Op.ne]: null }
+      };
+      
+      if (startDate && endDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        creditCardPaymentsFilter.date = {
+          [Op.between]: [start, end]
+        };
+      } else if (month && year) {
+        const firstDay = new Date(year, month - 1, 1);
+        firstDay.setHours(0, 0, 0, 0);
+        const lastDay = new Date(year, month, 0, 23, 59, 59, 999);
+        creditCardPaymentsFilter.date = {
+          [Op.between]: [firstDay, lastDay]
+        };
+      }
+
+      const creditCardPayments = await BankTransaction.findAll({
+        where: creditCardPaymentsFilter,
+        attributes: ['amount', 'date', 'description']
+      });
+
+      console.log(`   💸 Pagos de tarjetas encontrados: ${creditCardPayments.length} payments`);
+
+      const totalCreditCardPayments = creditCardPayments.reduce((sum, p) => 
+        sum + parseFloat(p.amount || 0), 0
+      );
+
+      // Los pagos de tarjeta siempre salen de Chase Bank
+      if (totalCreditCardPayments > 0) {
+        expensesByPaymentMethod['Chase Bank (Pago Tarjeta)'] = (expensesByPaymentMethod['Chase Bank (Pago Tarjeta)'] || 0) + totalCreditCardPayments;
+      }
+
       // Total de egresos
-      const totalEgresos = totalExpenses + totalFixedExpenses + totalSupplierExpenses + totalCommissions;
+      const totalEgresos = totalExpenses + totalFixedExpenses + totalSupplierExpenses + totalCommissions + totalCreditCardPayments;
 
       // =============================================================
       // 3. BALANCE NETO
@@ -329,6 +441,9 @@ const FinancialDashboardController = {
       if (totalCommissions > 0) {
         expensesByType['Comisiones'] = totalCommissions;
       }
+      if (totalCreditCardPayments > 0) {
+        expensesByType['Pagos Tarjetas Crédito'] = totalCreditCardPayments;
+      }
 
       // =============================================================
       // 5. RESPUESTA
@@ -343,7 +458,8 @@ const FinancialDashboardController = {
           totalExpenses,
           totalFixedExpenses,
           totalSupplierExpenses,
-          totalCommissions
+          totalCommissions,
+          totalCreditCardPayments
         },
         incomeByPaymentMethod: Object.entries(incomeByPaymentMethod).map(([method, amount]) => ({
           method,
@@ -363,14 +479,23 @@ const FinancialDashboardController = {
           expensesCount: expenses.length,
           fixedExpensesCount: fixedExpensePayments.length,
           supplierExpensesCount: supplierExpenses.length,
-          commissionsCount: paidCommissions.length
+          commissionsCount: paidCommissions.length,
+          creditCardPaymentsCount: creditCardPayments.length
         }
       };
 
       console.log('✅ [FinancialDashboard] Dashboard generado exitosamente');
-      console.log(`   💰 Ingresos: $${totalIncome.toFixed(2)}`);
-      console.log(`   💸 Egresos: $${totalEgresos.toFixed(2)}`);
-      console.log(`   📊 Balance: $${balanceNeto.toFixed(2)}`);
+      console.log(`   📅 Período: ${filterDescription}`);
+      console.log(`   💰 Ingresos TOTALES DEL PERÍODO: $${totalIncome.toFixed(2)}`);
+      console.log(`      - Initial Payments: $${totalInitialPayments.toFixed(2)} (${budgetsWithInitialPayment.length} budgets)`);
+      console.log(`      - Final Payments: $${totalFinalPayments.toFixed(2)} (${finalInvoicePayments.length} invoices)`);
+      console.log(`   💸 Egresos TOTALES DEL PERÍODO: $${totalEgresos.toFixed(2)}`);
+      console.log(`      - Gastos regulares: $${totalExpenses.toFixed(2)} (${expenses.length} expenses)`);
+      console.log(`      - Gastos fijos: $${totalFixedExpenses.toFixed(2)} (${fixedExpensePayments.length} payments)`);
+      console.log(`      - Facturas proveedores: $${totalSupplierExpenses.toFixed(2)} (${supplierExpenses.length} invoices)`);
+      console.log(`      - Comisiones: $${totalCommissions.toFixed(2)} (${paidCommissions.length} commissions)`);
+      console.log(`      - Pagos tarjetas: $${totalCreditCardPayments.toFixed(2)} (${creditCardPayments.length} payments)`);
+      console.log(`   📊 Balance del período: $${balanceNeto.toFixed(2)}`);
 
       res.json(response);
 
