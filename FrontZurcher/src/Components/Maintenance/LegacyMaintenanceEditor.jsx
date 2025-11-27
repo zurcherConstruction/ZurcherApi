@@ -144,7 +144,14 @@ const LegacyMaintenanceEditor = () => {
           console.log('✅ [PASO 2/3] Permit PDF subido exitosamente');
         } catch (pdfError) {
           console.error('❌ [PASO 2/3] Error al subir Permit PDF:', pdfError);
-          savingSteps.push('⚠️ Error al subir Permit PDF');
+          
+          // Manejar error específico de tamaño
+          const errorData = pdfError.response?.data;
+          if (errorData?.error && errorData?.sizeMB) {
+            savingSteps.push(`⚠️ PDF muy grande (${errorData.sizeMB} MB, máx: ${errorData.maxSizeMB} MB)`);
+          } else {
+            savingSteps.push('⚠️ Error al subir Permit PDF');
+          }
           allSuccess = false;
         }
       } else {
@@ -168,7 +175,14 @@ const LegacyMaintenanceEditor = () => {
           console.log('✅ [PASO 3/3] Optional Docs subidos exitosamente');
         } catch (docsError) {
           console.error('❌ [PASO 3/3] Error al subir Optional Docs:', docsError);
-          savingSteps.push('⚠️ Error al subir documentos opcionales');
+          
+          // Manejar error específico de tamaño
+          const errorData = docsError.response?.data;
+          if (errorData?.error && errorData?.sizeMB) {
+            savingSteps.push(`⚠️ Documento muy grande (${errorData.sizeMB} MB, máx: ${errorData.maxSizeMB} MB)`);
+          } else {
+            savingSteps.push('⚠️ Error al subir documentos opcionales');
+          }
           allSuccess = false;
         }
       } else {
@@ -184,12 +198,21 @@ const LegacyMaintenanceEditor = () => {
       ));
 
       // Mensaje de confirmación detallado
-      const successMessage = allSuccess 
-        ? '✅ Todos los cambios se guardaron correctamente:\n\n' + 
+      let successMessage = '';
+      
+      if (allSuccess) {
+        successMessage = '✅ Todos los cambios se guardaron correctamente:\n\n' + 
           `• Datos del cliente actualizados\n` +
           (permitPdfFile ? '• PDF del Permit subido\n' : '') +
-          (optionalDocsFile ? '• Documentos opcionales subidos\n' : '')
-        : '⚠️ Los datos se guardaron pero hubo problemas con algunos archivos.\n\nRevisa los PDFs y vuelve a intentar si es necesario.';
+          (optionalDocsFile ? '• Documentos opcionales subidos\n' : '');
+      } else {
+        // Mostrar qué archivos fallaron específicamente
+        const failedSteps = savingSteps.filter(step => step.includes('⚠️'));
+        successMessage = '⚠️ Los datos del cliente se guardaron correctamente.\n\n' +
+          'Sin embargo, hubo problemas al subir los siguientes archivos:\n\n' +
+          failedSteps.join('\n') + 
+          '\n\nPor favor, comprime los archivos PDF y vuelve a intentarlo.';
+      }
 
       alert(successMessage);
       

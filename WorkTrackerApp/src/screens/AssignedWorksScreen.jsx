@@ -40,8 +40,8 @@ const WorksListScreen = ({ navigation }) => { // Recibe navigation como prop
   const { works, loading: reduxLoading, error, lastUpdate } = useSelector((state) => state.work);
   const { assignedMaintenances, loadingAssigned } = useSelector((state) => state.maintenance);
   
-  // Auto-refresh: 3 minutos en producción, 1 minuto en desarrollo
-  const refreshInterval = __DEV__ ? 60000 : 180000;
+  // Auto-refresh: 5 minutos (más lento para reducir carga en el servidor)
+  const refreshInterval = 300000; // 5 minutos = 300,000 ms
   const { forceRefresh } = useAutoRefresh(refreshInterval);
   
   // 🔧 Solo en desarrollo - evita logs masivos en producción

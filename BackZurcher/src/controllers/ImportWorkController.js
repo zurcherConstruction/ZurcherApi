@@ -1,6 +1,49 @@
 const { Budget, Permit, Work, BudgetLineItem } = require('../data');
 const { conn } = require('../data');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader');
+const { PDFDocument } = require('pdf-lib');
+
+// Función para comprimir PDF si es necesario
+const compressPdfIfNeeded = async (buffer, filename = 'PDF') => {
+  const originalSize = buffer.length;
+  const originalSizeMB = (originalSize / 1024 / 1024).toFixed(2);
+  const MAX_SIZE = 8 * 1024 * 1024; // 8 MB
+
+  if (originalSize <= MAX_SIZE) {
+    console.log(`📄 ${filename}: ${originalSizeMB} MB - No requiere compresión`);
+    return buffer;
+  }
+
+  try {
+    console.log(`🗜️  ${filename}: ${originalSizeMB} MB - Comprimiendo...`);
+    
+    const pdfDoc = await PDFDocument.load(buffer);
+    const compressedBytes = await pdfDoc.save({
+      useObjectStreams: true,
+      addDefaultPage: false,
+      objectsPerTick: 50,
+    });
+
+    const compressedBuffer = Buffer.from(compressedBytes);
+    const compressedSize = compressedBuffer.length;
+    const compressedSizeMB = (compressedSize / 1024 / 1024).toFixed(2);
+    const reduction = ((1 - compressedSize / originalSize) * 100).toFixed(1);
+
+    console.log(`   📉 Original: ${originalSizeMB} MB`);
+    console.log(`   📉 Comprimido: ${compressedSizeMB} MB`);
+    console.log(`   ✅ Reducción: ${reduction}%`);
+
+    if (compressedSize > 10 * 1024 * 1024) {
+      console.warn(`   ⚠️  PDF aún muy grande después de comprimir (${compressedSizeMB} MB > 10 MB)`);
+      console.warn(`   💡 Considera dividir el PDF o contactar soporte`);
+    }
+
+    return compressedBuffer;
+  } catch (error) {
+    console.warn(`⚠️ Error al comprimir ${filename}, usando original:`, error.message);
+    return buffer;
+  }
+};
 
 // === 📥 IMPORTAR TRABAJO EXISTENTE ===
 // Función simplificada para importar trabajos ya comenzados
@@ -31,7 +74,19 @@ async function importExistingWork(req, res) {
       try {
         console.log(`📤 Subiendo ${descripcion} a Cloudinary...`);
         
-        const resultado = await uploadBufferToCloudinary(archivo.buffer, {
+        // ✅ COMPRIMIR PDF si es necesario
+        const compressedBuffer = await compressPdfIfNeeded(archivo.buffer, descripcion);
+        
+        // ✅ VALIDAR TAMAÑO DESPUÉS DE COMPRIMIR
+        const finalSizeMB = (compressedBuffer.length / 1024 / 1024).toFixed(2);
+        const MAX_SIZE_MB = 10;
+        
+        if (compressedBuffer.length > MAX_SIZE_MB * 1024 * 1024) {
+          console.error(`❌ ${descripcion} demasiado grande: ${finalSizeMB} MB (máximo: ${MAX_SIZE_MB} MB)`);
+          throw new Error(`El archivo "${descripcion}" es demasiado grande (${finalSizeMB} MB). El tamaño máximo permitido es ${MAX_SIZE_MB} MB. Por favor, comprime el archivo antes de subirlo.`);
+        }
+        
+        const resultado = await uploadBufferToCloudinary(compressedBuffer, {
           folder: `legacy-imports/${carpeta}`,
           resource_type: 'auto',
           public_id: `${Date.now()}-${archivo.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')}`,
@@ -336,11 +391,25 @@ async function importExistingWork(req, res) {
     
     console.error('❌ Error importando trabajo:', error);
     
-    res.status(500).json({
-      error: true,
-      message: 'Error al importar el trabajo',
-      details: error.message
-    });
+    // Detectar si es un error de tamaño de archivo
+    if (error.message && error.message.includes('demasiado grande')) {
+      // Extraer el tamaño del mensaje de error si está presente
+      const sizeMatch = error.message.match(/\((\d+\.?\d*) MB\)/);
+      const sizeMB = sizeMatch ? parseFloat(sizeMatch[1]) : null;
+      
+      res.status(400).json({
+        error: true,
+        message: error.message,
+        sizeMB: sizeMB,
+        maxSizeMB: 10
+      });
+    } else {
+      res.status(500).json({
+        error: true,
+        message: 'Error al importar el trabajo',
+        details: error.message
+      });
+    }
   }
 }
 

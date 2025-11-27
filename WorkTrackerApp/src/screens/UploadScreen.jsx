@@ -439,9 +439,12 @@ const UploadScreen = () => {
         }
 
         setIsBatchUploading(true);
+        let successCount = 0;
+        let failCount = 0;
+        
         for (let i = 0; i < selectedAssets.length; i++) {
-          if (imagesByStage[selectedStage]?.length + i >= 12) { // Usar selectedStage
-            Alert.alert('Límite Parcialmente Alcanzado', `Se cargarán ${i} imágenes. Se alcanzó el límite de 12 para ${selectedStage}.`);
+          if (imagesByStage[selectedStage]?.length + successCount >= 12) { // Usar selectedStage
+            Alert.alert('Límite Parcialmente Alcanzado', `Se cargaron ${successCount} de ${selectedAssets.length} imágenes. Se alcanzó el límite de 12 para ${selectedStage}.`);
             break;
           }
           const asset = selectedAssets[i];
@@ -450,14 +453,25 @@ const UploadScreen = () => {
           
           try {
             await processAndUploadImage(asset.uri, commentToApply, null, selectedStage); // Usar selectedStage
+            successCount++;
           } catch (uploadError) {
+            failCount++;
             console.error(`Error al procesar imagen ${i + 1} (${asset.uri}):`, uploadError);
-            Alert.alert('Error de Carga', `No se pudo cargar la imagen ${asset.uri.split('/').pop()}: ${uploadError.message}`);
+            // NO mostrar alert individual, acumular errores para mostrar al final
           }
         }
         
+        // Mostrar resumen al final
+        if (failCount > 0) {
+          Alert.alert(
+            'Resumen de Subida', 
+            `✅ ${successCount} imagen(es) subida(s) exitosamente\n❌ ${failCount} imagen(es) fallaron\n\nPuedes reintentar las imágenes que fallaron.`,
+            [{ text: 'OK' }]
+          );
+        }
+        
         if (selectedAssets.length > 0) {
-            const successfulUploads = selectedAssets.length;
+            const successfulUploads = successCount;
             if (successfulUploads > 0) {
                 Alert.alert('Carga Completa', `${successfulUploads} imagen(es) procesada(s).`);
             }
@@ -691,8 +705,9 @@ const UploadScreen = () => {
       
       // ✅ SOLUCIÓN SIMPLIFICADA: Solo verificar si NO hay error
       if (resultAction && resultAction.error) {
-        console.error("Error al subir imagen:", resultAction.error || resultAction.message);
-        return Promise.reject(new Error(resultAction.error || resultAction.message || `No se pudo cargar la imagen ${filename}.`));
+        const errorMessage = resultAction.message || resultAction.error || 'Error desconocido al subir imagen';
+        console.error("Error al subir imagen:", errorMessage);
+        throw new Error(errorMessage);
       }
 
       // ✅ Si no hay error, consideramos que fue exitoso
@@ -722,6 +737,7 @@ const UploadScreen = () => {
       return Promise.resolve(); // Indicar éxito para esta imagen
     } catch (error) {
       console.error(`Error al procesar/cargar ${imageUri}:`, error);
+      
       // Revertir optimista
       setImagesByStage(prev => ({
         ...prev,
@@ -732,8 +748,10 @@ const UploadScreen = () => {
           delete newUrls[tempImageId];
           return newUrls;
       });
-      // Alert.alert('Error', `No se pudo cargar una imagen: ${error.message || 'Error desconocido'}`);
-      return Promise.reject(error); // Propagar error para Promise.all
+      
+      // Propagar error con mensaje claro pero sin crashear
+      const errorMessage = error.message || error.toString() || 'Error desconocido';
+      throw new Error(errorMessage);
     } finally {
       // Ya no se usa setIsUploading individual aquí
        setIsUploading(false);

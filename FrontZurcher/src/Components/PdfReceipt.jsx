@@ -331,8 +331,20 @@ const PdfReceipt = () => {
 
         } else if (action.error) {
             console.error("Error al procesar PDF:", action.error);
-            const errorMsg = action.error.message || "Error desconocido durante la extracción.";
-            toast.error(`Error de Extracción: ${errorMsg}`);
+            
+            // Manejar error de tamaño de archivo
+            const errorPayload = action.payload;
+            if (errorPayload?.error && errorPayload?.sizeMB) {
+              // Error de tamaño específico del backend
+              toast.error(`❌ ${errorPayload.message}`, {
+                duration: 8000, // 8 segundos para mensaje importante
+                icon: '⚠️'
+              });
+            } else {
+              // Error genérico
+              const errorMsg = action.error.message || "Error desconocido durante la extracción.";
+              toast.error(`Error de Extracción: ${errorMsg}`);
+            }
         }
       });
     }
@@ -671,6 +683,13 @@ const PdfReceipt = () => {
         // El error ya fue (o debería haber sido) mostrado por checkExistingPermit
         // No hacer nada más aquí o mostrar un mensaje genérico si es necesario.
         console.log("Error durante la verificación del permiso, ya manejado o será manejado por checkExistingPermit.");
+    } else if (responseData?.error && responseData?.sizeMB) {
+      // Error de tamaño de archivo específico
+      displayMessage = responseData.message;
+      toast.error(`❌ ${displayMessage}`, { 
+        autoClose: 8000,
+        icon: '⚠️'
+      });
     } else if (errorDetails && errorDetails.code === '23505' && errorDetails.constraint === 'Permits_propertyAddress_key1') {
       displayMessage = `Dirección ya existe: "${formData.propertyAddress}".`;
       toast.error(displayMessage, { autoClose: 7000 });

@@ -719,7 +719,16 @@ const editableBudgets = useMemo(() => {
       dispatch(fetchBudgetById(selectedBudgetId));
     } catch (err) {
       console.error('Error al reemplazar PDF del Permit:', err);
-      alert(err.response?.data?.error || 'Error al reemplazar el PDF del Permit');
+      
+      // Manejar error específico de tamaño de archivo
+      const errorData = err.response?.data;
+      if (errorData?.error && errorData?.message) {
+        // Error estructurado del backend (incluye info de tamaño)
+        alert(`❌ ${errorData.message}`);
+      } else {
+        // Error genérico
+        alert(errorData?.error || errorData?.message || 'Error al reemplazar el PDF del Permit');
+      }
     } finally {
       setUploadingPermitPdf(false);
     }
@@ -749,7 +758,16 @@ const editableBudgets = useMemo(() => {
       dispatch(fetchBudgetById(selectedBudgetId));
     } catch (err) {
       console.error('Error al reemplazar Optional Docs del Permit:', err);
-      alert(err.response?.data?.error || 'Error al reemplazar los Optional Docs del Permit');
+      
+      // Manejar error específico de tamaño de archivo
+      const errorData = err.response?.data;
+      if (errorData?.error && errorData?.message) {
+        // Error estructurado del backend (incluye info de tamaño)
+        alert(`❌ ${errorData.message}`);
+      } else {
+        // Error genérico
+        alert(errorData?.error || errorData?.message || 'Error al reemplazar los Optional Docs del Permit');
+      }
     } finally {
       setUploadingOptionalDocs(false);
     }
