@@ -592,6 +592,7 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
       const updateData = {
         signatureDocumentId: USE_DOCUSIGN ? signatureResult.envelopeId : signatureResult.documentId,
         signNowDocumentId: USE_DOCUSIGN ? null : signatureResult.documentId, // Mantener compatibilidad
+        docusignEnvelopeId: USE_DOCUSIGN ? signatureResult.envelopeId : null, // 🆕 Guardar envelope ID específico
         signatureMethod: USE_DOCUSIGN ? 'docusign' : 'signnow',
         status: 'sent_for_signature',
         sentForSignatureAt: new Date()
@@ -2176,6 +2177,7 @@ async optionalDocs(req, res) {
               await budget.update({
                 signatureDocumentId: documentId,
                 signNowDocumentId: USE_DOCUSIGN ? null : signatureResult.documentId, // Mantener compatibilidad
+                docusignEnvelopeId: USE_DOCUSIGN ? signatureResult.envelopeId : null, // 🆕 Guardar envelope ID específico
                 signatureMethod: USE_DOCUSIGN ? 'docusign' : 'signnow',
                 status: 'sent_for_signature',
                 sentForSignatureAt: new Date()
@@ -4424,6 +4426,7 @@ async optionalDocs(req, res) {
                 await updatedBudget.update({
                   signatureDocumentId: documentId,
                   signNowDocumentId: USE_DOCUSIGN ? null : signatureResult.documentId, // Mantener compatibilidad
+                  docusignEnvelopeId: USE_DOCUSIGN ? signatureResult.envelopeId : null, // 🆕 Guardar envelope ID específico
                   signatureMethod: USE_DOCUSIGN ? 'docusign' : 'signnow',
                   status: 'sent_for_signature',
                   sentForSignatureAt: new Date()
