@@ -84,8 +84,11 @@ const Summary = () => {
   const fetchMovements = async () => {
     setLoading(true);
     try {
+      console.log('🔍 Aplicando filtros:', filters);
       
       const data = await balanceActions.getGeneralBalance(filters);
+      console.log('📊 Datos recibidos del backend:', data);
+      
       const incomes = data.list?.incomes || [];
       const expenses = data.list?.expenses || [];
       
@@ -109,6 +112,9 @@ const Summary = () => {
       const allMovements = Array.from(movementsMap.values());
       
       console.log(`✅ Movimientos cargados: ${incomes.length} ingresos, ${expenses.length} gastos, ${allMovements.length} únicos`);
+      console.log('💰 Total Ingresos:', data.totalIncome);
+      console.log('💸 Total Gastos:', data.totalExpense);
+      console.log('📊 Balance:', data.balance);
       
       // Actualizar estado con un pequeño delay para asegurar re-render
       setMovements(allMovements);

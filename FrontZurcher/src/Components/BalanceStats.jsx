@@ -189,12 +189,34 @@ const BalanceStats = () => {
 
       {dashboard && (
         <>
+          {/* Banner de información del período */}
+          <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded-r-lg">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-blue-700 font-medium">
+                  {filters.startDate && filters.endDate 
+                    ? `📅 Mostrando datos del ${filters.startDate} al ${filters.endDate} únicamente`
+                    : `📅 Mostrando datos ÚNICAMENTE de ${monthNames[filters.month - 1]} ${filters.year} (no acumulado)`
+                  }
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  Los totales reflejan solo las transacciones del período seleccionado
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Tarjetas principales */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6">
             {/* Total Ingresos */}
             <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-medium opacity-90">💰 Total Ingresos</h3>
+                <h3 className="text-sm font-medium opacity-90">💰 Ingresos del Período</h3>
               </div>
               <p className="text-3xl md:text-4xl font-bold mb-1">{formatCurrency(dashboard.summary.totalIncome)}</p>
               <p className="text-sm opacity-75">
@@ -205,7 +227,7 @@ const BalanceStats = () => {
             {/* Total Egresos */}
             <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-lg shadow-lg p-6 text-white">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-medium opacity-90">💸 Total Egresos</h3>
+                <h3 className="text-sm font-medium opacity-90">💸 Egresos del Período</h3>
               </div>
               <p className="text-3xl md:text-4xl font-bold mb-1">{formatCurrency(dashboard.summary.totalEgresos)}</p>
               <p className="text-sm opacity-75">
@@ -216,7 +238,7 @@ const BalanceStats = () => {
             {/* Balance Neto */}
             <div className={`bg-gradient-to-br ${dashboard.summary.balanceNeto >= 0 ? 'from-blue-500 to-blue-600' : 'from-orange-500 to-orange-600'} rounded-lg shadow-lg p-6 text-white`}>
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-medium opacity-90">📊 Balance Neto</h3>
+                <h3 className="text-sm font-medium opacity-90">📊 Balance del Período</h3>
               </div>
               <p className="text-3xl md:text-4xl font-bold mb-1">{formatCurrency(dashboard.summary.balanceNeto)}</p>
               <p className="text-sm opacity-75">
