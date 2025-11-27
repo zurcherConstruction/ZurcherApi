@@ -124,6 +124,12 @@ module.exports = (sequelize) => {
     allowNull: true,
     unique: false, // Cambiado a false para permitir signatureDocumentId también
   },
+
+  docusignEnvelopeId: { // ID del envelope de DocuSign
+    type: DataTypes.STRING,
+    allowNull: true,
+    unique: false,
+  },
   
   // 🆕 Campo genérico para ID de documento (SignNow o DocuSign)
   signatureDocumentId: { // ID del documento (SignNow o DocuSign envelope)

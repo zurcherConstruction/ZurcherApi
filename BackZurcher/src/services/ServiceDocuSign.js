@@ -9,9 +9,12 @@ class DocuSignService {
     this.accountId = process.env.DOCUSIGN_ACCOUNT_ID;
     this.privateKeyPath = process.env.DOCUSIGN_PRIVATE_KEY_PATH || './docusign_private.key';
     this.environment = process.env.DOCUSIGN_ENVIRONMENT || 'demo';
-    this.basePath = this.environment === 'demo' 
-      ? 'https://demo.docusign.net/restapi'
-      : 'https://www.docusign.net/restapi';
+    
+    // Usar DOCUSIGN_BASE_PATH del .env o valor por defecto según ambiente
+    this.basePath = process.env.DOCUSIGN_BASE_PATH || 
+      (this.environment === 'demo' 
+        ? 'https://demo.docusign.net/restapi'
+        : 'https://www.docusign.net/restapi');
 
     // Validar configuración
     if (!this.integrationKey || !this.userId || !this.accountId) {
@@ -60,9 +63,10 @@ class DocuSignService {
       }
 
       // Configurar el OAuth basePath para el ambiente correcto
-      const oAuthBasePath = this.environment === 'demo'
-        ? 'account-d.docusign.com'
-        : 'account.docusign.com';
+      const oAuthBasePath = process.env.DOCUSIGN_OAUTH_BASE_PATH || 
+        (this.environment === 'demo'
+          ? 'account-d.docusign.com'
+          : 'account.docusign.com');
       
       this.apiClient.setOAuthBasePath(oAuthBasePath);
 
@@ -327,33 +331,49 @@ class DocuSignService {
   }
 
   /**
-   * Verificar si un documento está firmado
+   * Obtener estado de un envelope (usado por SignatureVerificationController)
    * @param {string} envelopeId - ID del envelope de DocuSign
    */
-  async isDocumentSigned(envelopeId) {
+  async getEnvelopeStatus(envelopeId) {
     try {
-      console.log(`🔍 Verificando estado del envelope: ${envelopeId}`);
+      console.log(`🔍 [DocuSign] Verificando estado del envelope: ${envelopeId}`);
       
       await this.getAccessToken();
 
       const envelopesApi = new docusign.EnvelopesApi(this.apiClient);
       const envelope = await envelopesApi.getEnvelope(this.accountId, envelopeId);
 
-      console.log(`📊 Estado del envelope: ${envelope.status}`);
-
-      const isSigned = envelope.status === 'completed';
+      console.log(`📊 [DocuSign] Estado del envelope: ${envelope.status}`);
 
       return {
-        signed: isSigned,
-        status: envelope.status,
+        status: envelope.status, // 'sent', 'delivered', 'completed', 'declined', 'voided'
         statusDateTime: envelope.statusDateTime,
-        completedDateTime: envelope.completedDateTime
+        completedDateTime: envelope.completedDateTime,
+        sentDateTime: envelope.sentDateTime,
+        deliveredDateTime: envelope.deliveredDateTime
       };
 
     } catch (error) {
-      console.error('❌ Error verificando estado del envelope:', error.message);
+      console.error('❌ [DocuSign] Error obteniendo estado del envelope:', error.message);
       throw error;
     }
+  }
+
+  /**
+   * Verificar si un documento está firmado (método legacy - usa getEnvelopeStatus)
+   * @param {string} envelopeId - ID del envelope de DocuSign
+   */
+  async isDocumentSigned(envelopeId) {
+    const status = await this.getEnvelopeStatus(envelopeId);
+    
+    const isSigned = status.status === 'completed';
+
+    return {
+      signed: isSigned,
+      status: status.status,
+      statusDateTime: status.statusDateTime,
+      completedDateTime: status.completedDateTime
+    };
   }
 
   /**
