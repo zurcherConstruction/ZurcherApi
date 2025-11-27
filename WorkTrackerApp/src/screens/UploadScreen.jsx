@@ -1133,9 +1133,9 @@ const UploadScreen = () => {
         )}
         {/* --- BLOQUE DE BOTONES PDF MODIFICADO --- */}
         <View className="flex-row justify-around items-start mt-2 mb-2">
-          {currentWork.Permit?.pdfData && (
+          {(currentWork.Permit?.permitPdfUrl || currentWork.Permit?.pdfData) && (
             <TouchableOpacity
-              onPress={() => handleOpenPdf(currentWork.Permit.pdfData)}
+              onPress={() => handleOpenPdf(currentWork.Permit.permitPdfUrl || currentWork.Permit.pdfData)}
               className="items-center w-20"
             >
               <View className="w-20 h-20 bg-gray-200 border border-gray-300 rounded-md justify-center items-center mb-1 shadow">
@@ -1145,9 +1145,9 @@ const UploadScreen = () => {
             </TouchableOpacity>
           )}
 
-          {currentWork.Permit?.optionalDocs && (
+          {(currentWork.Permit?.optionalDocsUrl || currentWork.Permit?.optionalDocs) && (
             <TouchableOpacity
-              onPress={() => handleOpenPdf(currentWork.Permit.optionalDocs)}
+              onPress={() => handleOpenPdf(currentWork.Permit.optionalDocsUrl || currentWork.Permit.optionalDocs)}
               className="items-center w-20"
             >
               <View className="w-20 h-20 bg-gray-200 border border-gray-300 rounded-md justify-center items-center mb-1 shadow">

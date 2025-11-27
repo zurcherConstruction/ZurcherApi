@@ -2,6 +2,7 @@ import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
   works: [], // Lista de obras
+  pagination: null, // 📄 Metadata de paginación
   selectedWork: null, // Obra seleccionada (por ID)
   work: null,
   images: [], 
@@ -28,7 +29,15 @@ const workSlice = createSlice({
     },
     fetchWorksSuccess: (state, action) => {
       state.loading = false;
-      state.works = action.payload;
+      // 📄 Manejar respuesta paginada del backend
+      if (action.payload.works && action.payload.pagination) {
+        state.works = action.payload.works;
+        state.pagination = action.payload.pagination;
+      } else {
+        // Retrocompatibilidad con respuesta sin paginación
+        state.works = action.payload;
+        state.pagination = null;
+      }
     },
     fetchWorksFailure: (state, action) => {
       state.loading = false;

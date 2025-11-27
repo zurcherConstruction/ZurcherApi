@@ -151,14 +151,37 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true
     },
-    // Nuevo campo para almacenar el PDF (por ejemplo, en formato BLOB)
+    // ❌ DEPRECATED: PDFs como BLOB (causaban queries de 5+ segundos)
+    // Mantener temporalmente para migración, eliminar después de verificar
     pdfData: {
-  type: DataTypes.BLOB, // Aquí es donde ocurre el problema
-  allowNull: true,
-},
-optionalDocs: {
+      type: DataTypes.BLOB,
+      allowNull: true,
+    },
+    optionalDocs: {
       type: DataTypes.BLOB, 
       allowNull: true,
+    },
+    
+    // ✅ NUEVO: URLs de PDFs en Cloudinary (reemplazo de BLOBs)
+    permitPdfUrl: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'URL del PDF principal del permit en Cloudinary'
+    },
+    permitPdfPublicId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Public ID de Cloudinary para eliminar PDF si es necesario'
+    },
+    optionalDocsUrl: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'URL de documentos opcionales en Cloudinary'
+    },
+    optionalDocsPublicId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'Public ID de Cloudinary para documentos opcionales'
     },
     
     // --- IDENTIFICADOR DE PERMIT IMPORTADO ---

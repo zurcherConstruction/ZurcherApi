@@ -165,7 +165,16 @@ const requestInitialInspection = async (req, res) => {
 
     const work = await Work.findByPk(workId, {
       include: [
-        { model: Permit, attributes: ['idPermit', 'pdfData', 'optionalDocs', 'permitNumber','applicantEmail', 'applicantName'] },
+        { model: Permit, attributes: [
+          'idPermit', 
+          'permitPdfUrl',           // ✅ URL de Cloudinary (prioridad)
+          'permitPdfPublicId', 
+          'optionalDocsUrl',        // ✅ URL de Cloudinary (prioridad)
+          'optionalDocsPublicId',
+          'permitNumber',
+          'applicantEmail', 
+          'applicantName'
+        ] },
         { model: Image, as: 'images', where: { id: workImageId }, limit: 1, required: false } // ✅ required: false para mejor manejo
       ]
     });
@@ -184,7 +193,7 @@ const requestInitialInspection = async (req, res) => {
       });
     }
 
-    if (!work.Permit || !work.Permit.pdfData) {
+    if (!work.Permit || !work.Permit.permitPdfUrl) {
       return res.status(400).json({ 
         error: true, 
         message: 'La obra no tiene un Permiso con PDF asociado. Es necesario para enviar a los inspectores.' 
@@ -210,66 +219,53 @@ const requestInitialInspection = async (req, res) => {
 
     // 2. Preparar y enviar correo a inspectores
     const attachments = [];
-    if (work.Permit.pdfData) {
-      attachments.push({
-        filename: `Permit_${work.Permit.permitNumber || workId}.pdf`,
-        content: Buffer.isBuffer(work.Permit.pdfData) ? work.Permit.pdfData : Buffer.from(work.Permit.pdfData, 'base64'),
-        contentType: 'application/pdf'
-      });
+    
+    // ✅ Usar URL de Cloudinary en vez de adjuntar BLOB pesado
+    // Los PDFs ahora se referencian por link, no se adjuntan al email
+    if (work.Permit.permitPdfUrl) {
+      // PDF disponible en Cloudinary - se incluirá como link en el email
+      console.log(`✅ Permit PDF disponible en: ${work.Permit.permitPdfUrl}`);
     }
-    // Adjuntar optionalDocs igual de simple que pdfData
-    if (work.Permit.optionalDocs) {
-      if (Buffer.isBuffer(work.Permit.optionalDocs)) {
-        attachments.push({
-          filename: `OptionalDoc.pdf`,
-          content: work.Permit.optionalDocs,
-          contentType: 'application/pdf'
-        });
-      } else if (typeof work.Permit.optionalDocs === 'string') {
-        attachments.push({
-          filename: `OptionalDoc.pdf`,
-          content: Buffer.from(work.Permit.optionalDocs, 'base64'),
-          contentType: 'application/pdf'
-        });
-      } else if (Array.isArray(work.Permit.optionalDocs)) {
-        work.Permit.optionalDocs.forEach((doc, idx) => {
-          if (Buffer.isBuffer(doc)) {
-            attachments.push({
-              filename: `OptionalDoc_${idx + 1}.pdf`,
-              content: doc,
-              contentType: 'application/pdf'
-            });
-          } else if (typeof doc === 'string') {
-            attachments.push({
-              filename: `OptionalDoc_${idx + 1}.pdf`,
-              content: Buffer.from(doc, 'base64'),
-              contentType: 'application/pdf'
-            });
-          } else if (doc && doc.data) {
-            attachments.push({
-              filename: doc.filename || `OptionalDoc_${idx + 1}.pdf`,
-              content: Buffer.isBuffer(doc.data) ? doc.data : Buffer.from(doc.data, 'base64'),
-              contentType: doc.contentType || 'application/pdf'
-            });
-          }
-        });
-      }
+    
+    if (work.Permit.optionalDocsUrl) {
+      // Docs opcionales disponibles en Cloudinary
+      console.log(`✅ Optional docs disponibles en: ${work.Permit.optionalDocsUrl}`);
     }
 
     // Email en inglés para el inspector
     const emailSubject = `Solicitud de Inspección Inicial - Obra: ${work.propertyAddress}`;
-    let emailText = `Dear Inspector,\n\nAttached you will find the documentation to request the initial inspection for the project located at ${work.propertyAddress}.\n\n- Permit No.: ${work.Permit.permitNumber || 'N/A'}\n- Project image.\n`;
-    if (attachments.length > 1) {
-      emailText += `- Additional documents are also attached.\n`;
+    
+    let emailText = `Dear Inspector,\n\nPlease find below the documentation to request the initial inspection for the project located at ${work.propertyAddress}.\n\n- Permit No.: ${work.Permit.permitNumber || 'N/A'}\n`;
+    
+    // ✅ Incluir links a PDFs en Cloudinary
+    if (work.Permit.permitPdfUrl) {
+      emailText += `- Permit PDF: ${work.Permit.permitPdfUrl}\n`;
     }
+    if (work.Permit.optionalDocsUrl) {
+      emailText += `- Site Plan/Optional Docs: ${work.Permit.optionalDocsUrl}\n`;
+    }
+    emailText += `- Project image: ${workImage.imageUrl}\n`;
+    
     emailText += `\nPlease let us know the scheduled date and any additional documents required.\n\nBest regards.`;
+
+    // HTML version con links clickeables
+    let emailHtml = `<p>Dear Inspector,</p><p>Please find below the documentation to request the initial inspection for the project located at <strong>${work.propertyAddress}</strong>.</p><ul>`;
+    emailHtml += `<li>Permit No.: ${work.Permit.permitNumber || 'N/A'}</li>`;
+    if (work.Permit.permitPdfUrl) {
+      emailHtml += `<li><a href="${work.Permit.permitPdfUrl}">Permit PDF</a></li>`;
+    }
+    if (work.Permit.optionalDocsUrl) {
+      emailHtml += `<li><a href="${work.Permit.optionalDocsUrl}">Site Plan/Optional Docs</a></li>`;
+    }
+    emailHtml += `<li><a href="${workImage.imageUrl}">Project Image</a></li>`;
+    emailHtml += `</ul><p>Please let us know the scheduled date and any additional documents required.</p><p>Best regards.</p>`;
 
     await sendEmail({
       to: inspectorEmail,
       subject: emailSubject,
       text: emailText,
-      html: `<p>${emailText.replace(/\n/g, '<br>')}</p><p>Project image: <a href="${workImage.imageUrl}">View Image</a></p>`,
-      attachments,
+      html: emailHtml,
+      attachments, // Ahora vacío, pero mantenemos por si acaso
     });
 
     // 3. Actualizar estados
@@ -726,7 +722,7 @@ const requestReinspection = async (req, res, next) => {
 
     const work = await Work.findByPk(workId, {
       include: [
-          { model: Permit, attributes: ['permitNumber', 'pdfData'] },
+          { model: Permit, attributes: ['permitNumber', 'permitPdfUrl', 'optionalDocsUrl'] }, // ✅ URLs de Cloudinary
           // Solo incluir la imagen si se proporciona workImageId y es relevante para la reinspección
           ...(workImageId ? [{ model: Image, as: 'images', where: { id: workImageId }, limit: 1, required: false }] : [])
       ]
@@ -769,20 +765,30 @@ const requestReinspection = async (req, res, next) => {
     });
 
  // 2. Preparar y enviar correo simple a inspectores
-    const emailSubject = `Solicitud de REINSPECCIÓN (${previousInspectionTypeForNotification}) - Obra: ${work.propertyAddress}`; // 'const' está bien aquí
-    let emailText = `Estimados Inspectores,\n\nSe solicita una REINSPECCIÓN (${previousInspectionTypeForNotification}) para la obra ubicada en ${work.propertyAddress} (Permit N°: ${work.Permit?.permitNumber || 'N/A'}).\nLas correcciones necesarias han sido realizadas por el personal de campo.\n\nPor favor, procedan a programar la visita e informar el resultado.\n\nSaludos cordiales.`; // 'let' es correcto
+    const emailSubject = `Solicitud de REINSPECCIÓN (${previousInspectionTypeForNotification}) - Obra: ${work.propertyAddress}`;
+    let emailText = `Estimados Inspectores,\n\nSe solicita una REINSPECCIÓN (${previousInspectionTypeForNotification}) para la obra ubicada en ${work.propertyAddress} (Permit N°: ${work.Permit?.permitNumber || 'N/A'}).\nLas correcciones necesarias han sido realizadas por el personal de campo.\n\n`;
     
-    // Asegúrate de que emailHtml se inicialice aquí con 'let'
-    let emailHtml = `<p>${emailText.replace(/\n/g, '<br>')}</p>`; 
-
-     const attachmentsForEmail = []; // Renombrado para evitar confusión con el fieldname 'attachments'
-    if (work.Permit && work.Permit.pdfData) {
-        attachmentsForEmail.push({
-            filename: `Permit_${work.Permit.permitNumber || workId}.pdf`,
-            content: Buffer.isBuffer(work.Permit.pdfData) ? work.Permit.pdfData : Buffer.from(work.Permit.pdfData, 'base64'),
-            contentType: 'application/pdf'
-        });
+    // ✅ Incluir links a PDFs en Cloudinary
+    if (work.Permit?.permitPdfUrl) {
+      emailText += `Permit PDF: ${work.Permit.permitPdfUrl}\n`;
     }
+    if (work.Permit?.optionalDocsUrl) {
+      emailText += `Site Plan/Optional Docs: ${work.Permit.optionalDocsUrl}\n`;
+    }
+    
+    emailText += `\nPor favor, procedan a programar la visita e informar el resultado.\n\nSaludos cordiales.`;
+    
+    // HTML version con links clickeables
+    let emailHtml = `<p>Estimados Inspectores,</p><p>Se solicita una REINSPECCIÓN (${previousInspectionTypeForNotification}) para la obra ubicada en <strong>${work.propertyAddress}</strong> (Permit N°: ${work.Permit?.permitNumber || 'N/A'}).</p><p>Las correcciones necesarias han sido realizadas por el personal de campo.</p><ul>`;
+    if (work.Permit?.permitPdfUrl) {
+      emailHtml += `<li><a href="${work.Permit.permitPdfUrl}">Permit PDF</a></li>`;
+    }
+    if (work.Permit?.optionalDocsUrl) {
+      emailHtml += `<li><a href="${work.Permit.optionalDocsUrl}">Site Plan/Optional Docs</a></li>`;
+    }
+    emailHtml += `</ul><p>Por favor, procedan a programar la visita e informar el resultado.</p><p>Saludos cordiales.</p>`;
+
+     const attachmentsForEmail = []; // Ya no adjuntamos PDFs, solo usamos links
 
     // Añadir enlace a la imagen si se proporcionó workImageId y la imagen existe
     if (workImageId && work.images && work.images.length > 0) {

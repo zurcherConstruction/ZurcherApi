@@ -38,10 +38,11 @@ export const fetchWorks = (staffId = null, skipLoading = false) => async (dispat
   dispatch(fetchWorksRequest());
   try {
     const response = await api.get('/work'); // Ruta del backend
-    let works = response.data;
+    // ✅ El backend devuelve { works: [...], pagination: {...} }
+    let works = response.data.works || response.data; // Fallback por compatibilidad
 
     // Filtrar los trabajos por staffId si se proporciona
-    if (staffId) {
+    if (staffId && Array.isArray(works)) {
       works = works.filter((work) => work.staffId === staffId);
     }
 

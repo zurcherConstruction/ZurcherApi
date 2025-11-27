@@ -136,9 +136,11 @@ async function importExistingWork(req, res) {
         lot: lot || '',
         block: block || '',
         
-        // Guardar URLs de Cloudinary en lugar de buffers
-        pdfData: documentosGuardados.permit?.url || null,
-        optionalDocs: documentosGuardados.opcional?.url || null,
+        // ✅ Guardar URLs de Cloudinary en columnas correctas
+        permitPdfUrl: documentosGuardados.permit?.url || null,
+        permitPdfPublicId: documentosGuardados.permit?.publicId || null,
+        optionalDocsUrl: documentosGuardados.opcional?.url || null,
+        optionalDocsPublicId: documentosGuardados.opcional?.publicId || null,
         
         // Marcar como importado
         isLegacy: true
@@ -170,8 +172,11 @@ async function importExistingWork(req, res) {
             systemType: systemType || 'Solar',
             lot: lot || '',
             block: block || '',
-            pdfData: documentosGuardados.permit?.url || null,
-            optionalDocs: documentosGuardados.opcional?.url || null,
+            // ✅ Guardar URLs de Cloudinary en columnas correctas
+            permitPdfUrl: documentosGuardados.permit?.url || null,
+            permitPdfPublicId: documentosGuardados.permit?.publicId || null,
+            optionalDocsUrl: documentosGuardados.opcional?.url || null,
+            optionalDocsPublicId: documentosGuardados.opcional?.publicId || null,
             isLegacy: true
           }, { transaction });
         }

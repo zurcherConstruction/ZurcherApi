@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorks, deleteWork } from "../../Redux/Actions/workActions"; // Acción para obtener y eliminar works
 import { useNavigate } from "react-router-dom";
@@ -7,14 +7,21 @@ import {
   MapPinIcon, 
   EyeIcon,
   ClockIcon,
-  TrashIcon
+  TrashIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon
 } from '@heroicons/react/24/outline';
 
 const Works = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  
+  // 📄 Estado de paginación
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(50);
+  
   // Obtener works desde el estado de Redux
-  const { works, loading, error } = useSelector((state) => state.work);
+  const { works, pagination, loading, error } = useSelector((state) => state.work);
 
   // ✅ Get current user role for delete permissions
   const { user, currentStaff } = useSelector((state) => state.auth);
@@ -22,10 +29,23 @@ const Works = () => {
   const userRole = staff?.role || '';
   const canDeleteWork = userRole === 'owner';
 
-  // Cargar works al montar el componente
+  // Cargar works al montar el componente y cuando cambie la página
   useEffect(() => {
-    dispatch(fetchWorks()); // Cargar los works desde el backend
-  }, [dispatch]);
+    dispatch(fetchWorks(currentPage, itemsPerPage)); // Cargar los works desde el backend con paginación
+  }, [dispatch, currentPage, itemsPerPage]);
+
+  // Funciones de paginación
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (pagination && currentPage < pagination.totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
 
   const getStatusColor = (status) => {
     switch (status?.toLowerCase()) {
@@ -88,7 +108,7 @@ const Works = () => {
           alert('✅ Trabajo y todos sus datos asociados eliminados exitosamente');
         }
         
-        dispatch(fetchWorks()); // Recargar la lista
+        dispatch(fetchWorks(currentPage, itemsPerPage)); // Recargar la lista con paginación
       } catch (error) {
         console.error('Error al eliminar work:', error);
         alert(`❌ Error al eliminar: ${error.message || 'Error desconocido'}`);
@@ -273,6 +293,46 @@ const Works = () => {
                   </div>
                 ))}
               </div>
+
+              {/* 📄 Controles de Paginación */}
+              {pagination && pagination.totalPages > 1 && (
+                <div className="mt-6 flex items-center justify-between bg-white rounded-2xl shadow-lg p-4">
+                  <div className="text-sm text-gray-600">
+                    Mostrando <span className="font-semibold">{works.length}</span> de{' '}
+                    <span className="font-semibold">{pagination.total}</span> works
+                    {' '}- Página <span className="font-semibold">{pagination.page}</span> de{' '}
+                    <span className="font-semibold">{pagination.totalPages}</span>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handlePreviousPage}
+                      disabled={!pagination.hasPrevPage}
+                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                        pagination.hasPrevPage
+                          ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 shadow-md hover:shadow-lg'
+                          : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <ChevronLeftIcon className="w-4 h-4" />
+                      Anterior
+                    </button>
+                    
+                    <button
+                      onClick={handleNextPage}
+                      disabled={!pagination.hasNextPage}
+                      className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                        pagination.hasNextPage
+                          ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 shadow-md hover:shadow-lg'
+                          : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      Siguiente
+                      <ChevronRightIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </>

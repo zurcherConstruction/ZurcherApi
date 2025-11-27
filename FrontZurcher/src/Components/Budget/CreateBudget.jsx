@@ -314,15 +314,21 @@ const CreateBudget = () => {
         }
       }
    
-      if (selectedPermit.pdfData) { // Asumiendo que ahora viene como URL
+      // ✅ Priorizar URLs de Cloudinary, fallback a BLOB
+      if (selectedPermit.permitPdfUrl) {
+        setPdfPreview(selectedPermit.permitPdfUrl);
+      } else if (selectedPermit.pdfData) {
         setPdfPreview(selectedPermit.pdfData.data);
       } else {
-        setPdfPreview(null); // Limpiar si no hay PDF
+        setPdfPreview(null);
       }
-      if (selectedPermit.optionalDocs) { // Asumiendo que ahora viene como URL
+      
+      if (selectedPermit.optionalDocsUrl) {
+        setOptionalDocPreview(selectedPermit.optionalDocsUrl);
+      } else if (selectedPermit.optionalDocs) {
         setOptionalDocPreview(selectedPermit.optionalDocs.data);
       } else {
-        setOptionalDocPreview(null); // Limpiar si no hay doc opcional
+        setOptionalDocPreview(null);
       }
     } else if (!permitIdFromQuery && !loadingPermit) { 
       setPermitExpirationAlert({ type: "error", message: "No se ha cargado la información del permiso." });

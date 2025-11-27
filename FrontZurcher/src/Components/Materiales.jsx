@@ -203,12 +203,17 @@ const formatDate = (isoDate) => {
   const permitPdfUrl = useMemo(() => {
     if (!selectedAddress || !work?.Permit) return null;
     
-    // Si es legacy, usar URL de Cloudinary directamente
+    // ✅ Primero intentar URL de Cloudinary (nuevo sistema)
+    if (work.Permit.permitPdfUrl) {
+      return work.Permit.permitPdfUrl;
+    }
+    
+    // 🔄 Fallback: Si es legacy con pdfUrl
     if (work.Permit.isLegacy && work.Permit.pdfUrl) {
       return work.Permit.pdfUrl;
     }
     
-    // Si no es legacy, crear Blob desde pdfData
+    // ⚠️ Fallback temporal: crear Blob desde pdfData (deprecated)
     if (work.Permit.pdfData?.data) {
       try {
         return URL.createObjectURL(new Blob([new Uint8Array(work.Permit.pdfData.data)], { type: "application/pdf" }));
@@ -224,12 +229,17 @@ const formatDate = (isoDate) => {
   const optionalDocsUrl = useMemo(() => {
     if (!selectedAddress || !work?.Permit) return null;
     
-    // Si es legacy, usar URL de Cloudinary directamente
+    // ✅ Primero intentar URL de Cloudinary (nuevo sistema)
+    if (work.Permit.optionalDocsUrl) {
+      return work.Permit.optionalDocsUrl;
+    }
+    
+    // 🔄 Fallback: Si es legacy con optionalDocsUrl antiguo
     if (work.Permit.isLegacy && work.Permit.optionalDocsUrl) {
       return work.Permit.optionalDocsUrl;
     }
     
-    // Si no es legacy, crear Blob desde optionalDocs
+    // ⚠️ Fallback temporal: crear Blob desde optionalDocs (deprecated)
     if (work.Permit.optionalDocs?.data) {
       try {
         return URL.createObjectURL(new Blob([new Uint8Array(work.Permit.optionalDocs.data)], { type: "application/pdf" }));

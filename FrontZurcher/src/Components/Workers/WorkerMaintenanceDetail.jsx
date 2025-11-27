@@ -1005,10 +1005,10 @@ const WorkerMaintenanceDetail = () => {
                   Documentos del Permiso
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {permitData.pdfData && (
+                  {(permitData.permitPdfUrl || permitData.pdfData) && (
                     <button
                       type="button"
-                      onClick={() => openPDF(permitData.pdfData)}
+                      onClick={() => openPDF(permitData.permitPdfUrl || permitData.pdfData)}
                       className="flex flex-col items-center p-4 bg-gradient-to-br from-red-50 to-red-100 border border-red-200 rounded-lg hover:from-red-100 hover:to-red-200 transition-all shadow-sm hover:shadow-md"
                     >
                       <DocumentTextIcon className="h-12 w-12 text-red-600 mb-2" />
@@ -1016,10 +1016,10 @@ const WorkerMaintenanceDetail = () => {
                       <span className="text-xs text-red-600 mt-0.5">Click para ver</span>
                     </button>
                   )}
-                  {permitData.optionalDocs && (
+                  {(permitData.optionalDocsUrl || permitData.optionalDocs) && (
                     <button
                       type="button"
-                      onClick={() => openPDF(permitData.optionalDocs)}
+                      onClick={() => openPDF(permitData.optionalDocsUrl || permitData.optionalDocs)}
                       className="flex flex-col items-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg hover:from-blue-100 hover:to-blue-200 transition-all shadow-sm hover:shadow-md"
                     >
                       <DocumentTextIcon className="h-12 w-12 text-blue-600 mb-2" />
@@ -1027,7 +1027,7 @@ const WorkerMaintenanceDetail = () => {
                       <span className="text-xs text-blue-600 mt-0.5">Click para ver</span>
                     </button>
                   )}
-                  {!permitData.pdfData && !permitData.optionalDocs && (
+                  {!permitData.permitPdfUrl && !permitData.pdfData && !permitData.optionalDocsUrl && !permitData.optionalDocs && (
                     <div className="col-span-2 text-center py-4 text-gray-500 text-sm">
                       No hay documentos disponibles
                     </div>

@@ -227,6 +227,10 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
           propertyAddress: permit.propertyAddress,
           permitNumber: permit.permitNumber,
           systemType: permit.systemType,
+          // ✅ Verificar URLs de Cloudinary primero
+          hasPermitPdfUrl: !!permit.permitPdfUrl,
+          hasOptionalDocsUrl: !!permit.optionalDocsUrl,
+          // 🔄 Fallback a BLOBs legacy
           hasPdfData: !!permit.pdfData,
           hasOptionalDocs: !!permit.optionalDocs,
           pdfDataType: permit.pdfData ? typeof permit.pdfData : 'undefined',
@@ -994,11 +998,11 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
         </View>
 
         {/* Botones de PDFs */}
-        {(permitData?.pdfData || permitData?.optionalDocs) && (
+        {(permitData?.permitPdfUrl || permitData?.pdfData || permitData?.optionalDocsUrl || permitData?.optionalDocs) && (
           <View style={styles.pdfButtonsContainer}>
-            {permitData?.pdfData && (
+            {(permitData?.permitPdfUrl || permitData?.pdfData) && (
               <TouchableOpacity
-                onPress={() => handleOpenPdf(permitData.pdfData)}
+                onPress={() => handleOpenPdf(permitData.permitPdfUrl || permitData.pdfData)}
                 style={styles.pdfButton}
               >
                 <View style={styles.pdfIconContainer}>
@@ -1008,9 +1012,9 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
               </TouchableOpacity>
             )}
 
-            {permitData?.optionalDocs && (
+            {(permitData?.optionalDocsUrl || permitData?.optionalDocs) && (
               <TouchableOpacity
-                onPress={() => handleOpenPdf(permitData.optionalDocs)}
+                onPress={() => handleOpenPdf(permitData.optionalDocsUrl || permitData.optionalDocs)}
                 style={styles.pdfButton}
               >
                 <View style={styles.pdfIconContainer}>

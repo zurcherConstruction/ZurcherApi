@@ -288,7 +288,8 @@ const editableBudgets = useMemo(() => {
             description: item.itemDetails?.description || item.description || '',
             supplierName: item.itemDetails?.supplierName || item.supplierName || '', // ✅ AGREGAR SUPPLIERNAME
           })),
-          pdfDataUrl: permitData.pdfDataUrl || null,
+          // ✅ Priorizar URLs de Cloudinary, luego URLs legacy
+          pdfDataUrl: permitData.permitPdfUrl || permitData.pdfDataUrl || null,
           optionalDocsUrl: permitData.optionalDocsUrl || null,
           pdfDataFile: null,
           optionalDocsFile: null,
