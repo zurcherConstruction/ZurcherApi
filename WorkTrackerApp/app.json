@@ -21,7 +21,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.zurcher.construction",
-      "buildNumber": "33",
+      "buildNumber": "34",
 
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
