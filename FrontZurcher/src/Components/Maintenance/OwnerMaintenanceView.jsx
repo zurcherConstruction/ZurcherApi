@@ -112,7 +112,12 @@ const OwnerMaintenanceView = () => {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `mantenimiento_visita_${visit.visit_number || visit.id}.pdf`;
+      
+      // Crear nombre descriptivo: Visita#_Direccion.pdf
+      const visitNumber = visit.visitNumber || visit.id;
+      const propertyAddress = visit.work?.Permit?.propertyAddress || 'Sin_Direccion';
+      const cleanAddress = propertyAddress.replace(/[^a-zA-Z0-9]/g, '_'); // Limpiar caracteres especiales
+      link.download = `Visita_${visitNumber}_${cleanAddress}.pdf`;
       
       // Simular clic en el enlace para iniciar la descarga
       document.body.appendChild(link);

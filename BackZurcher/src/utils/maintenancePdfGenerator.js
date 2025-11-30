@@ -558,10 +558,32 @@ async function generateMaintenancePDF(visitData) {
           .text('Video general del sistema disponible:', PAGE_MARGIN + 5, y);
         y += 15;
         
-        // Link clickeable al video
+        // Convertir URL de Cloudinary al formato del player embebido
+        // De: https://res.cloudinary.com/CLOUD/video/upload/v123/path/video.mov
+        // A:  https://res.cloudinary.com/CLOUD/video/upload/sp_full_hd/path/video
+        let playerUrl = system_video_url;
+        
+        if (system_video_url.includes('cloudinary.com')) {
+          // Extraer cloud name y public_id
+          const urlParts = system_video_url.match(/cloudinary\.com\/([^\/]+)\/video\/upload\/(.+)/);
+          if (urlParts) {
+            const cloudName = urlParts[1];
+            let publicIdPath = urlParts[2];
+            
+            // Remover extensión (.mov, .mp4, etc)
+            publicIdPath = publicIdPath.replace(/\.[^.]+$/, '');
+            // Remover versión si existe (v1234567/)
+            publicIdPath = publicIdPath.replace(/^v\d+\//, '');
+            
+            // Generar URL del player embebido de Cloudinary con formato MP4 y controles
+            playerUrl = `https://res.cloudinary.com/${cloudName}/video/upload/f_auto,q_auto,vc_auto/${publicIdPath}.mp4`;
+          }
+        }
+        
+        // Link clickeable al video (se abrirá en navegador)
         doc.fontSize(9).fillColor('#0066CC')
-          .text('Ver Video Completo', PAGE_MARGIN + 10, y, { 
-            link: system_video_url,
+          .text('Reproducir Video', PAGE_MARGIN + 10, y, { 
+            link: playerUrl,
             underline: true 
           });
         y += 25;

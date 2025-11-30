@@ -18,21 +18,36 @@ const FinancialDashboardController = {
       console.log('📊 [FinancialDashboard] Generando dashboard financiero...');
       console.log('   Filtros:', { startDate, endDate, month, year });
 
+      // 🚨 FECHA MÍNIMA: Solo contar transacciones desde el 1 de diciembre 2025 en adelante
+      // Antes de esta fecha hay datos con lógica incorrecta (tarjetas marcadas como paid)
+      const MINIMUM_DATE = '2025-12-01';
+      const minimumDateObj = new Date(MINIMUM_DATE);
+      minimumDateObj.setHours(0, 0, 0, 0);
+
       // Construir filtro de fechas
       let dateFilter = {};
       let filterDescription = '';
       
       if (startDate && endDate) {
+        // Asegurar que no se incluyan fechas anteriores al mínimo
+        const effectiveStartDate = new Date(startDate) >= minimumDateObj ? startDate : MINIMUM_DATE;
+        
         dateFilter = {
           [Op.and]: [
-            { createdAt: { [Op.gte]: new Date(startDate) } },
+            { createdAt: { [Op.gte]: new Date(effectiveStartDate) } },
             { createdAt: { [Op.lte]: new Date(endDate + 'T23:59:59') } }
           ]
         };
-        filterDescription = `Rango: ${startDate} a ${endDate}`;
+        filterDescription = `Rango: ${effectiveStartDate} a ${endDate} (mínimo: ${MINIMUM_DATE})`;
       } else if (month && year) {
-        const firstDay = new Date(year, month - 1, 1);
+        let firstDay = new Date(year, month - 1, 1);
         const lastDay = new Date(year, month, 0, 23, 59, 59);
+        
+        // Si el primer día del mes es anterior al mínimo, usar la fecha mínima
+        if (firstDay < minimumDateObj) {
+          firstDay = minimumDateObj;
+        }
+        
         dateFilter = {
           [Op.and]: [
             { createdAt: { [Op.gte]: firstDay } },
@@ -41,7 +56,11 @@ const FinancialDashboardController = {
         };
         filterDescription = `MES ESPECÍFICO: ${month}/${year} (${firstDay.toISOString().split('T')[0]} a ${lastDay.toISOString().split('T')[0]})`;
       } else {
-        filterDescription = 'Sin filtros - TODOS LOS REGISTROS';
+        // Sin filtros específicos, pero aplicar fecha mínima
+        dateFilter = {
+          createdAt: { [Op.gte]: minimumDateObj }
+        };
+        filterDescription = `Desde ${MINIMUM_DATE} en adelante (datos reales)`;
       }
       
       console.log('   📅 Filtro aplicado:', filterDescription);
@@ -52,20 +71,34 @@ const FinancialDashboardController = {
       
       // 1.1 Initial Payments de Budgets (solo los que tienen comprobante de pago - paymentProofAmount)
       const initialPaymentsFilter = {
-        paymentProofAmount: { [Op.gt]: 0 } // Solo contar pagos con comprobante
+        paymentProofAmount: { [Op.gt]: 0 }, // Solo contar pagos con comprobante
+        date: { [Op.gte]: MINIMUM_DATE } // Solo desde fecha mínima
       };
       
       // Para Budgets usamos el campo 'date' en formato YYYY-MM-DD
       if (startDate && endDate) {
+        const effectiveStartDate = new Date(startDate) >= minimumDateObj ? startDate : MINIMUM_DATE;
         initialPaymentsFilter.date = {
-          [Op.between]: [startDate, endDate]
+          [Op.between]: [effectiveStartDate, endDate]
         };
       } else if (month && year) {
         const monthStr = String(month).padStart(2, '0');
         const yearMonth = `${year}-${monthStr}`;
-        initialPaymentsFilter.date = {
-          [Op.like]: `${yearMonth}%`
-        };
+        const firstDayStr = `${yearMonth}-01`;
+        
+        // Si el mes es anterior a la fecha mínima, usar la fecha mínima
+        if (firstDayStr < MINIMUM_DATE) {
+          initialPaymentsFilter.date = {
+            [Op.and]: [
+              { [Op.gte]: MINIMUM_DATE },
+              { [Op.like]: `${yearMonth}%` }
+            ]
+          };
+        } else {
+          initialPaymentsFilter.date = {
+            [Op.like]: `${yearMonth}%`
+          };
+        }
       }
 
       const budgetsWithInitialPayment = await Budget.findAll({
@@ -87,14 +120,15 @@ const FinancialDashboardController = {
       
       // Para Final Invoices, filtramos por paymentDate si existe, sino por createdAt
       if (startDate && endDate) {
-        const start = new Date(startDate);
+        const effectiveStartDate = new Date(startDate) >= minimumDateObj ? startDate : MINIMUM_DATE;
+        const start = new Date(effectiveStartDate);
         const end = new Date(endDate + 'T23:59:59');
         
         finalPaymentsFilter[Op.and].push({
           [Op.or]: [
             {
               paymentDate: {
-                [Op.between]: [startDate, endDate]
+                [Op.between]: [effectiveStartDate, endDate]
               }
             },
             {
@@ -106,12 +140,18 @@ const FinancialDashboardController = {
           ]
         });
       } else if (month && year) {
-        const firstDay = new Date(year, month - 1, 1);
+        let firstDay = new Date(year, month - 1, 1);
         const lastDay = new Date(year, month, 0, 23, 59, 59);
         const monthStr = String(month).padStart(2, '0');
-        const firstDayStr = `${year}-${monthStr}-01`;
+        let firstDayStr = `${year}-${monthStr}-01`;
         const lastDayOfMonth = new Date(year, month, 0).getDate();
         const lastDayStr = `${year}-${monthStr}-${lastDayOfMonth}`;
+        
+        // Si el mes es anterior a la fecha mínima, ajustar
+        if (firstDay < minimumDateObj) {
+          firstDay = minimumDateObj;
+          firstDayStr = MINIMUM_DATE;
+        }
         
         finalPaymentsFilter[Op.and].push({
           [Op.or]: [
@@ -125,6 +165,19 @@ const FinancialDashboardController = {
               createdAt: {
                 [Op.between]: [firstDay, lastDay]
               }
+            }
+          ]
+        });
+      } else {
+        // Sin filtros de mes/año, aplicar solo fecha mínima
+        finalPaymentsFilter[Op.and].push({
+          [Op.or]: [
+            {
+              paymentDate: { [Op.gte]: MINIMUM_DATE }
+            },
+            {
+              paymentDate: null,
+              createdAt: { [Op.gte]: minimumDateObj }
             }
           ]
         });
@@ -167,10 +220,15 @@ const FinancialDashboardController = {
       // 2.1 Gastos regulares (Expenses) - SOLO los pagados
       // EXCLUIR los que fueron generados automáticamente por otros sistemas
       // EXCLUIR comisiones (se cuentan desde Budget.commissionAmount)
+      // EXCLUIR gastos de tarjeta de crédito (son compromisos, no gastos pagados)
       const expensesFilter = {
         paymentStatus: { [Op.in]: ['paid', 'paid_via_invoice'] }, // Solo gastos realmente pagados
         relatedFixedExpenseId: null, // Excluir gastos auto-generados por pagos de gastos fijos
         supplierInvoiceItemId: null, // Excluir gastos auto-generados por pagos de proveedores
+        paymentMethod: { 
+          [Op.notIn]: ['Chase Credit Card', 'AMEX'] // Excluir tarjetas de crédito (son deudas, no gastos pagados)
+        },
+        date: { [Op.gte]: MINIMUM_DATE }, // Solo desde fecha mínima
         [Op.and]: [
           Sequelize.where(
             Sequelize.cast(Sequelize.col('typeExpense'), 'TEXT'),
@@ -181,15 +239,28 @@ const FinancialDashboardController = {
       
       // Expenses usa campo 'date' en formato string YYYY-MM-DD
       if (startDate && endDate) {
+        const effectiveStartDate = new Date(startDate) >= minimumDateObj ? startDate : MINIMUM_DATE;
         expensesFilter.date = {
-          [Op.between]: [startDate, endDate]
+          [Op.between]: [effectiveStartDate, endDate]
         };
       } else if (month && year) {
         const monthStr = String(month).padStart(2, '0');
         const yearMonth = `${year}-${monthStr}`;
-        expensesFilter.date = {
-          [Op.like]: `${yearMonth}%`
-        };
+        const firstDayStr = `${yearMonth}-01`;
+        
+        // Si el mes es anterior a la fecha mínima, usar la fecha mínima
+        if (firstDayStr < MINIMUM_DATE) {
+          expensesFilter.date = {
+            [Op.and]: [
+              { [Op.gte]: MINIMUM_DATE },
+              { [Op.like]: `${yearMonth}%` }
+            ]
+          };
+        } else {
+          expensesFilter.date = {
+            [Op.like]: `${yearMonth}%`
+          };
+        }
       }
 
       const expenses = await Expense.findAll({
@@ -230,18 +301,25 @@ const FinancialDashboardController = {
 
       // 2.2 Gastos fijos (FixedExpensePayments - solo pagos realmente efectuados)
       const fixedExpensesFilter = {
-        amount: { [Op.gt]: 0 } // Solo pagos con monto real
+        amount: { [Op.gt]: 0 }, // Solo pagos con monto real
+        paymentDate: { [Op.gte]: MINIMUM_DATE } // Solo desde fecha mínima
       };
       
       if (startDate && endDate) {
+        const effectiveStartDate = new Date(startDate) >= minimumDateObj ? startDate : MINIMUM_DATE;
         fixedExpensesFilter.paymentDate = {
-          [Op.between]: [startDate, endDate]
+          [Op.between]: [effectiveStartDate, endDate]
         };
       } else if (month && year) {
         // paymentDate es DATEONLY, usar between con primer y último día del mes
-        const firstDayStr = `${year}-${String(month).padStart(2, '0')}-01`;
+        let firstDayStr = `${year}-${String(month).padStart(2, '0')}-01`;
         const lastDayOfMonth = new Date(year, month, 0).getDate();
         const lastDayStr = `${year}-${String(month).padStart(2, '0')}-${lastDayOfMonth}`;
+        
+        // Si el mes es anterior a la fecha mínima, ajustar
+        if (firstDayStr < MINIMUM_DATE) {
+          firstDayStr = MINIMUM_DATE;
+        }
         
         fixedExpensesFilter.paymentDate = {
           [Op.between]: [firstDayStr, lastDayStr]
@@ -283,14 +361,15 @@ const FinancialDashboardController = {
       
       // Filtrar por paymentDate si existe, sino por createdAt
       if (startDate && endDate) {
-        const start = new Date(startDate);
+        const effectiveStartDate = new Date(startDate) >= minimumDateObj ? startDate : MINIMUM_DATE;
+        const start = new Date(effectiveStartDate);
         const end = new Date(endDate + 'T23:59:59');
         
         supplierExpensesFilter[Op.and].push({
           [Op.or]: [
             {
               paymentDate: {
-                [Op.between]: [startDate, endDate]
+                [Op.between]: [effectiveStartDate, endDate]
               }
             },
             {
@@ -302,12 +381,17 @@ const FinancialDashboardController = {
           ]
         });
       } else if (month && year) {
-        const firstDay = new Date(year, month - 1, 1);
+        let firstDay = new Date(year, month - 1, 1);
         const lastDay = new Date(year, month, 0, 23, 59, 59);
-        const monthStr = String(month).padStart(2, '0');
-        const firstDayStr = `${year}-${monthStr}-01`;
+        let firstDayStr = `${year}-${String(month).padStart(2, '0')}-01`;
         const lastDayOfMonth = new Date(year, month, 0).getDate();
-        const lastDayStr = `${year}-${monthStr}-${lastDayOfMonth}`;
+        const lastDayStr = `${year}-${String(month).padStart(2, '0')}-${lastDayOfMonth}`;
+        
+        // Si el mes es anterior a la fecha mínima, ajustar
+        if (firstDay < minimumDateObj) {
+          firstDay = minimumDateObj;
+          firstDayStr = MINIMUM_DATE;
+        }
         
         supplierExpensesFilter[Op.and].push({
           [Op.or]: [
@@ -321,6 +405,19 @@ const FinancialDashboardController = {
               createdAt: {
                 [Op.between]: [firstDay, lastDay]
               }
+            }
+          ]
+        });
+      } else {
+        // Sin filtros de mes/año, aplicar solo fecha mínima
+        supplierExpensesFilter[Op.and].push({
+          [Op.or]: [
+            {
+              paymentDate: { [Op.gte]: MINIMUM_DATE }
+            },
+            {
+              paymentDate: null,
+              createdAt: { [Op.gte]: minimumDateObj }
             }
           ]
         });
@@ -346,18 +443,33 @@ const FinancialDashboardController = {
       // 2.4 Comisiones pagadas (desde Budget)
       const commissionsFilter = {
         commissionPaid: true,
-        commissionAmount: { [Op.gt]: 0 }
+        commissionAmount: { [Op.gt]: 0 },
+        commissionPaidDate: { [Op.gte]: MINIMUM_DATE } // Solo desde fecha mínima
       };
+      
       if (Object.keys(dateFilter).length > 0 && startDate && endDate) {
+        const effectiveStartDate = new Date(startDate) >= minimumDateObj ? startDate : MINIMUM_DATE;
         commissionsFilter.commissionPaidDate = {
-          [Op.between]: [startDate, endDate]
+          [Op.between]: [effectiveStartDate, endDate]
         };
       } else if (month && year) {
         const monthStr = String(month).padStart(2, '0');
         const yearMonth = `${year}-${monthStr}`;
-        commissionsFilter.commissionPaidDate = {
-          [Op.like]: `${yearMonth}%`
-        };
+        const firstDayStr = `${yearMonth}-01`;
+        
+        // Si el mes es anterior a la fecha mínima, usar la fecha mínima
+        if (firstDayStr < MINIMUM_DATE) {
+          commissionsFilter.commissionPaidDate = {
+            [Op.and]: [
+              { [Op.gte]: MINIMUM_DATE },
+              { [Op.like]: `${yearMonth}%` }
+            ]
+          };
+        } else {
+          commissionsFilter.commissionPaidDate = {
+            [Op.like]: `${yearMonth}%`
+          };
+        }
       }
 
       const paidCommissions = await Budget.findAll({

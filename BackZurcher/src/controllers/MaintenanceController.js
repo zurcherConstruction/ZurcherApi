@@ -82,7 +82,9 @@ const getMaintenanceVisitsForWork = async (req, res) => {
               attributes: [
                 'idPermit', 'permitNumber', 'expirationDate', 'systemType', 
                 'applicantName', 'applicantEmail', 'applicantPhone',
-                'propertyAddress', 'pdfData', 'optionalDocs', 
+                'propertyAddress', 
+                'pdfData', 'optionalDocs', // Legacy Buffer fields
+                'permitPdfUrl', 'permitPdfPublicId', 'optionalDocsUrl', 'optionalDocsPublicId', // ✅ Cloudinary URLs
                 'gpdCapacity', 'squareFeetSystem', 'pump'
               ]
             }
@@ -364,10 +366,36 @@ const addMediaToMaintenanceVisit = async (req, res) => {
 const deleteMaintenanceMedia = async (req, res) => {
     try {
         const { mediaId } = req.params;
-        const media = await MaintenanceMedia.findByPk(mediaId);
+        const media = await MaintenanceMedia.findByPk(mediaId, {
+            include: [
+                {
+                    model: MaintenanceVisit,
+                    as: 'maintenanceVisit',
+                    attributes: ['id', 'staffId', 'completed_by_staff_id']
+                }
+            ]
+        });
 
         if (!media) {
             return res.status(404).json({ error: true, message: 'Archivo multimedia no encontrado.' });
+        }
+
+        // Verificar permisos: admin/owner/maintenance pueden eliminar cualquier foto
+        // Workers solo pueden eliminar fotos de sus propias visitas asignadas
+        const currentUserId = req.staff?.id;
+        const userRole = req.staff?.rol || req.staff?.role;
+        
+        const isAdminOrOwner = ['admin', 'owner', 'maintenance'].includes(userRole?.toLowerCase());
+        const isAssignedWorker = media.maintenanceVisit && (
+            media.maintenanceVisit.staffId === currentUserId || 
+            media.maintenanceVisit.completed_by_staff_id === currentUserId
+        );
+
+        if (!isAdminOrOwner && !isAssignedWorker) {
+            return res.status(403).json({ 
+                error: true, 
+                message: 'No tienes permiso para eliminar esta foto.' 
+            });
         }
 
         if (media.publicId) {
@@ -834,6 +862,9 @@ const getAssignedMaintenances = async (req, res) => {
       where: {
         staffId: workerId
       },
+      attributes: { 
+        exclude: [] // ✅ Traer TODOS los campos de MaintenanceVisit (incluyendo system_video_url)
+      },
       include: [
         { model: MaintenanceMedia, as: 'mediaFiles' },
         { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] },
@@ -852,7 +883,11 @@ const getAssignedMaintenances = async (req, res) => {
     if (addresses.length > 0) {
       const permits = await Permit.findAll({
         where: { propertyAddress: addresses },
-        attributes: ['idPermit', 'propertyAddress', 'applicant', 'applicantName', 'systemType', 'permitNumber', 'pdfData', 'optionalDocs']
+        attributes: [
+          'idPermit', 'propertyAddress', 'applicant', 'applicantName', 'systemType', 'permitNumber',
+          'pdfData', 'optionalDocs', // ⚠️ Legacy fields (Buffer)
+          'permitPdfUrl', 'permitPdfPublicId', 'optionalDocsUrl', 'optionalDocsPublicId' // ✅ Cloudinary URLs
+        ]
       });
       permitsByAddress = permits.reduce((acc, p) => {
         acc[p.propertyAddress] = p.get({ plain: true });
@@ -871,6 +906,17 @@ const getAssignedMaintenances = async (req, res) => {
     }
 
     console.log('[getAssignedMaintenances] Encontradas', visits.length, 'visitas para el worker');
+    
+    // 🔍 DEBUG: Ver qué tiene la primera visita
+    if (visits.length > 0) {
+      console.log('🔍 DEBUG - Primera visita:', {
+        id: visits[0].id,
+        status: visits[0].status,
+        mediaFilesCount: visits[0].mediaFiles?.length || 0,
+        hasPermit: !!visits[0].work?.permit,
+        permitPdfUrl: visits[0].work?.permit?.permitPdfUrl
+      });
+    }
 
     res.status(200).json({ message: 'Mantenimientos asignados obtenidos correctamente.', visits, count: visits.length });
   } catch (error) {
@@ -948,6 +994,15 @@ const completeMaintenanceVisit = async (req, res) => {
 
     // LOG: Ver qué está llegando
     console.log('🔍 BACKEND - Datos recibidos para visitId:', visitId);
+    console.log('🔍 BACKEND - actualVisitDate recibido:', req.body.actualVisitDate);
+    console.log('🔍 BACKEND - markAsCompleted:', req.body.markAsCompleted);
+    console.log('🔍 BACKEND - Archivos recibidos:', {
+      maintenanceFiles: files?.maintenanceFiles?.length || 0,
+      wellSample1: files?.wellSample1?.length || 0,
+      wellSample2: files?.wellSample2?.length || 0,
+      wellSample3: files?.wellSample3?.length || 0,
+      systemVideo: files?.systemVideo?.length || 0
+    });
     console.log('🔍 tank_inlet_level:', req.body.tank_inlet_level);
     console.log('🔍 tank_outlet_level:', req.body.tank_outlet_level);
     console.log('🔍 septic_access_clear:', req.body.septic_access_clear);
@@ -959,6 +1014,9 @@ const completeMaintenanceVisit = async (req, res) => {
 
     // Extraer todos los campos del formulario
     const {
+      // Fecha de la visita
+      actualVisitDate,
+      
       // Niveles del tanque
       tank_inlet_level,
       tank_inlet_notes,
@@ -1154,11 +1212,15 @@ const completeMaintenanceVisit = async (req, res) => {
     
     // Solo marcar como completado si se indica explícitamente
     if (markAsCompleted === 'true' || markAsCompleted === true) {
-      visit.actualVisitDate = new Date();
+      // Usar la fecha seleccionada por el usuario, o la fecha actual si no se proporcionó
+      visit.actualVisitDate = actualVisitDate || new Date().toISOString().split('T')[0];
       visit.status = 'completed';
       visit.completed_by_staff_id = currentUserId;
     } else {
-      // Guardar progreso sin completar
+      // Guardar progreso sin completar - guardar la fecha si se proporcionó
+      if (actualVisitDate) {
+        visit.actualVisitDate = actualVisitDate;
+      }
       if (visit.status === 'pending_scheduling' || visit.status === 'scheduled') {
         visit.status = 'assigned'; // Cambiar a 'en proceso'
       }
@@ -1193,10 +1255,12 @@ const completeMaintenanceVisit = async (req, res) => {
 
     // Procesar video del sistema (systemVideo)
     const systemVideoArray = files?.systemVideo;
+    console.log('🎬 DEBUG - systemVideoArray:', systemVideoArray ? `${systemVideoArray.length} archivo(s)` : 'undefined');
+    
     if (systemVideoArray && systemVideoArray.length > 0) {
       const videoFile = systemVideoArray[0];
       try {
-        console.log('🎬 Subiendo video del sistema:', videoFile.originalname);
+        console.log('🎬 Subiendo video del sistema:', videoFile.originalname, `(${Math.round(videoFile.size / 1024 / 1024)}MB)`);
         const cloudinaryResult = await uploadBufferToCloudinary(videoFile.buffer, {
           folder: `maintenance/${visit.workId}/${visit.id}/system_video`,
           resource_type: 'video',
@@ -1204,10 +1268,12 @@ const completeMaintenanceVisit = async (req, res) => {
         
         visit.system_video_url = cloudinaryResult.secure_url;
         await visit.save();
-        console.log('✅ Video del sistema guardado:', cloudinaryResult.secure_url);
+        console.log('✅ Video del sistema guardado en DB:', cloudinaryResult.secure_url);
       } catch (error) {
         console.error('❌ Error subiendo video del sistema:', error);
       }
+    } else {
+      console.log('⚠️ No se recibió video del sistema en esta llamada');
     }
 
     // Procesar archivos subidos (maintenanceFiles)
@@ -1266,7 +1332,9 @@ const completeMaintenanceVisit = async (req, res) => {
               attributes: [
                 'idPermit', 'permitNumber', 'expirationDate', 'systemType',
                 'applicantName', 'applicantEmail', 'applicantPhone',
-                'propertyAddress', 'pdfData', 'optionalDocs',
+                'propertyAddress', 
+                'pdfData', 'optionalDocs', // Legacy Buffer fields
+                'permitPdfUrl', 'permitPdfPublicId', 'optionalDocsUrl', 'optionalDocsPublicId', // ✅ Cloudinary URLs
                 'gpdCapacity', 'squareFeetSystem', 'pump', 'isPBTS'
               ]
             }
@@ -1279,6 +1347,16 @@ const completeMaintenanceVisit = async (req, res) => {
     const message = isCompleted 
       ? 'Mantenimiento completado correctamente.' 
       : 'Progreso de mantenimiento guardado exitosamente.';
+
+    console.log('✅ BACKEND - Enviando respuesta:', {
+      message,
+      visitId: updatedVisit.id,
+      status: updatedVisit.status,
+      actualVisitDate: updatedVisit.actualVisitDate,
+      mediaFilesCount: updatedVisit.mediaFiles?.length || 0,
+      uploadedFilesNow: uploadedMedia.length,
+      systemVideoUrl: updatedVisit.system_video_url // ✅ Agregar para debug
+    });
 
     res.status(200).json({ 
       message,

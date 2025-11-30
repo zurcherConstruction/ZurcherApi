@@ -37,25 +37,24 @@ const CheckboxFieldNoMedia = ({ label, value, notes, notesValue, onCheckChange, 
         <Text style={styles.checkboxLabel}>{label}</Text>
       </View>
       
-      {value && (
-        <View style={styles.checkboxDetails}>
-          <Text style={styles.inputLabel}>Observaciones</Text>
-          <TextInput
-            style={styles.textArea}
-            value={notesValue}
-            onChangeText={onNotesChange}
-            placeholder="Agregue observaciones..."
-            multiline
-            numberOfLines={2}
-          />
-        </View>
-      )}
+      {/* Siempre mostrar observaciones, sin importar el estado del toggle */}
+      <View style={styles.checkboxDetails}>
+        <Text style={styles.inputLabel}>Observaciones</Text>
+        <TextInput
+          style={styles.textArea}
+          value={notesValue}
+          onChangeText={onNotesChange}
+          placeholder="Agregue observaciones..."
+          multiline
+          numberOfLines={2}
+        />
+      </View>
     </View>
   );
 };
 
 // Componente CheckboxField reutilizable
-const CheckboxField = ({ label, value, notes, notesValue, onCheckChange, onNotesChange, onMediaAdd, mediaCount = 0, mediaFiles = [] }) => {
+const CheckboxField = ({ label, value, notes, notesValue, onCheckChange, onNotesChange, onMediaAdd, onMediaRemove, mediaCount = 0, mediaFiles = [] }) => {
   return (
     <View style={styles.checkboxContainer}>
       <View style={styles.checkboxHeader}>
@@ -68,57 +67,60 @@ const CheckboxField = ({ label, value, notes, notesValue, onCheckChange, onNotes
         <Text style={styles.checkboxLabel}>{label}</Text>
       </View>
       
-      {value && (
-        <View style={styles.checkboxDetails}>
-          <Text style={styles.inputLabel}>Observaciones</Text>
-          <TextInput
-            style={styles.textArea}
-            value={notesValue}
-            onChangeText={onNotesChange}
-            placeholder="Agregue observaciones..."
-            multiline
-            numberOfLines={2}
-          />
-          
-          <TouchableOpacity 
-            style={styles.mediaButton}
-            onPress={onMediaAdd}
-          >
-            <Text style={styles.mediaButtonText}>
-              📷 Adjuntar Foto {mediaCount > 0 && `(${mediaCount})`}
-            </Text>
-          </TouchableOpacity>
+      {/* Siempre mostrar observaciones y botón de foto, sin importar el estado del toggle */}
+      <View style={styles.checkboxDetails}>
+        <Text style={styles.inputLabel}>Observaciones</Text>
+        <TextInput
+          style={styles.textArea}
+          value={notesValue}
+          onChangeText={onNotesChange}
+          placeholder="Agregue observaciones..."
+          multiline
+          numberOfLines={2}
+        />
+        
+        <TouchableOpacity 
+          style={styles.mediaButton}
+          onPress={onMediaAdd}
+        >
+          <Text style={styles.mediaButtonText}>
+            📷 Adjuntar Foto {mediaCount > 0 && `(${mediaCount})`}
+          </Text>
+        </TouchableOpacity>
 
-          {/* Miniaturas de fotos */}
-          {mediaFiles.length > 0 && (
-            <View style={styles.thumbnailContainer}>
-              <Text style={styles.thumbnailTitle}>Fotos adjuntas:</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.thumbnailScroll}>
-                {mediaFiles.map((file, index) => (
-                  <View key={index} style={styles.thumbnailWrapper}>
-                    <Image 
-                      source={{ uri: file.uri }} 
-                      style={styles.thumbnail}
-                      resizeMode="cover"
-                    />
-                    <Text style={styles.thumbnailIndex}>{index + 1}</Text>
-                  </View>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-        </View>
-      )}
+        {/* Miniaturas de fotos */}
+        {mediaFiles.length > 0 && (
+          <View style={styles.thumbnailContainer}>
+            <Text style={styles.thumbnailTitle}>Fotos adjuntas:</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.thumbnailScroll}>
+              {mediaFiles.map((file, index) => (
+                <View key={index} style={styles.thumbnailWrapper}>
+                  <Image 
+                    source={{ uri: file.uri }} 
+                    style={styles.thumbnail}
+                    resizeMode="cover"
+                  />
+                  <TouchableOpacity 
+                    style={styles.thumbnailDeleteButton}
+                    onPress={() => onMediaRemove && onMediaRemove(index)}
+                  >
+                    <Ionicons name="close-circle" size={24} color="#ff4444" />
+                  </TouchableOpacity>
+                  <Text style={styles.thumbnailIndex}>{index + 1}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+      </View>
     </View>
   );
 };
 
 const MaintenanceFormScreen = ({ route, navigation }) => {
-  const { visit } = route.params;
+  const visit = route?.params?.visit;
   
-  if (__DEV__) {
-    console.log('🏗️ MaintenanceFormScreen iniciado - visit:', visit?.id);
-  }
+ 
   
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -209,41 +211,43 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
 
   useEffect(() => {
     const processVisitData = (visitObj) => {
-      console.log('📸 visit.mediaFiles?:', visitObj.mediaFiles ? `${visitObj.mediaFiles.length} archivos` : 'NO EXISTE');
-      if (visitObj.mediaFiles && visitObj.mediaFiles.length > 0) {
-        console.log('📸 Primer archivo:', JSON.stringify(visitObj.mediaFiles[0], null, 2));
-      }
       
       setVisitData(visitObj);
       
-      // Acceder a permit igual que el frontend web (minúscula)
-      console.log('📄 visitObj.work:', visitObj.work ? 'EXISTE' : 'NULL');
-      console.log('📄 visitObj.work.permit:', visitObj.work?.permit ? 'EXISTE' : 'NULL');
-      console.log('📄 visitObj.work.Permit:', visitObj.work?.Permit ? 'EXISTE' : 'NULL');
+      if (__DEV__) {
+        console.log('🔍 DEBUG - Visit data:', {
+          hasWork: !!visitObj.work,
+          hasPermit: !!(visitObj.work?.permit || visitObj.work?.Permit),
+          permitPdfUrl: visitObj.work?.permit?.permitPdfUrl || visitObj.work?.Permit?.permitPdfUrl,
+          optionalDocsUrl: visitObj.work?.permit?.optionalDocsUrl || visitObj.work?.Permit?.optionalDocsUrl,
+          systemVideoUrl: visitObj.system_video_url
+        });
+      }
       
       if (visitObj.work?.permit || visitObj.work?.Permit) {
         const permit = visitObj.work.permit || visitObj.work.Permit;
-        console.log('📄 Permit encontrado:', {
-          propertyAddress: permit.propertyAddress,
-          permitNumber: permit.permitNumber,
-          systemType: permit.systemType,
-          // ✅ Verificar URLs de Cloudinary primero
-          hasPermitPdfUrl: !!permit.permitPdfUrl,
-          hasOptionalDocsUrl: !!permit.optionalDocsUrl,
-          // 🔄 Fallback a BLOBs legacy
-          hasPdfData: !!permit.pdfData,
-          hasOptionalDocs: !!permit.optionalDocs,
-          pdfDataType: permit.pdfData ? typeof permit.pdfData : 'undefined',
-          optionalDocsType: permit.optionalDocs ? typeof permit.optionalDocs : 'undefined'
-        });
+        if (__DEV__) {
+          console.log('📄 DEBUG - Permit data loaded:', {
+            permitPdfUrl: permit.permitPdfUrl,
+            optionalDocsUrl: permit.optionalDocsUrl,
+            hasPdfData: !!permit.pdfData,
+            hasOptionalDocs: !!permit.optionalDocs
+          });
+        }
         setPermitData(permit);
-      } else {
-        console.log('⚠️ No se encontró permit en work object');
       }
       
       // Cargar imágenes existentes de mediaFiles organizadas por fieldName
       if (visitObj.mediaFiles && visitObj.mediaFiles.length > 0) {
-        console.log('📸 Cargando imágenes existentes:', visitObj.mediaFiles.length);
+        if (__DEV__) {
+          console.log('📸 DEBUG - mediaFiles recibidos:', visitObj.mediaFiles.length);
+          console.log('📸 DEBUG - Primeros 3 archivos:', visitObj.mediaFiles.slice(0, 3).map(m => ({
+            fieldName: m.fieldName,
+            originalName: m.originalName,
+            mediaType: m.mediaType
+          })));
+        }
+        
         const imagesByField = {};
         visitObj.mediaFiles.forEach(media => {
           const fieldName = media.fieldName || 'general';
@@ -253,49 +257,55 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
           imagesByField[fieldName].push({
             uri: media.mediaUrl,
             name: media.originalName || 'image',
-            isExisting: true, // Marcar como existente
-            id: media.id
+            isExisting: true,
+            id: media.id,
+            timestamp: Date.now() + Math.random() // Única por archivo
           });
         });
-        console.log('📸 Imágenes organizadas por campo:', Object.keys(imagesByField));
-        console.log('📸 Detalle por campo:', JSON.stringify(
-          Object.keys(imagesByField).map(key => ({ field: key, count: imagesByField[key].length })),
-          null, 2
-        ));
-        setFiles(imagesByField);
-      } else {
-        console.log('⚠️ No hay mediaFiles en visit object');
+      
+        if (__DEV__) {
+          console.log('📸 DEBUG - imagesByField:', Object.keys(imagesByField).map(key => 
+            `${key}: ${imagesByField[key].length} fotos`
+          ));
+        }
+        
+        setFiles({ ...imagesByField });
       }
       
       // Cargar imágenes de PBTS (well_sample URLs)
       if (visitObj.well_sample_1_url || visitObj.well_sample_2_url || visitObj.well_sample_3_url) {
-        console.log('📸 Cargando imágenes de PBTS desde URLs');
         setWellSampleFiles({
-          sample1: visitObj.well_sample_1_url ? { uri: visitObj.well_sample_1_url, isExisting: true } : null,
-          sample2: visitObj.well_sample_2_url ? { uri: visitObj.well_sample_2_url, isExisting: true } : null,
-          sample3: visitObj.well_sample_3_url ? { uri: visitObj.well_sample_3_url, isExisting: true } : null,
+          sample1: visitObj.well_sample_1_url ? { 
+            uri: visitObj.well_sample_1_url, 
+            isExisting: true,
+            timestamp: Date.now()
+          } : null,
+          sample2: visitObj.well_sample_2_url ? { 
+            uri: visitObj.well_sample_2_url, 
+            isExisting: true,
+            timestamp: Date.now()
+          } : null,
+          sample3: visitObj.well_sample_3_url ? { 
+            uri: visitObj.well_sample_3_url, 
+            isExisting: true,
+            timestamp: Date.now()
+          } : null,
         });
       }
       
       // Cargar video del sistema
-      console.log('🎬 visit.system_video_url:', visitObj.system_video_url);
       if (visitObj.system_video_url) {
-        console.log('🎬 Cargando video del sistema desde URL');
-        setSystemVideo({ uri: visitObj.system_video_url, isExisting: true });
-      } else {
-        console.log('⚠️ No hay system_video_url en visit object');
+        setSystemVideo({ 
+          uri: visitObj.system_video_url, 
+          isExisting: true,
+          type: 'video/mp4',
+          name: 'system_video.mp4',
+          timestamp: Date.now()
+        });
       }
       
       // Cargar datos existentes del formulario si la visita ya tiene datos
       if (visitObj.actualVisitDate || visitObj.tank_inlet_level) {
-        console.log('📋 Cargando datos existentes del formulario');
-        console.log('📋 actualVisitDate:', visitObj.actualVisitDate);
-        console.log('📋 tank_inlet_level:', visitObj.tank_inlet_level);
-        console.log('📋 has_pbts (raw):', visitObj.has_pbts, 'tipo:', typeof visitObj.has_pbts);
-        console.log('📋 has_lift_station (raw):', visitObj.has_lift_station, 'tipo:', typeof visitObj.has_lift_station);
-        console.log('📋 well_sample_1_observations:', visitObj.well_sample_1_observations);
-        console.log('📋 well_points_quantity:', visitObj.well_points_quantity);
-        
         setFormData({
           actualVisitDate: visitObj.actualVisitDate || new Date().toISOString().split('T')[0],
           tank_inlet_level: visitObj.tank_inlet_level ? String(visitObj.tank_inlet_level) : '',
@@ -343,19 +353,14 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
           well_sample_3_notes: visitObj.well_sample_3_notes || '',
           general_notes: visitObj.general_notes || '',
         });
-        console.log('✅ FormData cargado desde visit object');
-      } else {
-        console.log('⚠️ No hay datos guardados en visit (actualVisitDate o tank_inlet_level vacíos)');
       }
       
       setLoading(false);
     };
     
     if (visit) {
-      console.log('✅ useEffect - visit object received');
       processVisitData(visit);
     } else {
-      console.log('⚠️ useEffect - visit object is null/undefined');
       setLoading(false);
     }
     
@@ -375,12 +380,8 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
     try {
       let fileUri;
 
-      console.log('📄 handleOpenPdf - pdfSource tipo:', typeof pdfSource);
-      
       // Verificar si es un objeto Buffer de Sequelize
       if (pdfSource?.type === 'Buffer' && Array.isArray(pdfSource.data)) {
-        console.log('Procesando PDF desde Buffer (array de bytes)');
-        
         // Convertir array de bytes a base64
         const uint8Array = new Uint8Array(pdfSource.data);
         let binary = '';
@@ -399,20 +400,16 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
         await FileSystem.writeAsStringAsync(fileUri, base64String, {
           encoding: 'base64', // Usar string en lugar de EncodingType
         });
-        
-        console.log('✅ PDF convertido desde Buffer y guardado en:', fileUri);
       } else if (typeof pdfSource === 'string' && (pdfSource.startsWith('http://') || pdfSource.startsWith('https://'))) {
         // Es una URL
         const tempFileName = `permit_${Date.now()}.pdf`;
         fileUri = `${FileSystem.cacheDirectory}${tempFileName}`;
-        console.log(`Descargando PDF desde: ${pdfSource}`);
         
         const downloadResult = await FileSystem.downloadAsync(pdfSource, fileUri);
         
         if (downloadResult.status !== 200) {
           throw new Error(`Error al descargar PDF (status ${downloadResult.status})`);
         }
-        console.log('✅ PDF descargado:', downloadResult.uri);
         fileUri = downloadResult.uri;
       } else if (typeof pdfSource === 'string') {
         // String base64
@@ -433,12 +430,10 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
       }
 
       // Abrir en el visor de PDF
-      console.log('📤 Abriendo PDF en visor:', fileUri);
       setSelectedPdfUri(fileUri);
       setPdfViewerVisible(true);
 
     } catch (error) {
-      console.error("❌ Error en handleOpenPdf:", error);
       Alert.alert("Error al abrir PDF", error.message);
     }
   };
@@ -489,9 +484,109 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
         Alert.alert('Éxito', 'Foto agregada correctamente');
       }
     } catch (error) {
-      console.error('Error picking image:', error);
       Alert.alert('Error', 'No se pudo agregar la foto');
     }
+  };
+
+  // Función para eliminar una foto de un campo específico
+  const handleMediaRemove = async (fieldName, index) => {
+    const fieldFiles = files[fieldName] || [];
+    const fileToDelete = fieldFiles[index];
+    
+    Alert.alert(
+      'Confirmar eliminación',
+      '¿Estás seguro de que deseas eliminar esta foto?',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel'
+        },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Si la foto ya está guardada en el backend, eliminarla también del servidor
+              if (fileToDelete.isExisting && fileToDelete.id) {
+                const token = await AsyncStorage.getItem('token');
+                const API_URL = __DEV__ 
+                  ? 'http://192.168.1.8:3001' 
+                  : 'https://zurcherapi.up.railway.app';
+                
+                const response = await axios.delete(`${API_URL}/maintenance/media/${fileToDelete.id}`, {
+                  headers: { Authorization: `Bearer ${token}` }
+                });
+              }
+              
+              // Eliminar del estado local
+              setFiles(prev => {
+                const newFiles = fieldFiles.filter((_, i) => i !== index);
+                return {
+                  ...prev,
+                  [fieldName]: newFiles
+                };
+              });
+              
+              Alert.alert('Éxito', 'Foto eliminada correctamente');
+            } catch (error) {
+              Alert.alert('Error', 'No se pudo eliminar la foto del servidor');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  // Función para eliminar una foto de muestra PBTS
+  const handleWellSampleRemove = async (sampleNumber) => {
+    const sampleFile = wellSampleFiles[`sample${sampleNumber}`];
+    
+    Alert.alert(
+      'Confirmar eliminación',
+      '¿Estás seguro de que deseas eliminar esta foto de muestra?',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel'
+        },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Si la foto ya está guardada en el backend, actualizar el campo a NULL
+              if (sampleFile?.isExisting && visit?.id) {
+                const token = await AsyncStorage.getItem('token');
+                const API_URL = __DEV__ 
+                  ? 'http://192.168.1.8:3001' 
+                  : 'https://zurcherapi.up.railway.app';
+                
+                // Actualizar el campo well_sample_X_url a vacío
+                const formDataToSend = new FormData();
+                formDataToSend.append(`well_sample_${sampleNumber}_url`, '');
+                
+                const response = await axios.put(`${API_URL}/maintenance/${visit.id}`, formDataToSend, {
+                  headers: { 
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'multipart/form-data'
+                  }
+                });
+              }
+              
+              // Eliminar del estado local
+              setWellSampleFiles(prev => ({
+                ...prev,
+                [`sample${sampleNumber}`]: null
+              }));
+              
+              Alert.alert('Éxito', 'Foto de muestra eliminada correctamente');
+            } catch (error) {
+              Alert.alert('Error', 'No se pudo eliminar la foto del servidor');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleWellSampleFile = async (sampleNumber) => {
@@ -531,7 +626,6 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
         ]
       );
     } catch (error) {
-      console.error('Error picking image:', error);
       Alert.alert('Error', 'No se pudo agregar la foto');
     }
   };
@@ -566,7 +660,6 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
         Alert.alert('Éxito', `Foto de Muestra ${sampleNumber} agregada`);
       }
     } catch (error) {
-      console.error('Error taking photo:', error);
       Alert.alert('Error', 'No se pudo tomar la foto');
     }
   };
@@ -607,7 +700,6 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
         ]
       );
     } catch (error) {
-      console.error('Error picking video:', error);
       Alert.alert('Error', 'No se pudo agregar el video');
     }
   };
@@ -631,7 +723,6 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
         Alert.alert('Éxito', 'Video del sistema agregado');
       }
     } catch (error) {
-      console.error('Error processing video:', error);
       Alert.alert('Error', 'No se pudo procesar el video');
     }
   };
@@ -648,10 +739,87 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
         return;
       }
 
-      // Validación básica - solo para marcar como completado
-      if (markAsCompleted && !formData.actualVisitDate) {
-        Alert.alert('Formulario incompleto', 'La fecha de inspección es requerida para completar');
-        return;
+      // Validaciones - solo para marcar como completado
+      if (markAsCompleted) {
+        // 1. Fecha requerida
+        if (!formData.actualVisitDate) {
+          Alert.alert('Formulario incompleto', 'La fecha de inspección es requerida para completar');
+          return;
+        }
+
+        // 2. Video del sistema obligatorio
+        if (!systemVideo || !systemVideo.uri) {
+          Alert.alert(
+            'Video Requerido', 
+            'Debe agregar el video del sistema para completar la visita'
+          );
+          return;
+        }
+
+        // 3. Niveles del tanque requeridos (valores y fotos)
+        if (!formData.tank_inlet_level || !formData.tank_outlet_level) {
+          Alert.alert(
+            'Niveles Requeridos',
+            'Debe ingresar los niveles del tanque (entrada y salida) para completar'
+          );
+          return;
+        }
+
+        // 4. Fotos de niveles de tanque requeridas
+        if (!files.tank_inlet_level || files.tank_inlet_level.length === 0) {
+          Alert.alert(
+            'Foto Requerida',
+            'Debe agregar al menos una foto del nivel de entrada del tanque'
+          );
+          return;
+        }
+
+        if (!files.tank_outlet_level || files.tank_outlet_level.length === 0) {
+          Alert.alert(
+            'Foto Requerida',
+            'Debe agregar al menos una foto del nivel de salida del tanque'
+          );
+          return;
+        }
+
+        // 5. Foto de nivel de agua correcto requerida
+        if (!files.cap_green_inspected || files.cap_green_inspected.length === 0) {
+          Alert.alert(
+            'Foto Requerida',
+            'Debe agregar al menos una foto de la tapa verde / nivel de agua correcto'
+          );
+          return;
+        }
+
+        // 6. Fotos de blower requeridas si el sistema tiene ATU
+        if (formData.has_atu === 'SI' || formData.has_atu === true) {
+          if (!files.blower_working || files.blower_working.length === 0) {
+            Alert.alert(
+              'Foto Requerida',
+              'Debe agregar al menos una foto del blower funcionando'
+            );
+            return;
+          }
+
+          if (!files.blower_filter_clean || files.blower_filter_clean.length === 0) {
+            Alert.alert(
+              'Foto Requerida',
+              'Debe agregar al menos una foto del filtro del blower'
+            );
+            return;
+          }
+        }
+
+        // 7. Foto de panel de alarma requerida si tiene lift station
+        if (formData.has_lift_station === 'SI' || formData.has_lift_station === true) {
+          if (!files.alarm_working || files.alarm_working.length === 0) {
+            Alert.alert(
+              'Foto Requerida',
+              'Debe agregar al menos una foto del panel de alarma funcionando'
+            );
+            return;
+          }
+        }
       }
 
       setSubmitting(true);
@@ -680,15 +848,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
         }
       });
       
-      // Log de valores críticos
-      if (__DEV__) {
-        console.log('📋 Valores críticos en formData:');
-        console.log('  has_pbts:', formData.has_pbts);
-        console.log('  has_lift_station:', formData.has_lift_station);
-        console.log('  well_points_quantity:', formData.well_points_quantity);
-        console.log('  well_sample_1_observations:', formData.well_sample_1_observations);
-      }
-
+     
       // Crear mapeo de archivos a campos - igual que el frontend web
       const fileFieldMapping = {};
       
@@ -706,7 +866,6 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
           fieldFiles.forEach((file, index) => {
             // NO volver a subir archivos que ya existen en Cloudinary (isExisting: true)
             if (file.isExisting) {
-              console.log(`⏭️ Saltando archivo existente: ${file.name} (campo: ${fieldName})`);
               return; // Skip archivos ya guardados
             }
             
@@ -718,12 +877,9 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             };
             formDataToSend.append('maintenanceFiles', fileToAppend);
             fileFieldMapping[fileToAppend.name] = fieldName;
-            console.log(`📸 Agregando archivo: ${fileToAppend.name} -> campo: ${fieldName}`);
           });
         }
       });
-      
-      console.log('📸 fileFieldMapping final:', JSON.stringify(fileFieldMapping, null, 2));
 
       // Agregar archivos generales
       if (generalMedia && generalMedia.length > 0) {
@@ -768,25 +924,24 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
       }
 
       // Agregar video del sistema
-      console.log('🎬 Estado de systemVideo:', systemVideo ? 'EXISTE' : 'NULL');
-      if (systemVideo) {
-        console.log('🎬 systemVideo.isExisting:', systemVideo.isExisting);
-        console.log('🎬 systemVideo.uri:', systemVideo.uri?.substring(0, 50) + '...');
-      }
-      
       if (systemVideo && !systemVideo.isExisting) {
-        console.log('🎬 Agregando video del sistema al FormData');
+        if (__DEV__) {
+          console.log('🎬 Agregando video del sistema:', systemVideo.name);
+        }
         const videoFile = {
           uri: systemVideo.uri,
           type: systemVideo.type || 'video/mp4',
           name: systemVideo.name || 'systemVideo.mp4',
         };
         formDataToSend.append('systemVideo', videoFile);
-        console.log('✅ Video agregado:', videoFile.name);
-      } else if (systemVideo && systemVideo.isExisting) {
-        console.log('⏭️ Video ya existe, no se re-sube');
+      } else if (systemVideo) {
+        if (__DEV__) {
+          console.log('⏭️ Video del sistema ya existe, no se enviará:', systemVideo.isExisting);
+        }
       } else {
-        console.log('⚠️ No hay video para subir');
+        if (__DEV__) {
+          console.log('❌ No hay video del sistema para enviar');
+        }
       }
 
       // Agregar mapeo de archivos
@@ -812,18 +967,25 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
         console.log('✅ Formulario enviado exitosamente');
         console.log('📋 Respuesta del servidor:', response.data.message);
         console.log('📸 Archivos subidos:', response.data.uploadedFiles);
+        console.log('🔍 Visit recibida del servidor:', {
+          id: response.data.visit?.id,
+          status: response.data.visit?.status,
+          actualVisitDate: response.data.visit?.actualVisitDate,
+          mediaFilesCount: response.data.visit?.mediaFiles?.length || 0
+        });
       }
       
       // Actualizar el objeto visit con los datos más recientes del servidor
       if (response.data.visit) {
-        console.log('🔄 Actualizando visit object con datos del servidor');
-        console.log('📸 mediaFiles en respuesta:', response.data.visit.mediaFiles?.length || 0);
-        
         // Actualizar el estado local con la visita completa del servidor
         setVisitData(response.data.visit);
         
         // Recargar las imágenes existentes
         if (response.data.visit.mediaFiles && response.data.visit.mediaFiles.length > 0) {
+          if (__DEV__) {
+            console.log('🔄 Recargando imágenes después de guardar:', response.data.visit.mediaFiles.length);
+          }
+          
           const imagesByField = {};
           response.data.visit.mediaFiles.forEach(media => {
             const fieldName = media.fieldName || 'general';
@@ -834,40 +996,58 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
               uri: media.mediaUrl,
               name: media.originalName || 'image',
               isExisting: true,
-              id: media.id
+              id: media.id,
+              timestamp: Date.now() // 🔑 Forzar nueva referencia para re-render
             });
           });
           
-          // Mergear con archivos nuevos que aún no se han subido
-          setFiles(prevFiles => {
-            const merged = { ...prevFiles };
-            Object.keys(imagesByField).forEach(fieldName => {
-              // Reemplazar completamente con los del servidor para ese campo
-              merged[fieldName] = imagesByField[fieldName];
-            });
-            console.log('🔄 Files actualizados después de guardar');
-            return merged;
-          });
+          if (__DEV__) {
+            console.log('🔄 imagesByField después de recargar:', Object.keys(imagesByField).map(key => 
+              `${key}: ${imagesByField[key].length} fotos`
+            ));
+          }
+          
+          // CRÍTICO: Crear nuevo objeto para forzar re-render
+          setFiles({ ...imagesByField });
+        } else {
+          // Si no hay mediaFiles, limpiar el estado
+          setFiles({});
         }
         
-        // Actualizar imágenes de PBTS
-        if (response.data.visit.well_sample_1_url || response.data.visit.well_sample_2_url || response.data.visit.well_sample_3_url) {
-          console.log('📸 Actualizando imágenes de PBTS');
-          setWellSampleFiles({
-            sample1: response.data.visit.well_sample_1_url ? { uri: response.data.visit.well_sample_1_url, isExisting: true } : null,
-            sample2: response.data.visit.well_sample_2_url ? { uri: response.data.visit.well_sample_2_url, isExisting: true } : null,
-            sample3: response.data.visit.well_sample_3_url ? { uri: response.data.visit.well_sample_3_url, isExisting: true } : null,
-          });
-        }
+        // Actualizar imágenes de PBTS - crear nuevos objetos
+        const newWellSamples = {
+          sample1: response.data.visit.well_sample_1_url 
+            ? { uri: response.data.visit.well_sample_1_url, isExisting: true, timestamp: Date.now() } 
+            : null,
+          sample2: response.data.visit.well_sample_2_url 
+            ? { uri: response.data.visit.well_sample_2_url, isExisting: true, timestamp: Date.now() } 
+            : null,
+          sample3: response.data.visit.well_sample_3_url 
+            ? { uri: response.data.visit.well_sample_3_url, isExisting: true, timestamp: Date.now() } 
+            : null,
+        };
+        setWellSampleFiles({ ...newWellSamples });
         
-        // Actualizar video del sistema
+        // Actualizar video del sistema - crear nuevo objeto
         if (response.data.visit.system_video_url) {
-          console.log('🎬 Actualizando video del sistema');
-          setSystemVideo({ uri: response.data.visit.system_video_url, isExisting: true });
+          if (__DEV__) {
+            console.log('🎬 Actualizando systemVideo con URL:', response.data.visit.system_video_url);
+          }
+          setSystemVideo({ 
+            uri: response.data.visit.system_video_url, 
+            isExisting: true,
+            type: 'video/mp4',
+            name: 'system_video.mp4',
+            timestamp: Date.now() // 🔑 Forzar nueva referencia
+          });
+        } else {
+          if (__DEV__) {
+            console.log('⚠️ No hay system_video_url en la respuesta, limpiando estado');
+          }
+          setSystemVideo(null);
         }
         
         // IMPORTANTE: Actualizar formData con los datos del servidor
-        console.log('📋 Actualizando formData con datos del servidor');
         const updatedVisit = response.data.visit;
         setFormData({
           actualVisitDate: updatedVisit.actualVisitDate || new Date().toISOString().split('T')[0],
@@ -916,11 +1096,9 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
           well_sample_3_notes: updatedVisit.well_sample_3_notes || '',
           general_notes: updatedVisit.general_notes || '',
         });
-        console.log('✅ FormData actualizado - has_lift_station:', updatedVisit.has_lift_station, 'has_pbts:', updatedVisit.has_pbts);
         
         // CRÍTICO: Actualizar el visit object en route.params para que al volver a entrar tenga datos frescos
         navigation.setParams({ visit: response.data.visit });
-        console.log('✅ Route params actualizados con datos del servidor');
       }
       
       if (markAsCompleted) {
@@ -939,10 +1117,6 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
         // NO navegamos de vuelta, permitimos seguir editando
       }
     } catch (error) {
-      console.error('❌ Error submitting form:', error);
-      console.error('❌ Error response:', error.response?.data);
-      console.error('❌ Error status:', error.response?.status);
-      console.error('❌ Error full:', error);
       Alert.alert('Error', 'Error al enviar el formulario: ' + (error.response?.data?.message || error.message));
     } finally {
       setSubmitting(false);
@@ -980,11 +1154,9 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
         
         {permitData && (
           <View style={styles.infoCard}>
-            <Text style={styles.infoTitle}>Información del Proyecto</Text>
-            <Text style={styles.infoText}>📍 {permitData.propertyAddress}</Text>
-            <Text style={styles.infoText}>👤 {permitData.applicantName}</Text>
+            <Text style={styles.infoTitle}>📍 {permitData.propertyAddress}</Text>
             <Text style={styles.infoText}>🔧 {permitData.systemType}</Text>
-            <Text style={styles.infoText}>🎫 {permitData.permitNumber}</Text>
+           
           </View>
         )}
 
@@ -1027,13 +1199,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
         )}
       </View>
 
-      {/* Aviso sobre guardar progreso */}
-      <View style={styles.infoBox}>
-        <Text style={styles.infoBoxTitle}>ℹ️ Puedes trabajar en el formulario cuando quieras</Text>
-        <Text style={styles.infoBoxText}>• <Text style={{ fontWeight: 'bold' }}>Guardar Progreso:</Text> Guarda tus cambios sin finalizar la visita</Text>
-        <Text style={styles.infoBoxText}>• <Text style={{ fontWeight: 'bold' }}>Marcar como Completado:</Text> Finaliza la visita y la marca como completada</Text>
-        <Text style={styles.infoBoxText}>• Puedes volver a abrir y editar hasta que la marques como completada</Text>
-      </View>
+   
 
       {/* Fecha de Inspección */}
       <View style={styles.section}>
@@ -1098,6 +1264,12 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
                       resizeMode="cover"
                     />
                     <Text style={styles.thumbnailIndex}>{index + 1}</Text>
+                    <TouchableOpacity
+                      style={styles.thumbnailDeleteButton}
+                      onPress={() => handleMediaRemove('tank_inlet_level', index)}
+                    >
+                      <Ionicons name="close-circle" size={24} color="#e74c3c" />
+                    </TouchableOpacity>
                   </View>
                 ))}
               </ScrollView>
@@ -1146,6 +1318,12 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
                       resizeMode="cover"
                     />
                     <Text style={styles.thumbnailIndex}>{index + 1}</Text>
+                    <TouchableOpacity
+                      style={styles.thumbnailDeleteButton}
+                      onPress={() => handleMediaRemove('tank_outlet_level', index)}
+                    >
+                      <Ionicons name="close-circle" size={24} color="#e74c3c" />
+                    </TouchableOpacity>
                   </View>
                 ))}
               </ScrollView>
@@ -1181,6 +1359,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
           onCheckChange={(val) => handleInputChange('visible_leaks', val)}
           onNotesChange={(val) => handleInputChange('visible_leaks_notes', val)}
           onMediaAdd={() => handleMediaAdd('visible_leaks')}
+          onMediaRemove={(index) => handleMediaRemove('visible_leaks', index)}
           mediaCount={files.visible_leaks?.length || 0}
           mediaFiles={files.visible_leaks || []}
         />
@@ -1192,6 +1371,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
           onCheckChange={(val) => handleInputChange('area_around_dry', val)}
           onNotesChange={(val) => handleInputChange('area_around_notes', val)}
           onMediaAdd={() => handleMediaAdd('area_around_dry')}
+          onMediaRemove={(index) => handleMediaRemove('area_around_dry', index)}
           mediaCount={files.area_around_dry?.length || 0}
           mediaFiles={files.area_around_dry || []}
         />
@@ -1203,6 +1383,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
           onCheckChange={(val) => handleInputChange('cap_green_inspected', val)}
           onNotesChange={(val) => handleInputChange('cap_green_notes', val)}
           onMediaAdd={() => handleMediaAdd('cap_green_inspected')}
+          onMediaRemove={(index) => handleMediaRemove('cap_green_inspected', index)}
           mediaCount={files.cap_green_inspected?.length || 0}
           mediaFiles={files.cap_green_inspected || []}
         />
@@ -1214,6 +1395,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
           onCheckChange={(val) => handleInputChange('needs_pumping', val)}
           onNotesChange={(val) => handleInputChange('needs_pumping_notes', val)}
           onMediaAdd={() => handleMediaAdd('needs_pumping')}
+          onMediaRemove={(index) => handleMediaRemove('needs_pumping', index)}
           mediaCount={files.needs_pumping?.length || 0}
           mediaFiles={files.needs_pumping || []}
         />
@@ -1231,6 +1413,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             onCheckChange={(val) => handleInputChange('blower_working', val)}
             onNotesChange={(val) => handleInputChange('blower_working_notes', val)}
             onMediaAdd={() => handleMediaAdd('blower_working')}
+            onMediaRemove={(index) => handleMediaRemove('blower_working', index)}
             mediaCount={files.blower_working?.length || 0}
             mediaFiles={files.blower_working || []}
           />
@@ -1242,6 +1425,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             onCheckChange={(val) => handleInputChange('blower_filter_clean', val)}
             onNotesChange={(val) => handleInputChange('blower_filter_notes', val)}
             onMediaAdd={() => handleMediaAdd('blower_filter_clean')}
+            onMediaRemove={(index) => handleMediaRemove('blower_filter_clean', index)}
             mediaCount={files.blower_filter_clean?.length || 0}
             mediaFiles={files.blower_filter_clean || []}
           />
@@ -1253,6 +1437,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             onCheckChange={(val) => handleInputChange('diffusers_bubbling', val)}
             onNotesChange={(val) => handleInputChange('diffusers_bubbling_notes', val)}
             onMediaAdd={() => handleMediaAdd('diffusers_bubbling')}
+            onMediaRemove={(index) => handleMediaRemove('diffusers_bubbling', index)}
             mediaCount={files.diffusers_bubbling?.length || 0}
             mediaFiles={files.diffusers_bubbling || []}
           />
@@ -1264,6 +1449,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             onCheckChange={(val) => handleInputChange('clarified_water_outlet', val)}
             onNotesChange={(val) => handleInputChange('clarified_water_notes', val)}
             onMediaAdd={() => handleMediaAdd('clarified_water_outlet')}
+            onMediaRemove={(index) => handleMediaRemove('clarified_water_outlet', index)}
             mediaCount={files.clarified_water_outlet?.length || 0}
             mediaFiles={files.clarified_water_outlet || []}
           />
@@ -1275,6 +1461,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             onCheckChange={(val) => handleInputChange('discharge_pump_ok', val)}
             onNotesChange={(val) => handleInputChange('discharge_pump_notes', val)}
             onMediaAdd={() => handleMediaAdd('discharge_pump_ok')}
+            onMediaRemove={(index) => handleMediaRemove('discharge_pump_ok', index)}
             mediaCount={files.discharge_pump_ok?.length || 0}
             mediaFiles={files.discharge_pump_ok || []}
           />
@@ -1309,6 +1496,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
                 onCheckChange={(val) => handleInputChange('alarm_working', val)}
                 onNotesChange={(val) => handleInputChange('alarm_working_notes', val)}
                 onMediaAdd={() => handleMediaAdd('alarm_working')}
+                onMediaRemove={(index) => handleMediaRemove('alarm_working', index)}
                 mediaCount={files.alarm_working?.length || 0}
                 mediaFiles={files.alarm_working || []}
               />
@@ -1320,6 +1508,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
                 onCheckChange={(val) => handleInputChange('pump_running', val)}
                 onNotesChange={(val) => handleInputChange('pump_running_notes', val)}
                 onMediaAdd={() => handleMediaAdd('pump_running')}
+                onMediaRemove={(index) => handleMediaRemove('pump_running', index)}
                 mediaCount={files.pump_running?.length || 0}
                 mediaFiles={files.pump_running || []}
               />
@@ -1331,6 +1520,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
                 onCheckChange={(val) => handleInputChange('float_switches', val)}
                 onNotesChange={(val) => handleInputChange('float_switches_notes', val)}
                 onMediaAdd={() => handleMediaAdd('float_switches')}
+                onMediaRemove={(index) => handleMediaRemove('float_switches', index)}
                 mediaCount={files.float_switches?.length || 0}
                 mediaFiles={files.float_switches || []}
               />
@@ -1393,10 +1583,18 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
                 </TouchableOpacity>
                 
                 {wellSampleFiles.sample1 && (
-                  <Image
-                    source={{ uri: wellSampleFiles.sample1.uri }}
-                    style={styles.previewImage}
-                  />
+                  <View style={{ position: 'relative' }}>
+                    <Image
+                      source={{ uri: wellSampleFiles.sample1.uri }}
+                      style={styles.previewImage}
+                    />
+                    <TouchableOpacity
+                      style={styles.previewDeleteButton}
+                      onPress={() => handleWellSampleRemove(1)}
+                    >
+                      <Ionicons name="close-circle" size={32} color="#e74c3c" />
+                    </TouchableOpacity>
+                  </View>
                 )}
               </View>
 
@@ -1424,10 +1622,18 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
                 </TouchableOpacity>
                 
                 {wellSampleFiles.sample2 && (
-                  <Image
-                    source={{ uri: wellSampleFiles.sample2.uri }}
-                    style={styles.previewImage}
-                  />
+                  <View style={{ position: 'relative' }}>
+                    <Image
+                      source={{ uri: wellSampleFiles.sample2.uri }}
+                      style={styles.previewImage}
+                    />
+                    <TouchableOpacity
+                      style={styles.previewDeleteButton}
+                      onPress={() => handleWellSampleRemove(2)}
+                    >
+                      <Ionicons name="close-circle" size={32} color="#e74c3c" />
+                    </TouchableOpacity>
+                  </View>
                 )}
               </View>
 
@@ -1455,10 +1661,18 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
                 </TouchableOpacity>
                 
                 {wellSampleFiles.sample3 && (
-                  <Image
-                    source={{ uri: wellSampleFiles.sample3.uri }}
-                    style={styles.previewImage}
-                  />
+                  <View style={{ position: 'relative' }}>
+                    <Image
+                      source={{ uri: wellSampleFiles.sample3.uri }}
+                      style={styles.previewImage}
+                    />
+                    <TouchableOpacity
+                      style={styles.previewDeleteButton}
+                      onPress={() => handleWellSampleRemove(3)}
+                    >
+                      <Ionicons name="close-circle" size={32} color="#e74c3c" />
+                    </TouchableOpacity>
+                  </View>
                 )}
               </View>
             </>
@@ -1491,9 +1705,10 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
         
         {/* Mostrar video si existe */}
         {systemVideo && (
-          <View style={styles.videoPreviewContainer}>
+          <View style={styles.videoPreviewContainer} key={`video-${systemVideo.timestamp || Date.now()}`}>
             <Text style={styles.videoPreviewLabel}>Vista previa del video:</Text>
             <Video
+              key={`video-player-${systemVideo.timestamp || Date.now()}`}
               source={{ uri: systemVideo.uri }}
               style={styles.videoPreview}
               useNativeControls
@@ -1526,28 +1741,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
       {/* Botones de acción */}
       <View style={styles.actionButtons}>
         {/* Botón DEBUG INFO */}
-        <TouchableOpacity
-          style={[styles.debugButton]}
-          onPress={async () => {
-            const token = await AsyncStorage.getItem('token');
-            const API_URL = __DEV__ 
-              ? 'http://192.168.1.8:3001' 
-              : 'https://zurcherapi.up.railway.app';
-            Alert.alert(
-              '🔍 DEBUG INFO',
-              `Visit ID: ${visit?.id}\n` +
-              `Visit Number: ${visit?.visitNumber}\n` +
-              `Fecha: ${formData.actualVisitDate}\n` +
-              `Token: ${token ? 'Existe ✅' : 'NO EXISTE ❌'}\n` +
-              `API_URL: ${API_URL}\n` +
-              `URL completa: ${API_URL}/maintenance/${visit?.id}/complete\n` +
-              `Submitting: ${submitting}`,
-              [{ text: 'OK' }]
-            );
-          }}
-        >
-          <Text style={styles.debugButtonText}>🔍 Ver Info Debug</Text>
-        </TouchableOpacity>
+       
 
         {/* Botón Guardar Progreso */}
         <TouchableOpacity

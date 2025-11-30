@@ -913,6 +913,7 @@ const getAssignedWorks = async (req, res) => {
         'status',
         'staffId',
         'stoneExtractionCONeeded',
+        'startDate', // ✅ Fecha de asignación del trabajo
         'updatedAt',
         'createdAt'
       ], // ✅ Solo atributos que existen en Work
