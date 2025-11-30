@@ -5,6 +5,7 @@ import HomeScreen from '../screens/HomeScreen';
 import AssignedWorksScreen from '../screens/AssignedWorksScreen';
 import WorkZoneMapScreen from '../screens/WorkZoneMapScreen';
 import MaintenanceList from '../screens/MaintenanceList';
+import CompletedMaintenanceList from '../screens/CompletedMaintenanceList';
 import MaintenanceWebView from '../screens/MaintenanceWebView';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import WorkDetail from '../screens/WorkDetail';
@@ -51,7 +52,14 @@ function MaintenanceStackNavigator() {
         name="MaintenanceListScreen" 
         component={MaintenanceList}
         options={{
-          title: "Mis Mantenimientos",
+          title: "Pendientes",
+        }}
+      />
+      <Stack.Screen 
+        name="CompletedMaintenanceListScreen" 
+        component={CompletedMaintenanceList}
+        options={{
+          title: "Completados",
         }}
       />
       <Stack.Screen

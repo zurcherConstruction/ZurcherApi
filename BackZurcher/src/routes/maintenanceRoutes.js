@@ -52,7 +52,7 @@ router.post('/:visitId/media',
 // Eliminar un archivo multimedia de una visita
 router.delete('/media/:mediaId',
     verifyToken,
-    allowRoles(['admin', 'owner', 'maintenance']), // Solo admin, owner y maintenance pueden eliminar archivos
+    allowRoles(['admin', 'owner', 'maintenance', 'worker']), // Permitir que workers eliminen sus propias fotos
     MaintenanceController.deleteMaintenanceMedia
 );
 

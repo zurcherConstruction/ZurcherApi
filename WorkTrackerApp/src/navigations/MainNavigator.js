@@ -12,6 +12,10 @@ import WorkZoneMapScreen from '../screens/WorkZoneMapScreen';
 import WorkDetail from '../screens/WorkDetail';
 import AllMyWorksScreen from '../screens/AllMyWorksScreen';
 import MaintenanceWorkDetailScreen from '../screens/MaintenanceWorkDetailScreen';
+import MaintenanceList from '../screens/MaintenanceList';
+import CompletedMaintenanceList from '../screens/CompletedMaintenanceList';
+import MaintenanceWebView from '../screens/MaintenanceWebView';
+import MaintenanceFormScreen from '../screens/MaintenanceFormScreen';
 import GeneralExpenseScreen from '../screens/GeneralExpenseScreen';
 import { logout } from '../Redux/features/authSlice';
 
@@ -72,6 +76,7 @@ const AppDrawerNavigator = () => {
 
   return (
     <Drawer.Navigator
+      initialRouteName="WorkZoneMap" // ✅ Pantalla inicial: Mapa de Zonas
       drawerContent={(props) => <CustomDrawerContent {...props} />}
       screenOptions={({ navigation }) => ({
         headerShown: true,
@@ -90,6 +95,28 @@ const AppDrawerNavigator = () => {
       {/* --- Worker --- */}
       {staff?.role === 'worker' && (
         <>
+          <Drawer.Screen 
+            name="MaintenanceList" 
+            component={MaintenanceList}
+            options={{ 
+              title: 'Mantenimientos Pendientes',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="clipboard-outline" color={color} size={size} />
+              ),
+            }}
+          />
+          
+          <Drawer.Screen 
+            name="CompletedMaintenanceList" 
+            component={CompletedMaintenanceList}
+            options={{ 
+              title: 'Mantenimientos Completados',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="checkmark-done-outline" color={color} size={size} />
+              ),
+            }}
+          />
+          
           <Drawer.Screen 
             name="MyAssignedWorks" 
             options={{ 
@@ -140,6 +167,28 @@ const AppDrawerNavigator = () => {
       {/* --- Maintenance --- */}
       {staff?.role === 'maintenance' && (
         <>
+          <Drawer.Screen 
+            name="MaintenanceList" 
+            component={MaintenanceList}
+            options={{ 
+              title: 'Mantenimientos Pendientes',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="clipboard-outline" color={color} size={size} />
+              ),
+            }}
+          />
+          
+          <Drawer.Screen 
+            name="CompletedMaintenanceList" 
+            component={CompletedMaintenanceList}
+            options={{ 
+              title: 'Mantenimientos Completados',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="checkmark-done-outline" color={color} size={size} />
+              ),
+            }}
+          />
+          
           <Drawer.Screen 
             name="MyAssignedWorks" 
             options={{ 
@@ -242,6 +291,18 @@ const MainNavigator = () => {
               name="MaintenanceWorkDetail"
               component={MaintenanceWorkDetailScreen}
               options={({ route }) => ({ title: route.params?.title || 'Detalle Mantenimiento' })}
+            />
+            
+            <Stack.Screen
+              name="MaintenanceWebView"
+              component={MaintenanceWebView}
+              options={{ title: 'Formulario de Mantenimiento' }}
+            />
+            
+            <Stack.Screen
+              name="MaintenanceFormScreen"
+              component={MaintenanceFormScreen}
+              options={{ title: 'Completar Inspección' }}
             />
           </Stack.Group>
         )}

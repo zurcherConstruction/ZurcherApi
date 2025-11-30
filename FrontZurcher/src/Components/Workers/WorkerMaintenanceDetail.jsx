@@ -25,6 +25,8 @@ const WorkerMaintenanceDetail = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [pdfModalOpen, setPdfModalOpen] = useState(false);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
 
   // Form state - Actualizado con formato SI/NO string
   const [formData, setFormData] = useState({
@@ -99,6 +101,13 @@ const WorkerMaintenanceDetail = () => {
 
   useEffect(() => {
     loadVisitDetail();
+    
+    // Cleanup: liberar blob URL cuando el componente se desmonte
+    return () => {
+      if (pdfBlobUrl) {
+        window.URL.revokeObjectURL(pdfBlobUrl);
+      }
+    };
   }, [visitId]);
 
   const loadVisitDetail = async () => {
@@ -351,6 +360,13 @@ const WorkerMaintenanceDetail = () => {
   };
 
   const handleDownloadPDF = async () => {
+    // Si ya tenemos el PDF generado, solo abrir el modal
+    if (pdfBlobUrl) {
+      setPdfModalOpen(true);
+      return;
+    }
+
+    // Si no existe, generar el PDF
     try {
       setDownloadingPdf(true);
       toast.info('Generando PDF...');
@@ -361,23 +377,42 @@ const WorkerMaintenanceDetail = () => {
 
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `mantenimiento_visita_${visit.visit_number || visitId}.pdf`;
-
-      document.body.appendChild(link);
-      link.click();
-
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-      toast.success('PDF descargado correctamente');
+      
+      // Abrir PDF en modal
+      setPdfBlobUrl(url);
+      setPdfModalOpen(true);
+      
+      toast.success('PDF generado correctamente');
     } catch (error) {
-      console.error('❌ Error al descargar PDF:', error);
-      toast.error(error.response?.data?.message || 'Error al descargar el PDF');
+      console.error('❌ Error al generar PDF:', error);
+      toast.error(error.response?.data?.message || 'Error al generar el PDF');
     } finally {
       setDownloadingPdf(false);
     }
+  };
+
+  const handleDownloadPdfFromModal = () => {
+    if (!pdfBlobUrl) return;
+    
+    const link = document.createElement('a');
+    link.href = pdfBlobUrl;
+    
+    // Crear nombre descriptivo: Visita#_Direccion.pdf
+    const visitNumber = visit.visitNumber || visitId;
+    const propertyAddress = visit.work?.Permit?.propertyAddress || 'Sin_Direccion';
+    const cleanAddress = propertyAddress.replace(/[^a-zA-Z0-9]/g, '_');
+    link.download = `Visita_${visitNumber}_${cleanAddress}.pdf`;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast.success('PDF descargado correctamente');
+  };
+
+  const closePdfModal = () => {
+    setPdfModalOpen(false);
+    // NO eliminar el pdfBlobUrl para poder volver a abrir sin regenerar
   };
 
   const handleSubmit = async (e, markAsCompleted = false) => {
@@ -523,7 +558,15 @@ const WorkerMaintenanceDetail = () => {
     try {
       // Si es una URL directa
       if (typeof pdfSource === 'string') {
-        window.open(pdfSource, '_blank');
+        let pdfUrl = pdfSource;
+        
+        // Si es URL de Cloudinary, agregar parámetro para verlo en navegador en vez de descargarlo
+        if (pdfUrl.includes('cloudinary.com') && pdfUrl.includes('/raw/upload/')) {
+          // Agregar fl_attachment:false para que se muestre en vez de descargar
+          pdfUrl = pdfUrl.replace('/raw/upload/', '/raw/upload/fl_attachment:false/');
+        }
+        
+        window.open(pdfUrl, '_blank');
         return;
       }
 
@@ -1710,7 +1753,7 @@ const WorkerMaintenanceDetail = () => {
                   ) : (
                     <>
                       <ArrowDownTrayIcon className="h-5 w-5" />
-                      Descargar Reporte PDF
+                      {pdfBlobUrl ? 'Ver Reporte PDF' : 'Generar Reporte PDF'}
                     </>
                   )}
                 </button>
@@ -1758,6 +1801,47 @@ const WorkerMaintenanceDetail = () => {
           </div>
         )}
       </div>
+
+      {/* Modal para visualizar PDF */}
+      {pdfModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col">
+            {/* Header del Modal */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-800">
+                📄 Reporte de Mantenimiento - Visita #{visit?.visitNumber || visitId}
+              </h3>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDownloadPdfFromModal}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2 font-medium"
+                >
+                  <ArrowDownTrayIcon className="h-5 w-5" />
+                  Descargar PDF
+                </button>
+                <button
+                  onClick={closePdfModal}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Cerrar"
+                >
+                  <XMarkIcon className="h-6 w-6 text-gray-600" />
+                </button>
+              </div>
+            </div>
+
+            {/* Visor de PDF */}
+            <div className="flex-1 overflow-hidden">
+              {pdfBlobUrl && (
+                <iframe
+                  src={pdfBlobUrl}
+                  className="w-full h-full border-0"
+                  title="Vista previa del PDF"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

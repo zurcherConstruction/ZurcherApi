@@ -755,9 +755,6 @@ const AttachReceipt = () => {
                         return (
                           <option key={fe.idFixedExpense} value={fe.idFixedExpense}>
                             {fe.description || fe.name} - ${remainingAmount.toFixed(2)}
-                            {paidAmount > 0 ? ` (Pagado: $${paidAmount.toFixed(2)} de $${totalAmount.toFixed(2)})` : ''} -
-                            {fe.category} - Vence: {formattedDate}
-                            {isOverdue ? ' ⚠️ VENCIDO' : ''}
                           </option>
                         );
                       })}
@@ -780,32 +777,32 @@ const AttachReceipt = () => {
                           return (
                             <>
                               <h6 className="font-semibold text-gray-800 mb-3">Detalles del Gasto:</h6>
-                              <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
                                 <div>
                                   <p className="text-gray-600 font-medium">Descripción:</p>
-                                  <p className="text-gray-800">{selected.description || selected.name}</p>
+                                  <p className="text-gray-800 break-words">{selected.description || selected.name}</p>
                                 </div>
                                 <div>
                                   <p className="text-gray-600 font-medium">Categoría:</p>
                                   <p className="text-gray-800">{selected.category}</p>
                                 </div>
 
-                                {/* 🆕 Mostrar monto total y pagos parciales */}
-                                <div className="col-span-2 bg-blue-50 rounded-lg p-3 border border-blue-200">
+                                {/* 🆕 Mostrar monto total y pagos parciales - Responsive */}
+                                <div className="col-span-1 md:col-span-2 bg-blue-50 rounded-lg p-3 border border-blue-200">
                                   <div className="grid grid-cols-3 gap-2 text-center">
                                     <div>
                                       <p className="text-xs text-gray-600 font-medium mb-1">Monto Total</p>
-                                      <p className="text-gray-800 font-semibold">${totalAmount.toFixed(2)}</p>
+                                      <p className="text-sm md:text-base text-gray-800 font-semibold break-words">${totalAmount.toFixed(2)}</p>
                                     </div>
                                     <div>
                                       <p className="text-xs text-gray-600 font-medium mb-1">Ya Pagado</p>
-                                      <p className={`font-semibold ${hasPartialPayment ? 'text-green-600' : 'text-gray-400'}`}>
+                                      <p className={`text-sm md:text-base font-semibold break-words ${hasPartialPayment ? 'text-green-600' : 'text-gray-400'}`}>
                                         ${paidAmount.toFixed(2)}
                                       </p>
                                     </div>
                                     <div>
                                       <p className="text-xs text-gray-600 font-medium mb-1">🎯 Restante</p>
-                                      <p className="text-orange-600 font-bold text-lg">${remainingAmount.toFixed(2)}</p>
+                                      <p className="text-orange-600 font-bold text-base md:text-lg break-words">${remainingAmount.toFixed(2)}</p>
                                     </div>
                                   </div>
 
@@ -829,7 +826,7 @@ const AttachReceipt = () => {
 
                                 <div>
                                   <p className="text-gray-600 font-medium">Fecha de Vencimiento:</p>
-                                  <p className={`font-semibold ${isOverdue ? 'text-red-600' : 'text-green-600'}`}>
+                                  <p className={`font-semibold break-words ${isOverdue ? 'text-red-600' : 'text-green-600'}`}>
                                     {dueDate.toLocaleDateString('es-ES', {
                                       year: 'numeric',
                                       month: 'long',
@@ -841,23 +838,23 @@ const AttachReceipt = () => {
                                 {selected.vendor && (
                                   <div>
                                     <p className="text-gray-600 font-medium">Proveedor:</p>
-                                    <p className="text-gray-800">{selected.vendor}</p>
+                                    <p className="text-gray-800 break-words">{selected.vendor}</p>
                                   </div>
                                 )}
                                 <div>
                                   <p className="text-gray-600 font-medium">Frecuencia:</p>
-                                  <p className="text-gray-800 capitalize">{selected.frequency || 'Mensual'}</p>
+                                  <p className="text-gray-800 capitalize break-words">{selected.frequency || 'Mensual'}</p>
                                 </div>
                                 <div>
                                   <p className="text-gray-600 font-medium">Método de Pago:</p>
-                                  <p className="text-gray-800">{selected.paymentMethod}</p>
+                                  <p className="text-gray-800 break-words">{selected.paymentMethod}</p>
                                 </div>
                               </div>
 
                               {selected.notes && (
                                 <div className="mt-3 pt-3 border-t border-gray-200">
                                   <p className="text-gray-600 font-medium text-xs mb-1">Notas:</p>
-                                  <p className="text-gray-700 text-sm italic">{selected.notes}</p>
+                                  <p className="text-gray-700 text-sm italic break-words">{selected.notes}</p>
                                 </div>
                               )}
                             </>

@@ -7,8 +7,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   StyleSheet,
-  Alert,
-  Platform
+  Alert
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchAssignedMaintenances } from '../Redux/features/maintenanceSlice';
@@ -19,16 +18,15 @@ import MaintenanceFormScreen from './MaintenanceFormScreen';
 
 const Stack = createNativeStackNavigator();
 
-const MaintenanceListScreen = ({ navigation }) => {
+const CompletedMaintenanceListScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   
   const { assignedMaintenances, loadingAssigned, error } = useSelector(state => state.maintenance);
-  const { staff } = useSelector(state => state.auth); // Obtener staff completo
+  const { staff } = useSelector(state => state.auth);
   
   const [refreshing, setRefreshing] = useState(false);
   
-  const staffId = staff?.id; // Extraer el ID del staff
-
+  const staffId = staff?.id;
 
   useEffect(() => {
     if (staffId) {
@@ -61,64 +59,18 @@ const MaintenanceListScreen = ({ navigation }) => {
     });
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending_scheduling':
-        return '#9CA3AF'; // gray
-      case 'scheduled':
-        return '#3B82F6'; // blue
-      case 'assigned':
-        return '#F59E0B'; // yellow/orange
-      case 'completed':
-        return '#10B981'; // green
-      case 'skipped':
-        return '#EF4444'; // red
-      default:
-        return '#9CA3AF';
-    }
-  };
-
-  const getStatusText = (status) => {
-    switch (status) {
-      case 'pending_scheduling':
-        return 'Pendiente';
-      case 'scheduled':
-        return 'Programada';
-      case 'assigned':
-        return 'Asignada';
-      case 'completed':
-        return 'Completada';
-      case 'skipped':
-        return 'Omitida';
-      default:
-        return status;
-    }
-  };
-
   const getStatusIcon = (status) => {
-    switch (status) {
-      case 'pending_scheduling':
-        return '⏳';
-      case 'scheduled':
-        return '📅';
-      case 'assigned':
-        return '👤';
-      case 'completed':
-        return '✅';
-      case 'skipped':
-        return '⏭️';
-      default:
-        return '📋';
-    }
+    return '✅';
   };
 
   const renderVisitCard = ({ item: visit }) => {
     const permitData = visit.work?.Permit;
+    const completedDate = visit.actualVisitDate || visit.updatedAt;
 
     return (
       <TouchableOpacity
-        onPress={() => handleVisitPress(visit)}
         style={styles.card}
+        onPress={() => handleVisitPress(visit)}
         activeOpacity={0.7}
       >
         {/* Dirección de la propiedad */}
@@ -129,16 +81,16 @@ const MaintenanceListScreen = ({ navigation }) => {
           </Text>
         </View>
 
-        {/* Banner naranja de VISITA DE MANTENIMIENTO */}
+        {/* Banner verde de VISITA DE MANTENIMIENTO */}
         <View style={styles.maintenanceBanner}>
           <Text style={styles.bannerText}>VISITA DE MANTENIMIENTO</Text>
         </View>
 
-        {/* Fecha Mantenimiento */}
-        {visit.scheduledDate && (
+        {/* Fecha Completada */}
+        {completedDate && (
           <Text style={styles.dateText}>
-            <Text style={styles.dateLabel}>Fecha Mantenimiento: </Text>
-            {format(parseISO(visit.scheduledDate), 'MM-dd-yyyy', { locale: es })}
+            <Text style={styles.dateLabel}>Fecha Completada: </Text>
+            {format(parseISO(completedDate), 'MM-dd-yyyy', { locale: es })}
           </Text>
         )}
 
@@ -154,9 +106,9 @@ const MaintenanceListScreen = ({ navigation }) => {
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyIcon}>📋</Text>
-      <Text style={styles.emptyTitle}>No hay mantenimientos pendientes</Text>
+      <Text style={styles.emptyTitle}>No hay mantenimientos completados</Text>
       <Text style={styles.emptyText}>
-        Todas tus visitas asignadas han sido completadas
+        Cuando completes una visita de mantenimiento, aparecerá aquí
       </Text>
       <TouchableOpacity style={styles.refreshButton} onPress={onRefresh}>
         <Text style={styles.refreshButtonText}>Actualizar</Text>
@@ -167,42 +119,35 @@ const MaintenanceListScreen = ({ navigation }) => {
   if (loadingAssigned && !refreshing && assignedMaintenances.length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#3B82F6" />
+        <ActivityIndicator size="large" color="#10B981" />
         <Text style={styles.loadingText}>Cargando mantenimientos...</Text>
       </View>
     );
   }
 
-  // Filtrar solo visitas no completadas Y asignadas al usuario logueado
-  const pendingVisits = assignedMaintenances.filter(v => 
-    v.status !== 'completed' && v.staffId === staffId
-  );
+  // Filtrar solo visitas completadas POR el usuario logueado
   const completedVisits = assignedMaintenances.filter(v => 
     v.status === 'completed' && v.completed_by_staff_id === staffId
   );
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-     
+    
 
-      {/* Lista de visitas SOLO PENDIENTES */}
+      {/* Lista de visitas completadas */}
       <FlatList
-        data={pendingVisits}
+        data={completedVisits}
         keyExtractor={(item) => item.id}
         renderItem={renderVisitCard}
         ListEmptyComponent={renderEmptyState}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#10B981']} />
         }
         contentContainerStyle={[
           styles.listContent,
-          pendingVisits.length === 0 && styles.listContentEmpty
+          completedVisits.length === 0 && styles.listContentEmpty
         ]}
-        showsVerticalScrollIndicator={false}
       />
-
-      
     </View>
   );
 };
@@ -213,56 +158,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
   },
   header: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#10B981',
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
+    paddingTop: 60,
     paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#111827',
+    color: '#FFFFFF',
     marginBottom: 4,
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  completedButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#10B981',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  completedButtonText: {
+    fontSize: 15,
     color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '600',
-    marginRight: 4,
-  },
-  completedButtonIcon: {
-    color: '#FFFFFF',
-    fontSize: 14,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#6B7280',
+    opacity: 0.9,
   },
   listContent: {
     padding: 16,
@@ -272,22 +182,16 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    marginBottom: 16,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
     marginHorizontal: 8,
     marginTop: 8,
-    padding: 16,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   propertyHeader: {
     flexDirection: 'row',
@@ -306,7 +210,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   maintenanceBanner: {
-    backgroundColor: '#EA580C',
+    backgroundColor: '#10B981',
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 4,
@@ -351,37 +255,31 @@ const styles = StyleSheet.create({
   },
   visitNumber: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: '600',
+    color: '#1F2937',
   },
-  statusBadge: {
+  completedBadge: {
+    backgroundColor: '#D1FAE5',
     paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingVertical: 6,
     borderRadius: 12,
   },
-  statusText: {
+  completedText: {
+    color: '#10B981',
     fontSize: 12,
     fontWeight: '600',
   },
   propertySection: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
     marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
   },
   propertyInfo: {
     flex: 1,
   },
-  propertyLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 2,
-  },
   propertyApplicant: {
-    fontSize: 14,
-    color: '#4B5563',
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
   },
   systemTypeContainer: {
     flexDirection: 'row',
@@ -389,20 +287,20 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   systemTypeLabel: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#6B7280',
     marginRight: 8,
   },
   systemTypeBadge: {
-    backgroundColor: '#DBEAFE',
-    paddingHorizontal: 12,
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 8,
   },
   systemTypeText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1E40AF',
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#374151',
   },
   dateContainer: {
     flexDirection: 'row',
@@ -415,25 +313,8 @@ const styles = StyleSheet.create({
   },
   dateValue: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  notesContainer: {
-    marginBottom: 12,
-    padding: 12,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-  },
-  notesLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  notesText: {
-    fontSize: 14,
-    color: '#4B5563',
-    lineHeight: 20,
+    fontWeight: '500',
+    color: '#1F2937',
   },
   ctaContainer: {
     flexDirection: 'row',
@@ -441,22 +322,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: '#E5E7EB',
   },
   ctaText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#3B82F6',
+    fontWeight: '500',
+    color: '#10B981',
   },
   ctaArrow: {
-    fontSize: 18,
-    color: '#3B82F6',
+    fontSize: 16,
+    color: '#10B981',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#6B7280',
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
+    paddingHorizontal: 32,
   },
   emptyIcon: {
     fontSize: 64,
@@ -464,8 +356,8 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: '600',
+    color: '#1F2937',
     marginBottom: 8,
     textAlign: 'center',
   },
@@ -477,7 +369,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   refreshButton: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: '#10B981',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
@@ -487,38 +379,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  completedSection: {
-    backgroundColor: '#ECFDF5',
-    padding: 12,
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#D1FAE5',
-  },
-  completedTitle: {
-    fontSize: 14,
-    color: '#059669',
-    fontWeight: '600',
-  },
 });
 
-// Stack Navigator para Mantenimientos Pendientes
-const MaintenanceList = () => {
+// Stack Navigator para Mantenimientos Completados
+const CompletedMaintenanceList = () => {
   return (
     <Stack.Navigator screenOptions={{ headerShown: true }}>
       <Stack.Screen
-        name="MaintenanceListScreen"
-        component={MaintenanceListScreen}
-        options={{ title: 'Mantenimientos Pendientes' }}
+        name="CompletedMaintenanceListScreen"
+        component={CompletedMaintenanceListScreen}
+        options={{ title: 'Mantenimientos Completados' }}
       />
       <Stack.Screen
         name="MaintenanceFormScreen"
         component={MaintenanceFormScreen}
         options={({ route }) => ({
-          title: route.params?.visit?.work?.Permit?.propertyAddress || 'Completar Inspección',
+          title: route.params?.visit?.work?.Permit?.propertyAddress || 'Ver Inspección',
         })}
       />
     </Stack.Navigator>
   );
 };
 
-export default MaintenanceList;
+export default CompletedMaintenanceList;

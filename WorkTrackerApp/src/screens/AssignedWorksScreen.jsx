@@ -2,10 +2,8 @@ import React, { useEffect, useState, useMemo } from "react";
 import moment from "moment-timezone";
 import { useSelector, useDispatch } from "react-redux";
 import { fetchAssignedWorks } from "../Redux/Actions/workActions";
-import { fetchAssignedMaintenances } from "../Redux/features/maintenanceSlice";
 import { View, Text, FlatList, TouchableOpacity, TextInput, ActivityIndicator } from "react-native";
 import UploadScreen from "./UploadScreen";
-import MaintenanceFormScreen from "./MaintenanceFormScreen"; // ✅ Formulario nativo de mantenimiento
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import {useAutoRefresh} from '../utils/useAutoRefresh'; // Importa el hook de auto-refresh
@@ -27,8 +25,6 @@ const statusTranslations = {
   finalInspectionPending: "Inspección Final Pendiente",
   finalApproved: "Aprobado Final",
   finalRejected: "Rechazado Final",
-  maintenance: "Mantenimiento",
-  maintenance_visit: "Visita de Mantenimiento", // Nuevo status para visitas
 };
 
 const WorksListScreen = ({ navigation }) => { // Recibe navigation como prop
@@ -38,7 +34,6 @@ const WorksListScreen = ({ navigation }) => { // Recibe navigation como prop
 
   const [searchQuery, setSearchQuery] = useState('');
   const { works, loading: reduxLoading, error, lastUpdate } = useSelector((state) => state.work);
-  const { assignedMaintenances, loadingAssigned } = useSelector((state) => state.maintenance);
   
   // Auto-refresh: 5 minutos (más lento para reducir carga en el servidor)
   const refreshInterval = 300000; // 5 minutos = 300,000 ms
@@ -47,62 +42,43 @@ const WorksListScreen = ({ navigation }) => { // Recibe navigation como prop
   // 🔧 Solo en desarrollo - evita logs masivos en producción
   if (__DEV__) {
     console.log("WorksListScreen - Total works:", works?.length || 0);
-    console.log("WorksListScreen - Total maintenances:", assignedMaintenances?.length || 0);
   }
   
   useEffect(() => {
     if (staffId) {
       dispatch(fetchAssignedWorks(staffId));
-      dispatch(fetchAssignedMaintenances(staffId)); // Cargar también mantenimientos
     }
   }, [dispatch, staffId]);
 
   const filteredWorks = useMemo(() => {
     if (!works) return [];
 
-    const allowedStatuses = ['assigned', 'inProgress', 'coverPending', 'rejectedInspection', 'maintenance'];
+    const allowedStatuses = ['assigned', 'inProgress', 'coverPending', 'rejectedInspection'];
 
-    // Filtrar trabajos normales por estados permitidos
-    const worksWithAllowedStatus = works.filter(work =>
+    // Filtrar trabajos normales por estados permitidos (excluye maintenance)
+    let worksWithAllowedStatus = works.filter(work =>
       allowedStatuses.includes(work.status)
     );
-
-    // Convertir visitas de mantenimiento a formato compatible con works
-    const maintenanceItems = (assignedMaintenances || []).map(visit => ({
-      idWork: `maintenance-${visit.id}`, // ID único para el FlatList
-      propertyAddress: visit.work?.Permit?.propertyAddress || 'Dirección no disponible',
-      status: 'maintenance_visit', // Status especial para identificar mantenimientos
-      visitNumber: visit.visitNumber,
-      scheduledDate: visit.scheduledDate,
-      startDate: visit.scheduledDate, // Usar scheduledDate como startDate para ordenamiento
-      maintenanceVisit: visit, // Guardar datos completos de la visita
-      budget: {
-        applicantName: visit.work?.Permit?.applicant || 'Cliente no disponible'
-      }
-    }));
-
-    // Combinar trabajos normales y visitas de mantenimiento
-    let combinedItems = [...worksWithAllowedStatus, ...maintenanceItems];
 
     // Filtrar por búsqueda si existe
     if (searchQuery) {
       const lowerCaseQuery = searchQuery.toLowerCase();
-      combinedItems = combinedItems.filter(work =>
+      worksWithAllowedStatus = worksWithAllowedStatus.filter(work =>
         work.propertyAddress?.toLowerCase().includes(lowerCaseQuery)
       );
     }
 
     // ✅ ORDENAR POR FECHA: Más reciente primero (descendente)
-    combinedItems.sort((a, b) => {
-      const dateA = new Date(a.startDate || a.scheduledDate || 0);
-      const dateB = new Date(b.startDate || b.scheduledDate || 0);
+    worksWithAllowedStatus.sort((a, b) => {
+      const dateA = new Date(a.startDate || a.createdAt || 0);
+      const dateB = new Date(b.startDate || b.createdAt || 0);
       return dateB - dateA; // Orden descendente (más reciente primero)
     });
 
-    return combinedItems;
-  }, [works, assignedMaintenances, searchQuery]);
+    return worksWithAllowedStatus;
+  }, [works, searchQuery]);
   // --- Estados de carga, error, etc. (sin cambios significativos) ---
-  const isLoading = reduxLoading || loadingAssigned;
+  const isLoading = reduxLoading;
 
   if (isLoading && !error) {
     return (
@@ -176,15 +152,14 @@ const renderHeader = () => (
         data={filteredWorks}
         keyExtractor={(item) => item.idWork.toString()}
         renderItem={({ item }) => {
-          // Determinar si es mantenimiento o trabajo regular
-          const isMaintenance = item.status === 'maintenance_visit';
+          if (__DEV__ && !item.startDate) {
+            console.log('⚠️ Work sin startDate:', item.idWork, item.propertyAddress);
+          }
           
           // Determinar el color de fondo de la tarjeta
           let cardBackgroundColor = 'bg-white';
           if (item.status === 'rejectedInspection') {
             cardBackgroundColor = 'bg-red-200'; // Rojo claro para inspección rechazada
-          } else if (isMaintenance) {
-            cardBackgroundColor = 'bg-orange-50'; // Naranja suave para mantenimientos
           }
 
           // Determinar el color de fondo y texto para el tag de estado
@@ -194,46 +169,25 @@ const renderHeader = () => (
           if (item.status === 'rejectedInspection') {
             statusTagBackgroundColor = 'bg-red-600'; // Rojo más oscuro para el tag
             statusTagTextColor = 'text-white';    // Texto blanco para contraste
-          } else if (isMaintenance) {
-            statusTagBackgroundColor = 'bg-orange-600'; // Naranja para mantenimiento
-            statusTagTextColor = 'text-white';
           }
           
           return (
             <TouchableOpacity
               onPress={() => {
                 if (__DEV__) {
-                  console.log('🔍 Item clicked:', {
+                  console.log('🔍 Work clicked:', {
                     idWork: item.idWork,
-                    status: item.status,
-                    isMaintenance,
-                    hasMaintenanceVisit: !!item.maintenanceVisit
+                    status: item.status
                   });
                 }
-                
-                if (isMaintenance) {
-                  if (__DEV__) {
-                    console.log('🔧 Navigating to MaintenanceFormScreen');
-                  }
-                  navigation.navigate("MaintenanceFormScreen", {
-                    visit: item.maintenanceVisit,
-                  });
-                } else {
-                  if (__DEV__) {
-                    console.log('📸 Navigating to UploadScreen');
-                  }
-                  navigation.navigate("UploadScreen", {
-                    idWork: item.idWork,
-                    propertyAddress: item.propertyAddress,
-                  });
-                }
+                navigation.navigate("UploadScreen", {
+                  idWork: item.idWork,
+                  propertyAddress: item.propertyAddress,
+                });
               }}
               className={`mb-4 p-4 rounded-lg shadow mx-2 mt-2 ${cardBackgroundColor}`}
             >
               <View className="flex-row items-center mb-2">
-                {isMaintenance && (
-                  <Ionicons name="construct" size={20} color="#f97316" style={{ marginRight: 8 }} />
-                )}
                 <Text className="text-lg font-semibold uppercase text-gray-800 flex-1">
                   {item.propertyAddress || "Dirección no disponible"}
                 </Text>
@@ -242,22 +196,11 @@ const renderHeader = () => (
                 {statusTranslations[item.status] || item.status || "Estado no definido"}
               </Text>
               <Text className="text-sm text-blue-600 mb-2">
-                <Text className="font-bold text-gray-700">
-                  {isMaintenance ? "Fecha Mantenimiento:" : "Fecha Instalación:"}
-                </Text>{" "}
-                {isMaintenance
-                  ? (item.scheduledDate
-                      ? moment.tz(item.scheduledDate, "America/New_York").format("MM-DD-YYYY HH:mm")
-                      : "Sin fecha programada")
-                  : (item.startDate
-                      ? moment.tz(item.startDate, "America/New_York").format("MM-DD-YYYY HH:mm")
-                      : "Sin Fecha de instalación")}
+                <Text className="font-bold text-gray-700">Fecha Asignación:</Text>{" "}
+                {(item.startDate || item.createdAt)
+                  ? moment.tz((item.startDate || item.createdAt), "America/New_York").format("MM-DD-YYYY")
+                  : "Sin Fecha"}
               </Text>
-              {isMaintenance && item.visitNumber && (
-                <Text className="text-sm text-gray-600">
-                  <Text className="font-bold">Visita #:</Text> {item.visitNumber}
-                </Text>
-              )}
             </TouchableOpacity>
           );
         }}
@@ -280,15 +223,6 @@ const AssignedWorksStackNavigator = () => {
         component={UploadScreen} // UploadScreen sigue igual
         options={({ route }) => ({
           title: route.params?.propertyAddress || 'Upload Images',
-          // Puedes añadir un headerLeft personalizado si necesitas volver
-          // a "WorksList" específicamente, aunque el botón "back" estándar debería funcionar.
-        })}
-      />
-      <Stack.Screen
-        name="MaintenanceFormScreen"
-        component={MaintenanceFormScreen} // ✅ Formulario nativo de mantenimiento
-        options={({ route }) => ({
-          title: route.params?.visit?.work?.Permit?.propertyAddress || 'Maintenance Form',
         })}
       />
     </Stack.Navigator>
