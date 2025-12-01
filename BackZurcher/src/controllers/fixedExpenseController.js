@@ -315,10 +315,30 @@ const updateFixedExpense = async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
 
+    // 🔍 DEBUG: Log completo de la petición
+    console.log('📝 [updateFixedExpense] ID:', id);
+    console.log('📝 [updateFixedExpense] Datos recibidos:', JSON.stringify(updateData, null, 2));
+
     const fixedExpense = await FixedExpense.findByPk(id);
 
     if (!fixedExpense) {
+      console.log('❌ [updateFixedExpense] Gasto fijo no encontrado');
       return res.status(404).json({ error: 'Gasto fijo no encontrado' });
+    }
+
+    // 🔍 DEBUG: Valores antes de actualizar
+    console.log('📊 [updateFixedExpense] Valores actuales:', {
+      name: fixedExpense.name,
+      totalAmount: fixedExpense.totalAmount,
+      category: fixedExpense.category,
+      paymentMethod: fixedExpense.paymentMethod
+    });
+
+    // 🔄 RETROCOMPATIBILIDAD: Si viene "amount", mapearlo a "totalAmount"
+    if (updateData.amount !== undefined && updateData.totalAmount === undefined) {
+      console.log('🔄 [updateFixedExpense] Mapeando "amount" → "totalAmount":', updateData.amount);
+      updateData.totalAmount = updateData.amount;
+      delete updateData.amount; // Eliminar el campo incorrecto
     }
 
     // Si cambia la frecuencia o fecha de inicio, recalcular nextDueDate
@@ -328,7 +348,19 @@ const updateFixedExpense = async (req, res) => {
       updateData.nextDueDate = calculateNextDueDate(newStartDate, newFrequency);
     }
 
+    // 🔍 DEBUG: Intentando actualizar
+    console.log('🔄 [updateFixedExpense] Ejecutando update con:', JSON.stringify(updateData, null, 2));
+    
     await fixedExpense.update(updateData);
+
+    // 🔍 DEBUG: Valores después de actualizar
+    await fixedExpense.reload();
+    console.log('✅ [updateFixedExpense] Valores después de update:', {
+      name: fixedExpense.name,
+      totalAmount: fixedExpense.totalAmount,
+      category: fixedExpense.category,
+      paymentMethod: fixedExpense.paymentMethod
+    });
 
     // Recargar con relaciones
     const updatedFixedExpense = await FixedExpense.findByPk(id, {
@@ -340,6 +372,8 @@ const updateFixedExpense = async (req, res) => {
         }
       ]
     });
+
+    console.log('✅ [updateFixedExpense] Actualización completada exitosamente');
 
     res.status(200).json({
       message: 'Gasto fijo actualizado exitosamente',
