@@ -113,11 +113,11 @@ const OwnerMaintenanceView = () => {
       const link = document.createElement('a');
       link.href = url;
       
-      // Crear nombre descriptivo: Visita#_Direccion.pdf
+      // Crear nombre descriptivo: Mantenimiento_N°_Direccion.pdf
       const visitNumber = visit.visitNumber || visit.id;
-      const propertyAddress = visit.work?.Permit?.propertyAddress || 'Sin_Direccion';
+      const propertyAddress = visit.work?.propertyAddress || visit.work?.Permit?.propertyAddress || 'Sin_Direccion';
       const cleanAddress = propertyAddress.replace(/[^a-zA-Z0-9]/g, '_'); // Limpiar caracteres especiales
-      link.download = `Visita_${visitNumber}_${cleanAddress}.pdf`;
+      link.download = `Mantenimiento_N${visitNumber}_${cleanAddress}.pdf`;
       
       // Simular clic en el enlace para iniciar la descarga
       document.body.appendChild(link);

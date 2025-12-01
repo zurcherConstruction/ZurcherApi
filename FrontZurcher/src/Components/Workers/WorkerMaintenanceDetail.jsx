@@ -397,11 +397,11 @@ const WorkerMaintenanceDetail = () => {
     const link = document.createElement('a');
     link.href = pdfBlobUrl;
     
-    // Crear nombre descriptivo: Visita#_Direccion.pdf
+    // Crear nombre descriptivo: Mantenimiento_N°_Direccion.pdf
     const visitNumber = visit.visitNumber || visitId;
-    const propertyAddress = visit.work?.Permit?.propertyAddress || 'Sin_Direccion';
+    const propertyAddress = visit.work?.propertyAddress || visit.work?.Permit?.propertyAddress || 'Sin_Direccion';
     const cleanAddress = propertyAddress.replace(/[^a-zA-Z0-9]/g, '_');
-    link.download = `Visita_${visitNumber}_${cleanAddress}.pdf`;
+    link.download = `Mantenimiento_N${visitNumber}_${cleanAddress}.pdf`;
 
     document.body.appendChild(link);
     link.click();

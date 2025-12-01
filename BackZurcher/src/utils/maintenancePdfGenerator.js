@@ -172,40 +172,31 @@ async function generateMaintenancePDF(visitData) {
       const stream = fs.createWriteStream(pdfPath);
       doc.pipe(stream);
 
-      // === ENCABEZADO ===
+      // === ENCABEZADO SIMPLIFICADO ===
+      const visitNum = visitNumber || visit_number || 'N/A';
+      const rightX = doc.page.width - PAGE_MARGIN - 200;
+
       const logoPath = path.join(__dirname, '../assets/logo.png');
       if (fs.existsSync(logoPath)) {
-        doc.image(logoPath, PAGE_MARGIN, PAGE_MARGIN, { width: 70 });
+        doc.image(logoPath, PAGE_MARGIN, PAGE_MARGIN + 5, { width: 60 });
       }
 
-      // Título centrado debajo del logo
-      doc.font('Helvetica-Bold').fontSize(14).fillColor(PRIMARY_COLOR)
-        .text('REPORTE DE INSPECCIÓN DE MANTENIMIENTO', PAGE_MARGIN, PAGE_MARGIN + 50, { align: 'center' });
       
-      // 🆕 Número de visita prominente (usar visitNumber de Sequelize o visit_number como fallback)
-      const visitNum = visitNumber || visit_number || 'N/A';
-      doc.fontSize(14).fillColor('#DC2626')
-        .text(`Visita #${visitNum}`, PAGE_MARGIN, PAGE_MARGIN + 70, { align: 'center' });
       
-      doc.fontSize(9).fillColor(TEXT_LIGHT)
-        .text('Zurcher Construction ', PAGE_MARGIN, PAGE_MARGIN + 88, { align: 'center' });
-
-      let y = PAGE_MARGIN + 105;
-
-      // === DATOS GENERALES ===
-      // Usar camelCase de Sequelize o snake_case como fallback (ya declarado arriba)
-      const schedDate = scheduledDate || scheduled_date;
+      // Información del lado derecho - alineada con el logo
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(TEXT_COLOR);
+      doc.text(`Mantenimiento: `, rightX, PAGE_MARGIN + 15, { continued: true })
+        .font('Helvetica').fillColor('#DC2626').text(`N° ${visitNum}`);
       
       doc.font('Helvetica-Bold').fontSize(9).fillColor(TEXT_COLOR);
-      doc.text(`Programada: `, PAGE_MARGIN, y, { continued: true }).font('Helvetica').text(formatDate(schedDate));
-      doc.text(`Realizada: `, PAGE_MARGIN + 220, y, { continued: true }).font('Helvetica').text(formatDate(actualDate));
-      y += 12;
-      doc.font('Helvetica-Bold').text(`Estado: `, PAGE_MARGIN, y, { continued: true }).font('Helvetica').text((status || 'N/A').toUpperCase());
-      doc.text(`Propiedad: `, PAGE_MARGIN + 220, y, { continued: true }).font('Helvetica').text(work?.propertyAddress || 'N/A', { width: 280 });
-      y += 12;
-      const technicianName = (completedByStaff?.name || assignedStaff?.name || 'N/A').toUpperCase();
-      doc.font('Helvetica-Bold').text(`Técnico: `, PAGE_MARGIN, y, { continued: true }).font('Helvetica').text(technicianName);
-      y += 25;
+      doc.text(`Realizada: `, rightX, PAGE_MARGIN + 30, { continued: true })
+        .font('Helvetica').text(formatDate(actualDate));
+      
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(TEXT_COLOR);
+      doc.text(`Propiedad: `, rightX, PAGE_MARGIN + 45, { continued: true })
+        .font('Helvetica').text(work?.propertyAddress || 'N/A', { width: 200 });
+
+      let y = PAGE_MARGIN + 70;
 
       // === Helper secciones ===
       const drawSectionTitle = (title) => {
@@ -219,21 +210,65 @@ async function generateMaintenancePDF(visitData) {
           .fillAndStroke(HEADER_BG, BORDER_COLOR);
         doc.fillColor(PRIMARY_COLOR).font('Helvetica-Bold').fontSize(10)
           .text(title, PAGE_MARGIN + 5, y + 4);
-        y += 25;
+        y += 18;
+        
+        // Agregar encabezados de columnas de la tabla
+        const colWidths = {
+          question: 280,
+          result: 70,
+          images: 162
+        };
+        
+        const startX = PAGE_MARGIN;
+        const headerHeight = 16;
+        
+        // Fila de encabezados
+        doc.rect(startX, y, doc.page.width - PAGE_MARGIN * 2, headerHeight)
+          .fillAndStroke('#F3F4F6', BORDER_COLOR);
+        
+        // Encabezado "INSPECCIÓN"
+        doc.font('Helvetica-Bold').fontSize(7).fillColor(TEXT_COLOR);
+        doc.text('INSPECCIÓN', startX + 5, y + 4, { width: colWidths.question - 10 });
+        
+        // Línea divisoria vertical
+        const resultX = startX + colWidths.question;
+        doc.moveTo(resultX, y)
+          .lineTo(resultX, y + headerHeight)
+          .strokeColor(BORDER_COLOR)
+          .stroke();
+        
+        // Encabezado "RESULTADO"
+        doc.text('RESULTADO', resultX + 8, y + 4, { width: colWidths.result - 16, align: 'center' });
+        
+        // Línea divisoria vertical
+        const imagesX = resultX + colWidths.result;
+        doc.moveTo(imagesX, y)
+          .lineTo(imagesX, y + headerHeight)
+          .strokeColor(BORDER_COLOR)
+          .stroke();
+        
+        // Encabezado "EVIDENCIA"
+        doc.text('EVIDENCIA', imagesX + 5, y + 4, { width: colWidths.images - 10 });
+        
+        y += headerHeight;
       };
 
       const drawRow = (label, value, notes = '', fieldImages = []) => {
-        const colX = [PAGE_MARGIN, PAGE_MARGIN + 230, PAGE_MARGIN + 270, PAGE_MARGIN + 360];
-        const baseRowHeight = 20;
+        const colWidths = {
+          question: 280,
+          result: 70,
+          images: 162
+        };
+        
+        const baseRowHeight = 22;
         let rowHeight = baseRowHeight;
         
-        // Calcular altura necesaria para notas e imágenes
+        // Calcular altura necesaria para observaciones e imágenes
         const hasNotes = notes && notes.trim().length > 0;
         const hasImages = fieldImages && fieldImages.length > 0;
         
-        if (hasNotes) rowHeight += 25; // Espacio para notas
-        // Las imágenes ahora van al lado, ajustar altura si hay imágenes
-        if (hasImages && !hasNotes) rowHeight = Math.max(rowHeight, 50); // Más altura para el enlace "Ver"
+        if (hasNotes) rowHeight += 20; // Espacio para observaciones
+        if (hasImages) rowHeight = Math.max(rowHeight, 40); // Más altura para miniaturas
 
         // Verificar si necesitamos nueva página
         if (y + rowHeight > doc.page.height - PAGE_MARGIN) {
@@ -241,37 +276,52 @@ async function generateMaintenancePDF(visitData) {
           y = PAGE_MARGIN;
         }
 
-        const yes = (value === true || value === 'yes') ? 'SI' : '';
-        const no = (value === false || value === 'no') ? 'NO' : '';
+        // Determinar respuesta
+        let result = 'N/A';
+        let resultColor = TEXT_COLOR;
+        
+        if (value === true || value === 'yes') {
+          result = 'SI';
+          resultColor = '#059669'; // Verde
+        } else if (value === false || value === 'no') {
+          result = 'NO';
+          resultColor = '#DC2626'; // Rojo
+        }
 
-        // Dibujar rectángulo de la fila
-        doc.rect(PAGE_MARGIN, y, doc.page.width - PAGE_MARGIN * 2, rowHeight)
+        // Dibujar fila de la tabla
+        const startX = PAGE_MARGIN;
+        doc.rect(startX, y, doc.page.width - PAGE_MARGIN * 2, rowHeight)
           .strokeColor(BORDER_COLOR).stroke();
 
-        // Pregunta
+        // Columna 1: Pregunta
         doc.font('Helvetica').fontSize(8).fillColor(TEXT_COLOR);
-        doc.text(label, colX[0] + 3, y + 5, { width: 220 });
+        doc.text(label, startX + 5, y + 6, { width: colWidths.question - 10 });
         
-        // Respuesta SI
-        doc.fillColor(yes ? '#059669' : TEXT_COLOR).text(yes, colX[1], y + 5);
-        
-        // LÍNEA DIVISORIA VERTICAL entre SI y NO
-        doc.moveTo(colX[2] - 5, y + 2)
-          .lineTo(colX[2] - 5, y + 18)
-          .strokeColor('#CCCCCC')
+        // Línea divisoria vertical después de pregunta
+        const resultX = startX + colWidths.question;
+        doc.moveTo(resultX, y)
+          .lineTo(resultX, y + rowHeight)
+          .strokeColor(BORDER_COLOR)
           .stroke();
         
-        // Respuesta NO
-        doc.fillColor(no ? '#DC2626' : TEXT_COLOR).text(no, colX[2], y + 5);
+        // Columna 2: Resultado (SI/NO)
+        doc.font('Helvetica-Bold').fontSize(9).fillColor(resultColor);
+        doc.text(result, resultX + 8, y + 6, { width: colWidths.result - 16, align: 'center' });
         
-        // Miniaturas en la mitad DERECHA con enlaces "Ver"
+        // Línea divisoria vertical después de resultado
+        const imagesX = resultX + colWidths.result;
+        doc.moveTo(imagesX, y)
+          .lineTo(imagesX, y + rowHeight)
+          .strokeColor(BORDER_COLOR)
+          .stroke();
+        
+        // Columna 3: Imágenes (miniaturas)
         if (hasImages) {
-          const thumbSize = 32;
-          const thumbSpacing = 3;
-          const thumbStartX = colX[3]; // Columna derecha
-          let thumbX = thumbStartX;
+          const thumbSize = 28;
+          const thumbSpacing = 4;
+          let thumbX = imagesX + 8;
           
-          for (let i = 0; i < Math.min(fieldImages.length, 3); i++) { // Máximo 3 miniaturas en línea
+          for (let i = 0; i < Math.min(fieldImages.length, 4); i++) {
             try {
               const imageData = fieldImages[i];
               const imageBuffer = imageData.buffer;
@@ -279,17 +329,17 @@ async function generateMaintenancePDF(visitData) {
               
               if (!imageBuffer) continue;
               
-              // Dibujar miniatura usando el buffer
-              doc.image(imageBuffer, thumbX, y + 3, { 
+              // Dibujar miniatura
+              doc.image(imageBuffer, thumbX, y + 5, { 
                 width: thumbSize, 
                 height: thumbSize,
                 fit: [thumbSize, thumbSize]
               });
-              doc.rect(thumbX, y + 3, thumbSize, thumbSize).strokeColor('#DDD').stroke();
+              doc.rect(thumbX, y + 5, thumbSize, thumbSize).strokeColor('#DDD').stroke();
               
-              // Agregar enlace "Ver" debajo de la miniatura (apunta a URL de Cloudinary)
-              doc.fontSize(6).fillColor('#2563EB')
-                .text('Ver', thumbX, y + thumbSize + 5, { 
+              // Enlace "Ver" debajo
+              doc.fontSize(5).fillColor('#2563EB')
+                .text('Ver', thumbX, y + thumbSize + 7, { 
                   width: thumbSize, 
                   align: 'center',
                   link: imageUrl,
@@ -302,23 +352,24 @@ async function generateMaintenancePDF(visitData) {
             }
           }
           
-          if (fieldImages.length > 3) {
+          // Indicador de más imágenes
+          if (fieldImages.length > 4) {
             doc.fontSize(6).fillColor(TEXT_LIGHT).text(
-              `+${fieldImages.length - 3}`, 
+              `+${fieldImages.length - 4}`, 
               thumbX, 
-              y + 18
+              y + 14
             );
           }
         }
         
-        let currentY = y + 5;
-        
-        // Mostrar notas DEBAJO (usando toda la fila)
+        // Observaciones DEBAJO de la fila (usando todo el ancho)
         if (hasNotes) {
-          doc.fillColor(TEXT_LIGHT).fontSize(7).text(notes, colX[0] + 3, currentY + 15, { 
-            width: doc.page.width - PAGE_MARGIN * 2 - 10 
-          });
-          currentY += 25;
+          doc.fillColor(TEXT_LIGHT).fontSize(7).text(
+            `Observaciones: ${notes}`, 
+            startX + 5, 
+            y + baseRowHeight + 2, 
+            { width: doc.page.width - PAGE_MARGIN * 2 - 10 }
+          );
         }
         
         y += rowHeight;
@@ -327,27 +378,71 @@ async function generateMaintenancePDF(visitData) {
       // === NIVELES ===
       if (tank_inlet_level || tank_outlet_level || level_inlet || level_outlet) {
         drawSectionTitle('Niveles del Tanque');
-        doc.font('Helvetica').fontSize(9).fillColor(TEXT_COLOR);
-        if (tank_inlet_level) {
-          doc.text(`Nivel Entrada: ${tank_inlet_level}`, PAGE_MARGIN, y);
-          if (tank_inlet_notes) {
-            doc.fontSize(7).fillColor(TEXT_LIGHT).text(tank_inlet_notes, PAGE_MARGIN + 150, y, { width: 250 });
+        
+        // Usar formato de tabla para niveles
+        const colWidths = { question: 280, result: 70, images: 162 };
+        const startX = PAGE_MARGIN;
+        
+        if (tank_inlet_level || level_inlet) {
+          const level = tank_inlet_level || level_inlet;
+          const notes = tank_inlet_notes || '';
+          const rowHeight = notes ? 40 : 22;
+          
+          if (y + rowHeight > doc.page.height - PAGE_MARGIN) {
+            doc.addPage();
+            y = PAGE_MARGIN;
           }
-          y += 15;
-        } else if (level_inlet) {
-          doc.text(`Nivel Entrada Tanque: ${level_inlet}`, PAGE_MARGIN, y);
-          y += 15;
+          
+          doc.rect(startX, y, doc.page.width - PAGE_MARGIN * 2, rowHeight).strokeColor(BORDER_COLOR).stroke();
+          
+          doc.font('Helvetica').fontSize(8).fillColor(TEXT_COLOR);
+          doc.text('Nivel Entrada:', startX + 5, y + 6, { width: colWidths.question - 10 });
+          
+          const resultX = startX + colWidths.question;
+          doc.moveTo(resultX, y).lineTo(resultX, y + rowHeight).strokeColor(BORDER_COLOR).stroke();
+          
+          doc.font('Helvetica-Bold').fontSize(8).fillColor(TEXT_COLOR);
+          doc.text(level, resultX + 8, y + 6, { width: colWidths.result - 16, align: 'center' });
+          
+          const imagesX = resultX + colWidths.result;
+          doc.moveTo(imagesX, y).lineTo(imagesX, y + rowHeight).strokeColor(BORDER_COLOR).stroke();
+          
+          if (notes) {
+            doc.fontSize(7).fillColor(TEXT_LIGHT).text(`Observaciones: ${notes}`, startX + 5, y + 24, { width: doc.page.width - PAGE_MARGIN * 2 - 10 });
+          }
+          
+          y += rowHeight;
         }
         
-        if (tank_outlet_level) {
-          doc.fontSize(9).fillColor(TEXT_COLOR).text(`Nivel Salida: ${tank_outlet_level}`, PAGE_MARGIN, y);
-          if (tank_outlet_notes) {
-            doc.fontSize(7).fillColor(TEXT_LIGHT).text(tank_outlet_notes, PAGE_MARGIN + 150, y, { width: 250 });
+        if (tank_outlet_level || level_outlet) {
+          const level = tank_outlet_level || level_outlet;
+          const notes = tank_outlet_notes || '';
+          const rowHeight = notes ? 40 : 22;
+          
+          if (y + rowHeight > doc.page.height - PAGE_MARGIN) {
+            doc.addPage();
+            y = PAGE_MARGIN;
           }
-          y += 15;
-        } else if (level_outlet) {
-          doc.fontSize(9).fillColor(TEXT_COLOR).text(`Nivel Salida Tanque: ${level_outlet}`, PAGE_MARGIN, y);
-          y += 15;
+          
+          doc.rect(startX, y, doc.page.width - PAGE_MARGIN * 2, rowHeight).strokeColor(BORDER_COLOR).stroke();
+          
+          doc.font('Helvetica').fontSize(8).fillColor(TEXT_COLOR);
+          doc.text('Nivel Salida:', startX + 5, y + 6, { width: colWidths.question - 10 });
+          
+          const resultX = startX + colWidths.question;
+          doc.moveTo(resultX, y).lineTo(resultX, y + rowHeight).strokeColor(BORDER_COLOR).stroke();
+          
+          doc.font('Helvetica-Bold').fontSize(8).fillColor(TEXT_COLOR);
+          doc.text(level, resultX + 8, y + 6, { width: colWidths.result - 16, align: 'center' });
+          
+          const imagesX = resultX + colWidths.result;
+          doc.moveTo(imagesX, y).lineTo(imagesX, y + rowHeight).strokeColor(BORDER_COLOR).stroke();
+          
+          if (notes) {
+            doc.fontSize(7).fillColor(TEXT_LIGHT).text(`Observaciones: ${notes}`, startX + 5, y + 24, { width: doc.page.width - PAGE_MARGIN * 2 - 10 });
+          }
+          
+          y += rowHeight;
         }
         
         y += 10;
@@ -401,10 +496,33 @@ async function generateMaintenancePDF(visitData) {
       if (well_points_quantity || well_sample_1_url || well_sample_2_url || well_sample_3_url) {
         drawSectionTitle('Muestras PBTS / ATU');
         
+        // Usar formato de tabla para Well Points
+        const colWidths = { question: 280, result: 70, images: 162 };
+        const startX = PAGE_MARGIN;
+        
         if (well_points_quantity) {
-          doc.font('Helvetica').fontSize(9).fillColor(TEXT_COLOR);
-          doc.text(`Total de Well Points: ${well_points_quantity}`, PAGE_MARGIN, y);
-          y += 20;
+          const rowHeight = 22;
+          
+          if (y + rowHeight > doc.page.height - PAGE_MARGIN) {
+            doc.addPage();
+            y = PAGE_MARGIN;
+          }
+          
+          doc.rect(startX, y, doc.page.width - PAGE_MARGIN * 2, rowHeight).strokeColor(BORDER_COLOR).stroke();
+          
+          doc.font('Helvetica').fontSize(8).fillColor(TEXT_COLOR);
+          doc.text('Total de Well Points:', startX + 5, y + 6, { width: colWidths.question - 10 });
+          
+          const resultX = startX + colWidths.question;
+          doc.moveTo(resultX, y).lineTo(resultX, y + rowHeight).strokeColor(BORDER_COLOR).stroke();
+          
+          doc.font('Helvetica-Bold').fontSize(8).fillColor(TEXT_COLOR);
+          doc.text(well_points_quantity.toString(), resultX + 8, y + 6, { width: colWidths.result - 16, align: 'center' });
+          
+          const imagesX = resultX + colWidths.result;
+          doc.moveTo(imagesX, y).lineTo(imagesX, y + rowHeight).strokeColor(BORDER_COLOR).stroke();
+          
+          y += rowHeight + 15;
         }
         
         // Mostrar muestras con sus observaciones
@@ -438,8 +556,8 @@ async function generateMaintenancePDF(visitData) {
           
           const thumbSize = 90;
           const spacing = 15;
-          const startX = PAGE_MARGIN + 20;
-          let x = startX;
+          const sampleStartX = PAGE_MARGIN + 20;
+          let x = sampleStartX;
           
           // Calcular altura máxima necesaria para observaciones
           let maxObservationsHeight = 0;
@@ -539,9 +657,24 @@ async function generateMaintenancePDF(visitData) {
         }
         
         drawSectionTitle('Notas Adicionales');
-        doc.font('Helvetica').fontSize(9).fillColor(TEXT_COLOR)
-          .text(general_notes, PAGE_MARGIN + 5, y, { width: doc.page.width - PAGE_MARGIN * 2 - 10, align: 'justify' });
-        y = doc.y + 20;
+        
+        // Usar formato de tabla
+        const colWidths = { question: 280, result: 70, images: 162 };
+        const startX = PAGE_MARGIN;
+        const textHeight = doc.heightOfString(general_notes, { width: doc.page.width - PAGE_MARGIN * 2 - 10, fontSize: 8 });
+        const rowHeight = Math.max(40, textHeight + 12);
+        
+        if (y + rowHeight > doc.page.height - PAGE_MARGIN) {
+          doc.addPage();
+          y = PAGE_MARGIN;
+        }
+        
+        doc.rect(startX, y, doc.page.width - PAGE_MARGIN * 2, rowHeight).strokeColor(BORDER_COLOR).stroke();
+        
+        doc.font('Helvetica').fontSize(8).fillColor(TEXT_COLOR);
+        doc.text(general_notes, startX + 5, y + 6, { width: doc.page.width - PAGE_MARGIN * 2 - 10, align: 'justify' });
+        
+        y += rowHeight + 15;
       }
 
       // === VIDEO DEL SISTEMA ===
@@ -554,9 +687,26 @@ async function generateMaintenancePDF(visitData) {
         
         drawSectionTitle('Video del Sistema');
         
-        doc.font('Helvetica').fontSize(9).fillColor(TEXT_COLOR)
-          .text('Video general del sistema disponible:', PAGE_MARGIN + 5, y);
-        y += 15;
+        // Usar formato de tabla
+        const colWidths = { question: 280, result: 70, images: 162 };
+        const startX = PAGE_MARGIN;
+        const rowHeight = 30;
+        
+        if (y + rowHeight > doc.page.height - PAGE_MARGIN) {
+          doc.addPage();
+          y = PAGE_MARGIN;
+        }
+        
+        doc.rect(startX, y, doc.page.width - PAGE_MARGIN * 2, rowHeight).strokeColor(BORDER_COLOR).stroke();
+        
+        doc.font('Helvetica').fontSize(8).fillColor(TEXT_COLOR);
+        doc.text('Video general del sistema disponible:', startX + 5, y + 6, { width: colWidths.question - 10 });
+        
+        const resultX = startX + colWidths.question;
+        doc.moveTo(resultX, y).lineTo(resultX, y + rowHeight).strokeColor(BORDER_COLOR).stroke();
+        
+        const imagesX = resultX + colWidths.result;
+        doc.moveTo(imagesX, y).lineTo(imagesX, y + rowHeight).strokeColor(BORDER_COLOR).stroke();
         
         // Convertir URL de Cloudinary al formato del player embebido
         // De: https://res.cloudinary.com/CLOUD/video/upload/v123/path/video.mov
@@ -580,13 +730,15 @@ async function generateMaintenancePDF(visitData) {
           }
         }
         
-        // Link clickeable al video (se abrirá en navegador)
-        doc.fontSize(9).fillColor('#0066CC')
-          .text('Reproducir Video', PAGE_MARGIN + 10, y, { 
+        // Link clickeable al video (en la columna de evidencia)
+        doc.fontSize(7).fillColor('#0066CC')
+          .text('Reproducir Video', imagesX + 8, y + 10, { 
             link: playerUrl,
-            underline: true 
+            underline: true,
+            width: colWidths.images - 16
           });
-        y += 25;
+        
+        y += rowHeight + 15;
       }
 
       // === IMÁGENES GENERALES ===
