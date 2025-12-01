@@ -659,7 +659,7 @@ async function generateMaintenancePDF(visitData) {
       // === FOOTER ===
       const footerY = doc.page.height - 40;
       doc.fontSize(7).font('Helvetica').fillColor(TEXT_LIGHT)
-        .text(`Generado el ${formatDate(new Date())} | Zurcher Construction - División de Tanques Sépticos`,
+        .text(`Generado el ${formatDate(new Date())} | Zurcher Construction | www.zurcherconstruction.com |`,
           PAGE_MARGIN, footerY, { width: doc.page.width - PAGE_MARGIN * 2, align: 'center' });
 
       doc.end();

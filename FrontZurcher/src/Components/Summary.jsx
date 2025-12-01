@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import {
   incomeActions,
   expenseActions,
@@ -57,6 +57,10 @@ const Summary = () => {
   const [typesLoading, setTypesLoading] = useState(true);
   
   const dispatch = useDispatch();
+  const { currentStaff: staff } = useSelector((state) => state.auth);
+  
+  // 🔒 Verificar si el usuario tiene permisos de solo lectura
+  const isReadOnly = staff?.role === 'finance-viewer';
 
   // Obtener movimientos con filtros
   // Función para formatear fechas de YYYY-MM-DD a MM-DD-YYYY
@@ -736,9 +740,11 @@ const Summary = () => {
               <table key={`movements-table-${movements.length}-${refreshKey}`} className="w-full min-w-[1100px] table-auto text-xs">
                 <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
-                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-tight w-12">
-                      ✓
-                    </th>
+                    {!isReadOnly && (
+                      <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-tight w-12">
+                        ✓
+                      </th>
+                    )}
                     <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-tight w-20">
                       Fecha
                     </th>
@@ -763,15 +769,17 @@ const Summary = () => {
                     <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-tight w-20">
                       Comp.
                     </th>
-                    <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-tight w-28">
-                      Acciones
-                    </th>
+                    {!isReadOnly && (
+                      <th className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-tight w-28">
+                        Acciones
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {loading ? (
                     <tr>
-                      <td colSpan={10} className="px-6 py-12 text-center">
+                      <td colSpan={isReadOnly ? 8 : 10} className="px-6 py-12 text-center">
                         <div className="flex items-center justify-center space-x-2">
                           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                           <span className="text-gray-500">Cargando movimientos...</span>
@@ -780,7 +788,7 @@ const Summary = () => {
                     </tr>
                   ) : filteredMovements.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="px-6 py-12 text-center">
+                      <td colSpan={isReadOnly ? 8 : 10} className="px-6 py-12 text-center">
                         <div className="text-center">
                           <ChartBarIcon className="mx-auto h-12 w-12 text-gray-400" />
                           <h3 className="mt-2 text-sm font-medium text-gray-900">Sin movimientos</h3>
@@ -800,15 +808,17 @@ const Summary = () => {
                           : ''
                       }`}>
                         {/* 🆕 Columna de Verificación */}
-                        <td className="px-2 py-2 whitespace-nowrap text-center">
-                          <input
-                            type="checkbox"
-                            checked={mov.verified || false}
-                            onChange={() => handleToggleVerified(mov)}
-                            className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2 cursor-pointer"
-                            title={mov.verified ? 'Marcar como no verificado' : 'Marcar como verificado'}
-                          />
-                        </td>
+                        {!isReadOnly && (
+                          <td className="px-2 py-2 whitespace-nowrap text-center">
+                            <input
+                              type="checkbox"
+                              checked={mov.verified || false}
+                              onChange={() => handleToggleVerified(mov)}
+                              className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2 cursor-pointer"
+                              title={mov.verified ? 'Marcar como no verificado' : 'Marcar como verificado'}
+                            />
+                          </td>
+                        )}
                         <td className="px-2 py-2 whitespace-nowrap text-xs text-gray-900">
                           {formatDate(mov.date)}
                         </td>
@@ -884,24 +894,26 @@ const Summary = () => {
                             <span className="text-gray-400 text-xs">-</span>
                           )}
                         </td>
-                        <td className="px-2 py-2 whitespace-nowrap text-xs">
-                          <div className="flex gap-1">
-                            <button
-                              className="bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded transition-colors inline-flex items-center justify-center"
-                              onClick={() => handleEdit(mov)}
-                              title="Editar"
-                            >
-                              <PencilIcon className="h-3 w-3" />
-                            </button>
-                            <button
-                              className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded transition-colors inline-flex items-center justify-center"
-                              onClick={() => handleDelete(mov)}
-                              title="Eliminar"
-                            >
-                              <TrashIcon className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </td>
+                        {!isReadOnly && (
+                          <td className="px-2 py-2 whitespace-nowrap text-xs">
+                            <div className="flex gap-1">
+                              <button
+                                className="bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded transition-colors inline-flex items-center justify-center"
+                                onClick={() => handleEdit(mov)}
+                                title="Editar"
+                              >
+                                <PencilIcon className="h-3 w-3" />
+                              </button>
+                              <button
+                                className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 rounded transition-colors inline-flex items-center justify-center"
+                                onClick={() => handleDelete(mov)}
+                                title="Eliminar"
+                              >
+                                <TrashIcon className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))
                   )}

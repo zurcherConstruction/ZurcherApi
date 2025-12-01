@@ -204,7 +204,7 @@ const stateNotificationMap = {
   },
   
   budgetApprovedByClient: {
-    roles: ['admin', 'owner', 'finance'],
+    roles: ['admin', 'owner', 'finance'], // Solo finance, NO finance-viewer
     message: (data) => {
       const id = data?.idBudget || 'N/A';
       const addr = data?.propertyAddress || 'Dirección desconocida';
@@ -225,7 +225,7 @@ const stateNotificationMap = {
   },
   
   incomeCreated: {
-    roles: [ 'owner', 'finance'], // Finance debe estar en todos los pagos
+    roles: ['owner', 'finance'], // Solo finance, NO finance-viewer
     // 'income' ahora tiene las propiedades extra añadidas
     message: (income) => {
       const paymentReceived = parseFloat(income.amount || 0);
@@ -247,7 +247,7 @@ const stateNotificationMap = {
   
   // ✅ NUEVAS NOTIFICACIONES FINANCIERAS
   expenseCreated: {
-    roles: ['owner', 'finance'],
+    roles: ['owner', 'finance'], // Solo finance, NO finance-viewer
     message: (expense) => {
       const amount = parseFloat(expense.amount || 0);
       const expenseType = expense.typeExpense || 'Gasto';
@@ -279,7 +279,7 @@ const stateNotificationMap = {
   },
   
   incomeRegistered: {
-    roles: [ 'owner', 'finance'],
+    roles: ['owner', 'finance'], // Solo finance, NO finance-viewer
     message: (income) => {
       const amount = parseFloat(income.amount || 0);
       const incomeType = income.typeIncome || 'Ingreso';
@@ -311,7 +311,7 @@ const stateNotificationMap = {
   },
   
   expenseUpdated: {
-    roles: ['owner', 'finance'],
+    roles: ['owner', 'finance'], // Solo finance, NO finance-viewer
     message: (expense) => {
       const amount = parseFloat(expense.amount || 0);
       const expenseType = expense.typeExpense || 'Gasto';

@@ -183,7 +183,7 @@ const BarraLateral = () => {
         },
       ];
     } else if (staff?.role === "finance") {
-      // Finance: Solo ver budgets, vouchers, balance, summary, fixed-expenses, accounts-receivable, supplier-invoices, works y progress (vista)
+      // Finance: Permisos completos + puede crear/editar
       return [
         {
           name: "Dashboard",
@@ -224,6 +224,26 @@ const BarraLateral = () => {
             { name: "Accounts Receivable", path: "/accounts-receivable", icon: FaDollarSign },
             { name: "Balance", path: "/balance", icon: FaChartBar },  
             { name: "Initial Pay", path: "/initialPay", icon: FaMoneyBillWave },
+          ],
+        },
+      ];
+    } else if (staff?.role === "finance-viewer") {
+      // Finance-Viewer: Solo acceso a Summary (Income & Expenses) en modo lectura
+      return [
+        {
+          name: "Dashboard",
+          icon: FaHome,
+          color: "text-blue-400",
+          items: [
+            { name: "Dashboard 👁️", path: "/dashboard", icon: FaChartBar },
+          ],
+        },
+        {
+          name: "Financial (Read Only)",
+          icon: FaMoneyBillWave,
+          color: "text-yellow-400",
+          items: [
+            { name: "Income & Expenses 👁️", path: "/summary", icon: FaFileInvoiceDollar },
           ],
         },
       ];

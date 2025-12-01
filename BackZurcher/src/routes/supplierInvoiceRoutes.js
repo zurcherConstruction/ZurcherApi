@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const upload = multer(); // Configuración para manejar datos en memoria
+const { verifyToken } = require('../middleware/isAuth');
+const { allowRoles } = require('../middleware/byRol');
 const {
   createSupplierInvoice,
   getSupplierInvoices,
@@ -33,28 +35,28 @@ const {
  * @desc    Obtener todas las cuentas por pagar (invoices pendientes)
  * @access  Private
  */
-router.get('/accounts-payable', getAccountsPayable);
+router.get('/accounts-payable', allowRoles(['admin', 'owner', 'finance', 'finance-viewer']), getAccountsPayable);
 
 /**
  * 🆕 @route   GET /api/supplier-invoices/vendors/summary
  * @desc    Obtener resumen de proveedores con totales pendientes agrupados
  * @access  Private
  */
-router.get('/vendors/summary', getVendorsSummary);
+router.get('/vendors/summary', allowRoles(['admin', 'owner', 'finance', 'finance-viewer']), getVendorsSummary);
 
 /**
  * 🆕 @route   GET /api/supplier-invoices/vendors/list
  * @desc    Obtener lista de vendors únicos para autocomplete
  * @access  Private
  */
-router.get('/vendors/list', getVendorsList);
+router.get('/vendors/list', allowRoles(['admin', 'owner', 'finance', 'finance-viewer']), getVendorsList);
 
 /**
  * 💳 @route   GET /api/supplier-invoices/credit-card/balance
  * @desc    Obtener balance actual y transacciones de Chase Credit Card
  * @access  Private
  */
-router.get('/credit-card/balance', getCreditCardBalance);
+router.get('/credit-card/balance', allowRoles(['admin', 'owner', 'finance', 'finance-viewer']), getCreditCardBalance);
 
 /**
  * 💳 @route   POST /api/supplier-invoices/credit-card/transaction
@@ -62,7 +64,7 @@ router.get('/credit-card/balance', getCreditCardBalance);
  * @body    { transactionType, amount, date, description, invoiceNumber, paymentMethod?, paymentDetails? }
  * @access  Private
  */
-router.post('/credit-card/transaction', createCreditCardTransaction);
+router.post('/credit-card/transaction', allowRoles(['admin', 'owner', 'finance']), createCreditCardTransaction);
 
 /**
  * 🔄 @route   DELETE /api/supplier-invoices/credit-card/payment/:paymentId
@@ -70,14 +72,14 @@ router.post('/credit-card/transaction', createCreditCardTransaction);
  * @params  paymentId - ID del registro de pago en SupplierInvoice
  * @access  Private
  */
-router.delete('/credit-card/payment/:paymentId', reverseCreditCardPayment);
+router.delete('/credit-card/payment/:paymentId', allowRoles(['admin', 'owner', 'finance']), reverseCreditCardPayment);
 
 /**
  * 💳 @route   GET /api/supplier-invoices/amex/balance
  * @desc    Obtener balance actual y transacciones de AMEX
  * @access  Private
  */
-router.get('/amex/balance', getAmexBalance);
+router.get('/amex/balance', allowRoles(['admin', 'owner', 'finance', 'finance-viewer']), getAmexBalance);
 
 /**
  * 💳 @route   POST /api/supplier-invoices/amex/transaction
@@ -85,7 +87,7 @@ router.get('/amex/balance', getAmexBalance);
  * @body    { transactionType, amount, date, description, invoiceNumber, paymentMethod?, paymentDetails? }
  * @access  Private
  */
-router.post('/amex/transaction', createAmexTransaction);
+router.post('/amex/transaction', allowRoles(['admin', 'owner', 'finance']), createAmexTransaction);
 
 /**
  * 🔄 @route   DELETE /api/supplier-invoices/amex/payment/:paymentId
@@ -93,7 +95,7 @@ router.post('/amex/transaction', createAmexTransaction);
  * @params  paymentId - ID del registro de pago en SupplierInvoice
  * @access  Private
  */
-router.delete('/amex/payment/:paymentId', reverseAmexPayment);
+router.delete('/amex/payment/:paymentId', allowRoles(['admin', 'owner', 'finance']), reverseAmexPayment);
 
 /**
  * @route   GET /api/supplier-invoices/payment-history
@@ -101,7 +103,7 @@ router.delete('/amex/payment/:paymentId', reverseAmexPayment);
  * @query   startDate, endDate, vendor
  * @access  Private
  */
-router.get('/payment-history', getPaymentHistory);
+router.get('/payment-history', allowRoles(['admin', 'owner', 'finance', 'finance-viewer']), getPaymentHistory);
 
 /**
  * @route   POST /api/supplier-invoices
@@ -109,7 +111,7 @@ router.get('/payment-history', getPaymentHistory);
  * @body    { invoiceNumber, vendor, issueDate, dueDate, items, notes }
  * @access  Private
  */
-router.post('/', createSupplierInvoice);
+router.post('/', allowRoles(['admin', 'owner', 'finance']), createSupplierInvoice);
 
 /**
  * 🆕 @route   POST /api/supplier-invoices/simple
@@ -117,7 +119,7 @@ router.post('/', createSupplierInvoice);
  * @body    FormData con invoiceNumber, vendor, issueDate, dueDate, totalAmount, notes, invoiceFile (archivo)
  * @access  Private
  */
-router.post('/simple', upload.single('invoiceFile'), createSimpleSupplierInvoice);
+router.post('/simple', allowRoles(['admin', 'owner', 'finance']), upload.single('invoiceFile'), createSimpleSupplierInvoice);
 
 /**
  * @route   GET /api/supplier-invoices
@@ -125,14 +127,14 @@ router.post('/simple', upload.single('invoiceFile'), createSimpleSupplierInvoice
  * @query   status, vendor, startDate, endDate, includeItems
  * @access  Private
  */
-router.get('/', getSupplierInvoices);
+router.get('/', allowRoles(['admin', 'owner', 'finance', 'finance-viewer']), getSupplierInvoices);
 
 /**
  * @route   GET /api/supplier-invoices/:id
  * @desc    Obtener un invoice específico por ID con todos sus detalles
  * @access  Private
  */
-router.get('/:id', getSupplierInvoiceById);
+router.get('/:id', allowRoles(['admin', 'owner', 'finance', 'finance-viewer']), getSupplierInvoiceById);
 
 /**
  * @route   PATCH /api/supplier-invoices/:id/pay
