@@ -43,7 +43,7 @@ async function downloadImageToBuffer(url) {
   }
 }
 
-async function generateMaintenancePDF(visitData) {
+async function generateMaintenancePDF(visitData, language = 'es') {
   return new Promise(async (resolve, reject) => {
     try {
       console.log('📋 Generando PDF de mantenimiento con estilo mejorado...');
@@ -130,6 +130,106 @@ async function generateMaintenancePDF(visitData) {
         mediaFiles = []
       } = visitData;
 
+      // --- Traducciones ---
+      const translations = {
+        en: {
+          title: 'INSPECTION REPORT',
+          maintenanceLabel: 'Maintenance:',
+          maintenanceNumber: 'Maintenance N°',
+          completed: 'Completed:',
+          property: 'Property:',
+          inspection: 'INSPECTION',
+          result: 'RESULT',
+          evidence: 'EVIDENCE',
+          observations: 'Observations:',
+          view: 'View',
+          viewImage: 'View image',
+          playVideo: 'Play Video',
+          technicianSignature: 'Technician Signature',
+          not_available: 'Not available',
+          total_well_points: 'Total Well Points:',
+          photo_label: 'Photo',
+          signature_unavailable: 'Digital signature available on record.',
+          generated: 'Generated on',
+          tank_levels: 'Tank Levels',
+          general_inspection: 'General Inspection',
+          system_atu: 'ATU System',
+          lift_station: 'Lift Station',
+          samples_pbts: 'PBTS / ATU Samples',
+          additional_notes: 'Additional Notes',
+          system_video: 'System Video',
+          additional_photos: 'Additional Photos',
+          video_available: 'System video available:',
+          inlet_level: 'Inlet Level:',
+          outlet_level: 'Outlet Level:',
+          sample_label: 'Sample',
+          strong_odors: 'Strong odors?',
+          water_level_ok: 'Water level OK?',
+          visible_leaks: 'Visible leaks?',
+          area_around_dry: 'Area around dry?',
+          cap_green_inspected: 'Green cap inspected?',
+          needs_pumping: 'Needs pumping?',
+          blower_working: 'Blower working?',
+          blower_filter_clean: 'Blower filter clean?',
+          diffusers_bubbling: 'Diffusers bubbling?',
+          discharge_pump_ok: 'Discharge pump OK?',
+          clarified_water_outlet: 'Clarified water outlet?',
+          alarm_test: 'Alarm test?',
+          pump_running: 'Pump running?',
+          float_switches: 'Float switches ok?',
+          alarm_working: 'Alarm panel working?'
+        },
+        es: {
+          title: 'REPORTE DE INSPECCIÓN',
+          maintenanceLabel: 'Mantenimiento:',
+          maintenanceNumber: 'MANTENIMIENTO N°',
+          completed: 'Realizada:',
+          property: 'Propiedad:',
+          inspection: 'INSPECCIÓN',
+          result: 'RESULTADO',
+          evidence: 'EVIDENCIA',
+          observations: 'Observaciones:',
+          view: 'Ver',
+          viewImage: 'Ver imagen',
+          playVideo: 'Reproducir Video',
+          technicianSignature: 'Firma del Técnico',
+          not_available: 'No disponible',
+          total_well_points: 'Total de Well Points:',
+          photo_label: 'Foto',
+          signature_unavailable: 'Firma digital disponible en el registro.',
+          generated: 'Generado el',
+          tank_levels: 'Niveles del Tanque',
+          general_inspection: 'Inspección General',
+          system_atu: 'Sistema ATU',
+          lift_station: 'Lift Station',
+          samples_pbts: 'Muestras PBTS / ATU',
+          additional_notes: 'Notas Adicionales',
+          system_video: 'Video del Sistema',
+          additional_photos: 'Fotos Adicionales',
+          video_available: 'Video general del sistema disponible:',
+          inlet_level: 'Nivel Entrada:',
+          outlet_level: 'Nivel Salida:',
+          sample_label: 'Muestra',
+          strong_odors: '¿Olores fuertes?',
+          water_level_ok: '¿Nivel de agua correcto?',
+          visible_leaks: '¿Fugas visibles?',
+          area_around_dry: '¿Área alrededor seca?',
+          cap_green_inspected: '¿T de inspección cap verde?',
+          needs_pumping: '¿Necesita bombeo?',
+          blower_working: '¿Blower funcionando?',
+          blower_filter_clean: '¿Filtro del Blower limpio?',
+          diffusers_bubbling: '¿Difusores burbujeando?',
+          discharge_pump_ok: '¿Bomba de descarga OK?',
+          clarified_water_outlet: '¿Agua clarificada salida tanque?',
+          alarm_test: '¿Prueba de alarma?',
+          pump_running: '¿Bomba funcionando?',
+          float_switches: '¿Flotantes en buena condición?',
+          alarm_working: '¿Panel de alarma funcionando?'
+        }
+      };
+
+      const t = translations[language] || translations.en;
+
       // 🆕 Organizar imágenes por campo - Descargar a buffers con caché
       const imagesByField = {}; // { fieldName: [{ buffer, url }] }
       const generalImages = [];
@@ -172,40 +272,31 @@ async function generateMaintenancePDF(visitData) {
       const stream = fs.createWriteStream(pdfPath);
       doc.pipe(stream);
 
-      // === ENCABEZADO ===
+      // === ENCABEZADO SIMPLIFICADO ===
+      const visitNum = visitNumber || visit_number || 'N/A';
+      const rightX = doc.page.width - PAGE_MARGIN - 200;
+
       const logoPath = path.join(__dirname, '../assets/logo.png');
       if (fs.existsSync(logoPath)) {
-        doc.image(logoPath, PAGE_MARGIN, PAGE_MARGIN, { width: 70 });
+        doc.image(logoPath, PAGE_MARGIN, PAGE_MARGIN + 5, { width: 60 });
       }
 
-      // Título centrado debajo del logo
-      doc.font('Helvetica-Bold').fontSize(14).fillColor(PRIMARY_COLOR)
-        .text('REPORTE DE INSPECCIÓN DE MANTENIMIENTO', PAGE_MARGIN, PAGE_MARGIN + 50, { align: 'center' });
       
-      // 🆕 Número de visita prominente (usar visitNumber de Sequelize o visit_number como fallback)
-      const visitNum = visitNumber || visit_number || 'N/A';
-      doc.fontSize(14).fillColor('#DC2626')
-        .text(`Visita #${visitNum}`, PAGE_MARGIN, PAGE_MARGIN + 70, { align: 'center' });
       
-      doc.fontSize(9).fillColor(TEXT_LIGHT)
-        .text('Zurcher Construction ', PAGE_MARGIN, PAGE_MARGIN + 88, { align: 'center' });
-
-      let y = PAGE_MARGIN + 105;
-
-      // === DATOS GENERALES ===
-      // Usar camelCase de Sequelize o snake_case como fallback (ya declarado arriba)
-      const schedDate = scheduledDate || scheduled_date;
-      
+      // Información del lado derecho - alineada con el logo
       doc.font('Helvetica-Bold').fontSize(9).fillColor(TEXT_COLOR);
-      doc.text(`Programada: `, PAGE_MARGIN, y, { continued: true }).font('Helvetica').text(formatDate(schedDate));
-      doc.text(`Realizada: `, PAGE_MARGIN + 220, y, { continued: true }).font('Helvetica').text(formatDate(actualDate));
-      y += 12;
-      doc.font('Helvetica-Bold').text(`Estado: `, PAGE_MARGIN, y, { continued: true }).font('Helvetica').text((status || 'N/A').toUpperCase());
-      doc.text(`Propiedad: `, PAGE_MARGIN + 220, y, { continued: true }).font('Helvetica').text(work?.propertyAddress || 'N/A', { width: 280 });
-      y += 12;
-      const technicianName = (completedByStaff?.name || assignedStaff?.name || 'N/A').toUpperCase();
-      doc.font('Helvetica-Bold').text(`Técnico: `, PAGE_MARGIN, y, { continued: true }).font('Helvetica').text(technicianName);
-      y += 25;
+      doc.text(t.maintenanceLabel + ' ', rightX, PAGE_MARGIN + 15, { continued: true })
+        .font('Helvetica').fillColor('#DC2626').text(`N° ${visitNum}`);
+
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(TEXT_COLOR);
+      doc.text(t.completed + ' ', rightX, PAGE_MARGIN + 30, { continued: true })
+        .font('Helvetica').fillColor(TEXT_COLOR).text(formatDate(actualDate));
+
+      doc.font('Helvetica-Bold').fontSize(9).fillColor(TEXT_COLOR);
+      doc.text(t.property + ' ', rightX, PAGE_MARGIN + 45, { continued: true })
+        .font('Helvetica').fillColor(TEXT_COLOR).text(work?.propertyAddress || 'N/A', { width: 200 });
+
+      let y = PAGE_MARGIN + 70;
 
       // === Helper secciones ===
       const drawSectionTitle = (title) => {
@@ -219,21 +310,65 @@ async function generateMaintenancePDF(visitData) {
           .fillAndStroke(HEADER_BG, BORDER_COLOR);
         doc.fillColor(PRIMARY_COLOR).font('Helvetica-Bold').fontSize(10)
           .text(title, PAGE_MARGIN + 5, y + 4);
-        y += 25;
+        y += 18;
+        
+        // Agregar encabezados de columnas de la tabla
+        const colWidths = {
+          question: 280,
+          result: 70,
+          images: 162
+        };
+        
+        const startX = PAGE_MARGIN;
+        const headerHeight = 16;
+        
+        // Fila de encabezados
+        doc.rect(startX, y, doc.page.width - PAGE_MARGIN * 2, headerHeight)
+          .fillAndStroke('#F3F4F6', BORDER_COLOR);
+        
+        // Encabezado (traducciones)
+        doc.font('Helvetica-Bold').fontSize(7).fillColor(TEXT_COLOR);
+        doc.text(t.inspection, startX + 5, y + 4, { width: colWidths.question - 10 });
+        
+        // Línea divisoria vertical
+        const resultX = startX + colWidths.question;
+        doc.moveTo(resultX, y)
+          .lineTo(resultX, y + headerHeight)
+          .strokeColor(BORDER_COLOR)
+          .stroke();
+        
+        // Encabezado (traducciones)
+        doc.text(t.result, resultX + 8, y + 4, { width: colWidths.result - 16, align: 'center' });
+        
+        // Línea divisoria vertical
+        const imagesX = resultX + colWidths.result;
+        doc.moveTo(imagesX, y)
+          .lineTo(imagesX, y + headerHeight)
+          .strokeColor(BORDER_COLOR)
+          .stroke();
+        
+        // Encabezado (traducciones)
+        doc.text(t.evidence, imagesX + 5, y + 4, { width: colWidths.images - 10 });
+        
+        y += headerHeight;
       };
 
       const drawRow = (label, value, notes = '', fieldImages = []) => {
-        const colX = [PAGE_MARGIN, PAGE_MARGIN + 230, PAGE_MARGIN + 270, PAGE_MARGIN + 360];
-        const baseRowHeight = 20;
+        const colWidths = {
+          question: 280,
+          result: 70,
+          images: 162
+        };
+        
+        const baseRowHeight = 22;
         let rowHeight = baseRowHeight;
         
-        // Calcular altura necesaria para notas e imágenes
+        // Calcular altura necesaria para observaciones e imágenes
         const hasNotes = notes && notes.trim().length > 0;
         const hasImages = fieldImages && fieldImages.length > 0;
         
-        if (hasNotes) rowHeight += 25; // Espacio para notas
-        // Las imágenes ahora van al lado, ajustar altura si hay imágenes
-        if (hasImages && !hasNotes) rowHeight = Math.max(rowHeight, 50); // Más altura para el enlace "Ver"
+        if (hasNotes) rowHeight += 20; // Espacio para observaciones
+        if (hasImages) rowHeight = Math.max(rowHeight, 40); // Más altura para miniaturas
 
         // Verificar si necesitamos nueva página
         if (y + rowHeight > doc.page.height - PAGE_MARGIN) {
@@ -241,37 +376,52 @@ async function generateMaintenancePDF(visitData) {
           y = PAGE_MARGIN;
         }
 
-        const yes = (value === true || value === 'yes') ? 'SI' : '';
-        const no = (value === false || value === 'no') ? 'NO' : '';
+        // Determinar respuesta
+        let result = 'N/A';
+        let resultColor = TEXT_COLOR;
+        
+        if (value === true || value === 'yes') {
+          result = 'YES';
+          resultColor = TEXT_COLOR; // Negro
+        } else if (value === false || value === 'no') {
+          result = 'NO';
+          resultColor = TEXT_COLOR; // Negro
+        }
 
-        // Dibujar rectángulo de la fila
-        doc.rect(PAGE_MARGIN, y, doc.page.width - PAGE_MARGIN * 2, rowHeight)
+        // Dibujar fila de la tabla
+        const startX = PAGE_MARGIN;
+        doc.rect(startX, y, doc.page.width - PAGE_MARGIN * 2, rowHeight)
           .strokeColor(BORDER_COLOR).stroke();
 
-        // Pregunta
+        // Columna 1: Pregunta
         doc.font('Helvetica').fontSize(8).fillColor(TEXT_COLOR);
-        doc.text(label, colX[0] + 3, y + 5, { width: 220 });
+        doc.text(label, startX + 5, y + 6, { width: colWidths.question - 10 });
         
-        // Respuesta SI
-        doc.fillColor(yes ? '#059669' : TEXT_COLOR).text(yes, colX[1], y + 5);
-        
-        // LÍNEA DIVISORIA VERTICAL entre SI y NO
-        doc.moveTo(colX[2] - 5, y + 2)
-          .lineTo(colX[2] - 5, y + 18)
-          .strokeColor('#CCCCCC')
+        // Línea divisoria vertical después de pregunta
+        const resultX = startX + colWidths.question;
+        doc.moveTo(resultX, y)
+          .lineTo(resultX, y + rowHeight)
+          .strokeColor(BORDER_COLOR)
           .stroke();
         
-        // Respuesta NO
-        doc.fillColor(no ? '#DC2626' : TEXT_COLOR).text(no, colX[2], y + 5);
+        // Columna 2: Resultado (YES/NO)
+        doc.font('Helvetica-Bold').fontSize(9).fillColor(resultColor);
+        doc.text(result, resultX + 8, y + 6, { width: colWidths.result - 16, align: 'center' });
         
-        // Miniaturas en la mitad DERECHA con enlaces "Ver"
+        // Línea divisoria vertical después de resultado
+        const imagesX = resultX + colWidths.result;
+        doc.moveTo(imagesX, y)
+          .lineTo(imagesX, y + rowHeight)
+          .strokeColor(BORDER_COLOR)
+          .stroke();
+        
+        // Columna 3: Imágenes (miniaturas)
         if (hasImages) {
-          const thumbSize = 32;
-          const thumbSpacing = 3;
-          const thumbStartX = colX[3]; // Columna derecha
-          let thumbX = thumbStartX;
+          const thumbSize = 28;
+          const thumbSpacing = 4;
+          let thumbX = imagesX + 8;
           
-          for (let i = 0; i < Math.min(fieldImages.length, 3); i++) { // Máximo 3 miniaturas en línea
+          for (let i = 0; i < Math.min(fieldImages.length, 4); i++) {
             try {
               const imageData = fieldImages[i];
               const imageBuffer = imageData.buffer;
@@ -279,17 +429,17 @@ async function generateMaintenancePDF(visitData) {
               
               if (!imageBuffer) continue;
               
-              // Dibujar miniatura usando el buffer
-              doc.image(imageBuffer, thumbX, y + 3, { 
-                width: thumbSize, 
-                height: thumbSize,
-                fit: [thumbSize, thumbSize]
+              // Dibujar miniatura: mantener proporción y centrar dentro del cuadro
+              doc.image(imageBuffer, thumbX, y + 5, { 
+                fit: [thumbSize, thumbSize],
+                align: 'center',
+                valign: 'center'
               });
-              doc.rect(thumbX, y + 3, thumbSize, thumbSize).strokeColor('#DDD').stroke();
+              doc.rect(thumbX, y + 5, thumbSize, thumbSize).strokeColor('#DDD').stroke();
               
-              // Agregar enlace "Ver" debajo de la miniatura (apunta a URL de Cloudinary)
-              doc.fontSize(6).fillColor('#2563EB')
-                .text('Ver', thumbX, y + thumbSize + 5, { 
+              // Enlace "Ver" debajo
+              doc.fontSize(5).fillColor('#2563EB')
+                .text(t.view, thumbX, y + thumbSize + 7, { 
                   width: thumbSize, 
                   align: 'center',
                   link: imageUrl,
@@ -302,23 +452,24 @@ async function generateMaintenancePDF(visitData) {
             }
           }
           
-          if (fieldImages.length > 3) {
+          // Indicador de más imágenes
+          if (fieldImages.length > 4) {
             doc.fontSize(6).fillColor(TEXT_LIGHT).text(
-              `+${fieldImages.length - 3}`, 
+              `+${fieldImages.length - 4}`, 
               thumbX, 
-              y + 18
+              y + 14
             );
           }
         }
         
-        let currentY = y + 5;
-        
-        // Mostrar notas DEBAJO (usando toda la fila)
+        // Observaciones DEBAJO de la fila (usando todo el ancho)
         if (hasNotes) {
-          doc.fillColor(TEXT_LIGHT).fontSize(7).text(notes, colX[0] + 3, currentY + 15, { 
-            width: doc.page.width - PAGE_MARGIN * 2 - 10 
-          });
-          currentY += 25;
+          doc.fillColor(TEXT_LIGHT).fontSize(7).text(
+            `${t.observations} ${notes}`, 
+            startX + 5, 
+            y + baseRowHeight + 2, 
+            { width: doc.page.width - PAGE_MARGIN * 2 - 10 }
+          );
         }
         
         y += rowHeight;
@@ -326,71 +477,115 @@ async function generateMaintenancePDF(visitData) {
 
       // === NIVELES ===
       if (tank_inlet_level || tank_outlet_level || level_inlet || level_outlet) {
-        drawSectionTitle('Niveles del Tanque');
-        doc.font('Helvetica').fontSize(9).fillColor(TEXT_COLOR);
-        if (tank_inlet_level) {
-          doc.text(`Nivel Entrada: ${tank_inlet_level}`, PAGE_MARGIN, y);
-          if (tank_inlet_notes) {
-            doc.fontSize(7).fillColor(TEXT_LIGHT).text(tank_inlet_notes, PAGE_MARGIN + 150, y, { width: 250 });
+        drawSectionTitle(t.tank_levels);
+        
+        // Usar formato de tabla para niveles
+        const colWidths = { question: 280, result: 70, images: 162 };
+        const startX = PAGE_MARGIN;
+        
+        if (tank_inlet_level || level_inlet) {
+          const level = tank_inlet_level || level_inlet;
+          const notes = tank_inlet_notes || '';
+          const rowHeight = notes ? 40 : 22;
+          
+          if (y + rowHeight > doc.page.height - PAGE_MARGIN) {
+            doc.addPage();
+            y = PAGE_MARGIN;
           }
-          y += 15;
-        } else if (level_inlet) {
-          doc.text(`Nivel Entrada Tanque: ${level_inlet}`, PAGE_MARGIN, y);
-          y += 15;
+          
+          doc.rect(startX, y, doc.page.width - PAGE_MARGIN * 2, rowHeight).strokeColor(BORDER_COLOR).stroke();
+          
+          doc.font('Helvetica').fontSize(8).fillColor(TEXT_COLOR);
+          doc.text(t.inlet_level, startX + 5, y + 6, { width: colWidths.question - 10 });
+          
+          const resultX = startX + colWidths.question;
+          doc.moveTo(resultX, y).lineTo(resultX, y + rowHeight).strokeColor(BORDER_COLOR).stroke();
+          
+          doc.font('Helvetica-Bold').fontSize(8).fillColor(TEXT_COLOR);
+          doc.text(level, resultX + 8, y + 6, { width: colWidths.result - 16, align: 'center' });
+          
+          const imagesX = resultX + colWidths.result;
+          doc.moveTo(imagesX, y).lineTo(imagesX, y + rowHeight).strokeColor(BORDER_COLOR).stroke();
+          
+          if (notes) {
+            doc.fontSize(7).fillColor(TEXT_LIGHT).text(`${t.observations} ${notes}`, startX + 5, y + 24, { width: doc.page.width - PAGE_MARGIN * 2 - 10 });
+          }
+          
+          y += rowHeight;
         }
         
-        if (tank_outlet_level) {
-          doc.fontSize(9).fillColor(TEXT_COLOR).text(`Nivel Salida: ${tank_outlet_level}`, PAGE_MARGIN, y);
-          if (tank_outlet_notes) {
-            doc.fontSize(7).fillColor(TEXT_LIGHT).text(tank_outlet_notes, PAGE_MARGIN + 150, y, { width: 250 });
+        if (tank_outlet_level || level_outlet) {
+          const level = tank_outlet_level || level_outlet;
+          const notes = tank_outlet_notes || '';
+          const rowHeight = notes ? 40 : 22;
+          
+          if (y + rowHeight > doc.page.height - PAGE_MARGIN) {
+            doc.addPage();
+            y = PAGE_MARGIN;
           }
-          y += 15;
-        } else if (level_outlet) {
-          doc.fontSize(9).fillColor(TEXT_COLOR).text(`Nivel Salida Tanque: ${level_outlet}`, PAGE_MARGIN, y);
-          y += 15;
+          
+          doc.rect(startX, y, doc.page.width - PAGE_MARGIN * 2, rowHeight).strokeColor(BORDER_COLOR).stroke();
+          
+          doc.font('Helvetica').fontSize(8).fillColor(TEXT_COLOR);
+          doc.text(t.outlet_level, startX + 5, y + 6, { width: colWidths.question - 10 });
+          
+          const resultX = startX + colWidths.question;
+          doc.moveTo(resultX, y).lineTo(resultX, y + rowHeight).strokeColor(BORDER_COLOR).stroke();
+          
+          doc.font('Helvetica-Bold').fontSize(8).fillColor(TEXT_COLOR);
+          doc.text(level, resultX + 8, y + 6, { width: colWidths.result - 16, align: 'center' });
+          
+          const imagesX = resultX + colWidths.result;
+          doc.moveTo(imagesX, y).lineTo(imagesX, y + rowHeight).strokeColor(BORDER_COLOR).stroke();
+          
+          if (notes) {
+            doc.fontSize(7).fillColor(TEXT_LIGHT).text(`${t.observations} ${notes}`, startX + 5, y + 24, { width: doc.page.width - PAGE_MARGIN * 2 - 10 });
+          }
+          
+          y += rowHeight;
         }
         
         y += 10;
       }
 
       // === INSPECCIÓN GENERAL ===
-      drawSectionTitle('Inspección General');
-      drawRow('¿Olores fuertes?', strong_odors, strong_odors_notes, imagesByField.strong_odors || []);
-      drawRow('¿Nivel de agua correcto?', water_level_ok, water_level_notes, imagesByField.water_level_ok || []);
-      drawRow('¿Fugas visibles?', visible_leaks, visible_leaks_notes, imagesByField.visible_leaks || []);
-      drawRow('¿Área alrededor seca?', area_around_dry, area_around_notes, imagesByField.area_around_dry || []);
-      //drawRow('¿Acceso al séptico despejado?', septic_access_clear, septic_access_notes, imagesByField.septic_access_clear || []);
-      drawRow('¿T de inspección cap verde?', cap_green_inspected, cap_green_notes, imagesByField.cap_green_inspected || []);
-      drawRow('¿Necesita bombeo?', needs_pumping, needs_pumping_notes, imagesByField.needs_pumping || []);
+      drawSectionTitle(t.general_inspection);
+      drawRow(t.strong_odors, strong_odors, strong_odors_notes, imagesByField.strong_odors || []);
+      drawRow(t.water_level_ok, water_level_ok, water_level_notes, imagesByField.water_level_ok || []);
+      drawRow(t.visible_leaks, visible_leaks, visible_leaks_notes, imagesByField.visible_leaks || []);
+      drawRow(t.area_around_dry, area_around_dry, area_around_notes, imagesByField.area_around_dry || []);
+      //drawRow(t.septic_access_clear, septic_access_clear, septic_access_notes, imagesByField.septic_access_clear || []);
+      drawRow(t.cap_green_inspected, cap_green_inspected, cap_green_notes, imagesByField.cap_green_inspected || []);
+      drawRow(t.needs_pumping, needs_pumping, needs_pumping_notes, imagesByField.needs_pumping || []);
       y += 15;
 
       // === SISTEMA ATU ===
-      drawSectionTitle('Sistema ATU');
-      drawRow('¿Blower funcionando?', blower_working, blower_working_notes, imagesByField.blower_working || []);
-      drawRow('¿Filtro del Blower limpio?', blower_filter_clean, blower_filter_notes, imagesByField.blower_filter_clean || []);
-      drawRow('¿Difusores burbujeando?', diffusers_bubbling, diffusers_bubbling_notes, imagesByField.diffusers_bubbling || []);
-      drawRow('¿Bomba de descarga OK?', discharge_pump_ok, discharge_pump_notes, imagesByField.discharge_pump_ok || []);
-      drawRow('¿Agua clarificada salida tanque?', clarified_water_outlet, clarified_water_notes, imagesByField.clarified_water_outlet || []);
-      drawRow('¿Prueba de alarma?', alarm_test, alarm_test_notes, imagesByField.alarm_test || []);
+      drawSectionTitle(t.system_atu);
+      drawRow(t.blower_working, blower_working, blower_working_notes, imagesByField.blower_working || []);
+      drawRow(t.blower_filter_clean, blower_filter_clean, blower_filter_notes, imagesByField.blower_filter_clean || []);
+      drawRow(t.diffusers_bubbling, diffusers_bubbling, diffusers_bubbling_notes, imagesByField.diffusers_bubbling || []);
+      drawRow(t.discharge_pump_ok, discharge_pump_ok, discharge_pump_notes, imagesByField.discharge_pump_ok || []);
+      drawRow(t.clarified_water_outlet, clarified_water_outlet, clarified_water_notes, imagesByField.clarified_water_outlet || []);
+      drawRow(t.alarm_test, alarm_test, alarm_test_notes, imagesByField.alarm_test || []);
       y += 15;
 
       // === LIFT STATION ===
       if (pump_running !== undefined || float_switches !== undefined || alarm_working !== undefined || 
           pump_condition !== undefined || alarm_panel_working !== undefined || pump_working !== undefined) {
-        drawSectionTitle('Lift Station');
+        drawSectionTitle(t.lift_station);
         
         // Usar campos nuevos primero, si no existen usar legacy
-        drawRow('¿Bomba funcionando?', pump_running !== undefined ? pump_running : pump_working, 
-                pump_running_notes || pump_working_notes, 
-                imagesByField.pump_running || imagesByField.pump_working || []);
+        drawRow(t.pump_running, pump_running !== undefined ? pump_running : pump_working, 
+          pump_running_notes || pump_working_notes, 
+          imagesByField.pump_running || imagesByField.pump_working || []);
         
-        drawRow('¿Flotantes en buena condición?', float_switches !== undefined ? float_switches : float_switch_good, 
-                float_switches_notes || float_switch_notes, 
-                imagesByField.float_switches || imagesByField.float_switch_good || []);
+        drawRow(t.float_switches, float_switches !== undefined ? float_switches : float_switch_good, 
+          float_switches_notes || float_switch_notes, 
+          imagesByField.float_switches || imagesByField.float_switch_good || []);
         
-        drawRow('¿Panel de alarma funcionando?', alarm_working !== undefined ? alarm_working : alarm_panel_working, 
-                alarm_working_notes || alarm_panel_notes, 
-                imagesByField.alarm_working || imagesByField.alarm_panel_working || []);
+        drawRow(t.alarm_working, alarm_working !== undefined ? alarm_working : alarm_panel_working, 
+          alarm_working_notes || alarm_panel_notes, 
+          imagesByField.alarm_working || imagesByField.alarm_panel_working || []);
         
         
         
@@ -399,35 +594,58 @@ async function generateMaintenancePDF(visitData) {
 
       // === PBTS / ATU - Muestras individuales ===
       if (well_points_quantity || well_sample_1_url || well_sample_2_url || well_sample_3_url) {
-        drawSectionTitle('Muestras PBTS / ATU');
+        drawSectionTitle(t.samples_pbts);
+        
+        // Usar formato de tabla para Well Points
+        const colWidths = { question: 280, result: 70, images: 162 };
+        const startX = PAGE_MARGIN;
         
         if (well_points_quantity) {
-          doc.font('Helvetica').fontSize(9).fillColor(TEXT_COLOR);
-          doc.text(`Total de Well Points: ${well_points_quantity}`, PAGE_MARGIN, y);
-          y += 20;
+          const rowHeight = 22;
+          
+          if (y + rowHeight > doc.page.height - PAGE_MARGIN) {
+            doc.addPage();
+            y = PAGE_MARGIN;
+          }
+          
+          doc.rect(startX, y, doc.page.width - PAGE_MARGIN * 2, rowHeight).strokeColor(BORDER_COLOR).stroke();
+          
+          doc.font('Helvetica').fontSize(8).fillColor(TEXT_COLOR);
+          doc.text(t.total_well_points, startX + 5, y + 6, { width: colWidths.question - 10 });
+          
+          const resultX = startX + colWidths.question;
+          doc.moveTo(resultX, y).lineTo(resultX, y + rowHeight).strokeColor(BORDER_COLOR).stroke();
+          
+          doc.font('Helvetica-Bold').fontSize(8).fillColor(TEXT_COLOR);
+          doc.text(well_points_quantity.toString(), resultX + 8, y + 6, { width: colWidths.result - 16, align: 'center' });
+          
+          const imagesX = resultX + colWidths.result;
+          doc.moveTo(imagesX, y).lineTo(imagesX, y + rowHeight).strokeColor(BORDER_COLOR).stroke();
+          
+          y += rowHeight + 15;
         }
         
         // Mostrar muestras con sus observaciones
         const samples = [
           { 
             url: well_sample_1_url, 
-            label: 'Muestra 1',
+            label: `${t.sample_label} 1`,
             observations: well_sample_1_observations,
             notes: well_sample_1_notes
           },
           { 
             url: well_sample_2_url, 
-            label: 'Muestra 2',
+            label: `${t.sample_label} 2`,
             observations: well_sample_2_observations,
             notes: well_sample_2_notes
           },
           { 
             url: well_sample_3_url, 
-            label: 'Muestra 3',
+            label: `${t.sample_label} 3`,
             observations: well_sample_3_observations,
             notes: well_sample_3_notes
           }
-        ].filter(s => s.url); // Solo muestras que tienen URL
+        ].filter(s => s.url); // Only samples that have a URL
         
         if (samples.length > 0) {
           // Verificar si necesitamos nueva página
@@ -438,8 +656,8 @@ async function generateMaintenancePDF(visitData) {
           
           const thumbSize = 90;
           const spacing = 15;
-          const startX = PAGE_MARGIN + 20;
-          let x = startX;
+          const sampleStartX = PAGE_MARGIN + 20;
+          let x = sampleStartX;
           
           // Calcular altura máxima necesaria para observaciones
           let maxObservationsHeight = 0;
@@ -465,17 +683,17 @@ async function generateMaintenancePDF(visitData) {
               doc.font('Helvetica-Bold').fontSize(8).fillColor(TEXT_COLOR);
               doc.text(sample.label, x, y, { width: thumbSize, align: 'center' });
               
-              // Imagen
+              // Imagen (muestra): mantener proporción y centrar dentro del cuadro
               doc.image(buffer, x, y + 12, { 
-                width: thumbSize, 
-                height: thumbSize,
-                fit: [thumbSize, thumbSize]
+                fit: [thumbSize, thumbSize],
+                align: 'center',
+                valign: 'center'
               });
               doc.rect(x, y + 12, thumbSize, thumbSize).strokeColor('#DDD').stroke();
               
-              // Link "Ver imagen" debajo
+              // Link to view image
               doc.fontSize(7).fillColor('#0066CC')
-                .text('Ver imagen', x, y + thumbSize + 16, { 
+                .text(t.viewImage, x, y + thumbSize + 16, { 
                   width: thumbSize,
                   align: 'center',
                   link: sample.url,
@@ -486,7 +704,7 @@ async function generateMaintenancePDF(visitData) {
               if (sample.observations || sample.notes) {
                 const observationsY = y + thumbSize + 28;
                 doc.font('Helvetica-Bold').fontSize(7).fillColor(TEXT_COLOR);
-                doc.text('Observaciones:', x, observationsY, { width: thumbSize + 40 });
+                doc.text(t.observations, x, observationsY, { width: thumbSize + 40 });
                 
                 doc.font('Helvetica').fontSize(7).fillColor(TEXT_LIGHT);
                 doc.text(sample.observations || sample.notes || '', x, observationsY + 10, { 
@@ -498,11 +716,11 @@ async function generateMaintenancePDF(visitData) {
             } catch (err) {
               console.warn(`⚠️ Error mostrando imagen: ${sample.url}`);
               doc.font('Helvetica-Oblique').fontSize(7).fillColor(TEXT_LIGHT);
-              doc.text(`${sample.label}:\nNo disponible`, x, y + 12, { width: thumbSize, align: 'center' });
+              doc.text(`${sample.label}:\n${t.not_available}`, x, y + 12, { width: thumbSize, align: 'center' });
               
-              // Aún así mostrar link
+              // Still show a link
               doc.fontSize(7).fillColor('#0066CC')
-                .text('Ver en línea', x, y + 40, { 
+                .text(t.view, x, y + 40, { 
                   width: thumbSize,
                   align: 'center',
                   link: sample.url,
@@ -513,7 +731,7 @@ async function generateMaintenancePDF(visitData) {
               if (sample.observations || sample.notes) {
                 const observationsY = y + 55;
                 doc.font('Helvetica-Bold').fontSize(7).fillColor(TEXT_COLOR);
-                doc.text('Observaciones:', x, observationsY, { width: thumbSize + 40 });
+                doc.text(t.observations, x, observationsY, { width: thumbSize + 40 });
                 
                 doc.font('Helvetica').fontSize(7).fillColor(TEXT_LIGHT);
                 doc.text(sample.observations || sample.notes || '', x, observationsY + 10, { 
@@ -538,10 +756,25 @@ async function generateMaintenancePDF(visitData) {
           y = PAGE_MARGIN;
         }
         
-        drawSectionTitle('Notas Adicionales');
-        doc.font('Helvetica').fontSize(9).fillColor(TEXT_COLOR)
-          .text(general_notes, PAGE_MARGIN + 5, y, { width: doc.page.width - PAGE_MARGIN * 2 - 10, align: 'justify' });
-        y = doc.y + 20;
+        drawSectionTitle(t.additional_notes);
+        
+        // Usar formato de tabla
+        const colWidths = { question: 280, result: 70, images: 162 };
+        const startX = PAGE_MARGIN;
+        const textHeight = doc.heightOfString(general_notes, { width: doc.page.width - PAGE_MARGIN * 2 - 10, fontSize: 8 });
+        const rowHeight = Math.max(40, textHeight + 12);
+        
+        if (y + rowHeight > doc.page.height - PAGE_MARGIN) {
+          doc.addPage();
+          y = PAGE_MARGIN;
+        }
+        
+        doc.rect(startX, y, doc.page.width - PAGE_MARGIN * 2, rowHeight).strokeColor(BORDER_COLOR).stroke();
+        
+        doc.font('Helvetica').fontSize(8).fillColor(TEXT_COLOR);
+        doc.text(general_notes, startX + 5, y + 6, { width: doc.page.width - PAGE_MARGIN * 2 - 10, align: 'justify' });
+        
+        y += rowHeight + 15;
       }
 
       // === VIDEO DEL SISTEMA ===
@@ -552,11 +785,28 @@ async function generateMaintenancePDF(visitData) {
           y = PAGE_MARGIN;
         }
         
-        drawSectionTitle('Video del Sistema');
+        drawSectionTitle(t.system_video);
         
-        doc.font('Helvetica').fontSize(9).fillColor(TEXT_COLOR)
-          .text('Video general del sistema disponible:', PAGE_MARGIN + 5, y);
-        y += 15;
+        // Usar formato de tabla
+        const colWidths = { question: 280, result: 70, images: 162 };
+        const startX = PAGE_MARGIN;
+        const rowHeight = 30;
+        
+        if (y + rowHeight > doc.page.height - PAGE_MARGIN) {
+          doc.addPage();
+          y = PAGE_MARGIN;
+        }
+        
+        doc.rect(startX, y, doc.page.width - PAGE_MARGIN * 2, rowHeight).strokeColor(BORDER_COLOR).stroke();
+        
+        doc.font('Helvetica').fontSize(8).fillColor(TEXT_COLOR);
+        doc.text(t.video_available, startX + 5, y + 6, { width: colWidths.question - 10 });
+        
+        const resultX = startX + colWidths.question;
+        doc.moveTo(resultX, y).lineTo(resultX, y + rowHeight).strokeColor(BORDER_COLOR).stroke();
+        
+        const imagesX = resultX + colWidths.result;
+        doc.moveTo(imagesX, y).lineTo(imagesX, y + rowHeight).strokeColor(BORDER_COLOR).stroke();
         
         // Convertir URL de Cloudinary al formato del player embebido
         // De: https://res.cloudinary.com/CLOUD/video/upload/v123/path/video.mov
@@ -580,18 +830,20 @@ async function generateMaintenancePDF(visitData) {
           }
         }
         
-        // Link clickeable al video (se abrirá en navegador)
-        doc.fontSize(9).fillColor('#0066CC')
-          .text('Reproducir Video', PAGE_MARGIN + 10, y, { 
+        // Link clickeable al video (en la columna de evidencia)
+        doc.fontSize(7).fillColor('#0066CC')
+          .text(t.playVideo, imagesX + 8, y + 10, { 
             link: playerUrl,
-            underline: true 
+            underline: true,
+            width: colWidths.images - 16
           });
-        y += 25;
+        
+        y += rowHeight + 15;
       }
 
       // === IMÁGENES GENERALES ===
       if (generalImages.length > 0) {
-        drawSectionTitle('Fotos Adicionales');
+        drawSectionTitle(t.additional_photos);
         
         const thumbSize = 120;
         const spacing = 20;
@@ -610,16 +862,16 @@ async function generateMaintenancePDF(visitData) {
           }
           
           if (buffer) {
-            // Usar buffer de la imagen
-            doc.image(buffer, x, y, { width: thumbSize, height: thumbSize, fit: [thumbSize, thumbSize] })
-               .rect(x, y, thumbSize, thumbSize).strokeColor('#DDD').stroke();
+            // Usar buffer de la imagen: mantener proporción y centrar
+            doc.image(buffer, x, y, { fit: [thumbSize, thumbSize], align: 'center', valign: 'center' })
+              .rect(x, y, thumbSize, thumbSize).strokeColor('#DDD').stroke();
             
             doc.font('Helvetica').fontSize(8).fillColor(TEXT_COLOR)
-               .text(label === 'general' ? `Foto ${i + 1}` : label, x, y + thumbSize + 4, { width: thumbSize, align: 'center' });
+              .text(label === 'general' ? `${t.photo_label} ${i + 1}` : label, x, y + thumbSize + 4, { width: thumbSize, align: 'center' });
             
             // Link para ver imagen completa en Cloudinary
             doc.fontSize(6).fillColor('#0066CC')
-              .text('Ver', x, y + thumbSize + 16, { 
+              .text(t.view, x, y + thumbSize + 16, { 
                 width: thumbSize, 
                 align: 'center',
                 link: url,
@@ -641,7 +893,7 @@ async function generateMaintenancePDF(visitData) {
 
       // === FIRMA ===
       if (worker_signature_url) {
-        drawSectionTitle('Firma del Técnico');
+        drawSectionTitle(t.technicianSignature);
         try {
           const signatureBuffer = await downloadImageToBuffer(worker_signature_url);
           if (signatureBuffer) {
@@ -651,7 +903,7 @@ async function generateMaintenancePDF(visitData) {
           }
         } catch {
           doc.font('Helvetica-Oblique').fontSize(8).fillColor(TEXT_LIGHT)
-            .text('Firma digital disponible en el registro.', PAGE_MARGIN + 10, y + 10);
+            .text(t.signature_unavailable, PAGE_MARGIN + 10, y + 10);
         }
         y += 50;
       }
@@ -659,7 +911,7 @@ async function generateMaintenancePDF(visitData) {
       // === FOOTER ===
       const footerY = doc.page.height - 40;
       doc.fontSize(7).font('Helvetica').fillColor(TEXT_LIGHT)
-        .text(`Generado el ${formatDate(new Date())} | Zurcher Construction - División de Tanques Sépticos`,
+        .text(`${t.generated} ${formatDate(new Date())} | Zurcher Construction | www.zurcherconstruction.com |`,
           PAGE_MARGIN, footerY, { width: doc.page.width - PAGE_MARGIN * 2, align: 'center' });
 
       doc.end();

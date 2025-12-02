@@ -208,6 +208,7 @@ const Register = () => {
                   <option value="recept">Reception</option>
                   <option value="owner">Owner</option>
                   <option value="finance">Finance</option>
+                  <option value="finance-viewer">Finance Viewer (Read Only)</option>
                   <option value="maintenance">Maintenance</option>
                   <option value="sales_rep">Sales Representative</option>
                   <option value="follow-up">Follow-up</option>

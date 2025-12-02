@@ -161,7 +161,7 @@ const Dashboard = () => {
           description: 'Detailed financial reports',
           icon: ClipboardDocumentListIcon,
           gradient: 'from-violet-500 to-violet-600',
-          allowedRoles: ['owner', 'finance'],
+          allowedRoles: ['owner', 'finance', 'finance-viewer'],
         },
       ]
     },

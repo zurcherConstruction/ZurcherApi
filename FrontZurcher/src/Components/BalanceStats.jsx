@@ -268,100 +268,48 @@ const BalanceStats = () => {
               <h3 className="text-xl font-bold text-green-600 mb-4 flex items-center gap-2">
                 💰 Ingresos por Método de Pago
               </h3>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center bg-green-50 p-3 rounded-lg">
-                  <span className="font-semibold text-gray-700">Initial Payments</span>
-                  <span className="text-lg font-bold text-green-600">{formatCurrency(dashboard.summary.totalInitialPayments)}</span>
-                </div>
-                <div className="flex justify-between items-center bg-green-50 p-3 rounded-lg">
-                  <span className="font-semibold text-gray-700">Final Payments</span>
-                  <span className="text-lg font-bold text-green-600">{formatCurrency(dashboard.summary.totalFinalPayments)}</span>
-                </div>
-              </div>
 
-              {dashboard.incomeByPaymentMethod && dashboard.incomeByPaymentMethod.length > 0 && (
-                <>
-                  <div className="border-t border-gray-200 my-4"></div>
-                  <h4 className="text-sm font-semibold text-gray-600 mb-3 uppercase">Desglose por Método:</h4>
-                  <div className="space-y-2">
-                    {dashboard.incomeByPaymentMethod
-                      .sort((a, b) => b.amount - a.amount)
-                      .map((item, idx) => (
-                        <div key={idx} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
-                          <span className="text-gray-700">{item.method}</span>
-                          <span className="font-semibold text-green-600">{formatCurrency(item.amount)}</span>
-                        </div>
-                      ))}
-                  </div>
-                </>
+              {dashboard.incomeByPaymentMethod && dashboard.incomeByPaymentMethod.length > 0 ? (
+                <div className="space-y-2">
+                  {dashboard.incomeByPaymentMethod
+                    .sort((a, b) => b.amount - a.amount)
+                    .map((item, idx) => (
+                      <div key={idx} className="flex justify-between items-center py-3 px-4 bg-green-50 rounded-lg">
+                        <span className="font-semibold text-gray-700">{item.method}</span>
+                        <span className="text-lg font-bold text-green-600">{formatCurrency(item.amount)}</span>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-center py-4">No hay ingresos en este período</p>
               )}
             </div>
 
-            {/* Ingresos Desglosados */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-xl font-bold text-green-600 mb-4 flex items-center gap-2">
-                📋 Detalle de Ingresos
-              </h3>
-              <div className="space-y-3">
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm text-gray-600">Pagos Iniciales Recibidos</span>
-                    <span className="text-sm font-semibold text-gray-700">{dashboard.counts.initialPaymentsCount} pagos</span>
-                  </div>
-                  <p className="text-2xl font-bold text-green-600">{formatCurrency(dashboard.summary.totalInitialPayments)}</p>
-                </div>
-
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm text-gray-600">Pagos Finales Recibidos</span>
-                    <span className="text-sm font-semibold text-gray-700">{dashboard.counts.finalPaymentsCount} pagos</span>
-                  </div>
-                  <p className="text-2xl font-bold text-green-600">{formatCurrency(dashboard.summary.totalFinalPayments)}</p>
-                </div>
-
-                <div className="bg-green-100 p-4 rounded-lg border-2 border-green-300">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-semibold text-green-800">TOTAL INGRESADO</span>
-                    <span className="text-sm font-semibold text-green-700">
-                      {dashboard.counts.initialPaymentsCount + dashboard.counts.finalPaymentsCount} transacciones
-                    </span>
-                  </div>
-                  <p className="text-3xl font-bold text-green-700">{formatCurrency(dashboard.summary.totalIncome)}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Sección de Egresos */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            {/* Egresos por Método de Pago */}
+            {/* Gastos por Método de Pago */}
             <div className="bg-white rounded-lg shadow-md p-6">
               <h3 className="text-xl font-bold text-red-600 mb-4 flex items-center gap-2">
                 💳 Gastos por Método de Pago
               </h3>
-              
+
               {dashboard.expensesByPaymentMethod && dashboard.expensesByPaymentMethod.length > 0 ? (
                 <div className="space-y-2">
                   {dashboard.expensesByPaymentMethod
                     .sort((a, b) => b.amount - a.amount)
                     .map((item, idx) => (
-                      <div key={idx} className="flex justify-between items-center py-3 px-4 bg-red-50 rounded-lg hover:bg-red-100 transition-colors">
-                        <div>
-                          <span className="font-semibold text-gray-800">{item.method}</span>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {((item.amount / dashboard.summary.totalEgresos) * 100).toFixed(1)}% del total
-                          </p>
-                        </div>
+                      <div key={idx} className="flex justify-between items-center py-3 px-4 bg-red-50 rounded-lg">
+                        <span className="font-semibold text-gray-700">{item.method}</span>
                         <span className="text-lg font-bold text-red-600">{formatCurrency(item.amount)}</span>
                       </div>
                     ))}
                 </div>
               ) : (
-                <p className="text-gray-500 text-center py-8">No hay gastos registrados</p>
+                <p className="text-gray-500 text-center py-4">No hay gastos en este período</p>
               )}
             </div>
+          </div>
 
-            {/* Egresos por Categoría */}
+          {/* Gastos por Categoría */}
+          <div className="grid grid-cols-1 gap-6 mb-6">
             <div className="bg-white rounded-lg shadow-md p-6">
               <h3 className="text-xl font-bold text-red-600 mb-4 flex items-center gap-2">
                 📊 Gastos por Categoría

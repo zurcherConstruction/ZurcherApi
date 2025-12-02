@@ -1520,9 +1520,10 @@ const downloadMaintenancePDF = async (req, res) => {
       console.log(`⚠️ Generando PDF de visita en progreso (status: ${visit.status})`);
     }
 
-    // Generar el PDF
+    // Generar el PDF (acepta ?lang=en|es)
     const visitJSON = visit.toJSON();
-    const pdfPath = await generateMaintenancePDF(visitJSON);
+    const lang = (req.query.lang || 'es').toString();
+    const pdfPath = await generateMaintenancePDF(visitJSON, lang);
 
     // Verificar que el archivo existe
     if (!fs.existsSync(pdfPath)) {
@@ -1531,7 +1532,10 @@ const downloadMaintenancePDF = async (req, res) => {
     }
 
     // Enviar el archivo
-    const fileName = `maintenance_visit_${visit.visit_number || visitId}.pdf`;
+    // Nombre de archivo más descriptivo y localizado
+    const safeAddress = (visit.work?.propertyAddress || 'unknown').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const prefix = lang === 'es' ? 'Mantenimiento' : 'Maintenance';
+    const fileName = `${prefix}_N${visit.visitNumber || visit.visit_number || visitId}_${safeAddress}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     
