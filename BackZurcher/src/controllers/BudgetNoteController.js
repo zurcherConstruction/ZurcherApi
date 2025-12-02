@@ -1,5 +1,6 @@
 const { BudgetNote, Budget, Staff, Notification, sequelize } = require('../data');
 const { Op } = require('sequelize');
+const { sendNotifications } = require('../utils/notifications/notificationManager');
 
 // 🔧 Helper: Extraer menciones @usuario del mensaje
 const extractMentions = (message) => {
@@ -79,7 +80,7 @@ const BudgetNoteController = {
 
       // 🔔 Crear notificaciones para usuarios mencionados
       if (mentionedStaffIds.length > 0) {
-        const author = await Staff.findByPk(staffId, { attributes: ['name'] });
+        const author = await Staff.findByPk(staffId, { attributes: ['name', 'email'] });
         const notificationPromises = mentionedStaffIds.map(mentionedId => {
           // No notificar al autor si se menciona a sí mismo
           if (mentionedId === staffId) return null;
@@ -97,6 +98,21 @@ const BudgetNoteController = {
         });
 
         await Promise.all(notificationPromises.filter(p => p !== null));
+        
+        // 📧 Enviar emails a los mencionados
+        try {
+          await sendNotifications('mentionInNote', {
+            mentionedStaffIds,
+            authorName: author?.name || 'Un usuario',
+            location: budget.propertyAddress || `Presupuesto #${budgetId}`,
+            notePreview: message.substring(0, 200),
+            noteType: 'budget_note',
+            budgetId
+          });
+        } catch (emailError) {
+          console.error('Error enviando emails de mención:', emailError);
+          // No fallar la creación de la nota si falla el email
+        }
       }
 
       // Cargar la nota con el autor para devolverla completa

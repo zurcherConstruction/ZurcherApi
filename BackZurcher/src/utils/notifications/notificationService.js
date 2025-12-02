@@ -7,11 +7,11 @@ const { Op } = require('sequelize'); // Asegúrate de importar Op para usar oper
 // Mapeo de estados a roles y mensajes
 const stateNotificationMap = {
   initial_inspection_approved: {
-    roles: ['admin', 'owner'],
+    roles: ['owner'],
     message: (work, context) => `El trabajo con dirección ${work.propertyAddress} ha sido aprobado en la inspección inicial (registro rápido). Inspección ID: ${context?.inspectionId || 'N/A'}.`,
   },
   initial_inspection_rejected: {
-    roles: ['admin', 'owner', 'worker'],
+    roles: ['owner'],
     message: (work, context) => {
       let msg = `El trabajo con dirección ${work.propertyAddress} ha sido rechazado en la inspección inicial (registro rápido).`;
       if (context?.inspectionId) msg += `\nInspección ID: ${context.inspectionId}`;
@@ -21,11 +21,11 @@ const stateNotificationMap = {
     },
   },
   final_inspection_approved_maintenance: {
-    roles: ['admin', 'owner'],
+    roles: ['owner'],
     message: (work, context) => `El trabajo con dirección ${work.propertyAddress} ha sido aprobado en la inspección final (registro rápido) y pasa a mantenimiento. Inspección ID: ${context?.inspectionId || 'N/A'}.`,
   },
   final_inspection_rejected: {
-    roles: ['admin', 'owner'],
+    roles: ['owner'],
     message: (work, context) => `El trabajo con dirección ${work.propertyAddress} ha sido rechazado en la inspección final (registro rápido). Inspección ID: ${context?.inspectionId || 'N/A'}. Notas: ${context?.notes || 'Sin notas.'}`,
   },
   pending: {
@@ -83,7 +83,7 @@ const stateNotificationMap = {
   }
 },
   inProgress: {
-    roles: ['worker', 'owner'], 
+    roles: ['owner'], 
         message: (work) => {
           let startDateFormatted = 'fecha no definida';
           if (work?.startDate && /^\d{4}-\d{2}-\d{2}$/.test(work.startDate)) {
@@ -100,15 +100,15 @@ const stateNotificationMap = {
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido instalado. Por favor, solicita la primera inspección.`,
   },
   firstInspectionPending: {
-    roles: [ 'admin', 'owner'], 
+    roles: [ 'owner'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} está pendiente de la primera inspección. Esperando respuesta del inspector.`,
   },
   approvedInspection: {
-    roles: [ 'admin','owner'], 
+    roles: ['owner'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha pasado la inspección inicial. Por favor, procede con las tareas asignadas.`,
   },
   rejectedInspection: {
-    roles: ['admin','owner'], 
+    roles: ['owner'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido rechazado en la inspección inicial. Por favor, revisa los detalles y toma las medidas necesarias.`,
   },
   initial_correction_ready: {
@@ -120,7 +120,7 @@ const stateNotificationMap = {
     message: (work, context) => `El trabajador ha marcado las correcciones como realizadas para la inspección final rechazada en ${work.propertyAddress}. Por favor, solicita la reinspección final. Inspección ID: ${context?.inspectionId || 'N/A'}.`,
   },
    reinspection_initial_requested: { // Added new status
-    roles: ['admin', 'owner'], // Define appropriate roles
+    roles: ['owner'], // Define appropriate roles
     message: (work, context) => `Se ha solicitado una reinspección inicial para la obra en ${work.propertyAddress}. Inspección ID: ${context?.inspectionId || 'N/A'}.`,
   },
   completed: {
@@ -128,7 +128,7 @@ const stateNotificationMap = {
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido completado. Por favor, revisa el estado final.`,
   },
   coverPending: {
-    roles: ['owner', 'worker', 'admin'], 
+    roles: ['owner'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} esta listo para ser tapado.`,
   },
   covered: {
@@ -136,27 +136,27 @@ const stateNotificationMap = {
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido Tapado. Por favor, revisa los detalles y envía el Invoice Final.`,
   },
   invoiceFinal: {
-    roles: ['owner', 'admin'], // Finance debe saber cuando se envía factura final
+    roles: ['owner'], // Finance debe saber cuando se envía factura final
     message: (work) => `El Invoice final del trabajo con dirección ${work.propertyAddress} ha sido enviada al cliente. Esperando pago.`,
   },
   finalInspectionPending: {
-    roles: ['admin', 'owner'], 
+    roles: ['owner'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} está pendiente de la inspección final. Por favor, coordina con el inspector.`,
   },
   finalApproved: {
-    roles: ['owner',  'admin'], 
+    roles: ['owner'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido aprobado en la inspección final. El proyecto está completo.`,
   },
   finalRejected: {
-    roles: ['admin', 'owner'], 
+    roles: ['owner'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido rechazado en la inspección final. Por favor, revisa los detalles.`,
   },
     reinspection_final_requested: { // Added new status
-    roles: ['admin', 'owner'], // Define appropriate roles
+    roles: ['owner'], // Define appropriate roles
     message: (work, context) => `Se ha solicitado una reinspección final para la obra en ${work.propertyAddress}. Inspección ID: ${context?.inspectionId || 'N/A'}.`,
   },
   maintenance: {
-    roles: ['owner', 'admin'], 
+    roles: ['owner'], 
     message: (work) => `El trabajo con dirección ${work.propertyAddress} está en mantenimiento. Por favor, realiza las tareas asignadas.`,
   },
   budgetCreated: {
@@ -181,7 +181,7 @@ const stateNotificationMap = {
       const addr = data?.propertyAddress || data?.address || 'Dirección desconocida';
       const applicantName = data?.applicantName || data?.applicant || 'solicitante';
       const applicantEmail = data?.applicantEmail || data?.applicantEmailAddress || 'N/A';
-      return `El presupuesto #${id} para la dirección ${addr} ha sido enviado a ${applicantName} (${applicantEmail}) para su firma digital a través de SignNow.`;
+      return `El presupuesto #${id} para la dirección ${addr} ha sido enviado a ${applicantName} (${applicantEmail}) para su firma digital.`;
     }
   },
   
@@ -204,7 +204,7 @@ const stateNotificationMap = {
   },
   
   budgetApprovedByClient: {
-    roles: ['admin', 'owner', 'finance'], // Solo finance, NO finance-viewer
+    roles: ['admin', 'owner'], // ✅ MANTENER admin - CRÍTICO saber cuando cliente aprueba
     message: (data) => {
       const id = data?.idBudget || 'N/A';
       const addr = data?.propertyAddress || 'Dirección desconocida';
@@ -225,7 +225,7 @@ const stateNotificationMap = {
   },
   
   incomeCreated: {
-    roles: ['owner', 'finance'], // Solo finance, NO finance-viewer
+    roles: ['owner', 'finance', 'admin'], // Solo finance, NO finance-viewer
     // 'income' ahora tiene las propiedades extra añadidas
     message: (income) => {
       const paymentReceived = parseFloat(income.amount || 0);
@@ -247,7 +247,7 @@ const stateNotificationMap = {
   
   // ✅ NUEVAS NOTIFICACIONES FINANCIERAS
   expenseCreated: {
-    roles: ['owner', 'finance'], // Solo finance, NO finance-viewer
+    roles: ['owner', 'finance'], // Admin NO necesita cada gasto
     message: (expense) => {
       const amount = parseFloat(expense.amount || 0);
       const expenseType = expense.typeExpense || 'Gasto';
@@ -279,7 +279,7 @@ const stateNotificationMap = {
   },
   
   incomeRegistered: {
-    roles: ['owner', 'finance'], // Solo finance, NO finance-viewer
+    roles: ['admin', 'owner', 'finance'], // ✅ Admin recibe todos los ingresos (incluye pagos finales)
     message: (income) => {
       const amount = parseFloat(income.amount || 0);
       const incomeType = income.typeIncome || 'Ingreso';
@@ -344,7 +344,7 @@ const stateNotificationMap = {
   },
   // ------------------ Estados faltantes agregados ------------------
   final_invoice_received: {
-    roles: ['admin', 'owner'],
+    roles: ['owner'],
     message: (work, context) => {
       const invoiceUrl = context?.invoiceUrl || context?.invoiceFromInspectorUrl || 'Sin URL';
       return `Se recibió la factura del inspector para la obra en ${work?.propertyAddress || 'Dirección desconocida'}. Inspección ID: ${context?.inspectionId || 'N/A'}. URL: ${invoiceUrl}`;
@@ -380,6 +380,113 @@ const stateNotificationMap = {
     },
     message: (data) => data?.message || 'Mensaje personalizado',
   },
+  
+  // 🆕 NOTIFICACIÓN CUANDO ALGUIEN ES MENCIONADO EN UNA NOTA
+  mentionInNote: {
+    roles: [], // Se define mediante getStaff
+    getStaff: async (data) => {
+      // data debe contener: { mentionedStaffIds: [...] }
+      if (!data?.mentionedStaffIds || data.mentionedStaffIds.length === 0) {
+        return [];
+      }
+      
+      // Buscar staff por IDs mencionados
+      const staff = await Staff.findAll({
+        where: {
+          id: data.mentionedStaffIds,
+          email: { [Op.ne]: null }
+        },
+        attributes: ['id', 'email', 'name', 'role']
+      });
+      
+      return staff;
+    },
+    message: (data) => {
+      const authorName = data?.authorName || 'Alguien';
+      const location = data?.location || 'un proyecto';
+      const notePreview = data?.notePreview || '';
+      const noteType = data?.noteType || 'nota';
+      
+      return `${authorName} te mencionó en ${noteType === 'budget_note' ? 'un seguimiento de presupuesto' : 'un seguimiento de obra'} para ${location}:\n\n"${notePreview}"`;
+    },
+    subject: (data) => {
+      const authorName = data?.authorName || 'Alguien';
+      return `${authorName} te mencionó en un seguimiento`;
+    },
+    // 🎨 Formato HTML personalizado para emails de menciones
+    htmlTemplate: (data) => {
+      const authorName = data?.authorName || 'Alguien';
+      const location = data?.location || 'un proyecto';
+      const notePreview = data?.notePreview || '';
+      const noteType = data?.noteType || 'nota';
+      const typeLabel = noteType === 'budget_note' ? '💰 Budget' : '🏠 Work';
+      
+      return `
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8f9fa;">
+          <!-- Header -->
+          <div style="background: linear-gradient(135deg, #1e90ff 0%, #0066cc 100%); padding: 30px 20px; text-align: center; border-radius: 8px 8px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 600;">
+              👋 Te han mencionado
+            </h1>
+          </div>
+          
+          <!-- Content -->
+          <div style="background: white; padding: 30px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <!-- Author Info -->
+            <div style="margin-bottom: 25px;">
+              <div style="display: inline-block; background: #e3f2fd; padding: 10px 20px; border-radius: 20px; margin-bottom: 15px;">
+                <span style="color: #1e90ff; font-weight: 600; font-size: 16px;">👤 ${authorName}</span>
+              </div>
+              <p style="color: #6c757d; margin: 5px 0; font-size: 14px;">
+                te mencionó en ${noteType === 'budget_note' ? 'un seguimiento de budget' : 'un seguimiento de work'}
+              </p>
+            </div>
+            
+            <!-- Project Location -->
+            <div style="background: #f8f9fa; border-left: 4px solid #1e90ff; padding: 15px 20px; margin-bottom: 25px; border-radius: 4px;">
+              <div style="display: flex; align-items: center;">
+                <span style="font-size: 20px; margin-right: 10px;">${typeLabel}</span>
+                <span style="color: #495057; font-weight: 600; font-size: 15px;">${location}</span>
+              </div>
+            </div>
+            
+            <!-- Note Preview -->
+            <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border: 2px solid #1e90ff; border-radius: 12px; padding: 20px; margin-bottom: 25px; position: relative;">
+              <div style="position: absolute; top: -12px; left: 20px; background: white; padding: 0 10px;">
+                <span style="color: #1e90ff; font-weight: 600; font-size: 12px; text-transform: uppercase;">Mensaje</span>
+              </div>
+              <div style="margin-top: 8px;">
+                <p style="color: #495057; font-size: 15px; line-height: 1.6; margin: 0; font-style: italic;">
+                  "${notePreview}"
+                </p>
+              </div>
+            </div>
+            
+            <!-- Action Button -->
+            <div style="text-align: center; margin-top: 30px;">
+              <a href="https://www.zurcherseptic.com" 
+                 style="display: inline-block; background: linear-gradient(135deg, #1e90ff 0%, #0066cc 100%); color: white; padding: 14px 35px; text-decoration: none; border-radius: 25px; font-weight: 600; font-size: 15px; box-shadow: 0 4px 15px rgba(30, 144, 255, 0.4); transition: all 0.3s;">
+                📱 Ver en la App
+              </a>
+            </div>
+            
+            <!-- Footer Note -->
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef;">
+              <p style="color: #6c757d; font-size: 13px; margin: 0; text-align: center;">
+                💡 <strong>Tip:</strong> Responde directamente desde la app para mantener la conversación
+              </p>
+            </div>
+          </div>
+          
+          <!-- Email Footer -->
+          <div style="text-align: center; padding: 20px; color: #6c757d; font-size: 12px;">
+            <p style="margin: 5px 0;">Zurcher Construction</p>
+            <p style="margin: 5px 0;">Sistema de Gestión de Proyectos</p>
+          </div>
+        </div>
+      `;
+    }
+  },
 };
 
 // Función para obtener los empleados a notificar y el mensaje
@@ -398,6 +505,11 @@ const getNotificationDetails = async (status, work, context = {}) => {
 
   const subject = notificationConfig.subject
     ? (typeof notificationConfig.subject === 'function' ? notificationConfig.subject(work, context) : notificationConfig.subject)
+    : null;
+
+  // 🎨 Obtener template HTML personalizado si existe
+  const htmlTemplate = notificationConfig.htmlTemplate
+    ? (typeof notificationConfig.htmlTemplate === 'function' ? notificationConfig.htmlTemplate : null)
     : null;
 
   // 1) Obtener candidatas/os desde getStaff si existe, sino por roles desde la tabla Staff
@@ -437,7 +549,7 @@ const getNotificationDetails = async (status, work, context = {}) => {
 
   const staffToNotify = Array.from(byEmail.values());
 
-  return { staffToNotify, message, subject };
+  return { staffToNotify, message, subject, htmlTemplate };
 };
 
 module.exports = { getNotificationDetails };
