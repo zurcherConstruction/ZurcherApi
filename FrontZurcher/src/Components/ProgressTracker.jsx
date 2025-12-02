@@ -1,11 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorks } from "../Redux/Actions/workActions"; // Acción para obtener los works
-import { fetchChecklistByWorkId } from "../Redux/Actions/checklistActions"; // 🆕 Acción Redux
 import { Link } from "react-router-dom";
 import { ExclamationTriangleIcon } from '@heroicons/react/24/solid'; // Importar el ícono
-import useAutoRefresh from "../utils/useAutoRefresh";
-import WorkChecklistModal from "./Works/WorkChecklistModal"; // 🆕 Modal de checklist
 
 const etapas = [
   { backend: "assigned", display: "Purchase in Progress", order: 0 },
@@ -21,69 +18,31 @@ const etapas = [
 const ProgressTracker = () => {
   const dispatch = useDispatch();
   const { works, loading, error } = useSelector((state) => state.work);
-  const { checklists } = useSelector((state) => state.checklist); // 🆕 Desde Redux
   const [search, setSearch] = useState("");
   const [filteredData, setFilteredData] = useState([]);
-  const [selectedWork, setSelectedWork] = useState(null); // 🆕 Work seleccionado para modal
-  const [showChecklistModal, setShowChecklistModal] = useState(false); // 🆕 Estado del modal
+  const hasFetched = useRef(false); // 🆕 Prevenir fetch duplicado
 
+  // ✅ Fetch inicial solo una vez
   useEffect(() => {
-    dispatch(fetchWorks());
-  }, [dispatch]);
-
-  // Refresco automático cada 5 min
-  useAutoRefresh(fetchWorks, 300000, []);
-
-  // 🆕 Cargar checklist individual usando Redux (lazy loading)
-  const loadSingleChecklist = async (workId) => {
-    try {
-      await dispatch(fetchChecklistByWorkId(workId));
-    } catch (error) {
-      console.error(`Error loading checklist for ${workId}:`, error);
+    if (!hasFetched.current) {
+      console.log('📊 [ProgressTracker] Cargando works inicial...');
+      hasFetched.current = true;
+      dispatch(fetchWorks());
     }
-  };
+  }, []); // Sin dependencias para que solo se ejecute al montar
 
-  // 🆕 Abrir modal de checklist
-  const handleOpenChecklist = async (work, e) => {
-    e.preventDefault(); // Prevenir navegación del Link
-    e.stopPropagation();
-    setSelectedWork(work);
-    setShowChecklistModal(true);
-    
-    // 🆕 Cargar checklist solo si no existe aún en Redux store
-    if (!checklists[work.idWork]) {
-      await loadSingleChecklist(work.idWork);
-    }
-  };
+  // ✅ Refresco automático cada 5 min
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      console.log('🔄 [ProgressTracker] Auto-refresh works...');
+      dispatch(fetchWorks());
+    }, 300000); // 5 minutos
 
-  // 🆕 Callback cuando se actualiza el checklist en el modal
-  // Ya no es necesario porque Redux actualiza automáticamente el estado
-  const handleChecklistUpdate = () => {
-    // El checklist se actualiza automáticamente en Redux store
-    // No necesitamos hacer nada aquí
-  };
-
-  // 🆕 Calcular progreso del checklist
-  const getChecklistProgress = (workId) => {
-    const checklist = checklists[workId];
-    if (!checklist) return null; // 🆕 Retorna null si no se ha cargado aún
-
-    // Ordenados por flujo del proceso
-    const checkItems = [
-      'materialesInicialesUploaded',
-      'initialInspectionPaid',
-      'feeInspectionPaid',
-      'arenaExpenseReviewed',
-      'finalInvoiceSent',
-      'finalInspectionPaid'
-    ];
-
-    const completed = checkItems.filter(key => checklist[key]).length;
-    const total = checkItems.length;
-    const percentage = (completed / total) * 100;
-
-    return { completed, total, percentage, finalReviewCompleted: checklist.finalReviewCompleted };
-  };
+    return () => {
+      console.log('🛑 [ProgressTracker] Limpiando interval...');
+      clearInterval(intervalId);
+    };
+  }, []); // Sin dependencias para que el interval se mantenga estable
 
   useEffect(() => {
     if (works) {
@@ -312,51 +271,14 @@ const ProgressTracker = () => {
                   </span>
                 )}
                 
-                {/* 🆕 BADGE DE CHECKLIST */}
-                {(() => {
-                  const checklistProgress = getChecklistProgress(idWork);
-                  
-                  // 🆕 Si no se ha cargado aún, mostrar badge sin datos
-                  if (!checklistProgress) {
-                    return (
-                      <button
-                        onClick={(e) => handleOpenChecklist(work, e)}
-                        className="ml-3 px-3 py-1 text-xs font-semibold rounded-full border bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200 transition-all hover:scale-105"
-                        title="Click para ver checklist de verificación"
-                      >
-                        <span className="flex items-center">
-                          <span className="mr-1">📋</span> Ver
-                        </span>
-                      </button>
-                    );
-                  }
-
-                  const { completed, total, percentage, finalReviewCompleted } = checklistProgress;
-                  
-                  return (
-                    <button
-                      onClick={(e) => handleOpenChecklist(work, e)}
-                      className={`ml-3 px-3 py-1 text-xs font-semibold rounded-full border transition-all hover:scale-105 ${
-                        finalReviewCompleted
-                          ? 'bg-green-100 text-green-700 border-green-300 hover:bg-green-200'
-                          : percentage === 100
-                          ? 'bg-yellow-100 text-yellow-700 border-yellow-300 hover:bg-yellow-200'
-                          : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200'
-                      }`}
-                      title="Click para abrir checklist de verificación"
-                    >
-                      {finalReviewCompleted ? (
-                        <span className="flex items-center">
-                          <span className="mr-1">✅</span> OK
-                        </span>
-                      ) : (
-                        <span className="flex items-center">
-                          <span className="mr-1">📋</span> {completed}/{total}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })()}
+                {/* ✅ BADGE DE CHECKLIST - Muestra OK si finalReviewCompleted es true */}
+                {work.checklist?.finalReviewCompleted && (
+                  <span className="ml-3 px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full border border-green-300">
+                    <span className="flex items-center">
+                      <span className="mr-1">✅</span> OK
+                    </span>
+                  </span>
+                )}
               </div>
 
               {/* Mostrar alertas: Notice to Owner, presupuesto no firmado, inspección */}
@@ -457,18 +379,6 @@ const ProgressTracker = () => {
             </Link>
           );
         })}
-      
-      {/* 🆕 MODAL DE CHECKLIST */}
-      {showChecklistModal && selectedWork && (
-        <WorkChecklistModal
-          work={selectedWork}
-          onClose={() => {
-            setShowChecklistModal(false);
-            setSelectedWork(null);
-          }}
-          onUpdate={handleChecklistUpdate}
-        />
-      )}
     </div>
   );
 };

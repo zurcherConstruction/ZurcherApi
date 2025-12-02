@@ -47,8 +47,8 @@ const WorkChecklistModal = ({ work, onClose, onUpdate }) => {
     },
     {
       key: 'finalInspectionPaid',
-      label: 'Inspección Final Pagada',
-      description: 'Se pagó la inspección final'
+      label: 'Invoice Final Pagado',
+      description: 'Se pagó el invoice final'
     }
   ];
 
@@ -102,12 +102,21 @@ const WorkChecklistModal = ({ work, onClose, onUpdate }) => {
   };
 
   const handleFinalReview = async () => {
-    // Verificar que todos los items estén marcados
     const allItemsChecked = checklistItems.every(item => checklist[item.key]);
+    const currentlyCompleted = checklist.finalReviewCompleted;
     
-    if (!allItemsChecked) {
+    // Si está intentando MARCAR como OK pero no todos los items están completos
+    if (!currentlyCompleted && !allItemsChecked) {
       const confirmation = window.confirm(
-        '⚠️ No todos los items están marcados. ¿Deseas marcar como revisado de todas formas?'
+        '⚠️ No todos los items están marcados. ¿Deseas marcar como OK de todas formas?'
+      );
+      if (!confirmation) return;
+    }
+    
+    // Si está intentando DESMARCAR el OK, confirmar
+    if (currentlyCompleted) {
+      const confirmation = window.confirm(
+        '¿Estás seguro de desmarcar la revisión final OK?'
       );
       if (!confirmation) return;
     }
@@ -116,7 +125,7 @@ const WorkChecklistModal = ({ work, onClose, onUpdate }) => {
       setSaving(true);
       const updatedChecklist = await dispatch(
         updateChecklist(work.idWork, { 
-          finalReviewCompleted: !checklist.finalReviewCompleted 
+          finalReviewCompleted: !currentlyCompleted 
         })
       );
 
