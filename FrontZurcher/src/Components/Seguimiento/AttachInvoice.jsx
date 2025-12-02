@@ -752,9 +752,20 @@ const AttachReceipt = () => {
                         const paidAmount = Math.round(parseFloat(fe.paidAmount || 0) * 100) / 100;
                         const remainingAmount = Math.round((totalAmount - paidAmount) * 100) / 100;
 
+                        // 🆕 Construir etiqueta completa con toda la información relevante
+                        const label = [
+                          fe.category,
+                          fe.name,
+                          fe.description,
+                          fe.vendor
+                        ]
+                          .filter(Boolean) // Remover valores null/undefined
+                          .filter((value, index, array) => array.indexOf(value) === index) // Remover duplicados
+                          .join(' - ');
+
                         return (
                           <option key={fe.idFixedExpense} value={fe.idFixedExpense}>
-                            {fe.description || fe.name} - ${remainingAmount.toFixed(2)}
+                            {label} - ${remainingAmount.toFixed(2)}
                           </option>
                         );
                       })}
