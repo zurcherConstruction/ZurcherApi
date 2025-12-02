@@ -1,4 +1,4 @@
-const { Work, Budget, FinalInvoice, Expense, FixedExpensePayment, SupplierInvoice, BankTransaction } = require('../data');
+const { Work, Budget, FinalInvoice, Expense, FixedExpensePayment, SupplierInvoice, BankTransaction, Income } = require('../data');
 const { Sequelize, Op } = require('sequelize');
 
 /**
@@ -188,6 +188,44 @@ const FinancialDashboardController = {
         attributes: ['totalAmountPaid', 'paymentDate', 'paymentNotes', 'createdAt']
       });
 
+      // 1.3 Ingresos directos de la tabla Income
+      // Incluir todos los ingresos que NO sean automáticos (de Budget/FinalInvoice)
+      // para evitar duplicados
+      const incomeFilter = {
+        date: { [Op.gte]: MINIMUM_DATE } // Solo desde fecha mínima
+      };
+      
+      // Income usa campo 'date' en formato string YYYY-MM-DD
+      if (startDate && endDate) {
+        const effectiveStartDate = new Date(startDate) >= minimumDateObj ? startDate : MINIMUM_DATE;
+        incomeFilter.date = {
+          [Op.between]: [effectiveStartDate, endDate]
+        };
+      } else if (month && year) {
+        const monthStr = String(month).padStart(2, '0');
+        const yearMonth = `${year}-${monthStr}`;
+        const firstDayStr = `${yearMonth}-01`;
+        
+        // Si el mes es anterior a la fecha mínima, usar la fecha mínima
+        if (firstDayStr < MINIMUM_DATE) {
+          incomeFilter.date = {
+            [Op.and]: [
+              { [Op.gte]: MINIMUM_DATE },
+              { [Op.like]: `${yearMonth}%` }
+            ]
+          };
+        } else {
+          incomeFilter.date = {
+            [Op.like]: `${yearMonth}%`
+          };
+        }
+      }
+
+      const directIncomes = await Income.findAll({
+        where: incomeFilter,
+        attributes: ['amount', 'paymentMethod', 'typeIncome', 'date']
+      });
+
       // Calcular total de ingresos
       const totalInitialPayments = budgetsWithInitialPayment.reduce((sum, b) => 
         sum + parseFloat(b.paymentProofAmount || 0), 0
@@ -195,7 +233,10 @@ const FinancialDashboardController = {
       const totalFinalPayments = finalInvoicePayments.reduce((sum, inv) => 
         sum + parseFloat(inv.totalAmountPaid || 0), 0
       );
-      const totalIncome = totalInitialPayments + totalFinalPayments;
+      const totalDirectIncomes = directIncomes.reduce((sum, inc) => 
+        sum + parseFloat(inc.amount || 0), 0
+      );
+      const totalIncome = totalInitialPayments + totalFinalPayments + totalDirectIncomes;
 
       // Desglose de ingresos por método de pago
       const incomeByPaymentMethod = {};
@@ -210,6 +251,13 @@ const FinancialDashboardController = {
       finalInvoicePayments.forEach(invoice => {
         const method = invoice.paymentNotes || 'No especificado';
         const amount = parseFloat(invoice.totalAmountPaid || 0);
+        incomeByPaymentMethod[method] = (incomeByPaymentMethod[method] || 0) + amount;
+      });
+
+      // Para ingresos directos, usar el campo paymentMethod
+      directIncomes.forEach(income => {
+        const method = income.paymentMethod || 'No especificado';
+        const amount = parseFloat(income.amount || 0);
         incomeByPaymentMethod[method] = (incomeByPaymentMethod[method] || 0) + amount;
       });
 
@@ -601,6 +649,7 @@ const FinancialDashboardController = {
       console.log(`   💰 Ingresos TOTALES DEL PERÍODO: $${totalIncome.toFixed(2)}`);
       console.log(`      - Initial Payments: $${totalInitialPayments.toFixed(2)} (${budgetsWithInitialPayment.length} budgets)`);
       console.log(`      - Final Payments: $${totalFinalPayments.toFixed(2)} (${finalInvoicePayments.length} invoices)`);
+      console.log(`      - Direct Incomes: $${totalDirectIncomes.toFixed(2)} (${directIncomes.length} incomes)`);
       console.log(`   💸 Egresos TOTALES DEL PERÍODO: $${totalEgresos.toFixed(2)}`);
       console.log(`      - Gastos regulares: $${totalExpenses.toFixed(2)} (${expenses.length} expenses)`);
       console.log(`      - Gastos fijos: $${totalFixedExpenses.toFixed(2)} (${fixedExpensePayments.length} payments)`);
