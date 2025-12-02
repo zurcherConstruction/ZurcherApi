@@ -71,10 +71,10 @@ router.post('/:idWork/images',
 router.delete('/:idWork/images/:imageId', verifyToken, allowRoles(['owner', 'worker']), invalidateWorkCache, WorkController.deleteImagesFromWork);
 
 // ✅ Obtener imágenes de una obra específica (para mobile app)
-router.get('/:idWork/images', verifyToken, allowRoles(['owner', 'worker', 'admin']), WorkController.getWorkImages);
+router.get('/:idWork/images', verifyToken, allowRoles(['owner', 'worker', 'admin', 'finance', 'recept']), WorkController.getWorkImages);
 
 // Actualizar Notice to Owner y Lien
-router.put('/:idWork/notice-to-owner', verifyToken, allowRoles(['admin', 'owner', 'finance']), invalidateWorkCache, WorkController.updateNoticeToOwner);
+router.put('/:idWork/notice-to-owner', verifyToken, allowRoles(['admin', 'owner', 'finance', 'recept']), invalidateWorkCache, WorkController.updateNoticeToOwner);
 
 router.post('/:idWork/validate-status-change',verifyToken, allowRoles(['admin', 'owner']), WorkController.validateStatusChangeOnly);
 router.post('/:idWork/change-status', verifyToken, allowRoles(['admin', 'owner',]), invalidateWorkCache, WorkController.changeWorkStatus);

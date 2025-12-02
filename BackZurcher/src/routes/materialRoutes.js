@@ -9,7 +9,7 @@ const router = express.Router();
 router.post('/', verifyToken,allowRoles(['admin', 'recept', 'owner', 'maintenance', 'worker']), MaterialController.createMaterialSet);
 
 // Obtener materiales por obra (personal del hotel)
-router.get('/work/:workId', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker', 'maintenance']), MaterialController.getMaterialsByWork);
+router.get('/work/:workId', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker', 'maintenance', 'finance', 'finance-viewer']), MaterialController.getMaterialsByWork);
 
 // Actualizar un material (administradores, maintenance y workers)
 router.put('/:id', verifyToken, allowRoles(['admin', 'recept', 'owner', 'maintenance', 'worker']), MaterialController.updateMaterial);
