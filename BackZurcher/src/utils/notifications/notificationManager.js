@@ -16,7 +16,7 @@ const sendNotifications = async (status, work, budget, io, context = {}) => {
     const emailDetails = await getNotificationDetails(status, work || budget, context);
 
     if (emailDetails) {
-      const { staffToNotify, message, subject } = emailDetails;
+      const { staffToNotify, message, subject, htmlTemplate } = emailDetails;
       
       // 🛡️ Filtrar duplicados basado en envíos recientes
       const filteredStaff = filterDuplicates(staffToNotify, status, entityId);
@@ -31,52 +31,59 @@ const sendNotifications = async (status, work, budget, io, context = {}) => {
           continue;
         }
         try {
-          // Detectar si es notificación de rechazo de inspección rápida
-          const isQuickRejection = status === 'initial_inspection_rejected' && work.resultDocumentUrl;
-          const isBudgetCreated = status === 'budgetCreated' || status === 'budgetSentToSignNow';
           let htmlContent;
-          if (isQuickRejection) {
-            // Mostrar la imagen/PDF como enlace y/o vista previa si es imagen
-            const isImage = work.resultDocumentUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i);
-            htmlContent = `
-              <div style=\"font-family: Arial, sans-serif; color: #333;\">
-                <h2 style=\"color: #1a365d;\">${work.propertyAddress}</h2>
-                <p>${message.replace(work.resultDocumentUrl, '')}</p>
-                <p><strong>Documento de rechazo:</strong></p>
-                ${isImage ? `<img src=\"${work.resultDocumentUrl}\" alt=\"Documento de rechazo\" style=\"max-width:400px;max-height:400px;display:block;margin-bottom:10px;\" />` : ''}
-                <a href=\"${work.resultDocumentUrl}\" target=\"_blank\" style=\"color:#1a365d;word-break:break-all;\">${work.resultDocumentUrl}</a>
-              </div>
-            `;
-          } else if (isBudgetCreated) {
-            // Mantener el formato especial SOLO para creación/envío de presupuesto
-            htmlContent = `
-              <div style=\"font-family: Arial, sans-serif; color: #333;\">
-                <h2 style=\"color: #1a365d;\">Presupuesto listo para revisión</h2>
-                <p>${message}</p>
-                ${work.budgetLink || (work.notificationDetails && work.notificationDetails.budgetLink) ? `
-                  <a href=\"${work.budgetLink || (work.notificationDetails && work.notificationDetails.budgetLink)}\" 
-                     style=\"display:inline-block;margin:20px 0;padding:12px 24px;background:#1a365d;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;\">
-                    Ver presupuestos
-                  </a>
-                ` : ''}
-                ${work.attachments || (work.notificationDetails && work.notificationDetails.attachments) ? `<p>Adjunto encontrarás el PDF del presupuesto para revisión.</p>` : ''}
-              </div>
-            `;
+          
+          // 🎨 Si hay un template HTML personalizado, usarlo (ej: menciones en notas)
+          if (htmlTemplate && typeof htmlTemplate === 'function') {
+            htmlContent = htmlTemplate(work || budget, context);
           } else {
-            // Para todas las demás notificaciones, usar la dirección como título
-            // Si no hay dirección, usar un título genérico basado en el tipo de notificación
-            const titleText = (work || budget)?.propertyAddress || 
-                            (status === 'expenseCreated' ? 'Nuevo Gasto Registrado' :
-                             status === 'incomeRegistered' ? 'Nuevo Ingreso Registrado' :
-                             status === 'expenseUpdated' ? 'Gasto Actualizado' : 
-                             'Notificación del Sistema');
+            // Lógica existente para otros tipos de notificaciones
+            const isQuickRejection = status === 'initial_inspection_rejected' && work.resultDocumentUrl;
+            const isBudgetCreated = status === 'budgetCreated' || status === 'budgetSentToSignNow';
             
-            htmlContent = `
-              <div style=\"font-family: Arial, sans-serif; color: #333;\">
-                <h2 style=\"color: #1a365d;\">${titleText}</h2>
-                <p>${message}</p>
-              </div>
-            `;
+            if (isQuickRejection) {
+              // Mostrar la imagen/PDF como enlace y/o vista previa si es imagen
+              const isImage = work.resultDocumentUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+              htmlContent = `
+                <div style=\"font-family: Arial, sans-serif; color: #333;\">
+                  <h2 style=\"color: #1a365d;\">${work.propertyAddress}</h2>
+                  <p>${message.replace(work.resultDocumentUrl, '')}</p>
+                  <p><strong>Documento de rechazo:</strong></p>
+                  ${isImage ? `<img src=\"${work.resultDocumentUrl}\" alt=\"Documento de rechazo\" style=\"max-width:400px;max-height:400px;display:block;margin-bottom:10px;\" />` : ''}
+                  <a href=\"${work.resultDocumentUrl}\" target=\"_blank\" style=\"color:#1a365d;word-break:break-all;\">${work.resultDocumentUrl}</a>
+                </div>
+              `;
+            } else if (isBudgetCreated) {
+              // Mantener el formato especial SOLO para creación/envío de presupuesto
+              htmlContent = `
+                <div style=\"font-family: Arial, sans-serif; color: #333;\">
+                  <h2 style=\"color: #1a365d;\">Presupuesto listo para revisión</h2>
+                  <p>${message}</p>
+                  ${work.budgetLink || (work.notificationDetails && work.notificationDetails.budgetLink) ? `
+                    <a href=\"${work.budgetLink || (work.notificationDetails && work.notificationDetails.budgetLink)}\" 
+                       style=\"display:inline-block;margin:20px 0;padding:12px 24px;background:#1a365d;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;\">
+                      Ver presupuestos
+                    </a>
+                  ` : ''}
+                  ${work.attachments || (work.notificationDetails && work.notificationDetails.attachments) ? `<p>Adjunto encontrarás el PDF del presupuesto para revisión.</p>` : ''}
+                </div>
+              `;
+            } else {
+              // Para todas las demás notificaciones, usar la dirección como título
+              // Si no hay dirección, usar un título genérico basado en el tipo de notificación
+              const titleText = (work || budget)?.propertyAddress || 
+                              (status === 'expenseCreated' ? 'Nuevo Gasto Registrado' :
+                               status === 'incomeRegistered' ? 'Nuevo Ingreso Registrado' :
+                               status === 'expenseUpdated' ? 'Gasto Actualizado' : 
+                               'Notificación del Sistema');
+              
+              htmlContent = `
+                <div style=\"font-family: Arial, sans-serif; color: #333;\">
+                  <h2 style=\"color: #1a365d;\">${titleText}</h2>
+                  <p>${message}</p>
+                </div>
+              `;
+            }
           }
           
           // Generar asunto del correo
