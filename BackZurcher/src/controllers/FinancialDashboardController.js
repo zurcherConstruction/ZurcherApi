@@ -15,9 +15,6 @@ const FinancialDashboardController = {
     try {
       const { startDate, endDate, month, year } = req.query;
 
-      console.log('📊 [FinancialDashboard] Generando dashboard financiero...');
-      console.log('   Filtros:', { startDate, endDate, month, year });
-
       // 🚨 FECHA MÍNIMA: Solo contar transacciones desde el 1 de diciembre 2025 en adelante
       // Antes de esta fecha hay datos con lógica incorrecta (tarjetas marcadas como paid)
       const MINIMUM_DATE = '2025-12-01';
@@ -62,8 +59,6 @@ const FinancialDashboardController = {
         };
         filterDescription = `Desde ${MINIMUM_DATE} en adelante (datos reales)`;
       }
-      
-      console.log('   📅 Filtro aplicado:', filterDescription);
 
       // =============================================================
       // 1. INGRESOS (Accounts Receivable)
@@ -379,15 +374,6 @@ const FinancialDashboardController = {
         attributes: ['amount', 'paymentMethod', 'paymentDate']
       });
 
-      console.log(`   💸 Pagos de gastos fijos encontrados: ${fixedExpensePayments.length} payments`);
-      if (fixedExpensePayments.length > 0) {
-        console.log(`      Primeros 3:`, fixedExpensePayments.slice(0, 3).map(p => ({
-          amount: p.amount,
-          method: p.paymentMethod,
-          date: p.paymentDate
-        })));
-      }
-
       const totalFixedExpenses = fixedExpensePayments.reduce((sum, fe) => 
         sum + parseFloat(fe.amount || 0), 0
       );
@@ -476,8 +462,6 @@ const FinancialDashboardController = {
         attributes: ['paidAmount', 'paymentMethod', 'paymentDate', 'createdAt']
       });
 
-      console.log(`   💸 Facturas de proveedores encontradas: ${supplierExpenses.length} invoices`);
-
       const totalSupplierExpenses = supplierExpenses.reduce((sum, se) => 
         sum + parseFloat(se.paidAmount || 0), 0
       );
@@ -563,8 +547,6 @@ const FinancialDashboardController = {
         attributes: ['amount', 'date', 'description']
       });
 
-      console.log(`   💸 Pagos de tarjetas encontrados: ${creditCardPayments.length} payments`);
-
       const totalCreditCardPayments = creditCardPayments.reduce((sum, p) => 
         sum + parseFloat(p.amount || 0), 0
       );
@@ -643,20 +625,6 @@ const FinancialDashboardController = {
           creditCardPaymentsCount: creditCardPayments.length
         }
       };
-
-      console.log('✅ [FinancialDashboard] Dashboard generado exitosamente');
-      console.log(`   📅 Período: ${filterDescription}`);
-      console.log(`   💰 Ingresos TOTALES DEL PERÍODO: $${totalIncome.toFixed(2)}`);
-      console.log(`      - Initial Payments: $${totalInitialPayments.toFixed(2)} (${budgetsWithInitialPayment.length} budgets)`);
-      console.log(`      - Final Payments: $${totalFinalPayments.toFixed(2)} (${finalInvoicePayments.length} invoices)`);
-      console.log(`      - Direct Incomes: $${totalDirectIncomes.toFixed(2)} (${directIncomes.length} incomes)`);
-      console.log(`   💸 Egresos TOTALES DEL PERÍODO: $${totalEgresos.toFixed(2)}`);
-      console.log(`      - Gastos regulares: $${totalExpenses.toFixed(2)} (${expenses.length} expenses)`);
-      console.log(`      - Gastos fijos: $${totalFixedExpenses.toFixed(2)} (${fixedExpensePayments.length} payments)`);
-      console.log(`      - Facturas proveedores: $${totalSupplierExpenses.toFixed(2)} (${supplierExpenses.length} invoices)`);
-      console.log(`      - Comisiones: $${totalCommissions.toFixed(2)} (${paidCommissions.length} commissions)`);
-      console.log(`      - Pagos tarjetas: $${totalCreditCardPayments.toFixed(2)} (${creditCardPayments.length} payments)`);
-      console.log(`   📊 Balance del período: $${balanceNeto.toFixed(2)}`);
 
       res.json(response);
 
