@@ -61,131 +61,9 @@ const FinancialDashboardController = {
       }
 
       // =============================================================
-      // 1. INGRESOS (Accounts Receivable)
+      // 1. INGRESOS (Usar SOLO la tabla Income como fuente única de verdad)
       // =============================================================
       
-      // 1.1 Initial Payments de Budgets (solo los que tienen comprobante de pago - paymentProofAmount)
-      const initialPaymentsFilter = {
-        paymentProofAmount: { [Op.gt]: 0 }, // Solo contar pagos con comprobante
-        date: { [Op.gte]: MINIMUM_DATE } // Solo desde fecha mínima
-      };
-      
-      // Para Budgets usamos el campo 'date' en formato YYYY-MM-DD
-      if (startDate && endDate) {
-        const effectiveStartDate = new Date(startDate) >= minimumDateObj ? startDate : MINIMUM_DATE;
-        initialPaymentsFilter.date = {
-          [Op.between]: [effectiveStartDate, endDate]
-        };
-      } else if (month && year) {
-        const monthStr = String(month).padStart(2, '0');
-        const yearMonth = `${year}-${monthStr}`;
-        const firstDayStr = `${yearMonth}-01`;
-        
-        // Si el mes es anterior a la fecha mínima, usar la fecha mínima
-        if (firstDayStr < MINIMUM_DATE) {
-          initialPaymentsFilter.date = {
-            [Op.and]: [
-              { [Op.gte]: MINIMUM_DATE },
-              { [Op.like]: `${yearMonth}%` }
-            ]
-          };
-        } else {
-          initialPaymentsFilter.date = {
-            [Op.like]: `${yearMonth}%`
-          };
-        }
-      }
-
-      const budgetsWithInitialPayment = await Budget.findAll({
-        where: initialPaymentsFilter,
-        attributes: ['paymentProofAmount', 'paymentProofMethod', 'date']
-      });
-
-      // 1.2 Final Payments de Final Invoices
-      const finalPaymentsFilter = {
-        [Op.and]: [
-          {
-            [Op.or]: [
-              { status: 'paid' },
-              { totalAmountPaid: { [Op.gt]: 0 } }
-            ]
-          }
-        ]
-      };
-      
-      // Para Final Invoices, filtramos por paymentDate si existe, sino por createdAt
-      if (startDate && endDate) {
-        const effectiveStartDate = new Date(startDate) >= minimumDateObj ? startDate : MINIMUM_DATE;
-        const start = new Date(effectiveStartDate);
-        const end = new Date(endDate + 'T23:59:59');
-        
-        finalPaymentsFilter[Op.and].push({
-          [Op.or]: [
-            {
-              paymentDate: {
-                [Op.between]: [effectiveStartDate, endDate]
-              }
-            },
-            {
-              paymentDate: null,
-              createdAt: {
-                [Op.between]: [start, end]
-              }
-            }
-          ]
-        });
-      } else if (month && year) {
-        let firstDay = new Date(year, month - 1, 1);
-        const lastDay = new Date(year, month, 0, 23, 59, 59);
-        const monthStr = String(month).padStart(2, '0');
-        let firstDayStr = `${year}-${monthStr}-01`;
-        const lastDayOfMonth = new Date(year, month, 0).getDate();
-        const lastDayStr = `${year}-${monthStr}-${lastDayOfMonth}`;
-        
-        // Si el mes es anterior a la fecha mínima, ajustar
-        if (firstDay < minimumDateObj) {
-          firstDay = minimumDateObj;
-          firstDayStr = MINIMUM_DATE;
-        }
-        
-        finalPaymentsFilter[Op.and].push({
-          [Op.or]: [
-            {
-              paymentDate: {
-                [Op.between]: [firstDayStr, lastDayStr]
-              }
-            },
-            {
-              paymentDate: null,
-              createdAt: {
-                [Op.between]: [firstDay, lastDay]
-              }
-            }
-          ]
-        });
-      } else {
-        // Sin filtros de mes/año, aplicar solo fecha mínima
-        finalPaymentsFilter[Op.and].push({
-          [Op.or]: [
-            {
-              paymentDate: { [Op.gte]: MINIMUM_DATE }
-            },
-            {
-              paymentDate: null,
-              createdAt: { [Op.gte]: minimumDateObj }
-            }
-          ]
-        });
-      }
-
-      const finalInvoicePayments = await FinalInvoice.findAll({
-        where: finalPaymentsFilter,
-        attributes: ['totalAmountPaid', 'paymentDate', 'paymentNotes', 'createdAt']
-      });
-
-      // 1.3 Ingresos directos de la tabla Income
-      // Incluir todos los ingresos que NO sean automáticos (de Budget/FinalInvoice)
-      // para evitar duplicados
       const incomeFilter = {
         date: { [Op.gte]: MINIMUM_DATE } // Solo desde fecha mínima
       };
@@ -216,41 +94,30 @@ const FinancialDashboardController = {
         }
       }
 
-      const directIncomes = await Income.findAll({
+      const allIncomes = await Income.findAll({
         where: incomeFilter,
         attributes: ['amount', 'paymentMethod', 'typeIncome', 'date']
       });
 
       // Calcular total de ingresos
-      const totalInitialPayments = budgetsWithInitialPayment.reduce((sum, b) => 
-        sum + parseFloat(b.paymentProofAmount || 0), 0
-      );
-      const totalFinalPayments = finalInvoicePayments.reduce((sum, inv) => 
-        sum + parseFloat(inv.totalAmountPaid || 0), 0
-      );
-      const totalDirectIncomes = directIncomes.reduce((sum, inc) => 
+      const totalIncome = allIncomes.reduce((sum, inc) => 
         sum + parseFloat(inc.amount || 0), 0
       );
-      const totalIncome = totalInitialPayments + totalFinalPayments + totalDirectIncomes;
+
+      // Contar por tipo
+      const initialPaymentsCount = allIncomes.filter(inc => inc.typeIncome === 'Factura Pago Inicial Budget').length;
+      const finalPaymentsCount = allIncomes.filter(inc => inc.typeIncome === 'Factura Pago Final Budget').length;
+      const totalInitialPayments = allIncomes
+        .filter(inc => inc.typeIncome === 'Factura Pago Inicial Budget')
+        .reduce((sum, inc) => sum + parseFloat(inc.amount || 0), 0);
+      const totalFinalPayments = allIncomes
+        .filter(inc => inc.typeIncome === 'Factura Pago Final Budget')
+        .reduce((sum, inc) => sum + parseFloat(inc.amount || 0), 0);
 
       // Desglose de ingresos por método de pago
       const incomeByPaymentMethod = {};
       
-      budgetsWithInitialPayment.forEach(budget => {
-        const method = budget.paymentProofMethod || 'No especificado';
-        const amount = parseFloat(budget.paymentProofAmount || 0);
-        incomeByPaymentMethod[method] = (incomeByPaymentMethod[method] || 0) + amount;
-      });
-
-      // Para final invoices, extraemos método de paymentNotes si está disponible
-      finalInvoicePayments.forEach(invoice => {
-        const method = invoice.paymentNotes || 'No especificado';
-        const amount = parseFloat(invoice.totalAmountPaid || 0);
-        incomeByPaymentMethod[method] = (incomeByPaymentMethod[method] || 0) + amount;
-      });
-
-      // Para ingresos directos, usar el campo paymentMethod
-      directIncomes.forEach(income => {
+      allIncomes.forEach(income => {
         const method = income.paymentMethod || 'No especificado';
         const amount = parseFloat(income.amount || 0);
         incomeByPaymentMethod[method] = (incomeByPaymentMethod[method] || 0) + amount;
@@ -310,25 +177,6 @@ const FinancialDashboardController = {
         where: expensesFilter,
         attributes: ['amount', 'typeExpense', 'paymentMethod', 'date', 'paymentStatus', 'relatedFixedExpenseId', 'supplierInvoiceItemId']
       });
-
-      console.log(`   💸 Gastos regulares encontrados: ${expenses.length} expenses`);
-      if (expenses.length > 0) {
-        console.log(`      Primeros 3:`, expenses.slice(0, 3).map(e => ({
-          amount: e.amount,
-          type: e.typeExpense,
-          date: e.date,
-          status: e.paymentStatus,
-          method: e.paymentMethod
-        })));
-        
-        // Mostrar resumen por método de pago para verificar
-        const byMethod = {};
-        expenses.forEach(e => {
-          const method = e.paymentMethod || 'No especificado';
-          byMethod[method] = (byMethod[method] || 0) + parseFloat(e.amount || 0);
-        });
-        console.log(`      Resumen por método:`, byMethod);
-      }
 
       const totalExpenses = expenses.reduce((sum, exp) => 
         sum + parseFloat(exp.amount || 0), 0
@@ -616,8 +464,8 @@ const FinancialDashboardController = {
           amount: parseFloat(amount.toFixed(2))
         })),
         counts: {
-          initialPaymentsCount: budgetsWithInitialPayment.length,
-          finalPaymentsCount: finalInvoicePayments.length,
+          initialPaymentsCount,
+          finalPaymentsCount,
           expensesCount: expenses.length,
           fixedExpensesCount: fixedExpensePayments.length,
           supplierExpensesCount: supplierExpenses.length,
