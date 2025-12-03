@@ -82,6 +82,32 @@ const createDeposit = async (req, res) => {
     const newBalance = parseFloat(account.currentBalance) + parseFloat(amount);
     await account.update({ currentBalance: newBalance }, { transaction });
 
+    // Crear Income si la categoría es 'income' y no hay relatedIncomeId
+    let incomeId = relatedIncomeId;
+    if (category === 'income' && !relatedIncomeId) {
+      // Mapear accountName a paymentMethod válido en Income
+      const accountToPaymentMethod = {
+        'Caja Chica': 'Efectivo',
+        'Chase Bank': 'Chase Bank',
+        'Proyecto Septic BOFA': 'Proyecto Septic BOFA'
+      };
+      
+      const paymentMethod = accountToPaymentMethod[account.accountName] || 'Otro';
+      
+      const newIncome = await Income.create({
+        amount: parseFloat(amount),
+        date,
+        description: description || 'Depósito manual',
+        paymentMethod,
+        typeIncome: 'Comprobante Ingreso',
+        notes,
+        createdByStaffId
+      }, { transaction });
+      
+      incomeId = newIncome.idIncome;
+      console.log(`💰 Income auto-creado: ${newIncome.idIncome}`);
+    }
+
     // Crear transacción
     const bankTransaction = await BankTransaction.create({
       bankAccountId,
@@ -91,7 +117,7 @@ const createDeposit = async (req, res) => {
       description: description || 'Depósito',
       category,
       balanceAfter: newBalance,
-      relatedIncomeId,
+      relatedIncomeId: incomeId,
       notes,
       createdByStaffId
     }, { transaction });

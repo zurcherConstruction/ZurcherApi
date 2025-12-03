@@ -125,15 +125,15 @@ module.exports = (sequelize) => {
       comment: 'Monto pagado del gasto (para pagos parciales, especialmente Chase Credit Card)'
     },
     
-    // 🔑 Vinculación con SupplierInvoiceItem (cuando se paga vía invoice)
+    // 🔑 Vinculación con SupplierInvoice (cuando se paga vía invoice de proveedor)
     supplierInvoiceItemId: {
       type: DataTypes.UUID,
       allowNull: true,
       references: {
-        model: 'SupplierInvoiceItems',
-        key: 'idItem'
+        model: 'SupplierInvoices',
+        key: 'idSupplierInvoice'
       },
-      
+      comment: 'Vincula el expense al invoice de proveedor para evitar doble conteo en dashboard'
     }
   });
 

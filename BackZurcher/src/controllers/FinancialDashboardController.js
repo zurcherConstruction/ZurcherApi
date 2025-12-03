@@ -1,4 +1,4 @@
-const { Work, Budget, FinalInvoice, Expense, FixedExpensePayment, SupplierInvoice, BankTransaction, Income } = require('../data');
+const { Work, Budget, FinalInvoice, Expense, FixedExpensePayment, SupplierInvoice, BankTransaction, BankAccount, Income } = require('../data');
 const { Sequelize, Op } = require('sequelize');
 
 /**
@@ -191,9 +191,13 @@ const FinancialDashboardController = {
       });
 
       // 2.2 Gastos fijos (FixedExpensePayments - solo pagos realmente efectuados)
+      // ⚠️ EXCLUIR pagos con tarjeta de crédito (son deuda, no gasto real)
       const fixedExpensesFilter = {
         amount: { [Op.gt]: 0 }, // Solo pagos con monto real
-        paymentDate: { [Op.gte]: MINIMUM_DATE } // Solo desde fecha mínima
+        paymentDate: { [Op.gte]: MINIMUM_DATE }, // Solo desde fecha mínima
+        paymentMethod: { 
+          [Op.notIn]: ['Chase Credit Card', 'AMEX'] // Excluir tarjetas de crédito
+        }
       };
       
       if (startDate && endDate) {
@@ -233,10 +237,24 @@ const FinancialDashboardController = {
       });
 
       // 2.3 Supplier Invoice Expenses (facturas de proveedores pagadas)
+      // ⚠️ EXCLUIR pagos con tarjeta de crédito (son deuda, no gasto real)
+      // También excluir transacciones internas de tarjeta (isCreditCard: true)
       const supplierExpensesFilter = {
         [Op.and]: [
           {
             paymentStatus: { [Op.in]: ['paid', 'partial'] }
+          },
+          {
+            [Op.or]: [
+              { paymentMethod: { [Op.notIn]: ['Chase Credit Card', 'AMEX'] } },
+              { paymentMethod: null }
+            ]
+          },
+          {
+            [Op.or]: [
+              { isCreditCard: false },
+              { isCreditCard: null }
+            ]
           }
         ]
       };
@@ -361,20 +379,63 @@ const FinancialDashboardController = {
         sum + parseFloat(c.commissionAmount || 0), 0
       );
 
-      // Las comisiones generalmente no tienen método de pago específico en Budget
-      // Las agregamos como "Comisión" en el desglose
-      if (totalCommissions > 0) {
-        expensesByPaymentMethod['Comisión'] = (expensesByPaymentMethod['Comisión'] || 0) + totalCommissions;
+      // Buscar BankTransactions de comisiones para agregarlos al desglose por método de pago
+      let commissionBankTransactionsFilter = {
+        description: { [Op.like]: '%Comisión:%' },
+        date: { [Op.gte]: MINIMUM_DATE }
+      };
+
+      if (startDate && endDate) {
+        const effectiveStartDate = new Date(startDate) >= minimumDateObj ? startDate : MINIMUM_DATE;
+        commissionBankTransactionsFilter.date = {
+          [Op.between]: [effectiveStartDate, endDate]
+        };
+      } else if (month && year) {
+        const monthStr = String(month).padStart(2, '0');
+        let firstDayStr = `${year}-${monthStr}-01`;
+        const lastDayOfMonth = new Date(year, month, 0).getDate();
+        const lastDayStr = `${year}-${monthStr}-${lastDayOfMonth}`;
+        
+        // Si el mes es anterior a la fecha mínima, ajustar
+        if (firstDayStr < MINIMUM_DATE) {
+          firstDayStr = MINIMUM_DATE;
+        }
+        
+        commissionBankTransactionsFilter.date = {
+          [Op.between]: [firstDayStr, lastDayStr]
+        };
       }
 
+      const commissionTransactions = await BankTransaction.findAll({
+        where: commissionBankTransactionsFilter,
+        attributes: ['amount', 'bankAccountId'],
+        include: [{
+          model: BankAccount,
+          as: 'account',
+          attributes: ['accountName']
+        }]
+      });
+
+      // Agregar comisiones al desglose por método de pago
+      commissionTransactions.forEach(transaction => {
+        const accountName = transaction.account ? transaction.account.accountName : 'No especificado';
+        const amount = Math.abs(parseFloat(transaction.amount || 0)); // Comisiones son negativas
+        expensesByPaymentMethod[accountName] = (expensesByPaymentMethod[accountName] || 0) + amount;
+      });
+
       // 2.5 Pagos de Tarjetas de Crédito (BankTransactions con relatedCreditCardPaymentId)
+      // ✅ IMPORTANTE: Los pagos de tarjeta SÍ son gastos reales
+      // Cuando pagas la tarjeta, sale dinero real de tu cuenta = GASTO REAL del período
+      // Los cargos a la tarjeta son solo DEUDA hasta que se pagan
       const creditCardPaymentsFilter = {
         transactionType: 'withdrawal',
-        relatedCreditCardPaymentId: { [Op.ne]: null }
+        relatedCreditCardPaymentId: { [Op.ne]: null },
+        date: { [Op.gte]: MINIMUM_DATE } // Solo desde fecha mínima
       };
       
       if (startDate && endDate) {
-        const start = new Date(startDate);
+        const effectiveStartDate = new Date(startDate) >= minimumDateObj ? startDate : MINIMUM_DATE;
+        const start = new Date(effectiveStartDate);
         start.setHours(0, 0, 0, 0);
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
@@ -382,9 +443,15 @@ const FinancialDashboardController = {
           [Op.between]: [start, end]
         };
       } else if (month && year) {
-        const firstDay = new Date(year, month - 1, 1);
+        let firstDay = new Date(year, month - 1, 1);
         firstDay.setHours(0, 0, 0, 0);
         const lastDay = new Date(year, month, 0, 23, 59, 59, 999);
+        
+        // Si el mes es anterior a la fecha mínima, ajustar
+        if (firstDay < minimumDateObj) {
+          firstDay = minimumDateObj;
+        }
+        
         creditCardPaymentsFilter.date = {
           [Op.between]: [firstDay, lastDay]
         };
@@ -392,20 +459,85 @@ const FinancialDashboardController = {
 
       const creditCardPayments = await BankTransaction.findAll({
         where: creditCardPaymentsFilter,
-        attributes: ['amount', 'date', 'description']
+        attributes: ['amount', 'date', 'description', 'relatedCreditCardPaymentId', 'bankAccountId'],
+        include: [{
+          model: BankAccount,
+          as: 'account',
+          attributes: ['accountName']
+        }]
       });
 
-      const totalCreditCardPayments = creditCardPayments.reduce((sum, p) => 
-        sum + parseFloat(p.amount || 0), 0
-      );
-
-      // Los pagos de tarjeta siempre salen de Chase Bank
-      if (totalCreditCardPayments > 0) {
-        expensesByPaymentMethod['Chase Bank (Pago Tarjeta)'] = (expensesByPaymentMethod['Chase Bank (Pago Tarjeta)'] || 0) + totalCreditCardPayments;
+      console.log(`💳 [Dashboard] Pagos de tarjeta encontrados: ${creditCardPayments.length}`);
+      if (creditCardPayments.length > 0) {
+        console.log('💳 [Dashboard] Detalle:', creditCardPayments.map(p => ({
+          amount: p.amount,
+          date: p.date,
+          description: p.description
+        })));
       }
 
-      // Total de egresos
+      // Separar pagos por tarjeta
+      const chasePayments = creditCardPayments.filter(p => 
+        p.description && (p.description.includes('Chase') || p.description.includes('chase'))
+      );
+      const amexPayments = creditCardPayments.filter(p => 
+        p.description && (p.description.includes('AMEX') || p.description.includes('Amex'))
+      );
+
+      const totalChasePayments = chasePayments.reduce((sum, p) => 
+        sum + parseFloat(p.amount || 0), 0
+      );
+      const totalAmexPayments = amexPayments.reduce((sum, p) => 
+        sum + parseFloat(p.amount || 0), 0
+      );
+      const totalCreditCardPayments = totalChasePayments + totalAmexPayments;
+
+      // Agregar pagos de tarjeta al desglose por método de pago (según cuenta bancaria usada)
+      creditCardPayments.forEach(payment => {
+        const accountName = payment.account ? payment.account.accountName : 'No especificado';
+        const amount = parseFloat(payment.amount || 0);
+        expensesByPaymentMethod[accountName] = (expensesByPaymentMethod[accountName] || 0) + amount;
+      });
+
+      // Total de egresos (INCLUYENDO pagos de tarjeta como gasto real)
       const totalEgresos = totalExpenses + totalFixedExpenses + totalSupplierExpenses + totalCommissions + totalCreditCardPayments;
+
+      // =============================================================
+      // 2.6 CUENTAS POR PAGAR (Tarjetas de Crédito)
+      // =============================================================
+      // Obtener balance actual de tarjetas de crédito (deuda pendiente)
+      
+      // Chase Credit Card: suma de expenses unpaid/partial
+      const chaseCardExpenses = await Expense.findAll({
+        where: {
+          paymentMethod: 'Chase Credit Card',
+          paymentStatus: { [Op.in]: ['unpaid', 'partial'] }
+        },
+        attributes: ['amount', 'paidAmount']
+      });
+      
+      const chaseCardBalance = chaseCardExpenses.reduce((sum, exp) => {
+        const total = parseFloat(exp.amount || 0);
+        const paid = parseFloat(exp.paidAmount || 0);
+        return sum + (total - paid);
+      }, 0);
+
+      // AMEX: suma de expenses unpaid/partial
+      const amexExpenses = await Expense.findAll({
+        where: {
+          paymentMethod: 'AMEX',
+          paymentStatus: { [Op.in]: ['unpaid', 'partial'] }
+        },
+        attributes: ['amount', 'paidAmount']
+      });
+      
+      const amexBalance = amexExpenses.reduce((sum, exp) => {
+        const total = parseFloat(exp.amount || 0);
+        const paid = parseFloat(exp.paidAmount || 0);
+        return sum + (total - paid);
+      }, 0);
+
+      const totalAccountsPayable = chaseCardBalance + amexBalance;
 
       // =============================================================
       // 3. BALANCE NETO
@@ -431,8 +563,9 @@ const FinancialDashboardController = {
       if (totalCommissions > 0) {
         expensesByType['Comisiones'] = totalCommissions;
       }
+      // ✅ Incluir pagos de tarjeta como gasto real (dinero que sale de la cuenta)
       if (totalCreditCardPayments > 0) {
-        expensesByType['Pagos Tarjetas Crédito'] = totalCreditCardPayments;
+        expensesByType['Pago Tarjeta Crédito'] = totalCreditCardPayments;
       }
 
       // =============================================================
@@ -449,7 +582,10 @@ const FinancialDashboardController = {
           totalFixedExpenses,
           totalSupplierExpenses,
           totalCommissions,
-          totalCreditCardPayments
+          totalCreditCardPayments, // Pagos realizados a tarjetas (INCLUIDO en totalEgresos)
+          totalChasePayments, // Pagos a Chase Credit Card
+          totalAmexPayments, // Pagos a AMEX
+          totalAccountsPayable // Deuda pendiente en tarjetas
         },
         incomeByPaymentMethod: Object.entries(incomeByPaymentMethod).map(([method, amount]) => ({
           method,
@@ -463,6 +599,13 @@ const FinancialDashboardController = {
           type,
           amount: parseFloat(amount.toFixed(2))
         })),
+        // 🆕 Nueva sección: Cuentas por Pagar (Tarjetas de Crédito)
+        accountsPayable: {
+          totalBalance: parseFloat(totalAccountsPayable.toFixed(2)),
+          chaseCardBalance: parseFloat(chaseCardBalance.toFixed(2)),
+          amexBalance: parseFloat(amexBalance.toFixed(2)),
+          paymentsMadeThisPeriod: parseFloat(totalCreditCardPayments.toFixed(2))
+        },
         counts: {
           initialPaymentsCount,
           finalPaymentsCount,

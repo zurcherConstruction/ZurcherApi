@@ -62,7 +62,7 @@ const createExpense = async (req, res) => {
 
     // 🏦 AUTO-CREAR BANK TRANSACTION SI EL PAGO ES DESDE CUENTA BANCARIA
     try {
-      await createWithdrawalTransaction({
+      const bankTransaction = await createWithdrawalTransaction({
         paymentMethod,
         amount,
         date,
@@ -72,6 +72,12 @@ const createExpense = async (req, res) => {
         createdByStaffId: staffId,
         transaction
       });
+
+      // 💰 Si se creó BankTransaction, marcar el gasto como PAGADO
+      if (bankTransaction) {
+        await newExpense.update({ paymentStatus: 'paid' }, { transaction });
+        console.log(`✅ Gasto marcado como 'paid' (BankTransaction creado)`);
+      }
     } catch (bankError) {
       console.error('❌ Error creando transacción bancaria:', bankError.message);
       // Si hay error de fondos, hacer rollback completo
