@@ -21,6 +21,7 @@ const Register = () => {
     name: "",
     address: "",
     isActive: true,
+    salesRepCommission: "",
   });
   const [editingStaff, setEditingStaff] = useState(null);
   const [idFrontImage, setIdFrontImage] = useState(null);
@@ -92,7 +93,7 @@ const Register = () => {
       } else {
         await dispatch(createStaff(dataToSend));
       }
-      setFormData({ email: "", password: "", role: "admin", phone: "", name: "", address: "", isActive: true });
+      setFormData({ email: "", password: "", role: "admin", phone: "", name: "", address: "", isActive: true, salesRepCommission: "" });
       setNewPassword("");
       setShowPassword(false);
       setShowNewPassword(false);
@@ -118,6 +119,7 @@ const Register = () => {
       name: staffMember.name,
       address: staffMember.address || "",
       isActive: staffMember.isActive,
+      salesRepCommission: staffMember.salesRepCommission || "",
     });
     setNewPassword(""); // Limpiar campo de nueva contraseña
     setShowPassword(false);
@@ -214,6 +216,26 @@ const Register = () => {
                   <option value="follow-up">Follow-up</option>
                 </select>
               </div>
+              {/* Campo de comisión - solo visible para sales_rep */}
+              {formData.role === 'sales_rep' && (
+                <div>
+                  <label htmlFor="salesRepCommission" className="block text-sm font-semibold text-gray-700 mb-2">
+                    Comisión por Work ($)
+                  </label>
+                  <input
+                    type="number"
+                    name="salesRepCommission"
+                    id="salesRepCommission"
+                    value={formData.salesRepCommission}
+                    onChange={handleInputChange}
+                    step="0.01"
+                    min="0"
+                    className="w-full border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 text-base p-2 bg-gray-50"
+                    placeholder="e.g. 500.00"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Dejar vacío para usar $500 por defecto</p>
+                </div>
+              )}
               {editingStaff && (
                 <div>
                   <label htmlFor="isActive" className="block text-sm font-semibold text-gray-700 mb-2">Status</label>

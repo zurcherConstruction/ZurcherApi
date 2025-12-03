@@ -350,7 +350,9 @@ const editableBudgets = useMemo(() => {
     // 🆕 Calcular comisión según leadSource
     let commission = 0;
     if (formData.leadSource === 'sales_rep' && formData.createdByStaffId) {
-      commission = 500; // Comisión fija de $500 para sales rep
+      // Buscar la comisión del staff seleccionado
+      const selectedStaff = staffList.find(s => s.id === formData.createdByStaffId);
+      commission = selectedStaff?.salesRepCommission || 500; // Usar comisión del staff o $500 por defecto
     } else if (formData.leadSource === 'external_referral' && externalReferralInfo.commissionAmount) {
       commission = parseFloat(externalReferralInfo.commissionAmount) || 0;
     }
@@ -377,7 +379,7 @@ const editableBudgets = useMemo(() => {
         };
       });
     }
-  }, [formData?.lineItems, formData?.discountAmount, formData?.initialPaymentPercentage, formData?.leadSource, formData?.createdByStaffId, externalReferralInfo.commissionAmount, formData?.subtotalPrice, formData?.totalPrice, formData?.initialPayment]);
+  }, [formData?.lineItems, formData?.discountAmount, formData?.initialPaymentPercentage, formData?.leadSource, formData?.createdByStaffId, externalReferralInfo.commissionAmount, formData?.subtotalPrice, formData?.totalPrice, formData?.initialPayment, staffList]);
 
   // --- Handlers ---
   const handleGeneralInputChange = (e) => {
@@ -1240,14 +1242,7 @@ const editableBudgets = useMemo(() => {
                     
                     {/* 🆕 BADGES DE ESTADO */}
                     <div className="flex gap-2">
-                      {formData.leadSource === 'sales_rep' && formData.createdByStaffId && (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 border border-indigo-300">
-                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
-                          </svg>
-                          Sales Rep ($500)
-                        </span>
-                      )}
+                   
                       {formData.leadSource === 'external_referral' && externalReferralInfo.commissionAmount && (
                         <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-300">
                           <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -1281,7 +1276,14 @@ const editableBudgets = useMemo(() => {
                             <div className="mt-1 text-sm text-gray-700">
                               <p>• <span className="font-medium">Type:</span> Internal Sales Representative</p>
                               <p>• <span className="font-medium">Assigned to:</span> {salesReps.find(r => r.id === formData.createdByStaffId)?.name || 'Loading...'}</p>
-                              <p>• <span className="font-medium">Commission:</span> $500.00 (Fixed)</p>
+                              <p>• <span className="font-medium">Commission:</span> ${(() => {
+                                const selectedStaff = staffList.find(s => s.id === formData.createdByStaffId);
+                                const commission = selectedStaff?.salesRepCommission || 500;
+                                return (typeof commission === 'number' ? commission : parseFloat(commission) || 500).toFixed(2);
+                              })()} {(() => {
+                                const selectedStaff = staffList.find(s => s.id === formData.createdByStaffId);
+                                return selectedStaff?.salesRepCommission ? '(Custom)' : '(Default)';
+                              })()}</p>
                             </div>
                           )}
                           {formData.leadSource === 'external_referral' && externalReferralInfo.name && (
@@ -1356,7 +1358,11 @@ const editableBudgets = useMemo(() => {
                         )}
                       </select>
                       <p className="text-xs text-indigo-600 mt-1 font-medium">
-                        💰 Fixed commission: $500 USD (increases client's total price)
+                        💰 Commission: ${(() => {
+                          const selectedStaff = staffList.find(s => s.id === formData.createdByStaffId);
+                          const commission = selectedStaff?.salesRepCommission || 500;
+                          return typeof commission === 'number' ? commission : parseFloat(commission) || 500;
+                        })()} USD (increases client's total price)
                       </p>
                     </div>
                   )}
@@ -1635,7 +1641,11 @@ const editableBudgets = useMemo(() => {
                   )}
                   {formData.leadSource === 'sales_rep' && formData.createdByStaffId && (
                     <p className="text-sm text-indigo-600 italic">
-                      Sales Commission (internal): <span className="font-semibold">+$500.00</span>
+                      Sales Commission (internal): <span className="font-semibold">+${(() => {
+                        const selectedStaff = staffList.find(s => s.id === formData.createdByStaffId);
+                        const commission = selectedStaff?.salesRepCommission || 500;
+                        return (typeof commission === 'number' ? commission : parseFloat(commission) || 500).toFixed(2);
+                      })()}</span>
                     </p>
                   )}
                   {formData.leadSource === 'external_referral' && externalReferralInfo.commissionAmount && (

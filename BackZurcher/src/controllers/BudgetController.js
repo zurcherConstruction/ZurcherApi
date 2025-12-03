@@ -1,4 +1,4 @@
-const { Budget, Permit, Work, Income, BudgetItem, BudgetLineItem, Receipt, conn, sequelize } = require('../data');
+const { Budget, Permit, Work, Income, BudgetItem, BudgetLineItem, Receipt, Staff, conn, sequelize } = require('../data');
 const { Op, literal } = require('sequelize'); 
 const { cloudinary } = require('../utils/cloudinaryConfig.js');
 const { sendNotifications } = require('../utils/notifications/notificationManager.js');
@@ -149,8 +149,9 @@ const BudgetController = {
      let finalTotalWithCommission = finalTotal;
 
 if (leadSource === 'sales_rep' && createdByStaffId) {
-  // Sales rep interno - $500 fijos
-  commission = 500;
+  // Sales rep interno - obtener comisión del staff o usar $500 por defecto
+  const salesRep = await Staff.findByPk(createdByStaffId, { attributes: ['salesRepCommission'] });
+  commission = parseFloat(salesRep?.salesRepCommission) || 500;
   finalTotalWithCommission = finalTotal + commission;
   console.log(`Presupuesto con vendedor interno - Trabajo: $${finalTotal} + Comisión: $${commission} = Total cliente: $${finalTotalWithCommission}`);
 } else if (leadSource === 'external_referral') {
@@ -1750,10 +1751,19 @@ async optionalDocs(req, res) {
       if (externalReferralCompany !== undefined) generalUpdateData.externalReferralCompany = leadSource === 'external_referral' ? externalReferralCompany : null;
       
       // Calcular y guardar salesCommissionAmount basado en el tipo de comisión
-      if (leadSource !== undefined) {
-        if (leadSource === 'sales_rep' && createdByStaffId) {
-          generalUpdateData.salesCommissionAmount = 500; // Comisión fija para sales rep
-        } else if (leadSource === 'external_referral' && salesCommissionAmount !== undefined) {
+      // ✅ Actualizar si cambia leadSource O si cambia createdByStaffId en sales_rep
+      const shouldUpdateCommission = leadSource !== undefined || (budget.leadSource === 'sales_rep' && createdByStaffId !== undefined);
+      
+      if (shouldUpdateCommission) {
+        const currentLeadSource = leadSource !== undefined ? leadSource : budget.leadSource;
+        const currentStaffId = createdByStaffId !== undefined ? createdByStaffId : budget.createdByStaffId;
+        
+        if (currentLeadSource === 'sales_rep' && currentStaffId) {
+          // Obtener comisión del staff o usar $500 por defecto
+          const salesRep = await Staff.findByPk(currentStaffId, { attributes: ['salesRepCommission'] });
+          generalUpdateData.salesCommissionAmount = parseFloat(salesRep?.salesRepCommission) || 500;
+          console.log(`💰 Comisión actualizada del Staff ${currentStaffId}: $${generalUpdateData.salesCommissionAmount}`);
+        } else if (currentLeadSource === 'external_referral' && salesCommissionAmount !== undefined) {
           generalUpdateData.salesCommissionAmount = parseFloat(salesCommissionAmount) || 0;
         } else {
           generalUpdateData.salesCommissionAmount = 0; // Sin comisión
@@ -1903,7 +1913,9 @@ async optionalDocs(req, res) {
       let commission = 0;
       const currentLeadSource = budget.leadSource || 'web';
       if (currentLeadSource === 'sales_rep' && budget.createdByStaffId) {
-        commission = 500; // Comisión fija para sales rep
+        // Obtener comisión del staff o usar $500 por defecto
+        const salesRep = await Staff.findByPk(budget.createdByStaffId, { attributes: ['salesRepCommission'] });
+        commission = parseFloat(salesRep?.salesRepCommission) || 500;
         console.log(`💰 Comisión de Sales Rep: $${commission} (Staff ID: ${budget.createdByStaffId})`);
       } else if (currentLeadSource === 'external_referral' && budget.salesCommissionAmount) {
         commission = parseFloat(budget.salesCommissionAmount) || 0;
