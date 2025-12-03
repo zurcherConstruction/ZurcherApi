@@ -17,6 +17,10 @@ const AmexCreditCard = ({ token }) => {
   const [statistics, setStatistics] = useState({});
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [receiptFile, setReceiptFile] = useState(null); // 📄 NUEVO: archivo de comprobante
+  const [receiptPreview, setReceiptPreview] = useState(null); // 📄 NUEVO: preview del comprobante
+  const [showReceiptModal, setShowReceiptModal] = useState(false); // 📄 NUEVO: modal de visualización
+  const [selectedReceipt, setSelectedReceipt] = useState(null); // 📄 NUEVO: receipt seleccionado
 
   // Form state
   const [formData, setFormData] = useState({
@@ -74,21 +78,38 @@ const AmexCreditCard = ({ token }) => {
     try {
       setSubmitting(true);
 
+      // 📄 Crear FormData para enviar archivo
+      const submitData = new FormData();
+      submitData.append('transactionType', formData.transactionType);
+      submitData.append('vendor', 'AMEX');
+      submitData.append('description', formData.description);
+      submitData.append('amount', formData.amount);
+      submitData.append('date', formData.date);
+      
+      if (formData.transactionType === 'charge') {
+        if (formData.vendor) submitData.append('vendor', formData.vendor);
+      }
+      
+      if (formData.transactionType === 'payment') {
+        submitData.append('paymentMethod', formData.paymentMethod);
+        if (formData.paymentDetails) submitData.append('paymentDetails', formData.paymentDetails);
+        
+        // 📄 Agregar receipt si existe
+        if (receiptFile) {
+          submitData.append('receipt', receiptFile);
+        }
+      }
+      
+      if (formData.notes) submitData.append('notes', formData.notes);
+
       const response = await axios.post(
         `${import.meta.env.VITE_API_URL}/supplier-invoices/amex/transaction`,
+        submitData,
         {
-          transactionType: formData.transactionType,
-          vendor: 'AMEX',
-          description: formData.description,
-          amount: formData.amount,
-          date: formData.date,
-          invoiceNumber: formData.transactionType === 'charge' ? formData.description : undefined,
-          paymentMethod: formData.transactionType === 'payment' ? formData.paymentMethod : undefined,
-          paymentDetails: formData.transactionType === 'payment' ? formData.paymentDetails : undefined,
-          notes: formData.notes
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` }
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data'
+          }
         }
       );
 
@@ -105,6 +126,8 @@ const AmexCreditCard = ({ token }) => {
           vendor: '',
           notes: ''
         });
+        setReceiptFile(null); // 📄 Limpiar archivo
+        setReceiptPreview(null); // 📄 Limpiar preview
         fetchBalance(); // Recargar datos
       }
     } catch (error) {
@@ -382,6 +405,44 @@ const AmexCreditCard = ({ token }) => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent"
                   />
                 </div>
+                
+                {/* 📄 NUEVO: Subir comprobante */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Comprobante de Pago (opcional)
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        setReceiptFile(file);
+                        // Crear preview si es imagen
+                        if (file.type.startsWith('image/')) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setReceiptPreview(reader.result);
+                          };
+                          reader.readAsDataURL(file);
+                        } else {
+                          setReceiptPreview(null);
+                        }
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent"
+                  />
+                  {receiptPreview && (
+                    <div className="mt-2">
+                      <img src={receiptPreview} alt="Preview" className="max-h-32 rounded border" />
+                    </div>
+                  )}
+                  {receiptFile && !receiptPreview && (
+                    <div className="mt-2 text-sm text-gray-600">
+                      📄 {receiptFile.name}
+                    </div>
+                  )}
+                </div>
               </>
             )}
 
@@ -453,6 +514,21 @@ const AmexCreditCard = ({ token }) => {
                       <div className="text-sm text-gray-500 mt-1">
                         Pagado con: {transaction.paymentMethod}
                         {transaction.paymentDetails && ` - ${transaction.paymentDetails}`}
+                        {/* 📄 Botón para ver comprobante */}
+                        {transaction.receiptUrl && (
+                          <>
+                            <span className="mx-1">•</span>
+                            <button
+                              onClick={() => {
+                                setSelectedReceipt(transaction.receiptUrl);
+                                setShowReceiptModal(true);
+                              }}
+                              className="text-blue-600 hover:text-blue-800 underline text-xs"
+                            >
+                              Ver comprobante
+                            </button>
+                          </>
+                        )}
                       </div>
                     )}
                     {transaction.type === 'charge' && (
@@ -492,6 +568,48 @@ const AmexCreditCard = ({ token }) => {
           )}
         </div>
       </div>
+
+      {/* 📄 Modal para visualizar comprobante */}
+      {showReceiptModal && selectedReceipt && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">
+                📄 Comprobante de Pago
+              </h3>
+              <button
+                onClick={() => {
+                  setShowReceiptModal(false);
+                  setSelectedReceipt(null);
+                }}
+                className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="max-h-[calc(90vh-120px)] overflow-auto">
+              {selectedReceipt.endsWith('.pdf') ? (
+                <iframe
+                  src={`https://docs.google.com/gview?url=${encodeURIComponent(selectedReceipt)}&embedded=true`}
+                  title="Vista previa PDF"
+                  width="100%"
+                  height="600px"
+                  className="rounded-lg border"
+                />
+              ) : (
+                <img
+                  src={selectedReceipt}
+                  alt="Comprobante"
+                  className="max-w-full h-auto mx-auto rounded-lg"
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -64,7 +64,7 @@ router.get('/credit-card/balance', allowRoles(['admin', 'owner', 'finance', 'fin
  * @body    { transactionType, amount, date, description, invoiceNumber, paymentMethod?, paymentDetails? }
  * @access  Private
  */
-router.post('/credit-card/transaction', allowRoles(['admin', 'owner', 'finance']), createCreditCardTransaction);
+router.post('/credit-card/transaction', allowRoles(['admin', 'owner', 'finance']), upload.single('receipt'), createCreditCardTransaction);
 
 /**
  * 🔄 @route   DELETE /api/supplier-invoices/credit-card/payment/:paymentId
@@ -87,7 +87,7 @@ router.get('/amex/balance', allowRoles(['admin', 'owner', 'finance', 'finance-vi
  * @body    { transactionType, amount, date, description, invoiceNumber, paymentMethod?, paymentDetails? }
  * @access  Private
  */
-router.post('/amex/transaction', allowRoles(['admin', 'owner', 'finance']), createAmexTransaction);
+router.post('/amex/transaction', allowRoles(['admin', 'owner', 'finance']), upload.single('receipt'), createAmexTransaction);
 
 /**
  * 🔄 @route   DELETE /api/supplier-invoices/amex/payment/:paymentId
