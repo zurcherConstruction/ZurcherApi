@@ -24,6 +24,8 @@ import NoticeToOwnerCard from './NoticeToOwnerCard';
 import { ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
 import useDataLoader from '../../hooks/useDataLoader';
 import WorkDetailError from './WorkDetailError';
+import WorkChecklistModal from './WorkChecklistModal'; // 📋 Modal de checklist
+import { fetchChecklistByWorkId } from '../../Redux/Actions/checklistActions'; // 📋 Action de checklist
   // --- Estado para modal de resultado rápido de inspección ---
   
 // Asegúrate de que esta ruta sea correcta
@@ -64,7 +66,7 @@ const WorkDetail = () => {
       if (!idWork) return;
 
       // Cargar todos los datos en paralelo
-      const [workData, inspectionsData, balanceData] = await Promise.all([
+      const [workData, inspectionsData, balanceData, checklistData] = await Promise.all([
         // 1. Cargar datos de la obra
         dispatch(fetchWorkById(idWork)),
         
@@ -88,10 +90,15 @@ const WorkDetail = () => {
             dispatch(fetchIncomesAndExpensesFailure(err.message));
             return null;
           }
-        })()
+        })(),
+        
+        // 4. Cargar checklist (para roles que pueden verlo)
+        ['owner', 'admin', 'finance', 'finance-viewer'].includes(userRole) 
+          ? dispatch(fetchChecklistByWorkId(idWork)) 
+          : Promise.resolve(null)
       ]);
 
-      return { workData, inspectionsData, balanceData };
+      return { workData, inspectionsData, balanceData, checklistData };
     },
     {
       onError: (error) => {
@@ -202,6 +209,7 @@ const workRef = useRef(work);
   const [approvingCO, setApprovingCO] = useState(null); // 🆕 CO que se está aprobando manualmente
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [showWorkNotesModal, setShowWorkNotesModal] = useState(false); // 📝 Modal de notas
+  const [showChecklistModal, setShowChecklistModal] = useState(false); // 📋 Modal de checklist
   const [pdfUrlCo, setPdfUrlCo] = useState('');
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState('');
@@ -853,6 +861,20 @@ const handleUploadImage = async () => {
               <ChatBubbleLeftRightIcon className="h-5 w-5 mr-2 text-yellow-500" />
               <span className="font-medium">Notas</span>
             </button>
+            
+            {/* 📋 Botón de Checklist (visible para owner, admin, finance) */}
+            {['owner', 'admin', 'finance', 'finance-viewer'].includes(userRole) && (
+              <button
+                onClick={() => setShowChecklistModal(true)}
+                className="flex items-center justify-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow-md transition-colors duration-200 w-full sm:w-auto"
+                title={userRole === 'owner' ? 'Verificar checklist de tareas completadas' : 'Ver checklist (solo lectura)'}
+              >
+                <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                <span className="font-medium">Checklist</span>
+              </button>
+            )}
 
             {/* Botón dinámico */}
             {displayHeaderButton && headerButtonAction && (
@@ -2518,6 +2540,20 @@ const handleUploadImage = async () => {
         <WorkNotesModal
           work={work}
           onClose={() => setShowWorkNotesModal(false)}
+        />
+      )}
+
+      {/* 📋 Modal de Checklist */}
+      {showChecklistModal && (
+        <WorkChecklistModal
+          work={work}
+          onClose={() => setShowChecklistModal(false)}
+          onUpdate={() => {
+            // Recargar checklist después de actualizar (solo roles permitidos)
+            if (['owner', 'admin', 'finance', 'finance-viewer'].includes(userRole)) {
+              dispatch(fetchChecklistByWorkId(idWork));
+            }
+          }}
         />
       )}
 

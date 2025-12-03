@@ -81,7 +81,7 @@ const NewTransactionModal = () => {
 
       if (transactionType === 'deposit') {
         response = await bankTransactionActions.createDeposit({
-          accountId: formData.accountId,
+          bankAccountId: formData.accountId,
           amount: parseFloat(formData.amount),
           date: formData.date,
           description: formData.description || 'Depósito manual',
@@ -93,7 +93,7 @@ const NewTransactionModal = () => {
         }
       } else if (transactionType === 'withdrawal') {
         response = await bankTransactionActions.createWithdrawal({
-          accountId: formData.accountId,
+          bankAccountId: formData.accountId,
           amount: parseFloat(formData.amount),
           date: formData.date,
           description: formData.description || 'Retiro manual',

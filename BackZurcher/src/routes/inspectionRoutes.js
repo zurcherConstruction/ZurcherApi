@@ -56,13 +56,13 @@ router.post(
   // Rutas para obtener inspecciones
   router.get(
     '/work/:workId', 
-    verifyToken, allowRoles(['admin', 'recept', 'owner', 'maintenance']), 
+    verifyToken, allowRoles(['admin', 'recept', 'owner', 'maintenance', 'finance', 'finance-viewer']), 
     InspectionController.getInspectionsByWork
   );
   
   router.get(
     '/:inspectionId', 
-    verifyToken, allowRoles(['admin', 'recept', 'owner', 'maintenance']), 
+    verifyToken, allowRoles(['admin', 'recept', 'owner', 'maintenance', 'finance', 'finance-viewer']), 
     InspectionController.getInspectionById
   );
 

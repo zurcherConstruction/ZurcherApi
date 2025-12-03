@@ -23,7 +23,7 @@ const createStaff = async (req, res, next) => { // Añadido next para manejo de 
     let idFrontCloudinaryResult = null;
     let idBackCloudinaryResult = null;
     try {
-        const { name, email, password, role, phone, address, ...staffData } = req.body; // Añadido address
+        const { name, email, password, role, phone, address, salesRepCommission, ...staffData } = req.body; // Añadido address y salesRepCommission
 
         // Los archivos estarán en req.files gracias a multer
         const idFrontImageFile = req.files && req.files.idFrontImage ? req.files.idFrontImage[0] : null;
@@ -68,6 +68,15 @@ const lowercasedEmail = email.toLowerCase();
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        // Procesar salesRepCommission
+        let commissionValue = null;
+        if (normalizedRole === 'sales_rep' && salesRepCommission) {
+            const parsed = parseFloat(salesRepCommission);
+            if (!isNaN(parsed) && parsed > 0) {
+                commissionValue = parsed;
+            }
+        }
+
         const newStaff = await Staff.create({
             ...staffData,
             name,
@@ -76,6 +85,7 @@ const lowercasedEmail = email.toLowerCase();
             role: normalizedRole, // Usar el rol normalizado
             phone,
             address, // Guardar dirección
+            salesRepCommission: commissionValue,
             idFrontUrl,
             idFrontPublicId,
             idBackUrl,
@@ -112,7 +122,7 @@ const updateStaff = async (req, res, next) => { // Añadido next
     let oldBackPublicId = null;
 
     try {
-        const { name, email, role, phone, password, address, isActive, ...updateData } = req.body;
+        const { name, email, role, phone, password, address, isActive, salesRepCommission, ...updateData } = req.body;
 
         const staffToUpdate = await Staff.findByPk(id);
         if (!staffToUpdate) {
@@ -168,6 +178,17 @@ const updateStaff = async (req, res, next) => { // Añadido next
         if (address) staffToUpdate.address = address;
         if (isActive !== undefined && typeof isActive === 'boolean') { // Manejar isActive explícitamente
             staffToUpdate.isActive = isActive;
+        }
+        
+        // Actualizar comisión solo si es sales_rep
+        if (staffToUpdate.role === 'sales_rep') {
+            if (salesRepCommission !== undefined) {
+                const parsed = parseFloat(salesRepCommission);
+                staffToUpdate.salesRepCommission = (!isNaN(parsed) && parsed > 0) ? parsed : null;
+            }
+        } else {
+            // Si cambia de rol y ya no es sales_rep, limpiar la comisión
+            staffToUpdate.salesRepCommission = null;
         }
         
         // Sobrescribir cualquier otro dato de updateData si es necesario

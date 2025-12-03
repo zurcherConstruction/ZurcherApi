@@ -348,8 +348,9 @@ const CreateBudget = () => {
     // 💰 AGREGAR COMISIÓN
     let commission = 0;
     if (formData.leadSource === 'sales_rep' && formData.createdByStaffId) {
-      // Sales rep interno - $500 fijos
-      commission = 500;
+      // Sales rep interno - obtener comisión del staff
+      const selectedStaff = staffList.find(s => s.id === formData.createdByStaffId);
+      commission = selectedStaff?.salesRepCommission || 500; // Usar comisión del staff o $500 por defecto
     } else if (formData.leadSource === 'external_referral' && externalReferralInfo.commissionAmount) {
       // Referido externo - monto variable
       commission = parseFloat(externalReferralInfo.commissionAmount) || 0;
@@ -373,7 +374,7 @@ const CreateBudget = () => {
         initialPayment: payment,
       }));
     }
-  }, [formData.lineItems, formData.discountAmount, formData.initialPaymentPercentage, formData.leadSource, formData.createdByStaffId, externalReferralInfo.commissionAmount, formData.subtotalPrice, formData.totalPrice, formData.initialPayment]);
+  }, [formData.lineItems, formData.discountAmount, formData.initialPaymentPercentage, formData.leadSource, formData.createdByStaffId, externalReferralInfo.commissionAmount, formData.subtotalPrice, formData.totalPrice, formData.initialPayment, staffList]);
 
   // --- Effect para calcular Expiration Date siempre que Date cambie ---
   useEffect(() => {
@@ -1130,7 +1131,11 @@ const customCategoryOrder = [
                           )}
                         </select>
                         <p className="text-xs text-indigo-600 mt-1 font-medium">
-                          💰 Fixed commission: $500 USD (will increase client's total price)
+                          💰 Commission: ${(() => {
+                            const selectedStaff = staffList.find(s => s.id === formData.createdByStaffId);
+                            const commission = selectedStaff?.salesRepCommission || 500;
+                            return typeof commission === 'number' ? commission : parseFloat(commission) || 500;
+                          })()} USD (will increase client's total price)
                         </p>
                       </div>
                     )}
@@ -1253,7 +1258,7 @@ const customCategoryOrder = [
                   {formData.leadSource === 'sales_rep' && formData.createdByStaffId && (
                     <div className="mt-4 p-3 bg-indigo-50 border border-indigo-200 rounded-md">
                       <p className="text-sm text-indigo-800">
-                        <strong>👤 Sales Commission:</strong> A $500 USD commission will be automatically added to the client's total price for the selected sales representative.
+                        <strong>👤 Sales Commission:</strong> A commission will be automatically added to the client's total price for the selected sales representative (default $500 if not specified).
                       </p>
                     </div>
                     )}
@@ -1478,7 +1483,11 @@ const customCategoryOrder = [
               )}
               {formData.leadSource === 'sales_rep' && formData.createdByStaffId && (
                 <p className="text-indigo-600 text-sm italic">
-                  Sales Commission (internal): <span className="font-semibold">+$500.00</span>
+                  Sales Commission (internal): <span className="font-semibold">+${(() => {
+                    const selectedStaff = staffList.find(s => s.id === formData.createdByStaffId);
+                    const commission = selectedStaff?.salesRepCommission || 500;
+                    return (typeof commission === 'number' ? commission : parseFloat(commission) || 500).toFixed(2);
+                  })()}</span>
                 </p>
               )}
               {formData.leadSource === 'external_referral' && externalReferralInfo.commissionAmount && (

@@ -2181,7 +2181,7 @@ const createCreditCardTransaction = async (req, res) => {
       }
 
       // Registrar el pago en SupplierInvoice para tracking
-      await SupplierInvoice.create({
+      const paymentInvoice = await SupplierInvoice.create({
         invoiceNumber: `CC-PAYMENT-${Date.now()}`,
         vendor: 'Chase Credit Card',
         issueDate: normalizedDate,
@@ -2198,6 +2198,27 @@ const createCreditCardTransaction = async (req, res) => {
         balanceAfter: 0, // Se recalcula después
         createdByStaffId: req.staff?.id || null
       }, { transaction: dbTransaction });
+
+      // 📄 Subir receipt si se proporcionó
+      if (req.file) {
+        try {
+          console.log(`📄 [Receipt] Subiendo comprobante de pago...`);
+          const receiptResult = await uploadBufferToCloudinary(req.file.buffer, {
+            folder: 'credit_card_receipts',
+            resource_type: 'auto'
+          });
+
+          await paymentInvoice.update({
+            invoicePdfPath: receiptResult.secure_url,
+            invoicePdfPublicId: receiptResult.public_id
+          }, { transaction: dbTransaction });
+
+          console.log(`✅ [Receipt] Comprobante subido: ${receiptResult.secure_url}`);
+        } catch (uploadError) {
+          console.error('❌ [Receipt] Error subiendo comprobante:', uploadError);
+          // No fallar la transacción si falla la subida del receipt
+        }
+      }
     }
 
     await dbTransaction.commit();
@@ -2516,6 +2537,8 @@ const getCreditCardBalance = async (req, res) => {
         'paymentMethod',
         'paymentDetails',
         'notes',
+        'invoicePdfPath', // 📄 NUEVO: para receipts
+        'invoicePdfPublicId', // 📄 NUEVO: para receipts
         'createdAt'
       ]
     });
@@ -2550,6 +2573,8 @@ const getCreditCardBalance = async (req, res) => {
         paymentMethod: trans.paymentMethod,
         paymentDetails: trans.paymentDetails,
         balanceAfter: parseFloat(trans.balanceAfter || 0),
+        receiptUrl: trans.invoicePdfPath || null, // 📄 NUEVO
+        receiptPublicId: trans.invoicePdfPublicId || null, // 📄 NUEVO
         createdAt: trans.createdAt,
         source: 'supplier_invoice'
       }))
@@ -2758,7 +2783,7 @@ const createAmexTransaction = async (req, res) => {
       console.log(`💰 [FIFO] ${updatedExpenses.length} expense(s) actualizados`);
 
       // 💳 Crear registro del pago en SupplierInvoice
-      await SupplierInvoice.create({
+      const paymentInvoice = await SupplierInvoice.create({
         invoiceNumber: `AMEX-PAYMENT-${Date.now()}`,
         vendor: 'AMEX',
         issueDate: date || getLocalDateString(),
@@ -2775,6 +2800,27 @@ const createAmexTransaction = async (req, res) => {
         balanceAfter: 0,
         createdByStaffId: req.staff?.id || null
       }, { transaction: dbTransaction });
+
+      // 📄 Subir receipt si se proporcionó
+      if (req.file) {
+        try {
+          console.log(`📄 [Receipt] Subiendo comprobante de pago...`);
+          const receiptResult = await uploadBufferToCloudinary(req.file.buffer, {
+            folder: 'credit_card_receipts',
+            resource_type: 'auto'
+          });
+
+          await paymentInvoice.update({
+            invoicePdfPath: receiptResult.secure_url,
+            invoicePdfPublicId: receiptResult.public_id
+          }, { transaction: dbTransaction });
+
+          console.log(`✅ [Receipt] Comprobante subido: ${receiptResult.secure_url}`);
+        } catch (uploadError) {
+          console.error('❌ [Receipt] Error subiendo comprobante:', uploadError);
+          // No fallar la transacción si falla la subida del receipt
+        }
+      }
 
       // 🏦 CREAR RETIRO BANCARIO (igual que Chase)
       if (paymentMethod && paymentMethod !== 'AMEX') {
@@ -3102,6 +3148,8 @@ const getAmexBalance = async (req, res) => {
         'paymentMethod',
         'paymentDetails',
         'notes',
+        'invoicePdfPath', // 📄 NUEVO: para receipts
+        'invoicePdfPublicId', // 📄 NUEVO: para receipts
         'createdAt'
       ]
     });
@@ -3132,6 +3180,8 @@ const getAmexBalance = async (req, res) => {
         paymentMethod: trans.paymentMethod,
         paymentDetails: trans.paymentDetails,
         balanceAfter: parseFloat(trans.balanceAfter || 0),
+        receiptUrl: trans.invoicePdfPath || null, // 📄 NUEVO
+        receiptPublicId: trans.invoicePdfPublicId || null, // 📄 NUEVO
         createdAt: trans.createdAt,
         source: 'supplier_invoice'
       }))

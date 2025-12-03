@@ -1,4 +1,4 @@
-const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, Expense, Income, ChangeOrder, FinalInvoice, MaintenanceVisit, MaintenanceMedia } = require('../data');
+const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, Expense, Income, ChangeOrder, FinalInvoice, MaintenanceVisit, MaintenanceMedia, WorkChecklist } = require('../data');
 
 const convertPdfDataToUrl = require('../utils/convertPdfDataToUrl');
 const { sendNotifications } = require('../utils/notifications/notificationManager');
@@ -105,6 +105,12 @@ const getWorks = async (req, res) => {
           model: FinalInvoice,
           as: 'finalInvoice',
           required: false
+        },
+        {
+          model: WorkChecklist,
+          as: 'checklist',
+          required: false,
+          attributes: ['finalReviewCompleted'] // Solo traer si está completado
         }
         // ❌ Removido: Expense y Receipt de la consulta principal
         // ✅ Se cargarán después en consultas separadas (más eficiente)

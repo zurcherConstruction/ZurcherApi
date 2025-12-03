@@ -54,6 +54,12 @@ module.exports = (sequelize) => {
         type: DataTypes.ENUM("recept", "admin", "owner", "worker", "finance", "finance-viewer", "maintenance", "sales_rep", "follow-up"),
         allowNull: false,
       },
+      salesRepCommission: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: true,
+        defaultValue: null,
+        comment: 'Comisión personalizada para sales_rep (en dólares)',
+      },
       isActive: {
         type: DataTypes.BOOLEAN,
         defaultValue: true,

@@ -38,6 +38,7 @@ export const fetchStaff = () => async (dispatch) => {
           address: staff.address || 'No especificada', // O null si prefieres
           idFrontUrl: staff.idFrontUrl || null,
           idBackUrl: staff.idBackUrl || null,
+          salesRepCommission: staff.salesRepCommission ? parseFloat(staff.salesRepCommission) : null, // 🆕 Comisión personalizada para sales_rep
         }))
       : [];
 

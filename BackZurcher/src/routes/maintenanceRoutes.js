@@ -30,7 +30,7 @@ router.post('/work/:workId/visit',
 // Obtener todas las visitas de mantenimiento para una obra específica
 router.get('/work/:workId', 
     verifyToken, 
-    allowRoles(['admin', 'owner', 'worker', 'maintenance']), // Ajusta roles
+    allowRoles(['admin', 'owner', 'worker', 'maintenance', 'finance', 'finance-viewer']), // Ajusta roles
     MaintenanceController.getMaintenanceVisitsForWork
 );
 
