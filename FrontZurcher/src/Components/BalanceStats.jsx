@@ -308,51 +308,6 @@ const BalanceStats = () => {
             </div>
           </div>
 
-          {/* Gastos por Categoría */}
-          <div className="grid grid-cols-1 gap-6 mb-6">
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <h3 className="text-xl font-bold text-red-600 mb-4 flex items-center gap-2">
-                📊 Gastos por Categoría
-              </h3>
-              
-              <div className="space-y-3 mb-4">
-                <div className="flex justify-between items-center bg-red-50 p-3 rounded-lg">
-                  <span className="font-semibold text-gray-700">Gastos Regulares</span>
-                  <span className="text-lg font-bold text-red-600">{formatCurrency(dashboard.summary.totalExpenses)}</span>
-                </div>
-                <div className="flex justify-between items-center bg-red-50 p-3 rounded-lg">
-                  <span className="font-semibold text-gray-700">Gastos Fijos</span>
-                  <span className="text-lg font-bold text-red-600">{formatCurrency(dashboard.summary.totalFixedExpenses)}</span>
-                </div>
-                <div className="flex justify-between items-center bg-red-50 p-3 rounded-lg">
-                  <span className="font-semibold text-gray-700">Proveedores</span>
-                  <span className="text-lg font-bold text-red-600">{formatCurrency(dashboard.summary.totalSupplierExpenses)}</span>
-                </div>
-                <div className="flex justify-between items-center bg-red-50 p-3 rounded-lg">
-                  <span className="font-semibold text-gray-700">Comisiones</span>
-                  <span className="text-lg font-bold text-red-600">{formatCurrency(dashboard.summary.totalCommissions)}</span>
-                </div>
-              </div>
-
-              {dashboard.expensesByType && dashboard.expensesByType.length > 0 && (
-                <>
-                  <div className="border-t border-gray-200 my-4"></div>
-                  <h4 className="text-sm font-semibold text-gray-600 mb-3 uppercase">Desglose Detallado:</h4>
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
-                    {dashboard.expensesByType
-                      .sort((a, b) => b.amount - a.amount)
-                      .map((item, idx) => (
-                        <div key={idx} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
-                          <span className="text-sm text-gray-700">{item.type}</span>
-                          <span className="font-semibold text-red-600">{formatCurrency(item.amount)}</span>
-                        </div>
-                      ))}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
           {/* Resumen Final */}
           <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg shadow-lg p-6 border-2 border-blue-200">
             <h3 className="text-2xl font-bold text-gray-800 mb-6 text-center">

@@ -1472,7 +1472,8 @@ const paySupplierInvoice = async (req, res) => {
             paymentDetails: paymentDetails || '',
             vendor: invoice.vendor,
             verified: false,
-            staffId: req.user?.id || null
+            staffId: req.user?.id || null,
+            supplierInvoiceItemId: invoice.idSupplierInvoice // 🔗 MARCAR como vinculado a invoice para evitar doble conteo en dashboard
           }, { transaction });
 
           // 🆕 Crear Receipt vinculado al Expense si hay archivo
@@ -1553,7 +1554,8 @@ const paySupplierInvoice = async (req, res) => {
           paymentDetails: paymentDetails || '',
           vendor: invoice.vendor,
           verified: false,
-          staffId: req.user?.id || null
+          staffId: req.user?.id || null,
+          supplierInvoiceItemId: invoice.idSupplierInvoice // 🔗 MARCAR como vinculado a invoice para evitar doble conteo en dashboard
         }, { transaction });
 
         // 🆕 Subir y crear Receipt si hay archivo
@@ -2154,33 +2156,7 @@ const createCreditCardTransaction = async (req, res) => {
 
       console.log(`💰 [FIFO] ${updatedExpenses.length} expense(s) actualizados. Sobrante: $${remainingPayment}`);
 
-      // 🏦 CREAR TRANSACCIÓN BANCARIA DE RETIRO (WITHDRAWAL) EN LA CUENTA DESDE DONDE SE PAGÓ
-      if (paymentMethod) {
-        try {
-          const { createWithdrawalTransaction } = require('../utils/bankTransactionHelper');
-          
-          await createWithdrawalTransaction({
-            paymentMethod,
-            amount: transactionAmount,
-            date: normalizedDate,
-            description: `Pago Tarjeta Chase Credit Card - ${description || notes || 'Pago de tarjeta'}`,
-            notes: `Pago de tarjeta de crédito. ${updatedExpenses.length} expense(s) pagados.`,
-            createdByStaffId: req.staff?.id || null,
-            transaction: dbTransaction
-          });
-
-          console.log(`✅ [BANK] Transacción de retiro creada en ${paymentMethod} por $${transactionAmount}`);
-        } catch (bankError) {
-          console.error('❌ [BANK] Error creando transacción bancaria:', bankError.message);
-          await dbTransaction.rollback();
-          return res.status(400).json({
-            error: true,
-            message: `Error procesando transacción bancaria: ${bankError.message}`
-          });
-        }
-      }
-
-      // Registrar el pago en SupplierInvoice para tracking
+      // Registrar el pago en SupplierInvoice para tracking (ANTES de crear transacción bancaria)
       const paymentInvoice = await SupplierInvoice.create({
         invoiceNumber: `CC-PAYMENT-${Date.now()}`,
         vendor: 'Chase Credit Card',
@@ -2217,6 +2193,33 @@ const createCreditCardTransaction = async (req, res) => {
         } catch (uploadError) {
           console.error('❌ [Receipt] Error subiendo comprobante:', uploadError);
           // No fallar la transacción si falla la subida del receipt
+        }
+      }
+
+      // 🏦 CREAR TRANSACCIÓN BANCARIA DE RETIRO (WITHDRAWAL) EN LA CUENTA DESDE DONDE SE PAGÓ
+      if (paymentMethod) {
+        try {
+          const { createWithdrawalTransaction } = require('../utils/bankTransactionHelper');
+          
+          await createWithdrawalTransaction({
+            paymentMethod,
+            amount: transactionAmount,
+            date: normalizedDate,
+            description: `Pago Tarjeta Chase Credit Card - ${description || notes || 'Pago de tarjeta'}`,
+            notes: `Pago de tarjeta de crédito. ${updatedExpenses.length} expense(s) pagados.`,
+            createdByStaffId: req.staff?.id || null,
+            relatedCreditCardPaymentId: paymentInvoice.idSupplierInvoice, // 🆕 Vincular con el pago
+            transaction: dbTransaction
+          });
+
+          console.log(`✅ [BANK] Transacción de retiro creada en ${paymentMethod} por $${transactionAmount}`);
+        } catch (bankError) {
+          console.error('❌ [BANK] Error creando transacción bancaria:', bankError.message);
+          await dbTransaction.rollback();
+          return res.status(400).json({
+            error: true,
+            message: `Error procesando transacción bancaria: ${bankError.message}`
+          });
         }
       }
     }
@@ -2835,7 +2838,7 @@ const createAmexTransaction = async (req, res) => {
             notes: `Pago de tarjeta AMEX${paymentDetails ? ' - ' + paymentDetails : ''}`,
             createdByStaffId: req.staff?.id || null,
             relatedExpenseId: null,
-            relatedCreditCardPaymentId: null,
+            relatedCreditCardPaymentId: paymentInvoice.idSupplierInvoice, // 🆕 Vincular con el pago
             transaction: dbTransaction // ✅ Pasar la transacción de Sequelize
           });
 

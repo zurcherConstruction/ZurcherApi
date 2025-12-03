@@ -84,8 +84,10 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
       if (!response.ok) throw new Error('Error al cargar works');
       
       const data = await response.json();
+      // El endpoint ahora devuelve {works: [...], total, ...} por la paginación
+      const worksArray = Array.isArray(data) ? data : (data.works || []);
       // Filtrar works activos
-      const activeWorks = data.filter(w => !['completed', 'cancelled'].includes(w.status));
+      const activeWorks = worksArray.filter(w => !['completed', 'cancelled'].includes(w.status));
       setAvailableWorks(activeWorks || []);
     } catch (error) {
       console.error('Error:', error);
