@@ -296,25 +296,31 @@ const updateMaintenanceVisit = async (req, res) => {
           </div>
         `;
 
-        await sendEmail({
+        // Enviar email de forma asíncrona (no esperar)
+        sendEmail({
           to: staff.email,
           subject: emailSubject,
           text: emailText,
           html: emailHtml,
           attachments: emailAttachments,
+        }).then(() => {
+          console.log(`✅ Email enviado a ${staff.email} para visita ${visitId}`);
+        }).catch((emailError) => {
+          console.error('❌ Error al enviar email de asignación:', emailError);
         });
 
-        console.log(`✅ Email enviado a ${staff.email} para visita ${visitId}`);
+        console.log(`📧 Enviando email a ${staff.email} (asíncrono)...`);
       } catch (emailError) {
-        console.error('❌ Error al enviar email de asignación:', emailError);
+        console.error('❌ Error preparando email de asignación:', emailError);
         // No fallar la request si el email falla
       }
     }
 
+    // Responder inmediatamente sin esperar el email
     res.status(200).json({ message: 'Visita de mantenimiento actualizada.', visit: updatedVisit });
   } catch (error) {
-    console.error('Error al actualizar visita de mantenimiento:', error);
-    res.status(500).json({ error: true, message: 'Error interno del servidor.' });
+    console.error('❌ Error al actualizar visita de mantenimiento:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor.', details: error.message });
   }
 };
 
