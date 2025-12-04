@@ -4,12 +4,8 @@ import { logout } from '../Redux/Reducer/authReducer';
 import { setLoading } from '../Redux/Reducer/uiReducer'; // You'll need to create this
 
 const api = axios.create({
-
-
   baseURL: 'http://localhost:3001/', // Change to your API base URL
-  timeout: 80000,
-
-
+  timeout: 180000, // ⬆️ Aumentado a 3 minutos (temporal hasta optimizaciones)
 });
 
 // Request interceptor

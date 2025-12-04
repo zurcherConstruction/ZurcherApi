@@ -32,18 +32,19 @@ router.get(
   WorkController.getMaintenanceOverviewWorks
 );
 
-// Ruta para obtener obras en mantenimiento
+// Ruta para obtener obras en mantenimiento - CON CACHÉ de 20 segundos
 router.get(
   '/maintenance',
   verifyToken,
   allowRoles(['admin', 'owner', 'worker', 'maintenance']),
+  cacheMiddleware(20),
   WorkController.getWorksInMaintenance
 );
 // Crear una obra (solo administradores)
 router.post('/', verifyToken, allowRoles(['admin', 'recept', 'owner']), WorkController.createWork);
 router.get('/assigned', verifyToken, allowRoles(['owner', 'worker', 'maintenance']), WorkController.getAssignedWorks);
-// Obtener todas las obras 
-router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker', 'maintenance', 'finance']), WorkController.getWorks);
+// Obtener todas las obras - CON CACHÉ de 15 segundos (alta carga)
+router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker', 'maintenance', 'finance']), cacheMiddleware(15), WorkController.getWorks);
 
 // Obtener una obra por ID  - CON CACHÉ de 30 segundos
 router.get('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker', 'maintenance', 'finance']), cacheMiddleware(30), WorkController.getWorkById);

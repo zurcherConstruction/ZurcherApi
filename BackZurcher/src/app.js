@@ -3,6 +3,7 @@ const session = require('express-session');
 const morgan = require('morgan');
 const routes = require('./routes');
 const cors = require('cors');
+const compression = require('compression'); // 🆕 Compresión HTTP
 const path = require('path');
 const { passport } = require('./passport');
 const { JWT_SECRET_KEY } = require('./config/envs');
@@ -74,6 +75,19 @@ io.on("connection", (socket) => {
 // Middlewares
 app.use(express.json({ limit: "10mb" })); // Cambia "10mb" según tus necesidades
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
+
+// 🚀 Compresión HTTP - Reduce respuestas hasta 70%
+app.use(compression({
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  },
+  level: 6,       // Balance entre velocidad y compresión (1-9)
+  threshold: 1024 // Solo comprimir responses > 1KB
+}));
+
 app.use('/images', express.static(path.join(__dirname, 'images')));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/uploads/budgets', (req, res, next) => {

@@ -111,6 +111,17 @@ const VisitForm = ({ visit, isOpen, onClose }) => {
 
       console.log('✅ [VISIT FORM] Validaciones pasadas, actualizando visita con ID:', visit.id);
       
+      // Mostrar indicador de carga
+      Swal.fire({
+        title: 'Asignando visita...',
+        html: 'Enviando notificación al personal asignado.',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+      
       // ✅ Preparar datos: al asignar fecha y staff, automáticamente se pone en estado 'scheduled'
       const dataToSend = {
         scheduledDate: formData.scheduledDate,

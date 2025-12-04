@@ -117,6 +117,17 @@ const MaintenanceDetail = ({ work, isOpen, onClose }) => {
     });
 
     if (formData !== undefined) {
+      // Mostrar indicador de carga
+      Swal.fire({
+        title: hasExistingVisits ? 'Reprogramando visitas...' : 'Programando visitas...',
+        html: 'Por favor espera, esto puede tomar unos momentos.',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
       try {
         const result = await dispatch(scheduleMaintenanceVisits(work.idWork, formData.startDate, formData.forceReschedule));
         
