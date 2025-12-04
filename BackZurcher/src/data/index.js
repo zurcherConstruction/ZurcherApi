@@ -22,12 +22,12 @@ const sequelize = DB_DEPLOY
       native: false,
       timezone: 'America/New_York',
       pool: {
-        max: 15,            // ⬇️ Reducido temporalmente para evitar saturación
-        min: 3,             // ⬇️ Menos warm connections
-        acquire: 30000,     // ⬇️ 30 segundos timeout (antes 60s)
-        idle: 10000,        // ⬇️ 10 segundos idle (antes 20s)
-        evict: 5000,        // 🆕 Eviction más agresivo
-        maxUses: 1000       // 🆕 Reciclar conexión después de 1000 usos
+        max: 25,            // ✅ Aumentado de 15 a 25 (Railway soporta hasta 100)
+        min: 5,             // ✅ 5 warm connections
+        acquire: 60000,     // ✅ 60 segundos timeout para evitar errores prematuros
+        idle: 20000,        // ✅ 20 segundos idle
+        evict: 10000,       // ✅ Eviction cada 10 segundos
+        maxUses: 5000       // ✅ Reciclar después de 5000 usos
       },
       dialectOptions: {
         ssl: NODE_ENV === 'production' ? { require: true, rejectUnauthorized: false } : false
@@ -39,12 +39,12 @@ const sequelize = DB_DEPLOY
         logging: false,
         native: false,
         pool: {
-          max: 15,            // ⬇️ Reducido temporalmente
-          min: 3,             // ⬇️ Menos warm connections
-          acquire: 30000,     // ⬇️ 30 segundos timeout
-          idle: 10000,        // ⬇️ 10 segundos idle
-          evict: 5000,        // 🆕 Eviction más agresivo
-          maxUses: 1000       // 🆕 Reciclar conexiones viejas
+          max: 25,            // ✅ Aumentado de 15 a 25
+          min: 5,             // ✅ 5 warm connections
+          acquire: 60000,     // ✅ 60 segundos timeout
+          idle: 20000,        // ✅ 20 segundos idle
+          evict: 10000,       // ✅ Eviction cada 10 segundos
+          maxUses: 5000       // ✅ Reciclar después de 5000 usos
         },
         dialectOptions: {
           statement_timeout: 30000, // ⏰ Aumentado a 30 segundos para permitir sync() de Sequelize
