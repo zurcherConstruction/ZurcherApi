@@ -38,28 +38,21 @@ export const fetchChecklistByWorkId = (workId) => async (dispatch) => {
 /**
  * Obtener checklists de múltiples works
  * Usado para carga inicial en ProgressTracker
+ * 🆕 OPTIMIZADO: 1 sola llamada batch en lugar de N llamadas
  */
 export const fetchChecklists = (workIds) => async (dispatch) => {
   dispatch(fetchChecklistsRequest());
   try {
-    const promises = workIds.map(workId =>
-      api.get(`/works/${workId}/checklist`).catch(err => {
-        console.error(`Error loading checklist for ${workId}:`, err);
-        return null;
-      })
-    );
-
-    const responses = await Promise.all(promises);
-    const checklists = {};
-
-    responses.forEach((response, index) => {
-      if (response && response.data.success) {
-        checklists[workIds[index]] = response.data.checklist;
-      }
-    });
-
-    dispatch(fetchChecklistsSuccess(checklists));
+    // 🆕 BATCH REQUEST: 1 sola llamada para todos los checklists
+    const response = await api.post('/works/checklists/batch', { workIds });
+    
+    if (response.data.success) {
+      dispatch(fetchChecklistsSuccess(response.data.checklists));
+    } else {
+      throw new Error('Respuesta inválida del servidor');
+    }
   } catch (error) {
+    console.error('❌ Error al obtener checklists (batch):', error);
     const errorMessage =
       error.response?.data?.error || 'Error al obtener los checklists';
     dispatch(fetchChecklistsFailure(errorMessage));

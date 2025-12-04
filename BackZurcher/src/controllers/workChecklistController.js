@@ -150,8 +150,76 @@ const getChecklistStats = async (req, res) => {
   }
 };
 
+/**
+ * 🆕 BATCH: Obtener múltiples checklists en 1 query
+ * POST /api/works/checklists/batch
+ * Body: { workIds: ['id1', 'id2', ...] }
+ */
+const getBatchChecklists = async (req, res) => {
+  try {
+    const { workIds } = req.body;
+
+    if (!Array.isArray(workIds) || workIds.length === 0) {
+      return res.status(400).json({
+        error: 'Se requiere un array de workIds'
+      });
+    }
+
+    console.log(`📦 [BATCH] Obteniendo checklists para ${workIds.length} works`);
+
+    // 1 SOLA QUERY para traer todos los checklists existentes
+    const existingChecklists = await WorkChecklist.findAll({
+      where: { workId: workIds },
+      include: [
+        {
+          model: Staff,
+          as: 'reviewer',
+          attributes: ['id', 'name', 'email']
+        }
+      ]
+    });
+
+    // Mapear por workId para acceso rápido
+    const checklistsMap = {};
+    existingChecklists.forEach(checklist => {
+      checklistsMap[checklist.workId] = checklist;
+    });
+
+    // Para los works sin checklist, crear registros vacíos (sin guardar en DB)
+    const result = {};
+    workIds.forEach(workId => {
+      if (checklistsMap[workId]) {
+        result[workId] = checklistsMap[workId];
+      } else {
+        // Devolver estructura vacía sin crear en DB
+        result[workId] = {
+          workId,
+          finalReviewCompleted: false,
+          reviewedBy: null,
+          reviewedAt: null,
+          reviewer: null
+        };
+      }
+    });
+
+    console.log(`✅ [BATCH] Retornando ${Object.keys(result).length} checklists (${existingChecklists.length} existentes, ${workIds.length - existingChecklists.length} vacíos)`);
+
+    return res.status(200).json({
+      success: true,
+      checklists: result
+    });
+  } catch (error) {
+    console.error('❌ Error en batch checklists:', error);
+    return res.status(500).json({
+      error: 'Error al obtener checklists',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   getWorkChecklist,
   updateWorkChecklist,
-  getChecklistStats
+  getChecklistStats,
+  getBatchChecklists // 🆕 Exportar nuevo endpoint
 };
