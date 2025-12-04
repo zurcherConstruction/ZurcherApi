@@ -503,7 +503,8 @@ const scheduleMaintenanceVisits = async (req, res) => {
     console.log('📋 Números de visitas ya existentes (después de limpieza):', existingNumbers);
     
     // Crear las 4 visitas de mantenimiento (solo las que no existen)
-    const visits = [];
+    // ✅ Usar bulkCreate en lugar de crear una por una (1 query en lugar de 4)
+    const visitsToCreate = [];
     for (let i = 1; i <= 4; i++) {
       // Si ya existe una visita con este número, saltarla
       if (existingNumbers.includes(i)) {
@@ -514,14 +515,21 @@ const scheduleMaintenanceVisits = async (req, res) => {
       const scheduledDateForVisit = addMonths(baseDate, i * 6);
       const formattedScheduledDate = format(scheduledDateForVisit, 'yyyy-MM-dd');
       
-      const newVisit = await MaintenanceVisit.create({
+      visitsToCreate.push({
         workId,
         visitNumber: i,
         scheduledDate: formattedScheduledDate,
         status: 'pending_scheduling',
       });
-      visits.push(newVisit);
-      console.log(`✅ Creada visita #${i} programada para ${formattedScheduledDate}`);
+    }
+    
+    // ✅ Crear todas las visitas en una sola query
+    const visits = visitsToCreate.length > 0 
+      ? await MaintenanceVisit.bulkCreate(visitsToCreate)
+      : [];
+    
+    if (visits.length > 0) {
+      console.log(`✅ Creadas ${visits.length} visitas en una sola operación`);
     }
 
     // Actualizar la fecha de inicio de mantenimiento en la obra si se proporcionó
@@ -1244,50 +1252,66 @@ const completeMaintenanceVisit = async (req, res) => {
 
     await visit.save();
 
-    // Procesar imágenes de muestras PBTS/ATU específicas
+    // ✅ Procesar imágenes de muestras PBTS/ATU en background
     const sampleFields = ['wellSample1', 'wellSample2', 'wellSample3'];
+    const sampleUploads = [];
+    
     for (let i = 0; i < sampleFields.length; i++) {
       const fieldName = sampleFields[i];
-      const fileArray = files?.[fieldName]; // Con upload.fields(), files es un objeto
+      const fileArray = files?.[fieldName];
       
       if (fileArray && fileArray.length > 0) {
-        const file = fileArray[0]; // Tomar el primer archivo
-        try {
-          const cloudinaryResult = await uploadBufferToCloudinary(file.buffer, {
+        const file = fileArray[0];
+        const urlField = `well_sample_${i + 1}_url`;
+        
+        // ✅ Subir en background
+        sampleUploads.push(
+          uploadBufferToCloudinary(file.buffer, {
             folder: `maintenance/${visit.workId}/${visit.id}/well_samples`,
             resource_type: 'image',
-          });
-          
-          // Guardar URL en el campo correspondiente
-          const urlField = `well_sample_${i + 1}_url`;
-          visit[urlField] = cloudinaryResult.secure_url;
-        } catch (error) {
-          console.error(`❌ Error subiendo muestra ${i + 1}:`, error);
-        }
+          })
+            .then((cloudinaryResult) => {
+              visit[urlField] = cloudinaryResult.secure_url;
+              return visit.save();
+            })
+            .catch((error) => {
+              console.error(`❌ Error subiendo muestra ${i + 1}:`, error);
+            })
+        );
       }
     }
     
-    await visit.save(); // Guardar nuevamente con las URLs de las muestras
+    // ✅ Esperar solo si hay muestras (son rápidas, no videos pesados)
+    if (sampleUploads.length > 0) {
+      await Promise.all(sampleUploads);
+    }
 
-    // Procesar video del sistema (systemVideo)
+    // ✅ GUARDAR EN DB PRIMERO (sin bloquear con Cloudinary)
+    await visit.save();
+
+    // ✅ Procesar video del sistema DESPUÉS de guardar en DB (para no bloquear)
     const systemVideoArray = files?.systemVideo;
     console.log('🎬 DEBUG - systemVideoArray:', systemVideoArray ? `${systemVideoArray.length} archivo(s)` : 'undefined');
     
     if (systemVideoArray && systemVideoArray.length > 0) {
       const videoFile = systemVideoArray[0];
-      try {
-        console.log('🎬 Subiendo video del sistema:', videoFile.originalname, `(${Math.round(videoFile.size / 1024 / 1024)}MB)`);
-        const cloudinaryResult = await uploadBufferToCloudinary(videoFile.buffer, {
-          folder: `maintenance/${visit.workId}/${visit.id}/system_video`,
-          resource_type: 'video',
+      // ✅ Subir a Cloudinary SIN await para no bloquear (procesar en background)
+      const videoSize = Math.round(videoFile.size / 1024 / 1024);
+      console.log(`🎬 Subiendo video del sistema: ${videoFile.originalname} (${videoSize}MB) - PROCESANDO EN BACKGROUND`);
+      
+      // ✅ Procesar async sin bloquear la respuesta
+      uploadBufferToCloudinary(videoFile.buffer, {
+        folder: `maintenance/${visit.workId}/${visit.id}/system_video`,
+        resource_type: 'video',
+      })
+        .then(async (cloudinaryResult) => {
+          visit.system_video_url = cloudinaryResult.secure_url;
+          await visit.save();
+          console.log('✅ Video del sistema guardado en DB:', cloudinaryResult.secure_url);
+        })
+        .catch((error) => {
+          console.error('❌ Error subiendo video del sistema:', error);
         });
-        
-        visit.system_video_url = cloudinaryResult.secure_url;
-        await visit.save();
-        console.log('✅ Video del sistema guardado en DB:', cloudinaryResult.secure_url);
-      } catch (error) {
-        console.error('❌ Error subiendo video del sistema:', error);
-      }
     } else {
       console.log('⚠️ No se recibió video del sistema en esta llamada');
     }
@@ -1316,6 +1340,9 @@ const completeMaintenanceVisit = async (req, res) => {
         console.log(`📸 Procesando archivo ${i + 1}/${maintenanceFiles.length}: ${file.originalname} -> campo: ${fieldName}`);
         
         const resourceType = file.mimetype.startsWith('video/') ? 'video' : (file.mimetype.startsWith('image/') ? 'image' : 'raw');
+        const originalSize = Math.round(file.size / 1024); // KB
+        console.log(`📦 Subiendo ${resourceType}: ${file.originalname} (${originalSize}KB) con compresión automática`);
+        
         const cloudinaryResult = await uploadBufferToCloudinary(file.buffer, {
           folder: `maintenance/${visit.workId}/${visit.id}`,
           resource_type: resourceType,
