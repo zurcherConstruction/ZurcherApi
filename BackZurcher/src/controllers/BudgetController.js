@@ -4312,11 +4312,28 @@ async optionalDocs(req, res) {
         return res.status(403).json({ error: 'Token de revisión inválido' });
       }
 
-      // Validar estado
+      // Validar estado - Si ya está aprobado, devolver éxito (idempotente)
       if (budget.status !== 'pending_review') {
         await transaction.rollback();
+        
+        // ✅ Si ya está aprobado/convertido a invoice, es válido (usuario hizo clic doble o refresco)
+        if (['client_approved', 'created', 'sent'].includes(budget.status)) {
+          console.log(`ℹ️ Presupuesto ${idBudget} ya fue aprobado previamente (estado: ${budget.status}). Retornando éxito.`);
+          return res.status(200).json({ 
+            success: true,
+            message: 'Este presupuesto ya fue aprobado anteriormente',
+            budget: {
+              id: budget.id,
+              status: budget.status,
+              invoiceNumber: budget.invoiceNumber,
+              reviewedAt: budget.reviewedAt
+            }
+          });
+        }
+        
+        // Estados inválidos (rechazado, cancelado, etc.)
         return res.status(400).json({ 
-          error: `Este presupuesto ya no está en revisión (estado actual: ${budget.status})`
+          error: `Este presupuesto ya no está disponible para revisión (estado actual: ${budget.status})`
         });
       }
 
