@@ -423,7 +423,9 @@ const scheduleMaintenanceVisits = async (req, res) => {
     const { workId } = req.params;
     const { startDate, forceReschedule } = req.body; // Agregar flag para forzar reprogramación
     
-    const work = await Work.findByPk(workId);
+    const work = await Work.findByPk(workId, {
+      attributes: ['idWork', 'maintenanceStartDate'] // Solo traer campos necesarios
+    });
     if (!work) {
       return res.status(404).json({ error: true, message: 'Obra no encontrada.' });
     }
@@ -432,10 +434,16 @@ const scheduleMaintenanceVisits = async (req, res) => {
     let visitsToDelete = [];
     let visitsToPreserve = [];
     
-    // Verificar si ya existen visitas
+    // Verificar si ya existen visitas (SIN incluir media para performance)
     const existingVisits = await MaintenanceVisit.findAll({ 
       where: { workId },
-      include: [{ model: MaintenanceMedia, as: 'mediaFiles' }]
+      attributes: ['id', 'visitNumber', 'status', 'actualVisitDate'],
+      include: [{ 
+        model: MaintenanceMedia, 
+        as: 'mediaFiles',
+        attributes: ['id'], // Solo necesitamos saber si existen
+        required: false
+      }]
     });
     
     if (existingVisits.length > 0) {
@@ -522,11 +530,10 @@ const scheduleMaintenanceVisits = async (req, res) => {
       await work.save();
     }
 
-    // Obtener todas las visitas actualizadas
+    // Obtener todas las visitas actualizadas (SIN mediaFiles para mejor performance)
     const allVisits = await MaintenanceVisit.findAll({
       where: { workId },
       include: [
-        { model: MaintenanceMedia, as: 'mediaFiles' },
         { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] }
       ],
       order: [['visitNumber', 'ASC']]
@@ -543,7 +550,7 @@ const scheduleMaintenanceVisits = async (req, res) => {
       visitsCreated: visits.length,
       visitsPreserved: visitsToPreserve.length,
       visitsDeleted: visitsToDelete.length,
-      allVisits: allVisits, // Devolver todas las visitas actualizadas
+      allVisits: allVisits,
       work: work,
       rescheduled: existingVisits.length > 0
     });

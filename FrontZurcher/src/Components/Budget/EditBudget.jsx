@@ -806,7 +806,21 @@ const editableBudgets = useMemo(() => {
 
       console.log('✅ Respuesta recibida:', response.data);
       
-      if (response.data.success) {
+      // Status 202 = Procesando en background
+      if (response.status === 202) {
+        toast.success('📤 PDF recibido, procesando en segundo plano. Actualiza en unos segundos.');
+        console.log('🔄 Cerrando modal y limpiando estado...');
+        setShowManualSignatureUpload(false);
+        setManualSignedPdfFile(null);
+        
+        // Recargar después de 3 segundos para dar tiempo a que termine la subida
+        setTimeout(() => {
+          console.log('🔄 Recargando budget desde el servidor...');
+          dispatch(fetchBudgetById(selectedBudgetId));
+        }, 3000);
+      } 
+      // Status 200 = Procesado inmediatamente (legacy support)
+      else if (response.data.success) {
         toast.success('✅ PDF firmado cargado exitosamente');
         console.log('🔄 Cerrando modal y limpiando estado...');
         setShowManualSignatureUpload(false);

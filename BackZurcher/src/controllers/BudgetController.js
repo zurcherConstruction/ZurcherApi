@@ -5013,83 +5013,74 @@ async optionalDocs(req, res) {
       
       const propertyTag = `property-${normalizedAddress}`;
 
-      // 5. Eliminar el PDF firmado anterior de Cloudinary (si existe)
-      if (budget.manualSignedPdfPublicId) {
-        console.log(`🗑️ Eliminando PDF manual anterior: ${budget.manualSignedPdfPublicId}`);
-        try {
-          await cloudinary.uploader.destroy(budget.manualSignedPdfPublicId);
-          console.log('✅ PDF anterior eliminado de Cloudinary');
-        } catch (deleteError) {
-          console.warn('⚠️ No se pudo eliminar el PDF anterior:', deleteError.message);
-        }
-      }
-
-      // 6. Subir el nuevo PDF a Cloudinary
-      console.log('☁️ Subiendo PDF firmado manualmente a Cloudinary...');
-      
-      const uploadResult = await new Promise((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-          {
-            folder: 'signed_budgets',
-            resource_type: 'raw', // Para PDFs
-            public_id: `budget-${idBudget}-manual-signed-${Date.now()}`,
-            tags: [invoiceTag, propertyTag, 'manual-signature', 'signed-budget'],
-            context: {
-              budget_id: idBudget,
-              invoice_number: budget.invoiceNumber || 'N/A',
-              property_address: budget.Permit?.propertyAddress || 'N/A',
-              uploaded_by: req.user?.email || 'unknown',
-              signature_method: 'manual'
-            }
-          },
-          (error, result) => {
-            if (error) reject(error);
-            else resolve(result);
-          }
-        );
-
-        uploadStream.end(req.file.buffer);
-      });
-
-      console.log('✅ PDF subido exitosamente a Cloudinary:', uploadResult.secure_url);
-
-      // 7. Actualizar el Budget con los datos del PDF manual
-      // ✅ CORREGIDO: Cambiar a 'signed' y dejar que el hook del modelo lo pase a 'approved' si tiene pago
-      await budget.update({
-        signatureMethod: 'manual',
-        manualSignedPdfPath: uploadResult.secure_url,
-        manualSignedPdfPublicId: uploadResult.public_id,
-        status: 'signed' // El hook beforeUpdate pasará a 'approved' automáticamente si tiene paymentProofAmount > 0
-      });
-
-      console.log(`✅ Budget ${idBudget} actualizado con PDF firmado manual (status: ${budget.status})`);
-
-      // 8. Enviar notificación (deshabilitado temporalmente - tipo no configurado)
-      // try {
-      //   await sendNotifications({
-      //     type: 'BUDGET_MANUAL_SIGNED',
-      //     budgetId: idBudget,
-      //     permitId: budget.permitId,
-      //     message: `Presupuesto #${budget.invoiceNumber || idBudget} firmado manualmente`,
-      //     metadata: { signatureMethod: 'manual' }
-      //   });
-      // } catch (notifError) {
-      //   console.warn('⚠️ Error al enviar notificación:', notifError.message);
-      // }
-
-      // 9. Responder con éxito
-      res.status(200).json({
+      // 5. Responder inmediatamente al usuario (antes de subir a Cloudinary)
+      res.status(202).json({
         success: true,
-        message: 'PDF firmado cargado exitosamente',
+        message: 'PDF recibido, procesando en segundo plano...',
         budget: {
           idBudget: budget.idBudget,
           invoiceNumber: budget.invoiceNumber,
-          status: budget.status,
-          signatureMethod: budget.signatureMethod,
-          manualSignedPdfPath: budget.manualSignedPdfPath
-        },
-        pdfUrl: uploadResult.secure_url
+          status: 'processing'
+        }
       });
+
+      // 6. Procesar la subida a Cloudinary de forma asíncrona (en background)
+      (async () => {
+        try {
+          // Eliminar el PDF firmado anterior de Cloudinary (si existe)
+          if (budget.manualSignedPdfPublicId) {
+            console.log(`🗑️ Eliminando PDF manual anterior: ${budget.manualSignedPdfPublicId}`);
+            try {
+              await cloudinary.uploader.destroy(budget.manualSignedPdfPublicId);
+              console.log('✅ PDF anterior eliminado de Cloudinary');
+            } catch (deleteError) {
+              console.warn('⚠️ No se pudo eliminar el PDF anterior:', deleteError.message);
+            }
+          }
+
+          // Subir el nuevo PDF a Cloudinary
+          console.log('☁️ Subiendo PDF firmado manualmente a Cloudinary (asíncrono)...');
+          
+          const uploadResult = await new Promise((resolve, reject) => {
+            const uploadStream = cloudinary.uploader.upload_stream(
+              {
+                folder: 'signed_budgets',
+                resource_type: 'raw',
+                public_id: `budget-${idBudget}-manual-signed-${Date.now()}`,
+                tags: [invoiceTag, propertyTag, 'manual-signature', 'signed-budget'],
+                context: {
+                  budget_id: idBudget,
+                  invoice_number: budget.invoiceNumber || 'N/A',
+                  property_address: budget.Permit?.propertyAddress || 'N/A',
+                  uploaded_by: req.user?.email || 'unknown',
+                  signature_method: 'manual'
+                }
+              },
+              (error, result) => {
+                if (error) reject(error);
+                else resolve(result);
+              }
+            );
+
+            uploadStream.end(req.file.buffer);
+          });
+
+          console.log('✅ PDF subido exitosamente a Cloudinary:', uploadResult.secure_url);
+
+          // Actualizar el Budget con los datos del PDF manual
+          await budget.update({
+            signatureMethod: 'manual',
+            manualSignedPdfPath: uploadResult.secure_url,
+            manualSignedPdfPublicId: uploadResult.public_id,
+            status: 'signed' // El hook beforeUpdate pasará a 'approved' si tiene pago
+          });
+
+          console.log(`✅ Budget ${idBudget} actualizado con PDF firmado manual (status: ${budget.status})`);
+
+        } catch (uploadError) {
+          console.error(`❌ Error en subida asíncrona de PDF para Budget ${idBudget}:`, uploadError);
+        }
+      })();
 
     } catch (error) {
       console.error('❌ Error al subir PDF firmado manual:', error);
