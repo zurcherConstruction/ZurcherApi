@@ -21,12 +21,12 @@ const sequelize = DB_DEPLOY
       native: false,
       timezone: 'America/New_York',
       pool: {
-        max: 30,            // ⬆️ Aumentado de 10 a 30 para soportar alta concurrencia
-        min: 5,             // ⬆️ Mantener 5 conexiones activas (warm connections)
-        acquire: 60000,     // ⬆️ 60 segundos para adquirir conexión
-        idle: 20000,        // ⬆️ 20 segundos antes de liberar conexión inactiva
-        evict: 10000,       // 🆕 Revisar cada 10s conexiones para eviction
-        maxUses: 1000       // 🆕 Reciclar conexión después de 1000 usos (previene memory leaks)
+        max: 15,            // ⬇️ Reducido temporalmente para evitar saturación
+        min: 3,             // ⬇️ Menos warm connections
+        acquire: 30000,     // ⬇️ 30 segundos timeout (antes 60s)
+        idle: 10000,        // ⬇️ 10 segundos idle (antes 20s)
+        evict: 5000,        // 🆕 Eviction más agresivo
+        maxUses: 1000       // 🆕 Reciclar conexión después de 1000 usos
       },
       dialectOptions: {
         ssl: NODE_ENV === 'production' ? { require: true, rejectUnauthorized: false } : false
@@ -38,11 +38,11 @@ const sequelize = DB_DEPLOY
         logging: false,
         native: false,
         pool: {
-          max: 30,            // ⬆️ Aumentado de 10 a 30
-          min: 5,             // ⬆️ Mantener 5 conexiones activas
-          acquire: 60000,     // ⬆️ 60 segundos timeout
-          idle: 20000,        // ⬆️ 20 segundos idle
-          evict: 10000,       // 🆕 Eviction cada 10s
+          max: 15,            // ⬇️ Reducido temporalmente
+          min: 3,             // ⬇️ Menos warm connections
+          acquire: 30000,     // ⬇️ 30 segundos timeout
+          idle: 10000,        // ⬇️ 10 segundos idle
+          evict: 5000,        // 🆕 Eviction más agresivo
           maxUses: 1000       // 🆕 Reciclar conexiones viejas
         },
         dialectOptions: {
