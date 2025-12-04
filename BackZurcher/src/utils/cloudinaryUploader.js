@@ -19,7 +19,26 @@ const uploadToCloudinary = (filePath, folder = 'work_images') => {
 
 const uploadBufferToCloudinary = (buffer, options = {}) => {
   return new Promise((resolve, reject) => {
-    const uploadStream = cloudinary.uploader.upload_stream(options, (error, result) => {
+    // ✅ Aplicar compresión automática según el tipo de recurso
+    const finalOptions = { ...options };
+    
+    // 🖼️ Imágenes: comprimir al 60% de calidad (excelente balance calidad/tamaño)
+    if (options.resource_type === 'image') {
+      finalOptions.quality = 'auto:low'; // Cloudinary optimiza automáticamente
+      finalOptions.fetch_format = 'auto'; // Usa WebP si el navegador lo soporta
+    }
+    
+    // 🎬 Videos: reducir resolución y bitrate
+    if (options.resource_type === 'video') {
+      finalOptions.quality = 'auto:low'; // Compresión automática
+      finalOptions.transformation = [
+        { width: 1280, height: 720, crop: 'limit' }, // Máximo 720p
+        { quality: 'auto:low' },
+        { fetch_format: 'auto' } // mp4 optimizado
+      ];
+    }
+    
+    const uploadStream = cloudinary.uploader.upload_stream(finalOptions, (error, result) => {
       if (error) {
         console.error('Error en upload_stream callback:', error); // Loguear el error aquí
         return reject(error);
