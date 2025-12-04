@@ -16,9 +16,10 @@ const getWorkChecklist = async (req, res) => {
       });
     }
 
-    // Buscar o crear el checklist
-    let checklist = await WorkChecklist.findOne({
+    // Buscar o crear el checklist (atómico para evitar race conditions)
+    const [checklist, created] = await WorkChecklist.findOrCreate({
       where: { workId },
+      defaults: { workId },
       include: [
         {
           model: Staff,
@@ -28,9 +29,7 @@ const getWorkChecklist = async (req, res) => {
       ]
     });
 
-    // Si no existe, crear uno nuevo con valores por defecto (false)
-    if (!checklist) {
-      checklist = await WorkChecklist.create({ workId });
+    if (created) {
       console.log(`✅ Checklist creado para work ${workId}`);
     }
 

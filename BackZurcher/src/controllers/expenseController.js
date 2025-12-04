@@ -386,6 +386,55 @@ const deleteExpense = async (req, res) => {
       }
     }
 
+    // 📋 REVERTIR PAGO DE SUPPLIER INVOICE si está vinculado
+    let revertedInvoicePayment = null;
+    if (expense.supplierInvoiceItemId) {
+      try {
+        const { SupplierInvoice } = require('../data');
+        
+        const invoice = await SupplierInvoice.findByPk(expense.supplierInvoiceItemId, { transaction });
+        
+        if (invoice) {
+          const expenseAmount = parseFloat(expense.totalAmount);
+          const currentPaid = parseFloat(invoice.paidAmount) || 0;
+          const newPaidAmount = Math.max(0, currentPaid - expenseAmount);
+          const totalInvoice = parseFloat(invoice.totalAmount);
+          
+          // Determinar nuevo estado
+          let newPaymentStatus;
+          if (newPaidAmount === 0) {
+            newPaymentStatus = 'unpaid';
+          } else if (newPaidAmount >= totalInvoice) {
+            newPaymentStatus = 'paid';
+          } else {
+            newPaymentStatus = 'partial';
+          }
+          
+          await invoice.update({
+            paidAmount: newPaidAmount,
+            paymentStatus: newPaymentStatus
+          }, { transaction });
+          
+          revertedInvoicePayment = {
+            invoiceId: invoice.idSupplierInvoice,
+            vendorName: invoice.vendorName,
+            previousPaid: currentPaid,
+            newPaid: newPaidAmount,
+            newStatus: newPaymentStatus
+          };
+          
+          console.log(`✅ [INVOICE] Pago revertido: ${invoice.vendorName} - $${currentPaid} → $${newPaidAmount} (${newPaymentStatus})`);
+        }
+      } catch (invoiceError) {
+        console.error('❌ [INVOICE] Error revirtiendo pago de invoice:', invoiceError.message);
+        await transaction.rollback();
+        return res.status(500).json({
+          message: 'Error al revertir pago de invoice',
+          error: invoiceError.message
+        });
+      }
+    }
+
     // Eliminar el expense
     await expense.destroy({ transaction });
     
@@ -393,7 +442,8 @@ const deleteExpense = async (req, res) => {
 
     res.status(200).json({
       message: 'Gasto eliminado correctamente',
-      revertedBankTransaction: revertedBankTransaction
+      revertedBankTransaction: revertedBankTransaction,
+      revertedInvoicePayment: revertedInvoicePayment
     });
   } catch (error) {
     await transaction.rollback();

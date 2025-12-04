@@ -478,14 +478,15 @@ const scheduleMaintenanceVisits = async (req, res) => {
     // Usar parseISO para evitar problemas de timezone con strings YYYY-MM-DD
     const baseDate = startDate ? parseISO(startDate + 'T12:00:00') : new Date();
     
-    // Obtener números de visitas ya existentes (preservadas)
-    const preservedVisitNumbers = await MaintenanceVisit.findAll({
+    // Obtener números de visitas ya existentes (preservadas) DESPUÉS de eliminar
+    const preservedVisits = await MaintenanceVisit.findAll({
       where: { workId },
       attributes: ['visitNumber'],
+      order: [['visitNumber', 'ASC']],
       raw: true
     });
-    const existingNumbers = preservedVisitNumbers.map(v => v.visitNumber);
-    console.log('📋 Números de visitas ya existentes:', existingNumbers);
+    const existingNumbers = preservedVisits.map(v => v.visitNumber);
+    console.log('📋 Números de visitas ya existentes (después de limpieza):', existingNumbers);
     
     // Crear las 4 visitas de mantenimiento (solo las que no existen)
     const visits = [];
@@ -529,18 +530,20 @@ const scheduleMaintenanceVisits = async (req, res) => {
       ? `Se ${existingVisits.length > 0 ? 'reprogramaron' : 'programaron'} ${visits.length} visita(s) de mantenimiento.`
       : 'No se crearon nuevas visitas (todas ya existían).';
 
+    console.log(`✅ Proceso completado: ${visits.length} visitas creadas, ${visitsToPreserve.length} preservadas`);
+
     res.status(201).json({ 
       message: responseMessage,
       visitsCreated: visits.length,
-      visitsPreserved: existingVisits.length > 0 ? existingVisits.length - visitsToDelete.length : 0,
-      visitsDeleted: visitsToDelete ? visitsToDelete.length : 0,
+      visitsPreserved: visitsToPreserve.length,
+      visitsDeleted: visitsToDelete.length,
       allVisits: allVisits, // Devolver todas las visitas actualizadas
       work: work,
       rescheduled: existingVisits.length > 0
     });
   } catch (error) {
-    console.error('Error al programar visitas de mantenimiento:', error);
-    res.status(500).json({ error: true, message: 'Error interno del servidor.' });
+    console.error('❌ Error al programar visitas de mantenimiento:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor.', details: error.message });
   }
 };
 
