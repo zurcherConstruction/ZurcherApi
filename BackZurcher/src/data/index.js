@@ -52,7 +52,16 @@ const sequelize = DB_DEPLOY
       }
     );
 
-console.log(`📊 Base de datos: ${DB_DEPLOY ? 'RAILWAY (Producción)' : 'LOCAL (Desarrollo)'}`);
+// 🔍 LOG para debug de conexión
+if (DB_DEPLOY) {
+  const urlParts = DB_DEPLOY.split('@');
+  const hostInfo = urlParts[1] ? urlParts[1].split('/')[0] : 'unknown';
+  console.log(`📊 Base de datos: RAILWAY (Producción)`);
+  console.log(`🔗 Conectando a: ${hostInfo}`);
+  console.log(`🚀 Pool: max=${sequelize.options.pool.max}, min=${sequelize.options.pool.min}`);
+} else {
+  console.log(`📊 Base de datos: LOCAL (Desarrollo)`);
+}
 
 const basename = path.basename(__filename);
 
