@@ -724,8 +724,8 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             onPress: async () => {
               const result = await ImagePicker.launchCameraAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-                videoMaxDuration: 60,
-                quality: 0.5,
+                videoMaxDuration: 30,
+                quality: 0.3,
               });
               await processSystemVideo(result);
             }
@@ -735,8 +735,8 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             onPress: async () => {
               const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-                videoMaxDuration: 60,
-                quality: 0.5,
+                videoMaxDuration: 30,
+                quality: 0.3,
               });
               await processSystemVideo(result);
             }
@@ -787,7 +787,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             onPress: async () => {
               const result = await ImagePicker.launchCameraAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                quality: 0.7,
+                quality: 0.3,
                 allowsEditing: true,
                 aspect: [4, 3],
               });
@@ -799,7 +799,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             onPress: async () => {
               const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                quality: 0.7,
+                quality: 0.3,
                 allowsEditing: true,
                 aspect: [4, 3],
               });
@@ -821,12 +821,20 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
     try {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const imageUri = result.assets[0].uri;
-        const filename = imageUri.split('/').pop();
+        
+        // Optimizar imagen (resize + compresión para conexiones lentas)
+        const optimizedImage = await manipulateAsync(
+          imageUri,
+          [{ resize: { width: 600 } }],
+          { compress: 0.3, format: SaveFormat.JPEG }
+        );
+
+        const filename = optimizedImage.uri.split('/').pop();
         const match = /\.(\w+)$/.exec(filename);
         const type = match ? `image/${match[1]}` : 'image/jpeg';
 
         const imageObject = {
-          uri: imageUri,
+          uri: optimizedImage.uri,
           name: filename,
           type: type,
           isExisting: false,
