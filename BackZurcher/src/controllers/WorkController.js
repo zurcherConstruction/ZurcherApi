@@ -111,6 +111,12 @@ const getWorks = async (req, res) => {
           as: 'checklist',
           required: false,
           attributes: ['finalReviewCompleted'] // Solo traer si está completado
+        },
+        {
+          model: MaintenanceVisit,
+          as: 'maintenanceVisits',
+          required: false,
+          attributes: ['id', 'visitNumber', 'scheduledDate', 'actualVisitDate', 'status', 'createdAt']
         }
         // ❌ Removido: Expense y Receipt de la consulta principal
         // ✅ Se cargarán después en consultas separadas (más eficiente)

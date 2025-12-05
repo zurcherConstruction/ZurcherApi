@@ -22,20 +22,20 @@ const ProgressTracker = () => {
   const [filteredData, setFilteredData] = useState([]);
   const hasFetched = useRef(false); // 🆕 Prevenir fetch duplicado
 
-  // ✅ Fetch inicial solo una vez
+  // ✅ Fetch inicial solo una vez (cargar TODOS los works)
   useEffect(() => {
     if (!hasFetched.current) {
-      console.log('📊 [ProgressTracker] Cargando works inicial...');
+      console.log('📊 [ProgressTracker] Cargando todos los works...');
       hasFetched.current = true;
-      dispatch(fetchWorks());
+      dispatch(fetchWorks(1, 1000)); // Límite alto para cargar todos
     }
   }, []); // Sin dependencias para que solo se ejecute al montar
 
   // ✅ Refresco automático cada 5 min
   useEffect(() => {
     const intervalId = setInterval(() => {
-      console.log('🔄 [ProgressTracker] Auto-refresh works...');
-      dispatch(fetchWorks());
+      console.log('🔄 [ProgressTracker] Auto-refresh todos los works...');
+      dispatch(fetchWorks(1, 1000)); // Límite alto para cargar todos
     }, 300000); // 5 minutos
 
     return () => {
@@ -46,8 +46,11 @@ const ProgressTracker = () => {
 
   useEffect(() => {
     if (works) {
+      // ✅ EXCLUIR works en maintenance (tienen su propio componente)
+      const activeWorks = works.filter((work) => work.status !== 'maintenance');
+      
       // Filtrar por búsqueda
-      const filtered = works.filter((work) =>
+      const filtered = activeWorks.filter((work) =>
         work.propertyAddress?.toLowerCase().includes(search.toLowerCase())
       );
 
