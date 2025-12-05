@@ -88,16 +88,22 @@ const STATUS_ORDER = {
 const WorkZoneMapListScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   const { works, loading } = useSelector((state) => state.work);
+  const { staff } = useSelector((state) => state.auth);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedZone, setSelectedZone] = useState('all');
 
   useEffect(() => {
-    dispatch(fetchWorks());
-  }, [dispatch]);
+    // Filtrar works solo del usuario logueado
+    if (staff?.staffId) {
+      dispatch(fetchWorks(staff.staffId));
+    }
+  }, [dispatch, staff?.staffId]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await dispatch(fetchWorks());
+    if (staff?.staffId) {
+      await dispatch(fetchWorks(staff.staffId));
+    }
     setRefreshing(false);
   };
 
