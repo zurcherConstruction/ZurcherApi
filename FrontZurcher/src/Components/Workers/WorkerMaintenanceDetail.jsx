@@ -89,6 +89,9 @@ const WorkerMaintenanceDetail = () => {
     // VIDEO GENERAL
     system_video_url: '',
 
+    // 🆕 IMAGEN FINAL DEL SISTEMA
+    final_system_image_url: '',
+
     general_notes: ''
   });
 
@@ -98,6 +101,7 @@ const WorkerMaintenanceDetail = () => {
   const [fieldImages, setFieldImages] = useState({}); // Imágenes por campo específico
   const [existingMedia, setExistingMedia] = useState([]); // Archivos ya guardados
   const [systemVideoFile, setSystemVideoFile] = useState(null); // Archivo de video del sistema
+  const [finalSystemImageFile, setFinalSystemImageFile] = useState(null); // 🆕 Imagen final del sistema completo
 
   useEffect(() => {
     loadVisitDetail();
@@ -226,6 +230,9 @@ const WorkerMaintenanceDetail = () => {
 
         // VIDEO
         system_video_url: currentVisit.system_video_url || '',
+
+        // 🆕 IMAGEN FINAL
+        final_system_image_url: currentVisit.final_system_image_url || '',
 
         general_notes: currentVisit.general_notes || ''
       });
@@ -502,6 +509,12 @@ const WorkerMaintenanceDetail = () => {
       if (systemVideoFile) {
         submitFormData.append('systemVideo', systemVideoFile);
         console.log('🎬 Video del sistema agregado:', systemVideoFile.name);
+      }
+      
+      // 🆕 Agregar imagen final del sistema si existe
+      if (finalSystemImageFile) {
+        submitFormData.append('finalSystemImage', finalSystemImageFile);
+        console.log('📸 Imagen final del sistema agregada:', finalSystemImageFile.name);
       }
 
       console.log('📤 Enviando formulario de mantenimiento...');
@@ -1657,6 +1670,95 @@ const WorkerMaintenanceDetail = () => {
                     <p className="text-xs text-pink-700">
                       {formData.system_video_url}
                     </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 🆕 IMAGEN FINAL DEL SISTEMA COMPLETO */}
+          <div className="mb-6 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-300 shadow-md">
+            <h3 className="text-lg font-bold text-purple-900 mb-4 uppercase flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6 text-purple-600">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+              </svg>
+              IMAGEN FINAL DEL SISTEMA COMPLETO <span className="text-red-600">*</span>
+            </h3>
+
+            <div className="bg-white rounded-lg p-4 border-2 border-purple-200">
+              <p className="text-sm text-purple-700 mb-3 font-medium">
+                📸 Tome una foto final del sistema completo instalado (OBLIGATORIA para completar la visita)
+              </p>
+
+              {!isDisabled && (
+                <>
+                  <input
+                    type="file"
+                    id="final-system-image"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setFinalSystemImageFile(file);
+                        setFormData(prev => ({ ...prev, final_system_image_url: file.name }));
+                        toast.success('Imagen final del sistema seleccionada');
+                      }
+                    }}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="final-system-image"
+                    className="inline-flex items-center px-4 py-3 bg-purple-600 text-white text-sm font-bold rounded-lg cursor-pointer hover:bg-purple-700 transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 mr-2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.192 2.192 0 00-1.736-1.039 48.774 48.774 0 00-5.232 0 2.192 2.192 0 00-1.736 1.039l-.821 1.316z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
+                    </svg>
+                    Tomar / Subir Foto Final
+                  </label>
+                </>
+              )}
+
+              {formData.final_system_image_url && (
+                <div className="mt-3 p-3 bg-purple-100 border border-purple-300 rounded-lg">
+                  <p className="text-sm font-semibold text-purple-800 mb-2">
+                    ✓ Imagen Final del Sistema Cargada
+                  </p>
+                  {formData.final_system_image_url.startsWith('http') ? (
+                    // Imagen ya subida a Cloudinary
+                    <div className="space-y-2">
+                      <img 
+                        src={formData.final_system_image_url} 
+                        alt="Imagen final del sistema" 
+                        className="w-full max-w-md rounded-lg shadow-md"
+                      />
+                      <a
+                        href={formData.final_system_image_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center px-3 py-1 text-purple-600 text-sm hover:text-purple-800 transition-colors"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 mr-1">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                        </svg>
+                        Ver en tamaño completo
+                      </a>
+                    </div>
+                  ) : (
+                    // Archivo recién seleccionado (pendiente de subir)
+                    <div className="flex items-center gap-3">
+                      {finalSystemImageFile && (
+                        <img 
+                          src={URL.createObjectURL(finalSystemImageFile)} 
+                          alt="Preview" 
+                          className="w-32 h-32 object-cover rounded-lg shadow-sm"
+                        />
+                      )}
+                      <p className="text-xs text-purple-700">
+                        {formData.final_system_image_url}
+                      </p>
+                    </div>
                   )}
                 </div>
               )}

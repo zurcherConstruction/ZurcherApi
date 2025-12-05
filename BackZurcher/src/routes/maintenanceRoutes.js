@@ -86,7 +86,8 @@ router.post('/:visitId/complete',
         { name: 'wellSample1', maxCount: 1 },       // Muestra 1 PBTS/ATU
         { name: 'wellSample2', maxCount: 1 },       // Muestra 2 PBTS/ATU
         { name: 'wellSample3', maxCount: 1 },       // Muestra 3 PBTS/ATU
-        { name: 'systemVideo', maxCount: 1 }        // Video general del sistema
+        { name: 'systemVideo', maxCount: 1 },       // Video general del sistema
+        { name: 'finalSystemImage', maxCount: 1 }   // 🆕 Imagen final del sistema completo (OBLIGATORIA)
     ]),
     MaintenanceController.completeMaintenanceVisit
 );
