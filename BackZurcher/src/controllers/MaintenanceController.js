@@ -1252,6 +1252,27 @@ const completeMaintenanceVisit = async (req, res) => {
 
     await visit.save();
 
+    // ✅ Preservar URLs existentes de muestras PBTS y final_system_image si se envían (sin archivos nuevos)
+    const {
+      well_sample_1_url: existingSample1Url,
+      well_sample_2_url: existingSample2Url,
+      well_sample_3_url: existingSample3Url,
+      final_system_image_url: existingFinalImageUrl
+    } = req.body;
+    
+    if (existingSample1Url) {
+      visit.well_sample_1_url = existingSample1Url;
+    }
+    if (existingSample2Url) {
+      visit.well_sample_2_url = existingSample2Url;
+    }
+    if (existingSample3Url) {
+      visit.well_sample_3_url = existingSample3Url;
+    }
+    if (existingFinalImageUrl) {
+      visit.final_system_image_url = existingFinalImageUrl;
+    }
+
     // ✅ Procesar imágenes de muestras PBTS/ATU en background
     const sampleFields = ['wellSample1', 'wellSample2', 'wellSample3'];
     const sampleUploads = [];
@@ -1286,34 +1307,59 @@ const completeMaintenanceVisit = async (req, res) => {
       await Promise.all(sampleUploads);
     }
 
-    // ✅ GUARDAR EN DB PRIMERO (sin bloquear con Cloudinary)
-    await visit.save();
-
-    // ✅ Procesar video del sistema DESPUÉS de guardar en DB (para no bloquear)
+    // ✅ Procesar video del sistema ANTES de guardar (para asegurar que se guarde el URL)
     const systemVideoArray = files?.systemVideo;
     console.log('🎬 DEBUG - systemVideoArray:', systemVideoArray ? `${systemVideoArray.length} archivo(s)` : 'undefined');
     
     if (systemVideoArray && systemVideoArray.length > 0) {
       const videoFile = systemVideoArray[0];
-      // ✅ Subir a Cloudinary SIN await para no bloquear (procesar en background)
       const videoSize = Math.round(videoFile.size / 1024 / 1024);
-      console.log(`🎬 Subiendo video del sistema: ${videoFile.originalname} (${videoSize}MB) - PROCESANDO EN BACKGROUND`);
+      console.log(`🎬 Subiendo video del sistema: ${videoFile.originalname} (${videoSize}MB)`);
       
-      // ✅ Procesar async sin bloquear la respuesta
-      uploadBufferToCloudinary(videoFile.buffer, {
-        folder: `maintenance/${visit.workId}/${visit.id}/system_video`,
-        resource_type: 'video',
-      })
-        .then(async (cloudinaryResult) => {
-          visit.system_video_url = cloudinaryResult.secure_url;
-          await visit.save();
-          console.log('✅ Video del sistema guardado en DB:', cloudinaryResult.secure_url);
-        })
-        .catch((error) => {
-          console.error('❌ Error subiendo video del sistema:', error);
+      try {
+        // ✅ AWAIT para asegurar que se guarde el URL antes de responder
+        const cloudinaryResult = await uploadBufferToCloudinary(videoFile.buffer, {
+          folder: `maintenance/${visit.workId}/${visit.id}/system_video`,
+          resource_type: 'video',
         });
+        
+        visit.system_video_url = cloudinaryResult.secure_url;
+        console.log('✅ Video del sistema cargado a Cloudinary:', cloudinaryResult.secure_url);
+      } catch (error) {
+        console.error('❌ Error subiendo video del sistema:', error);
+        // No fallar todo el proceso si el video falla
+      }
     } else {
       console.log('⚠️ No se recibió video del sistema en esta llamada');
+    }
+
+    // ✅ GUARDAR EN DB con el URL del video
+    await visit.save();
+    
+    // 🆕 Procesar imagen final del sistema (OBLIGATORIA)
+    const finalSystemImageArray = files?.finalSystemImage;
+    console.log('📸 DEBUG - finalSystemImageArray:', finalSystemImageArray ? `${finalSystemImageArray.length} archivo(s)` : 'undefined');
+    
+    if (finalSystemImageArray && finalSystemImageArray.length > 0) {
+      const imageFile = finalSystemImageArray[0];
+      const imageSize = Math.round(imageFile.size / 1024);
+      console.log(`📸 Subiendo imagen final del sistema: ${imageFile.originalname} (${imageSize}KB)`);
+      
+      try {
+        const cloudinaryResult = await uploadBufferToCloudinary(imageFile.buffer, {
+          folder: `maintenance/${visit.workId}/${visit.id}/final_system`,
+          resource_type: 'image',
+        });
+        
+        visit.final_system_image_url = cloudinaryResult.secure_url;
+        await visit.save();
+        console.log('✅ Imagen final del sistema guardada:', cloudinaryResult.secure_url);
+      } catch (error) {
+        console.error('❌ Error subiendo imagen final del sistema:', error);
+      }
+    } else if (markAsCompleted === 'true' || markAsCompleted === true) {
+      // ⚠️ Si se está completando pero no hay imagen, advertir
+      console.warn('⚠️ ADVERTENCIA: Se completó el mantenimiento sin imagen final del sistema');
     }
 
     // Procesar archivos subidos (maintenanceFiles)

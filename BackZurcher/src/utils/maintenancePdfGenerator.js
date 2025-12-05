@@ -124,6 +124,7 @@ async function generateMaintenancePDF(visitData, language = 'es') {
         well_sample_3_observations,
         well_sample_3_notes,
         system_video_url,
+        final_system_image_url, // 🆕 Imagen final del sistema
         // Generales
         general_notes,
         worker_signature_url,
@@ -159,6 +160,7 @@ async function generateMaintenancePDF(visitData, language = 'es') {
           additional_notes: 'Additional Notes',
           system_video: 'System Video',
           additional_photos: 'Additional Photos',
+          final_system_photo: 'Complete System - Final Photo',
           video_available: 'System video available:',
           inlet_level: 'Inlet Level:',
           outlet_level: 'Outlet Level:',
@@ -206,6 +208,7 @@ async function generateMaintenancePDF(visitData, language = 'es') {
           additional_notes: 'Notas Adicionales',
           system_video: 'Video del Sistema',
           additional_photos: 'Fotos Adicionales',
+          final_system_photo: 'Sistema Completo - Foto Final',
           video_available: 'Video general del sistema disponible:',
           inlet_level: 'Nivel Entrada:',
           outlet_level: 'Nivel Salida:',
@@ -380,7 +383,13 @@ async function generateMaintenancePDF(visitData, language = 'es') {
         let result = 'N/A';
         let resultColor = TEXT_COLOR;
         
-        if (value === true || value === 'yes') {
+        // ✅ Si es un valor numérico o texto (niveles del tanque), mostrarlo directamente
+        if (typeof value === 'number' || (typeof value === 'string' && value.trim().length > 0 && value !== 'yes' && value !== 'no')) {
+          result = String(value);
+          resultColor = TEXT_COLOR;
+        }
+        // Valores booleanos o yes/no
+        else if (value === true || value === 'yes') {
           result = 'YES';
           resultColor = TEXT_COLOR; // Negro
         } else if (value === false || value === 'no') {
@@ -479,70 +488,17 @@ async function generateMaintenancePDF(visitData, language = 'es') {
       if (tank_inlet_level || tank_outlet_level || level_inlet || level_outlet) {
         drawSectionTitle(t.tank_levels);
         
-        // Usar formato de tabla para niveles
-        const colWidths = { question: 280, result: 70, images: 162 };
-        const startX = PAGE_MARGIN;
-        
+        // ✅ Usar drawRow para incluir imágenes
         if (tank_inlet_level || level_inlet) {
           const level = tank_inlet_level || level_inlet;
           const notes = tank_inlet_notes || '';
-          const rowHeight = notes ? 40 : 22;
-          
-          if (y + rowHeight > doc.page.height - PAGE_MARGIN) {
-            doc.addPage();
-            y = PAGE_MARGIN;
-          }
-          
-          doc.rect(startX, y, doc.page.width - PAGE_MARGIN * 2, rowHeight).strokeColor(BORDER_COLOR).stroke();
-          
-          doc.font('Helvetica').fontSize(8).fillColor(TEXT_COLOR);
-          doc.text(t.inlet_level, startX + 5, y + 6, { width: colWidths.question - 10 });
-          
-          const resultX = startX + colWidths.question;
-          doc.moveTo(resultX, y).lineTo(resultX, y + rowHeight).strokeColor(BORDER_COLOR).stroke();
-          
-          doc.font('Helvetica-Bold').fontSize(8).fillColor(TEXT_COLOR);
-          doc.text(level, resultX + 8, y + 6, { width: colWidths.result - 16, align: 'center' });
-          
-          const imagesX = resultX + colWidths.result;
-          doc.moveTo(imagesX, y).lineTo(imagesX, y + rowHeight).strokeColor(BORDER_COLOR).stroke();
-          
-          if (notes) {
-            doc.fontSize(7).fillColor(TEXT_LIGHT).text(`${t.observations} ${notes}`, startX + 5, y + 24, { width: doc.page.width - PAGE_MARGIN * 2 - 10 });
-          }
-          
-          y += rowHeight;
+          drawRow(t.inlet_level, level, notes, imagesByField.tank_inlet_level || []);
         }
         
         if (tank_outlet_level || level_outlet) {
           const level = tank_outlet_level || level_outlet;
           const notes = tank_outlet_notes || '';
-          const rowHeight = notes ? 40 : 22;
-          
-          if (y + rowHeight > doc.page.height - PAGE_MARGIN) {
-            doc.addPage();
-            y = PAGE_MARGIN;
-          }
-          
-          doc.rect(startX, y, doc.page.width - PAGE_MARGIN * 2, rowHeight).strokeColor(BORDER_COLOR).stroke();
-          
-          doc.font('Helvetica').fontSize(8).fillColor(TEXT_COLOR);
-          doc.text(t.outlet_level, startX + 5, y + 6, { width: colWidths.question - 10 });
-          
-          const resultX = startX + colWidths.question;
-          doc.moveTo(resultX, y).lineTo(resultX, y + rowHeight).strokeColor(BORDER_COLOR).stroke();
-          
-          doc.font('Helvetica-Bold').fontSize(8).fillColor(TEXT_COLOR);
-          doc.text(level, resultX + 8, y + 6, { width: colWidths.result - 16, align: 'center' });
-          
-          const imagesX = resultX + colWidths.result;
-          doc.moveTo(imagesX, y).lineTo(imagesX, y + rowHeight).strokeColor(BORDER_COLOR).stroke();
-          
-          if (notes) {
-            doc.fontSize(7).fillColor(TEXT_LIGHT).text(`${t.observations} ${notes}`, startX + 5, y + 24, { width: doc.page.width - PAGE_MARGIN * 2 - 10 });
-          }
-          
-          y += rowHeight;
+          drawRow(t.outlet_level, level, notes, imagesByField.tank_outlet_level || []);
         }
         
         y += 10;
@@ -560,14 +516,17 @@ async function generateMaintenancePDF(visitData, language = 'es') {
       y += 15;
 
       // === SISTEMA ATU ===
-      drawSectionTitle(t.system_atu);
-      drawRow(t.blower_working, blower_working, blower_working_notes, imagesByField.blower_working || []);
-      drawRow(t.blower_filter_clean, blower_filter_clean, blower_filter_notes, imagesByField.blower_filter_clean || []);
-      drawRow(t.diffusers_bubbling, diffusers_bubbling, diffusers_bubbling_notes, imagesByField.diffusers_bubbling || []);
-      drawRow(t.discharge_pump_ok, discharge_pump_ok, discharge_pump_notes, imagesByField.discharge_pump_ok || []);
-      drawRow(t.clarified_water_outlet, clarified_water_outlet, clarified_water_notes, imagesByField.clarified_water_outlet || []);
-      drawRow(t.alarm_test, alarm_test, alarm_test_notes, imagesByField.alarm_test || []);
-      y += 15;
+      if (blower_working !== undefined || blower_filter_clean !== undefined || diffusers_bubbling !== undefined || 
+          discharge_pump_ok !== undefined || clarified_water_outlet !== undefined || alarm_test !== undefined) {
+        drawSectionTitle(t.system_atu);
+        drawRow(t.blower_working, blower_working, blower_working_notes, imagesByField.blower_working || []);
+        drawRow(t.blower_filter_clean, blower_filter_clean, blower_filter_notes, imagesByField.blower_filter_clean || []);
+        drawRow(t.diffusers_bubbling, diffusers_bubbling, diffusers_bubbling_notes, imagesByField.diffusers_bubbling || []);
+        drawRow(t.discharge_pump_ok, discharge_pump_ok, discharge_pump_notes, imagesByField.discharge_pump_ok || []);
+        drawRow(t.clarified_water_outlet, clarified_water_outlet, clarified_water_notes, imagesByField.clarified_water_outlet || []);
+        drawRow(t.alarm_test, alarm_test, alarm_test_notes, imagesByField.alarm_test || []);
+        y += 15;
+      }
 
       // === LIFT STATION ===
       if (pump_running !== undefined || float_switches !== undefined || alarm_working !== undefined || 
@@ -839,6 +798,51 @@ async function generateMaintenancePDF(visitData, language = 'es') {
           });
         
         y += rowHeight + 15;
+      }
+
+      // === IMAGEN FINAL DEL SISTEMA COMPLETO ===
+      if (final_system_image_url) {
+        drawSectionTitle(t.final_system_photo);
+        
+        try {
+          const finalImageBuffer = await downloadImageToBuffer(final_system_image_url);
+          if (finalImageBuffer) {
+            // Mostrar imagen más grande y centrada
+            const imageWidth = 400;
+            const imageHeight = 300;
+            const imageX = (doc.page.width - imageWidth) / 2;
+            
+            if (y + imageHeight > doc.page.height - PAGE_MARGIN) {
+              doc.addPage();
+              y = PAGE_MARGIN;
+            }
+            
+            doc.image(finalImageBuffer, imageX, y, { 
+              fit: [imageWidth, imageHeight], 
+              align: 'center', 
+              valign: 'center' 
+            });
+            doc.rect(imageX, y, imageWidth, imageHeight).strokeColor('#DDD').stroke();
+            
+            y += imageHeight + 10;
+            
+            // Link para ver imagen completa
+            doc.fontSize(8).fillColor('#0066CC')
+              .text(t.viewImage, imageX, y, { 
+                width: imageWidth, 
+                align: 'center',
+                link: final_system_image_url,
+                underline: true 
+              });
+            
+            y += 20;
+          }
+        } catch (error) {
+          console.error('❌ Error cargando imagen final del sistema:', error);
+          doc.font('Helvetica-Oblique').fontSize(8).fillColor(TEXT_LIGHT)
+            .text('Imagen final del sistema no disponible', PAGE_MARGIN + 10, y + 10);
+          y += 30;
+        }
       }
 
       // === IMÁGENES GENERALES ===

@@ -331,6 +331,13 @@ module.exports = (sequelize) => {
       comment: 'URL del video general del sistema'
     },
     
+    // 🆕 Imagen final del sistema completo (OBLIGATORIA)
+    final_system_image_url: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      comment: 'URL de la imagen final del sistema completo (obligatoria al completar)'
+    },
+    
     // Observaciones generales y firma
     general_notes: {
       type: DataTypes.TEXT,

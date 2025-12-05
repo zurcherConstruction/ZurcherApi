@@ -199,6 +199,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
   const [files, setFiles] = useState({});
   const [generalMedia, setGeneralMedia] = useState([]);
   const [systemVideo, setSystemVideo] = useState(null);
+  const [finalSystemImage, setFinalSystemImage] = useState(null); // 🆕 Imagen final del sistema
   const [wellSampleFiles, setWellSampleFiles] = useState({
     sample1: null,
     sample2: null,
@@ -304,6 +305,17 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
         });
       }
       
+      // 🆕 Cargar imagen final del sistema
+      if (visitObj.final_system_image_url) {
+        setFinalSystemImage({
+          uri: visitObj.final_system_image_url,
+          isExisting: true,
+          type: 'image/jpeg',
+          name: 'final_system_image.jpg',
+          timestamp: Date.now()
+        });
+      }
+      
       // Cargar datos existentes del formulario si la visita ya tiene datos
       if (visitObj.actualVisitDate || visitObj.tank_inlet_level) {
         setFormData({
@@ -312,36 +324,36 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
           tank_inlet_notes: visitObj.tank_inlet_notes || '',
           tank_outlet_level: visitObj.tank_outlet_level ? String(visitObj.tank_outlet_level) : '',
           tank_outlet_notes: visitObj.tank_outlet_notes || '',
-          strong_odors: visitObj.strong_odors || false,
+          strong_odors: visitObj.strong_odors ?? false, // ✅ Usar ?? para preservar false guardado
           strong_odors_notes: visitObj.strong_odors_notes || '',
-          water_level_ok: visitObj.water_level_ok || false,
+          water_level_ok: visitObj.water_level_ok ?? false,
           water_level_notes: visitObj.water_level_notes || '',
-          visible_leaks: visitObj.visible_leaks || false,
+          visible_leaks: visitObj.visible_leaks ?? false,
           visible_leaks_notes: visitObj.visible_leaks_notes || '',
-          area_around_dry: visitObj.area_around_dry || false,
+          area_around_dry: visitObj.area_around_dry ?? false,
           area_around_notes: visitObj.area_around_notes || '',
-          cap_green_inspected: visitObj.cap_green_inspected || false,
+          cap_green_inspected: visitObj.cap_green_inspected ?? false,
           cap_green_notes: visitObj.cap_green_notes || '',
-          needs_pumping: visitObj.needs_pumping || false,
+          needs_pumping: visitObj.needs_pumping ?? false,
           needs_pumping_notes: visitObj.needs_pumping_notes || '',
-          blower_working: visitObj.blower_working || false,
+          blower_working: visitObj.blower_working ?? false,
           blower_working_notes: visitObj.blower_working_notes || '',
-          blower_filter_clean: visitObj.blower_filter_clean || false,
+          blower_filter_clean: visitObj.blower_filter_clean ?? false,
           blower_filter_notes: visitObj.blower_filter_notes || '',
-          diffusers_bubbling: visitObj.diffusers_bubbling || false,
+          diffusers_bubbling: visitObj.diffusers_bubbling ?? false,
           diffusers_bubbling_notes: visitObj.diffusers_bubbling_notes || '',
-          clarified_water_outlet: visitObj.clarified_water_outlet || false,
+          clarified_water_outlet: visitObj.clarified_water_outlet ?? false,
           clarified_water_notes: visitObj.clarified_water_notes || '',
-          discharge_pump_ok: visitObj.discharge_pump_ok || false,
+          discharge_pump_ok: visitObj.discharge_pump_ok ?? false,
           discharge_pump_notes: visitObj.discharge_pump_notes || '',
           has_lift_station: visitObj.has_lift_station ?? false, // Usar ?? para preservar false
-          alarm_working: visitObj.alarm_working || false,
+          alarm_working: visitObj.alarm_working ?? false,
           alarm_working_notes: visitObj.alarm_working_notes || '',
-          pump_running: visitObj.pump_running || false,
+          pump_running: visitObj.pump_running ?? false,
           pump_running_notes: visitObj.pump_running_notes || '',
-          float_switches: visitObj.float_switches || false,
+          float_switches: visitObj.float_switches ?? false,
           float_switches_notes: visitObj.float_switches_notes || '',
-          pump_condition: visitObj.pump_condition || false,
+          pump_condition: visitObj.pump_condition ?? false,
           pump_condition_notes: visitObj.pump_condition_notes || '',
           has_pbts: visitObj.has_pbts ?? false, // Usar ?? para preservar false
           well_points_quantity: visitObj.well_points_quantity ? String(visitObj.well_points_quantity) : '', // Convertir a string
@@ -448,12 +460,48 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
 
   const handleMediaAdd = async (fieldName) => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsMultipleSelection: false,
-        quality: 0.3,
-      });
+      // 🆕 Preguntar si quiere cámara o galería (igual que PBTS)
+      Alert.alert(
+        'Agregar foto',
+        '¿Cómo deseas agregar la foto?',
+        [
+          {
+            text: 'Cámara',
+            onPress: async () => {
+              const result = await ImagePicker.launchCameraAsync({
+                quality: 0.3,
+                allowsEditing: true,
+                aspect: [4, 3],
+              });
+              await processMediaImage(result, fieldName);
+            }
+          },
+          {
+            text: 'Galería',
+            onPress: async () => {
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsMultipleSelection: false,
+                quality: 0.3,
+                allowsEditing: true,
+                aspect: [4, 3],
+              });
+              await processMediaImage(result, fieldName);
+            }
+          },
+          {
+            text: 'Cancelar',
+            style: 'cancel'
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo agregar la foto');
+    }
+  };
 
+  const processMediaImage = async (result, fieldName) => {
+    try {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const imageUri = result.assets[0].uri;
         
@@ -676,8 +724,8 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             onPress: async () => {
               const result = await ImagePicker.launchCameraAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-                videoMaxDuration: 60,
-                quality: 0.5,
+                videoMaxDuration: 30,
+                quality: 0.3,
               });
               await processSystemVideo(result);
             }
@@ -687,8 +735,8 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             onPress: async () => {
               const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-                videoMaxDuration: 60,
-                quality: 0.5,
+                videoMaxDuration: 30,
+                quality: 0.3,
               });
               await processSystemVideo(result);
             }
@@ -724,6 +772,79 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
       }
     } catch (error) {
       Alert.alert('Error', 'No se pudo procesar el video');
+    }
+  };
+  
+  // 🆕 Handler para imagen final del sistema
+  const handleFinalSystemImage = async () => {
+    try {
+      Alert.alert(
+        'Imagen Final del Sistema',
+        '¿Cómo deseas agregar la imagen?',
+        [
+          {
+            text: 'Tomar foto',
+            onPress: async () => {
+              const result = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                quality: 0.3,
+                allowsEditing: true,
+                aspect: [4, 3],
+              });
+              await processFinalSystemImage(result);
+            }
+          },
+          {
+            text: 'Galería',
+            onPress: async () => {
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                quality: 0.3,
+                allowsEditing: true,
+                aspect: [4, 3],
+              });
+              await processFinalSystemImage(result);
+            }
+          },
+          {
+            text: 'Cancelar',
+            style: 'cancel'
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo agregar la imagen');
+    }
+  };
+
+  const processFinalSystemImage = async (result) => {
+    try {
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const imageUri = result.assets[0].uri;
+        
+        // Optimizar imagen (resize + compresión para conexiones lentas)
+        const optimizedImage = await manipulateAsync(
+          imageUri,
+          [{ resize: { width: 600 } }],
+          { compress: 0.3, format: SaveFormat.JPEG }
+        );
+
+        const filename = optimizedImage.uri.split('/').pop();
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : 'image/jpeg';
+
+        const imageObject = {
+          uri: optimizedImage.uri,
+          name: filename,
+          type: type,
+          isExisting: false,
+        };
+
+        setFinalSystemImage(imageObject);
+        Alert.alert('Éxito', '✓ Imagen final del sistema agregada');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo procesar la imagen');
     }
   };
 
@@ -898,29 +1019,44 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
       }
 
       // Agregar imágenes de muestras PBTS/ATU - igual que el frontend web
-      if (wellSampleFiles.sample1 && !wellSampleFiles.sample1.isExisting) {
-        const sample1File = {
-          uri: wellSampleFiles.sample1.uri,
-          type: wellSampleFiles.sample1.type || 'image/jpeg',
-          name: wellSampleFiles.sample1.name || 'wellSample1.jpg',
-        };
-        formDataToSend.append('wellSample1', sample1File);
+      if (wellSampleFiles.sample1) {
+        if (!wellSampleFiles.sample1.isExisting) {
+          const sample1File = {
+            uri: wellSampleFiles.sample1.uri,
+            type: wellSampleFiles.sample1.type || 'image/jpeg',
+            name: wellSampleFiles.sample1.name || 'wellSample1.jpg',
+          };
+          formDataToSend.append('wellSample1', sample1File);
+        } else {
+          // ✅ Preservar URL si ya existe
+          formDataToSend.append('well_sample_1_url', wellSampleFiles.sample1.uri);
+        }
       }
-      if (wellSampleFiles.sample2 && !wellSampleFiles.sample2.isExisting) {
-        const sample2File = {
-          uri: wellSampleFiles.sample2.uri,
-          type: wellSampleFiles.sample2.type || 'image/jpeg',
-          name: wellSampleFiles.sample2.name || 'wellSample2.jpg',
-        };
-        formDataToSend.append('wellSample2', sample2File);
+      if (wellSampleFiles.sample2) {
+        if (!wellSampleFiles.sample2.isExisting) {
+          const sample2File = {
+            uri: wellSampleFiles.sample2.uri,
+            type: wellSampleFiles.sample2.type || 'image/jpeg',
+            name: wellSampleFiles.sample2.name || 'wellSample2.jpg',
+          };
+          formDataToSend.append('wellSample2', sample2File);
+        } else {
+          // ✅ Preservar URL si ya existe
+          formDataToSend.append('well_sample_2_url', wellSampleFiles.sample2.uri);
+        }
       }
-      if (wellSampleFiles.sample3 && !wellSampleFiles.sample3.isExisting) {
-        const sample3File = {
-          uri: wellSampleFiles.sample3.uri,
-          type: wellSampleFiles.sample3.type || 'image/jpeg',
-          name: wellSampleFiles.sample3.name || 'wellSample3.jpg',
-        };
-        formDataToSend.append('wellSample3', sample3File);
+      if (wellSampleFiles.sample3) {
+        if (!wellSampleFiles.sample3.isExisting) {
+          const sample3File = {
+            uri: wellSampleFiles.sample3.uri,
+            type: wellSampleFiles.sample3.type || 'image/jpeg',
+            name: wellSampleFiles.sample3.name || 'wellSample3.jpg',
+          };
+          formDataToSend.append('wellSample3', sample3File);
+        } else {
+          // ✅ Preservar URL si ya existe
+          formDataToSend.append('well_sample_3_url', wellSampleFiles.sample3.uri);
+        }
       }
 
       // Agregar video del sistema
@@ -934,14 +1070,43 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
           name: systemVideo.name || 'systemVideo.mp4',
         };
         formDataToSend.append('systemVideo', videoFile);
-      } else if (systemVideo) {
+      } else if (systemVideo && systemVideo.isExisting) {
+        // ✅ Si el video ya existe, enviar el URL para preservarlo
         if (__DEV__) {
-          console.log('⏭️ Video del sistema ya existe, no se enviará:', systemVideo.isExisting);
+          console.log('⏭️ Video del sistema ya existe, preservando URL:', systemVideo.uri);
         }
+        formDataToSend.append('system_video_url', systemVideo.uri);
       } else {
         if (__DEV__) {
           console.log('❌ No hay video del sistema para enviar');
         }
+      }
+      
+      // 🆕 Agregar imagen final del sistema (OBLIGATORIA)
+      if (finalSystemImage && !finalSystemImage.isExisting) {
+        if (__DEV__) {
+          console.log('📸 Agregando imagen final del sistema:', finalSystemImage.name);
+        }
+        const imageFile = {
+          uri: finalSystemImage.uri,
+          type: finalSystemImage.type || 'image/jpeg',
+          name: finalSystemImage.name || 'finalSystemImage.jpg',
+        };
+        formDataToSend.append('finalSystemImage', imageFile);
+      } else if (finalSystemImage && finalSystemImage.isExisting) {
+        // ✅ Si la imagen ya existe, enviar el URL para preservarla
+        if (__DEV__) {
+          console.log('⏭️ Imagen final ya existe, preservando URL:', finalSystemImage.uri);
+        }
+        formDataToSend.append('final_system_image_url', finalSystemImage.uri);
+      } else if (!finalSystemImage && markAsCompleted) {
+        Alert.alert(
+          'Campo Obligatorio',
+          '⚠️ La imagen final del sistema es obligatoria para completar el mantenimiento',
+          [{ text: 'OK' }]
+        );
+        setSubmitting(false);
+        return;
       }
 
       // Agregar mapeo de archivos
@@ -1401,10 +1566,9 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
         />
       </View>
 
-      {/* Sistema ATU */}
-      {showATU && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Sistema ATU</Text>
+      {/* Sistema ATU - SIEMPRE VISIBLE */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Sistema ATU</Text>
           
           <CheckboxField
             label="¿Blower funcionando?"
@@ -1466,7 +1630,6 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             mediaFiles={files.discharge_pump_ok || []}
           />
         </View>
-      )}
 
       {/* Lift Station - CONDICIONAL */}
       {showLiftStation && (
@@ -1733,6 +1896,53 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
               }}
             >
               <Text style={styles.removeVideoButtonText}>🗑️ Eliminar Video</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* 🆕 Imagen Final del Sistema Completo */}
+        <Text style={[styles.inputLabel, { marginTop: 20, color: '#d32f2f', fontWeight: 'bold' }]}>
+          📸 Imagen Final del Sistema Completo *
+        </Text>
+        <Text style={{ fontSize: 12, color: '#666', marginBottom: 10 }}>
+          (Obligatoria para completar la visita)
+        </Text>
+        
+        <TouchableOpacity
+          style={[styles.videoButton, { backgroundColor: finalSystemImage ? '#7b1fa2' : '#9c27b0' }]}
+          onPress={handleFinalSystemImage}
+        >
+          <Text style={styles.videoButtonText}>
+            📷 {finalSystemImage ? '✅ Imagen capturada' : 'Tomar foto final del sistema'}
+          </Text>
+        </TouchableOpacity>
+        
+        {finalSystemImage && (
+          <View style={styles.imagePreviewContainer}>
+            <Text style={styles.videoPreviewLabel}>Vista previa de la imagen:</Text>
+            <Image
+              source={{ uri: finalSystemImage.uri }}
+              style={{ width: '100%', height: 300, borderRadius: 10, marginTop: 10 }}
+              resizeMode="contain"
+            />
+            <TouchableOpacity
+              style={styles.removeVideoButton}
+              onPress={() => {
+                Alert.alert(
+                  'Eliminar imagen',
+                  '¿Estás seguro de que quieres eliminar esta imagen?',
+                  [
+                    { text: 'Cancelar', style: 'cancel' },
+                    {
+                      text: 'Eliminar',
+                      style: 'destructive',
+                      onPress: () => setFinalSystemImage(null)
+                    }
+                  ]
+                );
+              }}
+            >
+              <Text style={styles.removeVideoButtonText}>🗑️ Eliminar Imagen</Text>
             </TouchableOpacity>
           </View>
         )}
