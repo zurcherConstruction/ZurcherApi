@@ -773,7 +773,7 @@ const GestionBudgets = () => {
             <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Buscar por dirección o cliente..."
+              placeholder="Buscar por dirección, cliente, email o empresa..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -867,6 +867,12 @@ const GestionBudgets = () => {
                   Cliente
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Email
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Contacto
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Dirección
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -894,6 +900,16 @@ const GestionBudgets = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {budget.applicantName}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    <span className="truncate max-w-xs block" title={budget.Permit?.applicantEmail || budget.applicantEmail || "N/A"}>
+                      {budget.Permit?.applicantEmail || budget.applicantEmail || "N/A"}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                    <span className="truncate max-w-xs block" title={budget.contactCompany || "N/A"}>
+                      {budget.contactCompany || "N/A"}
+                    </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
                     {budget.propertyAddress}

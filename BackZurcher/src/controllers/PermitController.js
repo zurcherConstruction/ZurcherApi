@@ -447,10 +447,24 @@ const updatePermit = async (req, res) => {
       return res.status(404).json({ error: true, message: 'Permiso no encontrado' });
     }
 
+    // 🔍 Detectar si cambió el email
+    const emailChanged = updates.applicantEmail && updates.applicantEmail !== permit.applicantEmail;
+
     Object.assign(permit, updates);
     if (pdfData) permit.pdfData = pdfData;
 
     await permit.save();
+
+    // 🔄 Si cambió el email, actualizar en Budgets relacionados
+    if (emailChanged) {
+      const { Budget } = require('../data');
+      await Budget.update(
+        { applicantEmail: updates.applicantEmail },
+        { where: { PermitIdPermit: idPermit } }
+      );
+      console.log(`✅ Email actualizado en ${idPermit} Permit y sus Budgets asociados`);
+    }
+
     res.status(200).json(permit);
   } catch (error) {
     console.error('Error al actualizar el permiso:', error);
@@ -666,6 +680,9 @@ const updatePermitClientData = async (req, res) => {
       });
     }
 
+    // 🔍 Detectar si cambió el email
+    const emailChanged = applicantEmail && applicantEmail !== permit.applicantEmail;
+
     // Preparar datos para actualizar
     const updateData = {};
     if (applicantName) updateData.applicantName = applicantName;
@@ -677,6 +694,16 @@ const updatePermitClientData = async (req, res) => {
     await permit.update(updateData);
 
     console.log(`✅ Permit ${idPermit} datos de cliente actualizados:`, updateData);
+
+    // 🔄 Si cambió el email, actualizar en Budgets relacionados
+    if (emailChanged) {
+      const { Budget } = require('../data');
+      await Budget.update(
+        { applicantEmail: applicantEmail },
+        { where: { PermitIdPermit: idPermit } }
+      );
+      console.log(`✅ Email actualizado en Permit ${idPermit} y sus Budgets asociados`);
+    }
 
     // Obtener el permit actualizado
     const updatedPermit = await Permit.findByPk(idPermit, {
@@ -1062,6 +1089,7 @@ const updatePermitFields = async (req, res, next) => {
     
     const budgetUpdateData = {};
     if (applicantName !== undefined) budgetUpdateData.applicantName = applicantName;
+    if (applicantEmail !== undefined) budgetUpdateData.applicantEmail = applicantEmail; // 🔄 Sincronizar email
     if (propertyAddress !== undefined) budgetUpdateData.propertyAddress = propertyAddress;
 
     // Solo actualizar Budget si hay cambios en campos relevantes

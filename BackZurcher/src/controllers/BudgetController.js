@@ -172,6 +172,8 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
         generalNotes,
         initialPaymentPercentage: actualPercentage,
         applicantName: permit.applicantName,
+        applicantEmail: permit.applicantEmail, // 🆕 Copiar email desde Permit
+        contactCompany: req.body.contactCompany || null, // 🆕 Empresa/contacto referente
         propertyAddress: permit.propertyAddress,
         subtotalPrice: calculatedSubtotal,
         totalPrice: finalTotalWithCommission,
@@ -1155,14 +1157,17 @@ async getBudgets(req, res) {
     baseWhereClause.status = { [Op.ne]: 'legacy_maintenance' };
     whereClause.status = { [Op.ne]: 'legacy_maintenance' };
 
-     if (search && search.trim()) {
+    // 🔍 Condición de búsqueda SOLO para la query principal (no para stats)
+    if (search && search.trim()) {
       const searchCondition = {
         [Op.or]: [
           { applicantName: { [Op.iLike]: `%${search.trim()}%` } },
-          { propertyAddress: { [Op.iLike]: `%${search.trim()}%` } }
+          { propertyAddress: { [Op.iLike]: `%${search.trim()}%` } },
+          { applicantEmail: { [Op.iLike]: `%${search.trim()}%` } }, // 🚀 Sin JOIN - campo desnormalizado
+          { contactCompany: { [Op.iLike]: `%${search.trim()}%` } }  // 🆕 Búsqueda por empresa
         ]
       };
-      baseWhereClause[Op.or] = searchCondition[Op.or];
+      // Solo aplicar a whereClause (query principal), NO a baseWhereClause (stats)
       whereClause[Op.or] = searchCondition[Op.or];
     }
 
@@ -1300,7 +1305,7 @@ async getBudgets(req, res) {
       limit: pageSize,
       offset,
       attributes: [
-        'idBudget', 'date', 'expirationDate', 'status', 'applicantName', 'propertyAddress',
+        'idBudget', 'date', 'expirationDate', 'status', 'applicantName', 'applicantEmail', 'contactCompany', 'propertyAddress',
         'subtotalPrice', 'totalPrice', 'initialPayment', 'initialPaymentPercentage', 'pdfPath',
         'generalNotes',
         'paymentInvoice',
@@ -1321,7 +1326,8 @@ async getBudgets(req, res) {
       ]
     });
 
-    // 🆕 CALCULAR ESTADÍSTICAS GLOBALES usando baseWhereClause (SIN filtro de status)
+    // 🆕 CALCULAR ESTADÍSTICAS GLOBALES usando baseWhereClause (SIN filtro de status NI búsqueda)
+    // Las estadísticas NO dependen de la búsqueda, solo de filtros de mes/año
     const allBudgetsForStats = await Budget.findAll({
       where: baseWhereClause,
       attributes: ['status', 'signatureMethod', 'manualSignedPdfPath', 'isLegacy', 'paymentProofAmount']
@@ -1700,6 +1706,7 @@ async optionalDocs(req, res) {
         discountAmount,
         generalNotes,
         initialPaymentPercentage: initialPaymentPercentageInput,
+        contactCompany, // 🆕 Empresa/contacto referente
         lineItems,
         paymentMethod, // 🆕 Extraer método de pago
         // 🆕 Campos de comisiones
@@ -1737,6 +1744,7 @@ async optionalDocs(req, res) {
       if (status) generalUpdateData.status = status;
       if (applicantName) generalUpdateData.applicantName = applicantName;
       if (propertyAddress) generalUpdateData.propertyAddress = propertyAddress;
+      if (contactCompany !== undefined) generalUpdateData.contactCompany = contactCompany; // 🆕 Guardar contacto
       if (discountDescription !== undefined) generalUpdateData.discountDescription = discountDescription;
       // Asegurar que discountAmount sea numérico
       if (discountAmount !== undefined) generalUpdateData.discountAmount = parseFloat(discountAmount) || 0;
@@ -5177,11 +5185,12 @@ async optionalDocs(req, res) {
         );
       }
       
-      // Filtro por búsqueda (cliente o dirección)
+      // Filtro por búsqueda (cliente, dirección o email)
       if (search && search.trim()) {
         whereConditions[Op.or] = [
           { applicantName: { [Op.iLike]: `%${search}%` } },
-          { propertyAddress: { [Op.iLike]: `%${search}%` } }
+          { propertyAddress: { [Op.iLike]: `%${search}%` } },
+          { '$Permit.applicantEmail$': { [Op.iLike]: `%${search}%` } }
         ];
       }
 
