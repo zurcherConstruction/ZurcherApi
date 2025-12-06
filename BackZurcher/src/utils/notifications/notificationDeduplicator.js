@@ -89,10 +89,11 @@ function filterDuplicates(staffToNotify, status, entityId = '') {
       return false;
     }
     
-    if (wasRecentlySent(email, status, entityId)) {
-      console.log(`⏭️ Saltando notificación duplicada: ${email} - ${status} - ${entityId}`);
-      return false;
-    }
+    // 🛡️ DEDUPLICACIÓN DESHABILITADA
+    // if (wasRecentlySent(email, status, entityId)) {
+    //   console.log(`⏭️ Saltando notificación duplicada: ${email} - ${status} - ${entityId}`);
+    //   return false;
+    // }
     
     return true;
   });
