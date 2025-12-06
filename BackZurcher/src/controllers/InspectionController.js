@@ -86,7 +86,7 @@ const registerQuickInspectionResult = async (req, res) => {
       notes,
     });
 
-    // Actualizar estado de la obra según lógica existente
+    // Actualizar estado de la obra según lógica existente (ajustada para ATU / no ATU)
     if (type === 'initial') {
       if (finalStatus === 'approved') {
         // Automatizar la transición: inspección inicial aprobada → coverPending directamente
@@ -105,8 +105,41 @@ const registerQuickInspectionResult = async (req, res) => {
       }
     } else if (type === 'final') {
       if (finalStatus === 'approved') {
-        work.status = 'maintenance';
-        await sendNotifications('final_inspection_approved_maintenance', work, req.app.get('io'), { inspectionId: inspection.idInspection });
+        // Determinar si el sistema es ATU (solo estos pasan a maintenance)
+        const rawSystemType = work.Permit?.systemType || work.systemType || null;
+        const systemTypeNormalized = rawSystemType ? String(rawSystemType).toLowerCase() : '';
+        const isATUSystem = systemTypeNormalized.includes('atu');
+        console.log(`[InspectionController - Quick] Work ${work.idWork} FINAL APPROVED via quick-result. rawSystemType="${rawSystemType}", normalized="${systemTypeNormalized}", isATUSystem=${isATUSystem}`);
+
+        if (isATUSystem) {
+          // Solo ATU: pasan a maintenance y generan visitas
+          const oldWorkStatus = work.status;
+          work.status = 'maintenance';
+
+          if (!work.maintenanceStartDate) {
+            work.maintenanceStartDate = new Date();
+          }
+
+          await work.save();
+
+          // Programar visitas iniciales solo si recién entra a maintenance
+          if (oldWorkStatus !== 'maintenance') {
+            try {
+              console.log(`[InspectionController - Quick] ATTEMPTING to call scheduleInitialMaintenanceVisits for work ${work.idWork}`);
+              await scheduleInitialMaintenanceVisits(work.idWork);
+              console.log(`[InspectionController - Quick] SUCCESSFULLY CALLED scheduleInitialMaintenanceVisits for work ${work.idWork}`);
+            } catch (scheduleError) {
+              console.error(`[InspectionController - Quick] ERROR CALLING scheduleInitialMaintenanceVisits for work ${work.idWork}:`, scheduleError);
+            }
+          }
+
+          await sendNotifications('final_inspection_approved_maintenance', work, req.app.get('io'), { inspectionId: inspection.idInspection });
+        } else {
+          // NO ATU: se consideran finalizados sin mantenimiento
+          work.status = 'finalApproved';
+          await work.save();
+          await sendNotifications('finalApproved', work, req.app.get('io'), { inspectionId: inspection.idInspection });
+        }
       } else {
         work.status = 'finalRejected';
         await sendNotifications('final_inspection_rejected', work, req.app.get('io'), { inspectionId: inspection.idInspection, notes });
@@ -613,33 +646,49 @@ const registerInspectionResult = async (req, res) => {
         await sendNotifications('coverPending', work, req.app.get('io'));
       } else if (inspection.type === 'final') {
         const oldWorkStatus = work.status; // Asegúrate que esto esté antes de cambiar work.status
-        work.status = 'maintenance'; 
-        
-        if (oldWorkStatus !== 'maintenance') { 
-            work.maintenanceStartDate = new Date();
-            console.log(`[InspectionController - registerResult] Work ${work.idWork} status will be 'maintenance'. SETTING MaintenanceStartDate TO: ${work.maintenanceStartDate}`);
-        } else if (!work.maintenanceStartDate) { 
-            work.maintenanceStartDate = new Date();
-            console.log(`[InspectionController - registerResult] Work ${work.idWork} IS 'maintenance' and maintenanceStartDate was NULL. SETTING MaintenanceStartDate TO: ${work.maintenanceStartDate}`);
-        }
-        
-        // --- GUARDAR WORK ANTES DE PROGRAMAR VISITAS ---
-        await work.save(); 
-        console.log(`[InspectionController - registerResult] Work ${work.idWork} saved with status: ${work.status} and maintenanceStartDate: ${work.maintenanceStartDate}`);
-        // --- FIN GUARDAR WORK ---
 
-        // Ahora llamar a programar visitas, si es necesario
-        if (oldWorkStatus !== 'maintenance') { // Usar oldWorkStatus para decidir si programar
+        // Determinar si el sistema es ATU mirando el Permit asociado
+        const rawSystemType = work.Permit?.systemType || work.systemType || null;
+        const systemTypeNormalized = rawSystemType ? String(rawSystemType).toLowerCase() : '';
+        const isATUSystem = systemTypeNormalized.includes('atu');
+        console.log(`[InspectionController - registerResult] Work ${work.idWork} FINAL APPROVED. rawSystemType="${rawSystemType}", normalized="${systemTypeNormalized}", isATUSystem=${isATUSystem}`);
+
+        if (isATUSystem) {
+          // Solo los sistemas ATU pasan a maintenance y generan visitas
+          work.status = 'maintenance';
+
+          if (oldWorkStatus !== 'maintenance') {
+            work.maintenanceStartDate = new Date();
+            console.log(`[InspectionController - registerResult] Work ${work.idWork} (ATU) status will be 'maintenance'. SETTING MaintenanceStartDate TO: ${work.maintenanceStartDate}`);
+          } else if (!work.maintenanceStartDate) {
+            work.maintenanceStartDate = new Date();
+            console.log(`[InspectionController - registerResult] Work ${work.idWork} (ATU) IS 'maintenance' and maintenanceStartDate was NULL. SETTING MaintenanceStartDate TO: ${work.maintenanceStartDate}`);
+          }
+
+          // --- GUARDAR WORK ANTES DE PROGRAMAR VISITAS ---
+          await work.save();
+          console.log(`[InspectionController - registerResult] Work ${work.idWork} (ATU) saved with status: ${work.status} and maintenanceStartDate: ${work.maintenanceStartDate}`);
+          // --- FIN GUARDAR WORK ---
+
+          // Ahora llamar a programar visitas solo si recién entra a maintenance
+          if (oldWorkStatus !== 'maintenance') {
             try {
-                console.log(`[InspectionController - registerResult] ATTEMPTING to call scheduleInitialMaintenanceVisits for work ${work.idWork}`);
-                await scheduleInitialMaintenanceVisits(work.idWork); // Ahora leerá los datos actualizados de la BD
-                console.log(`[InspectionController - registerResult] SUCCESSFULLY CALLED scheduleInitialMaintenanceVisits for work ${work.idWork}`);
+              console.log(`[InspectionController - registerResult] ATTEMPTING to call scheduleInitialMaintenanceVisits for work ${work.idWork}`);
+              await scheduleInitialMaintenanceVisits(work.idWork);
+              console.log(`[InspectionController - registerResult] SUCCESSFULLY CALLED scheduleInitialMaintenanceVisits for work ${work.idWork}`);
             } catch (scheduleError) {
-                console.error(`[InspectionController - registerResult] ERROR CALLING scheduleInitialMaintenanceVisits for work ${work.idWork}:`, scheduleError);
+              console.error(`[InspectionController - registerResult] ERROR CALLING scheduleInitialMaintenanceVisits for work ${work.idWork}:`, scheduleError);
             }
+          }
+          await sendNotifications('final_inspection_approved_maintenance', work, req.app.get('io'), { inspectionId: inspection.idInspection });
+        } else {
+          // Sistemas NO ATU: se consideran finalizados, sin mantenimiento
+          work.status = 'finalApproved';
+          console.log(`[InspectionController - registerResult] Work ${work.idWork} is NOT ATU (systemType="${rawSystemType}"). Setting status to 'finalApproved' with NO maintenance.`);
+          await work.save();
+          // Podríamos enviar una notificación específica si la tienes configurada
+          await sendNotifications('finalApproved', work, req.app.get('io'), { inspectionId: inspection.idInspection });
         }
-        // <--- CAMBIO IMPORTANTE AQUÍ
-        await sendNotifications('final_inspection_approved_maintenance', work, req.app.get('io'), { inspectionId: inspection.idInspection });
       }
     } else if (finalStatus === 'rejected') {
       if (inspection.type === 'initial') {

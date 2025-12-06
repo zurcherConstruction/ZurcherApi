@@ -117,7 +117,7 @@ const ProgressTracker = () => {
         if (status === "rejectedInspection") return "Inspection Rejected";
         if (status === "finalRejected") return "Final Insp. Rejected";
         if (status === "approvedInspection") return "Inspection Approved";
-        if (status === "finalApproved") return "Final Insp. Approved";
+        if (status === "finalApproved") return "Completado ✅";
         if (status === "covered") return "Covered - Awaiting Invoice";
         return "Estado Desconocido";
     }
@@ -251,10 +251,13 @@ const ProgressTracker = () => {
 
           const progressBarIndex = getProgressIndexForBar(status);
 
-          // Fondo especial para works de mantenimiento
+          // Fondo especial para works de mantenimiento y completados
           const isMaintenance = status === "maintenance";
+          const isCompleted = status === "finalApproved";
           const cardBackgroundClass = isMaintenance 
             ? "bg-blue-50 border-blue-200" 
+            : isCompleted
+            ? "bg-green-50 border-green-200"
             : "bg-white border-gray-200";
 
           return (
@@ -271,6 +274,11 @@ const ProgressTracker = () => {
                 {isMaintenance && (
                   <span className="ml-3 px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full border border-blue-300">
                     🔧 Mantenimiento
+                  </span>
+                )}
+                {isCompleted && (
+                  <span className="ml-3 px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full border border-green-300">
+                    ✅ Completado
                   </span>
                 )}
                 
@@ -370,10 +378,11 @@ const ProgressTracker = () => {
                   <span className={`font-semibold ${
                     status === "rejectedInspection" || status === "finalRejected" ? "text-red-600" :
                     status === "firstInspectionPending" || status === "finalInspectionPending" ? "text-yellow-500" :
-                    status === "approvedInspection" || status === "finalApproved" ? "text-green-600" : 
-                    status === "covered" ? "text-cyan-600" : // <-- ADDED FOR COVERED
-                    (progressBarIndex === -1 && !["firstInspectionPending", "rejectedInspection", "approvedInspection", "finalInspectionPending", "finalRejected", "covered", "approvedInspection", "finalApproved"].includes(status)) ? "text-gray-700" : // Fallback for unknown/default
-                    "text-green-600" // Default for other "positive" or completed steps
+                    status === "finalApproved" ? "text-green-700 font-bold" : // 🆕 Estilo especial para completado
+                    status === "approvedInspection" ? "text-green-600" : 
+                    status === "covered" ? "text-cyan-600" :
+                    (progressBarIndex === -1 && !["firstInspectionPending", "rejectedInspection", "approvedInspection", "finalInspectionPending", "finalRejected", "covered", "approvedInspection", "finalApproved"].includes(status)) ? "text-gray-700" :
+                    "text-green-600"
                   }`}>
                     {getDisplayName(status)}
                   </span>

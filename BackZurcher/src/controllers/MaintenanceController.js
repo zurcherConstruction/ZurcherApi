@@ -37,9 +37,35 @@ const scheduleInitialMaintenanceVisits = async (workId) => {
       return;
     }
 
-   // Usar parseISO para evitar problemas de timezone con strings YYYY-MM-DD
-   const baseDate = parseISO(work.maintenanceStartDate + 'T12:00:00');
-    console.log(`[MaintenanceController - scheduleInitial] Base date for scheduling: ${baseDate.toISOString()}`);
+   // Manejar maintenanceStartDate como Date o string para evitar errores
+   console.log(`[MaintenanceController - scheduleInitial] DEBUG: maintenanceStartDate type=${typeof work.maintenanceStartDate}, value=${work.maintenanceStartDate}, instanceof Date=${work.maintenanceStartDate instanceof Date}`);
+   
+   let baseDate;
+   if (work.maintenanceStartDate instanceof Date) {
+     baseDate = work.maintenanceStartDate;
+     console.log(`[MaintenanceController - scheduleInitial] Using Date object directly`);
+   } else {
+     // Si es string, intentar parsearlo
+     const dateStr = String(work.maintenanceStartDate);
+     console.log(`[MaintenanceController - scheduleInitial] Parsing string: "${dateStr}"`);
+     if (dateStr.includes('T')) {
+       // Ya tiene formato ISO completo
+       baseDate = new Date(dateStr);
+       console.log(`[MaintenanceController - scheduleInitial] Used new Date() with ISO string`);
+     } else {
+       // Formato YYYY-MM-DD, agregar hora
+       baseDate = parseISO(dateStr + 'T12:00:00');
+       console.log(`[MaintenanceController - scheduleInitial] Used parseISO with added time`);
+     }
+   }
+   
+   // Verificar si la fecha es válida antes de usar toISOString
+   if (isNaN(baseDate.getTime())) {
+     console.error(`[MaintenanceController - scheduleInitial] INVALID DATE: baseDate=${baseDate}, original=${work.maintenanceStartDate}`);
+     return;
+   }
+   
+   console.log(`[MaintenanceController - scheduleInitial] Base date for scheduling: ${baseDate.toISOString()}`);
 
     for (let i = 1; i <= 4; i++) {
        const scheduledDateForVisit = addMonths(baseDate, i * 6); 

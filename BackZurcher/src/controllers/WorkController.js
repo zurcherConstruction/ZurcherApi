@@ -474,15 +474,26 @@ const updateWork = async (req, res) => {
 
     // --- LÓGICA DE MANTENIMIENTO ---
     if (workInstance.status === 'maintenance') {
-      if (!workInstance.maintenanceStartDate) {
-        workInstance.maintenanceStartDate = new Date();
-      }
-      if (status === 'maintenance' && oldStatus !== 'maintenance') {
-        await workInstance.save();
-        try {
-          await scheduleInitialMaintenanceVisits(idWork);
-        } catch (scheduleError) {
-          console.error(`[WorkController - updateWork] ERROR CALLING scheduleInitialMaintenanceVisits for work ${idWork}:`, scheduleError);
+      // Solo sistemas ATU deben estar en maintenance
+      const rawSystemType = workInstance.Permit?.systemType || workInstance.systemType || null;
+      const systemTypeNormalized = rawSystemType ? String(rawSystemType).toLowerCase() : '';
+      const isATUSystem = systemTypeNormalized.includes('atu');
+
+      if (!isATUSystem) {
+        // Si alguien fuerza manualmente un work NO ATU a 'maintenance', corregimos a 'finalApproved'
+        console.warn(`[WorkController - updateWork] Work ${idWork} is NOT ATU (systemType="${rawSystemType}") but status was set to 'maintenance'. Forcing status to 'finalApproved' with no maintenance visits.`);
+        workInstance.status = 'finalApproved';
+      } else {
+        if (!workInstance.maintenanceStartDate) {
+          workInstance.maintenanceStartDate = new Date();
+        }
+        if (status === 'maintenance' && oldStatus !== 'maintenance') {
+          await workInstance.save();
+          try {
+            await scheduleInitialMaintenanceVisits(idWork);
+          } catch (scheduleError) {
+            console.error(`[WorkController - updateWork] ERROR CALLING scheduleInitialMaintenanceVisits for work ${idWork}:`, scheduleError);
+          }
         }
       }
     }
