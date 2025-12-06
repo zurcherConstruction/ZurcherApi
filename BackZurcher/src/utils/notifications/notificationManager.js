@@ -16,19 +16,32 @@ const sendNotifications = async (status, work, budget, io, context = {}) => {
     const emailDetails = await getNotificationDetails(status, work || budget, context);
 
     if (emailDetails) {
-      const { staffToNotify, message, subject, htmlTemplate } = emailDetails;
+      const { staffToNotify, message, subject, htmlTemplate, roles } = emailDetails;
       
-      // 🛡️ Filtrar duplicados basado en envíos recientes
-      const filteredStaff = filterDuplicates(staffToNotify, status, entityId);
+      // 🛡️ DEDUPLICACIÓN DESHABILITADA - Siempre enviar correos
+      // const filteredStaff = filterDuplicates(staffToNotify, status, entityId);
+      const filteredStaff = staffToNotify; // ✅ Usar lista completa sin filtrar
       
-      if (filteredStaff.length === 0) {
-        console.log(`⏭️ Todas las notificaciones de email para "${status}" (${entityId}) fueron filtradas por duplicación`);
-      }
+      // if (filteredStaff.length === 0) {
+      //   console.log(`⏭️ Todas las notificaciones de email para "${status}" (${entityId}) fueron filtradas por duplicación`);
+      // }
 
       for (const staff of filteredStaff) {
         if (!staff.email || !staff.email.includes('@')) {
           console.error(`El usuario ${staff.id} no tiene un correo electrónico válido: ${staff.email}`);
           continue;
+        }
+        
+        // 🚫 FILTRO: No enviar al correo del sistema (SMTP_USER) si el rol 'admin' no está en la lista de roles
+        // Esto previene que el admin reciba TODAS las notificaciones del sistema
+        const systemEmail = process.env.SMTP_USER?.toLowerCase().trim();
+        if (systemEmail && staff.email.toLowerCase().trim() === systemEmail) {
+          // Solo enviar si 'admin' está EXPLÍCITAMENTE en la lista de roles
+          const notificationRoles = roles || [];
+          if (!notificationRoles.includes('admin')) {
+            console.log(`🚫 Bloqueando envío a ${staff.email} (correo del sistema/admin) - Roles permitidos: [${notificationRoles.join(', ')}]`);
+            continue;
+          }
         }
         try {
           let htmlContent;

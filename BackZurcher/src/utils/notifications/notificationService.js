@@ -96,7 +96,7 @@ const stateNotificationMap = {
         },
   },
   installed: {
-    roles: ['admin', 'owner'], 
+    roles: ['admin', 'owner'],
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido instalado. Por favor, solicita la primera inspección.`,
   },
   firstInspectionPending: {
@@ -124,7 +124,7 @@ const stateNotificationMap = {
     message: (work, context) => `Se ha solicitado una reinspección inicial para la obra en ${work.propertyAddress}. Inspección ID: ${context?.inspectionId || 'N/A'}.`,
   },
   completed: {
-    roles: ['owner', 'admin'], 
+    roles: ['owner', 'admin'],
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido completado. Por favor, revisa el estado final.`,
   },
   coverPending: {
@@ -132,7 +132,7 @@ const stateNotificationMap = {
     message: (work) => `El trabajo con dirección ${work.propertyAddress} esta listo para ser tapado.`,
   },
   covered: {
-    roles: ['owner', 'admin'], // Finance debe saber cuando está listo para facturar
+    roles: ['owner', 'admin'],
     message: (work) => `El trabajo con dirección ${work.propertyAddress} ha sido Tapado. Por favor, revisa los detalles y envía el Invoice Final.`,
   },
   invoiceFinal: {
@@ -225,7 +225,7 @@ const stateNotificationMap = {
   },
   
   incomeCreated: {
-    roles: ['owner', 'finance', 'admin'], // Solo finance, NO finance-viewer
+    roles: ['owner', 'finance', 'admin'],
     // 'income' ahora tiene las propiedades extra añadidas
     message: (income) => {
       const paymentReceived = parseFloat(income.amount || 0);
@@ -279,7 +279,7 @@ const stateNotificationMap = {
   },
   
   incomeRegistered: {
-    roles: ['admin', 'owner', 'finance'], // ✅ Admin recibe todos los ingresos (incluye pagos finales)
+    roles: ['admin', 'owner', 'finance'],
     message: (income) => {
       const amount = parseFloat(income.amount || 0);
       const incomeType = income.typeIncome || 'Ingreso';
@@ -549,7 +549,7 @@ const getNotificationDetails = async (status, work, context = {}) => {
 
   const staffToNotify = Array.from(byEmail.values());
 
-  return { staffToNotify, message, subject, htmlTemplate };
+  return { staffToNotify, message, subject, htmlTemplate, roles }; // ✅ Incluir roles para filtrado
 };
 
 module.exports = { getNotificationDetails };

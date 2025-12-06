@@ -54,6 +54,19 @@ export const fetchWorks = (page = 1, limit = 50) => async (dispatch) => {
   }
 };
 
+// 🆕 Obtener SOLO obras en maintenance (optimizado)
+export const fetchMaintenanceWorks = () => async (dispatch) => {
+  dispatch(fetchWorksRequest());
+  try {
+    const response = await api.get('/work/maintenance'); // Endpoint optimizado
+    dispatch(fetchWorksSuccess({ works: response.data, pagination: { total: response.data.length } }));
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.message || 'Error al obtener las obras en mantenimiento';
+    dispatch(fetchWorksFailure(errorMessage));
+  }
+};
+
 // Obtener una obra por ID
 export const fetchWorkById = (idWork) => async (dispatch) => {
   dispatch(fetchWorkByIdRequest());

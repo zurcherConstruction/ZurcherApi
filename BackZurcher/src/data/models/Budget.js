@@ -16,6 +16,19 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING,
       allowNull: false,
     },
+    applicantEmail: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      field: 'applicant_email', // 🔧 Mapear a snake_case en DB
+      validate: {
+        isEmail: true,
+      },
+    },
+    contactCompany: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      field: 'contact_company', // 🔧 Mapear a snake_case en DB
+    },
     date: {
       type: DataTypes.STRING(10),
       allowNull: false,

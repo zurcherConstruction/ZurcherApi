@@ -198,6 +198,8 @@ const CreateBudget = () => {
     permitNumber: "",
     propertyAddress: "",
     applicantName: "",
+    applicantEmail: "", // 🆕 Email del cliente
+    contactCompany: "", // 🆕 Empresa/contacto referente
     lot: "",
     block: "",
     date: getLocalDateString(),
@@ -275,6 +277,7 @@ const CreateBudget = () => {
         permitNumber: selectedPermit.permitNumber || "",
         propertyAddress: selectedPermit.propertyAddress || "",
         applicantName: selectedPermit.applicantName || selectedPermit.applicant || "", // Considerar ambos campos
+        applicantEmail: selectedPermit.applicantEmail || "", // 🆕 Email desde Permit
         lot: selectedPermit.lot || "",
         block: selectedPermit.block || "",
         // Resetear campos específicos del budget al cargar nuevo permit
@@ -756,6 +759,7 @@ const customCategoryOrder = [
         discountAmount: parseFloat(formData.discountAmount) || 0,
         generalNotes: formData.generalNotes,
         initialPaymentPercentage: formData.initialPaymentPercentage,
+        contactCompany: formData.contactCompany || null, // 🆕 Empresa/contacto referente
         // 🆕 Campos de origen y vendedor
         leadSource: formData.leadSource || 'web',
         createdByStaffId: formData.leadSource === 'sales_rep' ? formData.createdByStaffId : null,
@@ -975,6 +979,20 @@ const customCategoryOrder = [
                   <div>
                     <label className="block text-xs font-medium text-gray-500">Applicant</label>
                     <p className="text-sm font-semibold text-gray-800 mt-1">{formData.applicantName || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500">Email</label>
+                    <p className="text-sm font-semibold text-gray-800 mt-1">{formData.applicantEmail || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500">Contact/Company</label>
+                    <input
+                      type="text"
+                      value={formData.contactCompany || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, contactCompany: e.target.value }))}
+                      placeholder="e.g. Home Depot, Lowe's, John Realty"
+                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-xs font-medium text-gray-500">Property Address</label>

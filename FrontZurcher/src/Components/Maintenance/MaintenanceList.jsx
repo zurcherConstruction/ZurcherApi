@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   fetchWorksInMaintenance
 } from '../../Redux/Actions/maintenanceActions.jsx';
@@ -17,6 +17,7 @@ import { ArrowLeftIcon, CalendarIcon } from '@heroicons/react/24/outline';
 const MaintenanceList = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const { 
     worksInMaintenance, 
     loading, 
@@ -31,6 +32,19 @@ const MaintenanceList = () => {
   useEffect(() => {
     dispatch(fetchWorksInMaintenance());
   }, [dispatch]);
+
+  // ✅ Abrir modal automáticamente si viene selectedWorkId del state
+  useEffect(() => {
+    if (location.state?.selectedWorkId && worksInMaintenance.length > 0) {
+      const work = worksInMaintenance.find(w => w.idWork === location.state.selectedWorkId);
+      if (work) {
+        setSelectedWork(work);
+        setShowDetail(true);
+        // Limpiar el state para evitar que se abra de nuevo
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+    }
+  }, [location.state, worksInMaintenance, navigate, location.pathname]);
 
   useEffect(() => {
     if (error) {

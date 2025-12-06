@@ -791,7 +791,7 @@ const BudgetList = () => {
                 <input
                   id="search"
                   type="text"
-                  placeholder="Search budgets..."
+                  placeholder="Search by name, address, email, or contact/company..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full px-3 py-1.5 md:py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -903,6 +903,12 @@ const BudgetList = () => {
                   <tr className="bg-blue-50 text-[10px] text-blue-800 uppercase tracking-tight">
                     <th className="border border-gray-200 px-2 py-2 text-left whitespace-nowrap">
                       Applicant
+                    </th>
+                    <th className="border border-gray-200 px-2 py-2 text-left whitespace-nowrap">
+                      Email
+                    </th>
+                    <th className="border border-gray-200 px-2 py-2 text-left whitespace-nowrap">
+                      Contact
                     </th>
                     <th className="border border-gray-200 px-1.5 py-2 text-left whitespace-nowrap">
                       Date
@@ -1024,6 +1030,16 @@ const BudgetList = () => {
                                 )}
                               </div>
                             </div>
+                          </td>
+                          <td className="border border-gray-300 px-2 py-1.5 text-[11px]">
+                            <span className="truncate block max-w-[150px]" title={budget.Permit?.applicantEmail || budget.applicantEmail || "N/A"}>
+                              {budget.Permit?.applicantEmail || budget.applicantEmail || "N/A"}
+                            </span>
+                          </td>
+                          <td className="border border-gray-300 px-2 py-1.5 text-[11px]">
+                            <span className="truncate block max-w-[120px]" title={budget.contactCompany || "N/A"}>
+                              {budget.contactCompany || "N/A"}
+                            </span>
                           </td>
                           <td className="border border-gray-300 px-1.5 py-1.5 text-[11px] whitespace-nowrap">
                             {formatDate(budget.date)}

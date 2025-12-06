@@ -260,7 +260,8 @@ const editableBudgets = useMemo(() => {
           permitNumber: permitData.permitNumber || "",
           propertyAddress: permitData.propertyAddress || currentBudget.propertyAddress || "",
           applicantName: permitData.applicantName || currentBudget.applicantName || "",
-          applicantEmail: permitData.applicantEmail || "",
+          applicantEmail: permitData.applicantEmail || currentBudget.applicantEmail || "", // 🆕 Email
+          contactCompany: currentBudget.contactCompany || "", // 🆕 Empresa/contacto
           applicantPhone: permitData.applicantPhone || "",
           lot: permitData.lot || "",
           block: permitData.block || "",
@@ -597,6 +598,7 @@ const editableBudgets = useMemo(() => {
       discountAmount: parseFloat(formData.discountAmount) || 0,
       generalNotes: formData.generalNotes,
       initialPaymentPercentage: parseFloat(formData.initialPaymentPercentage) || 60,
+      contactCompany: formData.contactCompany || null, // 🆕 Empresa/contacto referente
       // 🆕 Campos de comisiones
       leadSource: formData.leadSource,
       createdByStaffId: formData.createdByStaffId || null,
@@ -1207,6 +1209,16 @@ const editableBudgets = useMemo(() => {
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Phone</label>
                     <p className="mt-1 text-base text-gray-900 font-semibold">{formData.applicantPhone || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500">Contact/Company</label>
+                    <input
+                      type="text"
+                      value={formData.contactCompany || ''}
+                      onChange={(e) => setFormData(prev => ({ ...prev, contactCompany: e.target.value }))}
+                      placeholder="e.g. Home Depot, Lowe's, John Realty"
+                      className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Lot / Block</label>

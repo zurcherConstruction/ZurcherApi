@@ -16,6 +16,7 @@ import {
   FaEdit,
   FaCog,
   FaClipboardCheck,
+  FaClipboardList,
   FaUpload,
   FaArchive,
   FaBoxes,
@@ -54,6 +55,7 @@ const BarraLateral = () => {
         { name: "Works", path: "/works", icon: FaTasks },
         { name: "Tracking Work", path: "/check", icon: FaClipboardCheck },
         { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
+        { name: "Maintenance List", path: "/maintenance-tracker", icon: FaClipboardList },
         { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
         { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
         { name: "Maintenance", path: "/maintenance", icon: FaWrench },
@@ -200,6 +202,7 @@ const BarraLateral = () => {
           items: [
             { name: "Works (View Only)", path: "/works", icon: FaTasks },
             { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
+            { name: "Maintenance List", path: "/maintenance-tracker", icon: FaClipboardList },
             { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
           ],
         },

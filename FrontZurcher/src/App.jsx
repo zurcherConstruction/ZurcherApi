@@ -24,6 +24,7 @@ import BarraLateral from "./Components/Dashboard/BarraLateral";
 import BudgetList from "./Components/Budget/BudgetList";
 import Works from "./Components/Works/Work";
 import ProgressTracker from "./Components/ProgressTracker";
+import MaintenanceTracker from "./Components/MaintenanceTracker";
 import WorkZoneMap from "./Components/WorkZoneMap"; //  Mapa de obras por zona
 import WorkDetail from "./Components/Works/WorkDetail";
 import Materiales from "./Components/Materiales";
@@ -160,6 +161,15 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["admin", "recept", "owner", "finance"]}>
                     <ProgressTracker />
+                  </PrivateRoute>
+                }
+              />
+
+              <Route
+                path="/maintenance-tracker"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "recept", "owner", "finance"]}>
+                    <MaintenanceTracker />
                   </PrivateRoute>
                 }
               />
