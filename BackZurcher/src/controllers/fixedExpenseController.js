@@ -2,6 +2,28 @@ const { FixedExpense, FixedExpensePayment, Staff, Expense } = require('../data')
 const { Op } = require('sequelize');
 
 /**
+ * 🔧 Helper: Calcular paymentStatus para el frontend
+ */
+const addPaymentStatus = (fixedExpenseData) => {
+  const paidAmount = parseFloat(fixedExpenseData.paidAmount || 0);
+  const totalAmount = parseFloat(fixedExpenseData.totalAmount || 0);
+  
+  let paymentStatus;
+  if (paidAmount >= totalAmount && totalAmount > 0) {
+    paymentStatus = 'paid';
+  } else if (paidAmount > 0) {
+    paymentStatus = 'partial';
+  } else {
+    paymentStatus = 'unpaid';
+  }
+
+  return {
+    ...fixedExpenseData,
+    paymentStatus
+  };
+};
+
+/**
  * Crear un nuevo gasto fijo
  */
 const createFixedExpense = async (req, res) => {
@@ -71,7 +93,7 @@ const createFixedExpense = async (req, res) => {
 
     res.status(201).json({
       message: 'Gasto fijo creado exitosamente',
-      fixedExpense: fixedExpenseWithStaff
+      fixedExpense: addPaymentStatus(fixedExpenseWithStaff.toJSON())
     });
 
   } catch (error) {
@@ -212,10 +234,24 @@ const getAllFixedExpenses = async (req, res) => {
           order: [['date', 'DESC']]
         });
 
+        // 🔄 Calcular paymentStatus basado en paidAmount vs totalAmount
+        const paidAmount = parseFloat(feData.paidAmount || 0);
+        const totalAmount = parseFloat(feData.totalAmount || 0);
+        
+        let paymentStatus;
+        if (paidAmount >= totalAmount && totalAmount > 0) {
+          paymentStatus = 'paid';
+        } else if (paidAmount > 0) {
+          paymentStatus = 'partial';
+        } else {
+          paymentStatus = 'unpaid';
+        }
+
         return {
           ...feData,
           lastPaymentDate: existingExpense ? existingExpense.date : null,
-          isPaidThisPeriod: !!existingExpense
+          isPaidThisPeriod: !!existingExpense,
+          paymentStatus // 🆕 Campo que necesita el frontend
         };
       })
     );
@@ -284,9 +320,11 @@ const getFixedExpenseById = async (req, res) => {
       return res.status(404).json({ error: 'Gasto fijo no encontrado' });
     }
 
-    // 🆕 Agregar balance calculado
+    // 🆕 Agregar balance calculado y paymentStatus
+    const fixedExpenseWithStatus = addPaymentStatus(fixedExpense.toJSON());
+    
     const response = {
-      ...fixedExpense.toJSON(),
+      ...fixedExpenseWithStatus,
       balance: {
         totalAmount: parseFloat(fixedExpense.totalAmount).toFixed(2),
         paidAmount: parseFloat(fixedExpense.paidAmount || 0).toFixed(2),
