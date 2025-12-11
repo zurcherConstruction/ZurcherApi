@@ -95,9 +95,9 @@ const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Ins
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
 
-// Relaciones
-Permit.hasMany(Work, { foreignKey: 'propertyAddress', sourceKey: 'propertyAddress' });
-Work.belongsTo(Permit, { foreignKey: 'propertyAddress', targetKey: 'propertyAddress' });
+// Relaciones - Usando idPermit como FK principal (más eficiente)
+Permit.hasMany(Work, { foreignKey: 'idPermit', sourceKey: 'idPermit' });
+Work.belongsTo(Permit, { foreignKey: 'idPermit', targetKey: 'idPermit' });
 
 // Permit.hasMany(Budget, { foreignKey: 'propertyAddress', sourceKey: 'propertyAddress' });
 // Budget.belongsTo(Permit, { foreignKey: 'propertyAddress', targetKey: 'propertyAddress' });

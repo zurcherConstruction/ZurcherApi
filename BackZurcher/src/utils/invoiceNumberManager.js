@@ -21,29 +21,31 @@ const { Op } = require('sequelize');
  */
 async function getNextInvoiceNumber(transaction = null) {
   try {
-    // 1. Buscar el último invoiceNumber en Budgets
-    const lastBudgetInvoice = await Budget.findOne({
-      where: {
-        invoiceNumber: { [Op.not]: null }
-      },
-      order: [['invoiceNumber', 'DESC']],
-      attributes: ['invoiceNumber'],
-      transaction
-    });
-
-    // 2. Buscar el último invoiceNumber en FinalInvoices
-    const lastFinalInvoice = await FinalInvoice.findOne({
-      where: {
-        invoiceNumber: { [Op.not]: null }
-      },
-      order: [['invoiceNumber', 'DESC']],
-      attributes: ['invoiceNumber'],
-      transaction
-    });
+    // 🚀 OPTIMIZACIÓN: Usar MAX() directo en lugar de ORDER BY + LIMIT
+    const [budgetResult, finalInvoiceResult] = await Promise.all([
+      // 1. MAX de Budget invoiceNumbers
+      Budget.findOne({
+        attributes: [[conn.fn('MAX', conn.col('invoiceNumber')), 'maxInvoice']],
+        where: {
+          invoiceNumber: { [Op.not]: null }
+        },
+        raw: true,
+        transaction
+      }),
+      // 2. MAX de FinalInvoice invoiceNumbers  
+      FinalInvoice.findOne({
+        attributes: [[conn.fn('MAX', conn.col('invoiceNumber')), 'maxInvoice']],
+        where: {
+          invoiceNumber: { [Op.not]: null }
+        },
+        raw: true,
+        transaction
+      })
+    ]);
 
     // 3. Comparar ambos y tomar el mayor
-    const budgetMax = lastBudgetInvoice?.invoiceNumber || 0;
-    const finalInvoiceMax = lastFinalInvoice?.invoiceNumber || 0;
+    const budgetMax = budgetResult?.maxInvoice || 0;
+    const finalInvoiceMax = finalInvoiceResult?.maxInvoice || 0;
     const currentMax = Math.max(budgetMax, finalInvoiceMax);
 
     // 4. Retornar el siguiente número

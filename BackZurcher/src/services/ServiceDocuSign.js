@@ -41,7 +41,8 @@ class DocuSignService {
       // Prioridad 1: Variable de entorno con contenido directo (PRODUCCIÓN - Railway)
       if (process.env.DOCUSIGN_PRIVATE_KEY_CONTENT) {
         console.log('📝 Usando clave privada desde variable de entorno (contenido directo)');
-        privateKey = process.env.DOCUSIGN_PRIVATE_KEY_CONTENT;
+        // Procesar \n como saltos de línea reales para formato RSA correcto
+        privateKey = process.env.DOCUSIGN_PRIVATE_KEY_CONTENT.replace(/\\n/g, '\n');
       }
       // Prioridad 2: Variable de entorno con Base64 (Alternativa para Railway)
       else if (process.env.DOCUSIGN_PRIVATE_KEY_BASE64) {

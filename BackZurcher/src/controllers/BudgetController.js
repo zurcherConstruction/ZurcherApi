@@ -2536,9 +2536,12 @@ async optionalDocs(req, res) {
         ).end(buffer);
       });
 
-      // Buscar presupuesto
+      // Buscar presupuesto con Permit incluido
       console.log("Buscando presupuesto con ID:", idBudget);
-      const budget = await Budget.findByPk(idBudget, { transaction });
+      const budget = await Budget.findByPk(idBudget, { 
+        include: [{ model: Permit }],
+        transaction 
+      });
       if (!budget) {
         console.log("Presupuesto no encontrado. Eliminando archivo de Cloudinary...");
         try {
@@ -2625,6 +2628,7 @@ async optionalDocs(req, res) {
       if (!existingWork) {
         existingWork = await Work.create({
           propertyAddress: budget.propertyAddress,
+          idPermit: budget.PermitIdPermit, // ✅ Agregar idPermit para nueva FK
           status: 'pending',
           idBudget: budget.idBudget,
           notes: `Work creado al registrar pago inicial de Budget #${budget.idBudget}`,
@@ -2633,12 +2637,18 @@ async optionalDocs(req, res) {
         }, { transaction });
         console.log(`✅ Work creado para Budget #${budget.idBudget} - ID: ${existingWork.idWork}`);
       } else {
-        // Actualizar monto si cambió
+        // Actualizar monto si cambió Y asegurar que tenga idPermit
+        const updates = {};
         if (parseFloat(existingWork.initialPayment) !== parseFloat(amountForIncome)) {
-          await existingWork.update({
-            initialPayment: amountForIncome
-          }, { transaction });
-          console.log(`Work #${existingWork.idWork} actualizado - Nuevo monto: $${amountForIncome}`);
+          updates.initialPayment = amountForIncome;
+        }
+        if (!existingWork.idPermit && budget.PermitIdPermit) {
+          updates.idPermit = budget.PermitIdPermit; // ✅ Poblar idPermit si falta
+        }
+        
+        if (Object.keys(updates).length > 0) {
+          await existingWork.update(updates, { transaction });
+          console.log(`Work #${existingWork.idWork} actualizado:`, updates);
         }
       }
 

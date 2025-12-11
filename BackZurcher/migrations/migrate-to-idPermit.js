@@ -62,12 +62,30 @@ async function migrateToIdPermit() {
     // PASO 3: Agregar columna idPermit a Works
     console.log('➕ PASO 3: Agregando columna idPermit a Works...\n');
     
-    await sequelize.query(`
-      ALTER TABLE "Works" 
-      ADD COLUMN IF NOT EXISTS "idPermit" INTEGER;
+    // Primero verificar si la columna ya existe y eliminarla si es del tipo incorrecto
+    const [existingColumn] = await sequelize.query(`
+      SELECT data_type
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'Works'
+        AND column_name = 'idPermit';
     `);
     
-    console.log('   ✅ Columna idPermit agregada\n');
+    if (existingColumn.length > 0 && existingColumn[0].data_type !== 'uuid') {
+      console.log('   ⚠️  Columna idPermit existe con tipo incorrecto, eliminando...');
+      await sequelize.query(`
+        ALTER TABLE "Works" 
+        DROP COLUMN IF EXISTS "idPermit";
+      `);
+      console.log('   ✅ Columna idPermit eliminada');
+    }
+    
+    await sequelize.query(`
+      ALTER TABLE "Works" 
+      ADD COLUMN IF NOT EXISTS "idPermit" UUID;
+    `);
+    
+    console.log('   ✅ Columna idPermit agregada como UUID\n');
     
     // PASO 4: Poblar idPermit basado en propertyAddress
     console.log('🔄 PASO 4: Poblando idPermit desde propertyAddress...\n');

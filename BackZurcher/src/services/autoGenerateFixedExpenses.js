@@ -114,17 +114,17 @@ const checkAndGenerateFixedExpenses = async () => {
     for (const fixedExpense of dueExpenses) {
       try {
         console.log(`\n  ⚙️ Procesando: "${fixedExpense.name}" (ID: ${fixedExpense.idFixedExpense})`);
-        console.log(`     💰 Monto: $${fixedExpense.amount}`);
+        console.log(`     💰 Monto: $${fixedExpense.totalAmount}`);
         console.log(`     📆 Fecha vencimiento: ${fixedExpense.nextDueDate}`);
         console.log(`     🔁 Frecuencia: ${fixedExpense.frequency}`);
 
         // ✅ Crear el Expense automáticamente
         const newExpense = await Expense.create({
           typeExpense: 'Gasto Fijo',
-          amount: fixedExpense.amount,
+          amount: fixedExpense.totalAmount,
           notes: `${fixedExpense.name} - Auto-generado (${todayString})`,
           description: fixedExpense.description || '',
-          date: today,
+          date: todayString,
           paymentStatus: 'unpaid',               // Sin pagar hasta que el usuario lo pague
           verified: false,                       // No verificado hasta revisión manual
           relatedFixedExpenseId: fixedExpense.idFixedExpense,

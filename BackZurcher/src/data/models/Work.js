@@ -13,6 +13,14 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: false, // Aseguramos que este campo sea obligatorio
     },
+    idPermit: {
+      type: DataTypes.UUID,
+      allowNull: true, // Permitir NULL para Works sin Permit
+      references: {
+        model: 'Permits',
+        key: 'idPermit',
+      },
+    },
     status: {
       type: DataTypes.ENUM(
         'pending',

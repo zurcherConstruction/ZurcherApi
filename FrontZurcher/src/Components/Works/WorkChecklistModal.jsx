@@ -22,7 +22,7 @@ const WorkChecklistModal = ({ work, onClose, onUpdate }) => {
   const checklistItems = [
     {
       key: 'materialesInicialesUploaded',
-      label: 'Comprobante de Materiales Iniciales',
+      label: 'Materiales',
       description: 'Se subió el receipt de materiales iniciales'
     },
     {
@@ -42,12 +42,12 @@ const WorkChecklistModal = ({ work, onClose, onUpdate }) => {
     },
     {
       key: 'finalInvoiceSent',
-      label: 'Invoice Final Enviado',
-      description: 'Se envió el invoice final al cliente'
+      label: 'Gasto de Tierra Revisado',
+      description: 'Se verificó que el gasto de tierra esté correcto'
     },
     {
       key: 'finalInspectionPaid',
-      label: 'Invoice Final Pagado',
+      label: 'Pago total del Trabajo',
       description: 'Se pagó el invoice final'
     }
   ];

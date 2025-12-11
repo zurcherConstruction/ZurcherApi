@@ -11,6 +11,7 @@ import {
    generateFinalInvoicePdf,
    emailFinalInvoice 
 } from '../../Redux/Actions/finalInvoiceActions';
+import { fetchWorkById } from '../../Redux/Actions/workActions';
 import { clearFinalInvoiceState, clearEmailMessage } from '../../Redux/Reducer/finalInvoiceReducer'; // Para limpiar al desmontar
 import api from '../../utils/axios';
 
@@ -71,8 +72,7 @@ const FinalInvoiceComponent = ({ workId }) => {
   const [discountReason, setDiscountReason] = useState(''); // 🆕
 
   // Estado para la carga y error de la descarga del PDF
-  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
-  const [downloadPdfError, setDownloadPdfError] = useState(null);
+  // Removed download functionality - using only preview
  const [isPreviewing, setIsPreviewing] = useState(false);
   const [selectedChangeOrderIds, setSelectedChangeOrderIds] = useState([]);
   
@@ -90,8 +90,11 @@ const FinalInvoiceComponent = ({ workId }) => {
   // 🆕 Sincronizar descuento cuando cambia currentInvoice
   useEffect(() => {
     if (currentInvoice) {
+      console.log('🔄 [Component] currentInvoice actualizado:', currentInvoice);
       setDiscountValue(parseFloat(currentInvoice.discount) || 0);
       setDiscountReason(currentInvoice.discountReason || '');
+    } else {
+      console.log('❌ [Component] currentInvoice es null/undefined');
     }
   }, [currentInvoice]);
 
@@ -260,57 +263,8 @@ const handleGeneratePdf = () => {
   };
 
   
- const handleDownloadPdf = async () => {
-    if (!currentInvoice?.id) {
-      setDownloadPdfError("No hay ID de factura para descargar.");
-      return;
-    }
 
-    setIsDownloadingPdf(true);
-    setDownloadPdfError(null);
-    const downloadUrl = `/final-invoice/${currentInvoice.id}/pdf/download`; // Ruta del backend
-
-    try {
-      // Usar la instancia de 'api' (axios) para que envíe el token
-      const response = await api.get(downloadUrl, {
-        responseType: 'blob', // Importante para manejar archivos
-      });
-
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `final_invoice_${currentInvoice.id}.pdf`); // Nombre del archivo
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link); // Limpiar el enlace
-      window.URL.revokeObjectURL(url); // Limpiar el objeto URL
-
-    } catch (err) {
-      console.error("Error durante la descarga del PDF:", err);
-      let errorMessage = "Error al descargar el PDF.";
-      if (err.response) {
-        if (err.response.data instanceof Blob && err.response.data.type === "application/json") {
-            try {
-                const errorJson = JSON.parse(await err.response.data.text());
-                errorMessage = errorJson.message || errorJson.error || errorMessage;
-            } catch (parseError) { /* Mantener mensaje genérico */ }
-        } else if (err.response.data?.message) {
-            errorMessage = err.response.data.message;
-        } else if (err.response.status === 401) {
-            errorMessage = "No autorizado. Por favor, inicia sesión de nuevo.";
-        }
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-      setDownloadPdfError(errorMessage);
-    } finally {
-      setIsDownloadingPdf(false);
-    }
-  };
-  
-
-  const handleSendEmail = () => {
+  const handleSendEmail = async () => {
     console.log("handleSendEmail - currentInvoice:", currentInvoice);
     if (currentInvoice && currentInvoice.id && currentInvoice.pdfPath) { // Asegurarse que pdfPath existe
       if (recipientEmail && !/\S+@\S+\.\S+/.test(recipientEmail)) {
@@ -318,9 +272,20 @@ const handleGeneratePdf = () => {
         return;
       }
       if (window.confirm(`¿Enviar factura a ${recipientEmail || 'cliente principal'}?`)) {
-        console.log("Dispatching emailFinalInvoice with ID:", currentInvoice.id);
-        dispatch(emailFinalInvoice({ finalInvoiceId: currentInvoice.id, recipientEmail: recipientEmail || undefined }));
-        setRecipientEmail('');
+        try {
+          console.log("Dispatching emailFinalInvoice with ID:", currentInvoice.id);
+          await dispatch(emailFinalInvoice({ finalInvoiceId: currentInvoice.id, recipientEmail: recipientEmail || undefined }));
+          
+          // ✅ Refresh work data to update status in UI
+          if (selectedWork?.idWork) {
+            console.log("🔄 Refreshing work data after email sent");
+            await dispatch(fetchWorkById(selectedWork.idWork));
+          }
+          
+          setRecipientEmail('');
+        } catch (error) {
+          console.error("Error sending email:", error);
+        }
       }
     } else {
         console.error("Error: No se puede enviar email porque la información de la factura (ID o PDF) no está cargada.", currentInvoice);
@@ -572,7 +537,7 @@ const handleGeneratePdf = () => {
               <button
                 onClick={handleGeneratePdf}
                 className="button-standard bg-blue-600 hover:bg-blue-700 text-white text-sm py-1 px-3 rounded disabled:opacity-50"
-                disabled={loadingPdf || isDownloadingPdf || isPreviewing}
+                disabled={loadingPdf || isPreviewing}
               >
                 {loadingPdf ? 'Procesando...' : (currentInvoice?.pdfPath ? 'Actualizar Invoice PDF' : 'Generar Invoice PDF')}
               </button>
@@ -582,7 +547,7 @@ const handleGeneratePdf = () => {
                 <button
                   onClick={handlePreviewPdf}
                   className="button-standard bg-gray-500 hover:bg-gray-600 text-white text-sm py-1 px-3 rounded disabled:opacity-50"
-                  disabled={loadingPdf || isDownloadingPdf || isPreviewing}
+                  disabled={loadingPdf || isPreviewing}
                 >
                   {isPreviewing ? 'Cargando...' : 'Vista Previa'}
                 </button>
@@ -591,29 +556,7 @@ const handleGeneratePdf = () => {
             {errorPdf && <p className="text-red-500 text-xs mt-1 ml-2">{errorPdf}</p>}
 
 
-            {/* Ver y Descargar PDF (si existe) */}
-            {currentInvoice?.pdfPath && currentInvoice.id && (
-              <div className="flex items-center space-x-4">
-                {/* {currentInvoice.pdfUrl && (
-                  <button
-                    onClick={() => window.open(currentInvoice.pdfUrl, '_blank')}
-                    className="text-sm text-green-600 hover:text-green-800 underline disabled:opacity-50"
-                    disabled={loadingPdf || isDownloadingPdf}
-                  >
-                    Ver PDF
-                  </button>
-                )} */}
-                {/* BOTÓN DE DESCARGA ACTUALIZADO */}
-                <button
-                  onClick={handleDownloadPdf}
-                  className="text-sm text-purple-600 hover:text-purple-800 underline disabled:opacity-50"
-                  disabled={isDownloadingPdf || loadingPdf} // Deshabilitar si se está descargando o generando PDF
-                >
-                  {isDownloadingPdf ? 'Descargando...' : 'Descargar Invoice PDF'}
-                </button>
-              </div>
-            )}
-            {downloadPdfError && <p className="text-red-500 text-xs mt-1">{downloadPdfError}</p>}
+
 
 
             {/* Enviar por Email */}
@@ -631,12 +574,12 @@ const handleGeneratePdf = () => {
                         onChange={(e) => setRecipientEmail(e.target.value)}
                         placeholder="ejemplo@dominio.com"
                         className="input-style flex-grow text-sm"
-                        disabled={loadingEmail || loadingPdf || isDownloadingPdf}
+                        disabled={loadingEmail || loadingPdf}
                      />
                      <button
                         onClick={handleSendEmail}
                         className="button-standard bg-teal-500 hover:bg-teal-600 text-white text-sm py-1 px-3 rounded disabled:opacity-50"
-                        disabled={loadingEmail || loadingPdf || isDownloadingPdf || !currentInvoice?.pdfPath} 
+                        disabled={loadingEmail || loadingPdf || !currentInvoice?.pdfPath} 
                      >
                         {loadingEmail ? 'Enviando...' : 'Enviar'}
                      </button>

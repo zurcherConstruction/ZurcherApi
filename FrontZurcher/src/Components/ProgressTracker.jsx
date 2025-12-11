@@ -219,8 +219,10 @@ const ProgressTracker = () => {
           let budgetNotSignedAlert = null;
           if (work.budget) {
             const budget = work.budget;
-            // Si tiene método de firma válido (manual o signnow), significa que está firmado
-            const hasValidSignatureMethod = budget.signatureMethod === "signnow" || budget.signatureMethod === "manual";
+            // Si tiene método de firma válido (manual, signnow, o docusign), significa que está firmado
+            const hasValidSignatureMethod = budget.signatureMethod === "signnow" || 
+                                           budget.signatureMethod === "manual" || 
+                                           budget.signatureMethod === "docusign";
             
             // Mostrar alerta solo si NO tiene método de firma válido
             if (!hasValidSignatureMethod) {
