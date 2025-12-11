@@ -827,6 +827,191 @@ const getFixedExpensesByPaymentStatus = async (req, res) => {
   }
 };
 
+/**
+ * 📊 Obtener resumen mensual de gastos fijos para dashboard
+ */
+const getMonthlySummary = async (req, res) => {
+  try {
+    console.log('📊 Generando resumen mensual de gastos fijos...');
+
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+
+    // Obtener gastos fijos activos
+    const activeFixedExpenses = await FixedExpense.findAll({
+      where: {
+        isActive: true
+      },
+      include: [
+        {
+          model: Staff,
+          as: 'createdBy',
+          attributes: ['id', 'name'],
+          required: false
+        },
+        {
+          model: FixedExpensePayment,
+          as: 'payments',
+          attributes: ['idPayment', 'amount', 'paymentDate', 'notes'],
+          required: false
+        }
+      ],
+      order: [['category', 'ASC'], ['name', 'ASC']]
+    });
+
+    // Calcular totales y estadísticas
+    let totalCommitmentMensual = 0;
+    let totalPagado = 0;
+    let totalPendiente = 0;
+    const categorySummary = {};
+    const paymentStatusCounts = {
+      paid: 0,
+      partial: 0,
+      unpaid: 0
+    };
+
+    // Procesar cada gasto fijo
+    const processedExpenses = activeFixedExpenses.map(expense => {
+      const totalAmount = parseFloat(expense.totalAmount || 0);
+      const paidAmount = parseFloat(expense.paidAmount || 0);
+      const remainingAmount = totalAmount - paidAmount;
+      
+      // Solo contar gastos mensuales para el commitment mensual
+      if (expense.frequency === 'monthly') {
+        totalCommitmentMensual += totalAmount;
+      }
+      
+      totalPagado += paidAmount;
+      totalPendiente += remainingAmount;
+      
+      // Estadísticas por categoría
+      if (!categorySummary[expense.category]) {
+        categorySummary[expense.category] = {
+          count: 0,
+          totalAmount: 0,
+          paidAmount: 0,
+          pendingAmount: 0
+        };
+      }
+      
+      categorySummary[expense.category].count++;
+      categorySummary[expense.category].totalAmount += totalAmount;
+      categorySummary[expense.category].paidAmount += paidAmount;
+      categorySummary[expense.category].pendingAmount += remainingAmount;
+      
+      // Estado de pago
+      let paymentStatus;
+      if (paidAmount >= totalAmount && totalAmount > 0) {
+        paymentStatus = 'paid';
+        paymentStatusCounts.paid++;
+      } else if (paidAmount > 0) {
+        paymentStatus = 'partial';
+        paymentStatusCounts.partial++;
+      } else {
+        paymentStatus = 'unpaid';
+        paymentStatusCounts.unpaid++;
+      }
+
+      return {
+        ...expense.toJSON(),
+        paymentStatus,
+        remainingAmount
+      };
+    });
+
+    // Próximos vencimientos (7 días)
+    const upcomingExpenses = processedExpenses
+      .filter(exp => {
+        if (!exp.nextDueDate) return false;
+        const dueDate = new Date(exp.nextDueDate);
+        const daysUntilDue = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24));
+        return daysUntilDue >= 0 && daysUntilDue <= 7;
+      })
+      .sort((a, b) => new Date(a.nextDueDate) - new Date(b.nextDueDate))
+      .map(exp => ({
+        ...exp,
+        daysUntilDue: Math.ceil((new Date(exp.nextDueDate) - now) / (1000 * 60 * 60 * 24))
+      }));
+
+    // Generar alertas
+    const alerts = [];
+    
+    if (paymentStatusCounts.unpaid > 0) {
+      alerts.push({
+        type: 'error',
+        message: `${paymentStatusCounts.unpaid} gastos fijos sin pagar`,
+        action: 'ACCIÓN REQUERIDA'
+      });
+    }
+
+    if (upcomingExpenses.length > 0) {
+      const unpaidUpcoming = upcomingExpenses.filter(exp => exp.paymentStatus !== 'paid');
+      if (unpaidUpcoming.length > 0) {
+        alerts.push({
+          type: 'warning',
+          message: `${unpaidUpcoming.length} gastos vencen en los próximos 7 días`,
+          action: 'VENCIMIENTOS'
+        });
+      }
+    }
+
+    const highCommitmentCategories = Object.keys(categorySummary)
+      .filter(cat => categorySummary[cat].totalAmount > totalCommitmentMensual * 0.3);
+    
+    if (highCommitmentCategories.length > 0) {
+      alerts.push({
+        type: 'info',
+        message: `Categoría "${highCommitmentCategories[0]}" representa >30% del commitment`,
+        action: 'ALTO IMPACTO'
+      });
+    }
+
+    // Respuesta estructurada
+    const summary = {
+      period: {
+        month: now.toLocaleDateString('es-ES', { month: 'long' }).toUpperCase(),
+        year: currentYear,
+        date: now.toLocaleDateString(),
+        time: now.toLocaleTimeString()
+      },
+      totals: {
+        activeFixedExpenses: activeFixedExpenses.length,
+        commitmentMensual: totalCommitmentMensual,
+        totalPagado,
+        totalPendiente,
+        percentagePaid: totalPagado + totalPendiente > 0 ? 
+          ((totalPagado / (totalPagado + totalPendiente)) * 100).toFixed(1) : 0
+      },
+      paymentStatus: paymentStatusCounts,
+      categorySummary: Object.keys(categorySummary)
+        .sort((a, b) => categorySummary[b].totalAmount - categorySummary[a].totalAmount)
+        .map(category => ({
+          category,
+          ...categorySummary[category],
+          percentage: categorySummary[category].totalAmount > 0 ? 
+            ((categorySummary[category].paidAmount / categorySummary[category].totalAmount) * 100).toFixed(0) : 0
+        })),
+      upcomingExpenses,
+      alerts,
+      hasAlerts: alerts.length > 0
+    };
+
+    res.status(200).json({
+      success: true,
+      data: summary
+    });
+
+  } catch (error) {
+    console.error('❌ Error generando resumen mensual:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Error al generar resumen mensual',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   createFixedExpense,
   getAllFixedExpenses,
@@ -837,5 +1022,6 @@ module.exports = {
   getUpcomingFixedExpenses,
   generateExpenseFromFixed,
   getUnpaidFixedExpenses,
-  getFixedExpensesByPaymentStatus
+  getFixedExpensesByPaymentStatus,
+  getMonthlySummary
 };
