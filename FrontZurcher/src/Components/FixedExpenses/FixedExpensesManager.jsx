@@ -8,6 +8,7 @@ import {
   FIXED_EXPENSE_CATEGORIES,
   FIXED_EXPENSE_FREQUENCIES 
 } from '../../utils/paymentConstants';
+import FixedExpensesSummaryModal from './FixedExpensesSummaryModal';
 import {
   PlusIcon,
   PencilIcon,
@@ -23,7 +24,8 @@ import {
   ReceiptPercentIcon,
   CreditCardIcon,
   ClockIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  ChartBarIcon
 } from '@heroicons/react/24/outline';
 
 const FixedExpensesManager = () => {
@@ -46,6 +48,9 @@ const FixedExpensesManager = () => {
   const [paymentHistory, setPaymentHistory] = useState([]);
   const [loadingPayments, setLoadingPayments] = useState(false);
   const [showPaymentHistory, setShowPaymentHistory] = useState(false);
+  
+  // 🆕 Estado para modal de dashboard
+  const [showSummaryModal, setShowSummaryModal] = useState(false);
   
   // Helper para obtener fecha local
   const getLocalDateString = () => {
@@ -575,13 +580,23 @@ const FixedExpensesManager = () => {
       {/* Botón Crear + Filtros */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
         <div className="flex flex-wrap gap-4 items-center justify-between">
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-          >
-            <PlusIcon className="h-5 w-5" />
-            {showForm ? 'Cancelar' : 'Nuevo Gasto Fijo'}
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+            >
+              <PlusIcon className="h-5 w-5" />
+              {showForm ? 'Cancelar' : 'Nuevo Gasto Fijo'}
+            </button>
+            
+            <button
+              onClick={() => setShowSummaryModal(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition"
+            >
+              <ChartBarIcon className="h-5 w-5" />
+              Dashboard Mensual
+            </button>
+          </div>
 
           <div className="flex gap-3 flex-wrap flex-1 justify-end">
             {/* Búsqueda */}
@@ -1367,6 +1382,12 @@ const FixedExpensesManager = () => {
           </div>
         </div>
       )}
+
+      {/* 📊 Modal Dashboard Mensual */}
+      <FixedExpensesSummaryModal
+        isOpen={showSummaryModal}
+        onClose={() => setShowSummaryModal(false)}
+      />
     </div>
   );
 };

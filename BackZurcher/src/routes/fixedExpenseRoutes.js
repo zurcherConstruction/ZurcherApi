@@ -12,7 +12,8 @@ const {
   getUpcomingFixedExpenses,
   generateExpenseFromFixed,
   getUnpaidFixedExpenses,
-  getFixedExpensesByPaymentStatus
+  getFixedExpensesByPaymentStatus,
+  getMonthlySummary
 } = require('../controllers/fixedExpenseController');
 const { getCronStatus } = require('../controllers/cronStatusController');
 
@@ -47,6 +48,13 @@ router.get('/', getAllFixedExpenses);
  * @access  Private
  */
 router.get('/cron-status', getCronStatus);
+
+/**
+ * 📊 @route   GET /api/fixed-expenses/monthly-summary
+ * @desc    Obtener resumen mensual de gastos fijos para dashboard
+ * @access  Private
+ */
+router.get('/monthly-summary', getMonthlySummary);
 
 /**
  * @route   GET /api/fixed-expenses/upcoming
