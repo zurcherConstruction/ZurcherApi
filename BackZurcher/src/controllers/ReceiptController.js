@@ -213,7 +213,7 @@ const createReceipt = async (req, res) => {
                 if (incomeWithDetails) {
                   const notificationData = {
                     ...incomeWithDetails.toJSON(),
-                    propertyAddress: incomeWithDetails.Work?.propertyAddress || 'Obra no especificada',
+                    propertyAddress: incomeWithDetails.work?.propertyAddress || 'Obra no especificada', // ✅ Fixed: use lowercase 'work'
                     Staff: { name: 'Sistema - Pago Final' } // Identificar que viene del sistema
                   };
 

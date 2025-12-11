@@ -9,6 +9,7 @@
  */
 
 const { FixedExpensePayment, FixedExpense, Expense, Staff, Receipt } = require('../data');
+const { Op } = require('sequelize');
 const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryUploader');
 const { createWithdrawalTransaction } = require('../utils/bankTransactionHelper');
 
@@ -170,8 +171,31 @@ const addPartialPayment = async (req, res) => {
 
     console.log('✅ Payment creado:', payment.idPayment);
 
-    // 3️⃣ Recargar el gasto fijo para obtener valores actualizados
-    // NOTA: El frontend ya actualizó paidAmount y paymentStatus antes de llamar a este endpoint
+    // 3️⃣ Actualizar el gasto fijo con el nuevo pago
+    const newPaidAmount = Math.max(0, paidAmount) + paymentAmount; // Asegurar que paidAmount nunca sea negativo
+    const newPaymentStatus = newPaidAmount >= totalAmount ? 'paid' : (newPaidAmount > 0 ? 'partial' : 'unpaid');
+    
+    console.log('💰 Actualizando FixedExpense:', {
+      oldPaidAmount: paidAmount,
+      paymentAmount: paymentAmount,
+      newPaidAmount: newPaidAmount,
+      totalAmount: totalAmount,
+      newPaymentStatus: newPaymentStatus,
+      shouldBePaid: newPaidAmount >= totalAmount
+    });
+
+    await fixedExpense.update({
+      paidAmount: newPaidAmount,
+      paymentStatus: newPaymentStatus,
+      paidDate: newPaymentStatus === 'paid' ? (paymentDate || new Date().toISOString().split('T')[0]) : fixedExpense.paidDate
+    });
+
+    console.log('✅ FixedExpense actualizado:', {
+      paidAmount: fixedExpense.paidAmount,
+      paymentStatus: fixedExpense.paymentStatus
+    });
+
+    // Recargar el gasto fijo para obtener valores actualizados
     await fixedExpense.reload();
 
     // Recargar con relaciones
@@ -189,10 +213,11 @@ const addPartialPayment = async (req, res) => {
       ]
     });
 
-    // Calcular valores actualizados desde el fixedExpense recargado
-    const updatedTotalAmount = parseFloat(fixedExpense.totalAmount);
-    const updatedPaidAmount = parseFloat(fixedExpense.paidAmount || 0);
+    // Usar valores actualizados después del update
+    const updatedTotalAmount = totalAmount;
+    const updatedPaidAmount = newPaidAmount;
     const updatedRemainingAmount = updatedTotalAmount - updatedPaidAmount;
+    const updatedPaymentStatus = newPaymentStatus;
 
     res.status(201).json({
       message: 'Pago registrado exitosamente',
@@ -204,14 +229,14 @@ const addPartialPayment = async (req, res) => {
         totalAmount: updatedTotalAmount.toFixed(2),
         paidAmount: updatedPaidAmount.toFixed(2),
         remainingAmount: updatedRemainingAmount.toFixed(2),
-        paymentStatus: fixedExpense.paymentStatus
+        paymentStatus: updatedPaymentStatus
       },
       fixedExpenseBalance: {
         totalAmount: updatedTotalAmount.toFixed(2),
         paidAmount: updatedPaidAmount.toFixed(2),
         remainingAmount: updatedRemainingAmount.toFixed(2),
-        paymentStatus: fixedExpense.paymentStatus,
-        isFullyPaid: fixedExpense.paymentStatus === 'paid'
+        paymentStatus: updatedPaymentStatus,
+        isFullyPaid: updatedPaymentStatus === 'paid'
       }
     });
 
@@ -321,8 +346,8 @@ const deletePartialPayment = async (req, res) => {
 
     const fixedExpense = payment.fixedExpense;
     const paymentAmount = parseFloat(payment.amount);
-    const currentPaidAmount = parseFloat(fixedExpense.paidAmount);
-    const newPaidAmount = currentPaidAmount - paymentAmount;
+    const currentPaidAmount = parseFloat(fixedExpense.paidAmount || 0);
+    const newPaidAmount = Math.max(0, currentPaidAmount - paymentAmount); // No permitir negativos
 
     // Eliminar el Expense asociado
     if (payment.expenseId) {
@@ -351,11 +376,69 @@ const deletePartialPayment = async (req, res) => {
       console.log('✅ Comprobante eliminado de Cloudinary');
     }
 
+    // 🏦 ROLLBACK DE TRANSACCIONES BANCARIAS
+    let revertedBankTransaction = null;
+    if (payment.expenseId && payment.paymentMethod) {
+      try {
+        const { BankAccount, BankTransaction } = require('../data');
+        const { isBankAccount, getAccountName } = require('../utils/bankTransactionHelper');
+        
+        // Solo si es un método de pago bancario
+        if (isBankAccount(payment.paymentMethod)) {
+          // Buscar la transacción bancaria relacionada con este expense
+          const bankTransaction = await BankTransaction.findOne({
+            where: {
+              relatedExpenseId: payment.expenseId,
+              transactionType: 'withdrawal',
+              amount: paymentAmount
+            }
+          });
+
+          if (bankTransaction) {
+            // Buscar la cuenta bancaria
+            const bankAccount = await BankAccount.findByPk(bankTransaction.bankAccountId);
+
+            if (bankAccount) {
+              // Restaurar el balance (devolver el dinero a la cuenta)
+              const newBalance = parseFloat(bankAccount.currentBalance) + paymentAmount;
+              await bankAccount.update({ currentBalance: newBalance });
+
+              // Eliminar la transacción bancaria
+              await bankTransaction.destroy();
+
+              revertedBankTransaction = {
+                accountName: bankAccount.accountName,
+                amount: paymentAmount,
+                previousBalance: parseFloat(bankAccount.currentBalance),
+                newBalance: newBalance
+              };
+
+              console.log(`✅ [BANK ROLLBACK] ${bankAccount.accountName} +$${paymentAmount} → Balance: $${newBalance.toFixed(2)}`);
+            }
+          } else {
+            console.log(`ℹ️ [BANK] No se encontró transacción bancaria para el expense ${payment.expenseId}`);
+          }
+        }
+      } catch (bankError) {
+        console.error('❌ [BANK ROLLBACK] Error revirtiendo transacción bancaria:', bankError.message);
+        // Continuar con la eliminación aunque falle el rollback bancario
+      }
+    }
+
     // Actualizar el gasto fijo
+    const totalAmount = parseFloat(fixedExpense.totalAmount);
+    const newStatus = newPaidAmount >= totalAmount ? 'paid' : (newPaidAmount > 0 ? 'partial' : 'unpaid');
+    
     await fixedExpense.update({
       paidAmount: newPaidAmount,
-      paymentStatus: newPaidAmount > 0 ? 'partial' : 'unpaid',
+      paymentStatus: newStatus,
       paidDate: newPaidAmount <= 0 ? null : fixedExpense.paidDate
+    });
+    
+    console.log(`✅ FixedExpense actualizado después del rollback:`, {
+      paidAmount: newPaidAmount,
+      paymentStatus: newPaymentStatus,
+      totalAmount: totalAmount
     });
 
     // Eliminar el pago
@@ -370,15 +453,23 @@ const deletePartialPayment = async (req, res) => {
       fixedExpense: {
         idFixedExpense: fixedExpense.idFixedExpense,
         paidAmount: newPaidAmount.toFixed(2),
-        paymentStatus: newPaidAmount > 0 ? 'partial' : 'unpaid'
+        paymentStatus: newPaymentStatus
       },
       updatedBalance: {
         totalAmount: fixedExpense.totalAmount,
         paidAmount: newPaidAmount.toFixed(2),
         remainingAmount: (parseFloat(fixedExpense.totalAmount) - newPaidAmount).toFixed(2),
-        paymentStatus: newPaidAmount > 0 ? 'partial' : 'unpaid'
+        paymentStatus: newPaymentStatus
       },
-      expenseDeleted: payment.expenseId ? true : false
+      rollback: {
+        expenseDeleted: payment.expenseId ? true : false,
+        bankTransactionReverted: revertedBankTransaction !== null,
+        bankAccountUpdated: revertedBankTransaction ? {
+          accountName: revertedBankTransaction.accountName,
+          restoredAmount: revertedBankTransaction.amount.toFixed(2),
+          newBalance: revertedBankTransaction.newBalance.toFixed(2)
+        } : null
+      }
     });
 
   } catch (error) {

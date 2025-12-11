@@ -11,6 +11,8 @@ const FinalInvoiceController = {
   // Crear la factura final inicial para una obra
   async createFinalInvoice(req, res) {
     const { workId } = req.params;
+    const startTime = Date.now(); // 🚀 TIMING LOG
+    console.log(`⏰ [FinalInvoice] Iniciando creación para workId: ${workId}`);
     const transaction = await conn.transaction(); // Start transaction
 
     try {
@@ -133,6 +135,8 @@ const FinalInvoiceController = {
         console.error('⚠️ Error al crear WorkNote para Final Invoice:', noteError);
       }
 
+      const totalTime = Date.now() - startTime;
+      console.log(`✅ [FinalInvoice] Creación completada en ${totalTime}ms para workId: ${workId}`);
       res.status(201).json(finalInvoiceWithDetails);
 
     } catch (error) {
@@ -147,17 +151,41 @@ const FinalInvoiceController = {
   // Obtener la factura final y sus items por workId
   async getFinalInvoiceByWorkId(req, res) {
     const { workId } = req.params;
+    console.log(`🔍 [FinalInvoice] Buscando Final Invoice para workId: ${workId}`);
     try {
+      // 🆕 DIAGNÓSTICO: Verificar que el Work existe y tiene las asociaciones correctas
+      const work = await Work.findByPk(workId, {
+        include: [
+          { 
+            model: Budget, 
+            as: 'budget', 
+            include: [{ model: Permit }] 
+          }
+        ]
+      });
+      
+      if (work) {
+        console.log(`✅ [FinalInvoice] Work encontrado:`, {
+          workId: work.idWork,
+          hasIdPermit: !!work.idPermit,
+          hasBudget: !!work.budget,
+          budgetId: work.budget?.idBudget,
+          budgetPermitId: work.budget?.PermitIdPermit,
+          hasPermit: !!work.budget?.Permit
+        });
+      }
+      
       const finalInvoice = await FinalInvoice.findOne({
         where: { workId },
         include: [
           { model: WorkExtraItem, as: 'extraItems' }, // Incluir los items extras
-          { model: Work, include: [{ model: Budget, as: 'budget' }] }, // Incluir Work y Budget para contexto
+          { model: Work, include: [{ model: Budget, as: 'budget', include: [{ model: Permit }] }] }, // Incluir Work, Budget y Permit para contexto
           // { model: Budget } // Si no incluyes Work, puedes incluir Budget directamente
         ]
       });
 
       if (!finalInvoice) {
+        console.log(`❌ [FinalInvoice] No existe Final Invoice para workId: ${workId}`);
         return res.status(404).json({ error: true, message: 'Factura final no encontrada para esta obra.' });
       }
 
@@ -531,7 +559,7 @@ const FinalInvoiceController = {
             model: Work,
             as: 'Work',
             include: [
-              { model: Budget, as: 'budget', include: [{ model: Permit, as: 'Permit' }] },
+              { model: Budget, as: 'budget', include: [{ model: Permit }] },
               { model: ChangeOrder, as: 'changeOrders' }
             ]
           }
@@ -542,8 +570,13 @@ const FinalInvoiceController = {
         return res.status(404).json({ error: true, message: 'Factura final no encontrada.' });
       }
 
-      // Generamos el PDF. La función lo guarda en disco, y obtenemos su ruta.
-      tempPdfPath = await generateAndSaveFinalInvoicePDF(finalInvoice.toJSON());
+      // 🔧 Generar PDF temporal con nombre único para preview (no sobreescribir el principal)
+      const tempInvoiceData = {
+        ...finalInvoice.toJSON(),
+        _isPreview: true,
+        _tempSuffix: `_preview_${Date.now()}`
+      };
+      tempPdfPath = await generateAndSaveFinalInvoicePDF(tempInvoiceData);
 
       // Enviamos el archivo al navegador
       res.setHeader('Content-Type', 'application/pdf');
@@ -645,7 +678,7 @@ async emailFinalInvoicePDF(req, res) {
                model: Work,
                as: 'Work',
                include: [
-                 { model: Budget, as: 'budget', include: [{ model: Permit, as: 'Permit' }] },
+                 { model: Budget, as: 'budget', include: [{ model: Permit }] },
                  { model: ChangeOrder, as: 'changeOrders' }
                ]
              }
@@ -710,8 +743,10 @@ async emailFinalInvoicePDF(req, res) {
                    contentType: 'application/pdf'
                }
            ]
-       };
+       }
        await sendEmail(mailOptions);
+       
+       console.log(`✅ Final Invoice #${invoiceNumber} enviada exitosamente al cliente`);
        
        // 🆕 Crear nota automática para envío de Final Invoice
        try {

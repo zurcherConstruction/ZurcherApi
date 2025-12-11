@@ -76,6 +76,7 @@ const finalInvoiceReducer = createSlice({
       })
       .addCase(createFinalInvoice.fulfilled, (state, action) => {
         state.loading = false;
+        console.log('✅ [Redux] Final Invoice creada exitosamente:', action.payload);
         state.currentInvoice = action.payload; // La API devuelve la factura creada
       })
       .addCase(createFinalInvoice.rejected, (state, action) => {

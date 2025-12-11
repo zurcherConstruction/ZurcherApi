@@ -386,6 +386,64 @@ const deleteExpense = async (req, res) => {
       }
     }
 
+    // 💰 REVERTIR PAGO DE FIXED EXPENSE si está vinculado
+    let revertedFixedExpense = null;
+    if (expense.relatedFixedExpenseId) {
+      try {
+        const { FixedExpense, FixedExpensePayment } = require('../data');
+        
+        const fixedExpense = await FixedExpense.findByPk(expense.relatedFixedExpenseId, { transaction });
+        
+        if (fixedExpense) {
+          // Buscar el payment relacionado con este expense
+          const payment = await FixedExpensePayment.findOne({
+            where: { 
+              fixedExpenseId: expense.relatedFixedExpenseId,
+              expenseId: expense.idExpense 
+            },
+            transaction
+          });
+
+          if (payment) {
+            const expenseAmount = parseFloat(expense.amount);
+            const currentPaid = parseFloat(fixedExpense.paidAmount) || 0;
+            const newPaidAmount = Math.max(0, currentPaid - expenseAmount);
+            const totalAmount = parseFloat(fixedExpense.totalAmount);
+            
+            // Determinar nuevo estado
+            const newStatus = newPaidAmount >= totalAmount ? 'paid' : 
+                             newPaidAmount > 0 ? 'partial' : 'unpaid';
+            
+            await fixedExpense.update({
+              paidAmount: newPaidAmount,
+              paymentStatus: newStatus,
+              paidDate: newPaidAmount <= 0 ? null : fixedExpense.paidDate
+            }, { transaction });
+
+            // Eliminar el payment record
+            await payment.destroy({ transaction });
+            
+            revertedFixedExpense = {
+              fixedExpenseId: fixedExpense.idFixedExpense,
+              name: fixedExpense.name,
+              previousPaid: currentPaid,
+              newPaid: newPaidAmount,
+              newStatus: newStatus
+            };
+            
+            console.log(`✅ [FIXED EXPENSE] Pago revertido: ${fixedExpense.name} - $${currentPaid} → $${newPaidAmount} (${newStatus})`);
+          }
+        }
+      } catch (fixedExpenseError) {
+        console.error('❌ [FIXED EXPENSE] Error revirtiendo pago:', fixedExpenseError.message);
+        await transaction.rollback();
+        return res.status(500).json({
+          message: 'Error al revertir pago de gasto fijo',
+          error: fixedExpenseError.message
+        });
+      }
+    }
+
     // 📋 REVERTIR PAGO DE SUPPLIER INVOICE si está vinculado
     let revertedInvoicePayment = null;
     if (expense.supplierInvoiceItemId) {
@@ -403,7 +461,7 @@ const deleteExpense = async (req, res) => {
           // Determinar nuevo estado
           let newPaymentStatus;
           if (newPaidAmount === 0) {
-            newPaymentStatus = 'unpaid';
+            newPaymentStatus = 'pending';
           } else if (newPaidAmount >= totalInvoice) {
             newPaymentStatus = 'paid';
           } else {
@@ -443,6 +501,7 @@ const deleteExpense = async (req, res) => {
     res.status(200).json({
       message: 'Gasto eliminado correctamente',
       revertedBankTransaction: revertedBankTransaction,
+      revertedFixedExpense: revertedFixedExpense,
       revertedInvoicePayment: revertedInvoicePayment
     });
   } catch (error) {
