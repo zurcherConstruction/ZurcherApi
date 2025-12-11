@@ -1083,9 +1083,9 @@ const updatePermitFields = async (req, res, next) => {
     console.log('📧 Email principal:', permit.applicantEmail);
     console.log('📧 Emails adicionales:', permit.notificationEmails);
 
-    // 🆕 SINCRONIZAR CAMPOS RELACIONADOS EN BUDGET
+    // 🆕 SINCRONIZAR CAMPOS RELACIONADOS EN BUDGET Y WORK
     // Actualizar también los campos del Budget que están denormalizados
-    const { Budget } = require('../data');
+    const { Budget, Work } = require('../data');
     
     const budgetUpdateData = {};
     if (applicantName !== undefined) budgetUpdateData.applicantName = applicantName;
@@ -1099,6 +1099,22 @@ const updatePermitFields = async (req, res, next) => {
       });
       
       console.log(`🔄 Sincronizados ${updatedBudgetsCount[0]} Budget(s) asociados con el Permit`);
+    }
+
+    // 🆕 SINCRONIZAR CAMPOS EN WORK
+    // Works que están relacionados via idPermit también necesitan sincronizar campos
+    const workUpdateData = {};
+    if (applicantName !== undefined) workUpdateData.applicantName = applicantName;
+    if (applicantEmail !== undefined) workUpdateData.applicantEmail = applicantEmail;
+    if (propertyAddress !== undefined) workUpdateData.propertyAddress = propertyAddress;
+
+    // Solo actualizar Work si hay cambios en campos relevantes
+    if (Object.keys(workUpdateData).length > 0) {
+      const updatedWorksCount = await Work.update(workUpdateData, {
+        where: { idPermit: idPermit }
+      });
+      
+      console.log(`🔄 Sincronizados ${updatedWorksCount[0]} Work(s) asociados con el Permit`);
     }
 
     res.status(200).json({
