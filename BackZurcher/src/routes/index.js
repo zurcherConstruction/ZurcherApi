@@ -39,7 +39,7 @@ const importRoutes = require('./importRoutes'); // Rutas para importar trabajos 
 const budgetPublicRoutes = require('./BudgetPublicRoutes');
 const stripeWebhookRoutes = require('./stripeWebhookRoutes'); // 🆕 Webhooks de Stripe
 const docusignRoutes = require('./docusign.routes'); // 🆕 OAuth de DocuSign
-
+const exportRoutes = require('./exportRoutes'); // 🆕 Rutas para exportar datos a Excel
 router.use('/auth', authRoutes); // Registro y login no requieren token
 router.use('/change-orders',changeOrdersRoutes); // Ruta para change orders (incluye rutas públicas)
 
@@ -86,5 +86,6 @@ router.use('/bank-accounts', bankAccountRoutes); // 🆕 Ruta para gestión de c
 router.use('/bank-transactions', bankTransactionRoutes); // 🆕 Ruta para transacciones bancarias
 router.use('/works', workChecklistRoutes); // 🆕 Ruta para checklist de verificación (usa /works/:workId/checklist)
 router.use('/import', importRoutes); // Ruta para importar trabajos legacy
+router.use('/export', exportRoutes); // 🆕 Ruta para exportar datos a Excel
 
 module.exports = router;

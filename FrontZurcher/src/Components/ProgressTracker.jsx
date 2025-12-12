@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { fetchWorks } from "../Redux/Actions/workActions"; // Acción para obtener los works
 import { Link } from "react-router-dom";
 import { ExclamationTriangleIcon } from '@heroicons/react/24/solid'; // Importar el ícono
+import { FaFileExcel, FaTimes } from 'react-icons/fa'; // 🆕 Iconos para exportar
 
 const etapas = [
   { backend: "assigned", display: "Purchase in Progress", order: 0 },
@@ -18,9 +19,18 @@ const etapas = [
 const ProgressTracker = () => {
   const dispatch = useDispatch();
   const { works, loading, error } = useSelector((state) => state.work);
+  const token = useSelector((state) => state.auth.token); // 🆕 Token para export
   const [search, setSearch] = useState("");
   const [filteredData, setFilteredData] = useState([]);
   const hasFetched = useRef(false); // 🆕 Prevenir fetch duplicado
+
+  // 🆕 Estados para modal de exportación
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportFilters, setExportFilters] = useState({
+    status: 'all',
+    applicantEmail: ''
+  });
+  const [exporting, setExporting] = useState(false);
 
   // ✅ Fetch inicial solo una vez (cargar TODOS los works)
   useEffect(() => {
@@ -124,15 +134,146 @@ const ProgressTracker = () => {
     return etapaDef.display;
   };
 
+  // 🆕 Función para exportar a Excel
+  const handleExport = async () => {
+    try {
+      setExporting(true);
+      
+      // Construir query params
+      const params = new URLSearchParams();
+      if (exportFilters.status) params.append('status', exportFilters.status);
+      if (exportFilters.applicantEmail) params.append('applicantEmail', exportFilters.applicantEmail);
+
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/export/works?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      if (!response.ok) throw new Error('Error al exportar');
+
+      // Descargar archivo
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `works-export-${Date.now()}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      setShowExportModal(false);
+      alert('✅ Excel descargado exitosamente');
+    } catch (error) {
+      console.error('Error al exportar:', error);
+      alert('❌ Error al exportar works');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl p-2 mx-auto">
-      <input
-        type="text"
-        placeholder="Buscar por Dirección"
-        value={search}
-        onChange={handleSearch}
-        className="border border-gray-300 p-2 md:p-3 mb-6 w-full rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
-      />
+      {/* 🆕 Barra de búsqueda y botón exportar */}
+      <div className="flex gap-3 mb-6">
+        <input
+          type="text"
+          placeholder="Buscar por Dirección"
+          value={search}
+          onChange={handleSearch}
+          className="flex-1 border border-gray-300 p-2 md:p-3 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+        />
+        <button
+          onClick={() => setShowExportModal(true)}
+          className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow-md font-medium transition-colors flex items-center gap-2"
+        >
+          <FaFileExcel className="text-xl" />
+          <span className="hidden md:inline">Exportar Excel</span>
+        </button>
+      </div>
+
+      {/* 🆕 Modal de opciones de exportación */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h3 className="text-xl font-bold text-gray-800">Exportar Works a Excel</h3>
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <FaTimes className="text-xl" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Filtrar por Estado
+                </label>
+                <select
+                  value={exportFilters.status}
+                  onChange={(e) => setExportFilters({ ...exportFilters, status: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                >
+                  <option value="all">Todos los Works</option>
+                  <option value="active">Activos (Sin Maintenance)</option>
+                  <option value="maintenance">Maintenance</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Filtrar por Email/Contacto del Aplicante (opcional)
+                </label>
+                <input
+                  type="email"
+                  placeholder="ejemplo@correo.com"
+                  value={exportFilters.applicantEmail}
+                  onChange={(e) => setExportFilters({ ...exportFilters, applicantEmail: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-800">
+                  <strong>Columnas incluidas:</strong> Property Address, Permit Number, Applicant Name, Applicant Email, Phone, Status, Start Date, Installation Date, Cover Date, Final Invoice Date, Created At
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 p-4 border-t">
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleExport}
+                disabled={exporting}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {exporting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                    <span>Exportando...</span>
+                  </>
+                ) : (
+                  <>
+                    <FaFileExcel />
+                    <span>Descargar Excel</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
   
       {loading && <p className="text-blue-500 text-center">Cargando obras...</p>}
       {error && <p className="text-red-500 text-center">Error: {error}</p>}

@@ -1,4 +1,4 @@
-const { SupplierInvoice, SupplierInvoiceItem, SupplierInvoiceWork, SupplierInvoiceExpense, Expense, FixedExpense, Work, Staff, Receipt, sequelize } = require('../data');
+const { SupplierInvoice, SupplierInvoiceItem, SupplierInvoiceWork, SupplierInvoiceExpense, Expense, FixedExpense, Work, Staff, Receipt, Permit, sequelize } = require('../data');
 const { Op } = require('sequelize');
 const { cloudinary } = require('../utils/cloudinaryConfig');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader'); // 🆕 Para subir receipts
@@ -411,7 +411,13 @@ const getSupplierInvoiceById = async (req, res) => {
         {
           model: Work,
           as: 'linkedWorks',
-          attributes: ['idWork', 'propertyAddress', 'permitNumber'],
+          attributes: ['idWork', 'propertyAddress'],
+          include: [
+            {
+              model: Permit,
+              attributes: ['permitNumber']
+            }
+          ],
           through: { 
             attributes: [],
           },

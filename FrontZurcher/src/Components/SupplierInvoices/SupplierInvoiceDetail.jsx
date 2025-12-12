@@ -401,7 +401,10 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
               <div>
                 <div className="text-sm text-gray-600 mb-2">Comprobante</div>
                 <button
-                  onClick={() => setShowPdfModal(true)}
+                  onClick={() => {
+                    console.log('📄 Abriendo PDF Modal. URL:', currentInvoice.invoicePdfPath);
+                    setShowPdfModal(true);
+                  }}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   <FaEye />
@@ -554,7 +557,10 @@ const SupplierInvoiceDetail = ({ invoice, onClose, onEdit }) => {
       {/* Modal para ver PDF */}
       <PdfModal 
         isOpen={showPdfModal}
-        onClose={() => setShowPdfModal(false)}
+        onClose={() => {
+          console.log('🔍 Cerrando PDF Modal. URL:', currentInvoice.invoicePdfPath);
+          setShowPdfModal(false);
+        }}
         pdfUrl={currentInvoice.invoicePdfPath}
         title={`Comprobante Invoice ${currentInvoice.invoiceNumber}`}
       />
