@@ -16,7 +16,7 @@ const {
 
 //-------------------------------- CONFIGURACION UNIFICADA (LOCAL Y DEPLOY) -----------------------------------
 // Usar DB_DEPLOY si existe (Railway/Producción), sino usar configuración local
-const sequelize = DB_DEPLOY 
+const sequelize = (DB_DEPLOY && DB_DEPLOY.startsWith('postgresql://'))
   ? new Sequelize(DB_DEPLOY, {
       logging: false,
       native: false,
