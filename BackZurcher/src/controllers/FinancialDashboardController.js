@@ -1,4 +1,4 @@
-const { Work, Budget, FinalInvoice, Expense, FixedExpensePayment, SupplierInvoice, BankTransaction, BankAccount, Income } = require('../data');
+const { Work, Budget, FinalInvoice, Expense, FixedExpensePayment, FixedExpense, SupplierInvoice, BankTransaction, BankAccount, Income } = require('../data');
 const { Sequelize, Op } = require('sequelize');
 
 /**
@@ -133,7 +133,7 @@ const FinancialDashboardController = {
       // EXCLUIR gastos de tarjeta de crédito (son compromisos, no gastos pagados)
       const expensesFilter = {
         paymentStatus: { [Op.in]: ['paid', 'paid_via_invoice'] }, // Solo gastos realmente pagados
-        relatedFixedExpenseId: null, // Excluir gastos auto-generados por pagos de gastos fijos
+        // relatedFixedExpenseId: null, // ⚠️ Removido: se filtra después para poder contar duplicados
         supplierInvoiceItemId: null, // Excluir gastos auto-generados por pagos de proveedores
         paymentMethod: { 
           [Op.notIn]: ['Chase Credit Card', 'AMEX'] // Excluir tarjetas de crédito (son deudas, no gastos pagados)
@@ -178,13 +178,41 @@ const FinancialDashboardController = {
         attributes: ['amount', 'typeExpense', 'paymentMethod', 'date', 'paymentStatus', 'relatedFixedExpenseId', 'supplierInvoiceItemId']
       });
 
-      const totalExpenses = expenses.reduce((sum, exp) => 
+      console.log(`🔍 [Dashboard] Gastos encontrados: ${expenses.length}`);
+      
+      // 🚫 Filtrar gastos duplicados (que tienen relatedFixedExpenseId)
+      const nonDuplicatedExpenses = expenses.filter(exp => !exp.relatedFixedExpenseId);
+      const duplicatedExpenses = expenses.filter(exp => exp.relatedFixedExpenseId);
+      
+      console.log(`✅ [Dashboard] Gastos no duplicados: ${nonDuplicatedExpenses.length}`);
+      console.log(`⚠️ [Dashboard] Gastos duplicados excluidos: ${duplicatedExpenses.length}`);
+      
+      if (nonDuplicatedExpenses.length > 0) {
+        console.log('🔍 [Dashboard] Primeros 3 gastos no duplicados:', nonDuplicatedExpenses.slice(0, 3).map(e => ({
+          amount: e.amount,
+          date: e.date,
+          type: e.typeExpense,
+          paymentStatus: e.paymentStatus
+        })));
+      }
+      
+      if (duplicatedExpenses.length > 0) {
+        console.log('⚠️ [Dashboard] Gastos duplicados excluidos:', duplicatedExpenses.slice(0, 3).map(e => ({
+          amount: e.amount,
+          type: e.typeExpense,
+          relatedFixedExpenseId: e.relatedFixedExpenseId
+        })));
+      }
+
+      const totalExpenses = nonDuplicatedExpenses.reduce((sum, exp) => 
         sum + parseFloat(exp.amount || 0), 0
       );
+      
+      console.log(`💰 [Dashboard] Total gastos (sin duplicados): $${totalExpenses}`);
 
-      // Desglose de gastos por método de pago
+      // Desglose de gastos por método de pago (solo gastos no duplicados)
       const expensesByPaymentMethod = {};
-      expenses.forEach(expense => {
+      nonDuplicatedExpenses.forEach(expense => {
         const method = expense.paymentMethod || 'No especificado';
         const amount = parseFloat(expense.amount || 0);
         expensesByPaymentMethod[method] = (expensesByPaymentMethod[method] || 0) + amount;
@@ -500,7 +528,22 @@ const FinancialDashboardController = {
       });
 
       // Total de egresos (INCLUYENDO pagos de tarjeta como gasto real)
-      const totalEgresos = totalExpenses + totalFixedExpenses + totalSupplierExpenses + totalCommissions + totalCreditCardPayments;
+      // 🔢 Asegurar que todos los valores sean números válidos
+      const safeExpenses = parseFloat(totalExpenses) || 0;
+      const safeFixedExpenses = parseFloat(totalFixedExpenses) || 0;
+      const safeSupplierExpenses = parseFloat(totalSupplierExpenses) || 0;
+      const safeCommissions = parseFloat(totalCommissions) || 0;
+      const safeCreditCardPayments = parseFloat(totalCreditCardPayments) || 0;
+      
+      console.log('🔍 [Debug] Valores individuales:', {
+        totalExpenses: safeExpenses,
+        totalFixedExpenses: safeFixedExpenses,
+        totalSupplierExpenses: safeSupplierExpenses,
+        totalCommissions: safeCommissions,
+        totalCreditCardPayments: safeCreditCardPayments
+      });
+      
+      const totalEgresos = safeExpenses + safeFixedExpenses + safeSupplierExpenses + safeCommissions + safeCreditCardPayments;
 
       // =============================================================
       // 2.6 CUENTAS POR PAGAR (Tarjetas de Crédito)
@@ -542,13 +585,13 @@ const FinancialDashboardController = {
       // =============================================================
       // 3. BALANCE NETO
       // =============================================================
-      const balanceNeto = totalIncome - totalEgresos;
+      const balanceNeto = (parseFloat(totalIncome) || 0) - (parseFloat(totalEgresos) || 0);
 
       // =============================================================
       // 4. DESGLOSE POR TIPO DE GASTO
       // =============================================================
       const expensesByType = {};
-      expenses.forEach(expense => {
+      nonDuplicatedExpenses.forEach(expense => {
         const type = expense.typeExpense || 'Otros';
         const amount = parseFloat(expense.amount || 0);
         expensesByType[type] = (expensesByType[type] || 0) + amount;
@@ -617,6 +660,15 @@ const FinancialDashboardController = {
         }
       };
 
+      console.log('🔍 [Backend] Enviando respuesta con totales:', {
+        totalIncome,
+        totalEgresos,
+        balanceNeto,
+        totalExpenses,
+        totalFixedExpenses,
+        totalCreditCardPayments
+      });
+
       res.json(response);
 
     } catch (error) {
@@ -626,8 +678,298 @@ const FinancialDashboardController = {
         message: error.message
       });
     }
+  },
+
+  /**
+   * 📊 DASHBOARD FINANCIERO DETALLADO CON TRANSACCIONES
+   * Proporciona análisis completo con detalles de todas las transacciones para verificar duplicaciones
+   */
+  async getDetailedFinancialDashboard(req, res) {
+    try {
+      const { month = new Date().getMonth() + 1, year = new Date().getFullYear() } = req.query;
+      
+      // Fechas para filtrar
+      const startDateStr = `${year}-${month.toString().padStart(2, '0')}-01`;
+      const endDateStr = `${year}-${month.toString().padStart(2, '0')}-31`;
+      
+      console.log(`🔍 [DetailedDashboard] Analizando: ${startDateStr} - ${endDateStr}`);
+      
+      // ===== 1. INGRESOS DETALLADOS =====
+      const incomes = await Income.findAll({
+        where: {
+          date: {
+            [Op.between]: [startDateStr, endDateStr]
+          }
+        },
+        order: [['date', 'DESC']],
+        attributes: ['idIncome', 'date', 'amount', 'paymentMethod', 'typeIncome', 'notes', 'workId']
+      });
+
+      // ===== 2. GASTOS GENERALES DETALLADOS =====
+      const allExpenses = await Expense.findAll({
+        where: {
+          date: {
+            [Op.between]: [startDateStr, endDateStr]
+          }
+        },
+        order: [['date', 'DESC']],
+        attributes: ['idExpense', 'date', 'amount', 'paymentMethod', 'typeExpense', 'notes', 'workId', 'relatedFixedExpenseId']
+      });
+      
+      // 🚫 Filtrar gastos duplicados (excluir los que tienen relatedFixedExpenseId)
+      const expenses = allExpenses.filter(exp => !exp.relatedFixedExpenseId);
+      const duplicatedExpenses = allExpenses.filter(exp => exp.relatedFixedExpenseId);
+      
+      console.log(`📄 [DetailedDashboard] Gastos totales encontrados: ${allExpenses.length}`);
+      console.log(`✅ [DetailedDashboard] Gastos válidos (sin duplicar): ${expenses.length}`);
+      console.log(`⚠️ [DetailedDashboard] Gastos duplicados excluidos: ${duplicatedExpenses.length}`);
+
+      // ===== 3. PAGOS DE GASTOS FIJOS DETALLADOS =====
+      const fixedExpensePayments = await FixedExpensePayment.findAll({
+        where: {
+          paymentDate: {
+            [Op.between]: [new Date(startDateStr), new Date(endDateStr)]
+          }
+        },
+        include: [{
+          model: FixedExpense,
+          as: 'fixedExpense',
+          attributes: ['name', 'category']
+        }],
+        order: [['paymentDate', 'DESC']],
+        attributes: ['idPayment', 'amount', 'paymentDate', 'paymentMethod', 'notes', 'fixedExpenseId']
+      });
+
+      // ===== 4. ANÁLISIS DE INGRESOS =====
+      const incomesByMethod = {};
+      let totalIncome = 0;
+      
+      incomes.forEach(income => {
+        const method = income.paymentMethod || 'Sin especificar';
+        if (!incomesByMethod[method]) {
+          incomesByMethod[method] = { count: 0, total: 0, transactions: [] };
+        }
+        const amount = parseFloat(income.amount);
+        incomesByMethod[method].count++;
+        incomesByMethod[method].total += amount;
+        incomesByMethod[method].transactions.push({
+          id: income.idIncome,
+          date: income.date,
+          amount: amount,
+          type: income.typeIncome,
+          notes: income.notes,
+          workId: income.workId
+        });
+        totalIncome += amount;
+      });
+
+      // ===== 5. ANÁLISIS DE GASTOS GENERALES =====
+      const expensesByMethod = {};
+      const expensesByType = {};
+      let totalGeneralExpenses = 0;
+
+      expenses.forEach(expense => {
+        const method = expense.paymentMethod || 'Sin especificar';
+        const type = expense.typeExpense || 'Sin categoría';
+        
+        // Por método de pago
+        if (!expensesByMethod[method]) {
+          expensesByMethod[method] = { count: 0, total: 0, transactions: [] };
+        }
+        
+        // Por tipo de gasto
+        if (!expensesByType[type]) {
+          expensesByType[type] = { count: 0, total: 0, transactions: [] };
+        }
+        
+        const amount = parseFloat(expense.amount);
+        const transaction = {
+          id: expense.idExpense,
+          date: expense.date,
+          amount: amount,
+          method: method,
+          type: type,
+          notes: expense.notes,
+          workId: expense.workId
+        };
+        
+        expensesByMethod[method].count++;
+        expensesByMethod[method].total += amount;
+        expensesByMethod[method].transactions.push(transaction);
+        
+        expensesByType[type].count++;
+        expensesByType[type].total += amount;
+        expensesByType[type].transactions.push(transaction);
+        
+        totalGeneralExpenses += amount;
+      });
+
+      // ===== 6. ANÁLISIS DE PAGOS GASTOS FIJOS =====
+      const fixedPaymentsByMethod = {};
+      let totalFixedPaid = 0;
+
+      fixedExpensePayments.forEach(payment => {
+        const method = payment.paymentMethod || 'Sin especificar';
+        if (!fixedPaymentsByMethod[method]) {
+          fixedPaymentsByMethod[method] = { count: 0, total: 0, payments: [] };
+        }
+        
+        const amount = parseFloat(payment.amount);
+        fixedPaymentsByMethod[method].count++;
+        fixedPaymentsByMethod[method].total += amount;
+        fixedPaymentsByMethod[method].payments.push({
+          id: payment.idPayment,
+          date: payment.paymentDate,
+          amount: amount,
+          fixedExpenseName: payment.FixedExpense?.name || 'N/A',
+          category: payment.FixedExpense?.category || 'N/A',
+          notes: payment.notes
+        });
+        
+        totalFixedPaid += amount;
+      });
+
+      // ===== 7. IDENTIFICAR POSIBLES DUPLICACIONES =====
+      const potentialDuplicates = [];
+      
+      // Verificar gastos generales vs pagos de gastos fijos (posible duplicación)
+      const fixedPaymentAmounts = fixedExpensePayments.map(p => parseFloat(p.amount));
+      
+      expenses.forEach(expense => {
+        const amount = parseFloat(expense.amount);
+        if (expense.typeExpense === 'Gasto Fijo' && fixedPaymentAmounts.includes(amount)) {
+          potentialDuplicates.push({
+            type: 'possible_duplicate',
+            description: `Gasto general de $${amount.toFixed(2)} puede estar duplicado con pago de gasto fijo`,
+            expenseId: expense.idExpense,
+            date: expense.date,
+            amount: amount
+          });
+        }
+      });
+
+      // ===== 8. RESUMEN CONSOLIDADO =====
+      const totalRealExpenses = totalFixedPaid + totalGeneralExpenses;
+      const netBalance = totalIncome - totalRealExpenses;
+      const efficiency = totalRealExpenses > 0 ? ((totalIncome / totalRealExpenses) * 100) : 0;
+
+      const response = {
+        success: true,
+        data: {
+          period: {
+            month: parseInt(month),
+            year: parseInt(year),
+            startDate: startDateStr,
+            endDate: endDateStr,
+            periodName: `${getMonthName(month)} ${year}`
+          },
+          
+          // Resumen principal
+          summary: {
+            totalIncome,
+            totalGeneralExpenses,
+            totalFixedPaid,
+            totalRealExpenses,
+            netBalance,
+            efficiency: parseFloat(efficiency.toFixed(1))
+          },
+          
+          // Detalles de ingresos
+          incomeDetails: {
+            total: totalIncome,
+            transactionCount: incomes.length,
+            byMethod: incomesByMethod,
+            allTransactions: incomes.map(income => ({
+              id: income.idIncome,
+              date: income.date,
+              amount: parseFloat(income.amount),
+              method: income.paymentMethod,
+              type: income.typeIncome,
+              notes: income.notes,
+              workId: income.workId
+            }))
+          },
+          
+          // Detalles de gastos generales
+          expenseDetails: {
+            total: totalGeneralExpenses,
+            transactionCount: expenses.length,
+            byMethod: expensesByMethod,
+            byType: expensesByType,
+            allTransactions: expenses.map(expense => ({
+              id: expense.idExpense,
+              date: expense.date,
+              amount: parseFloat(expense.amount),
+              method: expense.paymentMethod,
+              type: expense.typeExpense,
+              notes: expense.notes,
+              workId: expense.workId
+            }))
+          },
+          
+          // Detalles de pagos gastos fijos
+          fixedPaymentDetails: {
+            paid: totalFixedPaid,
+            paymentCount: fixedExpensePayments.length,
+            byPaymentMethod: fixedPaymentsByMethod,
+            allPayments: fixedExpensePayments.map(payment => ({
+              id: payment.idPayment,
+              date: payment.paymentDate,
+              amount: parseFloat(payment.amount),
+              method: payment.paymentMethod,
+              fixedExpenseName: payment.FixedExpense?.name || 'N/A',
+              category: payment.FixedExpense?.category || 'N/A',
+              notes: payment.notes
+            }))
+          },
+          
+          // Alertas y problemas
+          alerts: {
+            potentialDuplicates,
+            hasLowEfficiency: efficiency < 120,
+            hasNegativeBalance: netBalance < 0,
+            duplicateCount: potentialDuplicates.length
+          },
+          
+          // 🚫 Información sobre gastos duplicados excluidos
+          duplicatesInfo: {
+            excludedCount: duplicatedExpenses.length,
+            excludedAmount: duplicatedExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount || 0), 0),
+            excludedTransactions: duplicatedExpenses.map(expense => ({
+              id: expense.idExpense,
+              date: expense.date,
+              amount: parseFloat(expense.amount),
+              type: expense.typeExpense,
+              notes: expense.notes,
+              relatedFixedExpenseId: expense.relatedFixedExpenseId,
+              reason: "Excluido por duplicación con FixedExpensePayment"
+            }))
+          }
+        }
+      };
+
+      console.log(`✅ [DetailedDashboard] Procesado: ${incomes.length} ingresos, ${expenses.length} gastos, ${fixedExpensePayments.length} pagos fijos`);
+      res.json(response);
+
+    } catch (error) {
+      console.error('❌ [DetailedDashboard] Error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error al obtener dashboard detallado',
+        details: error.message
+      });
+    }
   }
 
+};
+
+// Helper function para nombres de meses
+const getMonthName = (month) => {
+  const months = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  ];
+  return months[parseInt(month) - 1] || 'Desconocido';
 };
 
 module.exports = FinancialDashboardController;
