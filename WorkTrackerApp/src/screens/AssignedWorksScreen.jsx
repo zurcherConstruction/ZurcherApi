@@ -160,6 +160,8 @@ const renderHeader = () => (
           let cardBackgroundColor = 'bg-white';
           if (item.status === 'rejectedInspection') {
             cardBackgroundColor = 'bg-red-200'; // Rojo claro para inspección rechazada
+          } else if (item.status === 'coverPending') {
+            cardBackgroundColor = 'bg-amber-100'; // Amber claro para PARA CUBRIR
           }
 
           // Determinar el color de fondo y texto para el tag de estado
@@ -168,6 +170,9 @@ const renderHeader = () => (
 
           if (item.status === 'rejectedInspection') {
             statusTagBackgroundColor = 'bg-red-600'; // Rojo más oscuro para el tag
+            statusTagTextColor = 'text-white';    // Texto blanco para contraste
+          } else if (item.status === 'coverPending') {
+            statusTagBackgroundColor = 'bg-orange-600'; // Naranja intenso para PARA CUBRIR
             statusTagTextColor = 'text-white';    // Texto blanco para contraste
           }
           

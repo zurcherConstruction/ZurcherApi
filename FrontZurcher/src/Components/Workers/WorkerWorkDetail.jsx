@@ -259,7 +259,15 @@ const WorkerWorkDetail = () => {
             <ArrowLeftIcon className="h-5 w-5 mr-2" />
             Volver
           </button>
-          <h1 className="text-xl font-bold">{currentWork.propertyAddress || 'Trabajo'}</h1>
+          <h1 className="text-xl font-bold uppercase">{currentWork.propertyAddress || 'Trabajo'}</h1>
+          <p className="text-sm text-green-100 mt-1">
+            Estado: {currentWork.status === 'assigned' ? 'Asignado' :
+                     currentWork.status === 'inProgress' ? 'En Progreso' :
+                     currentWork.status === 'installed' ? 'Instalado' :
+                     currentWork.status === 'coverPending' ? 'PARA CUBRIR' :
+                     currentWork.status === 'covered' ? 'Cubierto' : 
+                     currentWork.status ? currentWork.status.charAt(0).toUpperCase() + currentWork.status.slice(1) : 'Desconocido'}
+          </p>
         </div>
       </div>
 
@@ -295,41 +303,17 @@ const WorkerWorkDetail = () => {
         <div className="bg-white rounded-lg shadow-md p-5">
           <h2 className="text-lg font-bold text-gray-800 mb-4">Información del Trabajo</h2>
           
-          {currentWork.budget && (
-            <div className="space-y-2 text-sm">
-              <div>
-                <span className="font-semibold text-gray-600">Cliente:</span>
-                <p className="text-gray-800">{currentWork.budget.applicantName || 'N/A'}</p>
-              </div>
-              <div>
-                <span className="font-semibold text-gray-600">Dirección:</span>
-                <p className="text-gray-800">{currentWork.budget.propertyAddress || 'N/A'}</p>
-              </div>
-              {currentWork.budget.applicantEmail && (
-                <div>
-                  <span className="font-semibold text-gray-600">Email:</span>
-                  <p className="text-gray-800">{currentWork.budget.applicantEmail}</p>
-                </div>
-              )}
-              {currentWork.budget.applicantPhone && (
-                <div>
-                  <span className="font-semibold text-gray-600">Teléfono:</span>
-                  <p className="text-gray-800">{currentWork.budget.applicantPhone}</p>
-                </div>
-              )}
-            </div>
-          )}
-
           {currentWork.startDate && (
-            <div className="mt-4 pt-4 border-t">
+            <div>
               <span className="font-semibold text-gray-600">Fecha de inicio:</span>
               <p className="text-gray-800">
-                {new Date(currentWork.startDate).toLocaleDateString('es-ES', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
+                {(() => {
+                  const date = new Date(currentWork.startDate + 'T12:00:00');
+                  const month = String(date.getMonth() + 1).padStart(2, '0');
+                  const day = String(date.getDate()).padStart(2, '0');
+                  const year = date.getFullYear();
+                  return `${month}-${day}-${year}`;
+                })()}
               </p>
             </div>
           )}

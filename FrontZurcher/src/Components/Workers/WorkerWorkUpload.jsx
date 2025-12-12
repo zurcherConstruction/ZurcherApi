@@ -396,13 +396,14 @@ const WorkerWorkUpload = () => {
             <ArrowLeftIcon className="h-5 w-5 mr-2" />
             Volver
           </button>
-          <h1 className="text-xl font-bold">{currentWork.propertyAddress || 'Trabajo'}</h1>
+          <h1 className="text-xl font-bold uppercase">{currentWork.propertyAddress || 'Trabajo'}</h1>
           <p className="text-sm text-green-100 mt-1">
             Estado: {currentWork.status === 'assigned' ? 'Asignado' :
                      currentWork.status === 'inProgress' ? 'En Progreso' :
                      currentWork.status === 'installed' ? 'Instalado' :
-                     currentWork.status === 'coverPending' ? 'Pendiente Cubrir' :
-                     currentWork.status === 'covered' ? 'Cubierto' : currentWork.status}
+                     currentWork.status === 'coverPending' ? 'PARA CUBRIR' :
+                     currentWork.status === 'covered' ? 'Cubierto' : 
+                     currentWork.status ? currentWork.status.charAt(0).toUpperCase() + currentWork.status.slice(1) : 'Desconocido'}
           </p>
         </div>
       </div>
@@ -440,23 +441,6 @@ const WorkerWorkUpload = () => {
             </div>
           </div>
         )}
-
-        {/* Información del Cliente */}
-        <div className="bg-white rounded-lg shadow-md p-5">
-          <h2 className="text-lg font-bold text-gray-800 mb-3">Información del Cliente</h2>
-          {currentWork.Permit && (
-            <div className="space-y-2 text-sm">
-              <div>
-                <span className="font-semibold text-gray-600">Cliente:</span>
-                <p className="text-gray-800">{currentWork.Permit.applicantName || 'N/A'}</p>
-              </div>
-              <div>
-                <span className="font-semibold text-gray-600">Email:</span>
-                <p className="text-gray-800">{currentWork.Permit.applicantEmail || 'N/A'}</p>
-              </div>
-            </div>
-          )}
-        </div>
 
         {/* PDFs */}
         <div className="bg-white rounded-lg shadow-md p-5">

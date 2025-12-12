@@ -60,13 +60,15 @@ const WorkerDashboard = () => {
       assigned: { label: 'Asignado', color: 'bg-blue-100 text-blue-800' },
       inProgress: { label: 'En Progreso', color: 'bg-yellow-100 text-yellow-800' },
       installed: { label: 'Instalado', color: 'bg-green-100 text-green-800' },
-      coverPending: { label: 'Pendiente Cobertura', color: 'bg-orange-100 text-orange-800' },
+      coverPending: { label: 'PARA CUBRIR', color: 'bg-amber-100 text-amber-900 border border-amber-400' },
       covered: { label: 'Cubierto', color: 'bg-green-100 text-green-800' },
       maintenance: { label: 'Mantenimiento', color: 'bg-purple-100 text-purple-800' },
       rejectedInspection: { label: 'Inspección Rechazada', color: 'bg-red-100 text-red-800' },
       finalRejected: { label: 'Inspección Final Rechazada', color: 'bg-red-100 text-red-800' },
     };
-    return statusMap[status] || { label: status, color: 'bg-gray-100 text-gray-800' };
+    // Capitalizar el status si no está en el mapa
+    const fallbackLabel = status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Desconocido';
+    return statusMap[status] || { label: fallbackLabel, color: 'bg-gray-100 text-gray-800' };
   };
 
   const handleWorkClick = (workId) => {
@@ -201,15 +203,24 @@ const WorkerDashboard = () => {
             {getWorksByTab().map((work) => {
               const statusInfo = getStatusDisplay(work.status);
               const isRejected = ['rejectedInspection', 'finalRejected'].includes(work.status);
+              const isCoverPending = work.status === 'coverPending';
               
               return (
                 <div
                   key={work.idWork}
                   onClick={() => handleWorkClick(work.idWork)}
                   className={`bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer overflow-hidden ${
-                    isRejected ? 'ring-2 ring-red-500' : ''
+                    isRejected ? 'ring-2 ring-red-500' : 
+                    isCoverPending ? 'ring-2 ring-amber-400 bg-amber-50' : ''
                   }`}
                 >
+                  {/* Cover Pending Banner */}
+                  {isCoverPending && (
+                    <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-5 py-2.5 text-center font-bold text-sm shadow-inner">
+                      🛡️ PARA CUBRIR - Acción Requerida
+                    </div>
+                  )}
+                  
                   {/* Rejection Banner */}
                   {isRejected && (
                     <div className="bg-red-500 text-white px-5 py-2 text-center font-bold text-sm">
@@ -221,7 +232,7 @@ const WorkerDashboard = () => {
                     {/* Header */}
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex-1">
-                        <h3 className="font-bold text-lg text-gray-800 mb-1">
+                        <h3 className="font-bold text-lg text-gray-800 mb-1 uppercase">
                           {work.propertyAddress || 'Sin dirección'}
                         </h3>
                         <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${statusInfo.color}`}>
@@ -230,26 +241,18 @@ const WorkerDashboard = () => {
                       </div>
                     </div>
 
-                    {/* Client Info */}
-                    {work.Permit && (
-                      <div className="bg-gray-50 rounded-lg p-3 mb-3">
-                        <p className="text-sm text-gray-600">
-                          <span className="font-semibold">Cliente:</span> {work.Permit.applicantName || 'N/A'}
-                        </p>
-                        {work.Permit.applicantEmail && (
-                          <p className="text-sm text-gray-600">
-                            <span className="font-semibold">Email:</span> {work.Permit.applicantEmail}
-                          </p>
-                        )}
-                      </div>
-                    )}
-
                     {/* Dates */}
                     <div className="flex items-center justify-between text-sm text-gray-500">
                       <div className="flex items-center">
                         <ClockIcon className="h-4 w-4 mr-1" />
                         {work.startDate 
-                          ? new Date(work.startDate).toLocaleDateString('es-ES')
+                          ? (() => {
+                              const date = new Date(work.startDate + 'T12:00:00');
+                              const month = String(date.getMonth() + 1).padStart(2, '0');
+                              const day = String(date.getDate()).padStart(2, '0');
+                              const year = date.getFullYear();
+                              return `${month}-${day}-${year}`;
+                            })()
                           : 'Sin fecha de inicio'
                         }
                       </div>
