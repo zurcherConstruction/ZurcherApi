@@ -92,22 +92,22 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
         </div>
         
         <div className="flex-grow overflow-hidden relative bg-gray-100">
-          {pdfUrl.includes('.pdf') || pdfUrl.includes('/raw/') ? (
-            // Si es PDF raw de Cloudinary, usar Google Docs Viewer
-            <iframe
-              src={`https://docs.google.com/viewer?url=${encodeURIComponent(pdfUrl)}&embedded=true`}
-              className="w-full h-full border-0"
-              title={title || "Comprobante"}
-            />
-          ) : (
-            // Si es imagen, mostrar directamente
+          {pdfUrl.includes('/image/') ? (
+            // Es una imagen de Cloudinary
             <div className="w-full h-full flex items-center justify-center overflow-auto p-4">
               <img
                 src={pdfUrl}
                 alt={title || "Comprobante"}
-                className="max-w-full max-h-full object-contain"
+                className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
               />
             </div>
+          ) : (
+            // Es un PDF u otro archivo - usar Google Docs Viewer igual que PayInvoiceModal
+            <iframe
+              src={`https://docs.google.com/gview?url=${encodeURIComponent(pdfUrl)}&embedded=true`}
+              className="w-full h-full border-0"
+              title={title || "Comprobante"}
+            />
           )}
         </div>
       </div>
