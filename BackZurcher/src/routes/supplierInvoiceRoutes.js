@@ -24,7 +24,8 @@ const {
   getCreditCardBalance, // 💳 NUEVO balance de tarjeta
   createAmexTransaction, // 💳 NUEVO transacciones AMEX
   reverseAmexPayment, // 🔄 NUEVO revertir pagos de AMEX
-  getAmexBalance // 💳 NUEVO balance AMEX
+  getAmexBalance, // 💳 NUEVO balance AMEX
+  getInvoicesByWorkId // 🆕 NUEVO obtener invoices por work
 } = require('../controllers/supplierInvoiceController');
 
 // Middleware de autenticación (ajusta según tu implementación)
@@ -104,6 +105,14 @@ router.delete('/amex/payment/:paymentId', allowRoles(['admin', 'owner', 'finance
  * @access  Private
  */
 router.get('/payment-history', allowRoles(['admin', 'owner', 'finance', 'finance-viewer']), getPaymentHistory);
+
+/**
+ * 🆕 @route   GET /api/supplier-invoices/work/:workId
+ * @desc    Obtener todos los invoices vinculados a un work específico
+ * @params  workId - ID del work
+ * @access  Private
+ */
+router.get('/work/:workId', allowRoles(['admin', 'owner', 'finance', 'finance-viewer', 'worker']), getInvoicesByWorkId);
 
 /**
  * @route   POST /api/supplier-invoices

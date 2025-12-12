@@ -25,6 +25,24 @@ const VendorsSummary = ({ onRefreshParent }) => {
     fetchVendorsSummary();
   }, []);
 
+  // 🆕 Detectar si se debe abrir un invoice específico desde sessionStorage
+  useEffect(() => {
+    const openInvoiceId = sessionStorage.getItem('openInvoiceId');
+    if (openInvoiceId && vendorsData.length > 0) {
+      // Buscar el invoice en vendorsData
+      let foundInvoice = null;
+      for (const vendor of vendorsData) {
+        foundInvoice = vendor.invoices?.find(inv => inv.idSupplierInvoice === openInvoiceId);
+        if (foundInvoice) break;
+      }
+      
+      if (foundInvoice) {
+        handlePayInvoice(foundInvoice);
+        sessionStorage.removeItem('openInvoiceId');
+      }
+    }
+  }, [vendorsData]);
+
   const fetchVendorsSummary = async () => {
     try {
       setLoading(true);

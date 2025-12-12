@@ -30,6 +30,50 @@ const SimpleInvoiceForm = ({ invoice, onClose, onSuccess }) => {
   const [invoicePreview, setInvoicePreview] = useState(invoice?.invoicePdfPath || null);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+  
+  // 🆕 Works vinculados
+  const [linkedWorks, setLinkedWorks] = useState([]);
+  const [availableWorks, setAvailableWorks] = useState([]);
+  const [loadingWorks, setLoadingWorks] = useState(false);
+  const [showWorksSelector, setShowWorksSelector] = useState(true); // ✅ Expandido por defecto
+  const [workSearchTerm, setWorkSearchTerm] = useState(''); // 🔍 Búsqueda de works
+
+  // 🆕 Cargar works disponibles
+  useEffect(() => {
+    const fetchWorks = async () => {
+      setLoadingWorks(true);
+      try {
+        const response = await axios.get(
+          `${import.meta.env.VITE_API_URL}/work?limit=1000`, // ✅ Traer hasta 1000 works
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+        
+        console.log('📋 Works recibidos:', response.data);
+        
+        // ✅ Los works vienen en response.data.works (con paginación)
+        const worksArray = response.data?.works || response.data || [];
+        
+        if (Array.isArray(worksArray)) {
+          // Mostrar TODOS los works, ordenados por fecha de creación (más recientes primero)
+          const sortedWorks = worksArray
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+          
+          console.log(`✅ ${sortedWorks.length} work(s) disponible(s) para vincular`);
+          setAvailableWorks(sortedWorks);
+        } else {
+          console.error('❌ Los works no son un array:', worksArray);
+          setAvailableWorks([]);
+        }
+      } catch (error) {
+        console.error('Error cargando works:', error);
+      }
+      setLoadingWorks(false);
+    };
+
+    fetchWorks();
+  }, [token]);
 
   // 🆕 Cargar vendors desde el backend
   useEffect(() => {
@@ -102,6 +146,14 @@ const SimpleInvoiceForm = ({ invoice, onClose, onSuccess }) => {
       }
     }
   }, [invoice, vendorsList, loadingVendors]);
+
+  // 🆕 Cargar works vinculados si estamos editando
+  useEffect(() => {
+    if (invoice?.linkedWorks && Array.isArray(invoice.linkedWorks)) {
+      const workIds = invoice.linkedWorks.map(w => w.idWork || w);
+      setLinkedWorks(workIds);
+    }
+  }, [invoice]);
 
   const handleVendorChange = (e) => {
     const value = e.target.value;
@@ -228,6 +280,11 @@ const SimpleInvoiceForm = ({ invoice, onClose, onSuccess }) => {
             formDataWithFile.append('notes', formData.notes);
           }
           
+          // 🆕 Agregar works vinculados
+          if (linkedWorks.length > 0) {
+            formDataWithFile.append('linkedWorks', JSON.stringify(linkedWorks));
+          }
+          
           formDataWithFile.append('invoiceFile', invoiceFile);
 
           response = await fetch(
@@ -248,7 +305,8 @@ const SimpleInvoiceForm = ({ invoice, onClose, onSuccess }) => {
             issueDate: formData.issueDate,
             totalAmount: parseFloat(formData.totalAmount),
             dueDate: formData.dueDate || null,
-            notes: formData.notes || null
+            notes: formData.notes || null,
+            linkedWorks: linkedWorks // 🆕 Agregar works vinculados
           };
 
           console.log('📤 Enviando actualización:', jsonData);
@@ -279,6 +337,11 @@ const SimpleInvoiceForm = ({ invoice, onClose, onSuccess }) => {
         
         if (formData.notes) {
           data.append('notes', formData.notes);
+        }
+
+        // 🆕 Agregar works vinculados
+        if (linkedWorks.length > 0) {
+          data.append('linkedWorks', JSON.stringify(linkedWorks));
         }
 
         if (invoiceFile) {
@@ -457,6 +520,161 @@ const SimpleInvoiceForm = ({ invoice, onClose, onSuccess }) => {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
               placeholder="Ej: Materiales para obra X, Servicio de Y, etc."
             />
+          </div>
+
+          {/* 🆕 Vincular a Works (opcional) */}
+          <div className="border-2 border-blue-300 rounded-lg p-4 bg-blue-50">
+            <button
+              type="button"
+              onClick={() => setShowWorksSelector(!showWorksSelector)}
+              className="flex items-center justify-between w-full text-left font-semibold text-blue-900 mb-1"
+            >
+              <span className="flex items-center text-base">
+                🏠 Vincular a Casas/Trabajos (Opcional)
+                {linkedWorks.length > 0 && (
+                  <span className="ml-2 px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded-full">
+                    {linkedWorks.length} seleccionada{linkedWorks.length !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </span>
+              <span className="text-2xl font-bold">{showWorksSelector ? '▼' : '▶'}</span>
+            </button>
+            
+            {showWorksSelector && (
+              <div className="mt-3">
+                <div className="bg-white border border-blue-200 rounded p-3 mb-3">
+                  <p className="text-sm text-blue-800 font-medium mb-1">
+                    ℹ️ ¿Para qué sirve esto?
+                  </p>
+                  <p className="text-sm text-gray-700">
+                    Al vincular este invoice a una o más casas, el comprobante quedará disponible en el detalle de cada trabajo para revisión y control antes de pagarlo.
+                  </p>
+                </div>
+
+                {/* 🔍 Buscador de works */}
+                {availableWorks.length > 0 && (
+                  <div className="mb-3">
+                    <input
+                      type="text"
+                      placeholder="🔍 Buscar por dirección o número de permit..."
+                      value={workSearchTerm}
+                      onChange={(e) => setWorkSearchTerm(e.target.value)}
+                      className="w-full px-4 py-2 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    />
+                    {workSearchTerm && (
+                      <p className="text-xs text-gray-600 mt-1">
+                        Mostrando {availableWorks.filter(w => {
+                          const searchLower = workSearchTerm.toLowerCase();
+                          const address = (w.Permit?.propertyAddress || w.propertyAddress || '').toLowerCase();
+                          const permitNum = (w.Permit?.permitNumber || w.permitNumber || '').toLowerCase();
+                          return address.includes(searchLower) || permitNum.includes(searchLower);
+                        }).length} de {availableWorks.length} trabajos
+                      </p>
+                    )}
+                  </div>
+                )}
+                
+                {loadingWorks ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                    <p className="text-gray-600 text-sm mt-2">Cargando trabajos...</p>
+                  </div>
+                ) : availableWorks.length > 0 ? (
+                  <div className="space-y-2 max-h-80 overflow-y-auto border border-gray-200 rounded p-2 bg-white"
+                    style={{ scrollbarWidth: 'thin' }}
+                  >
+                    {availableWorks
+                      .filter(work => {
+                        if (!workSearchTerm) return true;
+                        const searchLower = workSearchTerm.toLowerCase();
+                        const address = (work.Permit?.propertyAddress || work.propertyAddress || '').toLowerCase();
+                        const permitNum = (work.Permit?.permitNumber || work.permitNumber || '').toLowerCase();
+                        return address.includes(searchLower) || permitNum.includes(searchLower);
+                      })
+                      .map((work) => {
+                      const isSelected = linkedWorks.includes(work.idWork);
+                      const address = work.Permit?.propertyAddress || work.propertyAddress || 'Sin dirección';
+                      const permitNum = work.Permit?.permitNumber || work.permitNumber || 'N/A';
+                      
+                      return (
+                        <label
+                          key={work.idWork}
+                          className={`flex items-center p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                            isSelected
+                              ? 'bg-blue-100 border-blue-500 shadow-md'
+                              : 'bg-white border-gray-300 hover:border-blue-400 hover:shadow-sm'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setLinkedWorks([...linkedWorks, work.idWork]);
+                              } else {
+                                setLinkedWorks(linkedWorks.filter(id => id !== work.idWork));
+                              }
+                            }}
+                            className="mr-3 h-5 w-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                          />
+                          <div className="flex-1">
+                            <div className="font-semibold text-gray-900 text-sm">
+                              📍 {address}
+                            </div>
+                            <div className="text-xs text-gray-600 mt-1 flex items-center gap-2 flex-wrap">
+                              <span className="bg-gray-100 px-2 py-0.5 rounded">
+                                Permit: {permitNum}
+                              </span>
+                              {work.status && (
+                                <span className={`px-2 py-0.5 rounded font-medium ${
+                                  work.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                  work.status === 'inProgress' ? 'bg-blue-100 text-blue-800' :
+                                  work.status === 'installed' ? 'bg-purple-100 text-purple-800' :
+                                  work.status === 'paymentReceived' ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {work.status}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                    
+                    {/* Mensaje cuando el filtro no encuentra resultados */}
+                    {workSearchTerm && availableWorks.filter(w => {
+                      const searchLower = workSearchTerm.toLowerCase();
+                      const address = (w.Permit?.propertyAddress || w.propertyAddress || '').toLowerCase();
+                      const permitNum = (w.Permit?.permitNumber || w.permitNumber || '').toLowerCase();
+                      return address.includes(searchLower) || permitNum.includes(searchLower);
+                    }).length === 0 && (
+                      <div className="text-center py-6 text-gray-500">
+                        <p className="text-sm">
+                          🔍 No se encontraron trabajos con "{workSearchTerm}"
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setWorkSearchTerm('')}
+                          className="text-xs text-blue-600 hover:text-blue-800 mt-2 underline"
+                        >
+                          Limpiar búsqueda
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 bg-white border border-gray-200 rounded">
+                    <p className="text-gray-500 text-sm">
+                      ⚠️ No se encontraron trabajos disponibles
+                    </p>
+                    <p className="text-gray-400 text-xs mt-1">
+                      Verifica que existan obras creadas en el sistema
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Invoice File */}
