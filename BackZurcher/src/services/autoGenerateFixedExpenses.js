@@ -3,23 +3,26 @@ const { FixedExpense, Expense } = require('../data');
 const { Op } = require('sequelize');
 
 /**
- * 🔄 CRON JOB: Auto-generar Expenses para FixedExpenses vencidos
+ * 🔄 CRON JOB: Verificar FixedExpenses vencidos
  * 
  * Este servicio verifica diariamente si hay gastos fijos (FixedExpenses) 
- * que han llegado a su fecha de vencimiento (nextDueDate) y automáticamente 
- * crea un Expense correspondiente.
+ * que han llegado a su fecha de vencimiento (nextDueDate) y actualiza su estado.
+ * 
+ * ⚠️ IMPORTANTE: NO crea Expenses automáticamente.
+ * Los Expenses solo se crean cuando el usuario registra el pago manualmente.
+ * Esto evita duplicación de expenses.
  * 
  * Características:
  * - Se ejecuta todos los días a las 00:30 AM
  * - Solo procesa FixedExpenses con autoCreateExpense = true
  * - Solo procesa gastos activos (isActive = true)
- * - Solo procesa gastos con paymentStatus = 'unpaid'
+ * - Marca como 'overdue' los gastos vencidos
  * - Actualiza automáticamente el nextDueDate para el próximo período
  * 
  * Flujo:
  * 1. Busca FixedExpenses vencidos (nextDueDate <= hoy)
- * 2. Crea un Expense por cada uno (paymentStatus = 'unpaid')
- * 3. Actualiza el nextDueDate del FixedExpense
+ * 2. Actualiza su paymentStatus a 'overdue'
+ * 3. Calcula y actualiza el nextDueDate del FixedExpense
  * 4. Registra todo en consola para auditoría
  */
 
@@ -92,7 +95,9 @@ const checkAndGenerateFixedExpenses = async () => {
       where: {
         isActive: true,                        // Solo activos
         autoCreateExpense: true,                // Solo los que tienen auto-generación habilitada
-        paymentStatus: 'unpaid',                // Solo los no pagados
+        paymentStatus: {
+          [Op.in]: ['unpaid', 'overdue']       // Sin pagar o ya vencidos
+        },
         nextDueDate: {
           [Op.lte]: today                       // Vencidos o que vencen hoy
         }
@@ -118,23 +123,8 @@ const checkAndGenerateFixedExpenses = async () => {
         console.log(`     📆 Fecha vencimiento: ${fixedExpense.nextDueDate}`);
         console.log(`     🔁 Frecuencia: ${fixedExpense.frequency}`);
 
-        // ✅ Crear el Expense automáticamente
-        const newExpense = await Expense.create({
-          typeExpense: 'Gasto Fijo',
-          amount: fixedExpense.totalAmount,
-          notes: `${fixedExpense.name} - Auto-generado (${todayString})`,
-          description: fixedExpense.description || '',
-          date: todayString,
-          paymentStatus: 'unpaid',               // Sin pagar hasta que el usuario lo pague
-          verified: false,                       // No verificado hasta revisión manual
-          relatedFixedExpenseId: fixedExpense.idFixedExpense,
-          vendor: fixedExpense.vendor || null,
-          category: fixedExpense.category || null,
-          paymentMethod: fixedExpense.paymentMethod || null,
-          paymentAccount: fixedExpense.paymentAccount || null
-        });
-
-        console.log(`     ✅ Expense creado: ID ${newExpense.idExpense}`);
+        // ⚠️ CAMBIO: Ya NO creamos Expense automáticamente
+        // Solo marcamos el FixedExpense como 'overdue'
 
         // 📅 Calcular la próxima fecha de vencimiento
         let newNextDueDate = null;
@@ -146,15 +136,13 @@ const checkAndGenerateFixedExpenses = async () => {
           console.log(`     ⚠️ Gasto único (one_time) - No se calculará próxima fecha`);
         }
 
-        // 🔄 Actualizar el FixedExpense con la nueva fecha
+        // ✅ Actualizar el FixedExpense: marcar como 'overdue' y calcular siguiente vencimiento
         await fixedExpense.update({ 
+          paymentStatus: 'overdue',
           nextDueDate: newNextDueDate
-          // NOTA: NO cambiamos paymentStatus porque el Expense creado está 'unpaid'
-          // El usuario debe pagar el Expense manualmente o el FixedExpense generará
-          // otro Expense en el próximo ciclo si no se paga
         });
 
-        console.log(`     ✅ FixedExpense actualizado correctamente`);
+        console.log(`     ✅ FixedExpense marcado como vencido. Expense se creará al registrar el pago.`);
         successCount++;
 
       } catch (error) {
