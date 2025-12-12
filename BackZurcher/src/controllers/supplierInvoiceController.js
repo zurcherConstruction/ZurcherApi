@@ -390,7 +390,7 @@ const getSupplierInvoiceById = async (req, res) => {
   try {
     const { id } = req.params;
     
-    // 🆕 Obtener invoice con nuevo sistema de linkedExpenses
+    // 🆕 Obtener invoice con nuevo sistema de linkedExpenses y linkedWorks
     const invoice = await SupplierInvoice.findByPk(id, {
       include: [
         {
@@ -405,6 +405,15 @@ const getSupplierInvoiceById = async (req, res) => {
           through: { 
             attributes: ['amountApplied', 'notes', 'createdAt'],
             as: 'linkInfo'
+          },
+          required: false
+        },
+        {
+          model: Work,
+          as: 'linkedWorks',
+          attributes: ['idWork', 'propertyAddress', 'permitNumber'],
+          through: { 
+            attributes: [],
           },
           required: false
         }
@@ -551,10 +560,10 @@ const updateSupplierInvoice = async (req, res) => {
   
   try {
     const { id } = req.params;
-    const invoiceUpdates = req.body;
+    const { linkedWorks, ...invoiceUpdates } = req.body; // 🆕 Separar linkedWorks
 
     console.log(`📝 [Update Invoice] ID: ${id}`);
-    console.log(`📝 [Update Invoice] Datos recibidos:`, invoiceUpdates);
+    console.log(`📝 [Update Invoice] Datos recibidos:`, req.body);
 
     const invoice = await SupplierInvoice.findByPk(id, { transaction });
 
@@ -579,6 +588,28 @@ const updateSupplierInvoice = async (req, res) => {
 
     // Actualizar campos del invoice
     await invoice.update(invoiceUpdates, { transaction });
+
+    // 🆕 Actualizar linkedWorks si se proporcionan
+    if (linkedWorks !== undefined) {
+      // Eliminar vinculaciones existentes
+      await SupplierInvoiceWork.destroy({
+        where: { supplierInvoiceId: id },
+        transaction
+      });
+
+      // Crear nuevas vinculaciones
+      if (Array.isArray(linkedWorks) && linkedWorks.length > 0) {
+        for (const workId of linkedWorks) {
+          await SupplierInvoiceWork.create({
+            supplierInvoiceId: id,
+            workId: workId
+          }, { transaction });
+        }
+        console.log(`🔗 [Update Invoice] ${linkedWorks.length} work(s) vinculado(s) al invoice`);
+      } else {
+        console.log(`🔗 [Update Invoice] Sin works vinculados`);
+      }
+    }
 
     await transaction.commit();
 
@@ -1823,7 +1854,8 @@ const createSimpleSupplierInvoice = async (req, res) => {
       issueDate,
       dueDate,
       totalAmount,
-      notes
+      notes,
+      linkedWorks // 🆕 Works vinculados
     } = req.body;
 
     const invoiceFile = req.file;
@@ -1832,7 +1864,8 @@ const createSimpleSupplierInvoice = async (req, res) => {
       invoiceNumber,
       vendor,
       totalAmount,
-      hasFile: !!invoiceFile
+      hasFile: !!invoiceFile,
+      linkedWorksCount: linkedWorks ? JSON.parse(linkedWorks).length : 0
     });
 
     // Validaciones
@@ -1905,6 +1938,29 @@ const createSimpleSupplierInvoice = async (req, res) => {
       }, { transaction });
 
       console.log('✅ Comprobante subido exitosamente');
+    }
+
+    // 🆕 Vincular works si se especificaron
+    if (linkedWorks) {
+      try {
+        const worksArray = typeof linkedWorks === 'string' ? JSON.parse(linkedWorks) : linkedWorks;
+        
+        if (Array.isArray(worksArray) && worksArray.length > 0) {
+          console.log(`🔗 Vinculando ${worksArray.length} work(s) al invoice...`);
+          
+          for (const workId of worksArray) {
+            await SupplierInvoiceWork.create({
+              supplierInvoiceId: newInvoice.idSupplierInvoice,
+              workId: workId
+            }, { transaction });
+          }
+          
+          console.log(`✅ ${worksArray.length} work(s) vinculado(s) exitosamente`);
+        }
+      } catch (parseError) {
+        console.error('⚠️ Error procesando linkedWorks:', parseError);
+        // No fallar la transacción, solo continuar sin vincular
+      }
     }
 
     await transaction.commit();
@@ -3247,6 +3303,63 @@ const getAmexBalance = async (req, res) => {
   }
 };
 
+/**
+ * 🆕 Obtener supplier invoices vinculados a un work específico
+ * GET /api/supplier-invoices/work/:workId
+ */
+const getInvoicesByWorkId = async (req, res) => {
+  try {
+    const { workId } = req.params;
+
+    console.log(`📋 [InvoicesByWork] Obteniendo invoices vinculados al work ${workId}...`);
+
+    // Buscar todas las relaciones de este work
+    const invoiceWorks = await SupplierInvoiceWork.findAll({
+      where: { workId },
+      include: [{
+        model: SupplierInvoice,
+        as: 'invoice',
+        attributes: [
+          'idSupplierInvoice',
+          'invoiceNumber',
+          'vendor',
+          'issueDate',
+          'dueDate',
+          'totalAmount',
+          'paidAmount',
+          'paymentStatus',
+          'paymentMethod',
+          'paymentDate',
+          'notes',
+          'invoicePdfPath',
+          'invoicePdfPublicId',
+          'createdAt'
+        ]
+      }]
+    });
+
+    const invoices = invoiceWorks
+      .map(iw => iw.invoice)
+      .filter(inv => inv !== null);
+
+    console.log(`✅ Se encontraron ${invoices.length} invoice(s) vinculado(s)`);
+
+    res.json({
+      success: true,
+      invoices,
+      count: invoices.length
+    });
+
+  } catch (error) {
+    console.error('❌ [InvoicesByWork] Error:', error);
+    res.status(500).json({
+      error: true,
+      message: 'Error al obtener invoices vinculados',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   createSupplierInvoice,
   getSupplierInvoices,
@@ -3267,5 +3380,6 @@ module.exports = {
   getCreditCardBalance, // 💳 NUEVO balance de tarjeta Chase
   createAmexTransaction, // 💳 NUEVO transacciones de AMEX
   reverseAmexPayment, // 🔄 NUEVO revertir pagos de AMEX
-  getAmexBalance // 💳 NUEVO balance de AMEX
+  getAmexBalance, // 💳 NUEVO balance de AMEX
+  getInvoicesByWorkId // 🆕 NUEVO obtener invoices por work
 };

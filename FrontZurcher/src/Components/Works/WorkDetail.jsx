@@ -7,7 +7,7 @@ import {
   fetchIncomesAndExpensesSuccess,
   fetchIncomesAndExpensesFailure,
 } from "../../Redux/Reducer/balanceReducer"; // Ajusta esta ruta si es necesario
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 //import api from "../../utils/axios";
 import FinalInvoice from "../Budget/FinalInvoice"
 import InspectionFlowManager from "./InspectionFlowManager";
@@ -33,6 +33,7 @@ import { fetchChecklistByWorkId } from '../../Redux/Actions/checklistActions'; /
 
 const WorkDetail = () => {
   const { idWork } = useParams();
+  const navigate = useNavigate();
   const dispatch = useDispatch();
 
   // ✅ Función para formatear fechas de YYYY-MM-DD a MM-DD-YYYY
@@ -113,6 +114,27 @@ const WorkDetail = () => {
     loadInitialData();
   }, [idWork]);
 
+  // 🆕 Cargar supplier invoices vinculados
+  useEffect(() => {
+    const loadLinkedInvoices = async () => {
+      if (!idWork) return;
+      
+      setLoadingInvoices(true);
+      try {
+        const response = await api.get(`/supplier-invoices/work/${idWork}`);
+        if (!response.data.error) {
+          setLinkedInvoices(response.data.invoices || []);
+        }
+      } catch (error) {
+        console.error('Error cargando invoices vinculados:', error);
+      } finally {
+        setLoadingInvoices(false);
+      }
+    };
+
+    loadLinkedInvoices();
+  }, [idWork]);
+
   // Mostrar error si falla después de reintentos
   if (initialError && initialRetryCount >= 3) {
     return (
@@ -157,6 +179,12 @@ const workRef = useRef(work);
   const [quickInspectionFile, setQuickInspectionFile] = useState(null);
   const [quickInspectionNotes, setQuickInspectionNotes] = useState('');
   const [quickInspectionLoading, setQuickInspectionLoading] = useState(false);
+  
+  // 🆕 Estados para supplier invoices vinculados
+  const [linkedInvoices, setLinkedInvoices] = useState([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
+  const [selectedInvoiceModal, setSelectedInvoiceModal] = useState(null);
+  
   const {
     incomes,
     expenses,
@@ -1133,6 +1161,115 @@ const handleUploadImage = async () => {
                         </li>
                       ))}
                     </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 🆕 SECCIÓN DE INVOICES VINCULADOS */}
+            {linkedInvoices && linkedInvoices.length > 0 && (
+              <div className="bg-white shadow-md rounded-lg p-4 md:p-6 border-l-4 border-purple-500">
+                <h2
+                  className="text-lg md:text-xl font-semibold mb-4 cursor-pointer flex items-center justify-between"
+                  onClick={() => toggleSection("linkedInvoices")}
+                >
+                  <span className="flex items-center">
+                    📄 Invoices Vinculados ({linkedInvoices.length})
+                  </span>
+                  <svg
+                    className={`w-5 h-5 transition-transform ${openSections.linkedInvoices ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </h2>
+                {openSections.linkedInvoices && (
+                  <div className="space-y-3">
+                    {linkedInvoices.map((invoice) => (
+                      <div
+                        key={invoice.idSupplierInvoice}
+                        className="border rounded-lg p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+                      >
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-lg font-bold text-gray-800">
+                                #{invoice.invoiceNumber}
+                              </span>
+                              <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                                invoice.paymentStatus === 'paid' 
+                                  ? 'bg-green-100 text-green-800'
+                                  : invoice.paymentStatus === 'partial'
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : invoice.paymentStatus === 'overdue'
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {invoice.paymentStatus === 'paid' ? 'Pagado' :
+                                 invoice.paymentStatus === 'partial' ? 'Parcial' :
+                                 invoice.paymentStatus === 'overdue' ? 'Vencido' :
+                                 'Pendiente'}
+                              </span>
+                            </div>
+                            
+                            <p className="text-sm text-gray-600 mb-1">
+                              <strong>Proveedor:</strong> {invoice.vendor}
+                            </p>
+                            
+                            <p className="text-sm text-gray-600 mb-1">
+                              <strong>Total:</strong> ${parseFloat(invoice.totalAmount || 0).toFixed(2)}
+                              {invoice.paymentStatus === 'partial' && (
+                                <span className="ml-2 text-orange-600">
+                                  (Pagado: ${parseFloat(invoice.paidAmount || 0).toFixed(2)})
+                                </span>
+                              )}
+                            </p>
+                            
+                            <p className="text-sm text-gray-600">
+                              <strong>Fecha:</strong> {new Date(invoice.issueDate).toLocaleDateString('es-ES')}
+                              {invoice.dueDate && (
+                                <span className="ml-2 text-gray-500">
+                                  | Vence: {new Date(invoice.dueDate).toLocaleDateString('es-ES')}
+                                </span>
+                              )}
+                            </p>
+                            
+                            {invoice.notes && (
+                              <p className="text-sm text-gray-500 mt-1 italic">
+                                {invoice.notes}
+                              </p>
+                            )}
+                          </div>
+                          
+                          <div className="flex flex-col gap-2">
+                            {invoice.invoicePdfPath && (
+                              <button
+                                onClick={() => setSelectedInvoiceModal(invoice)}
+                                className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                Ver Comprobante
+                              </button>
+                            )}
+                            
+                            <button
+                              onClick={() => navigate(`/supplier-invoices?openInvoice=${invoice.idSupplierInvoice}`)}
+                              className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                              </svg>
+                              Ir al Invoice
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -2351,6 +2488,71 @@ const handleUploadImage = async () => {
                   className="w-full h-full border-0"
                 />
               )}
+            </div>
+          </div>
+        )}
+
+        {/* 🆕 Modal para ver comprobante de invoice */}
+        {selectedInvoiceModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800">
+                    Invoice #{selectedInvoiceModal.invoiceNumber}
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    {selectedInvoiceModal.vendor} • ${parseFloat(selectedInvoiceModal.totalAmount || 0).toFixed(2)}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSelectedInvoiceModal(null)}
+                  className="text-gray-500 hover:text-gray-700 text-3xl font-bold"
+                >
+                  &times;
+                </button>
+              </div>
+              
+              <div className="p-6">
+                {selectedInvoiceModal.invoicePdfPath && (
+                  <div className="mb-4">
+                    {selectedInvoiceModal.invoicePdfPath.toLowerCase().endsWith('.pdf') ? (
+                      <iframe
+                        src={selectedInvoiceModal.invoicePdfPath}
+                        className="w-full h-[600px] border rounded"
+                        title={`Invoice ${selectedInvoiceModal.invoiceNumber}`}
+                      />
+                    ) : (
+                      <img
+                        src={selectedInvoiceModal.invoicePdfPath}
+                        alt={`Invoice ${selectedInvoiceModal.invoiceNumber}`}
+                        className="w-full h-auto rounded border"
+                      />
+                    )}
+                    
+                    <div className="mt-4 flex gap-3">
+                      <a
+                        href={selectedInvoiceModal.invoicePdfPath}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded font-medium text-center transition-colors"
+                      >
+                        Abrir en Nueva Pestaña
+                      </a>
+                      
+                      <button
+                        onClick={() => {
+                          setSelectedInvoiceModal(null);
+                          navigate(`/supplier-invoices?openInvoice=${selectedInvoiceModal.idSupplierInvoice}`);
+                        }}
+                        className="flex-1 px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded font-medium transition-colors"
+                      >
+                        Ir al Invoice para Pagar
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

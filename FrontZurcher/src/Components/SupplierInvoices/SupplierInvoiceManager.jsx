@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supplierInvoiceActions } from '../../Redux/Actions/supplierInvoiceActions';
 import {
   fetchSupplierInvoicesRequest,
@@ -22,6 +23,8 @@ import { FaFileInvoiceDollar, FaPlus, FaFilter, FaTimes, FaBuilding, FaList, FaC
 
 const SupplierInvoiceManager = () => {
   const dispatch = useDispatch();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { supplierInvoices, loading, error, filters } = useSelector(
     (state) => state.supplierInvoice
   );
@@ -31,6 +34,21 @@ const SupplierInvoiceManager = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [activeTab, setActiveTab] = useState('list'); // 🆕 NUEVO: 'list', 'vendors', 'credit-card', 'amex', 'commissions'
+
+  // 🆕 Detectar si se debe abrir un invoice específico desde la URL
+  useEffect(() => {
+    const openInvoiceId = searchParams.get('openInvoice');
+    if (openInvoiceId) {
+      // Cambiar a tab de vendors que es donde está el modal de pago
+      setActiveTab('vendors');
+      // Limpiar el parámetro de la URL
+      searchParams.delete('openInvoice');
+      setSearchParams(searchParams);
+      
+      // Guardar el ID para que VendorsSummary lo use
+      sessionStorage.setItem('openInvoiceId', openInvoiceId);
+    }
+  }, [searchParams]);
 
   // Cargar facturas al montar el componente
   useEffect(() => {
@@ -59,11 +77,32 @@ const SupplierInvoiceManager = () => {
     setShowDetail(false);
   };
 
-  const handleEdit = (invoice) => {
-    setSelectedInvoice(invoice);
-    dispatch(setCurrentInvoice(invoice));
-    setShowForm(true);
-    setShowDetail(false);
+  const handleEdit = async (invoice) => {
+    try {
+      // 🆕 Fetch del invoice completo con linkedWorks
+      const response = await supplierInvoiceActions.getById(invoice.idSupplierInvoice);
+      
+      if (response.error) {
+        console.error('Error al cargar invoice completo:', response);
+        // Fallback: usar el invoice que tenemos
+        setSelectedInvoice(invoice);
+        dispatch(setCurrentInvoice(invoice));
+      } else {
+        // Usar el invoice completo del backend que incluye linkedWorks
+        setSelectedInvoice(response.invoice);
+        dispatch(setCurrentInvoice(response.invoice));
+      }
+      
+      setShowForm(true);
+      setShowDetail(false);
+    } catch (error) {
+      console.error('Error al abrir invoice para editar:', error);
+      // Fallback: usar el invoice que tenemos
+      setSelectedInvoice(invoice);
+      dispatch(setCurrentInvoice(invoice));
+      setShowForm(true);
+      setShowDetail(false);
+    }
   };
 
   const handleView = (invoice) => {
