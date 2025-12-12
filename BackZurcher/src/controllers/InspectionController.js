@@ -3,7 +3,49 @@ const { sendEmail } = require('../utils/notifications/emailService');
 const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryUploader');
 const { sendNotifications } = require('../utils/notifications/notificationManager'); // Para notificaciones internas si es necesario
 const { scheduleInitialMaintenanceVisits } = require('./MaintenanceController'); // <--- IMPORTANTE: AÑADIR ESTA LÍNEA
+const { PDFDocument } = require('pdf-lib'); // Para comprimir PDFs
 
+// Función para comprimir PDF si es necesario
+const compressPdfIfNeeded = async (buffer, filename = 'PDF') => {
+  const originalSize = buffer.length;
+  const originalSizeMB = (originalSize / 1024 / 1024).toFixed(2);
+  const MAX_SIZE = 8 * 1024 * 1024; // 8 MB
+
+  if (originalSize <= MAX_SIZE) {
+    console.log(`📄 ${filename}: ${originalSizeMB} MB - No requiere compresión`);
+    return buffer;
+  }
+
+  try {
+    console.log(`🗜️  ${filename}: ${originalSizeMB} MB - Comprimiendo...`);
+    
+    const pdfDoc = await PDFDocument.load(buffer);
+    const compressedBytes = await pdfDoc.save({
+      useObjectStreams: true,
+      addDefaultPage: false,
+      objectsPerTick: 50,
+    });
+
+    const compressedBuffer = Buffer.from(compressedBytes);
+    const compressedSize = compressedBuffer.length;
+    const compressedSizeMB = (compressedSize / 1024 / 1024).toFixed(2);
+    const reduction = ((1 - compressedSize / originalSize) * 100).toFixed(1);
+
+    console.log(`   📉 Original: ${originalSizeMB} MB`);
+    console.log(`   📉 Comprimido: ${compressedSizeMB} MB`);
+    console.log(`   ✅ Reducción: ${reduction}%`);
+
+    if (compressedSize > 10 * 1024 * 1024) {
+      console.warn(`   ⚠️  PDF aún muy grande después de comprimir (${compressedSizeMB} MB > 10 MB)`);
+      console.warn(`   💡 Considera dividir el PDF o contactar soporte`);
+    }
+
+    return compressedBuffer;
+  } catch (error) {
+    console.warn(`⚠️ Error al comprimir ${filename}, usando original:`, error.message);
+    return buffer;
+  }
+};
 
 const registerQuickInspectionResult = async (req, res) => {
   try {
@@ -64,8 +106,16 @@ const registerQuickInspectionResult = async (req, res) => {
       console.log(`[InspectionController - Quick] Esta será la inspección ${type} intento #${rejectedCount + 1} para work ${workId} (anteriores rechazadas: ${rejectedCount})`);
     }
 
+    // Comprimir PDF si es necesario antes de subir
+    let bufferToUpload = req.file.buffer;
+    const isPdf = req.file.mimetype === 'application/pdf';
+    
+    if (isPdf) {
+      bufferToUpload = await compressPdfIfNeeded(bufferToUpload, req.file.originalname);
+    }
+
     // Subir archivo a Cloudinary
-    const cloudinaryResult = await uploadBufferToCloudinary(req.file.buffer, {
+    const cloudinaryResult = await uploadBufferToCloudinary(bufferToUpload, {
       folder: `inspections/${workId}/quick_result`,
       resource_type: 'raw',
       public_id: `quick_result_${Date.now()}`

@@ -2516,19 +2516,22 @@ const handleUploadImage = async () => {
               <div className="p-6">
                 {selectedInvoiceModal.invoicePdfPath && (
                   <div className="mb-4">
-                    {selectedInvoiceModal.invoicePdfPath.toLowerCase().endsWith('.pdf') ? (
-                      <iframe
-                        src={selectedInvoiceModal.invoicePdfPath}
-                        className="w-full h-[600px] border rounded"
-                        title={`Invoice ${selectedInvoiceModal.invoiceNumber}`}
-                      />
-                    ) : (
+                    {selectedInvoiceModal.invoicePdfPath.includes('/image/') ? (
+                      // Es una imagen de Cloudinary
                       <img
                         src={selectedInvoiceModal.invoicePdfPath}
                         alt={`Invoice ${selectedInvoiceModal.invoiceNumber}`}
                         className="w-full h-auto rounded border"
                       />
+                    ) : (
+                      // Es un PDF - usar Google Docs Viewer
+                      <iframe
+                        src={`https://docs.google.com/gview?url=${encodeURIComponent(selectedInvoiceModal.invoicePdfPath)}&embedded=true`}
+                        className="w-full h-[600px] border rounded"
+                        title={`Invoice ${selectedInvoiceModal.invoiceNumber}`}
+                      />
                     )}
+                    
                     
                     <div className="mt-4 flex gap-3">
                       <a
