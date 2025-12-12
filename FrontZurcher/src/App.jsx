@@ -481,7 +481,7 @@ function App() {
               <Route
                 path="/worker"
                 element={
-                  <PrivateRoute allowedRoles={["worker"]}>
+                  <PrivateRoute allowedRoles={["worker", "owner", "maintenance"]}>
                     <WorkerDashboard />
                   </PrivateRoute>
                 }
@@ -489,7 +489,7 @@ function App() {
               <Route
                 path="/worker/work/:workId"
                 element={
-                  <PrivateRoute allowedRoles={["worker"]}>
+                  <PrivateRoute allowedRoles={["worker", "owner"]}>
                     <WorkerWorkUpload />
                   </PrivateRoute>
                 }
@@ -497,7 +497,7 @@ function App() {
               <Route
                 path="/worker/maintenance"
                 element={
-                  <PrivateRoute allowedRoles={["worker", "maintenance"]}>
+                  <PrivateRoute allowedRoles={["worker", "maintenance", "owner"]}>
                     <WorkerMaintenanceDashboard />
                   </PrivateRoute>
                 }
@@ -505,7 +505,7 @@ function App() {
               <Route
                 path="/worker/maintenance/:visitId"
                 element={
-                  <PrivateRoute allowedRoles={["worker", "maintenance"]}>
+                  <PrivateRoute allowedRoles={["worker", "maintenance", "owner"]}>
                     <WorkerMaintenanceDetail />
                   </PrivateRoute>
                 }
@@ -513,7 +513,7 @@ function App() {
               <Route
                 path="/worker/general-expense"
                 element={
-                  <PrivateRoute allowedRoles={["worker"]}>
+                  <PrivateRoute allowedRoles={["worker", "owner"]}>
                     <WorkerGeneralExpense />
                   </PrivateRoute>
                 }

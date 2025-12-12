@@ -20,6 +20,7 @@ const WorkerMaintenanceDetail = () => {
   const location = useLocation();
   const workIdFromState = location.state?.workId;
   const readOnly = location.state?.readOnly || false; // Modo solo lectura para owner
+  const isOwnerMode = location.state?.isOwner || false; // ✅ Flag para indicar que es owner
 
   const [visit, setVisit] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -236,6 +237,57 @@ const WorkerMaintenanceDetail = () => {
 
         general_notes: currentVisit.general_notes || ''
       });
+      
+      // ✅ Cargar imágenes de muestras PBTS/ATU existentes con flag isExisting
+      if (currentVisit.well_sample_1_url) {
+        setWellSampleImages(prev => ({
+          ...prev,
+          sample1: {
+            url: currentVisit.well_sample_1_url,
+            isExisting: true,
+            name: 'Muestra 1 (existente)'
+          }
+        }));
+      }
+      if (currentVisit.well_sample_2_url) {
+        setWellSampleImages(prev => ({
+          ...prev,
+          sample2: {
+            url: currentVisit.well_sample_2_url,
+            isExisting: true,
+            name: 'Muestra 2 (existente)'
+          }
+        }));
+      }
+      if (currentVisit.well_sample_3_url) {
+        setWellSampleImages(prev => ({
+          ...prev,
+          sample3: {
+            url: currentVisit.well_sample_3_url,
+            isExisting: true,
+            name: 'Muestra 3 (existente)'
+          }
+        }));
+      }
+      
+      // ✅ Cargar video del sistema existente con flag isExisting
+      if (currentVisit.system_video_url) {
+        setSystemVideoFile({
+          url: currentVisit.system_video_url,
+          isExisting: true,
+          name: 'Video del sistema (existente)'
+        });
+      }
+      
+      // ✅ Cargar imagen final existente con flag isExisting
+      if (currentVisit.final_system_image_url) {
+        setFinalSystemImageFile({
+          url: currentVisit.final_system_image_url,
+          isExisting: true,
+          name: 'Imagen final del sistema (existente)'
+        });
+      }
+      
       console.log('✅ Datos del formulario cargados correctamente');
     } catch (error) {
       console.error('❌ Error loading visit:', error);
@@ -297,10 +349,43 @@ const WorkerMaintenanceDetail = () => {
   };
 
   const removeFieldImage = (fieldName, index) => {
-    setFieldImages(prev => ({
-      ...prev,
-      [fieldName]: (prev[fieldName] || []).filter((_, i) => i !== index)
-    }));
+    const images = fieldImages[fieldName] || [];
+    const imageToRemove = images[index];
+    
+    // ✅ Si es una imagen existente en el servidor y el usuario es owner o la visita no está completada
+    if (imageToRemove && imageToRemove.isExisting && imageToRemove.id) {
+      const canDelete = isOwnerMode || !isCompleted;
+      
+      if (canDelete) {
+        // Confirmar eliminación
+        if (window.confirm('¿Estás seguro de eliminar esta imagen del servidor?')) {
+          // Eliminar del servidor
+          api.delete(`/maintenance/media/${imageToRemove.id}`)
+            .then(() => {
+              toast.success('Imagen eliminada del servidor');
+              // Eliminar del estado local
+              setFieldImages(prev => ({
+                ...prev,
+                [fieldName]: (prev[fieldName] || []).filter((_, i) => i !== index)
+              }));
+              // Recargar la visita para actualizar
+              loadVisitDetail();
+            })
+            .catch((error) => {
+              console.error('Error eliminando imagen:', error);
+              toast.error('Error al eliminar la imagen del servidor');
+            });
+        }
+      } else {
+        toast.warning('No puedes eliminar imágenes de una visita completada (solo owner puede hacerlo)');
+      }
+    } else {
+      // Es una imagen nueva, solo removerla del estado local
+      setFieldImages(prev => ({
+        ...prev,
+        [fieldName]: (prev[fieldName] || []).filter((_, i) => i !== index)
+      }));
+    }
   };
 
   const handleFileSelect = (e) => {
@@ -427,7 +512,8 @@ const WorkerMaintenanceDetail = () => {
   const handleSubmit = async (e, markAsCompleted = false) => {
     e.preventDefault();
 
-    if (visit.status === 'completed') {
+    // ✅ Permitir que el owner edite visitas completadas
+    if (visit.status === 'completed' && !isOwnerMode) {
       toast.info('Esta visita ya fue completada');
       return;
     }
@@ -474,47 +560,72 @@ const WorkerMaintenanceDetail = () => {
       console.log('🔬 Well Sample Images:', wellSampleImages);
 
       // Agregar SOLO las imágenes NUEVAS de todos los campos (filtrar las existentes)
-      // Y enviar el fieldName de cada imagen
+      // Y crear un mapeo de nombre de archivo -> fieldName
+      const fileFieldMapping = {};
+      let newImagesCount = 0;
+      let skippedExistingCount = 0;
+      
       Object.keys(fieldImages).forEach(fieldName => {
         const images = fieldImages[fieldName] || [];
         images.forEach((img, index) => {
-          // Solo agregar si NO es una imagen existente (tiene la propiedad file)
+          // ✅ VALIDACIÓN: Solo agregar si NO es una imagen existente
           if (img.file && !img.isExisting) {
             submitFormData.append('maintenanceFiles', img.file);
-            // Enviar el fieldName correspondiente para cada archivo
-            submitFormData.append('fieldNames', fieldName);
+            // Crear mapeo: nombre del archivo -> campo
+            fileFieldMapping[img.file.name] = fieldName;
+            newImagesCount++;
+            console.log(`  ✅ Nueva imagen: ${img.file.name} -> campo: ${fieldName}`);
+          } else if (img.isExisting) {
+            skippedExistingCount++;
+            console.log(`  ⏭️ Imagen existente omitida: ${img.name} (ID: ${img.id})`);
           }
         });
       });
 
-      console.log('📤 Imágenes a enviar con sus campos:');
-      for (let [key, value] of submitFormData.entries()) {
-        if (key === 'maintenanceFiles' || key === 'fieldNames') {
-          console.log(`  ${key}:`, value instanceof File ? value.name : value);
-        }
-      }
+      // Agregar el mapeo como JSON string para que el backend sepa qué archivo va a qué campo
+      submitFormData.append('fileFieldMapping', JSON.stringify(fileFieldMapping));
 
-      // Agregar imágenes de muestras PBTS/ATU si existen
-      if (wellSampleImages.sample1?.file) {
+      console.log(`📤 Resumen de imágenes:`);
+      console.log(`  - Nuevas a subir: ${newImagesCount}`);
+      console.log(`  - Existentes omitidas: ${skippedExistingCount}`);
+      console.log(`  - Mapeo de campos:`, fileFieldMapping);
+
+      // Agregar imágenes de muestras PBTS/ATU si existen (solo NUEVAS)
+      if (wellSampleImages.sample1?.file && !wellSampleImages.sample1?.isExisting) {
         submitFormData.append('wellSample1', wellSampleImages.sample1.file);
-      }
-      if (wellSampleImages.sample2?.file) {
-        submitFormData.append('wellSample2', wellSampleImages.sample2.file);
-      }
-      if (wellSampleImages.sample3?.file) {
-        submitFormData.append('wellSample3', wellSampleImages.sample3.file);
-      }
-
-      // Agregar video del sistema si existe
-      if (systemVideoFile) {
-        submitFormData.append('systemVideo', systemVideoFile);
-        console.log('🎬 Video del sistema agregado:', systemVideoFile.name);
+        console.log('🔬 Muestra 1 agregada (nueva):', wellSampleImages.sample1.file.name);
+      } else if (wellSampleImages.sample1?.isExisting) {
+        console.log('⏭️ Muestra 1 ya existe en servidor, omitiendo...');
       }
       
-      // 🆕 Agregar imagen final del sistema si existe
-      if (finalSystemImageFile) {
+      if (wellSampleImages.sample2?.file && !wellSampleImages.sample2?.isExisting) {
+        submitFormData.append('wellSample2', wellSampleImages.sample2.file);
+        console.log('🔬 Muestra 2 agregada (nueva):', wellSampleImages.sample2.file.name);
+      } else if (wellSampleImages.sample2?.isExisting) {
+        console.log('⏭️ Muestra 2 ya existe en servidor, omitiendo...');
+      }
+      
+      if (wellSampleImages.sample3?.file && !wellSampleImages.sample3?.isExisting) {
+        submitFormData.append('wellSample3', wellSampleImages.sample3.file);
+        console.log('🔬 Muestra 3 agregada (nueva):', wellSampleImages.sample3.file.name);
+      } else if (wellSampleImages.sample3?.isExisting) {
+        console.log('⏭️ Muestra 3 ya existe en servidor, omitiendo...');
+      }
+
+      // Agregar video del sistema si existe (solo NUEVO)
+      if (systemVideoFile && !systemVideoFile.isExisting) {
+        submitFormData.append('systemVideo', systemVideoFile);
+        console.log('🎬 Video del sistema agregado (nuevo):', systemVideoFile.name);
+      } else if (systemVideoFile?.isExisting) {
+        console.log('⏭️ Video del sistema ya existe en servidor, omitiendo...');
+      }
+      
+      // 🆕 Agregar imagen final del sistema si existe (solo NUEVA)
+      if (finalSystemImageFile && !finalSystemImageFile.isExisting) {
         submitFormData.append('finalSystemImage', finalSystemImageFile);
-        console.log('📸 Imagen final del sistema agregada:', finalSystemImageFile.name);
+        console.log('📸 Imagen final del sistema agregada (nueva):', finalSystemImageFile.name);
+      } else if (finalSystemImageFile?.isExisting) {
+        console.log('⏭️ Imagen final ya existe en servidor, omitiendo...');
       }
 
       console.log('📤 Enviando formulario de mantenimiento...');
@@ -946,7 +1057,7 @@ const WorkerMaintenanceDetail = () => {
   }
 
   const isCompleted = visit.status === 'completed';
-  const isDisabled = isCompleted || readOnly; // Deshabilitar si está completado O en modo solo lectura
+  const isDisabled = isCompleted && !isOwnerMode; // ✅ Owner puede editar incluso si está completado
   const permitData = visit.work?.Permit || visit.work?.permit;
 
   console.log('🔍 DEBUG - Visit completa:', visit);
@@ -977,7 +1088,7 @@ const WorkerMaintenanceDetail = () => {
           </button>
           <div>
             <h1 className="text-xl font-bold">Visita #{visit.visitNumber}</h1>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
               {isCompleted ? (
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-800">
                   <CheckCircleIcon className="h-3 w-3 mr-1" />
@@ -993,6 +1104,14 @@ const WorkerMaintenanceDetail = () => {
               ) : (
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-800">
                   Pendiente
+                </span>
+              )}
+              {isOwnerMode && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-orange-100 text-orange-800 border border-orange-300">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-3 w-3 mr-1">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                  </svg>
+                  Modo Edición (Owner)
                 </span>
               )}
               {visit.actualVisitDate && !isCompleted && (
@@ -1782,54 +1901,86 @@ const WorkerMaintenanceDetail = () => {
             />
           </div>
 
-          {/* Submit Buttons - Dos opciones: Guardar Progreso y Completar */}
-          {!isCompleted && !readOnly && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Botón Guardar Progreso */}
-              <button
-                type="button"
-                onClick={(e) => handleSubmit(e, false)}
-                disabled={submitting}
-                className="w-full bg-gray-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-              >
-                {submitting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    Guardando...
-                  </>
-                ) : (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />
-                    </svg>
-                    Guardar Progreso
-                  </>
-                )}
-              </button>
+          {/* Submit Buttons - Mostrar si no está completada O si es owner editando */}
+          {(!isCompleted || isOwnerMode) && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Botón Guardar Progreso / Cambios (para owner) */}
+                <button
+                  type="button"
+                  onClick={(e) => handleSubmit(e, false)}
+                  disabled={submitting}
+                  className="w-full bg-gray-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-gray-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                >
+                  {submitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />
+                      </svg>
+                      {isOwnerMode && isCompleted ? 'Guardar Cambios' : 'Guardar Progreso'}
+                    </>
+                  )}
+                </button>
 
-              {/* Botón Marcar como Completado */}
-              <button
-                type="button"
-                onClick={(e) => handleSubmit(e, true)}
-                disabled={submitting}
-                className="w-full bg-green-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-              >
-                {submitting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    Completando...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircleIcon className="h-5 w-5" />
-                    Marcar como Completado
-                  </>
+                {/* Botón Marcar como Completado (solo si no está completada) */}
+                {!isCompleted && (
+                  <button
+                    type="button"
+                    onClick={(e) => handleSubmit(e, true)}
+                    disabled={submitting}
+                    className="w-full bg-green-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                  >
+                    {submitting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        Completando...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircleIcon className="h-5 w-5" />
+                        Marcar como Completado
+                      </>
+                    )}
+                  </button>
                 )}
-              </button>
+              </div>
+              
+              {/* Botón de PDF cuando owner está editando una visita completada */}
+              {isOwnerMode && isCompleted && (
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={handleDownloadPDF}
+                    disabled={downloadingPdf}
+                    className={`px-6 py-2 ${downloadingPdf
+                        ? 'bg-gray-400 cursor-not-allowed'
+                        : 'bg-blue-600 hover:bg-blue-700'
+                      } text-white rounded-lg transition-colors flex items-center gap-2 font-medium`}
+                  >
+                    {downloadingPdf ? (
+                      <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                        Generando PDF...
+                      </>
+                    ) : (
+                      <>
+                        <ArrowDownTrayIcon className="h-5 w-5" />
+                        {pdfBlobUrl ? 'Ver Reporte PDF' : 'Generar Reporte PDF'}
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
-          {isCompleted && (
+          {/* Mensaje informativo cuando está completada y NO es owner */}
+          {isCompleted && !isOwnerMode && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <CheckCircleIcon className="h-12 w-12 text-green-600 mx-auto mb-2" />
               <p className="text-green-700 font-semibold text-center mb-2">
