@@ -19,6 +19,7 @@ import {
   FaClock,
   FaExclamationTriangle,
   FaFileInvoice,
+  FaFileInvoiceDollar,
   FaBuilding,
   FaCalendarAlt,
   FaMoneyBillWave,
@@ -34,81 +35,61 @@ const PdfModal = ({ isOpen, onClose, pdfUrl, title }) => {
     return null;
   }
 
-  const screenWidth = window.innerWidth;
-  const screenHeight = window.innerHeight;
-  const isMobile = screenWidth < 768;
-  const isTablet = screenWidth >= 768 && screenWidth < 1024;
-  const isLarge = screenWidth >= 1024;
-  
-  const isIPadPro = (screenWidth === 1024 && screenHeight === 1366) || 
-                    (screenWidth === 1366 && screenHeight === 1024) ||
-                    navigator.userAgent.includes('iPad');
-
   return (
-    <div 
-      className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[9999]"
-      style={{ 
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 9999,
-        padding: isIPadPro ? '20px' : (isMobile ? '8px' : '16px')
-      }}
-    >
-      <div 
-        className="bg-white rounded-lg shadow-2xl flex flex-col overflow-hidden"
-        style={{
-          width: isIPadPro ? '90vw' : (isLarge ? '85vw' : isTablet ? '85vw' : '95vw'),
-          height: isIPadPro ? '85vh' : (isLarge ? '80vh' : isTablet ? '88vh' : '96vh'),
-          maxWidth: 'none',
-          maxHeight: 'none',
-          margin: 'auto'
-        }}
-      >
-        <div className="flex justify-between items-center p-3 sm:p-4 md:p-5 lg:p-6 border-b border-gray-200 bg-gray-50 flex-shrink-0">
-          <h3 className="text-sm sm:text-base md:text-lg lg:text-xl font-semibold text-gray-800 truncate pr-2 max-w-[70%]">
-            {title || "Vista Previa del Comprobante"}
-          </h3>
-          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-            {(isMobile || isTablet) && (
-              <a
-                href={pdfUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800 text-xs sm:text-sm md:text-base underline whitespace-nowrap font-medium"
-              >
-                Nueva pestaña
-              </a>
-            )}
-            <button
-              onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 hover:bg-gray-200 p-1.5 sm:p-2 rounded-full transition-colors"
-            >
-              <XMarkIcon className="h-5 w-5 sm:h-6 sm:w-6 md:h-7 md:w-7" />
-            </button>
-          </div>
-        </div>
-        
-        <div className="flex-grow overflow-hidden relative bg-gray-100">
-          {pdfUrl.includes('/image/') ? (
-            // Es una imagen de Cloudinary
-            <div className="w-full h-full flex items-center justify-center overflow-auto p-4">
-              <img
-                src={pdfUrl}
-                alt={title || "Comprobante"}
-                className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
-              />
+    <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+      <div className="relative bg-white rounded-lg max-w-6xl w-full h-[90vh] flex flex-col">
+        {/* Header del viewer */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
+          <div className="flex items-center space-x-3">
+            <FaFileInvoiceDollar className="text-blue-600 text-2xl" />
+            <div>
+              <h3 className="font-semibold text-gray-900">
+                {title || "Comprobante del Invoice"}
+              </h3>
             </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 transition-colors p-2"
+          >
+            <FaTimes className="text-2xl" />
+          </button>
+        </div>
+
+        {/* Contenido del viewer */}
+        <div className="flex-1 overflow-auto bg-gray-100 flex items-center justify-center">
+          {/* Determinar si es imagen o PDF por la URL de Cloudinary */}
+          {pdfUrl.includes('/image/') ? (
+            // Es una imagen
+            <img
+              src={pdfUrl}
+              alt="Invoice"
+              className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+            />
           ) : (
-            // Es un PDF u otro archivo - usar Google Docs Viewer igual que PayInvoiceModal
+            // Es un PDF u otro archivo - usar Google Docs Viewer
             <iframe
               src={`https://docs.google.com/gview?url=${encodeURIComponent(pdfUrl)}&embedded=true`}
               className="w-full h-full border-0"
-              title={title || "Comprobante"}
+              title="Invoice Document"
             />
           )}
+        </div>
+
+        {/* Footer con botón de descarga */}
+        <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
+          <p className="text-sm text-gray-600">
+            Comprobante del Invoice
+          </p>
+          <a
+            href={pdfUrl}
+            download
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            Descargar
+          </a>
         </div>
       </div>
     </div>

@@ -34,6 +34,22 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
     }
   }, [paymentType]);
 
+  // 🆕 Auto-cargar works vinculados cuando se abre el modal
+  useEffect(() => {
+    if (invoice?.linkedWorks && invoice.linkedWorks.length > 0 && paymentType === 'create_with_works') {
+      console.log('🔗 Auto-cargando works vinculados:', invoice.linkedWorks);
+      
+      // Pre-cargar distribution con los works vinculados
+      const preloadedDistribution = invoice.linkedWorks.map(work => ({
+        workId: work.idWork,
+        amount: 0, // El usuario ajustará los montos
+        description: `Pago para ${work.propertyAddress || work.Permit?.permitNumber || 'Work'}`
+      }));
+      
+      setDistribution(preloadedDistribution);
+    }
+  }, [invoice, paymentType]);
+
   const fetchAvailableExpenses = async () => {
     try {
       setLoading(true);
@@ -466,6 +482,22 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
                   <h3 className="font-semibold text-gray-800 mb-3">
                     Agregar Works y Distribución
                   </h3>
+
+                  {/* 🆕 Indicador de works pre-cargados */}
+                  {invoice?.linkedWorks && invoice.linkedWorks.length > 0 && distribution.length > 0 && (
+                    <div className="mb-4 bg-blue-50 border border-blue-300 rounded-lg p-3 flex items-start space-x-2">
+                      <span className="text-blue-600 text-lg">ℹ️</span>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-blue-800">
+                          Works vinculados cargados automáticamente
+                        </p>
+                        <p className="text-xs text-blue-600 mt-1">
+                          Este invoice ya tiene {invoice.linkedWorks.length} work(s) vinculado(s). 
+                          Puedes ajustar los montos o agregar más obras si es necesario.
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Buscador de Works */}
                   <div className="mb-4">
