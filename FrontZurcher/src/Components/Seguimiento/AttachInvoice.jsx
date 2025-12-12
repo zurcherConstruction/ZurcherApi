@@ -67,8 +67,13 @@ const AttachReceipt = () => {
 
 
   useEffect(() => {
-    dispatch(fetchWorks());
+    dispatch(fetchWorks(1, 1000)); // Obtener hasta 1000 Works para asegurar que obtenemos todos
   }, [dispatch]);
+
+  // Verificar Works disponibles para filtrado
+  useEffect(() => {
+    // Los useEffects se ejecutan automáticamente cuando cambian works o type
+  }, [works, type]);
 
   // 🆕 Cargar gastos fijos cuando se selecciona "Gasto Fijo"
   useEffect(() => {
@@ -542,22 +547,33 @@ const AttachReceipt = () => {
   const filteredWorksForDropdown = () => {
     if (!works || works.length === 0) return [];
 
-    // Si seleccionó "Factura Pago Final Budget", mostrar SOLO obras con Final Invoice válido
+    // Si seleccionó "Factura Pago Final Budget", mostrar SOLO obras en estado 'invoiceFinal'
     if (type === "Factura Pago Final Budget") {
       return works.filter(work => {
-        // Debe tener finalInvoice
-        if (!work.finalInvoice || !work.finalInvoice.id) return false;
+        // Primero verificar que el Work tenga estado 'invoiceFinal'
+        if (work.status !== 'invoiceFinal') {
+          return false;
+        }
 
-        // El invoice NO debe estar cancelado ni completamente pagado
-        const validStatuses = ['pending', 'partially_paid', 'send', 'sent'];
-        if (!validStatuses.includes(work.finalInvoice.status)) return false;
+        // Si tiene finalInvoice, verificar sus condiciones
+        if (work.finalInvoice && work.finalInvoice.id) {
+          // El invoice NO debe estar cancelado ni completamente pagado
+          const validStatuses = ['pending', 'partially_paid', 'send', 'sent'];
+          if (!validStatuses.includes(work.finalInvoice.status)) {
+            return false;
+          }
 
-        // Verificar que aún tenga saldo pendiente
-        const totalDue = parseFloat(work.finalInvoice.finalAmountDue || 0);
-        const totalPaid = parseFloat(work.finalInvoice.totalAmountPaid || 0);
-        const remainingBalance = totalDue - totalPaid;
+          // Verificar que aún tenga saldo pendiente
+          const totalDue = parseFloat(work.finalInvoice.finalAmountDue || 0);
+          const totalPaid = parseFloat(work.finalInvoice.totalAmountPaid || 0);
+          const remainingBalance = totalDue - totalPaid;
 
-        return remainingBalance > 0;
+          return remainingBalance > 0;
+        } else {
+          // Si no tiene finalInvoice pero está en estado invoiceFinal, incluirlo
+          // Esto permite crear el primer pago final
+          return true;
+        }
       });
     }
 

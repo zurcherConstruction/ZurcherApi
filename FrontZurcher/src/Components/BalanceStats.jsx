@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import DetailedFinancialDashboard from "./Financial/DetailedFinancialDashboard";
 
 const BalanceStats = () => {
   const navigate = useNavigate();
@@ -15,6 +16,8 @@ const BalanceStats = () => {
     startDate: "",
     endDate: "",
   });
+  
+  const [showDetailedModal, setShowDetailedModal] = useState(false);
 
   const fetchDashboard = async () => {
     try {
@@ -35,13 +38,23 @@ const BalanceStats = () => {
 
       const token = localStorage.getItem('token');
       const response = await axios.get(`${import.meta.env.VITE_API_URL}/financial-dashboard`, {
-        params,
+        params: { 
+          ...params, 
+          refresh: 'true', // 🔄 Forzar refresh para bypass del cache
+          _t: Date.now() // 🕒 Timestamp único para evitar cache del navegador
+        }, 
         headers: {
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
+          'Cache-Control': 'no-cache' // 🚫 No usar cache del navegador
         }
       });
 
       console.log('Dashboard response:', response.data);
+      console.log('🔍 Debug - Summary data:', response.data.summary);
+      console.log('💰 Debug - totalIncome:', response.data.summary?.totalIncome);
+      console.log('💸 Debug - totalEgresos:', response.data.summary?.totalEgresos);
+      console.log('📊 Debug - balanceNeto:', response.data.summary?.balanceNeto);
+      
       setDashboard(response.data);
       setDataKey(prev => prev + 1); // Force re-render
       setLoading(false);
@@ -105,12 +118,23 @@ const BalanceStats = () => {
             </p>
           )}
         </div>
-        <button
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-md"
-          onClick={() => navigate('/summary')}
-        >
-          Ver Detalles
-        </button>
+        <div className="flex gap-3">
+          <button
+            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors shadow-md flex items-center gap-2"
+            onClick={() => setShowDetailedModal(true)}
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Análisis Detallado
+          </button>
+          <button
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-md"
+            onClick={() => navigate('/summary')}
+          >
+            Ver Detalles
+          </button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -342,6 +366,12 @@ const BalanceStats = () => {
           </div>
         </>
       )}
+      
+      {/* Modal de Dashboard Detallado */}
+      <DetailedFinancialDashboard 
+        isOpen={showDetailedModal}
+        onClose={() => setShowDetailedModal(false)}
+      />
     </div>
   );
 };
