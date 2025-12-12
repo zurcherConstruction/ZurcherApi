@@ -87,11 +87,12 @@ const OwnerMaintenanceView = () => {
   };
 
   const handleViewVisit = (visit) => {
-    // Navegar al detalle del mantenimiento (modo solo lectura para owner)
-    navigate(`/maintenance/${visit.id}`, { 
+    // Navegar al detalle del mantenimiento con permisos de owner para editar
+    navigate(`/worker/maintenance/${visit.id}`, { 
       state: { 
         workId: visit.workId,
-        readOnly: true // Para que el owner no pueda editar
+        isOwner: true, // ✅ Indicar que es owner con permisos de edición
+        readOnly: false // ✅ Permitir edición (eliminar/agregar imágenes)
       } 
     });
   };

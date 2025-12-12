@@ -1158,10 +1158,10 @@ const completeMaintenanceVisit = async (req, res) => {
     }
 
     // Verificar permisos
-    const userRole = req.staff?.rol;
+    const userRole = req.staff?.rol || req.staff?.role; // ✅ Soportar ambos: 'rol' y 'role'
     const isAuthorized = 
       visit.staffId === currentUserId || 
-      ['admin', 'owner', 'maintenance'].includes(userRole);
+      ['admin', 'owner', 'maintenance', 'worker'].includes(userRole?.toLowerCase());
 
     if (!isAuthorized) {
       return res.status(403).json({ error: true, message: 'No autorizado para completar esta visita.' });
@@ -1419,6 +1419,26 @@ const completeMaintenanceVisit = async (req, res) => {
           folder: `maintenance/${visit.workId}/${visit.id}`,
           resource_type: resourceType,
         });
+
+        // ✅ PREVENIR DUPLICACIÓN: Verificar si ya existe una imagen con el mismo publicId
+        const existingMedia = await MaintenanceMedia.findOne({
+          where: {
+            maintenanceVisitId: visit.id,
+            publicId: cloudinaryResult.public_id
+          }
+        });
+
+        if (existingMedia) {
+          console.log(`⚠️ Imagen duplicada detectada: ${cloudinaryResult.public_id}, omitiendo...`);
+          // Eliminar de Cloudinary la imagen recién subida (duplicada)
+          try {
+            await deleteFromCloudinary(cloudinaryResult.public_id);
+            console.log(`🗑️ Imagen duplicada eliminada de Cloudinary: ${cloudinaryResult.public_id}`);
+          } catch (deleteError) {
+            console.error(`❌ Error al eliminar duplicado de Cloudinary:`, deleteError);
+          }
+          continue; // Saltar este archivo y continuar con el siguiente
+        }
 
         const newMedia = await MaintenanceMedia.create({
           maintenanceVisitId: visit.id,
