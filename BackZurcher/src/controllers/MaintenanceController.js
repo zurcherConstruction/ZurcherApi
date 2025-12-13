@@ -1420,16 +1420,17 @@ const completeMaintenanceVisit = async (req, res) => {
           resource_type: resourceType,
         });
 
-        // ✅ PREVENIR DUPLICACIÓN: Verificar si ya existe una imagen con el mismo publicId
+        // ✅ PREVENIR DUPLICACIÓN: Verificar si ya existe una imagen con el mismo originalName y fieldName
         const existingMedia = await MaintenanceMedia.findOne({
           where: {
             maintenanceVisitId: visit.id,
-            publicId: cloudinaryResult.public_id
+            originalName: file.originalname,
+            fieldName: fieldName
           }
         });
 
         if (existingMedia) {
-          console.log(`⚠️ Imagen duplicada detectada: ${cloudinaryResult.public_id}, omitiendo...`);
+          console.log(`⚠️ Imagen duplicada detectada (mismo nombre y campo): ${file.originalname} en ${fieldName}, omitiendo...`);
           // Eliminar de Cloudinary la imagen recién subida (duplicada)
           try {
             await deleteFromCloudinary(cloudinaryResult.public_id);

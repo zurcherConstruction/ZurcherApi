@@ -241,7 +241,7 @@ const ProgressTracker = () => {
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                 <p className="text-sm text-blue-800">
-                  <strong>Columnas incluidas:</strong> Property Address, Permit Number, Applicant Name, Applicant Email, Phone, Status, Start Date, Installation Date, Cover Date, Final Invoice Date, Created At
+                  <strong>Columnas incluidas:</strong> Property Address, Applicant Email, Status, Start Date (cuando se instala), Installation Date (inspección inicial), Final Invoice Date (cuando se paga invoice final)
                 </p>
               </div>
             </div>

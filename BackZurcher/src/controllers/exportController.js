@@ -45,7 +45,7 @@ const exportWorksToExcel = async (req, res) => {
       include: [
         {
           model: Permit,
-          attributes: ['permitNumber', 'applicantEmail'],
+          attributes: ['applicantEmail'],
           required: false
         },
         {
@@ -55,6 +55,14 @@ const exportWorksToExcel = async (req, res) => {
           required: false,
           separate: true,
           order: [['dateInspectionPerformed', 'DESC']]
+        },
+        {
+          model: Income,
+          as: 'incomes',
+          attributes: ['date', 'typeIncome'],
+          required: false,
+          separate: true,
+          order: [['date', 'DESC']]
         }
       ],
       order: [['createdAt', 'DESC']]
@@ -66,15 +74,13 @@ const exportWorksToExcel = async (req, res) => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Works');
 
-    // Configurar columnas
+    // Configurar columnas (sin Permit Number ni Cover Date)
     worksheet.columns = [
       { header: 'Property Address', key: 'address', width: 40 },
-      { header: 'Permit Number', key: 'permitNumber', width: 15 },
       { header: 'Applicant Email', key: 'applicantEmail', width: 30 },
       { header: 'Status', key: 'status', width: 20 },
       { header: 'Start Date', key: 'startDate', width: 15 },
       { header: 'Installation Date', key: 'installationDate', width: 15 },
-      { header: 'Cover Date', key: 'coverDate', width: 15 },
       { header: 'Final Invoice Date', key: 'finalInvoiceDate', width: 15 }
     ];
 
@@ -91,18 +97,22 @@ const exportWorksToExcel = async (req, res) => {
     works.forEach(work => {
       // Buscar fechas específicas en inspections
       const firstInspection = work.inspections?.find(i => i.type === 'initial');
-      const coverInspection = work.inspections?.find(i => i.type === 'cover');
-      const finalInspection = work.inspections?.find(i => i.type === 'final');
+      
+      // Buscar el income final más reciente (si existe un income final, ya está pagado)
+      const finalIncome = work.incomes?.find(i => 
+        i.typeIncome === 'Factura Pago Final Budget'
+      );
 
       const row = worksheet.addRow({
         address: work.propertyAddress || 'N/A',
-        permitNumber: work.Permit?.permitNumber || 'N/A',
         applicantEmail: work.Permit?.applicantEmail || 'N/A',
         status: work.status || 'N/A',
-        startDate: work.startDate ? formatDate(work.startDate) : 'N/A',
+        // Start Date: Fecha cuando pasa a firstInspectionPending (instalado)
+        startDate: work.installationStartDate ? formatDate(work.installationStartDate) : 'N/A',
+        // Installation Date: Fecha de inspección inicial
         installationDate: firstInspection?.dateInspectionPerformed ? formatDate(firstInspection.dateInspectionPerformed) : 'N/A',
-        coverDate: coverInspection?.dateInspectionPerformed ? formatDate(coverInspection.dateInspectionPerformed) : 'N/A',
-        finalInvoiceDate: finalInspection?.dateInspectionPerformed ? formatDate(finalInspection.dateInspectionPerformed) : 'N/A'
+        // Final Invoice Date: Fecha del income final pagado
+        finalInvoiceDate: finalIncome?.date ? formatDate(finalIncome.date) : 'N/A'
       });
 
       // Alternar colores de filas

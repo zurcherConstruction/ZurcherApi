@@ -123,7 +123,19 @@ const SupplierInvoiceManager = () => {
     setShowDetail(false);
     setSelectedInvoice(null);
     dispatch(clearCurrentInvoice());
-    loadInvoices(); // Recargar lista después de cerrar detalle
+    
+    // 🆕 Si llegamos desde otra página (ej: WorkDetail), volver atrás
+    // Verificar si hay un referrer guardado en sessionStorage
+    const cameFromExternal = sessionStorage.getItem('openInvoiceId');
+    
+    if (cameFromExternal) {
+      // Limpiar el flag
+      sessionStorage.removeItem('openInvoiceId');
+      // Volver a la página anterior
+      navigate(-1);
+    }
+    // 🆕 NO recargamos la lista al cerrar el detalle
+    // Solo mantener el estado actual para preservar filtros y vistas expandidas
   };
 
   const handleFilterChange = (field, value) => {

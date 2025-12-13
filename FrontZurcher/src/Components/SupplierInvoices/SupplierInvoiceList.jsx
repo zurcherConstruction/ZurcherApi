@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { FaEye, FaEdit, FaTrash, FaClock, FaCheckCircle, FaExclamationTriangle, FaChevronDown, FaChevronUp, FaCreditCard } from 'react-icons/fa';
 import { useSelector } from 'react-redux';
 import LoadingSpinner from '../LoadingSpinner';
@@ -7,11 +7,32 @@ import PayInvoiceModal from './PayInvoiceModal';
 const SupplierInvoiceList = ({ invoices, loading, onView, onEdit, onRefresh }) => {
   // ========== HOOKS (SIEMPRE AL INICIO) ==========
   const token = useSelector((state) => state.auth.token);
-  const [paymentFilter, setPaymentFilter] = useState('all'); // 'all', 'pending', 'paid'
+  
+  // 🆕 Restaurar filtro desde sessionStorage
+  const [paymentFilter, setPaymentFilter] = useState(() => {
+    return sessionStorage.getItem('supplierInvoice_paymentFilter') || 'all';
+  });
+  
   const [groupByVendor, setGroupByVendor] = useState(true);
-  const [expandedVendors, setExpandedVendors] = useState({});
+  
+  // 🆕 Restaurar vendors expandidos desde sessionStorage
+  const [expandedVendors, setExpandedVendors] = useState(() => {
+    const saved = sessionStorage.getItem('supplierInvoice_expandedVendors');
+    return saved ? JSON.parse(saved) : {};
+  });
+  
   const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [showPayModal, setShowPayModal] = useState(false);
+
+  // 🆕 Guardar filtro cuando cambie
+  useEffect(() => {
+    sessionStorage.setItem('supplierInvoice_paymentFilter', paymentFilter);
+  }, [paymentFilter]);
+
+  // 🆕 Guardar vendors expandidos cuando cambien
+  useEffect(() => {
+    sessionStorage.setItem('supplierInvoice_expandedVendors', JSON.stringify(expandedVendors));
+  }, [expandedVendors]);
 
   // Asegurar que invoices sea un array
   const invoicesArray = Array.isArray(invoices) ? invoices : [];
