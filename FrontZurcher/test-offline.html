@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Sistema Offline</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .status.online {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .status.offline {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Sistema Offline - Mantenimiento</h1>
+    
+    <div class="card">
+        <h2>Estado de Conexión</h2>
+        <div id="connectionStatus" class="status"></div>
+        <button onclick="goOffline()">🔴 Simular Offline</button>
+        <button onclick="goOnline()">🟢 Simular Online</button>
+    </div>
+
+    <div class="card">
+        <h2>Operaciones de Testing</h2>
+        <button onclick="testSaveOffline()">💾 Test: Guardar Offline</button>
+        <button onclick="testCompression()">🗜️ Test: Compresión</button>
+        <button onclick="viewPending()">📋 Ver Pendientes</button>
+        <button onclick="viewStats()">📊 Ver Estadísticas</button>
+        <button onclick="testSync()">🔄 Test: Sincronizar</button>
+        <button onclick="clearAll()">🗑️ Limpiar Todo</button>
+    </div>
+
+    <div class="card">
+        <h2>Resultados</h2>
+        <pre id="results">Ejecuta alguna operación...</pre>
+    </div>
+
+    <script type="module">
+        import { 
+            saveFormOffline, 
+            getPendingForms, 
+            getStorageStats,
+            clearOfflineData,
+            getOfflineForm
+        } from './src/utils/offlineStorage.js';
+        
+        import { 
+            syncAllPendingForms,
+            isOnline 
+        } from './src/utils/syncManager.js';
+
+        // Hacer funciones globales
+        window.offlineUtils = {
+            saveFormOffline,
+            getPendingForms,
+            getStorageStats,
+            clearOfflineData,
+            getOfflineForm,
+            syncAllPendingForms,
+            isOnline
+        };
+
+        // Actualizar estado de conexión
+        function updateConnectionStatus() {
+            const statusEl = document.getElementById('connectionStatus');
+            const online = navigator.onLine;
+            statusEl.className = `status ${online ? 'online' : 'offline'}`;
+            statusEl.innerHTML = online 
+                ? '🟢 <strong>ONLINE</strong> - Conectado a internet'
+                : '🔴 <strong>OFFLINE</strong> - Sin conexión';
+        }
+
+        // Listeners
+        window.addEventListener('online', updateConnectionStatus);
+        window.addEventListener('offline', updateConnectionStatus);
+        updateConnectionStatus();
+
+        // Funciones de testing
+        window.goOffline = () => {
+            log('⚠️ Simular offline: Abre DevTools → Network → Throttling → Offline');
+        };
+
+        window.goOnline = () => {
+            log('✅ Simular online: Abre DevTools → Network → Throttling → Online');
+        };
+
+        window.testSaveOffline = async () => {
+            try {
+                log('💾 Guardando formulario de prueba offline...\n');
+                
+                const testVisitId = 'test-' + Date.now();
+                const testFormData = {
+                    actualVisitDate: new Date().toISOString().split('T')[0],
+                    tank_inlet_level: '45',
+                    tank_outlet_level: '12',
+                    strong_odors: 'NO',
+                    water_level_ok: 'SI',
+                    general_notes: 'Prueba de guardado offline'
+                };
+
+                const result = await window.offlineUtils.saveFormOffline(
+                    testVisitId, 
+                    testFormData, 
+                    {}
+                );
+
+                log(`✅ ÉXITO\n${JSON.stringify(result, null, 2)}`);
+                log(`\nVisit ID guardado: ${testVisitId}`);
+            } catch (error) {
+                log(`❌ ERROR\n${error.message}\n${error.stack}`);
+            }
+        };
+
+        window.testCompression = async () => {
+            log('🗜️ Test de compresión de imágenes\n');
+            log('Para probar compresión:');
+            log('1. Selecciona una imagen grande (>2MB)');
+            log('2. El sistema la comprimirá automáticamente');
+            log('3. Verás el log en consola con la reducción\n');
+            log('Ejemplo esperado:');
+            log('🗜️ Imagen comprimida: 5.2MB -> 1.1MB (78.8% reducción)');
+        };
+
+        window.viewPending = async () => {
+            try {
+                log('📋 Obteniendo formularios pendientes...\n');
+                
+                const pending = await window.offlineUtils.getPendingForms();
+                
+                if (pending.length === 0) {
+                    log('✅ No hay formularios pendientes de sincronizar');
+                } else {
+                    log(`📊 ${pending.length} formularios pendientes:\n`);
+                    pending.forEach((form, index) => {
+                        log(`\n${index + 1}. Visit ID: ${form.visitId}`);
+                        log(`   Estado: ${form.status}`);
+                        log(`   Fecha: ${new Date(form.timestamp).toLocaleString()}`);
+                        log(`   Campos: ${Object.keys(form.formData).length}`);
+                    });
+                }
+            } catch (error) {
+                log(`❌ ERROR\n${error.message}`);
+            }
+        };
+
+        window.viewStats = async () => {
+            try {
+                log('📊 Obteniendo estadísticas de almacenamiento...\n');
+                
+                const stats = await window.offlineUtils.getStorageStats();
+                
+                log(`📋 Formularios guardados: ${stats.formsCount}`);
+                log(`🖼️ Archivos guardados: ${stats.filesCount}`);
+                log(`💾 Espacio usado: ${stats.totalSizeMB} MB`);
+                
+                if (stats.totalSizeMB > 50) {
+                    log('\n⚠️ ADVERTENCIA: Más de 50MB usados');
+                    log('   Considera sincronizar para liberar espacio');
+                }
+            } catch (error) {
+                log(`❌ ERROR\n${error.message}`);
+            }
+        };
+
+        window.testSync = async () => {
+            try {
+                if (!navigator.onLine) {
+                    log('❌ No se puede sincronizar: SIN CONEXIÓN');
+                    log('   Cambia a Online en DevTools → Network');
+                    return;
+                }
+
+                log('🔄 Iniciando sincronización de prueba...\n');
+                
+                const result = await window.offlineUtils.syncAllPendingForms((progress) => {
+                    log(`📤 Progreso: ${progress.current}/${progress.total} - ${progress.status}`);
+                });
+
+                log(`\n✅ SINCRONIZACIÓN COMPLETADA\n`);
+                log(`   Exitosos: ${result.synced}`);
+                log(`   Fallidos: ${result.failed}`);
+                log(`   Total: ${result.total}`);
+
+                if (result.results) {
+                    log('\n📋 Detalles:');
+                    result.results.forEach(r => {
+                        const icon = r.success ? '✅' : '❌';
+                        log(`   ${icon} Visit ${r.visitId}: ${r.message}`);
+                    });
+                }
+            } catch (error) {
+                log(`❌ ERROR\n${error.message}`);
+            }
+        };
+
+        window.clearAll = async () => {
+            if (!confirm('¿Estás seguro? Esto borrará TODOS los datos offline')) {
+                return;
+            }
+
+            try {
+                log('🗑️ Limpiando todos los datos offline...\n');
+                
+                const pending = await window.offlineUtils.getPendingForms();
+                
+                for (const form of pending) {
+                    await window.offlineUtils.clearOfflineData(form.visitId);
+                    log(`✅ Limpiado: ${form.visitId}`);
+                }
+
+                log(`\n✅ ${pending.length} formularios eliminados`);
+            } catch (error) {
+                log(`❌ ERROR\n${error.message}`);
+            }
+        };
+
+        function log(message) {
+            const resultsEl = document.getElementById('results');
+            const timestamp = new Date().toLocaleTimeString();
+            resultsEl.textContent += `[${timestamp}] ${message}\n`;
+            resultsEl.scrollTop = resultsEl.scrollHeight;
+        }
+
+        // Log inicial
+        log('🚀 Sistema de testing cargado correctamente');
+        log('Selecciona una operación para comenzar\n');
+    </script>
+</body>
+</html>

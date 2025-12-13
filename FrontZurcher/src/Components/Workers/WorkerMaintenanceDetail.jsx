@@ -13,6 +13,9 @@ import {
 } from '@heroicons/react/24/outline';
 import { toast } from 'react-toastify';
 import api from '../../utils/axios';
+import ConnectionStatus from '../Maintenance/ConnectionStatus';
+import { saveFormOffline, getOfflineForm } from '../../utils/offlineStorage';
+import { isOnline, onConnectionChange, startAutoSync, stopAutoSync } from '../../utils/syncManager';
 
 const WorkerMaintenanceDetail = () => {
   const { visitId } = useParams();
@@ -103,6 +106,53 @@ const WorkerMaintenanceDetail = () => {
   const [existingMedia, setExistingMedia] = useState([]); // Archivos ya guardados
   const [systemVideoFile, setSystemVideoFile] = useState(null); // Archivo de video del sistema
   const [finalSystemImageFile, setFinalSystemImageFile] = useState(null); // 🆕 Imagen final del sistema completo
+  
+  // 🆕 Estados para modo offline
+  const [isOfflineMode, setIsOfflineMode] = useState(!isOnline());
+  const [hasOfflineData, setHasOfflineData] = useState(false);
+
+  // 🆕 Detectar cambios de conexión
+  useEffect(() => {
+    const unsubscribe = onConnectionChange((online) => {
+      setIsOfflineMode(!online);
+      if (online) {
+        toast.success('🌐 Conexión restaurada');
+      } else {
+        toast.warning('📡 Sin conexión - Modo offline activado');
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // 🆕 Iniciar auto-sincronización
+  useEffect(() => {
+    startAutoSync(5); // Cada 5 minutos
+    return () => stopAutoSync();
+  }, []);
+
+  // 🆕 Cargar datos offline si existen (automáticamente, sin preguntar)
+  useEffect(() => {
+    const loadOfflineData = async () => {
+      try {
+        const offlineForm = await getOfflineForm(visitId);
+        if (offlineForm) {
+          setHasOfflineData(true);
+          console.log('📥 Datos offline encontrados para esta visita');
+          
+          // ✅ Restaurar automáticamente sin preguntar
+          if (offlineForm.formData) {
+            setFormData(offlineForm.formData);
+            toast.info('📥 Datos offline restaurados automáticamente', { autoClose: 3000 });
+          }
+        }
+      } catch (error) {
+        console.error('Error cargando datos offline:', error);
+      }
+    };
+
+    loadOfflineData();
+  }, [visitId]);
 
   useEffect(() => {
     loadVisitDetail();
@@ -144,7 +194,19 @@ const WorkerMaintenanceDetail = () => {
       console.log('📋 Visita cargada:', currentVisit);
       console.log('🏠 Work data:', currentVisit.work);
       console.log('📄 Permit data:', currentVisit.work?.Permit);
+      console.log('🎬 Video URL from server:', currentVisit.system_video_url);
+      console.log('📸 Final Image URL from server:', currentVisit.final_system_image_url);
+      console.log('🔬 Muestra 1 URL:', currentVisit.well_sample_1_url);
+      console.log('🔬 Muestra 2 URL:', currentVisit.well_sample_2_url);
+      console.log('🔬 Muestra 3 URL:', currentVisit.well_sample_3_url);
       setVisit(currentVisit);
+
+      // 🧹 Limpiar estados de imágenes primero para evitar duplicaciones
+      setFieldImages({});
+      setWellSampleImages({ sample1: null, sample2: null, sample3: null });
+      setSystemVideoFile(null);
+      setFinalSystemImageFile(null);
+      console.log('🧹 Estados de imágenes limpiados');
 
       // Cargar archivos existentes si hay
       if (currentVisit.mediaFiles && currentVisit.mediaFiles.length > 0) {
@@ -167,6 +229,10 @@ const WorkerMaintenanceDetail = () => {
           });
         });
         console.log('📸 Imágenes organizadas por campo:', imagesByField);
+        console.log('📊 Resumen por campo:');
+        Object.keys(imagesByField).forEach(field => {
+          console.log(`  - ${field}: ${imagesByField[field].length} imagen(es)`);
+        });
         setFieldImages(imagesByField);
       }
 
@@ -240,6 +306,7 @@ const WorkerMaintenanceDetail = () => {
       
       // ✅ Cargar imágenes de muestras PBTS/ATU existentes con flag isExisting
       if (currentVisit.well_sample_1_url) {
+        console.log('✅ Cargando muestra 1:', currentVisit.well_sample_1_url);
         setWellSampleImages(prev => ({
           ...prev,
           sample1: {
@@ -250,6 +317,7 @@ const WorkerMaintenanceDetail = () => {
         }));
       }
       if (currentVisit.well_sample_2_url) {
+        console.log('✅ Cargando muestra 2:', currentVisit.well_sample_2_url);
         setWellSampleImages(prev => ({
           ...prev,
           sample2: {
@@ -260,6 +328,7 @@ const WorkerMaintenanceDetail = () => {
         }));
       }
       if (currentVisit.well_sample_3_url) {
+        console.log('✅ Cargando muestra 3:', currentVisit.well_sample_3_url);
         setWellSampleImages(prev => ({
           ...prev,
           sample3: {
@@ -518,6 +587,152 @@ const WorkerMaintenanceDetail = () => {
       return;
     }
 
+    // 🆕 MODO OFFLINE: Guardar localmente si no hay conexión
+    if (!isOnline()) {
+      try {
+        setSubmitting(true);
+        
+        toast.info('📡 Sin conexión - Guardando datos offline...', { autoClose: 2000 });
+
+        // 🐛 DEBUG: Información completa para debugging
+        console.log('='.repeat(80));
+        console.log('🔍 DEBUG - INICIO DE GUARDADO OFFLINE');
+        console.log('='.repeat(80));
+        console.log('📋 Visit ID:', visitId);
+        console.log('📋 Visit ID type:', typeof visitId);
+        console.log('📋 Visit ID length:', visitId?.length);
+        console.log('📋 Visit ID is valid:', !!visitId);
+        console.log('');
+        console.log('📝 FormData keys:', Object.keys(formData));
+        console.log('📝 FormData sample:', {
+          actualVisitDate: formData.actualVisitDate,
+          tank_inlet_level: formData.tank_inlet_level,
+          general_notes: formData.general_notes
+        });
+        console.log('');
+        console.log('🖼️ FieldImages keys:', Object.keys(fieldImages));
+        console.log('🖼️ FieldImages structure:', fieldImages);
+        console.log('');
+        console.log('🌐 Navigator.onLine:', navigator.onLine);
+        console.log('🌐 isOnline() result:', isOnline());
+        console.log('='.repeat(80));
+
+        // Preparar archivos para guardar offline
+        const filesToSave = {};
+        
+        // Archivos de campos específicos
+        Object.keys(fieldImages).forEach(fieldName => {
+          const images = fieldImages[fieldName] || [];
+          const newImages = images.filter(img => img.file && !img.isExisting);
+          if (newImages.length > 0) {
+            filesToSave[fieldName] = newImages;
+            console.log(`📸 Campo ${fieldName}: ${newImages.length} imágenes nuevas`);
+          }
+        });
+
+        // 🎬 Agregar video del sistema si existe
+        if (systemVideoFile && !systemVideoFile.isExisting) {
+          filesToSave['system_video_url'] = [{ file: systemVideoFile, url: null, name: systemVideoFile.name }];
+          console.log(`🎬 Video del sistema: ${systemVideoFile.name}`);
+        }
+
+        // 📸 Agregar imagen final del sistema si existe
+        if (finalSystemImageFile && !finalSystemImageFile.isExisting) {
+          filesToSave['final_system_image_url'] = [{ file: finalSystemImageFile, url: null, name: finalSystemImageFile.name }];
+          console.log(`📸 Imagen final: ${finalSystemImageFile.name}`);
+        }
+
+        // 🔬 Agregar muestras PBTS/ATU si existen
+        if (wellSampleImages.sample1?.file && !wellSampleImages.sample1?.isExisting) {
+          filesToSave['well_sample_1_url'] = [{ file: wellSampleImages.sample1.file, url: null, name: wellSampleImages.sample1.file.name }];
+          console.log(`🔬 Muestra 1: ${wellSampleImages.sample1.file.name}`);
+        }
+        if (wellSampleImages.sample2?.file && !wellSampleImages.sample2?.isExisting) {
+          filesToSave['well_sample_2_url'] = [{ file: wellSampleImages.sample2.file, url: null, name: wellSampleImages.sample2.file.name }];
+          console.log(`🔬 Muestra 2: ${wellSampleImages.sample2.file.name}`);
+        }
+        if (wellSampleImages.sample3?.file && !wellSampleImages.sample3?.isExisting) {
+          filesToSave['well_sample_3_url'] = [{ file: wellSampleImages.sample3.file, url: null, name: wellSampleImages.sample3.file.name }];
+          console.log(`🔬 Muestra 3: ${wellSampleImages.sample3.file.name}`);
+        }
+
+        console.log('');
+        console.log('💾 Archivos a guardar:', Object.keys(filesToSave).length, 'campos');
+        console.log('💾 Total de archivos:', Object.values(filesToSave).flat().length);
+        console.log('');
+        console.log('🚀 Llamando a saveFormOffline()...');
+        console.log('='.repeat(80));
+
+        // Guardar en IndexedDB
+        const result = await saveFormOffline(visitId, formData, filesToSave);
+
+        console.log('='.repeat(80));
+        console.log('✅ GUARDADO EXITOSO');
+        console.log('✅ Resultado:', result);
+        console.log('='.repeat(80));
+
+        toast.success('💾 Datos guardados offline correctamente', { autoClose: 3000 });
+        toast.info('🔄 Se sincronizarán automáticamente cuando haya conexión', { autoClose: 5000 });
+
+        if (markAsCompleted) {
+          toast.warning('⚠️ La visita se marcará como completada al sincronizar');
+        }
+
+        // Mantener en el formulario para seguir editando
+        setHasOfflineData(true);
+
+        return;
+      } catch (error) {
+        console.log('='.repeat(80));
+        console.error('❌ ERROR EN GUARDADO OFFLINE');
+        console.log('='.repeat(80));
+        console.error('Error object:', error);
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+        console.error('Error toString:', error.toString());
+        console.log('');
+        console.error('Datos en el momento del error:');
+        console.error('  visitId:', visitId);
+        console.error('  formData keys:', Object.keys(formData));
+        console.error('  fieldImages keys:', Object.keys(fieldImages));
+        console.log('='.repeat(80));
+        
+        // Mensajes de error más específicos
+        let errorMessage = 'Error al guardar datos offline';
+        
+        if (error.name === 'QuotaExceededError') {
+          errorMessage = '⚠️ Almacenamiento lleno. Por favor sincroniza formularios pendientes primero.';
+          console.error('💡 SOLUCIÓN: Application → Clear Storage o sincronizar pendientes');
+        } else if (error.message.includes('visitId')) {
+          errorMessage = `Error: ${error.message}`;
+          console.error('💡 SOLUCIÓN: Verificar que visitId está disponible');
+        } else if (error.message.includes('transaction')) {
+          errorMessage = 'Error al crear transacción en IndexedDB. Intenta recargar la página.';
+          console.error('💡 SOLUCIÓN: Ctrl+R para recargar o limpiar IndexedDB');
+        } else if (error.message) {
+          errorMessage = `Error: ${error.message}`;
+        }
+        
+        toast.error(errorMessage, { autoClose: 10000 });
+        
+        // Mostrar instrucciones en consola
+        console.log('');
+        console.log('📚 INSTRUCCIONES DE DEBUG:');
+        console.log('1. Copia TODO el contenido de esta consola');
+        console.log('2. Compártelo con el equipo de desarrollo');
+        console.log('3. Incluye estas capturas:');
+        console.log('   - Console completa (esta)');
+        console.log('   - Application → IndexedDB → ZurcherMaintenanceDB');
+        console.log('   - Network tab mostrando "Offline"');
+        console.log('='.repeat(80));
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    // MODO ONLINE: Enviar al servidor normalmente
     try {
       setSubmitting(true);
 
@@ -645,12 +860,15 @@ const WorkerMaintenanceDetail = () => {
       } else {
         toast.success('Progreso guardado exitosamente');
 
-        // Limpiar estados de imágenes temporales
+        // Limpiar estados de imágenes temporales y arrays
         setFieldImages({});
         setWellSampleImages({ sample1: null, sample2: null, sample3: null });
         setSelectedFiles([]);
         setPreviewImages([]);
-        setSystemVideoFile(null); // Limpiar video del sistema
+        setSystemVideoFile(null);
+        setFinalSystemImageFile(null);
+        setExistingMedia([]);
+        console.log('🧹 Todos los estados de imágenes limpiados antes de recargar');
 
         // Recargar la visita para actualizar los datos
         await loadVisitDetail();
@@ -1076,8 +1294,11 @@ const WorkerMaintenanceDetail = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
+      {/* 🆕 Barra de estado de conexión y sincronización */}
+      <ConnectionStatus showSyncButton={true} />
+      
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 shadow-lg sticky top-0 z-10">
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 shadow-lg sticky top-0 z-10" style={{ marginTop: '60px' }}>
         <div className="max-w-7xl mx-auto">
           <button
             onClick={() => navigate('/worker/maintenance')}
@@ -1089,6 +1310,16 @@ const WorkerMaintenanceDetail = () => {
           <div>
             <h1 className="text-xl font-bold">Visita #{visit.visitNumber}</h1>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
+              {/* 🆕 Indicador de datos offline */}
+              {hasOfflineData && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-purple-100 text-purple-800 border border-purple-300">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-3 w-3 mr-1">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+                  </svg>
+                  Datos Offline
+                </span>
+              )}
+              
               {isCompleted ? (
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-800">
                   <CheckCircleIcon className="h-3 w-3 mr-1" />
@@ -1527,11 +1758,11 @@ const WorkerMaintenanceDetail = () => {
                 {wellSampleImages.sample1 ? (
                   <div className="relative">
                     <img
-                      src={wellSampleImages.sample1.preview}
+                      src={wellSampleImages.sample1.url || wellSampleImages.sample1.preview}
                       alt="Muestra 1"
                       className="w-full h-40 object-cover rounded-lg border-2 border-amber-400"
                     />
-                    {!isDisabled && (
+                    {!isDisabled && !wellSampleImages.sample1.isExisting && (
                       <button
                         type="button"
                         onClick={() => removeWellSampleImage(1)}
@@ -1591,11 +1822,11 @@ const WorkerMaintenanceDetail = () => {
                 {wellSampleImages.sample2 ? (
                   <div className="relative">
                     <img
-                      src={wellSampleImages.sample2.preview}
+                      src={wellSampleImages.sample2.url || wellSampleImages.sample2.preview}
                       alt="Muestra 2"
                       className="w-full h-40 object-cover rounded-lg border-2 border-amber-400"
                     />
-                    {!isDisabled && (
+                    {!isDisabled && !wellSampleImages.sample2.isExisting && (
                       <button
                         type="button"
                         onClick={() => removeWellSampleImage(2)}
@@ -1655,11 +1886,11 @@ const WorkerMaintenanceDetail = () => {
                 {wellSampleImages.sample3 ? (
                   <div className="relative">
                     <img
-                      src={wellSampleImages.sample3.preview}
+                      src={wellSampleImages.sample3.url || wellSampleImages.sample3.preview}
                       alt="Muestra 3"
                       className="w-full h-40 object-cover rounded-lg border-2 border-amber-400"
                     />
-                    {!isDisabled && (
+                    {!isDisabled && !wellSampleImages.sample3.isExisting && (
                       <button
                         type="button"
                         onClick={() => removeWellSampleImage(3)}
@@ -1867,7 +2098,7 @@ const WorkerMaintenanceDetail = () => {
                   ) : (
                     // Archivo recién seleccionado (pendiente de subir)
                     <div className="flex items-center gap-3">
-                      {finalSystemImageFile && (
+                      {finalSystemImageFile && finalSystemImageFile instanceof File && (
                         <img 
                           src={URL.createObjectURL(finalSystemImageFile)} 
                           alt="Preview" 
