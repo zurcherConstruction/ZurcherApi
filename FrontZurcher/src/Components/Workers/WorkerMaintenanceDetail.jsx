@@ -24,6 +24,7 @@ const WorkerMaintenanceDetail = () => {
   const workIdFromState = location.state?.workId;
   const readOnly = location.state?.readOnly || false; // Modo solo lectura para owner
   const isOwnerMode = location.state?.isOwner || false; // ✅ Flag para indicar que es owner
+  const fromPath = location.state?.from || '/worker/maintenance'; // ✅ Recordar de dónde vino
 
   const [visit, setVisit] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1301,7 +1302,7 @@ const WorkerMaintenanceDetail = () => {
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 shadow-lg sticky top-0 z-10" style={{ marginTop: '60px' }}>
         <div className="max-w-7xl mx-auto">
           <button
-            onClick={() => navigate('/worker/maintenance')}
+            onClick={() => navigate(fromPath)}
             className="flex items-center text-white hover:text-blue-100 mb-3"
           >
             <ArrowLeftIcon className="h-5 w-5 mr-2" />

@@ -6,6 +6,7 @@ import {
   ClockIcon, 
   CheckCircleIcon,
   ArrowRightIcon,
+  ArrowLeftIcon,
   HomeIcon,
   CalendarIcon,
   DocumentTextIcon
@@ -101,7 +102,10 @@ const WorkerMaintenanceDashboard = () => {
 
   const handleVisitClick = (visit) => {
     navigate(`/worker/maintenance/${visit.id}`, {
-      state: { workId: visit.workId }
+      state: { 
+        workId: visit.workId,
+        from: '/worker/maintenance' // ✅ Guardar ruta de origen
+      }
     });
   };
 
@@ -125,6 +129,13 @@ const WorkerMaintenanceDashboard = () => {
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg">
         <div className="max-w-7xl mx-auto px-4 py-6">
+          <button
+            onClick={() => navigate('/worker')}
+            className="flex items-center text-white hover:text-blue-100 mb-3"
+          >
+            <ArrowLeftIcon className="h-5 w-5 mr-2" />
+            Volver
+          </button>
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-2xl font-bold">Mis Mantenimientos</h1>
