@@ -41,6 +41,14 @@ router.put('/:visitId',
     MaintenanceController.updateMaintenanceVisit
 );
 
+// ⭐ Subir imagen individual en background (autoguardado progresivo)
+router.post('/:visitId/upload-image',
+    verifyToken,
+    allowRoles(['admin', 'owner', 'worker', 'maintenance']),
+    upload.array('maintenanceFiles', 5), // Hasta 5 imágenes por request
+    MaintenanceController.uploadMaintenanceImage
+);
+
 // Añadir media a una visita de mantenimiento
 router.post('/:visitId/media', 
     verifyToken, 

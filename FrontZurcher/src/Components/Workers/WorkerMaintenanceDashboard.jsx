@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -23,21 +23,35 @@ const WorkerMaintenanceDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('pending'); // pending, completed
 
-  const staffId = authStaff?.idStaff || authStaff?.id;
+  // ✅ FIX: Usar useMemo para evitar recalcular staffId en cada render
+  const staffId = React.useMemo(() => authStaff?.idStaff || authStaff?.id, [authStaff?.idStaff, authStaff?.id]);
+  
+  // ✅ FIX: Prevenir llamadas duplicadas con useRef
+  const isLoadingRef = useRef(false);
+  const hasLoadedRef = useRef(false);
 
   useEffect(() => {
     console.log('🔧 MaintenanceDashboard - staffId:', staffId);
     console.log('🔧 MaintenanceDashboard - authStaff:', authStaff);
-    if (staffId) {
+    
+    // ✅ FIX: Solo cargar si no estamos ya cargando y tenemos staffId
+    if (staffId && !isLoadingRef.current && !hasLoadedRef.current) {
       loadMaintenances();
-    } else {
+    } else if (!staffId) {
       console.error('🔧 No staffId disponible');
       setLoading(false);
     }
   }, [staffId]);
 
   const loadMaintenances = async () => {
+    // ✅ FIX: Prevenir llamadas concurrentes
+    if (isLoadingRef.current) {
+      console.log('⏸️ Ya hay una carga en progreso, omitiendo...');
+      return;
+    }
+
     try {
+      isLoadingRef.current = true;
       setLoading(true);
       console.log('🔧 Llamando a /maintenance/assigned con workerId:', staffId);
       const response = await api.get('/maintenance/assigned', {
@@ -46,6 +60,7 @@ const WorkerMaintenanceDashboard = () => {
       console.log('📋 Mantenimientos cargados:', response.data);
       // El backend devuelve {message, visits, count}
       setMaintenances(response.data?.visits || []);
+      hasLoadedRef.current = true; // ✅ Marcar como cargado exitosamente
     } catch (error) {
       console.error('❌ Error loading maintenances:', error);
       console.error('❌ Error response:', error.response?.data);
@@ -53,6 +68,7 @@ const WorkerMaintenanceDashboard = () => {
       setMaintenances([]);
     } finally {
       setLoading(false);
+      isLoadingRef.current = false;
     }
   };
 

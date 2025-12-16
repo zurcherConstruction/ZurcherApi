@@ -86,12 +86,16 @@ export const syncFormToServer = async (visitId, formData, files) => {
     console.log(`📸 FileFieldMapping (solo imágenes normales):`, fileFieldMapping);
     submitFormData.append('fileFieldMapping', JSON.stringify(fileFieldMapping));
 
-    // Enviar al servidor
+    // Enviar al servidor (timeout extendido para conexiones lentas)
     const response = await api.post(`/maintenance/${visitId}/complete`, submitFormData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       },
-      timeout: 120000 // 2 minutos de timeout
+      timeout: 600000, // ✅ 10 minutos de timeout para conexiones muy lentas
+      onUploadProgress: (progressEvent) => {
+        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        console.log(`📤 Progreso de subida: ${percentCompleted}% (${progressEvent.loaded}/${progressEvent.total} bytes)`);
+      }
     });
 
     console.log('✅ Formulario sincronizado exitosamente:', response.data);

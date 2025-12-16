@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeftIcon,
@@ -16,6 +16,7 @@ import api from '../../utils/axios';
 import ConnectionStatus from '../Maintenance/ConnectionStatus';
 import { saveFormOffline, getOfflineForm } from '../../utils/offlineStorage';
 import { isOnline, onConnectionChange, startAutoSync, stopAutoSync } from '../../utils/syncManager';
+import { startAutosave, stopAutosave, uploadImageInBackground, saveProgress } from '../../utils/autosave';
 
 const WorkerMaintenanceDetail = () => {
   const { visitId } = useParams();
@@ -112,6 +113,18 @@ const WorkerMaintenanceDetail = () => {
   const [isOfflineMode, setIsOfflineMode] = useState(!isOnline());
   const [hasOfflineData, setHasOfflineData] = useState(false);
 
+  // ✅ FIX: Prevenir llamadas duplicadas al cargar detalles
+  const isLoadingVisitRef = useRef(false);
+  const hasLoadedVisitRef = useRef(false);
+
+  // 🆕 Estado para progreso de subida
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // 🆕 Estado para autoguardado
+  const [lastAutosave, setLastAutosave] = useState(null);
+  const [isAutosaving, setIsAutosaving] = useState(false);
+
   // 🆕 Detectar cambios de conexión
   useEffect(() => {
     const unsubscribe = onConnectionChange((online) => {
@@ -131,6 +144,27 @@ const WorkerMaintenanceDetail = () => {
     startAutoSync(5); // Cada 5 minutos
     return () => stopAutoSync();
   }, []);
+
+  // 🆕 Iniciar autoguardado progresivo (cada 30 segundos)
+  useEffect(() => {
+    if (!visitId || readOnly) return;
+
+    console.log('🔄 Iniciando autoguardado progresivo...');
+    const cleanup = startAutosave(visitId, () => formData, 30000);
+
+    // Listener para indicador de "guardado"
+    const handleAutosaveSuccess = (event) => {
+      setLastAutosave(event.detail.timestamp);
+      setTimeout(() => setLastAutosave(null), 3000); // Ocultar después de 3s
+    };
+
+    window.addEventListener('autosave-success', handleAutosaveSuccess);
+
+    return () => {
+      cleanup();
+      window.removeEventListener('autosave-success', handleAutosaveSuccess);
+    };
+  }, [visitId, readOnly]);
 
   // 🆕 Cargar datos offline si existen (automáticamente, sin preguntar)
   useEffect(() => {
@@ -156,7 +190,10 @@ const WorkerMaintenanceDetail = () => {
   }, [visitId]);
 
   useEffect(() => {
-    loadVisitDetail();
+    // ✅ FIX: Solo cargar si no se ha cargado ya
+    if (!isLoadingVisitRef.current && !hasLoadedVisitRef.current) {
+      loadVisitDetail();
+    }
     
     // Cleanup: liberar blob URL cuando el componente se desmonte
     return () => {
@@ -167,7 +204,14 @@ const WorkerMaintenanceDetail = () => {
   }, [visitId]);
 
   const loadVisitDetail = async () => {
+    // ✅ FIX: Prevenir llamadas concurrentes
+    if (isLoadingVisitRef.current) {
+      console.log('⏸️ Ya hay una carga de visita en progreso, omitiendo...');
+      return;
+    }
+
     try {
+      isLoadingVisitRef.current = true;
       setLoading(true);
       console.log('🔐 VisitId:', visitId);
       console.log('🔐 WorkId from state:', workIdFromState);
@@ -178,9 +222,13 @@ const WorkerMaintenanceDetail = () => {
         return;
       }
 
-      // Obtener detalles de la visita
+      // 🆕 Paso 1: Verificar si hay datos offline guardados
+      const offlineForm = await getOfflineForm(visitId);
+      console.log('💾 Datos offline encontrados:', offlineForm ? 'SÍ' : 'NO');
+
+      // Obtener detalles de la visita (sin cache, agregar timestamp para forzar refresh)
       console.log('📋 Cargando visitas para workId:', workIdFromState);
-      const visitResponse = await api.get(`/maintenance/work/${workIdFromState}`);
+      const visitResponse = await api.get(`/maintenance/work/${workIdFromState}?_t=${Date.now()}`);
       console.log('📋 Visits response:', visitResponse.data);
 
       const visits = visitResponse.data || [];
@@ -201,6 +249,7 @@ const WorkerMaintenanceDetail = () => {
       console.log('🔬 Muestra 2 URL:', currentVisit.well_sample_2_url);
       console.log('🔬 Muestra 3 URL:', currentVisit.well_sample_3_url);
       setVisit(currentVisit);
+      hasLoadedVisitRef.current = true; // ✅ Marcar como cargado exitosamente
 
       // 🧹 Limpiar estados de imágenes primero para evitar duplicaciones
       setFieldImages({});
@@ -239,7 +288,9 @@ const WorkerMaintenanceDetail = () => {
 
       // SIEMPRE pre-cargar datos del formulario (sin importar el estado)
       console.log('📝 Cargando datos guardados del formulario...');
-      setFormData({
+      
+      // 🆕 Preparar datos del servidor
+      const serverData = {
         actualVisitDate: currentVisit.actualVisitDate ? currentVisit.actualVisitDate.split('T')[0] : new Date().toISOString().split('T')[0],
         notes: currentVisit.notes || '',
 
@@ -303,7 +354,20 @@ const WorkerMaintenanceDetail = () => {
         final_system_image_url: currentVisit.final_system_image_url || '',
 
         general_notes: currentVisit.general_notes || ''
-      });
+      };
+
+      // 🆕 MERGE INTELIGENTE: Prioridad a datos offline si existen
+      let finalData = serverData;
+      if (offlineForm?.formData) {
+        console.log('✅ Haciendo merge con datos offline (tienen prioridad)');
+        finalData = {
+          ...serverData,
+          ...offlineForm.formData
+        };
+        toast.success('📦 Datos offline recuperados', { autoClose: 2000 });
+      }
+
+      setFormData(finalData);
       
       // ✅ Cargar imágenes de muestras PBTS/ATU existentes con flag isExisting
       if (currentVisit.well_sample_1_url) {
@@ -366,6 +430,7 @@ const WorkerMaintenanceDetail = () => {
       navigate('/worker/maintenance');
     } finally {
       setLoading(false);
+      isLoadingVisitRef.current = false; // ✅ Liberar el lock
     }
   };
 
@@ -455,6 +520,90 @@ const WorkerMaintenanceDetail = () => {
         ...prev,
         [fieldName]: (prev[fieldName] || []).filter((_, i) => i !== index)
       }));
+    }
+  };
+
+  // 🆕 Agregar imagen a campo específico CON subida automática en background
+  const addImageToField = async (fieldName, file) => {
+    if (!file || !file.type.startsWith('image/')) {
+      toast.error('Solo se permiten imágenes');
+      return;
+    }
+
+    // Crear preview local inmediatamente
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const tempImage = {
+        file: file,
+        url: reader.result,
+        name: file.name,
+        isExisting: false,
+        uploading: true // Indicador de que está subiendo
+      };
+
+      setFieldImages(prev => ({
+        ...prev,
+        [fieldName]: [...(prev[fieldName] || []), tempImage]
+      }));
+    };
+    reader.readAsDataURL(file);
+
+    // 🔄 Subir automáticamente en background
+    if (!readOnly && !isCompleted) {
+      try {
+        const imageIndex = (fieldImages[fieldName] || []).length;
+        
+        const result = await uploadImageInBackground(visitId, file, fieldName, {
+          silent: false,
+          onProgress: (percent) => {
+            // Actualizar progreso en el estado
+            setFieldImages(prev => {
+              const images = [...(prev[fieldName] || [])];
+              if (images[imageIndex]) {
+                images[imageIndex] = {
+                  ...images[imageIndex],
+                  uploadProgress: percent
+                };
+              }
+              return { ...prev, [fieldName]: images };
+            });
+          }
+        });
+
+        if (result.success && !result.queued) {
+          // Subida exitosa - actualizar con datos del servidor
+          setFieldImages(prev => {
+            const images = [...(prev[fieldName] || [])];
+            if (images[imageIndex]) {
+              images[imageIndex] = {
+                ...images[imageIndex],
+                uploading: false,
+                id: result.data.uploadedMedia[0]?.id,
+                url: result.data.uploadedMedia[0]?.fileUrl,
+                isExisting: true
+              };
+            }
+            return { ...prev, [fieldName]: images };
+          });
+          toast.success(`✅ ${file.name} subida`, { autoClose: 2000 });
+        } else if (result.queued) {
+          // En cola para subir después
+          setFieldImages(prev => {
+            const images = [...(prev[fieldName] || [])];
+            if (images[imageIndex]) {
+              images[imageIndex] = {
+                ...images[imageIndex],
+                uploading: false,
+                queued: true
+              };
+            }
+            return { ...prev, [fieldName]: images };
+          });
+        }
+      } catch (error) {
+        console.error('Error en subida automática:', error);
+        toast.warning(`${file.name} se subirá después`, { autoClose: 2000 });
+      }
     }
   };
 
@@ -845,11 +994,33 @@ const WorkerMaintenanceDetail = () => {
       }
 
       console.log('📤 Enviando formulario de mantenimiento...');
+      
+      // ✅ Mostrar progreso de subida
+      setIsUploading(true);
+      setUploadProgress(0);
+      toast.info('📤 Subiendo datos... Esto puede tardar con conexión lenta', { autoClose: false, toastId: 'uploading' });
+
       const response = await api.post(`/maintenance/${visitId}/complete`, submitFormData, {
         headers: {
           'Content-Type': 'multipart/form-data'
+        },
+        timeout: 600000, // ✅ 10 minutos de timeout para conexiones lentas
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(percentCompleted);
+          console.log(`📊 Progreso de subida: ${percentCompleted}% (${progressEvent.loaded}/${progressEvent.total} bytes)`);
+          
+          // Actualizar toast con progreso
+          toast.update('uploading', {
+            render: `📤 Subiendo: ${percentCompleted}%`,
+            type: 'info'
+          });
         }
       });
+
+      // ✅ Ocultar progreso
+      setIsUploading(false);
+      toast.dismiss('uploading');
 
       console.log('✅ Formulario enviado:', response.data);
 
@@ -877,7 +1048,32 @@ const WorkerMaintenanceDetail = () => {
 
     } catch (error) {
       console.error('Error submitting maintenance:', error);
-      toast.error(error.response?.data?.message || 'Error al enviar el formulario');
+      setIsUploading(false);
+      toast.dismiss('uploading');
+      
+      // ✅ Mensajes de error más específicos para conexiones lentas
+      let errorMessage = 'Error al enviar el formulario';
+      
+      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        errorMessage = '⏱️ Tiempo de espera agotado. La conexión es muy lenta. Los datos se guardaron localmente y se sincronizarán automáticamente cuando mejore la conexión.';
+        // Intentar guardar offline si hay timeout
+        try {
+          const filesToSave = {};
+          Object.keys(fieldImages).forEach(fieldName => {
+            filesToSave[fieldName] = fieldImages[fieldName].filter(img => img.file && !img.isExisting).map(img => img.file);
+          });
+          await saveFormOffline(visitId, formData, filesToSave);
+          toast.success('💾 Datos guardados offline para sincronización posterior');
+        } catch (offlineError) {
+          console.error('Error guardando offline después de timeout:', offlineError);
+        }
+      } else if (error.message.includes('Network Error')) {
+        errorMessage = '📡 Sin conexión a internet. Los datos se guardaron localmente.';
+      } else {
+        errorMessage = error.response?.data?.message || 'Error al enviar el formulario';
+      }
+      
+      toast.error(errorMessage, { autoClose: 10000 });
     } finally {
       setSubmitting(false);
     }
@@ -1298,8 +1494,42 @@ const WorkerMaintenanceDetail = () => {
       {/* 🆕 Barra de estado de conexión y sincronización */}
       <ConnectionStatus showSyncButton={true} />
       
+      {/* 🆕 Barra de progreso de subida */}
+      {isUploading && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-blue-600 text-white p-2" style={{ marginTop: '60px' }}>
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-sm font-medium">📤 Subiendo datos...</span>
+              <span className="text-sm font-bold">{uploadProgress}%</span>
+            </div>
+            <div className="w-full bg-blue-800 rounded-full h-2 overflow-hidden">
+              <div 
+                className="bg-white h-full transition-all duration-300 ease-out"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+            <p className="text-xs mt-1 text-blue-100">
+              {uploadProgress < 30 ? 'Preparando archivos...' : 
+               uploadProgress < 70 ? 'Subiendo imágenes...' : 
+               uploadProgress < 95 ? 'Casi listo...' : 
+               'Finalizando...'}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* 🆕 Indicador de autoguardado discreto */}
+      {lastAutosave && (
+        <div className="fixed bottom-4 right-4 z-40 bg-green-500 text-white px-3 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-fade-in">
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <span className="text-sm">Guardado automáticamente</span>
+        </div>
+      )}
+      
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 shadow-lg sticky top-0 z-10" style={{ marginTop: '60px' }}>
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 shadow-lg sticky top-0 z-10" style={{ marginTop: isUploading ? '120px' : '60px' }}>
         <div className="max-w-7xl mx-auto">
           <button
             onClick={() => navigate(fromPath)}
@@ -2136,6 +2366,22 @@ const WorkerMaintenanceDetail = () => {
           {/* Submit Buttons - Mostrar si no está completada O si es owner editando */}
           {(!isCompleted || isOwnerMode) && (
             <div className="space-y-4">
+              {/* 🆕 Nota sobre autoguardado */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
+                <svg className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="text-sm text-blue-700">
+                  <strong>Autoguardado activado:</strong> Los datos se guardan automáticamente cada 30 segundos. 
+                  Las imágenes se suben en segundo plano cuando las agregas.
+                  {lastAutosave && (
+                    <span className="ml-2 text-green-600 font-semibold">
+                      ✓ Última vez: {new Date(lastAutosave).toLocaleTimeString()}
+                    </span>
+                  )}
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Botón Guardar Progreso / Cambios (para owner) */}
                 <button

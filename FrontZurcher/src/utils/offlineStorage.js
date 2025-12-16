@@ -70,9 +70,10 @@ const initDB = () => {
 
 /**
  * 🖼️ Comprimir imagen antes de almacenar
- * Reduce el tamaño para optimizar almacenamiento local
+ * Reduce el tamaño para optimizar almacenamiento local y subida por conexiones lentas
+ * ✅ OPTIMIZADO: Dimensiones reducidas para conexiones móviles débiles
  */
-const compressImage = (file, maxWidth = 1920, maxHeight = 1080, quality = 0.8) => {
+const compressImage = (file, maxWidth = 1280, maxHeight = 720, quality = 0.6) => {
   return new Promise((resolve, reject) => {
     // Si no es imagen, devolver el archivo original
     if (!file.type.startsWith('image/')) {
