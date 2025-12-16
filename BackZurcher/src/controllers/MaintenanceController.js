@@ -907,16 +907,17 @@ const getAssignedMaintenances = async (req, res) => {
 
     console.log('[getAssignedMaintenances] Buscando visitas para workerId:', workerId);
 
-    // Traer TODAS las visitas del worker (incluyendo completadas)
+    // ✅ OPTIMIZACIÓN: NO cargar mediaFiles por defecto (solo bajo demanda)
     const visitsRaw = await MaintenanceVisit.findAll({
       where: {
         staffId: workerId
       },
       attributes: { 
-        exclude: [] // ✅ Traer TODOS los campos de MaintenanceVisit (incluyendo system_video_url)
+        exclude: [] // Traer todos los campos de MaintenanceVisit
       },
       include: [
-        { model: MaintenanceMedia, as: 'mediaFiles' },
+        // ❌ REMOVIDO: { model: MaintenanceMedia, as: 'mediaFiles' }
+        // Los mediaFiles se cargan bajo demanda cuando se abre el detalle de una visita
         { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] },
         { model: Work, as: 'work', attributes: ['idWork', 'status', 'maintenanceStartDate', 'propertyAddress'] }
       ],
@@ -935,8 +936,8 @@ const getAssignedMaintenances = async (req, res) => {
         where: { propertyAddress: addresses },
         attributes: [
           'idPermit', 'propertyAddress', 'applicant', 'applicantName', 'systemType', 'permitNumber',
-          'pdfData', 'optionalDocs', // ⚠️ Legacy fields (Buffer)
-          'permitPdfUrl', 'permitPdfPublicId', 'optionalDocsUrl', 'optionalDocsPublicId' // ✅ Cloudinary URLs
+          // ✅ Solo incluir URLs de Cloudinary (no cargar buffers pesados)
+          'permitPdfUrl', 'permitPdfPublicId', 'optionalDocsUrl', 'optionalDocsPublicId'
         ]
       });
       permitsByAddress = permits.reduce((acc, p) => {
@@ -949,24 +950,13 @@ const getAssignedMaintenances = async (req, res) => {
     for (const visit of visits) {
       const work = visit.work || {};
       const permit = work.propertyAddress ? permitsByAddress[work.propertyAddress] || null : null;
-      // Añadir en ambas claves por compatibilidad con distintas partes del frontend
       work.permit = permit;
       work.Permit = permit;
       visit.work = work;
     }
 
     console.log('[getAssignedMaintenances] Encontradas', visits.length, 'visitas para el worker');
-    
-    // 🔍 DEBUG: Ver qué tiene la primera visita
-    if (visits.length > 0) {
-      console.log('🔍 DEBUG - Primera visita:', {
-        id: visits[0].id,
-        status: visits[0].status,
-        mediaFilesCount: visits[0].mediaFiles?.length || 0,
-        hasPermit: !!visits[0].work?.permit,
-        permitPdfUrl: visits[0].work?.permit?.permitPdfUrl
-      });
-    }
+    console.log('✅ OPTIMIZACIÓN: mediaFiles NO cargados (se cargan bajo demanda en detalle)');
 
     res.status(200).json({ message: 'Mantenimientos asignados obtenidos correctamente.', visits, count: visits.length });
   } catch (error) {
@@ -1698,6 +1688,94 @@ const downloadMaintenancePDF = async (req, res) => {
   }
 };
 
+// ⭐ Subir imagen individual (autoguardado progresivo)
+const uploadMaintenanceImage = async (req, res) => {
+  try {
+    const { visitId } = req.params;
+    const files = req.files || [];
+    const fileFieldMapping = req.body.fileFieldMapping ? JSON.parse(req.body.fileFieldMapping) : {};
+
+    console.log(`📸 [uploadMaintenanceImage] Subiendo ${files.length} imagen(es) para visita ${visitId}`);
+
+    if (files.length === 0) {
+      return res.status(400).json({ error: true, message: 'No se recibieron archivos.' });
+    }
+
+    // Verificar que la visita existe
+    const visit = await MaintenanceVisit.findByPk(visitId);
+    if (!visit) {
+      return res.status(404).json({ error: true, message: 'Visita de mantenimiento no encontrada.' });
+    }
+
+    const uploadedMedia = [];
+
+    for (const file of files) {
+      try {
+        console.log(`📤 Procesando archivo: ${file.originalname}`);
+        
+        // Subir a Cloudinary
+        const result = await new Promise((resolve, reject) => {
+          const uploadStream = cloudinary.uploader.upload_stream(
+            {
+              resource_type: 'auto',
+              folder: `maintenance/${visitId}`,
+              public_id: `${Date.now()}_${file.originalname.replace(/\.[^/.]+$/, '')}`,
+              transformation: [
+                { quality: 'auto:good' },
+                { fetch_format: 'auto' }
+              ]
+            },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result);
+            }
+          );
+          uploadStream.end(file.buffer);
+        });
+
+        console.log(`✅ Archivo subido a Cloudinary: ${result.secure_url}`);
+
+        // Determinar fieldName (de dónde viene la imagen)
+        const fieldName = fileFieldMapping[file.originalname] || 'general';
+
+        // Guardar en base de datos
+        const mediaRecord = await MaintenanceMedia.create({
+          visitId,
+          fileUrl: result.secure_url,
+          publicId: result.public_id,
+          fileType: result.resource_type,
+          fieldName: fieldName, // Campo del formulario asociado
+          uploadedAt: new Date()
+        });
+
+        uploadedMedia.push({
+          id: mediaRecord.id,
+          fileUrl: result.secure_url,
+          fileType: result.resource_type,
+          fieldName: fieldName,
+          originalName: file.originalname
+        });
+
+        console.log(`💾 Media guardado en DB: ID ${mediaRecord.id}, fieldName: ${fieldName}`);
+      } catch (uploadError) {
+        console.error(`❌ Error subiendo ${file.originalname}:`, uploadError);
+        // Continuar con los demás archivos
+      }
+    }
+
+    console.log(`✅ [uploadMaintenanceImage] ${uploadedMedia.length}/${files.length} archivos subidos exitosamente`);
+
+    res.status(200).json({
+      message: `${uploadedMedia.length} imagen(es) subida(s) exitosamente.`,
+      uploadedMedia,
+      visitId
+    });
+  } catch (error) {
+    console.error('❌ Error en uploadMaintenanceImage:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor.' });
+  }
+};
+
 module.exports = {
   scheduleInitialMaintenanceVisits, // Exportar para uso interno
   scheduleMaintenanceVisits, // Nueva función para programar manualmente
@@ -1712,4 +1790,5 @@ module.exports = {
   completeMaintenanceVisit, // ⭐ Nueva función
   getAllCompletedMaintenances, // ⭐ Para Owner/Admin
   downloadMaintenancePDF, // 📄 Generar PDF
+  uploadMaintenanceImage, // 📸 Subir imagen individual (autoguardado)
 };
