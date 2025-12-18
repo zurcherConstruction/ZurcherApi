@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -22,6 +22,12 @@ import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import PdfViewer from '../utils/PdfViewer';
 import axios from 'axios';
+import Toast from 'react-native-toast-message';
+
+// 🆕 Importar sistema de autosave y offline
+import { startAutosave, stopAutosave, forceSave } from '../utils/autosaveMobile';
+import { getOfflineForm, clearOfflineData } from '../utils/offlineStorageMobile';
+import { queueImageUpload, processQueue, getQueueStatus } from '../utils/imageUploadQueue';
 
 // Componente CheckboxField SIN opción de adjuntar foto
 const CheckboxFieldNoMedia = ({ label, value, notes, notesValue, onCheckChange, onNotesChange }) => {
@@ -210,8 +216,70 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
   const [pdfViewerVisible, setPdfViewerVisible] = useState(false);
   const [selectedPdfUri, setSelectedPdfUri] = useState(null);
 
+  // 🆕 Estados para autosave y offline
+  const [queueStatus, setQueueStatus] = useState({ total: 0, pending: 0 });
+  const autosaveCleanupRef = useRef(null);
+
+  // 🆕 useEffect para autosave
   useEffect(() => {
-    const processVisitData = (visitObj) => {
+    if (!visit?.id) return;
+
+    console.log('🚀 Iniciando sistema de autosave para visitId:', visit.id);
+
+    // Iniciar autosave cada 30 segundos
+    const cleanup = startAutosave(
+      visit.id,
+      () => formData, // Getter del formData actual
+      30000 // 30 segundos
+    );
+
+    autosaveCleanupRef.current = cleanup;
+
+    // Cargar datos offline si existen
+    loadOfflineData();
+
+    // Actualizar estado de cola periódicamente
+    const queueInterval = setInterval(async () => {
+      const status = await getQueueStatus();
+      setQueueStatus(status);
+    }, 5000); // Cada 5 segundos
+
+    // Intentar procesar cola al iniciar
+    processQueue().catch(err => console.log('Queue processing error:', err));
+
+    return () => {
+      console.log('🛑 Deteniendo autosave');
+      if (autosaveCleanupRef.current) {
+        autosaveCleanupRef.current();
+      }
+      clearInterval(queueInterval);
+    };
+  }, [visit?.id]); // Solo reiniciar si cambia visitId
+
+  // 🆕 Cargar datos offline si existen
+  const loadOfflineData = async () => {
+    if (!visit?.id) return;
+
+    try {
+      const offlineData = await getOfflineForm(visit.id);
+      if (offlineData?.formData) {
+        console.log('📦 Datos offline encontrados, cargando...');
+        setFormData(offlineData.formData);
+        Toast.show({
+          type: 'success',
+          text1: '📦 Datos recuperados',
+          text2: 'Se cargaron cambios guardados offline',
+          position: 'bottom',
+          visibilityTime: 3000
+        });
+      }
+    } catch (error) {
+      console.error('Error cargando datos offline:', error);
+    }
+  };
+
+  // 🔧 Función para procesar datos de la visita (definida antes para ser usada en useEffect)
+  const processVisitData = (visitObj) => {
       
       setVisitData(visitObj);
       
@@ -246,6 +314,12 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             fieldName: m.fieldName,
             originalName: m.originalName,
             mediaType: m.mediaType
+          })));
+          console.log('📸 DEBUG - Todos los mediaFiles:', visitObj.mediaFiles.map(m => ({
+            id: m.id,
+            fieldName: m.fieldName,
+            originalName: m.originalName,
+            mediaUrl: m.mediaUrl?.substring(0, 50) + '...'
           })));
         }
         
@@ -368,16 +442,67 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
       }
       
       setLoading(false);
+  };
+
+  // 🆕 Cargar detalles completos de la visita (con mediaFiles)
+  useEffect(() => {
+    const fetchVisitDetails = async () => {
+      console.log('🔍 fetchVisitDetails - visitId:', visit?.id);
+      
+      if (!visit?.id) {
+        console.log('⚠️ No hay visitId, omitiendo fetchVisitDetails');
+        return;
+      }
+      
+      try {
+        const token = await AsyncStorage.getItem('token');
+        console.log('🔑 Token obtenido:', token ? 'Sí' : 'No');
+        
+        if (!token) {
+          console.log('⚠️ No hay token, omitiendo fetchVisitDetails');
+          return;
+        }
+        
+        const API_URL = __DEV__ 
+          ? 'http://192.168.1.8:3001' 
+          : 'https://zurcherapi.up.railway.app';
+        
+        console.log('🔄 Cargando detalles completos de la visita:', visit.id);
+        console.log('📡 URL:', `${API_URL}/maintenance/${visit.id}/details`);
+        
+        const response = await axios.get(
+          `${API_URL}/maintenance/${visit.id}/details`,
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+        
+        console.log('📦 Respuesta recibida:', {
+          status: response.status,
+          hasVisit: !!response.data.visit,
+          mediaFilesCount: response.data.visit?.mediaFiles?.length || 0
+        });
+        
+        if (response.data.visit) {
+          console.log('✅ Detalles cargados, mediaFiles:', response.data.visit.mediaFiles?.length || 0);
+          console.log('📋 Procesando visita con processVisitData...');
+          processVisitData(response.data.visit);
+          console.log('✅ processVisitData completado');
+        }
+      } catch (error) {
+        console.error('❌ Error cargando detalles de visita:', error.message);
+        console.error('❌ Error completo:', error);
+        // Si falla, usar los datos que vienen en route.params
+        if (visit) {
+          console.log('⚠️ Usando datos de route.params como fallback');
+          processVisitData(visit);
+        }
+      }
     };
     
-    if (visit) {
-      processVisitData(visit);
-    } else {
-      setLoading(false);
-    }
-    
+    fetchVisitDetails();
     requestMediaPermissions();
-  }, [visit]);
+  }, [visit?.id]);
 
   const requestMediaPermissions = async () => {
     const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
@@ -505,33 +630,54 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const imageUri = result.assets[0].uri;
         
-        // Optimizar imagen
-        const optimizedImage = await manipulateAsync(
-          imageUri,
-          [{ resize: { width: 600 } }],
-          { compress: 0.3, format: SaveFormat.JPEG }
-        );
+        // 🆕 Agregar a cola de subida (comprime automáticamente)
+        const queued = await queueImageUpload(visit.id, imageUri, fieldName);
+        
+        if (queued.success) {
+          // Guardar referencia local para preview
+          const fileObject = {
+            uri: queued.uri, // URI de imagen comprimida
+            name: `${fieldName}_${Date.now()}.jpg`,
+            type: 'image/jpeg',
+            queued: true, // Marcar como en cola
+            timestamp: Date.now()
+          };
 
-        // Crear objeto File-like para compatibilidad con el backend
-        const filename = optimizedImage.uri.split('/').pop();
-        const match = /\.(\w+)$/.exec(filename);
-        const type = match ? `image/${match[1]}` : 'image/jpeg';
+          setFiles(prev => ({
+            ...prev,
+            [fieldName]: [...(prev[fieldName] || []), fileObject]
+          }));
 
-        const fileObject = {
-          uri: optimizedImage.uri,
-          name: filename,
-          type: type,
-        };
+          Toast.show({
+            type: 'success',
+            text1: '✓ Foto agregada',
+            text2: 'Se subirá automáticamente',
+            position: 'bottom',
+            visibilityTime: 2000
+          });
 
-        // Guardar igual que el frontend web
-        setFiles(prev => ({
-          ...prev,
-          [fieldName]: [...(prev[fieldName] || []), fileObject]
-        }));
-
-        Alert.alert('Éxito', 'Foto agregada correctamente');
+          // 🆕 Procesar cola inmediatamente después de agregar
+          processQueue((progress) => {
+            console.log('📊 Progreso de cola:', progress);
+          }).then(async () => {
+            // Actualizar estado después de procesar
+            const status = await getQueueStatus();
+            setQueueStatus(status);
+            
+            // 🆕 Marcar imagen como subida exitosamente
+            setFiles(prev => ({
+              ...prev,
+              [fieldName]: (prev[fieldName] || []).map(f => 
+                f.timestamp === fileObject.timestamp 
+                  ? { ...f, isExisting: true, queued: false }
+                  : f
+              )
+            }));
+          }).catch(err => console.error('Error procesando cola:', err));
+        }
       }
     } catch (error) {
+      console.error('Error procesando imagen:', error);
       Alert.alert('Error', 'No se pudo agregar la foto');
     }
   };
@@ -1509,12 +1655,16 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
           onNotesChange={(val) => handleInputChange('strong_odors_notes', val)}
         />
 
-        <CheckboxFieldNoMedia
+        <CheckboxField
           label="¿Nivel de agua correcto?"
           value={formData.water_level_ok}
           notesValue={formData.water_level_notes}
           onCheckChange={(val) => handleInputChange('water_level_ok', val)}
           onNotesChange={(val) => handleInputChange('water_level_notes', val)}
+          onMediaAdd={() => handleMediaAdd('water_level_ok')}
+          onMediaRemove={(index) => handleMediaRemove('water_level_ok', index)}
+          mediaCount={files.water_level_ok?.length || 0}
+          mediaFiles={files.water_level_ok || []}
         />
 
         <CheckboxField
@@ -1950,8 +2100,26 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
 
       {/* Botones de acción */}
       <View style={styles.actionButtons}>
-        {/* Botón DEBUG INFO */}
-       
+        {/* 🆕 Indicador de autosave - DESHABILITADO temporalmente
+        {lastAutosave && (
+          <View style={styles.autosaveIndicator}>
+            <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+            <Text style={styles.autosaveText}>
+              Guardado automáticamente {new Date(lastAutosave).toLocaleTimeString()}
+            </Text>
+          </View>
+        )}
+        */}
+
+        {/* 🆕 Indicador de cola de imágenes */}
+        {queueStatus.pending > 0 && (
+          <View style={styles.queueIndicator}>
+            <ActivityIndicator size="small" color="#FF9800" />
+            <Text style={styles.queueText}>
+              📤 {queueStatus.pending} imagen(es) pendiente(s)
+            </Text>
+          </View>
+        )}
 
         {/* Botón Guardar Progreso */}
         <TouchableOpacity
@@ -1967,7 +2135,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
           ) : (
             <>
               <Text style={styles.saveProgressButtonText}>💾 Guardar Progreso</Text>
-              <Text style={styles.buttonSubtext}>Continuar después</Text>
+              <Text style={styles.buttonSubtext}>Se guarda automáticamente cada 30s</Text>
             </>
           )}
         </TouchableOpacity>
@@ -2394,6 +2562,55 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 10,
   },
+  // 🆕 Estilos para autosave y cola
+  autosaveIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F5E9',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+    gap: 8,
+  },
+  autosaveText: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontWeight: '500',
+    flex: 1,
+  },
+  queueIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF3E0',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+    gap: 8,
+  },
+  queueText: {
+    fontSize: 12,
+    color: '#FF9800',
+    fontWeight: '500',
+    flex: 1,
+  },
+  forceSaveButton: {
+    backgroundColor: '#2196F3',
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  forceSaveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
 });
 
 export default MaintenanceFormScreen;
+

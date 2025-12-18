@@ -34,6 +34,13 @@ router.get('/work/:workId',
     MaintenanceController.getMaintenanceVisitsForWork
 );
 
+// ⭐ Obtener detalles completos de una visita específica (incluyendo mediaFiles)
+router.get('/:visitId/details', 
+    verifyToken, 
+    allowRoles(['admin', 'owner', 'worker', 'maintenance']),
+    MaintenanceController.getMaintenanceVisitDetails
+);
+
 // Actualizar una visita de mantenimiento (registrar fecha, notas, estado)
 router.put('/:visitId', 
     verifyToken, 
