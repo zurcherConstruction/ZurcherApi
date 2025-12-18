@@ -40,6 +40,11 @@ const budgetPublicRoutes = require('./BudgetPublicRoutes');
 const stripeWebhookRoutes = require('./stripeWebhookRoutes'); // 🆕 Webhooks de Stripe
 const docusignRoutes = require('./docusign.routes'); // 🆕 OAuth de DocuSign
 const exportRoutes = require('./exportRoutes'); // 🆕 Rutas para exportar datos a Excel
+// Health check endpoint (público, sin autenticación)
+router.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 router.use('/auth', authRoutes); // Registro y login no requieren token
 router.use('/change-orders',changeOrdersRoutes); // Ruta para change orders (incluye rutas públicas)
 

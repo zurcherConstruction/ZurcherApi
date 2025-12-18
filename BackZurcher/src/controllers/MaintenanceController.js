@@ -1,5 +1,6 @@
 const { Work, MaintenanceVisit, MaintenanceMedia, Staff, Permit } = require('../data');
 const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryUploader');
+const cloudinary = require('cloudinary').v2;
 const { Op } = require('sequelize');
 const { addMonths, format, parseISO  } = require('date-fns'); // Para manipulación de fechas
 const jwt = require('jsonwebtoken');
@@ -1382,7 +1383,7 @@ const completeMaintenanceVisit = async (req, res) => {
     const uploadedMedia = [];
     const maintenanceFiles = files?.maintenanceFiles || []; // Extraer array de maintenanceFiles
     
-    // Parsear el mapeo de archivos enviado desde el frontend (objeto: filename -> fieldName)
+    // Parsear el mapeo de archivos enviado desde el frontend (objeto: índice -> fieldName)
     let parsedFileMapping = {};
     try {
       parsedFileMapping = fileFieldMapping ? JSON.parse(fileFieldMapping) : {};
@@ -1396,51 +1397,39 @@ const completeMaintenanceVisit = async (req, res) => {
     if (maintenanceFiles.length > 0) {
       for (let i = 0; i < maintenanceFiles.length; i++) {
         const file = maintenanceFiles[i];
-        // Obtener el fieldName del mapping usando el nombre del archivo
-        const fieldName = parsedFileMapping[file.originalname] || 'general';
+        // ✅ Obtener el fieldName del mapping usando el ÍNDICE en lugar del nombre
+        // Esto evita colisiones cuando hay múltiples archivos con el mismo nombre
+        const fieldName = parsedFileMapping[i] || parsedFileMapping[file.originalname] || 'general';
         
-        console.log(`📸 Procesando archivo ${i + 1}/${maintenanceFiles.length}: ${file.originalname} -> campo: ${fieldName}`);
+        // 🆕 Generar nombre único para evitar duplicados
+        const timestamp = Date.now();
+        const randomSuffix = Math.random().toString(36).substring(7);
+        const fileExtension = file.originalname.split('.').pop();
+        const baseFileName = file.originalname.replace(/\.[^/.]+$/, ''); // Sin extensión
+        const uniqueOriginalName = `${baseFileName}_${timestamp}_${i}_${randomSuffix}.${fileExtension}`;
+        
+        console.log(`📸 Procesando archivo ${i + 1}/${maintenanceFiles.length}: ${file.originalname} -> ${uniqueOriginalName} -> campo: ${fieldName}`);
         
         const resourceType = file.mimetype.startsWith('video/') ? 'video' : (file.mimetype.startsWith('image/') ? 'image' : 'raw');
         const originalSize = Math.round(file.size / 1024); // KB
-        console.log(`📦 Subiendo ${resourceType}: ${file.originalname} (${originalSize}KB) con compresión automática`);
+        console.log(`📦 Subiendo ${resourceType}: ${uniqueOriginalName} (${originalSize}KB)`);
         
         const cloudinaryResult = await uploadBufferToCloudinary(file.buffer, {
           folder: `maintenance/${visit.workId}/${visit.id}`,
           resource_type: resourceType,
         });
 
-        // ✅ PREVENIR DUPLICACIÓN: Verificar si ya existe una imagen con el mismo originalName y fieldName
-        const existingMedia = await MaintenanceMedia.findOne({
-          where: {
-            maintenanceVisitId: visit.id,
-            originalName: file.originalname,
-            fieldName: fieldName
-          }
-        });
-
-        if (existingMedia) {
-          console.log(`⚠️ Imagen duplicada detectada (mismo nombre y campo): ${file.originalname} en ${fieldName}, omitiendo...`);
-          // Eliminar de Cloudinary la imagen recién subida (duplicada)
-          try {
-            await deleteFromCloudinary(cloudinaryResult.public_id);
-            console.log(`🗑️ Imagen duplicada eliminada de Cloudinary: ${cloudinaryResult.public_id}`);
-          } catch (deleteError) {
-            console.error(`❌ Error al eliminar duplicado de Cloudinary:`, deleteError);
-          }
-          continue; // Saltar este archivo y continuar con el siguiente
-        }
-
+        // La deduplicación ahora solo detectará duplicados REALES (mismo timestamp + índice + random)
         const newMedia = await MaintenanceMedia.create({
           maintenanceVisitId: visit.id,
           mediaUrl: cloudinaryResult.secure_url,
           publicId: cloudinaryResult.public_id,
           mediaType: resourceType === 'raw' ? 'document' : resourceType,
-          originalName: file.originalname,
-          fieldName: fieldName, // Usar el fieldName del mapping
+          originalName: uniqueOriginalName, // 🆕 Usar el nombre único
+          fieldName: fieldName,
         });
         uploadedMedia.push(newMedia);
-        console.log(`✅ Archivo guardado con fieldName: ${fieldName}`);
+        console.log(`✅ Archivo guardado: ${uniqueOriginalName} en campo ${fieldName}`);
       }
     }
 
@@ -1694,6 +1683,7 @@ const uploadMaintenanceImage = async (req, res) => {
     const { visitId } = req.params;
     const files = req.files || [];
     const fileFieldMapping = req.body.fileFieldMapping ? JSON.parse(req.body.fileFieldMapping) : {};
+    const directFieldName = req.body.fieldName; // 🆕 Aceptar fieldName directo desde la cola
 
     console.log(`📸 [uploadMaintenanceImage] Subiendo ${files.length} imagen(es) para visita ${visitId}`);
 
@@ -1735,23 +1725,24 @@ const uploadMaintenanceImage = async (req, res) => {
 
         console.log(`✅ Archivo subido a Cloudinary: ${result.secure_url}`);
 
-        // Determinar fieldName (de dónde viene la imagen)
-        const fieldName = fileFieldMapping[file.originalname] || 'general';
+        // 🆕 Determinar fieldName: priorizar fieldName directo, luego mapping, luego 'general'
+        const fieldName = directFieldName || fileFieldMapping[file.originalname] || 'general';
 
         // Guardar en base de datos
         const mediaRecord = await MaintenanceMedia.create({
-          visitId,
-          fileUrl: result.secure_url,
+          maintenanceVisitId: visitId,
+          mediaUrl: result.secure_url,
           publicId: result.public_id,
-          fileType: result.resource_type,
-          fieldName: fieldName, // Campo del formulario asociado
+          mediaType: result.resource_type,
+          fieldName: fieldName,
+          originalName: file.originalname,
           uploadedAt: new Date()
         });
 
         uploadedMedia.push({
           id: mediaRecord.id,
-          fileUrl: result.secure_url,
-          fileType: result.resource_type,
+          mediaUrl: result.secure_url,
+          mediaType: result.resource_type,
           fieldName: fieldName,
           originalName: file.originalname
         });
@@ -1776,12 +1767,52 @@ const uploadMaintenanceImage = async (req, res) => {
   }
 };
 
+// ⭐ Obtener detalles completos de una visita específica (incluyendo mediaFiles)
+const getMaintenanceVisitDetails = async (req, res) => {
+  try {
+    const { visitId } = req.params;
+    
+    const visit = await MaintenanceVisit.findByPk(visitId, {
+      include: [
+        { model: MaintenanceMedia, as: 'mediaFiles' },
+        { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] },
+        {
+          model: Work,
+          as: 'work',
+          include: [
+            {
+              model: Permit,
+              attributes: [
+                'idPermit', 'permitNumber', 'expirationDate', 'systemType',
+                'applicantName', 'applicantEmail', 'applicantPhone',
+                'propertyAddress',
+                'permitPdfUrl', 'permitPdfPublicId', 'optionalDocsUrl', 'optionalDocsPublicId',
+                'gpdCapacity', 'squareFeetSystem', 'pump', 'isPBTS'
+              ]
+            }
+          ]
+        }
+      ]
+    });
+
+    if (!visit) {
+      return res.status(404).json({ error: true, message: 'Visita de mantenimiento no encontrada.' });
+    }
+
+    res.status(200).json({ visit });
+  } catch (error) {
+    console.error('❌ Error obteniendo detalles de visita:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor.' });
+  }
+};
+
 module.exports = {
   scheduleInitialMaintenanceVisits, // Exportar para uso interno
   scheduleMaintenanceVisits, // Nueva función para programar manualmente
   initializeHistoricalMaintenance, // Nueva función para mantenimiento histórico
   createMaintenanceVisit, // Nueva función para crear visita individual
   getMaintenanceVisitsForWork,
+  getMaintenanceVisitDetails, // ⭐ Nueva función para obtener detalles completos
   updateMaintenanceVisit,
   addMediaToMaintenanceVisit,
   deleteMaintenanceMedia,

@@ -264,9 +264,24 @@ const WorkerMaintenanceDetail = () => {
         console.log('📸 Archivos data:', currentVisit.mediaFiles);
         setExistingMedia(currentVisit.mediaFiles);
         
+        // ✅ Deduplicar por ID antes de organizar (por si hay duplicados en la BD)
+        const uniqueMediaFiles = [];
+        const seenIds = new Set();
+        
+        currentVisit.mediaFiles.forEach(media => {
+          if (!seenIds.has(media.id)) {
+            seenIds.add(media.id);
+            uniqueMediaFiles.push(media);
+          } else {
+            console.warn(`⚠️ Imagen duplicada detectada (ID: ${media.id}, fieldName: ${media.fieldName})`);
+          }
+        });
+        
+        console.log(`🔍 Deduplicación: ${currentVisit.mediaFiles.length} → ${uniqueMediaFiles.length} imágenes únicas`);
+        
         // Organizar imágenes por fieldName para mostrarlas junto a cada pregunta
         const imagesByField = {};
-        currentVisit.mediaFiles.forEach(media => {
+        uniqueMediaFiles.forEach(media => {
           const fieldName = media.fieldName || 'general';
           if (!imagesByField[fieldName]) {
             imagesByField[fieldName] = [];
@@ -925,10 +940,11 @@ const WorkerMaintenanceDetail = () => {
       console.log('🔬 Well Sample Images:', wellSampleImages);
 
       // Agregar SOLO las imágenes NUEVAS de todos los campos (filtrar las existentes)
-      // Y crear un mapeo de nombre de archivo -> fieldName
+      // Y crear un mapeo de índice -> fieldName (en lugar de nombre -> fieldName para evitar duplicados)
       const fileFieldMapping = {};
       let newImagesCount = 0;
       let skippedExistingCount = 0;
+      let fileIndex = 0; // ✅ Índice único para cada archivo
       
       Object.keys(fieldImages).forEach(fieldName => {
         const images = fieldImages[fieldName] || [];
@@ -936,10 +952,11 @@ const WorkerMaintenanceDetail = () => {
           // ✅ VALIDACIÓN: Solo agregar si NO es una imagen existente
           if (img.file && !img.isExisting) {
             submitFormData.append('maintenanceFiles', img.file);
-            // Crear mapeo: nombre del archivo -> campo
-            fileFieldMapping[img.file.name] = fieldName;
+            // ✅ Crear mapeo usando ÍNDICE en lugar de nombre (evita colisiones con nombres duplicados)
+            fileFieldMapping[fileIndex] = fieldName;
+            console.log(`  ✅ Nueva imagen [${fileIndex}]: ${img.file.name} -> campo: ${fieldName}`);
+            fileIndex++;
             newImagesCount++;
-            console.log(`  ✅ Nueva imagen: ${img.file.name} -> campo: ${fieldName}`);
           } else if (img.isExisting) {
             skippedExistingCount++;
             console.log(`  ⏭️ Imagen existente omitida: ${img.name} (ID: ${img.id})`);
@@ -1203,7 +1220,7 @@ const WorkerMaintenanceDetail = () => {
           {images && images.length > 0 && (
             <div className="flex gap-2 flex-shrink-0">
               {images.slice(0, 3).map((img, idx) => (
-                <div key={idx} className="flex flex-col items-center">
+                <div key={img.id || `temp-${idx}`} className="flex flex-col items-center">
                   <div className="relative">
                     <img
                       src={img.url}
@@ -1356,7 +1373,7 @@ const WorkerMaintenanceDetail = () => {
           {images && images.length > 0 && (
             <div className="flex gap-2 flex-shrink-0">
               {images.slice(0, 3).map((img, idx) => (
-                <div key={idx} className="flex flex-col items-center">
+                <div key={img.id || `temp-${idx}`} className="flex flex-col items-center">
                   <div className="relative">
                     <img
                       src={img.url}
