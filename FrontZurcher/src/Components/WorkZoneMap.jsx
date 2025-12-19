@@ -225,10 +225,11 @@ const WorkZoneMap = () => {
                   </div>
                 </div>
 
-                {/* Lista Simple - SIEMPRE VISIBLE */}
-                <div className="p-4">
-                  <div className="space-y-2">
-                    {worksInZone.map((work, index) => {
+                {/* Lista Simple - SIEMPRE VISIBLE con Scroll */}
+                <div className="relative">
+                  <div className="p-4 max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-500 scrollbar-track-slate-200 hover:scrollbar-thumb-slate-600">
+                    <div className="space-y-2">
+                      {worksInZone.map((work, index) => {
                       // Si es worker, renderizar div (solo lectura), si no, renderizar Link
                       const WorkItem = isWorker ? 'div' : Link;
                       const itemProps = isWorker 
@@ -262,6 +263,8 @@ const WorkZoneMap = () => {
                       );
                     })}
                   </div>
+                  </div>
+                  
                 </div>
               </div>
             );
