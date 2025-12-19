@@ -196,6 +196,20 @@ export const balanceActions = {
   }
 },
 
+  // 🎯 NUEVO: Obtener análisis detallado para tarjetas expandibles
+  getDetailAnalysis: async (filters = {}) => {
+    try {
+      const cleanFilters = Object.entries(filters)
+        .filter(([key, value]) => value !== '' && value !== null && value !== undefined)
+        .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
+      
+      const response = await api.get('/balance/detailAnalysis', { params: cleanFilters });
+      return response.data;
+    } catch (error) {
+      return handleError(error, 'Error al obtener el análisis detallado');
+    }
+  },
+
  getFinancialStats: async (period, customDateRange = null) => {
     try {
       let filters = {};
