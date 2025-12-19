@@ -67,7 +67,7 @@ const AttachReceipt = () => {
 
 
   useEffect(() => {
-    dispatch(fetchWorks(1, 1000)); // Obtener hasta 1000 Works para asegurar que obtenemos todos
+    dispatch(fetchWorks(1, 'all')); // ✅ Usar 'all' para obtener TODOS los works sin límite
   }, [dispatch]);
 
   // Verificar Works disponibles para filtrado

@@ -35,17 +35,17 @@ const ProgressTracker = () => {
   // ✅ Fetch inicial solo una vez (cargar TODOS los works)
   useEffect(() => {
     if (!hasFetched.current) {
-      console.log('📊 [ProgressTracker] Cargando todos los works...');
+      console.log('📄 [ProgressTracker] Cargando TODOS los works (sin límite)...');
       hasFetched.current = true;
-      dispatch(fetchWorks(1, 1000)); // Límite alto para cargar todos
+      dispatch(fetchWorks(1, 'all')); // ✅ Usar 'all' para obtener TODOS los registros
     }
   }, []); // Sin dependencias para que solo se ejecute al montar
 
   // ✅ Refresco automático cada 5 min
   useEffect(() => {
     const intervalId = setInterval(() => {
-      console.log('🔄 [ProgressTracker] Auto-refresh todos los works...');
-      dispatch(fetchWorks(1, 1000)); // Límite alto para cargar todos
+      console.log('🔄 [ProgressTracker] Auto-refresh TODOS los works (sin límite)...');
+      dispatch(fetchWorks(1, 'all')); // ✅ Usar 'all' para obtener TODOS los registros
     }, 300000); // 5 minutos
 
     return () => {

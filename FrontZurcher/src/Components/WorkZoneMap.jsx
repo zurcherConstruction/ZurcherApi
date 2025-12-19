@@ -7,6 +7,7 @@ import {
   BuildingOfficeIcon 
 } from '@heroicons/react/24/outline';
 import useAutoRefresh from "../utils/useAutoRefresh";
+import useFetchAllWorks from "../hooks/useFetchAllWorks";
 
 // Definir las zonas y sus variantes de nombres
 const ZONES = {
@@ -106,11 +107,12 @@ const WorkZoneMap = () => {
   const isWorker = user?.role === 'worker';
 
   useEffect(() => {
-    dispatch(fetchWorks());
+    console.log('🚀 WorkZoneMap: Obteniendo TODOS los trabajos...');
+    dispatch(fetchWorks(1, 'all')); // ✅ Usar 'all' para obtener todos los registros
   }, [dispatch]);
 
-  // Auto-refresh cada 5 minutos
-  useAutoRefresh(fetchWorks, 300000, []);
+  // Auto-refresh cada 5 minutos obteniendo todos los trabajos
+  useAutoRefresh(() => fetchWorks(1, 'all'), 300000, []);
 
   // Función para detectar la zona de una dirección
   const detectZone = (address) => {
@@ -138,10 +140,16 @@ const WorkZoneMap = () => {
   useEffect(() => {
     if (!works) return;
 
+    console.log('🔍 DEBUG WorkZoneMap - Total works:', works.length);
+    console.log('🔍 DEBUG WorkZoneMap - Works coverPending:', works.filter(w => w.status === 'coverPending'));
+    console.log('🔍 DEBUG WorkZoneMap - All statuses:', works.map(w => ({ id: w.idWork, address: w.propertyAddress, status: w.status })));
+
     // Filtrar solo obras de campo (estados que requieren trabajo en campo)
     const fieldWorks = works.filter(work => 
       FIELD_WORK_STATUSES.includes(work.status)
     );
+
+    console.log('🔍 DEBUG WorkZoneMap - Field works:', fieldWorks.length);
 
     // Agrupar por zona
     const grouped = {};
@@ -152,6 +160,9 @@ const WorkZoneMap = () => {
 
     fieldWorks.forEach(work => {
       const zone = detectZone(work.propertyAddress);
+      if (work.status === 'coverPending') {
+        console.log('🔍 DEBUG Work coverPending:', work.propertyAddress, '→ Zona:', zone);
+      }
       grouped[zone].push(work);
     });
 
@@ -262,9 +273,15 @@ const WorkZoneMap = () => {
                         </WorkItem>
                       );
                     })}
-                  </div>
+                    </div>
                   </div>
                   
+                  {/* Indicador de scroll si hay muchos items */}
+                  {worksInZone.length > 5 && (
+                    <div className="px-4 pb-3 pt-2 text-center text-xs font-semibold text-slate-600 bg-gradient-to-t from-white via-white to-transparent">
+                      ⬇️ Scroll para ver todos los trabajos ({worksInZone.length} total) ⬇️
+                    </div>
+                  )}
                 </div>
               </div>
             );

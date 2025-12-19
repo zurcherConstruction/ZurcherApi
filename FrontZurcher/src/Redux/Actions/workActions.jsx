@@ -45,12 +45,23 @@ import {
 export const fetchWorks = (page = 1, limit = 50) => async (dispatch) => {
   dispatch(fetchWorksRequest());
   try {
+    console.log(`📡 Fetching works: page=${page}, limit=${limit}`);
     const response = await api.get(`/work?page=${page}&limit=${limit}`); // Ruta del backend con paginación
+    
+    console.log('📊 Backend response:', {
+      totalWorks: response.data.works?.length || 0,
+      pagination: response.data.pagination,
+      coverPendingCount: response.data.works?.filter(w => w.status === 'coverPending').length || 0
+    });
+    
     dispatch(fetchWorksSuccess(response.data));
+    return response.data; // Devolver datos para uso en componentes
   } catch (error) {
     const errorMessage =
       error.response?.data?.message || 'Error al obtener las obras';
+    console.error('❌ fetchWorks error:', errorMessage);
     dispatch(fetchWorksFailure(errorMessage));
+    throw error;
   }
 };
 
