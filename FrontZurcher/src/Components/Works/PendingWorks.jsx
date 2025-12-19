@@ -73,7 +73,7 @@ const PendingWorks = () => {
 
   useEffect(() => {
     dispatch(fetchStaff());
-    dispatch(fetchWorks());
+    dispatch(fetchWorks(1, 'all')); // ✅ Obtener todos los trabajos para gestión completa
   }, [dispatch]);
 
   // Cuando seleccionas un trabajo, carga sus datos actuales

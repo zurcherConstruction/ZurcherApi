@@ -72,13 +72,25 @@ const createWork = async (req, res) => {
 const getWorks = async (req, res) => {
   try {
     // 📄 PAGINACIÓN: Extraer parámetros de query
-    const page = parseInt(req.query.page) || 1; // Página actual (default: 1)
-    const limit = parseInt(req.query.limit) || 50; // Items por página (default: 50)
-    const offset = (page - 1) * limit;
+    const page = parseInt(req.query.page) || 1;
+    const requestedLimit = req.query.limit;
+    
+    // ✅ SOLUCIÓN UNIVERSAL: Permitir "all" para obtener todos los registros
+    let limit, offset;
+    if (requestedLimit === 'all') {
+      limit = null; // Sin límite
+      offset = 0;
+      console.log('🌍 Fetching ALL works (no pagination limit)');
+    } else {
+      const numericLimit = parseInt(requestedLimit) || 50;
+      limit = Math.min(numericLimit, 2000); // Máximo 2000 para casos normales
+      offset = (page - 1) * limit;
+    }
 
     // OPTIMIZACIÓN: Cargar solo lo esencial en la consulta principal
     // Evita locks excesivos al no cargar Expenses ni Receipts en el JOIN principal
-    const { count, rows: worksInstances } = await Work.findAndCountAll({
+    // ✅ Construir opciones de consulta dinámicamente
+    const queryOptions = {
       include: [
         {
           model: Budget,
@@ -121,11 +133,17 @@ const getWorks = async (req, res) => {
         // ❌ Removido: Expense y Receipt de la consulta principal
         // ✅ Se cargarán después en consultas separadas (más eficiente)
       ],
-      limit,
       offset,
       order: [['createdAt', 'DESC']],
       distinct: true, // ✅ Importante para COUNT correcto con includes
-    });
+    };
+
+    // ✅ Solo agregar limit si no es "all"
+    if (limit !== null) {
+      queryOptions.limit = limit;
+    }
+
+    const { count, rows: worksInstances } = await Work.findAndCountAll(queryOptions);
 
     // OPTIMIZACIÓN: Cargar expenses y receipts en consultas separadas
     // Esto reduce dramáticamente el número de locks necesarios

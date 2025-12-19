@@ -71,7 +71,7 @@ const WorkStatusManager = () => {
   };
 
   useEffect(() => {
-    dispatch(fetchWorks());
+    dispatch(fetchWorks(1, 'all')); // ✅ Obtener todos los trabajos para gestión de estados
   }, [dispatch]);
 
   useEffect(() => {
