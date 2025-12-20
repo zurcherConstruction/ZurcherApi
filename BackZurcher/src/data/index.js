@@ -381,6 +381,13 @@ FixedExpensePayment.belongsTo(Expense, {
   as: 'generatedExpense'
 });
 
+// 🆕 NUEVA ASOCIACIÓN: Expense puede estar relacionado directamente con FixedExpense
+Expense.belongsTo(FixedExpense, {
+  foreignKey: 'relatedFixedExpenseId',
+  as: 'fixedExpense',
+  constraints: false
+});
+
 // 🆕 Un Staff puede registrar pagos parciales
 Staff.hasMany(FixedExpensePayment, {
   foreignKey: 'createdByStaffId',

@@ -688,17 +688,20 @@ const FinancialDashboardController = {
     try {
       const { month = new Date().getMonth() + 1, year = new Date().getFullYear() } = req.query;
       
-      // Fechas para filtrar
+      // Fechas para filtrar (usar formato más inclusivo)
+      const startDate = new Date(`${year}-${month.toString().padStart(2, '0')}-01T00:00:00`);
+      const endDate = new Date(`${year}-${month.toString().padStart(2, '0')}-31T23:59:59`);
       const startDateStr = `${year}-${month.toString().padStart(2, '0')}-01`;
       const endDateStr = `${year}-${month.toString().padStart(2, '0')}-31`;
       
       console.log(`🔍 [DetailedDashboard] Analizando: ${startDateStr} - ${endDateStr}`);
+      console.log(`🔍 [DetailedDashboard] Rango completo: ${startDate.toISOString()} - ${endDate.toISOString()}`);
       
       // ===== 1. INGRESOS DETALLADOS =====
       const incomes = await Income.findAll({
         where: {
           date: {
-            [Op.between]: [startDateStr, endDateStr]
+            [Op.between]: [startDate, endDate]
           }
         },
         order: [['date', 'DESC']],
@@ -709,32 +712,54 @@ const FinancialDashboardController = {
       const allExpenses = await Expense.findAll({
         where: {
           date: {
-            [Op.between]: [startDateStr, endDateStr]
+            [Op.between]: [startDate, endDate]
           }
         },
         order: [['date', 'DESC']],
         attributes: ['idExpense', 'date', 'amount', 'paymentMethod', 'typeExpense', 'notes', 'workId', 'relatedFixedExpenseId']
       });
       
-      // 🚫 Filtrar gastos duplicados (excluir los que tienen relatedFixedExpenseId)
-      const expenses = allExpenses.filter(exp => !exp.relatedFixedExpenseId);
-      const duplicatedExpenses = allExpenses.filter(exp => exp.relatedFixedExpenseId);
+      // 🚫 Filtrar gastos duplicados SOLO si realmente están duplicados
+      // Ser más conservador: solo excluir si está claramente marcado como duplicado
+      const expenses = allExpenses.filter(exp => {
+        // Incluir todos EXCEPTO aquellos que están claramente marcados como duplicados
+        // y además tienen una referencia válida a un gasto fijo
+        return !(exp.relatedFixedExpenseId && exp.relatedFixedExpenseId > 0);
+      });
+      
+      const duplicatedExpenses = allExpenses.filter(exp => exp.relatedFixedExpenseId && exp.relatedFixedExpenseId > 0);
       
       console.log(`📄 [DetailedDashboard] Gastos totales encontrados: ${allExpenses.length}`);
       console.log(`✅ [DetailedDashboard] Gastos válidos (sin duplicar): ${expenses.length}`);
       console.log(`⚠️ [DetailedDashboard] Gastos duplicados excluidos: ${duplicatedExpenses.length}`);
+      
+      // 🔍 Log detallado de gastos excluidos para verificación
+      if (duplicatedExpenses.length > 0) {
+        console.log('🔍 [DetailedDashboard] Gastos duplicados excluidos:');
+        duplicatedExpenses.forEach((dup, i) => {
+          console.log(`   ${i+1}. ID:${dup.idExpense} | ${dup.date} | $${parseFloat(dup.amount).toFixed(2)} | relatedId: ${dup.relatedFixedExpenseId}`);
+          console.log(`      Notas: ${dup.notes?.substring(0, 50) || 'Sin notas'}${dup.notes?.length > 50 ? '...' : ''}`);
+        });
+      }
+      
+      // 🔍 Log de verificación de totales
+      const totalValidAmount = expenses.reduce((sum, exp) => sum + parseFloat(exp.amount), 0);
+      const totalAllAmount = allExpenses.reduce((sum, exp) => sum + parseFloat(exp.amount), 0);
+      console.log(`💰 [DetailedDashboard] Total gastos válidos: $${totalValidAmount.toFixed(2)}`);
+      console.log(`💰 [DetailedDashboard] Total gastos encontrados: $${totalAllAmount.toFixed(2)}`);
+      console.log(`💰 [DetailedDashboard] Diferencia por exclusión: $${(totalAllAmount - totalValidAmount).toFixed(2)}`);
 
       // ===== 3. PAGOS DE GASTOS FIJOS DETALLADOS =====
       const fixedExpensePayments = await FixedExpensePayment.findAll({
         where: {
           paymentDate: {
-            [Op.between]: [new Date(startDateStr), new Date(endDateStr)]
+            [Op.between]: [startDate, endDate]
           }
         },
         include: [{
           model: FixedExpense,
           as: 'fixedExpense',
-          attributes: ['name', 'category']
+          attributes: ['idFixedExpense', 'name', 'category', 'totalAmount', 'frequency', 'description'] // Fixed: usar totalAmount
         }],
         order: [['paymentDate', 'DESC']],
         attributes: ['idPayment', 'amount', 'paymentDate', 'paymentMethod', 'notes', 'fixedExpenseId']
@@ -766,20 +791,148 @@ const FinancialDashboardController = {
       // ===== 5. ANÁLISIS DE GASTOS GENERALES =====
       const expensesByMethod = {};
       const expensesByType = {};
+      const expensesBySupplier = {}; // 🎯 Pagos a proveedores específicos
+      const expensesByCategory = {}; // 🎯 Nueva agrupación por categoría principal
       let totalGeneralExpenses = 0;
 
       expenses.forEach(expense => {
         const method = expense.paymentMethod || 'Sin especificar';
-        const type = expense.typeExpense || 'Sin categoría';
+        const notes = expense.notes || '';
+        
+        // 🎯 CLASIFICACIÓN PRINCIPAL POR CATEGORÍA
+        let mainCategory = 'Gastos Generales';
+        let supplierName = null;
+        
+        // 1. Verificar si es comisión de vendedor
+        if (notes.toLowerCase().includes('comisión') || 
+            notes.toLowerCase().includes('comision') ||
+            notes.toLowerCase().includes('commission')) {
+          mainCategory = 'Comisiones de Vendedores';
+        }
+        // 2. Verificar si es pago a proveedor (contiene " - Invoice " o similar)
+        else if (notes.includes(' - Invoice ') || 
+                 (notes.includes(' - ') && !notes.toLowerCase().includes('paso') && 
+                  !notes.toLowerCase().includes('pago') && !notes.toLowerCase().includes('comisión'))) {
+          mainCategory = 'Pagos a Proveedores';
+          
+          // Extraer nombre del proveedor
+          if (notes.includes(' - Invoice ')) {
+            const parts = notes.split(' - Invoice ');
+            if (parts[0]) {
+              supplierName = parts[0].trim();
+            }
+          } else if (notes.includes(' - ')) {
+            const parts = notes.split(' - ');
+            if (parts[0]) {
+              supplierName = parts[0].trim();
+            }
+          }
+          
+          // Limpiar y estandarizar nombres de proveedores
+          if (supplierName) {
+            supplierName = supplierName.split(' ')
+              .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+              .join(' ');
+          } else {
+            supplierName = 'Proveedor No Identificado';
+          }
+        }
+        // 3. Materiales Iniciales
+        else if (notes.toLowerCase().includes('materiales iniciales') || 
+                 notes.toLowerCase().includes('gasto de materiales iniciales')) {
+          mainCategory = 'Materiales Iniciales';
+        }
+        // 4. Materiales generales y Chambers/Endcaps
+        else if (notes.toLowerCase().includes('chambers y endcaps') ||
+                 notes.toLowerCase().includes('chambers') ||
+                 notes.toLowerCase().includes('endcaps') ||
+                 (notes.toLowerCase().includes('materiales') && !notes.toLowerCase().includes('materiales iniciales')) || 
+                 notes.toLowerCase().includes('materials')) {
+          mainCategory = 'Materiales';
+        }
+        // 5. Inspección Inicial
+        else if (notes.toLowerCase().includes('inspection') ||
+                 notes.toLowerCase().includes('inspección') ||
+                 notes.toLowerCase().includes('initial inspection')) {
+          mainCategory = 'Inspección Inicial';
+        }
+        // 6. Todo lo demás va a Gastos Generales (incluye: Nómina, Combustible, Seguros, Mantenimiento, etc.)
+        else {
+          mainCategory = 'Gastos Generales';
+        }
+        
+        // 🎯 CLASIFICACIÓN DETALLADA POR TIPO (mantenida para compatibilidad)
+        let type = 'Gastos Generales';
+        
+        if (notes.toLowerCase().includes('materiales iniciales') || 
+            notes.toLowerCase().includes('gasto de materiales iniciales')) {
+          type = 'Materiales Iniciales';
+        } else if (notes.toLowerCase().includes('chambers y endcaps') ||
+                  notes.toLowerCase().includes('chambers') ||
+                  notes.toLowerCase().includes('endcaps')) {
+          type = 'Materiales - Chambers y Endcaps';
+        } else if (notes.toLowerCase().includes('inspection') ||
+                  notes.toLowerCase().includes('inspección') ||
+                  notes.toLowerCase().includes('initial inspection')) {
+          type = 'Inspección Inicial';
+        } else if (notes.toLowerCase().includes('payroll') ||
+                  notes.toLowerCase().includes('salarios') ||
+                  expense.relatedFixedExpenseId) {
+          type = 'Nómina y Salarios';
+        } else if (notes.toLowerCase().includes('gasolina') ||
+                  notes.toLowerCase().includes('diesel') ||
+                  notes.toLowerCase().includes('gas') ||
+                  notes.toLowerCase().includes('combustible')) {
+          type = 'Combustible';
+        } else if (notes.toLowerCase().includes('sand') ||
+                  notes.toLowerCase().includes('arena') ||
+                  notes.toLowerCase().includes('trucking') ||
+                  notes.toLowerCase().includes('transport')) {
+          type = 'Transporte y Arena';
+        } else if (notes.toLowerCase().includes('lift station') ||
+                  notes.toLowerCase().includes('tanque') ||
+                  notes.toLowerCase().includes('septic')) {
+          type = 'Lift Station y Tanques';
+        } else if (notes.toLowerCase().includes('agua') ||
+                  notes.toLowerCase().includes('hielo') ||
+                  notes.toLowerCase().includes('water') ||
+                  notes.toLowerCase().includes('ice')) {
+          type = 'Suministros Básicos';
+        } else if (notes.toLowerCase().includes('liability') ||
+                  notes.toLowerCase().includes('insurance') ||
+                  notes.toLowerCase().includes('seguro')) {
+          type = 'Seguros';
+        } else if (notes.toLowerCase().includes('aceite') ||
+                  notes.toLowerCase().includes('oil') ||
+                  notes.toLowerCase().includes('grease') ||
+                  notes.toLowerCase().includes('grasa')) {
+          type = 'Mantenimiento Equipos';
+        } else if (notes.toLowerCase().includes('comisión') || 
+                  notes.toLowerCase().includes('comision') ||
+                  notes.toLowerCase().includes('commission')) {
+          type = 'Comisiones de Vendedores';
+        }
         
         // Por método de pago
         if (!expensesByMethod[method]) {
           expensesByMethod[method] = { count: 0, total: 0, transactions: [] };
         }
         
-        // Por tipo de gasto
+        // Por tipo de gasto (detallado)
         if (!expensesByType[type]) {
           expensesByType[type] = { count: 0, total: 0, transactions: [] };
+        }
+        
+        // 🎯 Por categoría principal
+        if (!expensesByCategory[mainCategory]) {
+          expensesByCategory[mainCategory] = { count: 0, total: 0, transactions: [] };
+        }
+        
+        // 🎯 Por proveedor (solo si es pago a proveedor)
+        if (mainCategory === 'Pagos a Proveedores' && supplierName) {
+          if (!expensesBySupplier[supplierName]) {
+            expensesBySupplier[supplierName] = { count: 0, total: 0, transactions: [] };
+          }
         }
         
         const amount = parseFloat(expense.amount);
@@ -789,6 +942,8 @@ const FinancialDashboardController = {
           amount: amount,
           method: method,
           type: type,
+          mainCategory: mainCategory, // 🎯 Categoría principal
+          supplierName: supplierName, // 🎯 Nombre del proveedor (si aplica)
           notes: expense.notes,
           workId: expense.workId
         };
@@ -800,6 +955,18 @@ const FinancialDashboardController = {
         expensesByType[type].count++;
         expensesByType[type].total += amount;
         expensesByType[type].transactions.push(transaction);
+        
+        // 🎯 Agrupar por categoría principal
+        expensesByCategory[mainCategory].count++;
+        expensesByCategory[mainCategory].total += amount;
+        expensesByCategory[mainCategory].transactions.push(transaction);
+        
+        // 🎯 Agrupar por proveedor (solo si es pago a proveedor)
+        if (mainCategory === 'Pagos a Proveedores' && supplierName) {
+          expensesBySupplier[supplierName].count++;
+          expensesBySupplier[supplierName].total += amount;
+          expensesBySupplier[supplierName].transactions.push(transaction);
+        }
         
         totalGeneralExpenses += amount;
       });
@@ -821,9 +988,17 @@ const FinancialDashboardController = {
           id: payment.idPayment,
           date: payment.paymentDate,
           amount: amount,
-          fixedExpenseName: payment.FixedExpense?.name || 'N/A',
-          category: payment.FixedExpense?.category || 'N/A',
-          notes: payment.notes
+          fixedExpenseName: payment.fixedExpense?.name || 'N/A',
+          category: payment.fixedExpense?.category || 'N/A', 
+          notes: payment.notes || 'Sin notas',
+          // 🎯 INFORMACIÓN COMPLETA DEL GASTO FIJO
+          fixedExpenseDetails: {
+            name: payment.fixedExpense?.name || 'Sin nombre',
+            category: payment.fixedExpense?.category || 'Sin categoría',
+            amount: payment.fixedExpense?.totalAmount || 0,
+            frequency: payment.fixedExpense?.frequency || 'Sin frecuencia',
+            description: payment.fixedExpense?.description || 'Sin descripción'
+          }
         });
         
         totalFixedPaid += amount;
@@ -852,6 +1027,22 @@ const FinancialDashboardController = {
       const totalRealExpenses = totalFixedPaid + totalGeneralExpenses;
       const netBalance = totalIncome - totalRealExpenses;
       const efficiency = totalRealExpenses > 0 ? ((totalIncome / totalRealExpenses) * 100) : 0;
+
+      // 🔍 VERIFICACIÓN FINAL DE INTEGRIDAD
+      const categoriesTotal = Object.values(expensesByCategory).reduce((sum, cat) => sum + cat.total, 0);
+      const categoriesCount = Object.values(expensesByCategory).reduce((sum, cat) => sum + cat.count, 0);
+      
+      console.log('\n🔍 [DetailedDashboard] VERIFICACIÓN FINAL:');
+      console.log(`   Gastos procesados individualmente: ${expenses.length} | $${totalGeneralExpenses.toFixed(2)}`);
+      console.log(`   Gastos en categorías: ${categoriesCount} | $${categoriesTotal.toFixed(2)}`);
+      console.log(`   Diferencia en conteo: ${expenses.length - categoriesCount}`);
+      console.log(`   Diferencia en monto: $${Math.abs(totalGeneralExpenses - categoriesTotal).toFixed(2)}`);
+      
+      if (Math.abs(totalGeneralExpenses - categoriesTotal) > 0.01 || expenses.length !== categoriesCount) {
+        console.log('⚠️  [DetailedDashboard] ADVERTENCIA: Discrepancia en clasificación detectada');
+      } else {
+        console.log('✅ [DetailedDashboard] Todos los gastos clasificados correctamente');
+      }
 
       const response = {
         success: true,
@@ -896,6 +1087,8 @@ const FinancialDashboardController = {
             transactionCount: expenses.length,
             byMethod: expensesByMethod,
             byType: expensesByType,
+            bySupplier: expensesBySupplier, // Pagos a proveedores específicos
+            byCategory: expensesByCategory, // 🎯 Nueva agrupación por categoría principal
             allTransactions: expenses.map(expense => ({
               id: expense.idExpense,
               date: expense.date,
@@ -917,8 +1110,8 @@ const FinancialDashboardController = {
               date: payment.paymentDate,
               amount: parseFloat(payment.amount),
               method: payment.paymentMethod,
-              fixedExpenseName: payment.FixedExpense?.name || 'N/A',
-              category: payment.FixedExpense?.category || 'N/A',
+              fixedExpenseName: payment.fixedExpense?.name || 'N/A',
+              category: payment.fixedExpense?.category || 'N/A',
               notes: payment.notes
             }))
           },

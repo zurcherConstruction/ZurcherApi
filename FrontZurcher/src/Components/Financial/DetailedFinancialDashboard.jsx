@@ -43,7 +43,9 @@ const DetailedFinancialDashboard = ({ isOpen, onClose }) => {
       const response = await api.get('/financial-dashboard/detailed', {
         params: {
           month: selectedMonth,
-          year: selectedYear
+          year: selectedYear,
+          refresh: true, // 🎯 Forzar limpieza de caché para obtener datos actualizados
+          _t: Date.now() // 🎯 Cache buster adicional
         }
       });
       
@@ -364,102 +366,160 @@ const DetailedFinancialDashboard = ({ isOpen, onClose }) => {
                 )}
               </div>
 
-              {/* Sección de Gastos Generales Detallados */}
-              <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-                <button
-                  onClick={() => toggleSection('expenses')}
-                  className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center">
-                    <CreditCardIcon className="h-5 w-5 text-red-600 mr-2" />
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      Gastos Generales ({dashboardData.expenseDetails.transactionCount})
-                    </h3>
-                  </div>
-                  <div className="flex items-center">
-                    <span className="text-red-600 font-semibold mr-2">
-                      {formatCurrency(dashboardData.expenseDetails.total)}
-                    </span>
-                    {expandedSections.expenses ? (
-                      <ChevronDownIcon className="h-5 w-5" />
-                    ) : (
-                      <ChevronRightIcon className="h-5 w-5" />
-                    )}
-                  </div>
-                </button>
-
-                {expandedSections.expenses && (
-                  <div className="px-6 pb-4">
-                    {/* Resumen por método de pago */}
-                    <div className="mb-4">
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">Por Método de Pago:</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {Object.entries(dashboardData.expenseDetails.byMethod).map(([method, data]) => (
-                          <div key={method} className="bg-red-50 rounded-lg p-3">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center">
-                                {getPaymentMethodIcon(method)}
-                                <span className="ml-2 text-sm font-medium text-red-800">{method}</span>
-                              </div>
-                              <span className="text-red-700 font-semibold">{formatCurrency(data.total)}</span>
-                            </div>
-                            <p className="text-xs text-red-600 mt-1">{data.count} transacciones</p>
-                          </div>
-                        ))}
+              {/* Sección de Gastos Generales por Categoría */}
+              <div className="space-y-4">
+                <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
+                  <div className="px-6 py-4 bg-red-50 border-b border-red-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <CreditCardIcon className="h-5 w-5 text-red-600 mr-2" />
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          Gastos Generales ({dashboardData.expenseDetails.transactionCount})
+                        </h3>
                       </div>
+                      <span className="text-red-600 font-semibold">
+                        {formatCurrency(dashboardData.expenseDetails.total)}
+                      </span>
                     </div>
+                  </div>
 
-                    {/* Resumen por tipo de gasto */}
-                    <div className="mb-4">
-                      <h4 className="text-sm font-medium text-gray-700 mb-2">Por Tipo de Gasto:</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                        {Object.entries(dashboardData.expenseDetails.byType).map(([type, data]) => (
-                          <div key={type} className="flex items-center justify-between p-2 rounded-lg bg-gray-50">
-                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${getTypeColor(type)}`}>
-                              {type}
+                  <div className="p-6 space-y-4">
+                    {Object.entries(dashboardData.expenseDetails.byCategory || {}).map(([category, categoryData]) => (
+                      <div key={category} className="bg-white border border-gray-200 rounded-lg shadow-sm">
+                        <button
+                          onClick={() => toggleSection(`expense-category-${category}`)}
+                          className="w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="flex items-center">
+                            <div className={`px-3 py-1 rounded-full text-sm font-medium mr-3 ${
+                              category === 'Comisiones de Vendedores' ? 'bg-purple-100 text-purple-800' :
+                              category === 'Pagos a Proveedores' ? 'bg-blue-100 text-blue-800' :
+                              category === 'Materiales Iniciales' ? 'bg-cyan-100 text-cyan-800' :
+                              category === 'Materiales' ? 'bg-teal-100 text-teal-800' :
+                              category === 'Inspección Inicial' ? 'bg-amber-100 text-amber-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {category}
+                            </div>
+                            <span className="text-sm font-medium text-gray-700">
+                              {categoryData.count} transacciones
                             </span>
-                            <div className="text-right">
-                              <p className="text-sm font-semibold text-gray-900">{formatCurrency(data.total)}</p>
-                              <p className="text-xs text-gray-600">{data.count} items</p>
-                            </div>
                           </div>
-                        ))}
-                      </div>
-                    </div>
+                          <div className="flex items-center">
+                            <span className="text-red-600 font-semibold mr-2">
+                              {formatCurrency(categoryData.total)}
+                            </span>
+                            {expandedSections[`expense-category-${category}`] ? (
+                              <ChevronDownIcon className="h-4 w-4" />
+                            ) : (
+                              <ChevronRightIcon className="h-4 w-4" />
+                            )}
+                          </div>
+                        </button>
 
-                    {/* Todas las transacciones */}
-                    <div className="max-h-64 overflow-y-auto">
-                      <table className="min-w-full text-sm">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Monto</th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Método</th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
-                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Notas</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200">
-                          {dashboardData.expenseDetails.allTransactions.map((transaction) => (
-                            <tr key={transaction.id} className="hover:bg-gray-50">
-                              <td className="px-3 py-2 text-gray-900">{formatDate(transaction.date)}</td>
-                              <td className="px-3 py-2 text-red-600 font-semibold">{formatCurrency(transaction.amount)}</td>
-                              <td className="px-3 py-2 text-gray-600">{transaction.method || 'N/A'}</td>
-                              <td className="px-3 py-2">
-                                <span className={`px-2 py-1 text-xs font-medium rounded-full ${getTypeColor(transaction.type)}`}>
-                                  {transaction.type}
-                                </span>
-                              </td>
-                              <td className="px-3 py-2 text-gray-600 max-w-xs truncate">
-                                {transaction.notes || 'Sin notas'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                        {expandedSections[`expense-category-${category}`] && (
+                          <div className="px-4 pb-3 border-t border-gray-100">
+                            
+                            {/* Si es "Pagos a Proveedores", mostrar subsecciones por proveedor */}
+                            {category === 'Pagos a Proveedores' && dashboardData.expenseDetails.bySupplier && (
+                              <div className="mt-3 space-y-2">
+                                <h5 className="text-sm font-medium text-gray-600 mb-2">Por Proveedor:</h5>
+                                {Object.entries(dashboardData.expenseDetails.bySupplier).map(([supplier, supplierData]) => (
+                                  <div key={supplier} className="bg-blue-50 border border-blue-200 rounded-lg">
+                                    <button
+                                      onClick={() => toggleSection(`supplier-${supplier}`)}
+                                      className="w-full px-3 py-2 flex items-center justify-between hover:bg-blue-100 transition-colors"
+                                    >
+                                      <div className="flex items-center">
+                                        <span className="text-sm font-medium text-blue-800">{supplier}</span>
+                                        <span className="ml-2 text-xs text-blue-600">
+                                          ({supplierData.count} facturas)
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center">
+                                        <span className="text-blue-700 font-semibold text-sm mr-1">
+                                          {formatCurrency(supplierData.total)}
+                                        </span>
+                                        {expandedSections[`supplier-${supplier}`] ? (
+                                          <ChevronDownIcon className="h-3 w-3" />
+                                        ) : (
+                                          <ChevronRightIcon className="h-3 w-3" />
+                                        )}
+                                      </div>
+                                    </button>
+
+                                    {expandedSections[`supplier-${supplier}`] && (
+                                      <div className="px-3 pb-2 border-t border-blue-200">
+                                        <div className="mt-2 max-h-32 overflow-y-auto">
+                                          <table className="min-w-full text-xs">
+                                            <thead className="bg-blue-100">
+                                              <tr>
+                                                <th className="px-2 py-1 text-left text-blue-700">Fecha</th>
+                                                <th className="px-2 py-1 text-left text-blue-700">Monto</th>
+                                                <th className="px-2 py-1 text-left text-blue-700">Método</th>
+                                                <th className="px-2 py-1 text-left text-blue-700">Descripción</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {supplierData.transactions.map((transaction) => (
+                                                <tr key={transaction.id} className="hover:bg-blue-100">
+                                                  <td className="px-2 py-1 text-gray-900">{formatDate(transaction.date)}</td>
+                                                  <td className="px-2 py-1 text-red-600 font-semibold">{formatCurrency(transaction.amount)}</td>
+                                                  <td className="px-2 py-1 text-gray-600">{transaction.method || 'N/A'}</td>
+                                                  <td className="px-2 py-1 text-gray-600 max-w-xs">
+                                                    <div className="truncate" title={transaction.notes}>
+                                                      {transaction.notes || 'Sin notas'}
+                                                    </div>
+                                                  </td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Para otras categorías, mostrar transacciones directamente */}
+                            {category !== 'Pagos a Proveedores' && (
+                              <div className="mt-3">
+                                <div className="max-h-48 overflow-y-auto">
+                                  <table className="min-w-full text-sm">
+                                    <thead className="bg-gray-50">
+                                      <tr>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Monto</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Método</th>
+                                        <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200">
+                                      {categoryData.transactions.map((transaction) => (
+                                        <tr key={transaction.id} className="hover:bg-gray-50">
+                                          <td className="px-3 py-2 text-gray-900">{formatDate(transaction.date)}</td>
+                                          <td className="px-3 py-2 text-red-600 font-semibold">{formatCurrency(transaction.amount)}</td>
+                                          <td className="px-3 py-2 text-gray-600">{transaction.method || 'N/A'}</td>
+                                          <td className="px-3 py-2 text-gray-600 max-w-xs">
+                                            <div className="truncate" title={transaction.notes}>
+                                              {transaction.notes || 'Sin notas'}
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                )}
+                </div>
               </div>
 
               {/* Sección de Pagos de Gastos Fijos */}

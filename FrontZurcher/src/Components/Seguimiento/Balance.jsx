@@ -13,6 +13,7 @@ import {
   ArcElement,
 } from 'chart.js';
 import { balanceActions } from '../../Redux/Actions/balanceActions';
+import ExpandableCard from './ExpandableCard';
 import { 
   startOfWeek, 
   endOfWeek, 
@@ -50,6 +51,8 @@ const Balance = () => {
   const [period, setPeriod] = useState('month');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [detailAnalysis, setDetailAnalysis] = useState(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
   
   // CORREGIR: Inicializar con fechas válidas
   const [dateRange, setDateRange] = useState(() => {
@@ -106,6 +109,7 @@ const Balance = () => {
 // Obtener datos financieros - MEJORADO
 const fetchFinancialData = async (selectedPeriod) => {
   setLoading(true);
+  setLoadingDetails(true);
   try {
     const range = setupDateRange(selectedPeriod);
     setDateRange(range);
@@ -119,11 +123,8 @@ const fetchFinancialData = async (selectedPeriod) => {
       staffId: ''
     };
 
-    
-
+    // Obtener datos generales del balance
     const response = await balanceActions.getGeneralBalance(filters);
-    
-   
     
     if (response && !response.error) {
       setData(response);
@@ -148,6 +149,40 @@ const fetchFinancialData = async (selectedPeriod) => {
         totalIncome: 0,
         totalExpense: 0,
         profit: 0,
+        profitMargin: 0
+      });
+    }
+
+    // 🎯 NUEVO: Obtener análisis detallado para las tarjetas expandibles
+    const detailFilters = {
+      startDate: range.start,
+      endDate: range.end
+    };
+
+    const detailResponse = await balanceActions.getDetailAnalysis(detailFilters);
+    
+    if (detailResponse && !detailResponse.error) {
+      setDetailAnalysis(detailResponse);
+    } else {
+      console.error('Error in detail analysis:', detailResponse?.message);
+      setDetailAnalysis(null);
+    }
+
+  } catch (error) {
+    console.error('Error fetching financial data:', error);
+    setData(null);
+    setSummary({
+      totalIncome: 0,
+      totalExpense: 0,
+      profit: 0,
+      profitMargin: 0
+    });
+    setDetailAnalysis(null);
+  } finally {
+    setLoading(false);
+    setLoadingDetails(false);
+  }
+};
         profitMargin: 0
       });
     }
@@ -466,6 +501,63 @@ const processTimeSeriesData = () => {
               <p className="amount">{summary.profitMargin.toFixed(1)}%</p>
             </div>
           </div>
+
+          {/* 🎯 NUEVA SECCIÓN: Análisis Detallado por Tarjetas Expandibles */}
+          {!loadingDetails && detailAnalysis && (
+            <>
+              {/* Análisis por Método de Pago */}
+              <div className="detail-analysis-section">
+                <h2>📊 Análisis por Método de Pago</h2>
+                <p className="section-description">
+                  Detalle expandible de gastos agrupados por método de pago. Click en cada tarjeta para ver todos los gastos.
+                </p>
+                <div className="expandable-cards-container">
+                  {detailAnalysis.paymentMethods?.map((method, index) => (
+                    <ExpandableCard
+                      key={`payment-${index}`}
+                      title={`💳 ${method.method}`}
+                      totalAmount={method.totalAmount}
+                      paidAmount={method.paidAmount}
+                      unpaidAmount={method.unpaidAmount}
+                      totalCount={method.totalCount}
+                      paidCount={method.paidCount}
+                      unpaidCount={method.unpaidCount}
+                      items={method.expenses}
+                      type="paymentMethod"
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* Análisis por Tipo de Gasto */}
+              <div className="detail-analysis-section">
+                <h2>📋 Análisis por Tipo de Gasto</h2>
+                <p className="section-description">
+                  Detalle expandible de gastos agrupados por categoría/tipo. Click en cada tarjeta para ver todos los gastos.
+                </p>
+                <div className="expandable-cards-container">
+                  {detailAnalysis.expenseTypes?.map((type, index) => (
+                    <ExpandableCard
+                      key={`type-${index}`}
+                      title={`📂 ${type.type}`}
+                      totalAmount={type.totalAmount}
+                      paidAmount={type.paidAmount}
+                      unpaidAmount={type.unpaidAmount}
+                      totalCount={type.totalCount}
+                      paidCount={type.paidCount}
+                      unpaidCount={type.unpaidCount}
+                      items={type.expenses}
+                      type="expenseType"
+                    />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {loadingDetails && (
+            <div className="loading">Cargando análisis detallado...</div>
+          )}
 
           {/* Gráficos */}
           <div className="charts-container">

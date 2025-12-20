@@ -14,6 +14,44 @@ const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/clo
 const { createWithdrawalTransaction } = require('../utils/bankTransactionHelper');
 
 /**
+ * 🔄 Calcular la siguiente fecha de vencimiento
+ * @param {Date} currentDueDate - Fecha de vencimiento actual
+ * @param {string} frequency - Frecuencia del gasto fijo
+ * @returns {Date} - Nueva fecha de vencimiento
+ */
+function calculateNextDueDate(currentDueDate, frequency) {
+  const current = new Date(currentDueDate);
+  const next = new Date(current);
+
+  switch (frequency) {
+    case 'weekly':
+      next.setDate(current.getDate() + 7);
+      break;
+    case 'biweekly':
+      next.setDate(current.getDate() + 14);
+      break;
+    case 'monthly':
+      next.setMonth(current.getMonth() + 1);
+      break;
+    case 'quarterly':
+      next.setMonth(current.getMonth() + 3);
+      break;
+    case 'semiannual':
+      next.setMonth(current.getMonth() + 6);
+      break;
+    case 'annual':
+      next.setFullYear(current.getFullYear() + 1);
+      break;
+    case 'one_time':
+      return null; // No hay próxima fecha para gastos únicos
+    default:
+      next.setMonth(current.getMonth() + 1); // Default: mensual
+  }
+
+  return next;
+}
+
+/**
  * 💰 Registrar un pago parcial
  * POST /api/fixed-expenses/:id/payments
  */
@@ -194,6 +232,22 @@ const addPartialPayment = async (req, res) => {
       paidAmount: fixedExpense.paidAmount,
       paymentStatus: fixedExpense.paymentStatus
     });
+
+    // 🆕 Si se pagó completamente, calcular siguiente nextDueDate
+    if (newPaymentStatus === 'paid') {
+      const nextDueDate = calculateNextDueDate(new Date(paymentDate || new Date()), fixedExpense.frequency);
+      if (nextDueDate) {
+        await fixedExpense.update({
+          nextDueDate: nextDueDate.toISOString().split('T')[0],
+          paymentStatus: 'unpaid', // Reset para el siguiente período
+          paidAmount: 0 // Reset para el siguiente período
+        });
+        console.log('🔄 Siguiente período configurado:', {
+          nextDueDate: nextDueDate.toISOString().split('T')[0],
+          frequency: fixedExpense.frequency
+        });
+      }
+    }
 
     // Recargar el gasto fijo para obtener valores actualizados
     await fixedExpense.reload();
