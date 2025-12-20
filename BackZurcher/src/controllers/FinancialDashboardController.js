@@ -180,9 +180,21 @@ const FinancialDashboardController = {
 
       console.log(`🔍 [Dashboard] Gastos encontrados: ${expenses.length}`);
       
-      // 🚫 Filtrar gastos duplicados (que tienen relatedFixedExpenseId)
-      const nonDuplicatedExpenses = expenses.filter(exp => !exp.relatedFixedExpenseId);
-      const duplicatedExpenses = expenses.filter(exp => exp.relatedFixedExpenseId);
+      // 🚫 Filtrar gastos duplicados (que tienen relatedFixedExpenseId O son pagos parciales de gastos fijos)
+      const nonDuplicatedExpenses = expenses.filter(exp => {
+        // Excluir si tiene relatedFixedExpenseId
+        if (exp.relatedFixedExpenseId) return false;
+        
+        // Excluir si es un pago parcial de gasto fijo (detectado por notas)
+        if (exp.notes && exp.notes.toLowerCase().includes('pago parcial de gasto fijo')) return false;
+        
+        return true;
+      });
+      
+      const duplicatedExpenses = expenses.filter(exp => 
+        exp.relatedFixedExpenseId || 
+        (exp.notes && exp.notes.toLowerCase().includes('pago parcial de gasto fijo'))
+      );
       
       console.log(`✅ [Dashboard] Gastos no duplicados: ${nonDuplicatedExpenses.length}`);
       console.log(`⚠️ [Dashboard] Gastos duplicados excluidos: ${duplicatedExpenses.length}`);
@@ -711,9 +723,16 @@ const FinancialDashboardController = {
       // ===== 2. GASTOS GENERALES DETALLADOS =====
       const allExpenses = await Expense.findAll({
         where: {
-          date: {
-            [Op.between]: [startDate, endDate]
-          }
+          [Op.and]: [
+            { createdAt: { [Op.gte]: startDate } },
+            { createdAt: { [Op.lte]: endDate } },
+            { paymentStatus: 'paid' },
+            {
+              paymentMethod: {
+                [Op.notIn]: ['Chase Credit Card', 'AMEX']
+              }
+            }
+          ]
         },
         order: [['date', 'DESC']],
         attributes: ['idExpense', 'date', 'amount', 'paymentMethod', 'typeExpense', 'notes', 'workId', 'relatedFixedExpenseId']
@@ -723,11 +742,19 @@ const FinancialDashboardController = {
       // Ser más conservador: solo excluir si está claramente marcado como duplicado
       const expenses = allExpenses.filter(exp => {
         // Incluir todos EXCEPTO aquellos que están claramente marcados como duplicados
-        // y además tienen una referencia válida a un gasto fijo
-        return !(exp.relatedFixedExpenseId && exp.relatedFixedExpenseId > 0);
+        // Excluir si tiene relatedFixedExpenseId
+        if (exp.relatedFixedExpenseId) return false;
+        
+        // Excluir si es un pago parcial de gasto fijo (detectado por notas)
+        if (exp.notes && exp.notes.toLowerCase().includes('pago parcial de gasto fijo')) return false;
+        
+        return true;
       });
       
-      const duplicatedExpenses = allExpenses.filter(exp => exp.relatedFixedExpenseId && exp.relatedFixedExpenseId > 0);
+      const duplicatedExpenses = allExpenses.filter(exp => 
+        exp.relatedFixedExpenseId || 
+        (exp.notes && exp.notes.toLowerCase().includes('pago parcial de gasto fijo'))
+      );
       
       console.log(`📄 [DetailedDashboard] Gastos totales encontrados: ${allExpenses.length}`);
       console.log(`✅ [DetailedDashboard] Gastos válidos (sin duplicar): ${expenses.length}`);
