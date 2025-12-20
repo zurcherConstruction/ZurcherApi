@@ -13,12 +13,16 @@ const normalizeDateToLocal = (dateInput) => {
     return dateInput;
   }
   
-  // Si es formato ISO completo (ej: 2025-10-22T12:34:56.789Z), convertir a fecha local
+  // Si es formato ISO completo (ej: 2025-10-22T12:34:56.789Z), convertir usando zona horaria EST
   try {
     const date = new Date(dateInput);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    // Ajustar a zona horaria de Orlando (EST: UTC-5)
+    const offsetHours = -5; // EST offset
+    const localDate = new Date(date.getTime() + (offsetHours * 60 * 60 * 1000));
+    
+    const year = localDate.getUTCFullYear();
+    const month = String(localDate.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(localDate.getUTCDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   } catch (e) {
     console.error('Error normalizando fecha:', dateInput, e);
