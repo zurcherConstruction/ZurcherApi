@@ -156,8 +156,18 @@ const getGeneralBalance = async (req, res) => {
     if (typeIncome) incomeWhere.typeIncome = typeIncome;
     if (staffId) incomeWhere.staffId = staffId;
 
-    // Condiciones WHERE para Expense
-    const expenseWhere = {};
+    // Condiciones WHERE para Expense (usando misma lógica que FinancialDashboardController)
+    const expenseWhere = {
+      paymentStatus: { [Op.in]: ['paid', 'paid_via_invoice'] }, // Solo gastos realmente pagados
+      supplierInvoiceItemId: null, // Excluir gastos auto-generados por pagos de proveedores
+      [Op.and]: [
+        Sequelize.where(
+          Sequelize.cast(Sequelize.col('typeExpense'), 'TEXT'),
+          { [Op.notILike]: '%comisión%' }
+        )
+      ]
+    };
+    
     if (startDate && endDate) {
       // 🔧 FIX: Usar las mismas fechas ajustadas
       const start = new Date(startDate);
@@ -232,6 +242,17 @@ const getGeneralBalance = async (req, res) => {
       ]
     });
 
+    // 🚫 Filtrar gastos duplicados (misma lógica que FinancialDashboardController)
+    const nonDuplicatedExpenses = allExpenses.filter(exp => {
+      // Excluir si tiene relatedFixedExpenseId
+      if (exp.relatedFixedExpenseId) return false;
+      
+      // Excluir si es un pago parcial de gasto fijo (detectado por notas)
+      if (exp.notes && exp.notes.toLowerCase().includes('pago parcial de gasto fijo')) return false;
+      
+      return true;
+    });
+
     // Obtener receipts de Income
     const incomeIds = allIncomes.map(income => income.idIncome);
     const incomeReceipts = await Receipt.findAll({
@@ -253,8 +274,8 @@ const getGeneralBalance = async (req, res) => {
       attributes: ['idReceipt', 'relatedId', 'fileUrl', 'mimeType', 'originalName', 'notes']
     });
 
-    // Obtener receipts de Expense
-    const expenseIds = allExpenses.map(expense => expense.idExpense);
+    // Obtener receipts de Expense (usar expenses no duplicados)
+    const expenseIds = nonDuplicatedExpenses.map(expense => expense.idExpense);
     const expenseReceipts = await Receipt.findAll({
       where: {
         relatedModel: 'Expense',
@@ -304,8 +325,8 @@ const getGeneralBalance = async (req, res) => {
       };
     });
 
-    // Asociar receipts a expenses manualmente
-    const expensesWithReceipts = allExpenses.map(expense => {
+    // Asociar receipts a expenses manualmente (usar expenses no duplicados)
+    const expensesWithReceipts = nonDuplicatedExpenses.map(expense => {
       const receipts = expenseReceipts.filter(receipt =>
         receipt.relatedId === expense.idExpense.toString()
       );
@@ -315,9 +336,9 @@ const getGeneralBalance = async (req, res) => {
       };
     });
 
-    // Calcular totales
+    // Calcular totales (usar expenses no duplicados)
     const totalIncome = allIncomes.reduce((sum, income) => sum + parseFloat(income.amount || 0), 0);
-    const totalExpense = allExpenses.reduce((sum, expense) => sum + parseFloat(expense.amount || 0), 0);
+    const totalExpense = nonDuplicatedExpenses.reduce((sum, expense) => sum + parseFloat(expense.amount || 0), 0);
     const balance = totalIncome - totalExpense;
 
     // Agrupar ingresos por tipo
@@ -331,8 +352,8 @@ const getGeneralBalance = async (req, res) => {
       return acc;
     }, {});
 
-    // Agrupar gastos por tipo
-    const expensesByType = allExpenses.reduce((acc, expense) => {
+    // Agrupar gastos por tipo (usar expenses no duplicados)
+    const expensesByType = nonDuplicatedExpenses.reduce((acc, expense) => {
       const type = expense.typeExpense || 'Sin tipo';
       if (!acc[type]) {
         acc[type] = { value: 0, count: 0 };
