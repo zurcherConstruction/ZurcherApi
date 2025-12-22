@@ -142,7 +142,7 @@ const FinancialDashboardController = {
       
       // Filtro de fechas para expenses (usan campo 'date' string YYYY-MM-DD)
       const expenseFilter = {
-        paymentStatus: { [Op.in]: ['paid', 'paid_via_invoice', 'partial'] }, // Solo gastos pagados
+        paymentStatus: { [Op.in]: ['paid', 'paid_via_invoice', 'partial'] }, // Dashboard: solo gastos pagados
         date: { [Op.gte]: MINIMUM_DATE }
       };
       
@@ -193,6 +193,34 @@ const FinancialDashboardController = {
       });
 
       console.log(`🎯 [FUENTE ÚNICA] Total Expenses PAID: ${allExpenses.length} transacciones`);
+
+      // 🚨 DEBUG ESPECÍFICO PARA AMEX EN FINANCIAL DASHBOARD
+      console.log('\n=== DEBUG AMEX EN FINANCIAL DASHBOARD ===');
+      let amexCount = 0;
+      const paymentStatusCounts = {};
+      
+      allExpenses.forEach(expense => {
+        // Contar por paymentStatus para estadísticas
+        paymentStatusCounts[expense.paymentStatus] = (paymentStatusCounts[expense.paymentStatus] || 0) + 1;
+        
+        if (expense.paymentMethod && expense.paymentMethod.toUpperCase().includes('AMEX')) {
+          amexCount++;
+          console.log(`🔍 GASTO AMEX en Financial Dashboard:`, {
+            id: expense.idExpense,
+            amount: expense.amount,
+            paymentMethod: expense.paymentMethod,
+            paymentStatus: expense.paymentStatus,
+            date: expense.date,
+            notes: expense.notes?.substring(0, 100),
+            relatedFixedExpenseId: expense.relatedFixedExpenseId,
+            supplierInvoiceItemId: expense.supplierInvoiceItemId
+          });
+        }
+      });
+      
+      console.log(`💳 Total gastos AMEX en Financial Dashboard: ${amexCount}`);
+      console.log('📊 Distribución por paymentStatus:', paymentStatusCounts);
+      console.log('=== FIN DEBUG AMEX EN FINANCIAL DASHBOARD ===\n');
 
       const totalExpenses = allExpenses.reduce((sum, exp) => 
         sum + parseFloat(exp.amount || 0), 0
@@ -409,7 +437,7 @@ const FinancialDashboardController = {
       // =============================================================
 
       const expenseFilter = {
-        paymentStatus: 'paid',
+        paymentStatus: { [Op.in]: ['paid', 'paid_via_invoice', 'partial'] }, // Dashboard: solo gastos pagados
         date: { [Op.gte]: MINIMUM_DATE }
       };
 
