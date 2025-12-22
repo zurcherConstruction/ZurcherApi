@@ -120,6 +120,106 @@ const Summary = () => {
       console.log('💸 Total Gastos:', data.totalExpense);
       console.log('📊 Balance:', data.balance);
       
+      // 🚨 DEBUG ESPECÍFICO PARA AMEX EN SUMMARY
+      console.log('\n=== DEBUG AMEX EN SUMMARY ===');
+      let amexIncomes = 0;
+      let amexExpenses = 0;
+      
+      // Revisar ingresos AMEX
+      incomes.forEach(income => {
+        if (income.paymentMethod && income.paymentMethod.toUpperCase().includes('AMEX')) {
+          amexIncomes++;
+          console.log('🔍 INGRESO AMEX:', {
+            id: income.idIncome,
+            amount: income.amount,
+            paymentMethod: income.paymentMethod,
+            date: income.date,
+            notes: income.notes
+          });
+        }
+      });
+      
+      // Revisar gastos AMEX
+      expenses.forEach(expense => {
+        if (expense.paymentMethod && expense.paymentMethod.toUpperCase().includes('AMEX')) {
+          amexExpenses++;
+          console.log('🔍 GASTO AMEX:', {
+            id: expense.idExpense,
+            amount: expense.amount,
+            paymentMethod: expense.paymentMethod,
+            date: expense.date,
+            notes: expense.notes
+          });
+        }
+      });
+      
+      console.log(`💳 RESUMEN AMEX: ${amexIncomes} ingresos, ${amexExpenses} gastos`);
+      
+      // Verificar métodos de pago únicos
+      const allPaymentMethods = new Set();
+      allMovements.forEach(mov => {
+        if (mov.paymentMethod) allPaymentMethods.add(mov.paymentMethod);
+      });
+      console.log('📋 Métodos de pago encontrados:', [...allPaymentMethods].sort());
+      
+      // 🔍 BÚSQUEDA ESPECÍFICA DE VARIACIONES DE AMEX
+      const paymentMethodsArray = [...allPaymentMethods];
+      const amexVariants = paymentMethodsArray.filter(method => 
+        method.toLowerCase().includes('amex') || 
+        method.toLowerCase().includes('american') || 
+        method.toLowerCase().includes('express') ||
+        method.toLowerCase().includes('amx') ||
+        method.toLowerCase().includes('amerx') ||
+        method.toLowerCase().includes('card') && method.toLowerCase().includes('amex')
+      );
+      
+      // 🔍 BÚSQUEDA ADICIONAL: Revisar TODOS los gastos para buscar AMEX en notas/descripción
+      let amexInNotes = 0;
+      console.log('🔍 BUSCANDO AMEX EN TODAS LAS TRANSACCIONES:');
+      
+      allMovements.forEach((mov, index) => {
+        const searchText = `${mov.paymentMethod || ''} ${mov.notes || ''} ${mov.description || ''} ${mov.typeExpense || ''}`.toLowerCase();
+        
+        if (searchText.includes('amex') || searchText.includes('american express')) {
+          amexInNotes++;
+          console.log(`📍 POSIBLE AMEX #${amexInNotes}:`, {
+            movimiento: mov.movimiento,
+            amount: mov.amount,
+            paymentMethod: mov.paymentMethod,
+            notes: mov.notes?.substring(0, 100),
+            typeExpense: mov.typeExpense,
+            date: mov.date,
+            searchText: searchText.substring(0, 150)
+          });
+        }
+      });
+      
+      console.log(`🔍 Gastos con AMEX en texto: ${amexInNotes}`);
+      
+      if (amexVariants.length > 0) {
+        console.log('🔍 VARIACIONES DE AMEX ENCONTRADAS:', amexVariants);
+        
+        // Contar gastos con estas variaciones
+        let totalAmexVariants = 0;
+        allMovements.forEach(mov => {
+          if (mov.paymentMethod && amexVariants.includes(mov.paymentMethod)) {
+            totalAmexVariants++;
+            console.log('💳 TRANSACCIÓN AMEX VARIANT:', {
+              tipo: mov.movimiento,
+              amount: mov.amount,
+              paymentMethod: mov.paymentMethod,
+              date: mov.date,
+              notes: mov.notes?.substring(0, 50)
+            });
+          }
+        });
+        console.log(`📊 Total transacciones con variaciones AMEX: ${totalAmexVariants}`);
+      } else {
+        console.log('❌ NO se encontraron variaciones de AMEX en los métodos de pago');
+      }
+      
+      console.log('=== FIN DEBUG AMEX EN SUMMARY ===\n');
+      
       // Actualizar estado con un pequeño delay para asegurar re-render
       setMovements(allMovements);
       

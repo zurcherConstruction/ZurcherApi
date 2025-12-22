@@ -55,6 +55,43 @@ const BalanceStats = () => {
       console.log('=== EXPENSE DETAILS SECTION ===');
       console.log('expenseDetails FULL:', JSON.stringify(response.data?.data?.expenseDetails, null, 2));
       
+      // 🚨 DEBUG ESPECÍFICO PARA MÉTODOS DE PAGO AMEX
+      console.log('=== AMEX DEBUG ===');
+      if (response.data?.data?.expenseDetails?.byCategory) {
+        let amexCount = 0;
+        let allPaymentMethods = [];
+        
+        response.data.data.expenseDetails.byCategory.forEach(category => {
+          if (category.items) {
+            category.items.forEach(expense => {
+              allPaymentMethods.push(expense.paymentMethod);
+              if (expense.paymentMethod && expense.paymentMethod.toUpperCase().includes('AMEX')) {
+                amexCount++;
+                console.log('🔍 GASTO AMEX ENCONTRADO:', {
+                  category: category.category,
+                  amount: expense.amount,
+                  date: expense.date,
+                  paymentMethod: expense.paymentMethod,
+                  description: expense.notes || expense.description
+                });
+              }
+            });
+          }
+        });
+        
+        console.log('📊 Total gastos AMEX encontrados:', amexCount);
+        console.log('📋 Todos los métodos de pago únicos:', [...new Set(allPaymentMethods)].sort());
+      }
+      
+      if (response.data?.data?.expensesByPaymentMethod) {
+        console.log('💳 Gastos por método de pago (desde backend):', response.data.data.expensesByPaymentMethod);
+        const amexInSummary = response.data.data.expensesByPaymentMethod.find(item => 
+          item.method && item.method.toUpperCase().includes('AMEX')
+        );
+        console.log('🔍 AMEX en resumen por método:', amexInSummary);
+      }
+      console.log('=== FIN AMEX DEBUG ===');
+      
       if (response.data?.data?.expenseDetails?.byCategory) {
         console.log('=== BY CATEGORY BREAKDOWN ===');
         console.log('byCategory array length:', response.data.data.expenseDetails.byCategory.length);
@@ -476,6 +513,7 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
     if (!data?.expenseDetails?.byCategory) return [];
     
     let allTransactions = [];
+    let amexCount = 0; // 🚨 DEBUG: Contador AMEX
     
     // Agregar ingresos
     if (data.incomeDetails) {
@@ -515,6 +553,19 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
             if (expense.fixedExpenseCategory) {
               description += ` (${expense.fixedExpenseCategory})`;
             }
+          }
+          
+          // 🚨 DEBUG ESPECÍFICO PARA AMEX
+          if (expense.paymentMethod && expense.paymentMethod.toUpperCase().includes('AMEX')) {
+            amexCount++;
+            console.log(`🔍 TRANSACCIÓN AMEX #${amexCount}:`, {
+              id: expense.id,
+              category: category.name,
+              amount: expense.amount,
+              paymentMethod: expense.paymentMethod,
+              date: expense.date,
+              description: description
+            });
           }
           
           allTransactions.push({
@@ -562,6 +613,21 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
       transaction.isSuspicious = suspiciousTransactions.get(key).length > 1;
       transaction.suspiciousGroup = suspiciousTransactions.get(key).length > 1 ? suspiciousTransactions.get(key) : [];
     });
+
+    // 🚨 DEBUG FINAL AMEX
+    console.log(`\n💳 RESUMEN AMEX EN getAllTransactions():`);
+    console.log(`   Total transacciones AMEX procesadas: ${amexCount}`);
+    const finalAmexTransactions = allTransactions.filter(t => 
+      t.paymentMethod && t.paymentMethod.toUpperCase().includes('AMEX')
+    );
+    console.log(`   Transacciones AMEX en array final: ${finalAmexTransactions.length}`);
+    if (finalAmexTransactions.length > 0) {
+      console.log('   Detalles AMEX finales:');
+      finalAmexTransactions.forEach((t, index) => {
+        console.log(`   ${index + 1}. $${t.amount} - ${t.paymentMethod} - ${t.date} - ${t.description.substring(0, 50)}...`);
+      });
+    }
+    console.log('=== FIN DEBUG AMEX ===\n');
 
     // Ordenar por fecha (más reciente primero)
     return allTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
