@@ -12,8 +12,6 @@ const BalanceStats = () => {
   const [filters, setFilters] = useState({
     month: 12, // Diciembre actual
     year: 2025, // 2025 año actual 
-    startDate: "",
-    endDate: "",
   });
 
   const fetchDashboard = async () => {
@@ -27,15 +25,12 @@ const BalanceStats = () => {
         throw new Error('No hay token de autenticación. Por favor, inicia sesión.');
       }
 
-      const params = {};
+      const params = {
+        month: filters.month,
+        year: filters.year
+      };
       
-      if (filters.startDate && filters.endDate) {
-        params.startDate = filters.startDate;
-        params.endDate = filters.endDate;
-      } else {
-        params.month = filters.month;
-        params.year = filters.year;
-      }
+      console.log('✅ Usando filtro mes/año:', `${filters.month}/${filters.year}`);
 
       console.log('Fetching dashboard with params:', params);
       
@@ -1000,12 +995,16 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
           <h1 className="text-2xl font-bold text-gray-800">Dashboard Financiero</h1>
           
           {/* Filtros */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Mes</label>
               <select
                 value={filters.month}
-                onChange={(e) => setFilters({...filters, month: parseInt(e.target.value), startDate: "", endDate: ""})}
+                onChange={(e) => {
+                  const newMonth = parseInt(e.target.value);
+                  setFilters({...filters, month: newMonth});
+                  console.log('Cambiando mes a:', newMonth);
+                }}
                 className="w-full border border-gray-300 rounded px-3 py-2"
               >
                 {[...Array(12)].map((_, i) => (
@@ -1019,7 +1018,11 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
               <label className="block text-sm font-medium text-gray-700 mb-1">Año</label>
               <select
                 value={filters.year}
-                onChange={(e) => setFilters({...filters, year: parseInt(e.target.value), startDate: "", endDate: ""})}
+                onChange={(e) => {
+                  const newYear = parseInt(e.target.value);
+                  setFilters({...filters, year: newYear});
+                  console.log('Cambiando año a:', newYear);
+                }}
                 className="w-full border border-gray-300 rounded px-3 py-2"
               >
                 {[2023, 2024, 2025].map(year => (
@@ -1027,33 +1030,12 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
                 ))}
               </select>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Inicio</label>
-              <input
-                type="date"
-                value={filters.startDate}
-                onChange={(e) => setFilters({...filters, startDate: e.target.value})}
-                className="w-full border border-gray-300 rounded px-3 py-2"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Fin</label>
-              <input
-                type="date"
-                value={filters.endDate}
-                onChange={(e) => setFilters({...filters, endDate: e.target.value})}
-                className="w-full border border-gray-300 rounded px-3 py-2"
-              />
-            </div>
           </div>
 
-          {/* Info del período actual */}
-          <div className="text-sm text-gray-600">
-            <span className="font-medium">Período: </span>
-            {filters.startDate && filters.endDate 
-              ? `${formatDate(filters.startDate)} - ${formatDate(filters.endDate)}`
-              : `${new Date(0, filters.month - 1).toLocaleString('es', { month: 'long' })} ${filters.year}`
-            }
+          {/* Información del período actual */}
+          <div className="text-sm bg-gray-50 p-3 rounded">
+            <span className="font-medium text-green-600">📅 Período seleccionado: </span>
+            <span className="font-semibold">{new Date(0, filters.month - 1).toLocaleString('es', { month: 'long' })} {filters.year}</span>
             {data?.totalTransactions && (
               <span className="ml-4">• {data.totalTransactions} transacciones</span>
             )}
@@ -1077,25 +1059,7 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
         </div>
       </div>
 
-      {/* Botón de Verificación */}
-      {data && (
-        <div className="flex justify-center">
-          <button 
-            onClick={() => {
-              const result = verifyExpenseIntegrity();
-              if (result) {
-                const message = result.isValid ? 
-                  `✅ Verificación exitosa!\n\n📊 Resumen:\n• Total transacciones: ${result.totalIds}\n• IDs únicos: ${result.uniqueIds}\n• Duplicados encontrados: ${result.duplicatesFound}\n• Diferencia en suma: $${result.difference.toFixed(2)}\n\n${result.duplicatesFound === 0 ? 'Sin duplicados detectados' : '⚠️ Ver consola para detalles de duplicados'}` : 
-                  `⚠️ Problemas detectados!\n\n📊 Resumen:\n• Duplicados: ${result.duplicatesFound}\n• Diferencia: $${result.difference.toFixed(2)}\n• Total vs Únicos: ${result.totalIds} vs ${result.uniqueIds}\n\n📋 Ver consola para detalles completos`;
-                alert(message);
-              }
-            }}
-            className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors font-semibold shadow-lg"
-          >
-            🔍 Verificar Integridad de Gastos
-          </button>
-        </div>
-      )}
+    
 
       {/* Lista completa de transacciones */}
       {data && renderTransactionList()}
