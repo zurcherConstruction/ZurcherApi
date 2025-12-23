@@ -174,6 +174,7 @@ const WorkerWorkUpload = () => {
         const formData = new FormData();
         formData.append('imageFile', files[i]); // Backend espera 'imageFile'
         formData.append('stage', selectedStage);
+        formData.append('dateTime', new Date().toISOString()); // ✅ Añadir fecha y hora
         
         if (comment && i === files.length - 1) {
           // Solo añadir comentario a la última imagen

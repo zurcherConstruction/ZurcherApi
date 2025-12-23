@@ -64,7 +64,7 @@ export const EXPENSE_TYPES = [
   'Materiales',
   //'Diseño',
   // 'Workers', // ❌ Removido - Se maneja en módulo específico de workers
-  'Imprevistos',
+  'Fee de Inspección',
   // 'Comprobante Gasto', // ❌ Removido - Usar tipos específicos
   'Gastos Generales',
   'Materiales Iniciales',
@@ -82,7 +82,7 @@ export const RECEIPT_TYPES = [
   'Diseño',
   'Workers',
   'Comisión Vendedor',
-  'Imprevistos',
+  'Fee de Inspección',
   'Comprobante Gasto',
   'Comprobante Ingreso',
   'Gastos Generales',

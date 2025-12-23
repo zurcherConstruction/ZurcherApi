@@ -51,6 +51,65 @@ const WorkDetail = () => {
     return `${month}-${day}-${year}`;
   };
 
+  // ✅ Función para formatear fechas completas evitando problemas de timezone
+  const formatDateSafe = (dateString) => {
+    if (!dateString || dateString === 'null' || dateString === 'undefined') return "N/A";
+    
+    try {
+      // Si viene como YYYY-MM-DD, usar formatDate
+      if (typeof dateString === 'string' && dateString.includes('-') && !dateString.includes('T')) {
+        return formatDate(dateString);
+      }
+      
+      // Si es timestamp completo, crear fecha ajustando timezone
+      const date = new Date(dateString);
+      
+      // Verificar si la fecha es válida
+      if (isNaN(date.getTime())) {
+        return "N/A";
+      }
+      
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const year = date.getFullYear();
+      
+      return `${month}-${day}-${year}`;
+    } catch (error) {
+      console.error('Error formatting date:', dateString, error);
+      return "N/A";
+    }
+  };
+
+  // ✅ Función para formatear fechas de imágenes con fecha y hora
+  const formatImageDateTime = (dateTimeString) => {
+    if (!dateTimeString || dateTimeString === 'null' || dateTimeString === 'undefined') return "Sin fecha";
+    
+    try {
+      const date = new Date(dateTimeString);
+      
+      // Verificar si la fecha es válida
+      if (isNaN(date.getTime())) {
+        return "Sin fecha";
+      }
+      
+      // Formatear como MM-DD-AAAA HH:MM AM/PM
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const year = date.getFullYear();
+      
+      let hours = date.getHours();
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12; // 0 horas debe ser 12
+      
+      return `${month}-${day}-${year} ${hours}:${minutes} ${ampm}`;
+    } catch (error) {
+      console.error('Error formatting image dateTime:', dateTimeString, error);
+      return "Sin fecha";
+    }
+  };
+
   // Refresco automático cada 10 min
   useAutoRefresh(() => fetchWorkById(idWork), 600000, [idWork]);
 
@@ -523,11 +582,10 @@ const [budgetPdfUrl, setBudgetPdfUrl] = useState('');
 
     setUploadingFinalImage(true);
     const formData = new FormData();
-    formData.append("imageFile", finalInspectionImageFile); // El backend espera 'images' como un array de archivos
+    formData.append("imageFile", finalInspectionImageFile);
     formData.append("stage", "inspeccion final");
-    // Puedes añadir más campos al formData si tu backend los espera para esta etapa, ej: comment, dateTime
+    formData.append("dateTime", new Date().toISOString()); // ✅ Activando dateTime
     // formData.append("comment", "Imagen para inspección final subida por el administrador.");
-    // formData.append("dateTime", new Date().toISOString());
 
     try {
       const result = await dispatch(addImagesToWork(work.idWork, formData));
@@ -1228,10 +1286,10 @@ const handleUploadImage = async () => {
                             </p>
                             
                             <p className="text-sm text-gray-600">
-                              <strong>Fecha:</strong> {new Date(invoice.issueDate).toLocaleDateString('es-ES')}
+                              <strong>Fecha:</strong> {formatDateSafe(invoice.issueDate)}
                               {invoice.dueDate && (
                                 <span className="ml-2 text-gray-500">
-                                  | Vence: {new Date(invoice.dueDate).toLocaleDateString('es-ES')}
+                                  | Vence: {formatDateSafe(invoice.dueDate)}
                                 </span>
                               )}
                             </p>
@@ -1486,7 +1544,7 @@ const handleUploadImage = async () => {
                               className="w-full aspect-square object-cover rounded-md shadow"
                             />
                             <p className="text-xs text-gray-500 mt-1 truncate" title={image.dateTime}>
-                              {image.dateTime ? new Date(image.dateTime).toLocaleString() : 'Sin fecha'}
+                              {formatImageDateTime(image.dateTime)}
                             </p>
                             {(stage === 'camiones de arena' || stage === 'camiones de tierra') && image.truckCount != null && image.truckCount > 0 && (
                               <p className="text-xs font-semibold text-blue-600 mt-1">
@@ -1756,7 +1814,7 @@ const handleUploadImage = async () => {
                                 </span>
                                 <span className="uppercase font-bold">{insp.finalStatus}</span>
                                 <span className="ml-2 text-gray-600">
-                                  ({new Date(insp.dateResultReceived || insp.createdAt).toLocaleDateString('en-US')})
+                                  ({formatDateSafe(insp.dateResultReceived || insp.createdAt)})
                                 </span>
                                 {insp.finalStatus === 'approved' && (
                                   <span className="ml-2 text-green-700">✓ Finalizada</span>
@@ -1807,7 +1865,7 @@ const handleUploadImage = async () => {
                                 </span>
                                 <span className="uppercase font-bold">{insp.finalStatus}</span>
                                 <span className="ml-2 text-gray-600">
-                                  ({new Date(insp.dateResultReceived || insp.createdAt).toLocaleDateString('en-US')})
+                                  ({formatDateSafe(insp.dateResultReceived || insp.createdAt)})
                                 </span>
                                 {insp.finalStatus === 'approved' && (
                                   <span className="ml-2 text-green-700">✓ Finalizada</span>
@@ -2096,7 +2154,7 @@ const handleUploadImage = async () => {
                             </p>
                             <p>
                               <strong>Fecha:</strong>{" "}
-                              {new Date(expense.date).toLocaleDateString()}
+                              {formatDateSafe(expense.date)}
                             </p>
                             {expense.paymentMethod && (
                               <p>
@@ -2166,7 +2224,7 @@ const handleUploadImage = async () => {
                             </p>
                             <p>
                               <strong>Fecha:</strong>{" "}
-                              {new Date(income.date).toLocaleDateString()}
+                              {formatDateSafe(income.date)}
                             </p>
                             {income.paymentMethod && (
                               <p>
@@ -2399,7 +2457,7 @@ const handleUploadImage = async () => {
                   className="w-full h-auto object-contain rounded"
                 />
               </div>
-              <p className="text-center text-sm text-gray-600">{selectedImage.dateTime}</p>
+              <p className="text-center text-sm text-gray-600">{formatImageDateTime(selectedImage.dateTime)}</p>
               {selectedImage.comment && (
                 <p className="text-center text-xs text-gray-500 mt-1 italic">"{selectedImage.comment}"</p>
               )}

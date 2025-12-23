@@ -80,9 +80,17 @@ const WorkerWorkDetail = () => {
     setUploadingImages(true);
     try {
       const formData = new FormData();
+      
+      // 🔄 NOTA: Este componente usa 'images' (plural) en lugar del estándar 'imageFile'
+      // Esto sugiere que maneja múltiples imágenes de una vez, diferente al backend estándar
       selectedImages.forEach((image) => {
         formData.append('images', image);
       });
+      
+      // ✅ Añadir información adicional requerida
+      formData.append('dateTime', new Date().toISOString());
+      // TODO: Agregar 'stage' si es requerido por el backend
+      // formData.append('stage', 'trabajo cubierto'); // o el stage apropiado
 
       await dispatch(addImagesToWork(workId, formData));
       toast.success('Imágenes subidas exitosamente');

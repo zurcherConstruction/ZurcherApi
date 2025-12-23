@@ -63,6 +63,7 @@ const AttachReceipt = () => {
   const [selectedFixedExpense, setSelectedFixedExpense] = useState(''); // 🆕 Gasto fijo seleccionado
   const [loadingFixedExpenses, setLoadingFixedExpenses] = useState(false); // 🆕 Loading para gastos fijos
   const [fixedExpensePaymentAmount, setFixedExpensePaymentAmount] = useState(''); // 🆕 Monto del pago parcial para gasto fijo
+  const [workSearchTerm, setWorkSearchTerm] = useState(''); // 🆕 Término de búsqueda para works
 
 
 
@@ -543,13 +544,15 @@ const AttachReceipt = () => {
   const canBeGeneral = generalExpenseTypes.includes(type) || generalIncomeTypes.includes(type);
   const requiresWork = type === "Factura Pago Final Budget"; // Los pagos de factura final SIEMPRE requieren work
 
-  // 🆕 FILTRAR OBRAS SEGÚN EL TIPO DE COMPROBANTE SELECCIONADO
+  // 🆕 FILTRAR OBRAS SEGÚN EL TIPO DE COMPROBANTE SELECCIONADO Y BÚSQUEDA
   const filteredWorksForDropdown = () => {
     if (!works || works.length === 0) return [];
 
+    let filteredWorks;
+
     // Si seleccionó "Factura Pago Final Budget", mostrar SOLO obras en estado 'invoiceFinal'
     if (type === "Factura Pago Final Budget") {
-      return works.filter(work => {
+      filteredWorks = works.filter(work => {
         // Primero verificar que el Work tenga estado 'invoiceFinal'
         if (work.status !== 'invoiceFinal') {
           return false;
@@ -575,10 +578,26 @@ const AttachReceipt = () => {
           return true;
         }
       });
+    } else {
+      // Para otros tipos de comprobantes, mostrar todas las obras
+      filteredWorks = works;
     }
 
-    // Para otros tipos de comprobantes, mostrar todas las obras
-    return works;
+    // 🆕 Aplicar filtro de búsqueda si hay término de búsqueda
+    if (workSearchTerm.trim()) {
+      const searchLower = workSearchTerm.toLowerCase().trim();
+      filteredWorks = filteredWorks.filter(work => {
+        return (
+          work.propertyAddress?.toLowerCase().includes(searchLower) ||
+          work.idWork?.toLowerCase().includes(searchLower) ||
+          work.clientFirstName?.toLowerCase().includes(searchLower) ||
+          work.clientLastName?.toLowerCase().includes(searchLower) ||
+          `${work.clientFirstName || ''} ${work.clientLastName || ''}`.toLowerCase().includes(searchLower)
+        );
+      });
+    }
+
+    return filteredWorks;
   };
 
   const availableWorks = filteredWorksForDropdown();
@@ -638,6 +657,9 @@ const AttachReceipt = () => {
                   setType(e.target.value);
                   // Reset general transaction when type changes
                   setIsGeneralTransaction(false);
+                  // 🆕 Limpiar búsqueda y selección al cambiar tipo
+                  setWorkSearchTerm('');
+                  setSelectedWork('');
                 }}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
               >
@@ -910,25 +932,37 @@ const AttachReceipt = () => {
                               <div className="relative">
                                 <input
                                   type="number"
-                                  step="0.01"
+                                  step="any"
+                                  min="0"
                                   id="fixedExpensePaymentAmount"
                                   value={fixedExpensePaymentAmount}
                                   onChange={(e) => {
                                     const value = e.target.value;
-                                    setFixedExpensePaymentAmount(value);
+                                    
+                                    // Permitir valores vacíos y números válidos
+                                    if (value === '' || !isNaN(parseFloat(value))) {
+                                      setFixedExpensePaymentAmount(value);
+                                    }
 
                                     // Validación en tiempo real con tolerancia de 1 centavo
-                                    if (value && parseFloat(value) > remainingAmount + 0.01) {
+                                    const numValue = parseFloat(value);
+                                    if (value && numValue > remainingAmount + 0.01) {
                                       e.target.setCustomValidity(`El monto no puede exceder el saldo restante ($${remainingAmount.toFixed(2)})`);
-                                    } else if (value && parseFloat(value) <= 0) {
+                                    } else if (value && numValue <= 0) {
                                       e.target.setCustomValidity('El monto debe ser mayor a cero');
                                     } else {
                                       e.target.setCustomValidity('');
                                     }
                                   }}
+                                  onBlur={(e) => {
+                                    // Formatear solo al perder foco
+                                    const value = parseFloat(e.target.value);
+                                    if (!isNaN(value) && value >= 0) {
+                                      setFixedExpensePaymentAmount(value.toFixed(2));
+                                    }
+                                  }}
                                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200"
                                   placeholder={`Ingrese monto (máx: $${remainingAmount.toFixed(2)})`}
-                                  min="0.01"
                                   required
                                 />
                                 <button
@@ -1011,6 +1045,77 @@ const AttachReceipt = () => {
                   </div>
                 )}
 
+                {/* 🆕 Campo de búsqueda para works - SIEMPRE VISIBLE Y FUNCIONAL */}
+                {(availableWorks.length > 5 || workSearchTerm || selectedWork) && (
+                  <div className="mb-3 relative">
+                    <input
+                      type="text"
+                      placeholder={selectedWork ? "🔍 Escribir para cambiar obra..." : "🔍 Buscar obra por dirección, ID o cliente..."}
+                      value={workSearchTerm}
+                      onChange={(e) => setWorkSearchTerm(e.target.value)}
+                      onFocus={() => {
+                        // Si hay obra seleccionada, limpiarla al hacer foco para permitir nueva búsqueda
+                        if (selectedWork) {
+                          setSelectedWork('');
+                        }
+                      }}
+                      className="w-full px-3 py-2 pr-20 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    />
+                    {(workSearchTerm || selectedWork) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWorkSearchTerm('');
+                          setSelectedWork('');
+                        }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded transition-colors font-semibold"
+                        title="Limpiar búsqueda y selección"
+                      >
+                        ✕ Limpiar
+                      </button>
+                    )}
+                    
+                    {/* Mensaje de ayuda cuando no hay resultados */}
+                    {workSearchTerm.trim() && availableWorks.length === 0 && (
+                      <div className="mt-1 text-xs text-red-600 flex items-center space-x-1">
+                        <span>❌ Sin resultados para "{workSearchTerm}"</span>
+                        <button
+                          type="button"
+                          onClick={() => setWorkSearchTerm('')}
+                          className="text-blue-600 hover:text-blue-800 underline"
+                        >
+                          Limpiar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 🆕 Mostrar obra seleccionada con opción de limpiar */}
+                {selectedWork && (
+                  <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-green-700 font-medium">✅ Obra seleccionada:</span>
+                        <span className="text-green-800 font-semibold">
+                          {availableWorks.find(w => w.idWork === selectedWork)?.propertyAddress || selectedWork}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedWork('');
+                          setWorkSearchTerm('');
+                        }}
+                        className="px-3 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded font-semibold transition-colors"
+                        title="Deseleccionar obra"
+                      >
+                        ✕ Quitar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <select
                   id="work"
                   value={selectedWork}
@@ -1022,7 +1127,11 @@ const AttachReceipt = () => {
                   <option value="">
                     {type === "Factura Pago Final Budget"
                       ? "Seleccione una obra con factura final pendiente"
-                      : "Seleccione una obra"}
+                      : availableWorks.length === 0 && workSearchTerm.trim()
+                        ? "No hay obras con ese criterio"
+                        : workSearchTerm.trim() 
+                          ? `${availableWorks.length} obra(s) encontrada(s)`
+                          : "Seleccione una obra"}
                   </option>
                   {availableWorks && availableWorks.map((work) => {
                     // Para Factura Final, mostrar info del saldo pendiente
@@ -1210,11 +1319,23 @@ const AttachReceipt = () => {
                   </label>
                   <input
                     type="number"
-                    step="0.01"
+                    step="any"
+                    min="0"
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                     id="finalPaymentAmount"
                     value={finalPaymentAmount}
-                    onChange={(e) => setFinalPaymentAmount(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === '' || !isNaN(parseFloat(value))) {
+                        setFinalPaymentAmount(value);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const value = parseFloat(e.target.value);
+                      if (!isNaN(value) && value >= 0) {
+                        setFinalPaymentAmount(value.toFixed(2));
+                      }
+                    }}
                     placeholder="0.00"
                     required
                   />
@@ -1231,10 +1352,24 @@ const AttachReceipt = () => {
                 </label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="any"
+                  min="0"
                   id="generalAmount"
                   value={generalAmount}
-                  onChange={(e) => setGeneralAmount(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    // Permitir valores vacíos y números válidos
+                    if (value === '' || !isNaN(parseFloat(value))) {
+                      setGeneralAmount(value);
+                    }
+                  }}
+                  onBlur={(e) => {
+                    // Formatear solo al perder foco, no en tiempo real
+                    const value = parseFloat(e.target.value);
+                    if (!isNaN(value) && value >= 0) {
+                      setGeneralAmount(value.toFixed(2));
+                    }
+                  }}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                   placeholder="0.00"
                   required

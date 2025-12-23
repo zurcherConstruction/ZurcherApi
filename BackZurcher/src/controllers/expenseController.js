@@ -522,7 +522,7 @@ const getExpenseTypes = async (req, res) => {
       'Materiales',
       'Diseño',
       'Workers',
-      'Imprevistos',
+      'Fee de Inspección',
       'Comprobante Gasto',
       'Gastos Generales',
       'Materiales Iniciales',

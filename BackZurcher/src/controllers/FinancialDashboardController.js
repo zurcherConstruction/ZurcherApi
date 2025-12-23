@@ -493,7 +493,7 @@ const FinancialDashboardController = {
         'Comisión Vendedor': [],        // typeExpense = Comisión Vendedor (directos)
         'Workers': [],                  // typeExpense = Workers (directos)
         'Diseño': [],                   // typeExpense = Diseño (directos)
-        'Imprevistos': [],              // typeExpense = Imprevistos (directos)
+        'Fee de Inspección': [],    // typeExpense = Fee de Inspección (directos)
         'Inspección Final': [],         // typeExpense = Inspección Final (directos)
         'Comprobante Gasto': [],        // typeExpense = Comprobante Gasto (directos)
         'Sin Clasificar': []
