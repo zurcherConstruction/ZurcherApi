@@ -25,7 +25,7 @@ module.exports = (sequelize) => {
             'Diseño',
             'Workers',
             'Comisión Vendedor',
-            'Imprevistos',
+            'Fee de Inspección',
             'Comprobante Gasto',
             'Comprobante Ingreso',
             'Gastos Generales',

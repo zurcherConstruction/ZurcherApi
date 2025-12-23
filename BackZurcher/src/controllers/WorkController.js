@@ -1037,6 +1037,15 @@ const addImagesToWork = async (req, res) => {
     const { idWork } = req.params; // ID del trabajo
     const { stage, dateTime, comment, truckCount } = req.body; // Etapa, imagen en Base64 y fecha/hora
     
+    // 🐛 DEBUG: Ver qué datos están llegando desde la app
+    console.log("🐛 [addImagesToWork] Datos recibidos:");
+    console.log("   - idWork:", idWork);
+    console.log("   - stage:", stage);
+    console.log("   - dateTime:", dateTime);
+    console.log("   - comment:", comment);
+    console.log("   - truckCount:", truckCount);
+    console.log("   - req.body completo:", req.body);
+    
     if (!req.file) {
       console.error("Controlador addImagesToWork: No se proporcionó ningún archivo.");
       return res.status(400).json({ error: true, message: 'No se proporcionó ningún archivo de imagen.' });

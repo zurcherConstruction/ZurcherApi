@@ -1429,7 +1429,7 @@ const getCategoryColor = (category) => {
     'Comisión Vendedor': 'bg-pink-500',
     'Workers': 'bg-emerald-500',
     'Diseño': 'bg-violet-500',
-    'Imprevistos': 'bg-amber-500'
+    'Fee de Inspección': 'bg-amber-500'
   };
   return colorMap[category] || 'bg-gray-500';
 };

@@ -409,6 +409,16 @@ SupplierInvoice.belongsTo(Staff, {
   as: 'createdBy'
 });
 
+// 🆕 Relación entre SupplierInvoice y SupplierInvoiceItem
+SupplierInvoice.hasMany(SupplierInvoiceItem, {
+  foreignKey: 'supplierInvoiceId',
+  as: 'items'
+});
+SupplierInvoiceItem.belongsTo(SupplierInvoice, {
+  foreignKey: 'supplierInvoiceId',
+  as: 'invoice'
+});
+
 // Relación polimórfica con Receipt (para adjuntar comprobantes PDF del invoice)
 SupplierInvoice.hasMany(Receipt, { 
   foreignKey: 'relatedId', 
