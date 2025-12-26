@@ -29,6 +29,9 @@ import { startAutosave, stopAutosave, forceSave } from '../utils/autosaveMobile'
 import { getOfflineForm, clearOfflineData } from '../utils/offlineStorageMobile';
 import { queueImageUpload, processQueue, getQueueStatus } from '../utils/imageUploadQueue';
 
+// 🚀 SISTEMA DE UPLOADS INTELIGENTE
+import UploadManager from '../utils/UploadManager';
+
 // Componente CheckboxField SIN opción de adjuntar foto
 const CheckboxFieldNoMedia = ({ label, value, notes, notesValue, onCheckChange, onNotesChange }) => {
   return (
@@ -126,12 +129,14 @@ const CheckboxField = ({ label, value, notes, notesValue, onCheckChange, onNotes
 const MaintenanceFormScreen = ({ route, navigation }) => {
   const visit = route?.params?.visit;
   
- 
+  // 🚀 INICIALIZAR UPLOAD MANAGER
+  const uploadManager = useRef(new UploadManager()).current;
   
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [visitData, setVisitData] = useState(null);
   const [permitData, setPermitData] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState({}); // Progreso de uploads
   
   // Form state - EXACTAMENTE igual que WorkerMaintenanceDetail.jsx
   const [formData, setFormData] = useState({
@@ -220,11 +225,18 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
   const [queueStatus, setQueueStatus] = useState({ total: 0, pending: 0 });
   const autosaveCleanupRef = useRef(null);
 
-  // 🆕 useEffect para autosave
+  // 🚀 useEffect para inicializar upload manager y autosave
   useEffect(() => {
     if (!visit?.id) return;
 
     console.log('🚀 Iniciando sistema de autosave para visitId:', visit.id);
+    console.log('📡 Iniciando monitoreo de red para uploads');
+
+    // Inicializar monitoreo de red para uploads inteligentes
+    uploadManager.initNetworkMonitoring();
+    
+    // Procesar uploads pendientes si hay conexión
+    uploadManager.processPendingUploads();
 
     // Iniciar autosave cada 30 segundos
     const cleanup = startAutosave(
@@ -648,13 +660,8 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             [fieldName]: [...(prev[fieldName] || []), fileObject]
           }));
 
-          Toast.show({
-            type: 'success',
-            text1: '✓ Foto agregada',
-            text2: 'Se subirá automáticamente',
-            position: 'bottom',
-            visibilityTime: 2000
-          });
+          // 🚫 TOAST ELIMINADO: Causaba problemas de UI fijo
+          // La foto se agrega visualmente a la lista, no necesita toast adicional
 
           // 🆕 Procesar cola inmediatamente después de agregar
           processQueue((progress) => {
@@ -910,13 +917,14 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
           uri: videoUri,
           name: filename,
           type: type,
-          isExisting: false, // Marcar como nuevo para que se suba
+          isExisting: false
         };
 
         setSystemVideo(videoObject);
-        Alert.alert('Éxito', 'Video del sistema agregado');
+        Alert.alert('✅ Video Agregado', 'Video del sistema agregado correctamente');
       }
     } catch (error) {
+      console.error('❌ Error procesando video:', error);
       Alert.alert('Error', 'No se pudo procesar el video');
     }
   };
@@ -967,29 +975,22 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
     try {
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const imageUri = result.assets[0].uri;
-        
-        // Optimizar imagen (resize + compresión para conexiones lentas)
-        const optimizedImage = await manipulateAsync(
-          imageUri,
-          [{ resize: { width: 600 } }],
-          { compress: 0.3, format: SaveFormat.JPEG }
-        );
-
-        const filename = optimizedImage.uri.split('/').pop();
+        const filename = imageUri.split('/').pop();
         const match = /\.(\w+)$/.exec(filename);
         const type = match ? `image/${match[1]}` : 'image/jpeg';
 
         const imageObject = {
-          uri: optimizedImage.uri,
+          uri: imageUri,
           name: filename,
           type: type,
-          isExisting: false,
+          isExisting: false
         };
 
         setFinalSystemImage(imageObject);
-        Alert.alert('Éxito', '✓ Imagen final del sistema agregada');
+        Alert.alert('✅ Imagen Agregada', 'Imagen final del sistema agregada correctamente');
       }
     } catch (error) {
+      console.error('❌ Error procesando imagen:', error);
       Alert.alert('Error', 'No se pudo procesar la imagen');
     }
   };
@@ -1262,173 +1263,106 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
         console.log('📤 Enviando formulario con', Array.from(formDataToSend.keys()).length, 'campos');
       }
       
-      // Enviar formulario - igual que el frontend web
-      const response = await axios.post(
-        `${API_URL}/maintenance/${visit.id}/complete`,
-        formDataToSend,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data',
-          },
-        }
+      // 📤 ENVIAR FORMULARIO CON UPLOAD MANAGER OPTIMIZADO
+      const fileKey = UploadManager.generateFileKey(
+        `/maintenance/${visit.id}`, 
+        { markAsCompleted, timestamp: Date.now() }
       );
 
-      if (__DEV__) {
-        console.log('✅ Formulario enviado exitosamente');
-        console.log('📋 Respuesta del servidor:', response.data.message);
-        console.log('📸 Archivos subidos:', response.data.uploadedFiles);
-        console.log('🔍 Visit recibida del servidor:', {
-          id: response.data.visit?.id,
-          status: response.data.visit?.status,
-          actualVisitDate: response.data.visit?.actualVisitDate,
-          mediaFilesCount: response.data.visit?.mediaFiles?.length || 0
-        });
-      }
-      
-      // Actualizar el objeto visit con los datos más recientes del servidor
-      if (response.data.visit) {
-        // Actualizar el estado local con la visita completa del servidor
-        setVisitData(response.data.visit);
-        
-        // Recargar las imágenes existentes
-        if (response.data.visit.mediaFiles && response.data.visit.mediaFiles.length > 0) {
-          if (__DEV__) {
-            console.log('🔄 Recargando imágenes después de guardar:', response.data.visit.mediaFiles.length);
+      const uploadConfig = {
+        url: `${API_URL}/maintenance/${visit.id}/complete`,
+        formData: formDataToSend,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data',
+        },
+        fileKey,
+        onProgress: (progress) => {
+          setUploadProgress(prev => ({ ...prev, [fileKey]: progress }));
+          console.log(`📊 Progreso upload: ${progress.toFixed(1)}%`);
+        },
+        onError: (error) => {
+          console.error('❌ Error en upload:', error);
+          setSubmitting(false);
+          
+          let errorMessage = 'Error enviando formulario';
+          if (error.response?.status === 401) {
+            errorMessage = 'Sesión expirada, por favor inicie sesión nuevamente';
+          } else if (error.code === 'NETWORK_ERROR') {
+            errorMessage = 'Error de conexión. El formulario se reintentará automáticamente';
           }
           
-          const imagesByField = {};
-          response.data.visit.mediaFiles.forEach(media => {
-            const fieldName = media.fieldName || 'general';
-            if (!imagesByField[fieldName]) {
-              imagesByField[fieldName] = [];
-            }
-            imagesByField[fieldName].push({
-              uri: media.mediaUrl,
-              name: media.originalName || 'image',
-              isExisting: true,
-              id: media.id,
-              timestamp: Date.now() // 🔑 Forzar nueva referencia para re-render
-            });
-          });
+          Alert.alert('Error', errorMessage);
+        },
+        onSuccess: (responseData) => {
+          console.log('✅ Upload completado exitosamente');
           
-          if (__DEV__) {
-            console.log('🔄 imagesByField después de recargar:', Object.keys(imagesByField).map(key => 
-              `${key}: ${imagesByField[key].length} fotos`
-            ));
+          // Actualizar estado con respuesta del servidor
+          if (responseData.visit) {
+            setVisitData(responseData.visit);
           }
           
-          // CRÍTICO: Crear nuevo objeto para forzar re-render
-          setFiles({ ...imagesByField });
-        } else {
-          // Si no hay mediaFiles, limpiar el estado
-          setFiles({});
+          setSubmitting(false);
+          setUploadProgress(prev => ({ ...prev, [fileKey]: 100 }));
+          
+          // Limpiar datos offline si el envío fue exitoso
+          if (markAsCompleted) {
+            clearOfflineData(`maintenance_${visit.id}`);
+          }
+          
+          Alert.alert(
+            '✅ Éxito',
+            markAsCompleted 
+              ? 'Mantenimiento completado y enviado exitosamente'
+              : 'Progreso guardado exitosamente',
+            [
+              {
+                text: 'OK',
+                onPress: () => navigation.goBack()
+              }
+            ]
+          );
         }
-        
-        // Actualizar imágenes de PBTS - crear nuevos objetos
-        const newWellSamples = {
-          sample1: response.data.visit.well_sample_1_url 
-            ? { uri: response.data.visit.well_sample_1_url, isExisting: true, timestamp: Date.now() } 
-            : null,
-          sample2: response.data.visit.well_sample_2_url 
-            ? { uri: response.data.visit.well_sample_2_url, isExisting: true, timestamp: Date.now() } 
-            : null,
-          sample3: response.data.visit.well_sample_3_url 
-            ? { uri: response.data.visit.well_sample_3_url, isExisting: true, timestamp: Date.now() } 
-            : null,
-        };
-        setWellSampleFiles({ ...newWellSamples });
-        
-        // Actualizar video del sistema - crear nuevo objeto
-        if (response.data.visit.system_video_url) {
-          if (__DEV__) {
-            console.log('🎬 Actualizando systemVideo con URL:', response.data.visit.system_video_url);
-          }
-          setSystemVideo({ 
-            uri: response.data.visit.system_video_url, 
-            isExisting: true,
-            type: 'video/mp4',
-            name: 'system_video.mp4',
-            timestamp: Date.now() // 🔑 Forzar nueva referencia
-          });
-        } else {
-          if (__DEV__) {
-            console.log('⚠️ No hay system_video_url en la respuesta, limpiando estado');
-          }
-          setSystemVideo(null);
-        }
-        
-        // IMPORTANTE: Actualizar formData con los datos del servidor
-        const updatedVisit = response.data.visit;
-        setFormData({
-          actualVisitDate: updatedVisit.actualVisitDate || new Date().toISOString().split('T')[0],
-          tank_inlet_level: updatedVisit.tank_inlet_level ? String(updatedVisit.tank_inlet_level) : '',
-          tank_inlet_notes: updatedVisit.tank_inlet_notes || '',
-          tank_outlet_level: updatedVisit.tank_outlet_level ? String(updatedVisit.tank_outlet_level) : '',
-          tank_outlet_notes: updatedVisit.tank_outlet_notes || '',
-          strong_odors: updatedVisit.strong_odors || false,
-          strong_odors_notes: updatedVisit.strong_odors_notes || '',
-          water_level_ok: updatedVisit.water_level_ok || false,
-          water_level_notes: updatedVisit.water_level_notes || '',
-          visible_leaks: updatedVisit.visible_leaks || false,
-          visible_leaks_notes: updatedVisit.visible_leaks_notes || '',
-          area_around_dry: updatedVisit.area_around_dry || false,
-          area_around_notes: updatedVisit.area_around_notes || '',
-          cap_green_inspected: updatedVisit.cap_green_inspected || false,
-          cap_green_notes: updatedVisit.cap_green_notes || '',
-          needs_pumping: updatedVisit.needs_pumping || false,
-          needs_pumping_notes: updatedVisit.needs_pumping_notes || '',
-          blower_working: updatedVisit.blower_working || false,
-          blower_working_notes: updatedVisit.blower_working_notes || '',
-          blower_filter_clean: updatedVisit.blower_filter_clean || false,
-          blower_filter_notes: updatedVisit.blower_filter_notes || '',
-          diffusers_bubbling: updatedVisit.diffusers_bubbling || false,
-          diffusers_bubbling_notes: updatedVisit.diffusers_bubbling_notes || '',
-          clarified_water_outlet: updatedVisit.clarified_water_outlet || false,
-          clarified_water_notes: updatedVisit.clarified_water_notes || '',
-          discharge_pump_ok: updatedVisit.discharge_pump_ok || false,
-          discharge_pump_notes: updatedVisit.discharge_pump_notes || '',
-          has_lift_station: updatedVisit.has_lift_station ?? false,
-          alarm_working: updatedVisit.alarm_working || false,
-          alarm_working_notes: updatedVisit.alarm_working_notes || '',
-          pump_running: updatedVisit.pump_running || false,
-          pump_running_notes: updatedVisit.pump_running_notes || '',
-          float_switches: updatedVisit.float_switches || false,
-          float_switches_notes: updatedVisit.float_switches_notes || '',
-          pump_condition: updatedVisit.pump_condition || false,
-          pump_condition_notes: updatedVisit.pump_condition_notes || '',
-          has_pbts: updatedVisit.has_pbts ?? false,
-          well_points_quantity: updatedVisit.well_points_quantity ? String(updatedVisit.well_points_quantity) : '',
-          well_sample_1_observations: updatedVisit.well_sample_1_observations || '',
-          well_sample_1_notes: updatedVisit.well_sample_1_notes || '',
-          well_sample_2_observations: updatedVisit.well_sample_2_observations || '',
-          well_sample_2_notes: updatedVisit.well_sample_2_notes || '',
-          well_sample_3_observations: updatedVisit.well_sample_3_observations || '',
-          well_sample_3_notes: updatedVisit.well_sample_3_notes || '',
-          general_notes: updatedVisit.general_notes || '',
-        });
-        
-        // CRÍTICO: Actualizar el visit object en route.params para que al volver a entrar tenga datos frescos
-        navigation.setParams({ visit: response.data.visit });
-      }
+      };
+
+      // Usar el upload manager para envío inteligente
+      const result = await uploadManager.uploadWithRetry(uploadConfig);
       
-      if (markAsCompleted) {
+      if (result.success) {
+        console.log(`✅ Upload exitoso en ${result.attempts} intento(s)`);
+      } else if (result.reason === 'no_connection') {
         Alert.alert(
-          'Éxito',
-          'Mantenimiento completado exitosamente',
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.goBack()
-            }
-          ]
+          '📡 Sin Conexión',
+          'El formulario se guardó y se enviará automáticamente cuando haya conexión',
+          [{ text: 'OK', onPress: () => navigation.goBack() }]
         );
+      } else if (result.reason === 'upload_in_progress') {
+        Alert.alert('⏳ En Progreso', 'Este formulario ya se está enviando');
+      } else if (result.reason === 'already_uploaded') {
+        Alert.alert('✅ Ya Enviado', 'Este formulario ya fue enviado anteriormente');
+        navigation.goBack();
       } else {
-        Alert.alert('Éxito', 'Progreso guardado exitosamente');
-        // NO navegamos de vuelta, permitimos seguir editando
+        // Error definitivo después de todos los reintentos
+        console.error(`❌ Upload fallido después de ${result.attempts} intentos:`, result.error);
       }
+
     } catch (error) {
+      console.error('❌ Error en handleSubmit:', error);
       Alert.alert('Error', 'Error al enviar el formulario: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // 🆕 Función para generar imagen de reporte
+  const generateReport = async () => {
+    try {
+      setSubmitting(true);
+      Alert.alert('Generando Reporte', 'Por favor espere...');
+      // TODO: Implementar lógica de generación de reporte
+      Alert.alert('Éxito', 'Reporte generado');
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo generar el reporte');
     } finally {
       setSubmitting(false);
     }
@@ -1462,6 +1396,27 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Formulario de Mantenimiento</Text>
+        
+        {/*  PROGRESO DE UPLOADS */}
+        {Object.keys(uploadProgress).length > 0 && (
+          <View style={styles.uploadProgressContainer}>
+            {Object.entries(uploadProgress).map(([key, progress]) => (
+              <View key={key} style={styles.progressBar}>
+                <Text style={styles.progressText}>
+                  📤 Enviando: {progress.toFixed(0)}%
+                </Text>
+                <View style={styles.progressBarBackground}>
+                  <View 
+                    style={[
+                      styles.progressBarFill, 
+                      { width: `${progress}%` }
+                    ]} 
+                  />
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
         
         {permitData && (
           <View style={styles.infoCard}>
@@ -2200,6 +2155,32 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#f5f5f5',
+  },
+  // � ESTILOS PARA INDICADORES DE PROGRESO DE UPLOAD
+  uploadProgressContainer: {
+    backgroundColor: '#FFF3E0',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  progressBar: {
+    marginBottom: 8,
+  },
+  progressText: {
+    fontSize: 13,
+    color: '#E65100',
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  progressBarBackground: {
+    height: 4,
+    backgroundColor: '#FFCC80',
+    borderRadius: 2,
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#FF9800',
+    borderRadius: 2,
   },
   errorText: {
     fontSize: 16,

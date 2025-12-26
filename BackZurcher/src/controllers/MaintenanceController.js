@@ -1334,14 +1334,57 @@ const completeMaintenanceVisit = async (req, res) => {
       console.log(`🎬 Subiendo video del sistema: ${videoFile.originalname} (${videoSize}MB)`);
       
       try {
-        // ✅ AWAIT para asegurar que se guarde el URL antes de responder
-        const cloudinaryResult = await uploadBufferToCloudinary(videoFile.buffer, {
+        // 🚀 COMPRESIÓN AUTOMÁTICA EN CLOUDINARY
+        const compressionOptions = {
           folder: `maintenance/${visit.workId}/${visit.id}/system_video`,
           resource_type: 'video',
-        });
+          // 📹 TRANSFORMACIONES DE COMPRESIÓN
+          transformation: [
+            {
+              // Calidad automática optimizada
+              quality: 'auto:good',
+              // Formato más eficiente (auto-selecciona mejor formato)
+              fetch_format: 'auto',
+              // Compresión adicional
+              flags: 'lossy'
+            }
+          ]
+        };
+
+        // Si el video es muy grande (>15MB), aplicar compresión más agresiva
+        if (videoSize > 15) {
+          console.log(`🎯 Video grande (${videoSize}MB), aplicando compresión agresiva`);
+          compressionOptions.transformation.push({
+            // Reducir resolución si es necesario
+            width: 1280,
+            height: 720,
+            crop: 'limit',
+            // Calidad más conservadora
+            quality: 'auto:low',
+            // Bitrate reducido
+            bit_rate: '1000k'
+          });
+        }
+        
+        // ✅ AWAIT para asegurar que se guarde el URL antes de responder
+        const cloudinaryResult = await uploadBufferToCloudinary(videoFile.buffer, compressionOptions);
         
         visit.system_video_url = cloudinaryResult.secure_url;
-        console.log('✅ Video del sistema cargado a Cloudinary:', cloudinaryResult.secure_url);
+        
+        // 📊 Información de compresión
+        const originalSizeMB = Math.round(videoFile.size / 1024 / 1024);
+        const compressedSizeKB = Math.round(cloudinaryResult.bytes / 1024);
+        const compressedSizeMB = Math.round(compressedSizeKB / 1024);
+        const compressionRatio = ((1 - cloudinaryResult.bytes / videoFile.size) * 100).toFixed(1);
+        
+        console.log('✅ Video del sistema cargado y comprimido:', {
+          url: cloudinaryResult.secure_url,
+          originalSize: `${originalSizeMB}MB`,
+          compressedSize: `${compressedSizeMB}MB`,
+          compressionRatio: `${compressionRatio}%`,
+          format: cloudinaryResult.format
+        });
+        
       } catch (error) {
         console.error('❌ Error subiendo video del sistema:', error);
         // No fallar todo el proceso si el video falla
@@ -1363,14 +1406,54 @@ const completeMaintenanceVisit = async (req, res) => {
       console.log(`📸 Subiendo imagen final del sistema: ${imageFile.originalname} (${imageSize}KB)`);
       
       try {
-        const cloudinaryResult = await uploadBufferToCloudinary(imageFile.buffer, {
+        // 🚀 COMPRESIÓN AUTOMÁTICA DE IMAGEN
+        const compressionOptions = {
           folder: `maintenance/${visit.workId}/${visit.id}/final_system`,
           resource_type: 'image',
-        });
+          // 📸 TRANSFORMACIONES DE COMPRESIÓN
+          transformation: [
+            {
+              // Calidad optimizada automáticamente
+              quality: 'auto:good',
+              // Formato más eficiente
+              fetch_format: 'auto',
+              // Compresión inteligente
+              flags: 'progressive'
+            }
+          ]
+        };
+
+        // Si la imagen es muy grande (>1MB), aplicar más compresión
+        if (imageSize > 1024) {
+          console.log(`🎯 Imagen grande (${imageSize}KB), aplicando compresión agresiva`);
+          compressionOptions.transformation.push({
+            // Limitar resolución máxima
+            width: 1920,
+            height: 1080,
+            crop: 'limit',
+            // Calidad más conservadora
+            quality: 'auto:eco'
+          });
+        }
+        
+        const cloudinaryResult = await uploadBufferToCloudinary(imageFile.buffer, compressionOptions);
         
         visit.final_system_image_url = cloudinaryResult.secure_url;
         await visit.save();
-        console.log('✅ Imagen final del sistema guardada:', cloudinaryResult.secure_url);
+        
+        // 📊 Información de compresión
+        const originalSizeKB = Math.round(imageFile.size / 1024);
+        const compressedSizeKB = Math.round(cloudinaryResult.bytes / 1024);
+        const compressionRatio = ((1 - cloudinaryResult.bytes / imageFile.size) * 100).toFixed(1);
+        
+        console.log('✅ Imagen final del sistema optimizada:', {
+          url: cloudinaryResult.secure_url,
+          originalSize: `${originalSizeKB}KB`,
+          compressedSize: `${compressedSizeKB}KB`,
+          compressionRatio: `${compressionRatio}%`,
+          format: cloudinaryResult.format
+        });
+        
       } catch (error) {
         console.error('❌ Error subiendo imagen final del sistema:', error);
       }
@@ -1414,9 +1497,77 @@ const completeMaintenanceVisit = async (req, res) => {
         const originalSize = Math.round(file.size / 1024); // KB
         console.log(`📦 Subiendo ${resourceType}: ${uniqueOriginalName} (${originalSize}KB)`);
         
-        const cloudinaryResult = await uploadBufferToCloudinary(file.buffer, {
+        // 🚀 CONFIGURAR COMPRESIÓN SEGÚN TIPO DE ARCHIVO
+        let uploadOptions = {
           folder: `maintenance/${visit.workId}/${visit.id}`,
           resource_type: resourceType,
+        };
+
+        // 📸 COMPRESIÓN PARA IMÁGENES
+        if (resourceType === 'image') {
+          uploadOptions.transformation = [
+            {
+              // Calidad automática optimizada
+              quality: 'auto:good',
+              // Formato más eficiente
+              fetch_format: 'auto',
+              // Compresión progresiva
+              flags: 'progressive'
+            }
+          ];
+
+          // Si la imagen es grande (>500KB), aplicar más compresión
+          if (originalSize > 500) {
+            console.log(`🎯 Imagen grande (${originalSize}KB), aplicando compresión agresiva`);
+            uploadOptions.transformation.push({
+              // Limitar resolución para fotos de campo
+              width: 1600,
+              height: 1200,
+              crop: 'limit',
+              // Calidad más conservadora
+              quality: 'auto:eco'
+            });
+          }
+        }
+        
+        // 🎬 COMPRESIÓN PARA VIDEOS
+        else if (resourceType === 'video') {
+          uploadOptions.transformation = [
+            {
+              // Calidad automática para videos
+              quality: 'auto:good',
+              // Formato eficiente
+              fetch_format: 'auto',
+              // Compresión
+              flags: 'lossy'
+            }
+          ];
+
+          // Si el video es grande (>10MB), aplicar más compresión
+          if (originalSize > 10240) { // 10MB en KB
+            console.log(`🎯 Video grande (${Math.round(originalSize/1024)}MB), aplicando compresión agresiva`);
+            uploadOptions.transformation.push({
+              // Limitar resolución
+              width: 1280,
+              height: 720,
+              crop: 'limit',
+              // Reducir bitrate
+              bit_rate: '800k'
+            });
+          }
+        }
+        
+        const cloudinaryResult = await uploadBufferToCloudinary(file.buffer, uploadOptions);
+
+        // 📊 Log de compresión
+        const compressedSizeKB = Math.round(cloudinaryResult.bytes / 1024);
+        const compressionRatio = ((1 - cloudinaryResult.bytes / file.size) * 100).toFixed(1);
+        
+        console.log(`✅ ${resourceType} optimizado:`, {
+          originalSize: `${originalSize}KB`,
+          compressedSize: `${compressedSizeKB}KB`,
+          compressionRatio: `${compressionRatio}%`,
+          format: cloudinaryResult.format
         });
 
         // La deduplicación ahora solo detectará duplicados REALES (mismo timestamp + índice + random)

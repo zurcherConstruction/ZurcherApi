@@ -93,16 +93,23 @@ const WorkZoneMapListScreen = ({ navigation }) => {
   const [selectedZone, setSelectedZone] = useState('all');
 
   useEffect(() => {
-    // Filtrar works solo del usuario logueado
-    if (staff?.staffId) {
-      dispatch(fetchWorks(staff.staffId));
+    // 🎯 OBTENER STAFFID: Usar el mismo patrón que el resto de la app
+    const staffId = staff?.idStaff || staff?.id;
+    
+    if (staffId) {
+      console.log(`🗺️ WorkZoneMapScreen: Fetching works for staffId: ${staffId}`);
+      dispatch(fetchWorks(staffId));
+    } else {
+      console.warn('⚠️ WorkZoneMapScreen: No staffId found for current staff');
     }
-  }, [dispatch, staff?.staffId]);
+  }, [dispatch, staff]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    if (staff?.staffId) {
-      await dispatch(fetchWorks(staff.staffId));
+    // 🎯 CONSISTENCIA: Usar el mismo patrón para obtener staffId
+    const staffId = staff?.idStaff || staff?.id;
+    if (staffId) {
+      await dispatch(fetchWorks(staffId));
     }
     setRefreshing(false);
   };

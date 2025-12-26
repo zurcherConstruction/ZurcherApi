@@ -37,19 +37,22 @@ import { Alert } from 'react-native'; // Importar Alert para mostrar errores
 export const fetchWorks = (staffId = null, skipLoading = false) => async (dispatch) => {
   dispatch(fetchWorksRequest());
   try {
-    const response = await api.get('/work'); // Ruta del backend
+    // 🎯 MEJORA: Enviar staffId al servidor para filtrar allá
+    const url = staffId ? `/work?staffId=${staffId}` : '/work';
+    const response = await api.get(url);
+    
     // ✅ El backend devuelve { works: [...], pagination: {...} }
     let works = response.data.works || response.data; // Fallback por compatibilidad
 
-    // Filtrar los trabajos por staffId si se proporciona
-    if (staffId && Array.isArray(works)) {
-      works = works.filter((work) => work.staffId === staffId);
-    }
+    // 🚫 ELIMINADO: Filtro en cliente ya no necesario
+    // if (staffId && Array.isArray(works)) {
+    //   works = works.filter((work) => work.staffId === staffId);
+    // }
 
     dispatch(fetchWorksSuccess(works));
       // Solo loggear cuando es background refresh y en desarrollo
     if (skipLoading && __DEV__) {
-      console.log('🔄 Background refresh:', works?.length || 0, 'trabajos');
+      console.log('🔄 Background refresh:', works?.length || 0, 'trabajos para staffId:', staffId);
     }
     
     return works;
@@ -71,12 +74,22 @@ export const fetchWorks = (staffId = null, skipLoading = false) => async (dispat
 export const refreshWorksInBackground = (staffId) => async (dispatch, getState) => {
   try {
     if (__DEV__) {
-      console.log('🔄 Actualizando trabajos en segundo plano');
+      console.log('🔄 Actualizando trabajos en segundo plano para staffId:', staffId);
     }
+    
+    // 🛡️ PREVENCIÓN DE MÚLTIPLES REFRESHES: Verificar si ya hay un refresh en progreso
+    const currentState = getState();
+    if (currentState.work?.loading) {
+      if (__DEV__) {
+        console.log('⏭️ Refresh ya en progreso, omitiendo...');
+      }
+      return;
+    }
+    
     await dispatch(fetchWorks(staffId, true));
   } catch (error) {
     if (__DEV__) {
-      console.log('❌ Error en actualización:', error.message);
+      console.log('❌ Error en actualización background:', error.message);
     }
   }
 };

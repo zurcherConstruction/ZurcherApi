@@ -41,16 +41,31 @@ import {
   
 } from '../Reducer/workReducer';
 
-// Obtener todas las obras
-export const fetchWorks = (page = 1, limit = 50) => async (dispatch) => {
+// Obtener todas las obras con filtros opcionales
+export const fetchWorks = (page = 1, limit = 'all', filters = {}) => async (dispatch) => {
   dispatch(fetchWorksRequest());
   try {
-    console.log(`📡 Fetching works: page=${page}, limit=${limit}`);
-    const response = await api.get(`/work?page=${page}&limit=${limit}`); // Ruta del backend con paginación
+    // Construir query params
+    const queryParams = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+    });
+    
+    // Agregar filtros si están presentes
+    if (filters.staffId) {
+      queryParams.append('staffId', filters.staffId);
+    }
+    if (filters.status) {
+      queryParams.append('status', filters.status);
+    }
+    
+    console.log(`📡 Fetching works: page=${page}, limit=${limit}, filters=${JSON.stringify(filters)}`);
+    const response = await api.get(`/work?${queryParams.toString()}`);
     
     console.log('📊 Backend response:', {
       totalWorks: response.data.works?.length || 0,
       pagination: response.data.pagination,
+      staffIdFilter: filters.staffId || 'none',
       coverPendingCount: response.data.works?.filter(w => w.status === 'coverPending').length || 0
     });
     

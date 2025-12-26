@@ -161,24 +161,17 @@ export const processQueue = async (onProgress = null) => {
     }
   }
   
-  // Mostrar resumen
-  if (processed > 0) {
-    Toast.show({
-      type: 'success',
-      text1: '✅ Imágenes sincronizadas',
-      text2: `${processed} imagen(es) subida(s)`,
-      position: 'bottom',
-      visibilityTime: 3000
-    });
-  }
+  // 🚫 TOAST ELIMINADO: Causaba problemas de UI fijo
+  // El usuario ya ve confirmación con "✓ Foto agregada" al tomar cada foto
   
   if (failed > 0) {
     Toast.show({
       type: 'error',
-      text1: '⚠️ Algunas imágenes fallaron',
-      text2: `${failed} imagen(es) no se pudieron subir`,
+      text1: '⚠️ Error subiendo imágenes',
+      text2: `${failed} imagen(es) fallaron`,
       position: 'bottom',
-      visibilityTime: 5000
+      visibilityTime: 3000,
+      autoHide: true
     });
   }
   

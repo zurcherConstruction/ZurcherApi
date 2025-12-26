@@ -34,7 +34,9 @@ export const useAutoRefresh = (interval = 60000) => {
         if (__DEV__) {
           console.log('⏰ Ejecutando auto-refresh');
         }
-        dispatch(refreshWorksInBackground(staff.id));
+        // 🎯 CONSISTENCIA: Usar el mismo patrón para obtener staffId
+        const staffId = staff?.idStaff || staff?.id;
+        dispatch(refreshWorksInBackground(staffId));
       }, interval);
     };
 
@@ -43,7 +45,9 @@ export const useAutoRefresh = (interval = 60000) => {
         if (__DEV__) {
           console.log('📱 App volvió al primer plano');
         }
-        dispatch(refreshWorksInBackground(staff.id));
+        // 🎯 CONSISTENCIA: Usar el mismo patrón para obtener staffId
+        const staffId = staff?.idStaff || staff?.id;
+        dispatch(refreshWorksInBackground(staffId));
         startPolling();
       } else if (nextAppState.match(/inactive|background/)) {
         if (__DEV__) {
@@ -65,16 +69,18 @@ export const useAutoRefresh = (interval = 60000) => {
       }
       subscription?.remove();
     };
-  }, [isAuthenticated, staff?.id, dispatch, interval]); // CAMBIO: staff?.id
+  }, [isAuthenticated, staff, dispatch, interval]); // 🎯 Usar 'staff' completo en lugar de staff?.id
 
   const forceRefresh = () => {
-    if (isAuthenticated && staff?.id) {
+    // 🎯 CONSISTENCIA: Usar el mismo patrón para obtener staffId
+    const staffId = staff?.idStaff || staff?.id;
+    if (isAuthenticated && staffId) {
       if (__DEV__) {
         console.log('🔄 Refresh manual ejecutado');
       }
-      dispatch(refreshWorksInBackground(staff.id));
+      dispatch(refreshWorksInBackground(staffId));
     } else if (__DEV__) {
-      console.log('❌ No se puede hacer refresh - no autenticado');
+      console.log('❌ No se puede hacer refresh - no autenticado o sin staffId');
     }
   };
 
