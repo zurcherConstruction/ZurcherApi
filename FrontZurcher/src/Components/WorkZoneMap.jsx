@@ -107,12 +107,31 @@ const WorkZoneMap = () => {
   const isWorker = user?.role === 'worker';
 
   useEffect(() => {
-    console.log('🚀 WorkZoneMap: Obteniendo TODOS los trabajos...');
-    dispatch(fetchWorks(1, 'all')); // ✅ Usar 'all' para obtener todos los registros
-  }, [dispatch]);
+    if (isWorker) {
+      // 🎯 WORKERS: Solo obtener sus trabajos asignados
+      const staffId = user?.idStaff || user?.id;
+      if (staffId) {
+        console.log(`🚀 WorkZoneMap (Worker): Obteniendo trabajos para staffId: ${staffId}...`);
+        dispatch(fetchWorks(1, 1000, { staffId }));
+      }
+    } else {
+      // 👥 ADMIN/MANAGER: Obtener todos los trabajos
+      console.log('🚀 WorkZoneMap (Admin): Obteniendo TODOS los trabajos...');
+      dispatch(fetchWorks(1, 'all')); 
+    }
+  }, [dispatch, isWorker, user]);
 
-  // Auto-refresh cada 5 minutos obteniendo todos los trabajos
-  useAutoRefresh(() => fetchWorks(1, 'all'), 300000, []);
+  // Auto-refresh cada 5 minutos con el mismo patrón de filtrado
+  useAutoRefresh(() => {
+    if (isWorker) {
+      const staffId = user?.idStaff || user?.id;
+      if (staffId) {
+        return fetchWorks(1, 1000, { staffId });
+      }
+    } else {
+      return fetchWorks(1, 'all');
+    }
+  }, 300000, [isWorker, user]);
 
   // Función para detectar la zona de una dirección
   const detectZone = (address) => {

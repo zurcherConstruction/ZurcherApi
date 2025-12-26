@@ -75,12 +75,15 @@ const getWorks = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const requestedLimit = req.query.limit;
     
+    // 🎯 FILTRO POR STAFF: Extraer staffId de query params
+    const { staffId } = req.query;
+    
     // ✅ SOLUCIÓN UNIVERSAL: Permitir "all" para obtener todos los registros
     let limit, offset;
     if (requestedLimit === 'all') {
       limit = null; // Sin límite
       offset = 0;
-      console.log('🌍 Fetching ALL works (no pagination limit)');
+      console.log('🌍 Fetching ALL works (no pagination limit)' + (staffId ? ` for staff: ${staffId}` : ''));
     } else {
       const numericLimit = parseInt(requestedLimit) || 50;
       limit = Math.min(numericLimit, 2000); // Máximo 2000 para casos normales
@@ -91,6 +94,8 @@ const getWorks = async (req, res) => {
     // Evita locks excesivos al no cargar Expenses ni Receipts en el JOIN principal
     // ✅ Construir opciones de consulta dinámicamente
     const queryOptions = {
+      // 🎯 FILTRO POR STAFF: Agregar WHERE si staffId está presente
+      where: staffId ? { staffId: staffId } : {},
       include: [
         {
           model: Budget,
@@ -265,15 +270,26 @@ const getWorks = async (req, res) => {
     }));
 
     // 📊 METADATA DE PAGINACIÓN
-    const totalPages = Math.ceil(count / limit);
+    const totalPages = limit ? Math.ceil(count / limit) : 1;
     const pagination = {
       total: count,
       page,
-      limit,
+      limit: limit || 'all',
       totalPages,
-      hasNextPage: page < totalPages,
-      hasPrevPage: page > 1
+      hasNextPage: limit ? page < totalPages : false,
+      hasPrevPage: page > 1,
+      // 🎯 Información de filtro
+      filteredByStaff: staffId || null
     };
+
+    // 🎯 LOG PARA DEBUG DEL PROBLEMA
+    console.log(`📊 [getWorks] Retornando:`, {
+      totalWorks: count,
+      worksInResponse: worksWithDetails.length,
+      staffFilter: staffId || 'none',
+      page,
+      limit: limit || 'all'
+    });
 
     res.status(200).json({
       works: worksWithDetails,

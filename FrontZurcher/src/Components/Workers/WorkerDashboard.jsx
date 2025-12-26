@@ -21,14 +21,20 @@ const WorkerDashboard = () => {
   const [activeTab, setActiveTab] = useState('assigned'); // assigned, inProgress, completed
 
   useEffect(() => {
-    dispatch(fetchWorks());
-  }, [dispatch]);
+    // Obtener el ID del staff actual para filtrar en el backend
+    const staffId = authStaff?.idStaff || authStaff?.id;
+    
+    if (staffId) {
+      console.log(`🔍 WorkerDashboard: Fetching works for staffId: ${staffId}`);
+      // Filtrar por staffId en el backend, no en el cliente
+      dispatch(fetchWorks(1, 1000, { staffId }));
+    } else {
+      console.warn('⚠️ WorkerDashboard: No staffId found for current user');
+    }
+  }, [dispatch, authStaff]);
 
-  // Obtener el ID del staff (puede ser 'id' o 'idStaff' dependiendo de la estructura)
-  const staffId = authStaff?.idStaff || authStaff?.id;
-
-  // Filtrar trabajos asignados al worker actual
-  const myWorks = works.filter(work => work.staffId === staffId);
+  // Ya no necesitamos filtrar aquí porque el backend ya devuelve solo los trabajos del staff
+  const myWorks = works || [];
 
   // Separar por estado
   // Asignados: incluye assigned y coverPending (pendiente de cubrir)

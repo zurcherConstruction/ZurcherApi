@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import moment from "moment-timezone";
 import { useSelector, useDispatch } from "react-redux";
-import { fetchAssignedWorks } from "../Redux/Actions/workActions";
+import { fetchWorks } from "../Redux/Actions/workActions"; // 🎯 CAMBIO: fetchWorks en lugar de fetchAssignedWorks
 import { View, Text, FlatList, TouchableOpacity, TextInput, ActivityIndicator } from "react-native";
 import UploadScreen from "./UploadScreen";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -30,7 +30,8 @@ const statusTranslations = {
 const WorksListScreen = ({ navigation }) => { // Recibe navigation como prop
   const dispatch = useDispatch();
   const { staff } = useSelector((state) => state.auth);
-  const staffId = staff?.id; // Usar staff.id en lugar de idStaff
+  // 🎯 CONSISTENCIA: Usar el mismo patrón que WorkZoneMapScreen
+  const staffId = staff?.idStaff || staff?.id;
 
   const [searchQuery, setSearchQuery] = useState('');
   const { works, loading: reduxLoading, error, lastUpdate } = useSelector((state) => state.work);
@@ -46,7 +47,11 @@ const WorksListScreen = ({ navigation }) => { // Recibe navigation como prop
   
   useEffect(() => {
     if (staffId) {
-      dispatch(fetchAssignedWorks(staffId));
+      console.log(`📋 AssignedWorksScreen: Fetching works for staffId: ${staffId}`);
+      // 🎯 USAR fetchWorks con filtro por staffId, no fetchAssignedWorks
+      dispatch(fetchWorks(staffId));
+    } else {
+      console.warn('⚠️ AssignedWorksScreen: No staffId found for current staff');
     }
   }, [dispatch, staffId]);
 

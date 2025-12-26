@@ -30,8 +30,10 @@ export const login = (email, password) => async (dispatch) => {
 
     dispatch(loginSuccess({ token, staff }));
     
+    // 🎯 CONSISTENCIA: Usar el mismo patrón para obtener staffId
+    const staffId = staff.idStaff || staff.id;
     // Despachar la acción para obtener los trabajos asignados al staff
-    dispatch(fetchWorks(staff.id)); // Aquí usamos staff.id como staffId
+    dispatch(fetchWorks(staffId)); // Usar staffId consistente
     
     // ✅ RETORNAR ÉXITO
     return { success: true, staff };
@@ -103,7 +105,9 @@ export const restoreSession = () => async (dispatch) => {
         
         // Cargar trabajos después de restaurar la sesión (esto validará el token)
         try {
-          await dispatch(fetchWorks(staff.id));
+          // 🎯 CONSISTENCIA: Usar el mismo patrón para obtener staffId
+          const staffId = staff.idStaff || staff.id;
+          await dispatch(fetchWorks(staffId));
         } catch (error) {
           if (__DEV__) {
             console.log('⚠️ Error cargando trabajos, token puede estar expirado');
