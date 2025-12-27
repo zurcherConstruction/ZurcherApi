@@ -144,7 +144,9 @@ app.use((req, res, next) => {
 // Si necesitas ejecutar un seed manual, crea un script separado y ejecútalo con node
 
 // Routes
+const testDocuSignRoutes = require('./routes/test-docusign'); // 🧪 Test DocuSign
 app.use('/', routes);
+app.use('/test-docusign', testDocuSignRoutes); // 🧪 Endpoint de prueba DocuSign
 //app.use('/auth', authRoutes);
 
 // Not Found Middleware

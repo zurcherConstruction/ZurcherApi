@@ -1,7 +1,8 @@
 const docusign = require('docusign-esign');
 const fs = require('fs');
 const path = require('path');
-const DocuSignController = require('../controllers/DocuSignController'); // 🆕 OAUTH
+const DocuSignTokenService = require('./DocuSignTokenService');
+const { docuSignOperation, withAutoRefreshToken } = require('../middleware/docuSignMiddleware');
 
 class DocuSignService {
   constructor() {
@@ -31,77 +32,30 @@ class DocuSignService {
   }
 
   /**
-   * Obtener token de acceso usando JWT (revertido desde OAuth)
-   * Configuración directa con claves privadas
+   * Obtener token de acceso usando el sistema robusto de tokens OAuth
+   * Reemplaza el sistema JWT por OAuth con persistencia en base de datos
    */
   async getAccessToken() {
     try {
-      console.log('🔐 Obteniendo access token de DocuSign con JWT...');
+      console.log('🔐 Obteniendo access token de DocuSign con sistema robusto OAuth...');
 
-      // 🔧 Leer la llave privada desde múltiples fuentes
-      let privateKey;
-      
-      // Prioridad 1: Variable de entorno con contenido directo (PRODUCCIÓN - Railway)
-      if (process.env.DOCUSIGN_PRIVATE_KEY_CONTENT) {
-        console.log('📝 Usando clave privada desde variable de entorno (contenido directo)');
-        privateKey = process.env.DOCUSIGN_PRIVATE_KEY_CONTENT.replace(/\\n/g, '\n');
-      }
-      // Prioridad 2: Variable de entorno con Base64 (Alternativa para Railway)
-      else if (process.env.DOCUSIGN_PRIVATE_KEY_BASE64) {
-        console.log('📝 Usando clave privada desde variable de entorno (Base64)');
-        const buffer = Buffer.from(process.env.DOCUSIGN_PRIVATE_KEY_BASE64, 'base64');
-        privateKey = buffer.toString('utf8');
-      }
-      // Prioridad 3: Leer desde archivo local (DESARROLLO)
-      else {
-        console.log('📁 Leyendo clave privada desde archivo local');
-        const privateKeyPath = path.resolve('./docusign_private.key');
-        if (!fs.existsSync(privateKeyPath)) {
-          throw new Error(`No se encontró la llave privada en: ${privateKeyPath}. 
-          
-⚠️  Para DESARROLLO: Coloca el archivo docusign_private.key en la carpeta BackZurcher/
-⚠️  Para PRODUCCIÓN (Railway): Agrega la variable de entorno DOCUSIGN_PRIVATE_KEY_CONTENT con el contenido completo de la clave.`);
-        }
-        privateKey = fs.readFileSync(privateKeyPath, 'utf8');
-      }
-
-      // Configurar el OAuth basePath para el ambiente correcto
-      const oAuthBasePath = process.env.DOCUSIGN_OAUTH_BASE_PATH || 
-        (this.environment === 'demo'
-          ? 'account-d.docusign.com'
-          : 'account.docusign.com');
-      
-      this.apiClient.setOAuthBasePath(oAuthBasePath);
-
-      // Configurar JWT
-      const jwtLifeSec = 3600; // 1 hora
-      const scopes = ['signature', 'impersonation'];
-
-      // Solicitar token JWT
-      const results = await this.apiClient.requestJWTUserToken(
-        this.integrationKey,
-        this.userId,
-        scopes,
-        privateKey,
-        jwtLifeSec
-      );
-
-      const accessToken = results.body.access_token;
+      // Usar el sistema robusto de tokens con auto-refresh
+      const accessToken = await DocuSignTokenService.getValidAccessToken();
       
       // Configurar el token en el API client
       this.apiClient.addDefaultHeader('Authorization', `Bearer ${accessToken}`);
       
-      console.log('✅ Access token JWT obtenido exitosamente');
+      console.log('✅ Access token robusto OAuth obtenido exitosamente');
       return accessToken;
     } catch (error) {
-      console.error('❌ Error obteniendo access token JWT:', error.message);
+      console.error('❌ Error obteniendo access token robusto OAuth:', error.message);
       
-      // Error específico para JWT
-      if (error.message.includes('consent_required') || error.message.includes('consent')) {
-        console.error('\n⚠️  ACCIÓN REQUERIDA: Se necesita consentimiento JWT');
-        console.error('👉 Ve a DocuSign Admin → API and Keys → Apps and Keys');
-        console.error('👉 Selecciona tu aplicación y da "Grant Consent"');
-        console.error('👉 URL de consentimiento: https://account-d.docusign.com/oauth/auth?response_type=code&scope=signature&client_id=' + this.integrationKey + '&redirect_uri=your-redirect-uri');
+      // Error específico para OAuth
+      if (error.message.includes('No hay tokens disponibles')) {
+        console.error('\n⚠️  ACCIÓN REQUERIDA: Se necesita autorización OAuth');
+        console.error('👉 Ve a: ' + process.env.API_URL + '/docusign/auth');
+        console.error('👉 Completa el proceso de autorización OAuth');
+        console.error('👉 Una vez autorizado, los tokens se guardarán automáticamente en la base de datos');
       }
       throw error;
     }
@@ -118,17 +72,19 @@ class DocuSignService {
    * @param {boolean} getSigningUrl - Si true, retorna URL de firma en lugar de enviar email
    */
   async sendBudgetForSignature(pdfPath, clientEmail, clientName, fileName, subject, message, getSigningUrl = true) {
-    try {
+    // Usar el sistema robusto de operaciones DocuSign con auto-refresh
+    return await withAutoRefreshToken(async (accessToken) => {
       // 🔧 Normalizar email a minúsculas para evitar problemas de entrega
       const normalizedEmail = clientEmail.toLowerCase();
       
-      console.log('\n🚀 === ENVIANDO DOCUMENTO A DOCUSIGN ===');
+      console.log('\n🚀 === ENVIANDO DOCUMENTO A DOCUSIGN (SISTEMA ROBUSTO) ===');
       console.log('📧 Cliente:', normalizedEmail, '-', clientName);
       console.log('📄 Archivo:', fileName);
       console.log('🔗 Generar URL de firma:', getSigningUrl ? 'Sí' : 'No (enviar email)');
+      console.log('🔐 Usando token robusto con auto-refresh');
 
-      // Obtener token
-      await this.getAccessToken();
+      // Token ya fue obtenido y validado por withAutoRefreshToken
+      this.apiClient.addDefaultHeader('Authorization', `Bearer ${accessToken}`);
 
       // Leer el archivo PDF
       let pdfBytes;
@@ -161,7 +117,7 @@ class DocuSignService {
         envelopeDefinition: envelopeDefinition
       });
 
-      console.log('✅ Documento enviado exitosamente a DocuSign');
+      console.log('✅ Documento enviado exitosamente a DocuSign (sistema robusto)');
       console.log('📋 Envelope ID:', results.envelopeId);
       console.log('📊 Status:', results.status);
 
@@ -186,14 +142,7 @@ class DocuSignService {
       }
 
       return response;
-
-    } catch (error) {
-      console.error('❌ Error enviando documento a DocuSign:', error.message);
-      if (error.response?.body) {
-        console.error('Detalles:', JSON.stringify(error.response.body, null, 2));
-      }
-      throw error;
-    }
+    });
   }
 
   /**
