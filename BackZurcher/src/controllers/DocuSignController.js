@@ -192,6 +192,7 @@ class DocuSignController {
    */
   static async exchangeCodeForTokens(code) {
     const integrationKey = process.env.DOCUSIGN_INTEGRATION_KEY;
+    const clientSecret = process.env.DOCUSIGN_CLIENT_SECRET;
     const redirectUri = `${process.env.API_URL}/docusign/callback`;
     const environment = process.env.DOCUSIGN_ENVIRONMENT || 'demo';
     
@@ -199,8 +200,8 @@ class DocuSignController {
       ? 'account.docusign.com' 
       : 'account-d.docusign.com';
 
-    // DocuSign requiere autenticación básica con Integration Key (como username) sin password
-    const auth = Buffer.from(`${integrationKey}:`).toString('base64');
+    // DocuSign OAuth requiere autenticación básica con Integration Key y Client Secret
+    const auth = Buffer.from(`${integrationKey}:${clientSecret}`).toString('base64');
 
     const response = await axios.post(
       `https://${authServer}/oauth/token`,
@@ -409,6 +410,110 @@ class DocuSignController {
     };
 
     DocuSignController.saveTokens(newTokens);
+  }
+
+  /**
+   * Obtiene el estado de autenticación (método para el test)
+   */
+  static async getAuthStatus() {
+    try {
+      const tokens = DocuSignController.loadTokens();
+
+      if (!tokens) {
+        return {
+          authenticated: false,
+          isExpired: false,
+          needsRefresh: false,
+          message: 'No hay tokens disponibles. Debes autorizar la aplicación.'
+        };
+      }
+
+      const obtainedAt = new Date(tokens.obtained_at);
+      const expiresAt = new Date(obtainedAt.getTime() + tokens.expires_in * 1000);
+      const now = new Date();
+      const isExpired = now >= expiresAt;
+
+      return {
+        authenticated: true,
+        isExpired,
+        obtainedAt: tokens.obtained_at,
+        expiresAt: expiresAt.toISOString(),
+        needsRefresh: isExpired
+      };
+    } catch (error) {
+      return {
+        authenticated: false,
+        isExpired: false,
+        needsRefresh: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Test de conexión para verificar que DocuSign funciona
+   */
+  static async testConnection() {
+    try {
+      const accessToken = await DocuSignController.getValidAccessToken();
+
+      // Hacer una llamada simple a DocuSign API para verificar conexión
+      // Usamos el endpoint correcto para obtener información de la cuenta
+      const response = await axios.get(
+        `${process.env.DOCUSIGN_BASE_PATH}/accounts/${process.env.DOCUSIGN_ACCOUNT_ID}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Accept': 'application/json'
+          }
+        }
+      );
+
+      if (response.status === 200) {
+        const account = response.data;
+        return { 
+          success: true, 
+          message: `Conectado a cuenta: ${account.account_name || account.email || 'DocuSign'}`,
+          accountId: account.account_id || process.env.DOCUSIGN_ACCOUNT_ID,
+          accountName: account.account_name
+        };
+      } else {
+        return { success: false, message: `Status inesperado: ${response.status}` };
+      }
+
+    } catch (error) {
+      // Si es error 404, intentar con endpoint alternativo
+      if (error.response && error.response.status === 404) {
+        try {
+          const accessToken = await DocuSignController.getValidAccessToken();
+          
+          // Intentar con endpoint de user info como fallback
+          const response = await axios.get(
+            `${process.env.DOCUSIGN_BASE_PATH}/accounts`,
+            {
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Accept': 'application/json'
+              }
+            }
+          );
+
+          if (response.status === 200 && response.data.accounts && response.data.accounts.length > 0) {
+            const account = response.data.accounts[0];
+            return { 
+              success: true, 
+              message: `Conectado a cuenta: ${account.account_name || account.email || 'DocuSign'}`,
+              accountId: account.account_id,
+              accountName: account.account_name
+            };
+          }
+        } catch (fallbackError) {
+          return { success: false, message: `Error en endpoint alternativo: ${fallbackError.message}` };
+        }
+      }
+      
+      return { success: false, message: error.message };
+    }
   }
 }
 
