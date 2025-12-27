@@ -10,11 +10,14 @@ class DocuSignService {
     this.accountId = process.env.DOCUSIGN_ACCOUNT_ID;
     this.environment = process.env.DOCUSIGN_ENVIRONMENT || 'demo';
     
-    // Usar DOCUSIGN_BASE_PATH del .env o valor por defecto según ambiente
-    this.basePath = process.env.DOCUSIGN_BASE_PATH || 
+    // 🔧 FIX: Quitar /v2.1 de DOCUSIGN_BASE_PATH si está presente, porque el SDK lo agrega automáticamente
+    let basePath = process.env.DOCUSIGN_BASE_PATH || 
       (this.environment === 'demo' 
         ? 'https://demo.docusign.net/restapi'
-        : 'https://www.docusign.net/restapi');
+        : 'https://na4.docusign.net/restapi');
+    
+    // Quitar /v2.1 del final si está presente
+    this.basePath = basePath.replace(/\/v2\.1$/, '');
 
     // Validar configuración
     if (!this.integrationKey || !this.userId || !this.accountId) {
