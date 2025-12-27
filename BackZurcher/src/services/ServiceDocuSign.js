@@ -149,7 +149,8 @@ class DocuSignService {
   /**
    * Crear definición del envelope para firma
    */
-  createEnvelopeDefinition(pdfBase64, fileName, clientEmail, clientName, subject, message, useEmbeddedSigning = true) {
+  createEnvelopeDefinition(pdfBase64, fileName, clientEmail, clientName, subject, message, useEmbeddedSigning) {
+    useEmbeddedSigning = useEmbeddedSigning !== undefined ? useEmbeddedSigning : true;
     // Documento
     const document = docusign.Document.constructFromObject({
       documentBase64: pdfBase64,
