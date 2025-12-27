@@ -144,7 +144,6 @@ class DocuSignService {
       return response;
     });
   }
-  }
 
   /**
    * Crear definición del envelope para firma
