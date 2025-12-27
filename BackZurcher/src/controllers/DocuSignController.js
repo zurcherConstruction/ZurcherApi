@@ -1,13 +1,10 @@
 const axios = require('axios');
-const fs = require('fs');
-const path = require('path');
+const DocuSignTokenService = require('../services/DocuSignTokenService');
 
 /**
  * Controlador para manejar autenticación OAuth de DocuSign
+ * Ahora usa base de datos para persistencia robusta de tokens
  */
-
-// Archivo para almacenar tokens (en producción usar base de datos)
-const TOKEN_FILE = path.join(__dirname, '../../docusign_tokens.json');
 
 class DocuSignController {
   /**
@@ -59,10 +56,14 @@ class DocuSignController {
       // Intercambiar código por tokens
       const tokens = await DocuSignController.exchangeCodeForTokens(code);
 
-      // Guardar tokens
-      DocuSignController.saveTokens(tokens);
+      // Guardar tokens usando el servicio robusto
+      await DocuSignTokenService.saveToken(tokens, {
+        userAgent: req.get('User-Agent'),
+        ipAddress: req.ip || req.connection.remoteAddress,
+        notes: 'Token obtenido via OAuth callback'
+      });
 
-      console.log('✅ Tokens obtenidos y guardados exitosamente');
+      console.log('✅ Tokens obtenidos y guardados exitosamente en base de datos');
 
       res.send(`
         <html>
@@ -228,53 +229,12 @@ class DocuSignController {
   }
 
   /**
-   * Guarda los tokens en un archivo
-   */
-  static saveTokens(tokens) {
-    fs.writeFileSync(TOKEN_FILE, JSON.stringify(tokens, null, 2));
-  }
-
-  /**
-   * Lee los tokens del archivo
-   */
-  static loadTokens() {
-    try {
-      if (fs.existsSync(TOKEN_FILE)) {
-        const data = fs.readFileSync(TOKEN_FILE, 'utf8');
-        return JSON.parse(data);
-      }
-    } catch (error) {
-      console.error('Error leyendo tokens:', error.message);
-    }
-    return null;
-  }
-
-  /**
    * Verifica si los tokens están disponibles y válidos
    */
   static async checkAuthStatus(req, res) {
     try {
-      const tokens = DocuSignController.loadTokens();
-
-      if (!tokens) {
-        return res.json({
-          authenticated: false,
-          message: 'No hay tokens disponibles. Debes autorizar la aplicación.'
-        });
-      }
-
-      const obtainedAt = new Date(tokens.obtained_at);
-      const expiresAt = new Date(obtainedAt.getTime() + tokens.expires_in * 1000);
-      const now = new Date();
-      const isExpired = now >= expiresAt;
-
-      res.json({
-        authenticated: true,
-        isExpired,
-        obtainedAt: tokens.obtained_at,
-        expiresAt: expiresAt.toISOString(),
-        needsRefresh: isExpired
-      });
+      const authStatus = await DocuSignTokenService.getAuthStatus();
+      res.json(authStatus);
     } catch (error) {
       res.status(500).json({
         error: 'Error verificando estado de autenticación',
@@ -288,46 +248,15 @@ class DocuSignController {
    */
   static async refreshToken(req, res) {
     try {
-      const tokens = DocuSignController.loadTokens();
+      const token = await DocuSignTokenService.getActiveToken();
 
-      if (!tokens || !tokens.refresh_token) {
+      if (!token) {
         return res.status(400).json({
-          error: 'No hay refresh token disponible'
+          error: 'No hay tokens disponibles para refrescar'
         });
       }
 
-      const integrationKey = process.env.DOCUSIGN_INTEGRATION_KEY;
-      const environment = process.env.DOCUSIGN_ENVIRONMENT || 'demo';
-      
-      const authServer = environment === 'production' 
-        ? 'account.docusign.com' 
-        : 'account-d.docusign.com';
-
-      const auth = Buffer.from(`${integrationKey}:`).toString('base64');
-
-      const response = await axios.post(
-        `https://${authServer}/oauth/token`,
-        new URLSearchParams({
-          grant_type: 'refresh_token',
-          refresh_token: tokens.refresh_token
-        }).toString(),
-        {
-          headers: {
-            'Authorization': `Basic ${auth}`,
-            'Content-Type': 'application/x-www-form-urlencoded'
-          }
-        }
-      );
-
-      const newTokens = {
-        access_token: response.data.access_token,
-        refresh_token: response.data.refresh_token || tokens.refresh_token,
-        expires_in: response.data.expires_in,
-        token_type: response.data.token_type,
-        obtained_at: new Date().toISOString()
-      };
-
-      DocuSignController.saveTokens(newTokens);
+      await DocuSignTokenService.refreshToken(token);
 
       res.json({
         success: true,
@@ -343,176 +272,48 @@ class DocuSignController {
   }
 
   /**
-   * Obtiene un access token válido (refresca si es necesario)
+   * Obtiene un access token válido (refresca automáticamente si es necesario)
    */
   static async getValidAccessToken() {
-    const tokens = DocuSignController.loadTokens();
-
-    if (!tokens) {
-      throw new Error('No hay tokens disponibles. Debes autorizar la aplicación primero en: ' + process.env.API_URL + '/docusign/auth');
-    }
-
-    const obtainedAt = new Date(tokens.obtained_at);
-    const expiresAt = new Date(obtainedAt.getTime() + tokens.expires_in * 1000);
-    const now = new Date();
-
-    // Si el token expira en menos de 5 minutos, refrescarlo
-    const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
-
-    if (expiresAt <= fiveMinutesFromNow) {
-      console.log('🔄 Token próximo a expirar, refrescando...');
-      await DocuSignController.refreshTokenInternal();
-      return DocuSignController.loadTokens().access_token;
-    }
-
-    return tokens.access_token;
-  }
-
-  /**
-   * Refresca el token internamente (sin respuesta HTTP)
-   */
-  static async refreshTokenInternal() {
-    const tokens = DocuSignController.loadTokens();
-
-    if (!tokens || !tokens.refresh_token) {
-      throw new Error('No hay refresh token disponible');
-    }
-
-    const integrationKey = process.env.DOCUSIGN_INTEGRATION_KEY;
-    const environment = process.env.DOCUSIGN_ENVIRONMENT || 'demo';
-    
-    const authServer = environment === 'production' 
-      ? 'account.docusign.com' 
-      : 'account-d.docusign.com';
-
-    const auth = Buffer.from(`${integrationKey}:`).toString('base64');
-
-    const response = await axios.post(
-      `https://${authServer}/oauth/token`,
-      new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: tokens.refresh_token
-      }).toString(),
-      {
-        headers: {
-          'Authorization': `Basic ${auth}`,
-          'Content-Type': 'application/x-www-form-urlencoded'
-        }
-      }
-    );
-
-    const newTokens = {
-      access_token: response.data.access_token,
-      refresh_token: response.data.refresh_token || tokens.refresh_token,
-      expires_in: response.data.expires_in,
-      token_type: response.data.token_type,
-      obtained_at: new Date().toISOString()
-    };
-
-    DocuSignController.saveTokens(newTokens);
+    return await DocuSignTokenService.getValidAccessToken();
   }
 
   /**
    * Obtiene el estado de autenticación (método para el test)
    */
   static async getAuthStatus() {
-    try {
-      const tokens = DocuSignController.loadTokens();
-
-      if (!tokens) {
-        return {
-          authenticated: false,
-          isExpired: false,
-          needsRefresh: false,
-          message: 'No hay tokens disponibles. Debes autorizar la aplicación.'
-        };
-      }
-
-      const obtainedAt = new Date(tokens.obtained_at);
-      const expiresAt = new Date(obtainedAt.getTime() + tokens.expires_in * 1000);
-      const now = new Date();
-      const isExpired = now >= expiresAt;
-
-      return {
-        authenticated: true,
-        isExpired,
-        obtainedAt: tokens.obtained_at,
-        expiresAt: expiresAt.toISOString(),
-        needsRefresh: isExpired
-      };
-    } catch (error) {
-      return {
-        authenticated: false,
-        isExpired: false,
-        needsRefresh: false,
-        error: error.message
-      };
-    }
+    return await DocuSignTokenService.getAuthStatus();
   }
 
   /**
    * Test de conexión para verificar que DocuSign funciona
    */
   static async testConnection() {
+    return await DocuSignTokenService.testConnection();
+  }
+
+  /**
+   * Revoca todos los tokens activos
+   */
+  static async revokeTokens(req, res) {
     try {
-      const accessToken = await DocuSignController.getValidAccessToken();
-
-      // Hacer una llamada simple a DocuSign API para verificar conexión
-      // Usamos el endpoint correcto para obtener información de la cuenta
-      const response = await axios.get(
-        `${process.env.DOCUSIGN_BASE_PATH}/accounts/${process.env.DOCUSIGN_ACCOUNT_ID}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Accept': 'application/json'
-          }
-        }
-      );
-
-      if (response.status === 200) {
-        const account = response.data;
-        return { 
-          success: true, 
-          message: `Conectado a cuenta: ${account.account_name || account.email || 'DocuSign'}`,
-          accountId: account.account_id || process.env.DOCUSIGN_ACCOUNT_ID,
-          accountName: account.account_name
-        };
-      } else {
-        return { success: false, message: `Status inesperado: ${response.status}` };
-      }
-
-    } catch (error) {
-      // Si es error 404, intentar con endpoint alternativo
-      if (error.response && error.response.status === 404) {
-        try {
-          const accessToken = await DocuSignController.getValidAccessToken();
-          
-          // Intentar con endpoint de user info como fallback
-          const response = await axios.get(
-            `${process.env.DOCUSIGN_BASE_PATH}/accounts`,
-            {
-              headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Accept': 'application/json'
-              }
-            }
-          );
-
-          if (response.status === 200 && response.data.accounts && response.data.accounts.length > 0) {
-            const account = response.data.accounts[0];
-            return { 
-              success: true, 
-              message: `Conectado a cuenta: ${account.account_name || account.email || 'DocuSign'}`,
-              accountId: account.account_id,
-              accountName: account.account_name
-            };
-          }
-        } catch (fallbackError) {
-          return { success: false, message: `Error en endpoint alternativo: ${fallbackError.message}` };
-        }
-      }
+      const success = await DocuSignTokenService.revokeAllTokens();
       
-      return { success: false, message: error.message };
+      if (success) {
+        res.json({
+          success: true,
+          message: 'Todos los tokens han sido revocados exitosamente'
+        });
+      } else {
+        res.status(500).json({
+          error: 'Error revocando tokens'
+        });
+      }
+    } catch (error) {
+      res.status(500).json({
+        error: 'Error revocando tokens',
+        details: error.message
+      });
     }
   }
 }
