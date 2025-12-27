@@ -61,11 +61,11 @@ El sistema usará DocuSign automáticamente cuando `USE_DOCUSIGN=true` en el `.e
 ## 🔧 Configuración Actual
 
 ```env
-DOCUSIGN_INTEGRATION_KEY=79d27412-c799-442a-b358-3f4bc9f7feb5
-DOCUSIGN_USER_ID=dcf6428f-3381-4604-97ff-c151983bca0c
-DOCUSIGN_ACCOUNT_ID=4d74d3bc-2b4b-499b-97f4-5509119d1fd2
+DOCUSIGN_INTEGRATION_KEY=459418bc-af8a-4523-9520-eb8846021b27
+DOCUSIGN_USER_ID=aeae793f-120a-4f1a-8e53-f4d9a2e48f66
+DOCUSIGN_ACCOUNT_ID=44420044
 DOCUSIGN_ENVIRONMENT=demo
-USE_DOCUSIGN=false  # Cambiar a true cuando esté listo
+USE_DOCUSIGN=true  # Cambiar a true para activar
 API_URL=http://localhost:3001  # Asegúrate de que esté configurado
 ```
 
