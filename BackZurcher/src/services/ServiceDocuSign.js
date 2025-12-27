@@ -143,7 +143,13 @@ class DocuSignService {
     } catch (error) {
       console.error('❌ Error enviando documento a DocuSign:', error.message);
       if (error.response?.body) {
-        console.error('Detalles:', JSON.stringify(error.response.body, null, 2));
+        console.error('Detalles del error DocuSign:', JSON.stringify(error.response.body, null, 2));
+      }
+      if (error.response?.data) {
+        console.error('Detalles del error (data):', JSON.stringify(error.response.data, null, 2));
+      }
+      if (error.response?.status) {
+        console.error('Status HTTP:', error.response.status);
       }
       throw error;
     }
