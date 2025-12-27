@@ -31,30 +31,77 @@ class DocuSignService {
   }
 
   /**
-   * Obtener token de acceso usando OAuth (en lugar de JWT)
-   * Usa el sistema OAuth que ya está funcionando
+   * Obtener token de acceso usando JWT (revertido desde OAuth)
+   * Configuración directa con claves privadas
    */
   async getAccessToken() {
     try {
-      console.log('🔐 Obteniendo access token de DocuSign con OAuth...');
+      console.log('🔐 Obteniendo access token de DocuSign con JWT...');
 
-      // 🆕 Usar el sistema OAuth del DocuSignController
-      const accessToken = await DocuSignController.getValidAccessToken();
+      // 🔧 Leer la llave privada desde múltiples fuentes
+      let privateKey;
+      
+      // Prioridad 1: Variable de entorno con contenido directo (PRODUCCIÓN - Railway)
+      if (process.env.DOCUSIGN_PRIVATE_KEY_CONTENT) {
+        console.log('📝 Usando clave privada desde variable de entorno (contenido directo)');
+        privateKey = process.env.DOCUSIGN_PRIVATE_KEY_CONTENT.replace(/\\n/g, '\n');
+      }
+      // Prioridad 2: Variable de entorno con Base64 (Alternativa para Railway)
+      else if (process.env.DOCUSIGN_PRIVATE_KEY_BASE64) {
+        console.log('📝 Usando clave privada desde variable de entorno (Base64)');
+        const buffer = Buffer.from(process.env.DOCUSIGN_PRIVATE_KEY_BASE64, 'base64');
+        privateKey = buffer.toString('utf8');
+      }
+      // Prioridad 3: Leer desde archivo local (DESARROLLO)
+      else {
+        console.log('📁 Leyendo clave privada desde archivo local');
+        const privateKeyPath = path.resolve('./docusign_private.key');
+        if (!fs.existsSync(privateKeyPath)) {
+          throw new Error(`No se encontró la llave privada en: ${privateKeyPath}. 
+          
+⚠️  Para DESARROLLO: Coloca el archivo docusign_private.key en la carpeta BackZurcher/
+⚠️  Para PRODUCCIÓN (Railway): Agrega la variable de entorno DOCUSIGN_PRIVATE_KEY_CONTENT con el contenido completo de la clave.`);
+        }
+        privateKey = fs.readFileSync(privateKeyPath, 'utf8');
+      }
+
+      // Configurar el OAuth basePath para el ambiente correcto
+      const oAuthBasePath = process.env.DOCUSIGN_OAUTH_BASE_PATH || 
+        (this.environment === 'demo'
+          ? 'account-d.docusign.com'
+          : 'account.docusign.com');
+      
+      this.apiClient.setOAuthBasePath(oAuthBasePath);
+
+      // Configurar JWT
+      const jwtLifeSec = 3600; // 1 hora
+      const scopes = ['signature', 'impersonation'];
+
+      // Solicitar token JWT
+      const results = await this.apiClient.requestJWTUserToken(
+        this.integrationKey,
+        this.userId,
+        scopes,
+        privateKey,
+        jwtLifeSec
+      );
+
+      const accessToken = results.body.access_token;
       
       // Configurar el token en el API client
       this.apiClient.addDefaultHeader('Authorization', `Bearer ${accessToken}`);
       
-      console.log('✅ Access token OAuth obtenido exitosamente');
+      console.log('✅ Access token JWT obtenido exitosamente');
       return accessToken;
     } catch (error) {
-      console.error('❌ Error obteniendo access token OAuth:', error.message);
+      console.error('❌ Error obteniendo access token JWT:', error.message);
       
-      // Si el error es de tokens no disponibles, mostrar URL de autorización
-      if (error.message.includes('No hay tokens disponibles')) {
-        console.error('\n⚠️  ACCIÓN REQUERIDA: Se necesita autorización OAuth');
-        console.error('👉 Visita este URL en el navegador para autorizar la aplicación:\n');
-        console.error(`${process.env.API_URL}/docusign/auth`);
-        console.error('\nDespués de autorizar, vuelve a intentar enviar el documento.\n');
+      // Error específico para JWT
+      if (error.message.includes('consent_required') || error.message.includes('consent')) {
+        console.error('\n⚠️  ACCIÓN REQUERIDA: Se necesita consentimiento JWT');
+        console.error('👉 Ve a DocuSign Admin → API and Keys → Apps and Keys');
+        console.error('👉 Selecciona tu aplicación y da "Grant Consent"');
+        console.error('👉 URL de consentimiento: https://account-d.docusign.com/oauth/auth?response_type=code&scope=signature&client_id=' + this.integrationKey + '&redirect_uri=your-redirect-uri');
       }
       throw error;
     }
