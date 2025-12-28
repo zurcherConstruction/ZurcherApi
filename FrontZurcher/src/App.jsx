@@ -51,6 +51,7 @@ import AccountsReceivable from "./Components/AccountsReceivable";
 import GestionBudgets from "./Components/Budget/GestionBudgets";
 import CreateLegacyBudget from "./Components/Budget/CreateLegacyBudget";
 import FixedExpensesManager from "./Components/FixedExpenses/FixedExpensesManager"; // 🆕 Gastos Fijos
+import MonthlyExpensesView from "./Components/MonthlyExpensesView"; // 🆕 Gastos Devengados Mensuales
 // 🆕 Importar página de revisión de presupuesto (pública)
 import BudgetReviewPage from "./Components/Budget/BudgetReviewPage";
 // Importar componentes de la Landing
@@ -340,6 +341,15 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["owner", "finance"]}>
                     <FixedExpensesManager />
+                  </PrivateRoute>
+                }
+              />
+
+              <Route
+                path="/monthly-expenses"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "finance"]}>
+                    <MonthlyExpensesView />
                   </PrivateRoute>
                 }
               />

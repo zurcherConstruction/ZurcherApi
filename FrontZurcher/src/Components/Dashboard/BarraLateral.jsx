@@ -88,6 +88,7 @@ const BarraLateral = () => {
         { name: "Balance", path: "/balance", icon: FaChartBar },
         { name: "Income & Expenses", path: "/summary", icon: FaFileInvoiceDollar },
         { name: "Fixed Expenses", path: "/fixed-expenses", icon: FaDollarSign }, // 🆕 Gastos Fijos
+        { name: "Monthly Expenses", path: "/monthly-expenses", icon: FaCalendarAlt }, // 🆕 Gastos Devengados
         { name: "Accounts Receivable", path: "/accounts-receivable", icon: FaDollarSign }, // 🆕 Cuentas por cobrar
       ],
     },
@@ -224,6 +225,7 @@ const BarraLateral = () => {
             { name: "Bank Accounts", path: "/bank-accounts", icon: FaUniversity }, // 🏦 FINANCE
             { name: "Income & Expenses", path: "/summary", icon: FaFileInvoiceDollar },
             { name: "Fixed Expenses", path: "/fixed-expenses", icon: FaDollarSign },
+            { name: "Monthly Expenses", path: "/monthly-expenses", icon: FaCalendarAlt }, // 🆕 Gastos Devengados
             { name: "Accounts Receivable", path: "/accounts-receivable", icon: FaDollarSign },
             { name: "Balance", path: "/balance", icon: FaChartBar },  
             { name: "Initial Pay", path: "/initialPay", icon: FaMoneyBillWave },
@@ -247,6 +249,7 @@ const BarraLateral = () => {
           color: "text-yellow-400",
           items: [
             { name: "Income & Expenses 👁️", path: "/summary", icon: FaFileInvoiceDollar },
+            { name: "Monthly Expenses 👁️", path: "/monthly-expenses", icon: FaCalendarAlt }, // 🆕 Gastos Devengados
           ],
         },
       ];
