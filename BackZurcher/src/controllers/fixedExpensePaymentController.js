@@ -235,16 +235,35 @@ const addPartialPayment = async (req, res) => {
 
     // 🆕 Si se pagó completamente, calcular siguiente nextDueDate
     if (newPaymentStatus === 'paid') {
-      const nextDueDate = calculateNextDueDate(new Date(paymentDate || new Date()), fixedExpense.frequency);
-      if (nextDueDate) {
-        await fixedExpense.update({
-          nextDueDate: nextDueDate.toISOString().split('T')[0],
-          paymentStatus: 'unpaid', // Reset para el siguiente período
-          paidAmount: 0 // Reset para el siguiente período
-        });
-        console.log('🔄 Siguiente período configurado:', {
-          nextDueDate: nextDueDate.toISOString().split('T')[0],
-          frequency: fixedExpense.frequency
+      // 🔧 FIX: Solo resetear gastos recurrentes, NO bonos únicos
+      const isRecurringExpense = fixedExpense.frequency &&
+        fixedExpense.frequency !== 'one-time' &&
+        !fixedExpense.name?.toLowerCase().includes('bono');
+
+      if (isRecurringExpense) {
+        // 🔧 FIX: Usar fecha de vencimiento original, NO fecha de pago
+        // Los gastos fijos mantienen su día específico independientemente de cuándo se paguen
+        const currentDueDate = fixedExpense.nextDueDate ? 
+          new Date(fixedExpense.nextDueDate) : 
+          new Date(fixedExpense.startDate || new Date());
+        
+        const nextDueDate = calculateNextDueDate(currentDueDate, fixedExpense.frequency);
+        if (nextDueDate) {
+          await fixedExpense.update({
+            nextDueDate: nextDueDate.toISOString().split('T')[0],
+            paymentStatus: 'unpaid', // Reset para el siguiente período
+            paidAmount: 0 // Reset SOLO para gastos recurrentes
+          });
+          console.log('🔄 Siguiente período configurado para gasto recurrente:', {
+            nextDueDate: nextDueDate.toISOString().split('T')[0],
+            frequency: fixedExpense.frequency
+          });
+        }
+      } else {
+        console.log('💡 Gasto único/bono - NO se resetea el paidAmount:', {
+          name: fixedExpense.name,
+          frequency: fixedExpense.frequency,
+          paidAmount: fixedExpense.paidAmount
         });
       }
     }
