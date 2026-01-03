@@ -12,9 +12,11 @@ import {
   CheckCircleIcon,
   InformationCircleIcon,
   PaperClipIcon,
-  ArrowUpTrayIcon
+  ArrowUpTrayIcon,
+  CalendarIcon
 } from "@heroicons/react/24/outline";
-
+import PaymentModal from "../Common/PaymentModal";
+import FixedExpensePaymentHistory from "../FixedExpenses/FixedExpensePaymentHistory";
 
 import api from "../../utils/axios";
 import Swal from "sweetalert2";
@@ -40,6 +42,95 @@ const generalIncomeTypes = [
   "Comprobante Ingreso" // Puede ser general o específico
 ];
 
+// 🆕 Función para calcular períodos pendientes de un gasto fijo
+const getPendingMonthsForFixedExpense = (expense) => {
+  if (!expense || !expense.nextDueDate || !expense.startDate) return [];
+  
+  const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  
+  // 🔴 CRITICAL: NO usar new Date(dateString) porque interpreta en timezone local
+  // Parsear manualmente: YYYY-MM-DD
+  const parseDate = (dateStr) => {
+    if (typeof dateStr === 'string' && dateStr.includes('T')) {
+      dateStr = dateStr.split('T')[0];
+    }
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(Date.UTC(year, month - 1, day));
+  };
+  
+  const nextDueDate = parseDate(expense.nextDueDate);
+  const startDate = parseDate(expense.startDate);
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  
+  const pendingMonths = [];
+  
+  // Si nextDueDate está vencido, mostrar períodos anteriores también
+  if (nextDueDate <= today) {
+    // Calcular hacia atrás desde startDate hasta encontrar períodos vencidos
+    let checkDate = new Date(startDate);
+    while (checkDate <= today) {
+      // Avanzar un mes
+      const nextMonth = new Date(checkDate);
+      const originalDay = startDate.getUTCDate();
+      const daysInMonth = new Date(nextMonth.getUTCFullYear(), nextMonth.getUTCMonth() + 1, 0).getUTCDate();
+      nextMonth.setUTCMonth(nextMonth.getUTCMonth() + 1);
+      nextMonth.setUTCDate(Math.min(originalDay, daysInMonth));
+      
+      if (nextMonth <= today && nextMonth <= nextDueDate) {
+        // Este período está vencido y no está en el futuro del nextDueDate
+        pendingMonths.push({
+          month: nextMonth.getUTCMonth() + 1,
+          name: monthNames[nextMonth.getUTCMonth()],
+          year: nextMonth.getUTCFullYear()
+        });
+      }
+      checkDate = new Date(nextMonth);
+    }
+  }
+  
+  // Mostrar el mes del nextDueDate
+  pendingMonths.push({
+    month: nextDueDate.getUTCMonth() + 1,
+    name: monthNames[nextDueDate.getUTCMonth()],
+    year: nextDueDate.getUTCFullYear()
+  });
+  
+  // Si el nextDueDate está vencido, también mostrar próximos 3 meses
+  if (nextDueDate <= today) {
+    const future = new Date(nextDueDate);
+    for (let i = 0; i < 3; i++) {
+      const originalDay = nextDueDate.getUTCDate();
+      const nextFuture = new Date(future);
+      const daysInMonth = new Date(nextFuture.getUTCFullYear(), nextFuture.getUTCMonth() + 1, 0).getUTCDate();
+      nextFuture.setUTCMonth(nextFuture.getUTCMonth() + 1);
+      nextFuture.setUTCDate(Math.min(originalDay, daysInMonth));
+      
+      pendingMonths.push({
+        month: nextFuture.getUTCMonth() + 1,
+        name: monthNames[nextFuture.getUTCMonth()],
+        year: nextFuture.getUTCFullYear()
+      });
+      future.setUTCMonth(future.getUTCMonth() + 1);
+      future.setUTCDate(Math.min(originalDay, daysInMonth));
+    }
+  }
+  
+  // Remover duplicados
+  const uniquePendingMonths = [];
+  const seen = new Set();
+  for (const month of pendingMonths) {
+    const key = `${month.year}-${month.month}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniquePendingMonths.push(month);
+    }
+  }
+  
+  return uniquePendingMonths;
+};
+
 const AttachReceipt = () => {
   const dispatch = useDispatch();
 
@@ -58,14 +149,24 @@ const AttachReceipt = () => {
   const [finalInvoiceDetails, setFinalInvoiceDetails] = useState(null);
   const [isGeneralTransaction, setIsGeneralTransaction] = useState(false); // Nuevo estado para marcar si es transacción general
   const [paymentMethod, setPaymentMethod] = useState(''); // 🆕 Método de pago
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]); // 🆕 Fecha de pago (por defecto hoy)
   const [paymentDetails, setPaymentDetails] = useState(''); // 🆕 Detalles adicionales del pago
   const [fixedExpenses, setFixedExpenses] = useState([]); // 🆕 Lista de gastos fijos
   const [selectedFixedExpense, setSelectedFixedExpense] = useState(''); // 🆕 Gasto fijo seleccionado
   const [loadingFixedExpenses, setLoadingFixedExpenses] = useState(false); // 🆕 Loading para gastos fijos
   const [fixedExpensePaymentAmount, setFixedExpensePaymentAmount] = useState(''); // 🆕 Monto del pago parcial para gasto fijo
   const [workSearchTerm, setWorkSearchTerm] = useState(''); // 🆕 Término de búsqueda para works
-
-
+  // Estado para el periodo (mes) seleccionado para Gasto Fijo - Ahora es el objeto completo del período
+  const [fixedExpensePeriodMonth, setFixedExpensePeriodMonth] = React.useState(null);
+  // 🆕 Estados para periodos pendientes
+  const [pendingPeriods, setPendingPeriods] = useState([]);
+  const [loadingPendingPeriods, setLoadingPendingPeriods] = useState(false);
+  // 🆕 Estados para PaymentModal de Gastos Fijos
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedExpenseForPayment, setSelectedExpenseForPayment] = useState(null);
+  const [paymentHistory, setPaymentHistory] = useState([]);
+  // 🆕 Estado para el modal de FixedExpensePaymentHistory
+  const [showFixedExpensePaymentModal, setShowFixedExpensePaymentModal] = useState(false);
 
   useEffect(() => {
     dispatch(fetchWorks(1, 'all')); // ✅ Usar 'all' para obtener TODOS los works sin límite
@@ -75,6 +176,93 @@ const AttachReceipt = () => {
   useEffect(() => {
     // Los useEffects se ejecutan automáticamente cuando cambian works o type
   }, [works, type]);
+
+  // Funciones para PaymentModal (para otros tipos de gastos)
+  const openPaymentModal = (fixedExpense) => {
+    setSelectedExpenseForPayment(fixedExpense);
+    loadPaymentHistoryForFixedExpense(fixedExpense.idFixedExpense);
+    setShowPaymentModal(true);
+  };
+
+  const closePaymentModal = () => {
+    setShowPaymentModal(false);
+    setSelectedExpenseForPayment(null);
+    setPaymentHistory([]);
+  };
+
+  // 🆕 Funciones para FixedExpensePaymentHistory (solo para Gasto Fijo)
+  const openFixedExpensePaymentModal = (fixedExpense) => {
+    setSelectedExpenseForPayment(fixedExpense);
+    setShowFixedExpensePaymentModal(true);
+  };
+
+  const closeFixedExpensePaymentModal = () => {
+    setShowFixedExpensePaymentModal(false);
+    setSelectedExpenseForPayment(null);
+  };
+
+  const loadPaymentHistoryForFixedExpense = async (fixedExpenseId) => {
+    try {
+      const response = await api.get(`/fixed-expenses/${fixedExpenseId}/payments`);
+      setPaymentHistory(response.data || []);
+    } catch (error) {
+      console.error('Error cargando historial de pagos:', error);
+      setPaymentHistory([]);
+    }
+  };
+
+  const handlePaymentSubmitFromModal = async (paymentData) => {
+    if (!selectedExpenseForPayment) return;
+
+    try {
+      const formData = new FormData();
+      formData.append('amount', paymentData.amount);
+      formData.append('paymentDate', paymentData.paymentDate);
+      formData.append('paymentMethod', paymentData.paymentMethod);
+      if (paymentData.notes) {
+        formData.append('notes', paymentData.notes);
+      }
+      if (paymentData.receipt) {
+        formData.append('receipt', paymentData.receipt);
+      }
+      // Agregar información de período si está disponible
+      if (paymentData.periodStart) {
+        formData.append('periodStart', paymentData.periodStart);
+      }
+      if (paymentData.periodEnd) {
+        formData.append('periodEnd', paymentData.periodEnd);
+      }
+      if (paymentData.periodDueDate) {
+        formData.append('periodDueDate', paymentData.periodDueDate);
+      }
+
+      const response = await api.post(
+        `/fixed-expenses/${selectedExpenseForPayment.idFixedExpense}/payments`,
+        formData,
+        { headers: { 'Content-Type': 'multipart/form-data' } }
+      );
+
+      toast.success('Pago registrado correctamente');
+      closePaymentModal();
+      
+      // Recargar gastos fijos
+      if (type === 'Gasto Fijo') {
+        const updatedResponse = await api.get('/fixed-expenses');
+        const activeExpenses = Array.isArray(updatedResponse.data.fixedExpenses || updatedResponse.data)
+          ? (updatedResponse.data.fixedExpenses || updatedResponse.data).filter(expense =>
+            expense.isActive &&
+            expense.paymentStatus !== 'paid' &&
+            expense.paymentStatus !== 'paid_via_invoice'
+          )
+          : [];
+        setFixedExpenses(activeExpenses);
+      }
+    } catch (error) {
+      const errorMessage = error.response?.data?.message || error.message || 'Error al registrar el pago';
+      toast.error(errorMessage);
+      console.error('Error registrando pago:', error);
+    }
+  };
 
   // 🆕 Cargar gastos fijos cuando se selecciona "Gasto Fijo"
   useEffect(() => {
@@ -114,6 +302,29 @@ const AttachReceipt = () => {
 
     loadFixedExpenses();
   }, [type]);
+
+  // 🆕 Cargar períodos pendientes cuando se selecciona un gasto fijo
+  useEffect(() => {
+    if (selectedFixedExpense && type === 'Gasto Fijo') {
+      const loadPendingPeriods = async () => {
+        try {
+          setLoadingPendingPeriods(true);
+          const response = await api.get(`/fixed-expenses/${selectedFixedExpense}/pending-periods`);
+          setPendingPeriods(response.data.pendingPeriods || []);
+          setFixedExpensePeriodMonth(''); // Limpiar selección anterior
+        } catch (error) {
+          console.error('Error cargando períodos pendientes:', error);
+          setPendingPeriods([]);
+        } finally {
+          setLoadingPendingPeriods(false);
+        }
+      };
+
+      loadPendingPeriods();
+    } else {
+      setPendingPeriods([]);
+    }
+  }, [selectedFixedExpense, type]);
 
   // 🆕 Auto-marcar como transacción general cuando se selecciona "Gasto Fijo"
   useEffect(() => {
@@ -318,6 +529,7 @@ const AttachReceipt = () => {
             fixedExpenseId: fixedExpense.idFixedExpense, // 🔗 Vincular con el gasto fijo (campo correcto)
             ...(paymentMethod ? { paymentMethod } : {}),
             ...(paymentDetails ? { paymentDetails } : {}),
+            ...(fixedExpensePeriodMonth ? { periodMonth: parseInt(fixedExpensePeriodMonth, 10) } : {}),
           };
 
           console.log('📋 Creando expense para Gasto Fijo:', expenseData);
@@ -332,19 +544,28 @@ const AttachReceipt = () => {
             console.log('✅ Expense creado con ID:', createdExpense.idExpense);
 
             // Adjuntar comprobante
+            let receiptUrl = null;
+            let receiptPublicId = null;
             formData.append("relatedModel", "Expense");
             formData.append("relatedId", createdExpense.idExpense.toString());
 
             console.log('📎 Adjuntando comprobante al gasto fijo. FormData tiene file?', file ? 'SI' : 'NO');
-            const receiptResponse = await dispatch(createReceipt(formData));
-
-            console.log('📄 Receipt response:', receiptResponse);
-
-            // Verificar que el receipt se creó correctamente
-            // Redux puede retornar undefined si la acción no está configurada para retornar payload
-            if (receiptResponse?.error) {
-              console.error('❌ Error en la respuesta del receipt:', receiptResponse.error);
-              throw new Error("Error al adjuntar el comprobante: " + receiptResponse.error.message);
+            
+            // 🆕 Hacer llamada directa a la API para obtener la respuesta del receipt
+            if (file) {
+              try {
+                const receiptResponse = await api.post('/receipt', formData, {
+                  headers: {
+                    'Content-Type': 'multipart/form-data',
+                  },
+                });
+                console.log('📄 Receipt response:', receiptResponse.data);
+                receiptUrl = receiptResponse.data?.receipt?.fileUrl;
+                receiptPublicId = receiptResponse.data?.receipt?.publicId;
+              } catch (receiptError) {
+                console.error('❌ Error al adjuntar comprobante:', receiptError);
+                throw new Error("Error al adjuntar el comprobante: " + (receiptError.response?.data?.message || receiptError.message));
+              }
             }
 
             console.log('✅ Comprobante adjuntado correctamente');
@@ -371,14 +592,23 @@ const AttachReceipt = () => {
               const paymentRecord = {
                 fixedExpenseId: fixedExpense.idFixedExpense,
                 amount: paymentAmount,
-                paymentDate: new Date().toISOString().split('T')[0],
+                paymentDate: paymentDate, // 🆕 Usar la fecha seleccionada en lugar de la fecha actual
                 paymentMethod: paymentMethod || null,
                 notes: notes || `${isFullPayment ? 'Pago final' : 'Pago parcial'} - ${fixedExpense.description || fixedExpense.name}`,
                 expenseId: createdExpense.idExpense, // 🔑 Enviar el ID del expense ya creado
                 createdByStaffId: staff?.id,
                 skipExpenseCreation: true, // 🆕 Flag para que el backend NO cree otro Expense
-                // Nota: No enviamos receiptUrl porque ya está vinculado al Expense en la BD
-                // El backend puede buscar el receipt por expenseId si lo necesita
+                // Usar el período completo del objeto enviado por la API
+                ...(fixedExpensePeriodMonth ? {
+                  periodStart: fixedExpensePeriodMonth.startDate,
+                  periodEnd: fixedExpensePeriodMonth.endDate,
+                  periodDueDate: fixedExpensePeriodMonth.dueDate || fixedExpensePeriodMonth.endDate
+                } : {}),
+                // 🆕 Enviar URLs del receipt para vincular al pago
+                ...(receiptUrl && receiptPublicId ? {
+                  receiptUrl: receiptUrl,
+                  receiptPublicId: receiptPublicId
+                } : {})
               };
 
               console.log('💾 Datos del registro de pago:', paymentRecord);
@@ -412,12 +642,8 @@ const AttachReceipt = () => {
           let createdRecord;
           const isIncome = incomeTypes.includes(type);
 
-          // Generar fecha local en formato YYYY-MM-DD
-          const now = new Date();
-          const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-
           const incomeExpenseData = {
-            date: localDate,
+            date: paymentDate, // 🆕 Usar la fecha de pago seleccionada por el usuario (o hoy por defecto)
             amount: parseFloat(generalAmount),
             notes,
             // Solo incluir workId si no es transacción general
@@ -479,9 +705,11 @@ const AttachReceipt = () => {
       setFinalInvoiceDetails(null);
       setIsGeneralTransaction(false);
       setPaymentMethod(""); // 🆕 Limpiar método de pago
+      setPaymentDate(new Date().toISOString().split('T')[0]); // 🆕 Resetear fecha de pago a hoy
       setPaymentDetails(""); // 🆕 Limpiar detalles del pago
       setSelectedFixedExpense(""); // 🆕 Limpiar gasto fijo seleccionado
       setFixedExpensePaymentAmount(""); // 🆕 Limpiar monto de pago de gasto fijo
+      setFixedExpensePeriodMonth(""); // 🆕 Limpiar periodo de gasto fijo
 
     } catch (err) {
       console.error("❌❌❌ Error completo en handleSubmit:", err);
@@ -765,16 +993,18 @@ const AttachReceipt = () => {
 
                 {!loadingFixedExpenses && fixedExpenses.length > 0 && (
                   <>
-                    <label htmlFor="fixedExpense" className="block text-sm font-medium text-gray-700 mb-2">
-                      Selecciona el gasto fijo que deseas pagar: <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      id="fixedExpense"
-                      value={selectedFixedExpense}
-                      onChange={(e) => setSelectedFixedExpense(e.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 bg-white"
-                      required
-                    >
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1">
+                        <label htmlFor="fixedExpense" className="block text-sm font-medium text-gray-700 mb-2">
+                          Selecciona el gasto fijo que deseas pagar: <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          id="fixedExpense"
+                          value={selectedFixedExpense}
+                          onChange={(e) => setSelectedFixedExpense(e.target.value)}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 bg-white"
+                          required
+                        >
                       <option value="">Seleccionar gasto fijo...</option>
                       {fixedExpenses.map((fe) => {
                         const dueDate = new Date(fe.nextDueDate);
@@ -807,7 +1037,25 @@ const AttachReceipt = () => {
                           </option>
                         );
                       })}
-                    </select>
+                        </select>
+                      </div>
+                      {/* 🆕 Botón para abrir PaymentModal */}
+                      {selectedFixedExpense && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const selected = fixedExpenses.find(fe => fe.idFixedExpense === selectedFixedExpense);
+                            if (selected) {
+                              openFixedExpensePaymentModal(selected);
+                            }
+                          }}
+                          className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-lg transition-all duration-200 transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 flex items-center gap-2 whitespace-nowrap"
+                        >
+                          <CurrencyDollarIcon className="h-5 w-5" />
+                          Ver Pagos
+                        </button>
+                      )}
+                    </div>
 
                     {/* Detalles del gasto fijo seleccionado */}
                     {selectedFixedExpense && fixedExpenses.find(fe => fe.idFixedExpense === selectedFixedExpense) && (
@@ -1003,6 +1251,47 @@ const AttachReceipt = () => {
                         })()}
                       </div>
                     )}
+
+                    {/* 🆕 SELECTOR DE PERIODO (MES) PARA GASTO FIJO - Usando períodos pendientes del backend */}
+                    {type === 'Gasto Fijo' && selectedFixedExpense && (() => {
+                      return (
+                        <>
+                          <label htmlFor="fixedExpensePeriodMonth" className="block text-sm font-medium text-gray-700 mb-2">
+                            Selecciona el periodo a pagar <span className="text-red-500">*</span>
+                          </label>
+                          
+                          {loadingPendingPeriods ? (
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
+                          ) : pendingPeriods && pendingPeriods.length > 0 ? (
+                            <>
+                              <select
+                                id="fixedExpensePeriodMonth"
+                                value={fixedExpensePeriodMonth ? JSON.stringify(fixedExpensePeriodMonth) : ''}
+                                onChange={e => setFixedExpensePeriodMonth(e.target.value ? JSON.parse(e.target.value) : null)}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 bg-white"
+                                required
+                              >
+                                <option value="">Seleccionar período pendiente...</option>
+                                {pendingPeriods.map((period, idx) => (
+                                  <option key={idx} value={JSON.stringify(period)}>
+                                    {period.displayDate} - PENDIENTE
+                                  </option>
+                                ))}
+                              </select>
+                              {fixedExpensePeriodMonth && (
+                                <div className="mt-2 p-3 bg-orange-50 border border-orange-200 rounded text-sm text-orange-700">
+                                  <span className="font-medium">📅 Período seleccionado:</span> {fixedExpensePeriodMonth.displayDate}
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <div className="p-3 bg-green-50 border border-green-200 rounded text-sm text-green-700">
+                              ✅ No hay períodos pendientes de pago
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </>
                 )}
               </div>
@@ -1467,6 +1756,23 @@ const AttachReceipt = () => {
               </div>
             )}
 
+            {/* Fecha de Pago */}
+            {paymentMethod && (
+              <div>
+                <label htmlFor="paymentDate" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
+                  <CalendarIcon className="h-5 w-5 mr-2 text-gray-500" />
+                  Fecha del Pago
+                </label>
+                <input
+                  id="paymentDate"
+                  type="date"
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                />
+              </div>
+            )}
+
             {/* Notes */}
             <div>
               <label htmlFor="notes" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
@@ -1511,6 +1817,30 @@ const AttachReceipt = () => {
           </form>
         </div>
       </div>
+
+      {/* Modal para pago de Gastos Normales */}
+      {showPaymentModal && selectedExpenseForPayment && (
+        <PaymentModal
+          isOpen={showPaymentModal}
+          onClose={closePaymentModal}
+          expense={selectedExpenseForPayment}
+          onSubmitPayment={handlePaymentSubmitFromModal}
+          paymentHistory={paymentHistory}
+          loading={false}
+          modalTitle="Registrar Pago de Gasto Fijo"
+          showPeriodSelector={false}
+          defaultPaymentMethod={selectedExpenseForPayment?.paymentMethod}
+        />
+      )}
+
+      {/* 🆕 Modal para pago de Gastos Fijos SOLAMENTE */}
+      {showFixedExpensePaymentModal && selectedExpenseForPayment && (
+        <FixedExpensePaymentHistory
+          isOpen={showFixedExpensePaymentModal}
+          onClose={closeFixedExpensePaymentModal}
+          expense={selectedExpenseForPayment}
+        />
+      )}
     </div>
   );
 };
