@@ -20,6 +20,11 @@ const { calculateNextDueDate: calculateNextDueDateFromExpenseController } = requ
  * NUNCA usa new Date(string) porque interpreta en zona local
  */
 function normalizeDateString(dateString) {
+  // Si es undefined o null, retornar null (sin error)
+  if (dateString === undefined || dateString === null) {
+    return null;
+  }
+  
   // Si ya es string en formato YYYY-MM-DD, retornar como-está
   if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
     return dateString;
