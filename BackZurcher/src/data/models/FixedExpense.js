@@ -79,8 +79,8 @@ module.exports = (sequelize) => {
         'PayPal',
         'Otro'
       ),
-      allowNull: false,
-      
+      allowNull: true,  // ✅ OPCIONAL: Se elige al momento de pagar
+      comment: 'Método de pago (se selecciona al momento de realizar el pago)'
     },
     paymentAccount: {
       type: DataTypes.STRING,
@@ -90,17 +90,91 @@ module.exports = (sequelize) => {
     startDate: {
       type: DataTypes.DATEONLY,
       allowNull: false,
-      comment: 'Fecha de inicio del gasto fijo'
+      comment: 'Fecha de inicio del gasto fijo',
+      set(value) {
+        if (!value) return;
+        if (typeof value === 'string') {
+          if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            this.setDataValue('startDate', value);
+            return;
+          }
+          if (value.includes('T')) {
+            this.setDataValue('startDate', value.split('T')[0]);
+            return;
+          }
+        }
+        if (value instanceof Date) {
+          this.setDataValue('startDate', value.toISOString().split('T')[0]);
+          return;
+        }
+        this.setDataValue('startDate', value);
+      },
+      get() {
+        // 🔴 CRITICAL: Retornar SIEMPRE como string ISO sin conversión
+        const value = this.getDataValue('startDate');
+        if (!value) return null;
+        if (typeof value === 'string') return value;
+        // Si PostgreSQL lo retorna como Date object, convertir cuidadosamente
+        return value.toISOString().split('T')[0];
+      }
     },
     endDate: {
       type: DataTypes.DATEONLY,
       allowNull: true,
-      comment: 'Fecha de fin del gasto fijo (null si es indefinido)'
+      comment: 'Fecha de fin del gasto fijo (null si es indefinido)',
+      set(value) {
+        if (!value) return;
+        if (typeof value === 'string') {
+          if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            this.setDataValue('endDate', value);
+            return;
+          }
+          if (value.includes('T')) {
+            this.setDataValue('endDate', value.split('T')[0]);
+            return;
+          }
+        }
+        if (value instanceof Date) {
+          this.setDataValue('endDate', value.toISOString().split('T')[0]);
+          return;
+        }
+        this.setDataValue('endDate', value);
+      },
+      get() {
+        const value = this.getDataValue('endDate');
+        if (!value) return null;
+        if (typeof value === 'string') return value;
+        return value.toISOString().split('T')[0];
+      }
     },
     nextDueDate: {
       type: DataTypes.DATEONLY,
       allowNull: true,
-      comment: 'Próxima fecha de vencimiento'
+      comment: 'Próxima fecha de vencimiento',
+      set(value) {
+        if (!value) return;
+        if (typeof value === 'string') {
+          if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            this.setDataValue('nextDueDate', value);
+            return;
+          }
+          if (value.includes('T')) {
+            this.setDataValue('nextDueDate', value.split('T')[0]);
+            return;
+          }
+        }
+        if (value instanceof Date) {
+          this.setDataValue('nextDueDate', value.toISOString().split('T')[0]);
+          return;
+        }
+        this.setDataValue('nextDueDate', value);
+      },
+      get() {
+        const value = this.getDataValue('nextDueDate');
+        if (!value) return null;
+        if (typeof value === 'string') return value;
+        return value.toISOString().split('T')[0];
+      }
     },
     isActive: {
       type: DataTypes.BOOLEAN,
@@ -139,6 +213,17 @@ module.exports = (sequelize) => {
       comment: 'Staff que creó/registró el gasto fijo'
     },
     
+    // 🆕 Staff a quien le pertenece el gasto (para categoría Salarios)
+    staffId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'Staffs',
+        key: 'id'
+      },
+      comment: 'Staff al cual está vinculado este gasto fijo (ej: Salario de un empleado)'
+    },
+    
     // 🆕 Estado de Pago del Gasto Fijo
     paymentStatus: {
       type: DataTypes.ENUM(
@@ -156,7 +241,31 @@ module.exports = (sequelize) => {
     paidDate: {
       type: DataTypes.DATEONLY,
       allowNull: true,
-      comment: 'Fecha en que se pagó el gasto fijo'
+      comment: 'Fecha en que se pagó el gasto fijo',
+      set(value) {
+        if (!value) return;
+        if (typeof value === 'string') {
+          if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            this.setDataValue('paidDate', value);
+            return;
+          }
+          if (value.includes('T')) {
+            this.setDataValue('paidDate', value.split('T')[0]);
+            return;
+          }
+        }
+        if (value instanceof Date) {
+          this.setDataValue('paidDate', value.toISOString().split('T')[0]);
+          return;
+        }
+        this.setDataValue('paidDate', value);
+      },
+      get() {
+        const value = this.getDataValue('paidDate');
+        if (!value) return null;
+        if (typeof value === 'string') return value;
+        return value.toISOString().split('T')[0];
+      }
     },
     
     // 🔑 Vinculación con SupplierInvoiceItem (cuando se paga vía invoice)

@@ -31,7 +31,36 @@ module.exports = (sequelize) => {
       type: DataTypes.DATEONLY,
       allowNull: false,
       defaultValue: DataTypes.NOW,
-      comment: 'Fecha en que se realizó este pago'
+      comment: 'Fecha en que se realizó este pago',
+      set(value) {
+        // 🔴 CRÍTICO: Asegurar que siempre se guarde como string YYYY-MM-DD
+        if (!value) return;
+        if (typeof value === 'string') {
+          // Si ya es string en formato YYYY-MM-DD, guardar como-está
+          if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            this.setDataValue('paymentDate', value);
+            return;
+          }
+          // Si es ISO string con hora, extraer solo fecha
+          if (value.includes('T')) {
+            this.setDataValue('paymentDate', value.split('T')[0]);
+            return;
+          }
+        }
+        if (value instanceof Date) {
+          // Convertir Date a string YYYY-MM-DD en UTC
+          this.setDataValue('paymentDate', value.toISOString().split('T')[0]);
+          return;
+        }
+        // Fallback: guardar como-está
+        this.setDataValue('paymentDate', value);
+      },
+      get() {
+        const value = this.getDataValue('paymentDate');
+        if (!value) return null;
+        if (typeof value === 'string') return value;
+        return value.toISOString().split('T')[0];
+      }
     },
     
     paymentMethod: {
@@ -74,7 +103,95 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: 'Notas o detalles sobre este pago específico'
     },
-    
+
+    // 🗓️ Período pagado (opcional)
+    periodStart: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      comment: 'Inicio del período pagado (opcional)',
+      set(value) {
+        if (!value) return;
+        if (typeof value === 'string') {
+          if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            this.setDataValue('periodStart', value);
+            return;
+          }
+          if (value.includes('T')) {
+            this.setDataValue('periodStart', value.split('T')[0]);
+            return;
+          }
+        }
+        if (value instanceof Date) {
+          this.setDataValue('periodStart', value.toISOString().split('T')[0]);
+          return;
+        }
+        this.setDataValue('periodStart', value);
+      },
+      get() {
+        const value = this.getDataValue('periodStart');
+        if (!value) return null;
+        if (typeof value === 'string') return value;
+        return value.toISOString().split('T')[0];
+      }
+    },
+    periodEnd: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      comment: 'Fin del período pagado (opcional)',
+      set(value) {
+        if (!value) return;
+        if (typeof value === 'string') {
+          if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            this.setDataValue('periodEnd', value);
+            return;
+          }
+          if (value.includes('T')) {
+            this.setDataValue('periodEnd', value.split('T')[0]);
+            return;
+          }
+        }
+        if (value instanceof Date) {
+          this.setDataValue('periodEnd', value.toISOString().split('T')[0]);
+          return;
+        }
+        this.setDataValue('periodEnd', value);
+      },
+      get() {
+        const value = this.getDataValue('periodEnd');
+        if (!value) return null;
+        if (typeof value === 'string') return value;
+        return value.toISOString().split('T')[0];
+      }
+    },
+    periodDueDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      comment: 'Fecha de vencimiento del período pagado (opcional)',
+      set(value) {
+        if (!value) return;
+        if (typeof value === 'string') {
+          if (value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            this.setDataValue('periodDueDate', value);
+            return;
+          }
+          if (value.includes('T')) {
+            this.setDataValue('periodDueDate', value.split('T')[0]);
+            return;
+          }
+        }
+        if (value instanceof Date) {
+          this.setDataValue('periodDueDate', value.toISOString().split('T')[0]);
+          return;
+        }
+        this.setDataValue('periodDueDate', value);
+      },
+      get() {
+        const value = this.getDataValue('periodDueDate');
+        if (!value) return null;
+        if (typeof value === 'string') return value;
+        return value.toISOString().split('T')[0];
+      }
+    },
     // 🔗 Relación con Expense generado
     expenseId: {
       type: DataTypes.UUID,

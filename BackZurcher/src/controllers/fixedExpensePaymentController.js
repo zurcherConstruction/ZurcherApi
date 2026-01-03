@@ -12,46 +12,76 @@ const { FixedExpensePayment, FixedExpense, Expense, Staff, Receipt } = require('
 const { Op } = require('sequelize');
 const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryUploader');
 const { createWithdrawalTransaction } = require('../utils/bankTransactionHelper');
+const { validateNoDuplicatePeriod, validatePaymentPeriod } = require('../utils/paymentPeriodValidator');
+const { calculateNextDueDate: calculateNextDueDateFromExpenseController } = require('./fixedExpenseController');
 
 /**
- * 🔄 Calcular la siguiente fecha de vencimiento
- * @param {Date} currentDueDate - Fecha de vencimiento actual
- * @param {string} frequency - Frecuencia del gasto fijo
- * @returns {Date} - Nueva fecha de vencimiento
+ * 🔴 CRITICAL: Helper para normalizar fechas sin perder un día por timezone
+ * NUNCA usa new Date(string) porque interpreta en zona local
  */
-function calculateNextDueDate(currentDueDate, frequency) {
-  const current = new Date(currentDueDate);
-  const next = new Date(current);
-
-  switch (frequency) {
-    case 'weekly':
-      next.setDate(current.getDate() + 7);
-      break;
-    case 'biweekly':
-      next.setDate(current.getDate() + 14);
-      break;
-    case 'monthly':
-      next.setMonth(current.getMonth() + 1);
-      break;
-    case 'quarterly':
-      next.setMonth(current.getMonth() + 3);
-      break;
-    case 'semiannual':
-      next.setMonth(current.getMonth() + 6);
-      break;
-    case 'annual':
-      next.setFullYear(current.getFullYear() + 1);
-      break;
-    case 'one_time':
-      return null; // No hay próxima fecha para gastos únicos
-    default:
-      next.setMonth(current.getMonth() + 1); // Default: mensual
+function normalizeDateString(dateString) {
+  // Si ya es string en formato YYYY-MM-DD, retornar como-está
+  if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    return dateString;
   }
-
-  return next;
+  
+  // Si es Date object, convertir a string ISO (UTC)
+  if (dateString instanceof Date) {
+    return dateString.toISOString().split('T')[0];
+  }
+  
+  // Si es string pero con hora (ISO format), extraer solo la fecha
+  if (typeof dateString === 'string' && dateString.includes('T')) {
+    return dateString.split('T')[0];
+  }
+  
+  // Si es string en otro formato, intentar parsearlo
+  if (typeof dateString === 'string') {
+    // Intentar validar que al menos tenga números
+    const parts = dateString.split('-');
+    if (parts.length === 3 && parts.every(p => /^\d+$/.test(p))) {
+      return dateString;
+    }
+  }
+  
+  throw new Error(`Fecha inválida o formato no soportado: ${dateString}`);
 }
 
 /**
+ * 🔧 Helper para obtener el último día de un mes sin problemas de timezone
+ */
+function getLastDayOfMonth(year, month) {
+  // Validar inputs
+  if (isNaN(year) || isNaN(month)) {
+    throw new Error(`getLastDayOfMonth: parámetros inválidos (year=${year}, month=${month})`);
+  }
+  
+  // month es 0-indexed (0 = enero, 11 = diciembre)
+  const firstDayNextMonth = new Date(Date.UTC(year, month + 1, 1));
+  
+  // Validar que la fecha sea válida
+  if (isNaN(firstDayNextMonth.getTime())) {
+    throw new Error(`getLastDayOfMonth: fecha UTC inválida (year=${year}, month=${month})`);
+  }
+  
+  const lastDay = new Date(Date.UTC(firstDayNextMonth.getUTCFullYear(), firstDayNextMonth.getUTCMonth(), firstDayNextMonth.getUTCDate() - 1));
+  
+  const result = lastDay.toISOString().split('T')[0];
+  
+  if (!result || !result.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    throw new Error(`getLastDayOfMonth: resultado inválido (${result}) para year=${year}, month=${month}`);
+  }
+  
+  return result;
+}
+
+/**
+ * �🔄 Calcular la siguiente fecha de vencimiento
+ * IMPORTANTE: Mantiene el día del mes original incluso si no existe en el nuevo mes
+ * @param {Date} currentDueDate - Fecha de vencimiento actual
+ * @param {string} frequency - Frecuencia del gasto fijo
+ * @returns {Date} - Nueva fecha de vencimiento
+ *//**
  * 💰 Registrar un pago parcial
  * POST /api/fixed-expenses/:id/payments
  */
@@ -67,7 +97,10 @@ const addPartialPayment = async (req, res) => {
       expenseId, // 🆕 Expense ya creado desde el frontend
       skipExpenseCreation, // 🆕 Flag para no crear Expense duplicado
       receiptUrl, // 🆕 URL del receipt ya creado
-      receiptPublicId // 🆕 Public ID del receipt ya creado
+      receiptPublicId, // 🆕 Public ID del receipt ya creado
+      periodStart, // 🆕 Nuevo campo: inicio del período pagado
+      periodEnd,   // 🆕 Nuevo campo: fin del período pagado
+      periodDueDate // 🆕 Nuevo campo: fecha de vencimiento del período pagado
     } = req.body;
 
     console.log('📥 Datos recibidos:', { 
@@ -78,19 +111,63 @@ const addPartialPayment = async (req, res) => {
       staffId, 
       expenseId, 
       skipExpenseCreation,
+      periodStart,
+      periodEnd,
+      periodDueDate,
       hasReceiptUrl: !!receiptUrl 
     });
     console.log('📎 Archivo:', req.file);
 
-    // Validaciones
+    // Validaciones básicas
     if (!amount || parseFloat(amount) <= 0) {
       return res.status(400).json({ message: 'El monto debe ser mayor a 0' });
+    }
+
+    if (!paymentDate) {
+      return res.status(400).json({ message: 'La fecha de pago es requerida' });
+    }
+
+    if (!paymentMethod) {
+      return res.status(400).json({ message: 'El método de pago es requerido' });
     }
 
     // Buscar el gasto fijo
     const fixedExpense = await FixedExpense.findByPk(fixedExpenseId);
     if (!fixedExpense) {
       return res.status(404).json({ message: 'Gasto fijo no encontrado' });
+    }
+
+    // 🆕 VALIDACIÓN: No duplicar pagos del mismo período
+    const existingPayments = await FixedExpensePayment.findAll({
+      where: { fixedExpenseId }
+    });
+
+    // Usar periodDueDate para validación si está disponible, sino usar paymentDate
+    const dateForValidation = periodDueDate || paymentDate;
+    
+    const periodValidation = validateNoDuplicatePeriod(
+      existingPayments,
+      dateForValidation,
+      fixedExpense.frequency
+    );
+
+    if (!periodValidation.isValid) {
+      console.warn('⚠️ Intento de duplicar pago:', periodValidation.message);
+      return res.status(400).json({
+        conflictingPayment: periodValidation.conflictingPayment
+      });
+    }
+
+    // 🆕 VALIDACIÓN: Período pagado válido - Validar que no sean 'Invalid date' o null
+    if (periodStart === 'Invalid date' || periodEnd === 'Invalid date' || periodDueDate === 'Invalid date') {
+      return res.status(400).json({ message: 'Los campos de período contienen fechas inválidas' });
+    }
+
+    if (periodStart && periodEnd) {
+      const periodValidationResult = validatePaymentPeriod(periodStart, periodEnd);
+      if (!periodValidationResult.isValid) {
+        return res.status(400).json({ message: periodValidationResult.message });
+      }
     }
 
     const totalAmount = parseFloat(fixedExpense.totalAmount);
@@ -140,16 +217,20 @@ const addPartialPayment = async (req, res) => {
 
       // 1️⃣ Crear el Expense automáticamente
       const expense = await Expense.create({
-        date: paymentDate || new Date().toISOString().split('T')[0],
+        date: normalizeDateString(paymentDate || new Date().toISOString().split('T')[0]),
         amount: paymentAmount,
         typeExpense: 'Gasto Fijo',
         paymentMethod: paymentMethod || fixedExpense.paymentMethod || 'Otro',
         notes: notes || `Pago parcial de: ${fixedExpense.name}`,
         paymentStatus: 'paid',
-        paidDate: paymentDate || new Date().toISOString().split('T')[0],
+        paidDate: normalizeDateString(paymentDate || new Date().toISOString().split('T')[0]),
         staffId: staffId || fixedExpense.createdByStaffId,
         relatedFixedExpenseId: fixedExpenseId,
-        vendor: fixedExpense.vendor
+        vendor: fixedExpense.vendor,
+        // Guardar período pagado como metadato en Expense (opcional)
+        periodStart: normalizeDateString(periodStart) || null,
+        periodEnd: normalizeDateString(periodEnd) || null,
+        periodDueDate: normalizeDateString(periodDueDate) || null
       });
 
       finalExpenseId = expense.idExpense;
@@ -195,22 +276,30 @@ const addPartialPayment = async (req, res) => {
     }
 
     // 2️⃣ Registrar el pago parcial
+    // 🔴 CRÍTICO: Normalizar paymentDate para evitar pérdida de un día por timezone
+    const normalizedPaymentDate = normalizeDateString(paymentDate || new Date().toISOString().split('T')[0]);
+    
     const payment = await FixedExpensePayment.create({
       fixedExpenseId,
       amount: paymentAmount,
-      paymentDate: paymentDate || new Date().toISOString().split('T')[0],
+      paymentDate: normalizedPaymentDate,
       paymentMethod: paymentMethod || fixedExpense.paymentMethod || 'Otro',
       receiptUrl: finalReceiptUrl,
       receiptPublicId: finalReceiptPublicId,
       notes,
       expenseId: finalExpenseId,
-      createdByStaffId: staffId || fixedExpense.createdByStaffId
+      createdByStaffId: staffId || fixedExpense.createdByStaffId,
+      periodStart: normalizeDateString(periodStart) || null,
+      periodEnd: normalizeDateString(periodEnd) || null,
+      periodDueDate: normalizeDateString(periodDueDate) || null
     });
 
     console.log('✅ Payment creado:', payment.idPayment);
 
     // 3️⃣ Actualizar el gasto fijo con el nuevo pago
-    const newPaidAmount = Math.max(0, paidAmount) + paymentAmount; // Asegurar que paidAmount nunca sea negativo
+    // Para gastos fijos recurrentes: cada pago es para UN período específico, no acumulativo
+    // Por eso resetear paidAmount a paymentAmount para ese período, no sumarlo
+    const newPaidAmount = paymentAmount; // IMPORTANTE: Reemplazar, NO sumar
     const newPaymentStatus = newPaidAmount >= totalAmount ? 'paid' : (newPaidAmount > 0 ? 'partial' : 'unpaid');
     
     console.log('💰 Actualizando FixedExpense:', {
@@ -225,7 +314,7 @@ const addPartialPayment = async (req, res) => {
     await fixedExpense.update({
       paidAmount: newPaidAmount,
       paymentStatus: newPaymentStatus,
-      paidDate: newPaymentStatus === 'paid' ? (paymentDate || new Date().toISOString().split('T')[0]) : fixedExpense.paidDate
+      paidDate: newPaymentStatus === 'paid' ? normalizeDateString(paymentDate || new Date().toISOString().split('T')[0]) : fixedExpense.paidDate
     });
 
     console.log('✅ FixedExpense actualizado:', {
@@ -235,16 +324,39 @@ const addPartialPayment = async (req, res) => {
 
     // 🆕 Si se pagó completamente, calcular siguiente nextDueDate
     if (newPaymentStatus === 'paid') {
-      const nextDueDate = calculateNextDueDate(new Date(paymentDate || new Date()), fixedExpense.frequency);
-      if (nextDueDate) {
-        await fixedExpense.update({
-          nextDueDate: nextDueDate.toISOString().split('T')[0],
-          paymentStatus: 'unpaid', // Reset para el siguiente período
-          paidAmount: 0 // Reset para el siguiente período
-        });
-        console.log('🔄 Siguiente período configurado:', {
-          nextDueDate: nextDueDate.toISOString().split('T')[0],
-          frequency: fixedExpense.frequency
+      // 🔧 FIX: Solo resetear gastos recurrentes, NO bonos únicos
+      const isRecurringExpense = fixedExpense.frequency &&
+        fixedExpense.frequency !== 'one-time' &&
+        !fixedExpense.name?.toLowerCase().includes('bono');
+
+      if (isRecurringExpense) {
+        // 🔧 CRITICAL FIX: Calcular nextDueDate desde el período ACTUAL (nextDueDate), no desde hoy
+        // Ejemplo: Si nextDueDate es 30 ene, el siguiente debe ser 28/29 feb (respetando días del mes)
+        // ✅ AHORA: Pasar como STRING (ISO format) a la función correcta que retorna STRING
+        const baseDateString = fixedExpense.nextDueDate || fixedExpense.startDate;
+        const nextDueDateString = calculateNextDueDateFromExpenseController(baseDateString, fixedExpense.frequency);
+        
+        if (nextDueDateString) {
+          // 🆕 Guardar como "paid_pending_next" para indicar que está pagado pero hay próximo período
+          // El frontend filtrará esto correctamente
+          await fixedExpense.update({
+            nextDueDate: nextDueDateString,
+            paymentStatus: 'unpaid', // Para el siguiente período
+            paidAmount: 0 // Reset SOLO para gastos recurrentes
+          });
+          console.log('🔄 Siguiente período configurado para gasto recurrente:', {
+            currentDueDate: fixedExpense.nextDueDate,
+            nextDueDate: nextDueDateString, // ✅ Ya es string
+            frequency: fixedExpense.frequency,
+            currentDate: new Date().toISOString().split('T')[0],
+            isPastDue: new Date(nextDueDateString) <= new Date()
+          });
+        }
+      } else {
+        console.log('💡 Gasto único/bono - NO se resetea el paidAmount:', {
+          name: fixedExpense.name,
+          frequency: fixedExpense.frequency,
+          paidAmount: fixedExpense.paidAmount
         });
       }
     }
@@ -310,13 +422,15 @@ const addPartialPayment = async (req, res) => {
 const getPaymentHistory = async (req, res) => {
   try {
     const { id: fixedExpenseId } = req.params;
+    const { page = 1, limit = 20 } = req.query;
 
     const fixedExpense = await FixedExpense.findByPk(fixedExpenseId);
     if (!fixedExpense) {
       return res.status(404).json({ message: 'Gasto fijo no encontrado' });
     }
 
-    const payments = await FixedExpensePayment.findAll({
+    // Obtener pagos con paginación
+    const { count, rows: payments } = await FixedExpensePayment.findAndCountAll({
       where: { fixedExpenseId },
       attributes: [
         'idPayment',
@@ -324,8 +438,11 @@ const getPaymentHistory = async (req, res) => {
         'paymentDate',
         'paymentMethod',
         'notes',
-        'receiptUrl',      // ✅ Incluir URL del comprobante
-        'receiptPublicId', // ✅ Incluir ID de Cloudinary
+        'receiptUrl',
+        'receiptPublicId',
+        'periodStart',      // 🆕 Incluir período
+        'periodEnd',        // 🆕 Incluir período
+        'periodDueDate',    // 🆕 Incluir período
         'createdAt'
       ],
       include: [
@@ -340,27 +457,135 @@ const getPaymentHistory = async (req, res) => {
           attributes: ['id', 'name', 'email']
         }
       ],
-      order: [['paymentDate', 'DESC']]
+      order: [['paymentDate', 'DESC']],
+      offset: (page - 1) * limit,
+      limit: parseInt(limit)
     });
 
     const totalAmount = parseFloat(fixedExpense.totalAmount);
     const paidAmount = parseFloat(fixedExpense.paidAmount || 0);
 
+    // 🆕 Obtener todos los receipts para los expenses de los pagos
+    const expenseIds = payments.filter(p => p.generatedExpense?.idExpense).map(p => p.generatedExpense.idExpense);
+    console.log('🔍 expenseIds para buscar receipts:', expenseIds);
+    const receiptsMap = {};
+    
+    if (expenseIds.length > 0) {
+      console.log('🔍 Buscando receipts con expenseIds:', expenseIds.map(id => id.toString()));
+      const allReceipts = await Receipt.findAll({
+        where: {
+          relatedId: {
+            [Op.in]: expenseIds.map(id => id.toString()) // Convertir a string para comparar con VARCHAR
+          },
+          relatedModel: 'Expense'
+        }
+      });
+      
+      console.log('📦 Receipts encontrados:', allReceipts.length);
+      console.log('📦 Detalles de receipts:', allReceipts.map(r => ({
+        idReceipt: r.idReceipt,
+        relatedId: r.relatedId,
+        relatedModel: r.relatedModel,
+        fileUrl: r.fileUrl
+      })));
+      
+      // Agrupar receipts por expenseId
+      allReceipts.forEach(receipt => {
+        console.log(`  └─ Agrupando receipt ${receipt.idReceipt} para expense ${receipt.relatedId}`);
+        if (!receiptsMap[receipt.relatedId]) {
+          receiptsMap[receipt.relatedId] = [];
+        }
+        receiptsMap[receipt.relatedId].push({
+          idReceipt: receipt.idReceipt,
+          fileUrl: receipt.fileUrl,
+          originalName: receipt.originalName,
+          mimeType: receipt.mimeType,
+          type: receipt.type
+        });
+      });
+      
+      console.log('📋 ReceiptsMap final:', Object.keys(receiptsMap));
+    }
+
     res.json({
       fixedExpense: {
         id: fixedExpense.idFixedExpense,
         name: fixedExpense.name,
+        frequency: fixedExpense.frequency,
         totalAmount: totalAmount.toFixed(2),
         paidAmount: paidAmount.toFixed(2),
         remainingAmount: (totalAmount - paidAmount).toFixed(2),
-        paymentStatus: fixedExpense.paymentStatus
+        paymentStatus: fixedExpense.paymentStatus,
+        nextDueDate: fixedExpense.nextDueDate, // 🆕 Próximo vencimiento
+        description: fixedExpense.description,
+        category: fixedExpense.category
       },
-      payments,
+      payments: payments.map(p => ({
+        idPayment: p.idPayment,
+        amount: parseFloat(p.amount),
+        paymentDate: p.paymentDate,
+        paymentMethod: p.paymentMethod,
+        
+        // 🆕 Información del período
+        periodStart: p.periodStart,
+        periodEnd: p.periodEnd,
+        periodDueDate: p.periodDueDate,
+        periodDescription: p.periodStart && p.periodEnd ? (() => {
+          // 🔴 CRITICAL: NO usar new Date(dateString) porque interpreta en timezone local
+          // Parsear manualmente: YYYY-MM-DD
+          const [startYear, startMonth, startDay] = p.periodStart.split('-').map(Number);
+          const [endYear, endMonth, endDay] = p.periodEnd.split('-').map(Number);
+          
+          if (!startYear || !startMonth || !endYear || !endMonth) {
+            return 'Sin período especificado';
+          }
+          
+          const startDate = new Date(Date.UTC(startYear, startMonth - 1, startDay));
+          const monthName = startDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+          
+          return `${monthName} (${startDay}-${endDay})`;
+        })() :
+          'Sin período especificado',
+        
+        notes: p.notes,
+        receiptUrl: p.receiptUrl,
+        fileUrl: p.receiptUrl, // 🆕 Alias para compatibilidad con frontend
+        receiptPublicId: p.receiptPublicId,
+        
+        // 🆕 Traer receipts del Expense asociado (obtenidos de forma manual)
+        // El relatedId se guarda como string en la BD, así que convertir idExpense a string
+        receipts: (() => {
+          const expenseIdStr = p.generatedExpense?.idExpense?.toString();
+          const foundReceipts = receiptsMap[expenseIdStr] || [];
+          console.log(`  📎 Pago ${p.idPayment} -> Expense ${expenseIdStr} -> ${foundReceipts.length} receipts`);
+          return foundReceipts;
+        })(),
+        
+        // Expense generado
+        generatedExpense: p.generatedExpense ? {
+          idExpense: p.generatedExpense.idExpense,
+          date: p.generatedExpense.date,
+          amount: parseFloat(p.generatedExpense.amount),
+          typeExpense: p.generatedExpense.typeExpense
+        } : null,
+        
+        createdBy: p.createdBy,
+        createdAt: p.createdAt
+      })),
+      
       summary: {
-        totalPayments: payments.length,
+        totalPayments: count,
         totalPaid: paidAmount.toFixed(2),
         remaining: (totalAmount - paidAmount).toFixed(2),
-        percentagePaid: ((paidAmount / totalAmount) * 100).toFixed(2)
+        percentagePaid: totalAmount > 0 ? ((paidAmount / totalAmount) * 100).toFixed(2) : 0
+      },
+      
+      // 🆕 Información de paginación
+      pagination: {
+        total: count,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(count / limit)
       }
     });
 
@@ -535,8 +760,201 @@ const deletePartialPayment = async (req, res) => {
   }
 };
 
+// 🆕 Obtener períodos pendientes de pago para un gasto fijo
+// 🔧 LÓGICA CORREGIDA: Genera períodos mensuales COMPLETOS desde el mes SIGUIENTE
+// 🔴 CRÍTICO: Usa normalizeDateString para evitar problemas de timezone
+async function getPendingPaymentPeriods(req, res) {
+  try {
+    const { fixedExpenseId } = req.params;
+
+    // Obtener el gasto fijo
+    const fixedExpense = await FixedExpense.findByPk(fixedExpenseId);
+    if (!fixedExpense) {
+      return res.status(404).json({
+        error: 'Gasto fijo no encontrado',
+        message: `No existe gasto fijo con ID: ${fixedExpenseId}`
+      });
+    }
+    // 🔴 CRÍTICO: Normalizar la fecha de inicio sin perder un día
+    const startDateString = normalizeDateString(fixedExpense.startDate);
+    const [startYear, startMonth, startDay] = startDateString.split('-').map(Number);
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const allPeriods = [];
+
+    // ✅ Helper: Agregar días a una fecha (YYYY-MM-DD format)
+    const addDays = (dateStr, days) => {
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const date = new Date(Date.UTC(year, month - 1, day));
+      date.setUTCDate(date.getUTCDate() + days);
+      const newYear = date.getUTCFullYear();
+      const newMonth = String(date.getUTCMonth() + 1).padStart(2, '0');
+      const newDay = String(date.getUTCDate()).padStart(2, '0');
+      return `${newYear}-${newMonth}-${newDay}`;
+    };
+
+    // ✅ Helper: Agregar meses a una fecha (YYYY-MM-DD format)
+    const addMonths = (dateStr, months) => {
+      const [year, month, day] = dateStr.split('-').map(Number);
+      let newMonth = month + months;
+      let newYear = year;
+      while (newMonth > 12) {
+        newMonth -= 12;
+        newYear += 1;
+      }
+      while (newMonth < 1) {
+        newMonth += 12;
+        newYear -= 1;
+      }
+      
+      // Ajustar el día si no existe en el nuevo mes (ej: 31 enero → febrero)
+      const lastDay = parseInt(getLastDayOfMonth(newYear, newMonth - 1).split('-')[2]);
+      const finalDay = Math.min(day, lastDay);
+      
+      return `${newYear}-${String(newMonth).padStart(2, '0')}-${String(finalDay).padStart(2, '0')}`;
+    };
+
+    // Generar períodos según la frecuencia
+    let periodStart = startDateString;
+    
+    while (true) {
+      let periodEnd;
+      
+      switch (fixedExpense.frequency) {
+        case 'weekly':
+          // Período de 7 días
+          periodEnd = addDays(periodStart, 6); // Incluye 7 días totales (0-6)
+          break;
+        
+        case 'biweekly':
+          // Período de 14 días
+          periodEnd = addDays(periodStart, 13); // Incluye 14 días totales (0-13)
+          break;
+        
+        case 'monthly':
+          // Período mensual (1st del mes actual hasta último del próximo mes)
+          const [startYear, startMonth, startDay] = periodStart.split('-').map(Number);
+          let endMonth = startMonth + 1;
+          let endYear = startYear;
+          if (endMonth > 12) {
+            endMonth = 1;
+            endYear += 1;
+          }
+          const endMonthIndex = endMonth - 1;
+          const lastDayEndMonth = parseInt(getLastDayOfMonth(endYear, endMonthIndex).split('-')[2]);
+          
+          let endDay;
+          if (startDay >= 28) {
+            endDay = lastDayEndMonth;
+          } else {
+            endDay = Math.min(startDay, lastDayEndMonth);
+          }
+          periodEnd = `${endYear}-${String(endMonth).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
+          break;
+        
+        case 'quarterly':
+          // Período de 3 meses
+          periodEnd = addMonths(periodStart, 2); // Sumar 2 para completar 3 meses
+          break;
+        
+        case 'semiannual':
+          // Período de 6 meses
+          periodEnd = addMonths(periodStart, 5); // Sumar 5 para completar 6 meses
+          break;
+        
+        case 'annual':
+          // Período de 12 meses (1 año)
+          periodEnd = addMonths(periodStart, 11); // Sumar 11 para completar 12 meses
+          break;
+        
+        default:
+          // Por defecto, mensual
+          periodEnd = addMonths(periodStart, 1);
+      }
+      
+      allPeriods.push({
+        periodStart,
+        periodEnd,
+        dueDate: periodEnd,
+        displayDate: new Date(`${periodEnd}T00:00:00Z`).toLocaleDateString('es-ES')
+      });
+      
+      // Verificar si el período termina en el futuro
+      if (periodEnd > today.toISOString().split('T')[0]) {
+        break;
+      }
+      
+      // Avanzar al siguiente período
+      periodStart = addDays(periodEnd, 1); // El siguiente período empieza el día después del anterior
+    }
+
+    // Obtener todos los pagos registrados para este gasto
+    const payments = await FixedExpensePayment.findAll({
+      where: { fixedExpenseId },
+      attributes: ['periodStart', 'periodEnd', 'periodDueDate'],
+      raw: true
+    });
+
+    // Construir map de períodos pagados
+    const paidPeriodMap = new Map();
+    payments.forEach(payment => {
+      if (payment.periodStart && payment.periodEnd) {
+        const key = `${payment.periodStart}_${payment.periodEnd}`;
+        paidPeriodMap.set(key, true);
+      }
+    });
+
+    // Filtrar períodos vencidos y no pagados
+    const todayString = today.toISOString().split('T')[0];
+    const pendingPeriods = allPeriods
+      .filter(period => {
+        // Solo si ha vencido (dueDate <= hoy)
+        if (period.dueDate > todayString) return false;
+        
+        // Solo si NO está pagado
+        const periodKey = `${period.periodStart}_${period.periodEnd}`;
+        return !paidPeriodMap.has(periodKey);
+      })
+      .map(period => ({
+        date: period.dueDate,
+        displayDate: period.displayDate,
+        startDate: period.periodStart,
+        endDate: period.periodEnd,
+        dueDate: period.dueDate,
+        isPaid: false,
+        status: 'pendiente',
+        isOverdue: period.dueDate < todayString
+      }));
+
+    res.json({
+      fixedExpenseId,
+      fixedExpenseName: fixedExpense.name,
+      totalAmount: fixedExpense.totalAmount,
+      frequency: fixedExpense.frequency,
+      nextDueDate: fixedExpense.nextDueDate,
+      paymentStatus: fixedExpense.paymentStatus,
+      pendingPeriods: pendingPeriods,
+      pendingCount: pendingPeriods.length,
+      totalPaidAmount: fixedExpense.paidAmount,
+      message: pendingPeriods.length === 0 
+        ? 'No hay períodos pendientes de pago' 
+        : `${pendingPeriods.length} período(s) pendiente(s) de pago`
+    });
+
+  } catch (error) {
+    console.error('❌ Error obteniendo períodos pendientes:', error);
+    res.status(500).json({
+      error: 'Error al obtener períodos pendientes',
+      message: error.message
+    });
+  }
+}
+
 module.exports = {
   addPartialPayment,
   getPaymentHistory,
-  deletePartialPayment
+  deletePartialPayment,
+  getPendingPaymentPeriods
 };

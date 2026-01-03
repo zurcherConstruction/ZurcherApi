@@ -7,13 +7,13 @@ const MonthlyExpensesView = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1); // 🆕 Por defecto el mes actual
+  const [refreshing, setRefreshing] = useState(false);
   
   // Estados para controlar qué secciones están expandidas
   const [expandedSections, setExpandedSections] = useState({});
 
   const months = [
-    { value: '', label: 'Todos los meses' },
     { value: 1, label: 'Enero' },
     { value: 2, label: 'Febrero' },
     { value: 3, label: 'Marzo' },
@@ -57,9 +57,17 @@ const MonthlyExpensesView = () => {
       console.error('Error fetching monthly expenses:', err);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
+  // 🆕 Función para refrescar datos manualmente
+  const handleManualRefresh = async () => {
+    setRefreshing(true);
+    await fetchData();
+  };
+
+  // Cargar datos cuando cambian los filtros (año/mes)
   useEffect(() => {
     fetchData();
   }, [selectedYear, selectedMonth]);
@@ -108,7 +116,7 @@ const MonthlyExpensesView = () => {
 
         {/* Filtros */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Año
@@ -145,6 +153,30 @@ const MonthlyExpensesView = () => {
                 </div>
               )}
             </div>
+            <button
+              onClick={handleManualRefresh}
+              disabled={refreshing || loading}
+              className={`h-12 px-6 rounded-lg font-medium flex items-center justify-center gap-2 transition-all ${
+                refreshing || loading
+                  ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'
+              }`}
+            >
+              <svg
+                className={`w-4 h-4 ${(refreshing || loading) ? 'animate-spin' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+              {refreshing || loading ? 'Actualizando...' : 'Actualizar'}
+            </button>
           </div>
         </div>
 
@@ -181,48 +213,16 @@ const MonthlyExpensesView = () => {
 
         {!loading && !error && data && (
           <div className="space-y-8">
-            {/* Resumen principal */}
-            {data.yearTotals && (
-              <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl shadow-lg text-white p-8">
-                <h2 className="text-2xl font-bold mb-6 flex items-center">
-                  <span className="bg-white/20 rounded-lg p-2 mr-3">💰</span>
-                  Resumen Financiero {data.year || selectedYear}
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-white/90">Gastos Generales</span>
-                      <span className="text-xs bg-white/20 px-2 py-1 rounded-full">Año</span>
-                    </div>
-                    <div className="text-3xl font-bold">
-                      {formatCurrency(data.yearTotals.generalExpenses)}
-                    </div>
-                  </div>
-                  <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-white/20">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-white/90">Gastos Fijos</span>
-                      <span className="text-xs bg-white/20 px-2 py-1 rounded-full">Año</span>
-                    </div>
-                    <div className="text-3xl font-bold">
-                      {formatCurrency(data.yearTotals.fixedExpenses)}
-                    </div>
-                  </div>
-                  <div className="bg-white/20 backdrop-blur-sm rounded-xl p-6 border border-white/30">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-white">Total Año</span>
-                      <span className="text-xs bg-white/30 px-2 py-1 rounded-full">TOTAL</span>
-                    </div>
-                    <div className="text-3xl font-bold">
-                      {formatCurrency(data.yearTotals.totalYear)}
-                    </div>
-                  </div>
-                </div>
+            {/* Mostrar resumen de actualización */}
+            {refreshing === false && data && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
+                ✅ Datos actualizados. Se encontraron {data.summary?.generalExpensesFound || 0} gastos generales y {data.summary?.fixedExpensesActive || 0} gastos fijos activos.
               </div>
             )}
 
             {/* Datos mensuales */}
             <div className="space-y-6">
-              {data.monthlyData.filter(month => month.totalMonth > 0).map((month) => (
+              {data.monthlyData.filter(month => month.monthNumber === parseInt(selectedMonth)).map((month) => (
                 <div key={month.month} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                   {/* Header del mes */}
                   <div className="bg-gray-50 px-8 py-6 border-b border-gray-200">
@@ -380,6 +380,12 @@ const MonthlyExpensesView = () => {
                                       <span className="px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800">
                                         {item.frequency}
                                       </span>
+                                      {/* 🆕 Mostrar multiplicador si aplica */}
+                                      {item.timesPerMonth > 1 && (
+                                        <span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+                                          ×{item.timesPerMonth} veces
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="text-sm text-gray-600 space-y-1">
                                       <p className="flex items-center font-medium text-gray-900">
@@ -390,10 +396,13 @@ const MonthlyExpensesView = () => {
                                         <span className="mr-2">📂</span>
                                         {item.category}
                                       </p>
-                                      <p className="flex items-center">
-                                        <span className="mr-2">🔄</span>
-                                        Frecuencia: {item.frequency}
-                                      </p>
+                                      {/* 🆕 Mostrar desglose si se multiplica */}
+                                      {item.timesPerMonth > 1 && (
+                                        <p className="flex items-center text-blue-600">
+                                          <span className="mr-2">💵</span>
+                                          {formatCurrency(item.baseAmount)} × {item.timesPerMonth} = {formatCurrency(item.amount)}
+                                        </p>
+                                      )}
                                     </div>
                                   </div>
                                 </div>
@@ -410,15 +419,15 @@ const MonthlyExpensesView = () => {
           </div>
         )}
 
-        {!loading && !error && (!data || data.monthlyData.filter(m => m.totalMonth > 0).length === 0) && (
+        {!loading && !error && (!data || data.monthlyData.filter(m => m.monthNumber === parseInt(selectedMonth)).length === 0) && (
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-8 text-center">
             <div className="mb-4">
               <svg className="mx-auto h-16 w-16 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
             </div>
-            <h3 className="text-lg font-medium text-blue-900 mb-2">No hay datos disponibles</h3>
-            <p className="text-blue-700">No se encontraron gastos para el período seleccionado.</p>
+            <h3 className="text-lg font-medium text-blue-900 mb-2">No hay gastos registrados</h3>
+            <p className="text-blue-700">No se encontraron gastos para el mes seleccionado.</p>
           </div>
         )}
       </div>

@@ -37,7 +37,7 @@ async function verifyFixedExpensesBankingIntegration() {
       include: [
         {
           model: FixedExpense,
-          as: 'relatedFixedExpense',
+          as: 'fixedExpense',
           attributes: ['idFixedExpense', 'name', 'category'],
           required: false
         }
@@ -55,7 +55,7 @@ async function verifyFixedExpensesBankingIntegration() {
       
       fixedExpenseExpenses.slice(0, 10).forEach(expense => {
         const date = expense.date || 'N/A';
-        const name = (expense.relatedFixedExpense?.name || 'SIN RELACIÓN').substring(0, 26).padEnd(26);
+        const name = (expense.fixedExpense?.name || 'SIN RELACIÓN').substring(0, 26).padEnd(26);
         const amount = `$${parseFloat(expense.amount || 0).toFixed(2)}`.padStart(11);
         const method = (expense.paymentMethod || 'N/A').substring(0, 18).padEnd(18);
         const verified = expense.verified ? '✅' : '❌';
@@ -84,7 +84,7 @@ async function verifyFixedExpensesBankingIntegration() {
       include: [
         {
           model: BankAccount,
-          as: 'bankAccount',
+          as: 'account',
           attributes: ['accountName', 'accountType'],
           required: false
         }
@@ -102,7 +102,7 @@ async function verifyFixedExpensesBankingIntegration() {
       
       bankTransactions.forEach(transaction => {
         const date = transaction.date || 'N/A';
-        const account = (transaction.bankAccount?.accountName || 'N/A').substring(0, 23).padEnd(23);
+        const account = (transaction.account?.accountName || 'N/A').substring(0, 23).padEnd(23);
         const type = transaction.transactionType.padEnd(11);
         const amount = `$${parseFloat(transaction.amount || 0).toFixed(2)}`.padStart(11);
         const desc = (transaction.description || '').substring(0, 16).padEnd(16);

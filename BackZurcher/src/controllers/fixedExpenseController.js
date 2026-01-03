@@ -2,9 +2,224 @@ const { FixedExpense, FixedExpensePayment, Staff, Expense } = require('../data')
 const { Op } = require('sequelize');
 
 /**
- * 🔧 Helper: Calcular paymentStatus para el frontend
+ * � CRITICAL: Normalizar un objeto FixedExpense para asegurar que las fechas sean strings ISO
+ * Previene que Sequelize convierta DATEONLY a Date objects que pierdan información
  */
-const addPaymentStatus = (fixedExpenseData) => {
+function normalizeFixedExpenseResponse(expense) {
+  if (!expense) return expense;
+  
+  // 🔴 CRITICAL: Convertir string YYYY-MM-DD a Date UTC sin pérdida de timezone
+  function stringToUTCDate(dateString) {
+    const [year, month, day] = dateString.split('-').map(Number);
+    return new Date(Date.UTC(year, month - 1, day));
+  }
+  
+  const obj = expense instanceof Object ? (expense.toJSON ? expense.toJSON() : expense) : {};
+  
+  // Convertir campos DATEONLY a strings ISO explícitamente
+  if (obj.startDate) {
+    obj.startDate = obj.startDate instanceof Date 
+      ? obj.startDate.toISOString().split('T')[0]
+      : String(obj.startDate).split('T')[0];
+  }
+  if (obj.endDate) {
+    obj.endDate = obj.endDate instanceof Date 
+      ? obj.endDate.toISOString().split('T')[0]
+      : String(obj.endDate).split('T')[0];
+  }
+  if (obj.nextDueDate) {
+    obj.nextDueDate = obj.nextDueDate instanceof Date 
+      ? obj.nextDueDate.toISOString().split('T')[0]
+      : String(obj.nextDueDate).split('T')[0];
+  }
+  
+  return obj;
+}
+
+/**
+ * �🔧 CRITICAL: Helper para normalizar fechas sin perder un día por timezone
+ * 
+ * Problema: 
+ * - Frontend envía: "2025-11-01" (string)
+ * - JavaScript lo interpreta como UTC: 2025-11-01T00:00:00Z
+ * - Al convertir a timezone local: 2025-10-31T23:00:00 (¡pierde un día!)
+ * 
+ * Solución:
+ * - Procesar fechas como strings ISO (YYYY-MM-DD) cuando sea posible
+ * - Usar Date objects SOLO con UTC times
+ * - Nunca restar/sumar directamente con new Date()
+ */
+function normalizeDateString(dateString) {
+  // Si es null, undefined o string vacío, lanzar error
+  if (!dateString || dateString === '' || dateString === null) {
+    throw new Error(`Fecha requerida: recibió "${dateString}"`);
+  }
+
+  // Si ya es string ISO, validar que sea YYYY-MM-DD
+  if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    // Validar que sea una fecha válida
+    const testDate = new Date(dateString + 'T00:00:00Z');
+    if (isNaN(testDate.getTime())) {
+      throw new Error(`Fecha inválida: ${dateString}`);
+    }
+    return dateString; // Retornar como-está, sin convertir
+  }
+  
+  // Si es Date object, convertir a ISO string
+  if (dateString instanceof Date) {
+    if (isNaN(dateString.getTime())) {
+      throw new Error(`Date object inválido`);
+    }
+    return dateString.toISOString().split('T')[0];
+  }
+  
+  // Si es string pero no YYYY-MM-DD, intentar parsearlo
+  if (typeof dateString === 'string') {
+    // Dividir por guiones y validar que sean números
+    const parts = dateString.split('-');
+    if (parts.length === 3 && parts.every(p => /^\d+$/.test(p))) {
+      // Parsear manualmente sin crear Date para evitar timezone issues
+      const [year, month, day] = parts.map(Number);
+      if (year > 1900 && year < 2100 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        return dateString;
+      }
+    }
+  }
+  
+  throw new Error(`Fecha inválida o formato no soportado: ${dateString}`);
+}
+
+/**
+ * 🔧 Helper para comparar fechas sin problemas de timezone
+ * Retorna: -1 si date1 < date2, 0 si son iguales, 1 si date1 > date2
+ */
+function compareDateStrings(dateString1, dateString2) {
+  const d1 = normalizeDateString(dateString1);
+  const d2 = normalizeDateString(dateString2);
+  
+  if (d1 < d2) return -1;
+  if (d1 > d2) return 1;
+  return 0;
+}
+
+/**
+ * 🔧 Helper para calcular el último día de un mes
+ * Sin problemas de timezone
+ */
+function getLastDayOfMonth(year, month) {
+  // Validar inputs
+  if (isNaN(year) || isNaN(month)) {
+    throw new Error(`getLastDayOfMonth: parámetros inválidos (year=${year}, month=${month})`);
+  }
+  
+  // month es 0-indexed (0 = enero, 11 = diciembre)
+  const firstDayNextMonth = new Date(Date.UTC(year, month + 1, 1));
+  
+  // Validar que la fecha sea válida
+  if (isNaN(firstDayNextMonth.getTime())) {
+    throw new Error(`getLastDayOfMonth: fecha UTC inválida (year=${year}, month=${month})`);
+  }
+  
+  const lastDay = new Date(Date.UTC(firstDayNextMonth.getUTCFullYear(), firstDayNextMonth.getUTCMonth(), firstDayNextMonth.getUTCDate() - 1));
+  
+  const result = lastDay.toISOString().split('T')[0];
+  
+  if (!result || !result.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    throw new Error(`getLastDayOfMonth: resultado inválido (${result}) para year=${year}, month=${month}`);
+  }
+  
+  return result;
+}
+
+/**
+ * 🆕 Helper: Calcular el vencimiento del PRIMER PERÍODO desde una fecha de inicio
+ * 
+ * Si inicia el 30/11/2025 con frequency=monthly:
+ * - Período 1: 30/11 - 30/12 (vencimiento: 30/12/2025)
+ * 
+ * Si inicia el 31/01/2026 con frequency=monthly:
+ * - Período 1: 31/01 - 28/02 (vencimiento: 28/02/2026, no existe 31 febrero)
+ */
+function calculateFirstPeriodDueDate(startDateString, frequency) {
+  const normalizedStart = normalizeDateString(startDateString);
+  const [year, month, day] = normalizedStart.split('-').map(Number);
+
+  const monthIndex = month - 1;
+
+  switch (frequency) {
+    case 'weekly':
+      // Una semana después
+      const weekDate = new Date(Date.UTC(year, monthIndex, day + 7));
+      return weekDate.toISOString().split('T')[0];
+      
+    case 'biweekly':
+      // Dos semanas después
+      const biweeklyDate = new Date(Date.UTC(year, monthIndex, day + 14));
+      return biweeklyDate.toISOString().split('T')[0];
+      
+    case 'monthly':
+      // Mismo día del siguiente mes, o último día si no existe
+      let nextMonth = month + 1;
+      let nextYear = year;
+      if (nextMonth > 12) {
+        nextMonth = 1;
+        nextYear += 1;
+      }
+      const nextMonthIndex = nextMonth - 1;
+      const lastDayNextMonth = parseInt(getLastDayOfMonth(nextYear, nextMonthIndex).split('-')[2]);
+      const dueDay = Math.min(day, lastDayNextMonth);
+      return `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(dueDay).padStart(2, '0')}`;
+      
+    case 'quarterly':
+      // 3 meses después
+      let quarterMonth = month + 3;
+      let quarterYear = year;
+      while (quarterMonth > 12) {
+        quarterMonth -= 12;
+        quarterYear += 1;
+      }
+      const quarterMonthIndex = quarterMonth - 1;
+      const lastDayQuarter = parseInt(getLastDayOfMonth(quarterYear, quarterMonthIndex).split('-')[2]);
+      const quarterDay = Math.min(day, lastDayQuarter);
+      return `${quarterYear}-${String(quarterMonth).padStart(2, '0')}-${String(quarterDay).padStart(2, '0')}`;
+      
+    case 'semiannual':
+      // 6 meses después
+      let semiMonth = month + 6;
+      let semiYear = year;
+      while (semiMonth > 12) {
+        semiMonth -= 12;
+        semiYear += 1;
+      }
+      const semiMonthIndex = semiMonth - 1;
+      const lastDaySemi = parseInt(getLastDayOfMonth(semiYear, semiMonthIndex).split('-')[2]);
+      const semiDay = Math.min(day, lastDaySemi);
+      return `${semiYear}-${String(semiMonth).padStart(2, '0')}-${String(semiDay).padStart(2, '0')}`;
+      
+    case 'annual':
+      // 1 año después
+      const annualDate = `${year + 1}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      return annualDate;
+      
+    case 'one_time':
+      return normalizedStart; // Sin próximo vencimiento
+      
+    default:
+      return normalizedStart;
+  }
+}
+
+/**
+ * 🔧 Helper: Calcular paymentStatus ACTUAL basado en período y historial
+ * 
+ * La lógica es:
+ * - Si el período ACTUAL está pagado completamente → 'paid'
+ * - Si el período ACTUAL tiene pago parcial → 'partial'
+ * - Si el período ACTUAL NO está pagado → 'unpaid'
+ * 
+ * El período ACTUAL es siempre el que termina en nextDueDate
+ */
+const calculateCurrentPaymentStatus = (fixedExpenseData) => {
   const paidAmount = parseFloat(fixedExpenseData.paidAmount || 0);
   const totalAmount = parseFloat(fixedExpenseData.totalAmount || 0);
   
@@ -19,8 +234,21 @@ const addPaymentStatus = (fixedExpenseData) => {
 
   return {
     ...fixedExpenseData,
-    paymentStatus
+    paymentStatus,
+    // 🆕 Información para el frontend
+    periodInfo: {
+      nextDueDate: fixedExpenseData.nextDueDate,
+      currentPeriodPaid: paidAmount >= totalAmount,
+      remainingAmount: (totalAmount - paidAmount).toFixed(2)
+    }
   };
+};
+
+/**
+ * 🔧 DEPRECATED: Usar calculateCurrentPaymentStatus en su lugar
+ */
+const addPaymentStatus = (fixedExpenseData) => {
+  return calculateCurrentPaymentStatus(fixedExpenseData);
 };
 
 /**
@@ -44,40 +272,70 @@ const createFixedExpense = async (req, res) => {
       vendor,
       accountNumber,
       notes,
-      createdByStaffId
+      createdByStaffId,
+      staffId         // 🆕 NUEVO: Para asignar un Staff en categoría Salarios
     } = req.body;
 
     // 🔄 Usar totalAmount si existe, sino usar amount (retrocompatibilidad)
     const finalTotalAmount = totalAmount || amount;
 
-    // Validaciones básicas
-    if (!name || !finalTotalAmount || !frequency || !category || !paymentMethod || !startDate) {
+    // 📝 Validaciones básicas - SOLO campos requeridos al crear
+    // paymentMethod se elige al momento de pagar, no al crear
+    if (!name || !finalTotalAmount || !frequency || !category || !startDate) {
       return res.status(400).json({
-        error: 'Faltan campos requeridos: name, amount, frequency, category, paymentMethod, startDate'
+        error: 'Faltan campos requeridos: name, totalAmount, frequency, category, startDate'
       });
     }
 
-    // Calcular próxima fecha de vencimiento según frecuencia
-    const nextDueDate = calculateNextDueDate(startDate, frequency);
+    // 🔴 CRÍTICO: Normalizar fechas para evitar perder un día por timezone
+    let normalizedStartDate;
+    let normalizedEndDate = null;
+    
+    try {
+      normalizedStartDate = normalizeDateString(startDate);
+      if (endDate) {
+        normalizedEndDate = normalizeDateString(endDate);
+      }
+    } catch (error) {
+      console.error('❌ Error normalizando fechas:', error.message);
+      return res.status(400).json({
+        error: 'Fecha inválida. Use formato YYYY-MM-DD',
+        details: error.message
+      });
+    }
+
+    // ✅ Calcular fecha de vencimiento del PRIMER PERÍODO (no el siguiente)
+    let nextDueDate;
+    try {
+      nextDueDate = calculateFirstPeriodDueDate(normalizedStartDate, frequency);
+    } catch (error) {
+      console.error('❌ Error calculando nextDueDate:', error.message);
+      return res.status(400).json({
+        error: 'Error calculando fecha de vencimiento',
+        details: error.message
+      });
+    }
 
     const newFixedExpense = await FixedExpense.create({
       name,
       description,
-      totalAmount: finalTotalAmount,  // 🔄 Usar el monto correcto
-      paidAmount: 0,                   // 🆕 Inicializar en 0
+      totalAmount: finalTotalAmount,
+      paidAmount: 0,
       frequency,
       category,
-      paymentMethod,
-      paymentAccount,
-      startDate,
-      endDate,
+      paymentMethod: paymentMethod || null,
+      paymentAccount: paymentAccount || null,
+      // 🔴 CRITICAL: Pasar como STRING directamente, Sequelize maneja DATEONLY strings
+      startDate: normalizedStartDate,
+      endDate: normalizedEndDate,
       nextDueDate,
       isActive: isActive !== undefined ? isActive : true,
       autoCreateExpense: autoCreateExpense || false,
       vendor,
       accountNumber,
       notes,
-      createdByStaffId
+      createdByStaffId: createdByStaffId || null,
+      staffId: category === 'Salarios' ? staffId : null  // 🆕 Guardar Staff solo para Salarios
     });
 
     // Incluir información del Staff si existe
@@ -93,7 +351,7 @@ const createFixedExpense = async (req, res) => {
 
     res.status(201).json({
       message: 'Gasto fijo creado exitosamente',
-      fixedExpense: addPaymentStatus(fixedExpenseWithStaff.toJSON())
+      fixedExpense: addPaymentStatus(normalizeFixedExpenseResponse(fixedExpenseWithStaff))
     });
 
   } catch (error) {
@@ -138,8 +396,13 @@ const getAllFixedExpenses = async (req, res) => {
       ];
     }
 
+    // Solo traer gastos activos (sin restricción de fecha de vencimiento)
+    const today = new Date();
     const fixedExpenses = await FixedExpense.findAll({
-      where: whereClause,
+      where: {
+        ...whereClause,
+        isActive: true
+      },
       include: [
         {
           model: Staff,
@@ -147,19 +410,18 @@ const getAllFixedExpenses = async (req, res) => {
           attributes: ['id', 'name', 'email'],
           required: false
         },
-        // 🆕 Incluir resumen de pagos parciales
         {
           model: FixedExpensePayment,
           as: 'payments',
           attributes: ['idPayment', 'amount', 'paymentDate'],
-          separate: true, // Evita duplicados
+          separate: true,
           order: [['paymentDate', 'DESC']],
-          limit: 5 // Solo los últimos 5 pagos en el listado
+          limit: 5
         }
       ],
       order: [
-        ['isActive', 'DESC'], // Activos primero
-        ['nextDueDate', 'ASC'] // Los más próximos a vencer primero
+        ['isActive', 'DESC'],
+        ['nextDueDate', 'ASC']
       ]
     });
 
@@ -169,7 +431,7 @@ const getAllFixedExpenses = async (req, res) => {
     // Para cada gasto fijo, verificar si ya se pagó en el período actual
     const fixedExpensesWithPaymentStatus = await Promise.all(
       fixedExpenses.map(async (fe) => {
-        const feData = fe.toJSON();
+        const feData = normalizeFixedExpenseResponse(fe);
         
         // Calcular rango de fechas según frecuencia
         const today = new Date();
@@ -223,35 +485,41 @@ const getAllFixedExpenses = async (req, res) => {
             break;
         }
 
-        // Buscar si ya existe un expense generado en este período
-        const existingExpense = await Expense.findOne({
-          where: {
-            relatedFixedExpenseId: fe.idFixedExpense,
-            date: {
-              [Op.between]: [startDate, endDate]
-            }
-          },
-          order: [['date', 'DESC']]
-        });
+        // Buscar si ya existe un expense generado en este período (solo si el nextDueDate está vencido)
+        let existingExpense = null;
+        if (fe.nextDueDate && new Date(fe.nextDueDate) <= today) {
+          existingExpense = await Expense.findOne({
+            where: {
+              relatedFixedExpenseId: fe.idFixedExpense,
+              date: {
+                [Op.between]: [startDate, endDate]
+              }
+            },
+            order: [['date', 'DESC']]
+          });
+        }
 
         // 🔄 Calcular paymentStatus basado en paidAmount vs totalAmount
         const paidAmount = parseFloat(feData.paidAmount || 0);
         const totalAmount = parseFloat(feData.totalAmount || 0);
         
+        // Solo marcar como 'unpaid' si NO hay pago para el período vencido
         let paymentStatus;
-        if (paidAmount >= totalAmount && totalAmount > 0) {
+        if (existingExpense) {
           paymentStatus = 'paid';
-        } else if (paidAmount > 0) {
-          paymentStatus = 'partial';
         } else {
           paymentStatus = 'unpaid';
+        }
+        // Si hay pagos parciales, marcar como 'partial'
+        if (!existingExpense && paidAmount > 0 && paidAmount < totalAmount) {
+          paymentStatus = 'partial';
         }
 
         return {
           ...feData,
           lastPaymentDate: existingExpense ? existingExpense.date : null,
           isPaidThisPeriod: !!existingExpense,
-          paymentStatus // 🆕 Campo que necesita el frontend
+          paymentStatus
         };
       })
     );
@@ -303,7 +571,7 @@ const getFixedExpenseById = async (req, res) => {
             {
               model: Expense,
               as: 'generatedExpense',
-              attributes: ['idExpense', 'name', 'cost', 'paymentStatus']
+              attributes: ['idExpense', 'date', 'amount', 'typeExpense', 'notes']
             },
             {
               model: Staff,
@@ -321,7 +589,7 @@ const getFixedExpenseById = async (req, res) => {
     }
 
     // 🆕 Agregar balance calculado y paymentStatus
-    const fixedExpenseWithStatus = addPaymentStatus(fixedExpense.toJSON());
+    const fixedExpenseWithStatus = addPaymentStatus(normalizeFixedExpenseResponse(fixedExpense));
     
     const response = {
       ...fixedExpenseWithStatus,
@@ -353,7 +621,6 @@ const updateFixedExpense = async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
 
-    // 🔍 DEBUG: Log completo de la petición
     console.log('📝 [updateFixedExpense] ID:', id);
     console.log('📝 [updateFixedExpense] Datos recibidos:', JSON.stringify(updateData, null, 2));
 
@@ -364,41 +631,80 @@ const updateFixedExpense = async (req, res) => {
       return res.status(404).json({ error: 'Gasto fijo no encontrado' });
     }
 
-    // 🔍 DEBUG: Valores antes de actualizar
-    console.log('📊 [updateFixedExpense] Valores actuales:', {
-      name: fixedExpense.name,
-      totalAmount: fixedExpense.totalAmount,
-      category: fixedExpense.category,
-      paymentMethod: fixedExpense.paymentMethod
-    });
-
     // 🔄 RETROCOMPATIBILIDAD: Si viene "amount", mapearlo a "totalAmount"
     if (updateData.amount !== undefined && updateData.totalAmount === undefined) {
       console.log('🔄 [updateFixedExpense] Mapeando "amount" → "totalAmount":', updateData.amount);
       updateData.totalAmount = updateData.amount;
-      delete updateData.amount; // Eliminar el campo incorrecto
+      delete updateData.amount;
+    }
+
+    // 🔴 CRÍTICO: Normalizar fechas para evitar perder un día por timezone
+    // También sanitizar campos vacíos a null
+    if (updateData.startDate) {
+      updateData.startDate = normalizeDateString(updateData.startDate);
+    } else if (updateData.startDate === '') {
+      delete updateData.startDate;
+    }
+    
+    if (updateData.endDate) {
+      updateData.endDate = normalizeDateString(updateData.endDate);
+    } else if (updateData.endDate === '') {
+      updateData.endDate = null;
     }
 
     // Si cambia la frecuencia o fecha de inicio, recalcular nextDueDate
     if (updateData.frequency || updateData.startDate) {
       const newFrequency = updateData.frequency || fixedExpense.frequency;
-      const newStartDate = updateData.startDate || fixedExpense.startDate;
-      updateData.nextDueDate = calculateNextDueDate(newStartDate, newFrequency);
+      let newStartDate = updateData.startDate || fixedExpense.startDate;
+      
+      // Solo recalcular si ambos valores son válidos
+      // Normalizar newStartDate en caso de que sea Date object de Sequelize
+      if (newStartDate && newFrequency) {
+        try {
+          newStartDate = normalizeDateString(newStartDate);
+          updateData.nextDueDate = calculateNextDueDate(newStartDate, newFrequency);
+        } catch (error) {
+          console.error('⚠️ Error recalculando nextDueDate:', error.message);
+          // No recalcular si hay error, mantener el valor anterior
+        }
+      }
     }
 
-    // 🔍 DEBUG: Intentando actualizar
+    // Manejo especial para staffId en categoría Salarios
+    if (updateData.category === 'Salarios') {
+      // staffId debe estar presente
+      if (updateData.staffId === undefined) {
+        updateData.staffId = fixedExpense.staffId; // Mantener el anterior si no se proporciona
+      }
+    } else {
+      // Para otras categorías, limpiar staffId
+      if (updateData.category) {
+        updateData.staffId = null;
+      }
+    }
+
     console.log('🔄 [updateFixedExpense] Ejecutando update con:', JSON.stringify(updateData, null, 2));
     
     await fixedExpense.update(updateData);
-
-    // 🔍 DEBUG: Valores después de actualizar
     await fixedExpense.reload();
-    console.log('✅ [updateFixedExpense] Valores después de update:', {
-      name: fixedExpense.name,
-      totalAmount: fixedExpense.totalAmount,
-      category: fixedExpense.category,
-      paymentMethod: fixedExpense.paymentMethod
-    });
+
+    // 🔄 Si cambió el monto, actualizar Expenses impagos relacionados
+    if (updateData.totalAmount && updateData.totalAmount !== fixedExpense.totalAmount) {
+      console.log('💰 [updateFixedExpense] Monto cambió. Actualizando Expenses impagos...');
+      const unpaidExpenses = await Expense.findAll({
+        where: {
+          relatedFixedExpenseId: id,
+          paymentStatus: 'unpaid' // Solo los impagos
+        }
+      });
+      
+      for (const expense of unpaidExpenses) {
+        await expense.update({ amount: updateData.totalAmount });
+      }
+      console.log(`✅ [updateFixedExpense] ${unpaidExpenses.length} Expense(s) impago(s) actualizado(s)`);
+    }
+
+    console.log('✅ [updateFixedExpense] Valores después de update: actualizado correctamente');
 
     // Recargar con relaciones
     const updatedFixedExpense = await FixedExpense.findByPk(id, {
@@ -414,8 +720,8 @@ const updateFixedExpense = async (req, res) => {
     console.log('✅ [updateFixedExpense] Actualización completada exitosamente');
 
     res.status(200).json({
-      message: 'Gasto fijo actualizado exitosamente',
-      fixedExpense: updatedFixedExpense
+      message: '✅ Gasto fijo actualizado exitosamente',
+      fixedExpense: addPaymentStatus(normalizeFixedExpenseResponse(updatedFixedExpense))
     });
 
   } catch (error) {
@@ -438,6 +744,19 @@ const deleteFixedExpense = async (req, res) => {
 
     if (!fixedExpense) {
       return res.status(404).json({ error: 'Gasto fijo no encontrado' });
+    }
+
+    // ⚠️ Verificar si hay Expenses relacionados
+    const relatedExpenses = await Expense.count({
+      where: { relatedFixedExpenseId: id }
+    });
+
+    if (relatedExpenses > 0) {
+      return res.status(409).json({
+        error: 'No se puede eliminar',
+        message: `Este gasto fijo tiene ${relatedExpenses} gasto(s) relacionado(s). Elimine primero los gastos asociados.`,
+        relatedCount: relatedExpenses
+      });
     }
 
     await fixedExpense.destroy();
@@ -666,54 +985,113 @@ const generateExpenseFromFixed = async (req, res) => {
 /**
  * Calcular la próxima fecha de vencimiento según la frecuencia
  */
-function calculateNextDueDate(startDate, frequency) {
-  const date = new Date(startDate);
-  const today = new Date();
-  
-  // Si la fecha de inicio es futura, esa es la próxima fecha
-  if (date > today) {
-    return startDate;
+/**
+ * 🔧 CORREGIDO: Calcular próximo vencimiento basado en período mensual completo
+ * 🔴 IMPORTANTE: Usar normalizeDateString() para evitar problemas de timezone
+ * 
+ * LÓGICA CORRECTA:
+ * - Si startDate = 31/10/2025
+ * - Primer vencimiento = último día del siguiente mes = 30/11/2025
+ * - Períodos = completos (1 al último día del mes)
+ * 
+ * - Si nextDueDate = 30/11/2025
+ * - Siguiente vencimiento = último día del siguiente mes = 31/12/2025
+ */
+function calculateNextDueDate(baseDate, frequency) {
+  // 🔴 CRÍTICO: Normalizar la fecha de entrada (puede ser string o Date)
+  let baseDateString;
+  try {
+    baseDateString = normalizeDateString(baseDate);
+  } catch (error) {
+    console.error('❌ Error normalizando baseDate en calculateNextDueDate:', baseDate, error.message);
+    throw error;
   }
+  
+  // Parsear como componentes (year, month, day) SIN problemas de timezone
+  const parts = baseDateString.split('-');
+  if (parts.length !== 3) {
+    throw new Error(`Fecha debe estar en formato YYYY-MM-DD, recibió: ${baseDateString}`);
+  }
+  
+  const [year, month, day] = parts.map(Number);
+  
+  if (isNaN(year) || isNaN(month) || isNaN(day)) {
+    throw new Error(`Fecha contiene valores no-numéricos: ${baseDateString}`);
+  }
+  
+  // month es 1-indexed en el string (01-12), convertir a 0-indexed para Date
+  const monthIndex = month - 1;
+  
+  // 🔧 CRÍTICO: Chequear si el día de INICIO es el último día de su mes
+  // Si es así, siempre usar el último día del mes para los períodos siguientes
+  const lastDayOfCurrentMonth = getLastDayOfMonth(year, monthIndex);
+  const lastDayCurrentNum = parseInt(lastDayOfCurrentMonth.split('-')[2]);
+  const isLastDayOfMonth = (day === lastDayCurrentNum);
 
-  // Calcular próxima fecha según frecuencia
   switch (frequency) {
     case 'weekly':
-      while (date <= today) {
-        date.setDate(date.getDate() + 7);
-      }
-      break;
+      // Avanzar 7 días
+      const nextWeekDate = new Date(Date.UTC(year, monthIndex, day + 7));
+      return nextWeekDate.toISOString().split('T')[0];
+      
     case 'biweekly':
-      while (date <= today) {
-        date.setDate(date.getDate() + 14);
-      }
-      break;
+      // Avanzar 14 días
+      const nextBiweeklyDate = new Date(Date.UTC(year, monthIndex, day + 14));
+      return nextBiweeklyDate.toISOString().split('T')[0];
+      
     case 'monthly':
-      while (date <= today) {
-        date.setMonth(date.getMonth() + 1);
-      }
-      break;
+      // 🔧 CRÍTICO: Obtener el ÚLTIMO DÍA del siguiente mes (sin problemas de timezone)
+      // El siguiente mes es monthIndex + 1 (ejemplo: oct=9, next=10=nov)
+      const nextMonth = monthIndex + 1;
+      const nextYear = nextMonth > 11 ? year + 1 : year;
+      const adjustedMonth = nextMonth > 11 ? 0 : nextMonth;
+      
+      // Obtener último día del próximo mes
+      const lastDayOfNextMonthStr = getLastDayOfMonth(nextYear, adjustedMonth);
+      // Extract day from "YYYY-MM-DD" format
+      const lastDayNum = parseInt(lastDayOfNextMonthStr.split('-')[2]);
+      // 🆕 Si el día de inicio es el último día de su mes, usar último día del siguiente
+      // Si no, usar el día específico o el último disponible si no existe
+      const dayToSetMonthly = isLastDayOfMonth ? lastDayNum : Math.min(day, lastDayNum);
+      return `${nextYear}-${String(adjustedMonth + 1).padStart(2, '0')}-${String(dayToSetMonthly).padStart(2, '0')}`;
+      
     case 'quarterly':
-      while (date <= today) {
-        date.setMonth(date.getMonth() + 3);
-      }
-      break;
+      // Trimestral: avanzar 3 meses
+      const nextQuarterMonth = monthIndex + 3;
+      const quarterYear = Math.floor(nextQuarterMonth / 12) + year;
+      const adjustedQuarterMonth = nextQuarterMonth % 12;
+      const lastDayQuarter = getLastDayOfMonth(quarterYear, adjustedQuarterMonth);
+      const lastDayQuarterNum = parseInt(lastDayQuarter.split('-')[2]);
+      // 🆕 Si el día de inicio es el último día de su mes, usar último día del siguiente
+      const dayToSetQuarter = isLastDayOfMonth ? lastDayQuarterNum : Math.min(day, lastDayQuarterNum);
+      return `${quarterYear}-${String(adjustedQuarterMonth + 1).padStart(2, '0')}-${String(dayToSetQuarter).padStart(2, '0')}`;
+      
     case 'semiannual':
-      while (date <= today) {
-        date.setMonth(date.getMonth() + 6);
-      }
-      break;
+      // Semestral: avanzar 6 meses
+      const nextSemiMonth = monthIndex + 6;
+      const semiYear = Math.floor(nextSemiMonth / 12) + year;
+      const adjustedSemiMonth = nextSemiMonth % 12;
+      const lastDaySemi = getLastDayOfMonth(semiYear, adjustedSemiMonth);
+      const lastDaySemiNum = parseInt(lastDaySemi.split('-')[2]);
+      // 🆕 Si el día de inicio es el último día de su mes, usar último día del siguiente
+      const dayToSetSemi = isLastDayOfMonth ? lastDaySemiNum : Math.min(day, lastDaySemiNum);
+      return `${semiYear}-${String(adjustedSemiMonth + 1).padStart(2, '0')}-${String(dayToSetSemi).padStart(2, '0')}`;
+      
     case 'annual':
-      while (date <= today) {
-        date.setFullYear(date.getFullYear() + 1);
-      }
-      break;
+      // Anual: avanzar 1 año
+      const nextAnnualYear = year + 1;
+      const lastDayAnnual = getLastDayOfMonth(nextAnnualYear, monthIndex);
+      const lastDayAnnualNum = parseInt(lastDayAnnual.split('-')[2]);
+      // 🆕 Si el día de inicio es el último día de su mes, usar último día del siguiente
+      const dayToSetAnnual = isLastDayOfMonth ? lastDayAnnualNum : Math.min(day, lastDayAnnualNum);
+      return `${nextAnnualYear}-${String(monthIndex + 1).padStart(2, '0')}-${String(dayToSetAnnual).padStart(2, '0')}`;
+      
     case 'one_time':
-      return startDate; // No hay próxima fecha para pagos únicos
+      return baseDateString; // No tiene próximo vencimiento
+      
     default:
-      return startDate;
+      return baseDateString;
   }
-
-  return date.toISOString().split('T')[0]; // Formato YYYY-MM-DD
 }
 
 /**
@@ -914,7 +1292,7 @@ const getMonthlySummary = async (req, res) => {
       }
 
       return {
-        ...expense.toJSON(),
+        ...normalizeFixedExpenseResponse(expense),
         paymentStatus,
         remainingAmount
       };
@@ -1023,5 +1401,7 @@ module.exports = {
   generateExpenseFromFixed,
   getUnpaidFixedExpenses,
   getFixedExpensesByPaymentStatus,
-  getMonthlySummary
+  getMonthlySummary,
+  calculateNextDueDate // 🆕 Exportar función para uso en payment controller
 };
+

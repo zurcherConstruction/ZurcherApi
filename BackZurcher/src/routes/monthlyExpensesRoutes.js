@@ -6,7 +6,14 @@
 
 const express = require('express');
 const router = express.Router();
-const { getMonthlyExpenses } = require('../controllers/monthlyExpensesController');
+const { getMonthlyExpenses, getAvailableYears } = require('../controllers/monthlyExpensesController');
+
+/**
+ * @route GET /monthly-expenses/available-years
+ * @desc Obtener los años que tienen datos de gastos disponibles
+ * @access Private
+ */
+router.get('/available-years', getAvailableYears);
 
 /**
  * @route GET /monthly-expenses

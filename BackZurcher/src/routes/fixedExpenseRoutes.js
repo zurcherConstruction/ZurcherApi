@@ -21,7 +21,8 @@ const { getCronStatus } = require('../controllers/cronStatusController');
 const {
   addPartialPayment,
   getPaymentHistory,
-  deletePartialPayment
+  deletePartialPayment,
+  getPendingPaymentPeriods
 } = require('../controllers/fixedExpensePaymentController');
 
 // Middleware de autenticación (ajustar según tu sistema)
@@ -136,5 +137,12 @@ router.post('/:id/payments', upload.single('receipt'), addPartialPayment);
  * @access  Private
  */
 router.get('/:id/payments', getPaymentHistory);
+
+/**
+ * 🆕 📋 @route   GET /api/fixed-expenses/:id/pending-periods
+ * @desc    Obtener períodos pendientes de pago (sin pagar)
+ * @access  Private
+ */
+router.get('/:fixedExpenseId/pending-periods', getPendingPaymentPeriods);
 
 module.exports = router;
