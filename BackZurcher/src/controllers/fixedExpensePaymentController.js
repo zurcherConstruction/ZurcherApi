@@ -716,7 +716,7 @@ const deletePartialPayment = async (req, res) => {
     
     console.log(`✅ FixedExpense actualizado después del rollback:`, {
       paidAmount: newPaidAmount,
-      paymentStatus: newPaymentStatus,
+      paymentStatus: newStatus,
       totalAmount: totalAmount
     });
 
@@ -732,13 +732,13 @@ const deletePartialPayment = async (req, res) => {
       fixedExpense: {
         idFixedExpense: fixedExpense.idFixedExpense,
         paidAmount: newPaidAmount.toFixed(2),
-        paymentStatus: newPaymentStatus
+        paymentStatus: newStatus
       },
       updatedBalance: {
         totalAmount: fixedExpense.totalAmount,
         paidAmount: newPaidAmount.toFixed(2),
         remainingAmount: (parseFloat(fixedExpense.totalAmount) - newPaidAmount).toFixed(2),
-        paymentStatus: newPaymentStatus
+        paymentStatus: newStatus
       },
       rollback: {
         expenseDeleted: payment.expenseId ? true : false,
