@@ -7,15 +7,46 @@
 /**
  * Validar que no exista un pago del mismo período
  * @param {Array} paymentHistory - Historial de pagos del gasto fijo
- * @param {string} paymentDate - Fecha de pago nueva
+ * @param {string} paymentDate - Fecha de pago nueva (DEPRECATED - usar periodStart/periodEnd)
  * @param {string} frequency - Frecuencia del gasto (monthly, biweekly, etc)
+ * @param {string} periodStart - Inicio del período (formato YYYY-MM-DD)
+ * @param {string} periodEnd - Fin del período (formato YYYY-MM-DD)
  * @returns {Object} { isValid, message, conflictingPayment }
  */
-function validateNoDuplicatePeriod(paymentHistory, paymentDate, frequency) {
+function validateNoDuplicatePeriod(paymentHistory, paymentDate, frequency, periodStart, periodEnd) {
   if (!paymentHistory || paymentHistory.length === 0) {
     return { isValid: true, message: '' };
   }
 
+  console.log(`\n🔍 [validateNoDuplicatePeriod] Validando duplicados:`);
+  console.log(`   Nuevo período: ${periodStart} a ${periodEnd}`);
+  console.log(`   Frecuencia: ${frequency}`);
+  console.log(`   Pagos existentes: ${paymentHistory.length}`);
+
+  // Si tenemos periodStart y periodEnd, usarlos para validación exacta
+  if (periodStart && periodEnd) {
+    for (const payment of paymentHistory) {
+      console.log(`   Comparando con pago existente: ${payment.periodStart} a ${payment.periodEnd}`);
+      
+      // Validación exacta: mismo período = mismo start Y mismo end
+      const isSamePeriod = 
+        payment.periodStart === periodStart && 
+        payment.periodEnd === periodEnd;
+      
+      if (isSamePeriod) {
+        console.log(`   ❌ DUPLICADO ENCONTRADO! Período exacto ya existe`);
+        return {
+          isValid: false,
+          message: `Ya existe un pago registrado para este período (${payment.paymentDate})`,
+          conflictingPayment: payment
+        };
+      }
+    }
+    console.log(`   ✅ No hay duplicados de período exacto`);
+    return { isValid: true, message: '' };
+  }
+
+  // Fallback: usar paymentDate si no tenemos período exacto
   const newPaymentDate = new Date(paymentDate);
   const newMonth = newPaymentDate.getMonth();
   const newYear = newPaymentDate.getFullYear();

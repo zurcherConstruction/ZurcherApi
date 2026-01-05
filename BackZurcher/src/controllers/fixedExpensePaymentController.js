@@ -142,13 +142,13 @@ const addPartialPayment = async (req, res) => {
       where: { fixedExpenseId }
     });
 
-    // Usar periodDueDate para validación si está disponible, sino usar paymentDate
-    const dateForValidation = periodDueDate || paymentDate;
-    
+    // Usar periodStart y periodEnd para validación exacta de período
     const periodValidation = validateNoDuplicatePeriod(
       existingPayments,
-      dateForValidation,
-      fixedExpense.frequency
+      paymentDate,
+      fixedExpense.frequency,
+      periodStart,
+      periodEnd
     );
 
     if (!periodValidation.isValid) {
