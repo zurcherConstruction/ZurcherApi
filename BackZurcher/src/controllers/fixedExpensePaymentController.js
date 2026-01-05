@@ -721,7 +721,7 @@ const deletePartialPayment = async (req, res) => {
     
     console.log(`✅ FixedExpense actualizado después del rollback:`, {
       paidAmount: newPaidAmount,
-      paymentStatus: newPaymentStatus,
+      paymentStatus: newStatus,
       totalAmount: totalAmount
     });
 
@@ -737,13 +737,13 @@ const deletePartialPayment = async (req, res) => {
       fixedExpense: {
         idFixedExpense: fixedExpense.idFixedExpense,
         paidAmount: newPaidAmount.toFixed(2),
-        paymentStatus: newPaymentStatus
+        paymentStatus: newStatus
       },
       updatedBalance: {
         totalAmount: fixedExpense.totalAmount,
         paidAmount: newPaidAmount.toFixed(2),
         remainingAmount: (parseFloat(fixedExpense.totalAmount) - newPaidAmount).toFixed(2),
-        paymentStatus: newPaymentStatus
+        paymentStatus: newStatus
       },
       rollback: {
         expenseDeleted: payment.expenseId ? true : false,
@@ -780,9 +780,21 @@ async function getPendingPaymentPeriods(req, res) {
         message: `No existe gasto fijo con ID: ${fixedExpenseId}`
       });
     }
+    
+    console.log(`\n🔍 INICIO getPendingPaymentPeriods para ${fixedExpense.name} (ID: ${fixedExpenseId})`);
+    console.log(`📋 Config del gasto:
+      - Nombre: ${fixedExpense.name}
+      - Frecuencia: ${fixedExpense.frequency}
+      - Start Date: ${fixedExpense.startDate}
+      - Total Amount: ${fixedExpense.totalAmount}
+      - Paid Amount: ${fixedExpense.paidAmount}
+      - Payment Status: ${fixedExpense.paymentStatus}
+    `);
+    
     // 🔴 CRÍTICO: Normalizar la fecha de inicio sin perder un día
     const startDateString = normalizeDateString(fixedExpense.startDate);
     const [startYear, startMonth, startDay] = startDateString.split('-').map(Number);
+    console.log(`📅 StartDate normalizado: ${startDateString} (año: ${startYear}, mes: ${startMonth}, día: ${startDay})`);
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -823,6 +835,10 @@ async function getPendingPaymentPeriods(req, res) {
 
     // Generar períodos según la frecuencia
     let periodStart = startDateString;
+    let periodCount = 0;
+    
+    console.log(`📝 Iniciando generación de períodos con frecuencia: ${fixedExpense.frequency}`);
+    console.log(`   Primer período comienza: ${periodStart}`);
     
     while (true) {
       let periodEnd;
@@ -834,8 +850,21 @@ async function getPendingPaymentPeriods(req, res) {
           break;
         
         case 'biweekly':
-          // Período de 14 días
-          periodEnd = addDays(periodStart, 13); // Incluye 14 días totales (0-13)
+          // 🆕 Período de QUINCENA CALENDARIO (1-15, 16-30/31)
+          const [bwYear, bwMonth, bwDay] = periodStart.split('-').map(Number);
+          
+          console.log(`   [BIWEEKLY] Generando período: periodStart=${periodStart} (día ${bwDay})`);
+          
+          if (bwDay <= 15) {
+            // Si estamos en 1-15, período termina en el 15
+            periodEnd = `${bwYear}-${String(bwMonth).padStart(2, '0')}-15`;
+            console.log(`     → Día <= 15, periodEnd = ${periodEnd}`);
+          } else {
+            // Si estamos en 16+, período termina el último día del mes
+            const lastDay = parseInt(getLastDayOfMonth(bwYear, bwMonth - 1).split('-')[2]);
+            periodEnd = `${bwYear}-${String(bwMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+            console.log(`     → Día >= 16, periodEnd = ${periodEnd} (último día del mes)`);
+          }
           break;
         
         case 'monthly':
@@ -886,13 +915,41 @@ async function getPendingPaymentPeriods(req, res) {
         displayDate: new Date(`${periodEnd}T00:00:00Z`).toLocaleDateString('es-ES')
       });
       
+      periodCount++;
+      console.log(`   Período #${periodCount}: ${periodStart} a ${periodEnd}`);
+      
       // Verificar si el período termina en el futuro
       if (periodEnd > today.toISOString().split('T')[0]) {
+        console.log(`   ⏸️ Deteniendo: período termina en futuro (${periodEnd} > hoy)`);
+        break;
+      }
+      
+      // Verificar límite de períodos
+      if (periodCount >= 60) {
+        console.log(`   ⚠️ Límite de 60 períodos alcanzado, deteniendo generación`);
         break;
       }
       
       // Avanzar al siguiente período
-      periodStart = addDays(periodEnd, 1); // El siguiente período empieza el día después del anterior
+      if (fixedExpense.frequency === 'biweekly') {
+        // Para biweekly, el siguiente período empieza el día después de terminar
+        const [endYear, endMonth, endDay] = periodEnd.split('-').map(Number);
+        if (endDay === 15) {
+          // Si fue 1-15, el siguiente es 16 del mismo mes
+          periodStart = `${endYear}-${String(endMonth).padStart(2, '0')}-16`;
+        } else {
+          // Si fue 16-30/31, el siguiente es 1 del próximo mes
+          let nextMonth = endMonth + 1;
+          let nextYear = endYear;
+          if (nextMonth > 12) {
+            nextMonth = 1;
+            nextYear += 1;
+          }
+          periodStart = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
+        }
+      } else {
+        periodStart = addDays(periodEnd, 1); // El siguiente período empieza el día después del anterior
+      }
     }
 
     // Obtener todos los pagos registrados para este gasto
@@ -902,24 +959,42 @@ async function getPendingPaymentPeriods(req, res) {
       raw: true
     });
 
+    console.log(`\n📍 DEBUGGING getPendingPaymentPeriods para fixedExpenseId: ${fixedExpenseId}`);
+    console.log(`📊 Períodos GENERADOS (${allPeriods.length}):`);
+    allPeriods.forEach(p => {
+      console.log(`   - ${p.displayDate} (${p.periodStart} a ${p.periodEnd}) - Due: ${p.dueDate}`);
+    });
+    console.log(`💳 Pagos REGISTRADOS en BD (${payments.length}):`);
+    payments.forEach(p => {
+      console.log(`   - ${p.periodStart} a ${p.periodEnd}`);
+    });
+
     // Construir map de períodos pagados
     const paidPeriodMap = new Map();
     payments.forEach(payment => {
       if (payment.periodStart && payment.periodEnd) {
         const key = `${payment.periodStart}_${payment.periodEnd}`;
         paidPeriodMap.set(key, true);
+        console.log(`   ✅ Key pagada registrada: ${key}`);
       }
     });
 
     // Filtrar períodos vencidos y no pagados
     const todayString = today.toISOString().split('T')[0];
+    console.log(`📅 Hoy es: ${todayString}`);
     const pendingPeriods = allPeriods
       .filter(period => {
+        const periodKey = `${period.periodStart}_${period.periodEnd}`;
+        const isOverdue = period.dueDate <= todayString;
+        const isPaid = paidPeriodMap.has(periodKey);
+        const isPending = isOverdue && !isPaid;
+        
+        console.log(`   Período ${period.displayDate}: overdue=${isOverdue}, paid=${isPaid}, pending=${isPending} (key: ${periodKey})`);
+        
         // Solo si ha vencido (dueDate <= hoy)
         if (period.dueDate > todayString) return false;
         
         // Solo si NO está pagado
-        const periodKey = `${period.periodStart}_${period.periodEnd}`;
         return !paidPeriodMap.has(periodKey);
       })
       .map(period => ({
@@ -932,6 +1007,12 @@ async function getPendingPaymentPeriods(req, res) {
         status: 'pendiente',
         isOverdue: period.dueDate < todayString
       }));
+
+    console.log(`✅ Períodos PENDIENTES resultantes (${pendingPeriods.length}):`);
+    pendingPeriods.forEach(p => {
+      console.log(`   - ${p.displayDate} (${p.startDate} a ${p.endDate}) - Overdue: ${p.isOverdue}`);
+    });
+    console.log(`\n`);
 
     res.json({
       fixedExpenseId,
