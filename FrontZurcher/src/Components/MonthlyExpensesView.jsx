@@ -30,6 +30,13 @@ const MonthlyExpensesView = () => {
 
   const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 
+  // 🆕 Función para formatear fecha a MM-DD-YYYY
+  const formatDateMDY = (dateString) => {
+    if (!dateString) return '';
+    const [year, month, day] = dateString.split('-');
+    return `${month}-${day}-${year}`;
+  };
+
   // Toggle sección expandida/colapsada
   const toggleSection = (sectionId) => {
     setExpandedSections(prev => ({
@@ -328,38 +335,42 @@ const MonthlyExpensesView = () => {
                           <div className="border-t border-gray-200 bg-white">
                             <div className="p-6 space-y-3">
                               {month.generalExpenses.items.map((item, index) => (
-                                <div key={index} className="flex items-start justify-between p-4 bg-gray-50 rounded-lg border">
+                                <div key={index} className="flex items-start justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
                                   <div className="flex-1">
-                                    <div className="flex items-center gap-3 mb-2">
-                                      <span className="text-lg font-bold text-gray-900">
+                                    {/* Fila 1: Monto y Fecha */}
+                                    <div className="flex items-center gap-4 mb-3">
+                                      <span className="text-xl font-bold text-gray-900 min-w-max">
                                         {formatCurrency(item.amount)}
                                       </span>
-                                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getPaymentStatusBadge(item.status)}`}>
-                                        {getPaymentStatusLabel(item.status)}
+                                      <span className="text-xs text-gray-500 px-2 py-1 bg-white rounded">
+                                        📅 {formatDateMDY(item.date)}
                                       </span>
                                     </div>
-                                    <div className="text-sm text-gray-600 space-y-1">
-                                      <p className="flex items-center">
-                                        <span className="mr-2">📅</span>
-                                        {item.date}
-                                      </p>
+
+                                    {/* Fila 2: Quién lo generó */}
+                                    {item.createdByName && (
+                                      <div className="text-sm text-gray-700 mb-2 flex items-center gap-2">
+                                        <span className="font-medium">👤 Cargado por:</span>
+                                        <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-semibold">
+                                          {item.createdByName}
+                                        </span>
+                                      </div>
+                                    )}
+
+                                    {/* Fila 3: Proveedor y Notas */}
+                                    <div className="text-sm text-gray-700 space-y-1">
                                       {item.vendor && (
-                                        <p className="flex items-center">
-                                          <span className="mr-2">🏢</span>
-                                          {item.vendor}
+                                        <p className="flex items-center gap-2">
+                                          <span>🏢</span>
+                                          <span className="font-medium">Proveedor:</span>
+                                          <span>{item.vendor}</span>
                                         </p>
                                       )}
                                       {item.notes && (
-                                        <p className="flex items-center">
-                                          <span className="mr-2">💬</span>
-                                          {item.notes}
-                                        </p>
-                                      )}
-                                      {item.paidAmount > 0 && item.paidAmount < item.amount && (
-                                        <p className="flex items-center text-yellow-700">
-                                          <span className="mr-2">💰</span>
-                                          Pagado: {formatCurrency(item.paidAmount)} | 
-                                          Pendiente: {formatCurrency(item.amount - item.paidAmount)}
+                                        <p className="flex items-start gap-2">
+                                          <span className="mt-0.5">📝</span>
+                                          <span className="font-medium">Nota:</span>
+                                          <span className="text-gray-600">{item.notes}</span>
                                         </p>
                                       )}
                                     </div>

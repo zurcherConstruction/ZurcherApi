@@ -45,10 +45,18 @@ const getMonthlyExpenses = async (req, res) => {
         'vendor',
         'paidAmount',
         'paymentMethod',
-        'createdAt'
+        'createdAt',
+        'staffId'
+      ],
+      include: [
+        {
+          association: 'Staff',
+          attributes: ['name'],
+          required: false
+        }
       ],
       order: [['date', 'ASC']],
-      raw: true
+      raw: false
     });
 
     console.log(`💰 Encontrados ${generalExpensesQuery.length} gastos generales para ${currentYear}`);
@@ -144,7 +152,8 @@ const getMonthlyExpenses = async (req, res) => {
           pendingAmount: amount - parseFloat(expense.paidAmount || 0),
           type: 'general',
           category: 'Gastos Generales',
-          createdAt: expense.createdAt
+          createdAt: expense.createdAt,
+          createdByName: expense.Staff?.name || 'N/A'
         });
       }
     });
