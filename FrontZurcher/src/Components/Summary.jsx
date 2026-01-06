@@ -90,7 +90,9 @@ const Summary = () => {
     try {
       console.log('🔍 Aplicando filtros:', filters);
       
-      const data = await balanceActions.getGeneralBalance(filters);
+      // 🆕 Pasar includeSupplierExpenses=true para mostrar TODOS los expenses incluyendo los de supplier invoices
+      const filtersWithSupplier = { ...filters, includeSupplierExpenses: 'true' };
+      const data = await balanceActions.getGeneralBalance(filtersWithSupplier);
       console.log('📊 Datos recibidos del backend:', data);
       
       const incomes = data.list?.incomes || [];
