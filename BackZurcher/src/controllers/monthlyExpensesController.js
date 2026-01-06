@@ -281,7 +281,13 @@ function getFrequencyMultiplier(frequency, monthNum, year) {
 }
 
 function shouldIncludeFixedExpenseInMonth(frequency, startDate, endDate, monthDate) {
-  // Verificar que el mes esté dentro del rango de fechas del gasto fijo
+  // Para one_time: verificar que esté en el mismo mes/año que startDate
+  if (frequency === 'one_time') {
+    return monthDate.getMonth() + 1 === startDate.getMonth() + 1 && 
+           monthDate.getFullYear() === startDate.getFullYear();
+  }
+
+  // Para otros tipos: verificar que el mes esté dentro del rango de fechas del gasto fijo
   if (monthDate < startDate || monthDate > endDate) {
     return false;
   }
@@ -301,10 +307,6 @@ function shouldIncludeFixedExpenseInMonth(frequency, startDate, endDate, monthDa
     case 'annual':
       // Anual: Solo en el mes de inicio
       return monthDate.getMonth() + 1 === startDate.getMonth() + 1;
-    case 'one_time':
-      // Única vez: Solo en el mes exacto de startDate
-      return monthDate.getMonth() + 1 === startDate.getMonth() + 1 && 
-             monthDate.getFullYear() === startDate.getFullYear();
     default:
       return true;
   }
