@@ -9,9 +9,11 @@ const BalanceStats = () => {
   const [showTransactionList, setShowTransactionList] = useState(false);
   const [showPrintVersion, setShowPrintVersion] = useState(false);
   
+  // 🆕 Inicializar con mes/año actual dinámicamente
+  const currentDate = new Date();
   const [filters, setFilters] = useState({
-    month: 12, // Diciembre actual
-    year: 2025, // 2025 año actual 
+    month: currentDate.getMonth() + 1, // Mes actual (1-12)
+    year: currentDate.getFullYear(), // Año actual (2026, 2027, etc.)
   });
 
   const fetchDashboard = async () => {
@@ -1091,7 +1093,8 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
                 }}
                 className="w-full border border-gray-300 rounded px-3 py-2"
               >
-                {[2023, 2024, 2025].map(year => (
+                {/* 🆕 Mostrar solo 2025 y el año actual (2026) */}
+                {[2025, new Date().getFullYear()].map(year => (
                   <option key={year} value={year}>{year}</option>
                 ))}
               </select>

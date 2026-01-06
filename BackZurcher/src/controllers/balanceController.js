@@ -128,7 +128,7 @@ const getBalanceByWorkId = async (req, res) => {
 };
 
 const getGeneralBalance = async (req, res) => {
-  const { type, startDate, endDate, workId, typeIncome, typeExpense, staffId } = req.query;
+  const { type, startDate, endDate, workId, typeIncome, typeExpense, staffId, includeSupplierExpenses } = req.query;
 
   try {
     // Condiciones WHERE para Income
@@ -159,7 +159,6 @@ const getGeneralBalance = async (req, res) => {
     // Condiciones WHERE para Expense (usando misma lógica que FinancialDashboardController)
     const expenseWhere = {
       paymentStatus: { [Op.in]: ['paid', 'paid_via_invoice', 'partial', 'unpaid'] }, // 🔧 INCLUIR todos los gastos reales
-      supplierInvoiceItemId: null, // Excluir gastos auto-generados por pagos de proveedores
       [Op.and]: [
         Sequelize.where(
           Sequelize.cast(Sequelize.col('typeExpense'), 'TEXT'),
@@ -167,6 +166,12 @@ const getGeneralBalance = async (req, res) => {
         )
       ]
     };
+    
+    // 🆕 Si includeSupplierExpenses es 'true', mostrar también gastos de supplier invoices
+    // Si no, excluirlos (comportamiento original para balance)
+    if (includeSupplierExpenses !== 'true') {
+      expenseWhere.supplierInvoiceItemId = null; // Excluir gastos auto-generados por pagos de proveedores
+    }
     
     if (startDate && endDate) {
       // 🔧 FIX: Usar las mismas fechas ajustadas

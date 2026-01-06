@@ -307,11 +307,12 @@ const ProgressTracker = () => {
 
           // --- ALERTA DE NOTICE TO OWNER ---
           let noticeToOwnerAlert = null;
-          // Solo mostrar si hay installationStartDate, no está archivado y el trabajo NO está completamente pago
-          const isFullyPaid = work.totalPaid >= work.totalCost;
+          // Solo mostrar si hay installationStartDate, no está archivado y está en estados previos a paymentReceived
+          const statesAfterPayment = ["paymentReceived", "finalInspectionPending", "finalApproved", "finalRejected", "maintenance"];
+          const isAfterPayment = statesAfterPayment.includes(status);
           
-          if (work.installationStartDate && !work.noticeToOwnerFiled && !isFullyPaid) {
-            const calculateDaysRemaining = (startDate) => {
+          if (work.installationStartDate && !work.noticeToOwnerFiled && !isAfterPayment) {
+            const calculateDaysInfo = (startDate) => {
               if (!startDate) return null;
               const [year, month, day] = startDate.split('-').map(Number);
               const start = new Date(year, month - 1, day);
@@ -321,36 +322,54 @@ const ProgressTracker = () => {
               today.setHours(0, 0, 0, 0);
               const diffTime = deadline - today;
               const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-              return diffDays;
+              
+              const daysFromStart = Math.floor((today - start) / (1000 * 60 * 60 * 24));
+              const progressPercent = Math.min(100, Math.max(0, (daysFromStart / 45) * 100));
+              
+              return { daysRemaining: diffDays, daysFromStart, progressPercent };
             };
 
-            const daysRemaining = calculateDaysRemaining(work.installationStartDate);
+            const daysInfo = calculateDaysInfo(work.installationStartDate);
             
             // Mostrar alerta solo a partir del día 30 (15 días restantes)
-            if (daysRemaining !== null && daysRemaining <= 15) {
+            if (daysInfo !== null && daysInfo.daysRemaining <= 15) {
               let alertColorClass, textColorClass, message;
               
-              if (daysRemaining <= 0) {
-                // Vencido (día 45+) - Rojo
-                alertColorClass = "text-red-500";
-                textColorClass = "text-red-600";
-                message = `⚠️ Notice to Owner vencido (${Math.abs(daysRemaining)} días)`;
-              } else if (daysRemaining <= 5) {
-                // Día 40-45 - Amarillo
-                alertColorClass = "text-yellow-500";
-                textColorClass = "text-yellow-600";
-                message = `⚠️ Notice to Owner - ${daysRemaining} días restantes`;
+              if (daysInfo.daysRemaining <= 0) {
+                // Vencido (día 45+)
+                alertColorClass = "text-orange-500";
+                textColorClass = "text-orange-600";
+                message = `⚠️ Notice to Owner vencido hace ${Math.abs(daysInfo.daysRemaining)} días`;
+              } else if (daysInfo.daysRemaining <= 5) {
+                // Día 40-45
+                alertColorClass = "text-orange-500";
+                textColorClass = "text-orange-600";
+                message = `⚠️ Notice to Owner - ${daysInfo.daysRemaining} días restantes`;
               } else {
-                // Día 30-40 - Azul
-                alertColorClass = "text-blue-500";
-                textColorClass = "text-blue-600";
-                message = `📋 Notice to Owner - ${daysRemaining} días restantes`;
+                // Día 30-40
+                alertColorClass = "text-orange-500";
+                textColorClass = "text-orange-600";
+                message = `📋 Notice to Owner - ${daysInfo.daysRemaining} días restantes`;
               }
               
               noticeToOwnerAlert = (
-                <div className={`flex items-center justify-center mt-2 text-xs ${textColorClass} font-semibold`}>
-                  <ExclamationTriangleIcon className={`h-4 w-4 mr-1 ${alertColorClass} ${daysRemaining <= 5 ? 'animate-pulse' : ''}`} />
-                  {message}
+                <div className="mt-2 p-2 rounded border bg-orange-50 border-orange-200">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={`text-sm font-semibold ${textColorClass}`}>
+                      <ExclamationTriangleIcon className={`h-4 w-4 mr-1 ${alertColorClass} ${daysInfo.daysRemaining <= 5 ? 'animate-pulse' : ''} inline`} />
+                      {message}
+                    </span>
+                    <span className={`text-sm font-bold ${textColorClass}`}>
+                      {daysInfo.daysFromStart} / 45 días
+                    </span>
+                  </div>
+                  {/* Barra de progreso naranja siempre */}
+                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden border border-gray-300">
+                    <div
+                      className="h-full rounded-full transition-all duration-300 bg-orange-500"
+                      style={{ width: `${daysInfo.progressPercent}%` }}
+                    />
+                  </div>
                 </div>
               );
             }
