@@ -11,8 +11,6 @@ const getMonthlyExpenses = async (req, res) => {
     const { year, month } = req.query;
     const currentYear = parseInt(year) || new Date().getFullYear();
     const specificMonth = month ? parseInt(month) : null; // Si se especifica un mes, solo mostrar ese mes
-    
-    console.log(`📊 Consultando gastos devengados para ${currentYear}${specificMonth ? ` - Mes: ${specificMonth}` : ''}`);
 
     // 1. GASTOS GENERALES desde Expense (excluyendo los que ya están en SupplierInvoices)
     // 🚫 Excluir también 'Gasto Fijo' que se gestiona en la tabla FixedExpense
@@ -59,12 +57,6 @@ const getMonthlyExpenses = async (req, res) => {
       raw: false
     });
 
-    console.log(`💰 Encontrados ${generalExpensesQuery.length} gastos generales para ${currentYear}`);
-    if (generalExpensesQuery.length > 0) {
-      console.log(`   Primero: ${generalExpensesQuery[0].date} - $${generalExpensesQuery[0].amount}`);
-      console.log(`   Último: ${generalExpensesQuery[generalExpensesQuery.length - 1].date} - $${generalExpensesQuery[generalExpensesQuery.length - 1].amount}`);
-    }
-
     // 2. GASTOS FIJOS desde FixedExpense (independientes del pago)
     const fixedExpensesQuery = await FixedExpense.findAll({
       where: {
@@ -89,8 +81,6 @@ const getMonthlyExpenses = async (req, res) => {
       order: [['name', 'ASC']],
       raw: true
     });
-
-    console.log(`🔄 Encontrados ${fixedExpensesQuery.length} gastos fijos activos`);
 
     // 3. PROCESAR GASTOS POR MES
     const monthlyData = {};
@@ -393,8 +383,6 @@ const getAvailableYears = async (req, res) => {
 
     // Convertir a array y ordenar
     const availableYears = Array.from(yearsWithData).sort((a, b) => b - a);
-    
-    console.log(`✅ Años con datos disponibles: ${availableYears.join(', ')}`);
 
     res.status(200).json({
       success: true,

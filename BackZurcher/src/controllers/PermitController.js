@@ -12,7 +12,7 @@ const compressPdfIfNeeded = async (buffer, filename) => {
     return buffer;
   }
   
-  console.log(`🗜️  ${filename}: ${(originalSize / 1024 / 1024).toFixed(2)} MB - Comprimiendo...`);
+  // console.log(`🗜️  ${filename}: ${(originalSize / 1024 / 1024).toFixed(2)} MB - Comprimiendo...`);
   
   try {
     const pdfDoc = await PDFDocument.load(buffer);
@@ -28,9 +28,9 @@ const compressPdfIfNeeded = async (buffer, filename) => {
     const compressedSize = compressedBuffer.length;
     const reduction = ((originalSize - compressedSize) / originalSize * 100).toFixed(1);
     
-    console.log(`   📉 Original: ${(originalSize / 1024 / 1024).toFixed(2)} MB`);
-    console.log(`   📉 Comprimido: ${(compressedSize / 1024 / 1024).toFixed(2)} MB`);
-    console.log(`   ✅ Reducción: ${reduction}%`);
+    // console.log(`   📉 Original: ${(originalSize / 1024 / 1024).toFixed(2)} MB`);
+    // console.log(`   📉 Comprimido: ${(compressedSize / 1024 / 1024).toFixed(2)} MB`);
+    // console.log(`   ✅ Reducción: ${reduction}%`);
     
     // Si aún es muy grande después de comprimir, mostrar advertencia
     if (compressedSize > 10 * 1024 * 1024) {
@@ -89,8 +89,8 @@ const checkPermitByPropertyAddress = async (req, res, next) => {
 // Crear un nuevo permiso
 const createPermit = async (req, res, next) => {
   try {
-    console.log("Request body:", req.body);
-    console.log("Request files:", req.files);
+    // console.log("Request body:", req.body);
+    // console.log("Request files:", req.files);
 
     // ✅ Validaciones básicas mejoradas
     if (!req.body.applicantName || !req.body.propertyAddress) {
@@ -105,17 +105,39 @@ const createPermit = async (req, res, next) => {
       });
     }
     
-    // ✅ NUEVA VALIDACIÓN: Verificar que el Permit Number no exista
+    // ✅ NUEVA VALIDACIÓN: Verificar que el Permit Number no exista O que exista pero sin presupuesto
     const existingPermit = await Permit.findOne({
-      where: { permitNumber: req.body.permitNumber.trim() }
+      where: { permitNumber: req.body.permitNumber.trim() },
+      include: [{
+        model: Budget,
+        as: 'Budgets',
+        attributes: ['idBudget'],
+        required: false
+      }]
     });
     
     if (existingPermit) {
-      return res.status(409).json({ 
-        error: true, 
-        message: `Permit Number '${req.body.permitNumber}' already exists. Please use a different number.`,
-        existingPermitId: existingPermit.idPermit
-      });
+      // Verificar si tiene presupuestos asociados
+      const hasBudgets = existingPermit.Budgets && existingPermit.Budgets.length > 0;
+      
+      if (hasBudgets) {
+        // Si tiene presupuestos, no permitir reusar
+        return res.status(409).json({ 
+          error: true, 
+          message: `Permit Number '${req.body.permitNumber}' already exists and has associated budgets. Please use a different permit number.`,
+          hasBudget: true
+        });
+      } else {
+        // Si no tiene presupuestos, permitir reusar y devolver el permit existente
+        console.log(`✅ Permit '${req.body.permitNumber}' existe pero sin presupuestos. Reutilizando...`);
+        return res.status(200).json({
+          success: true,
+          message: `Permit '${req.body.permitNumber}' already exists but has no associated budgets. You can use it to create a budget.`,
+          permit: existingPermit.get({ plain: true }),
+          isExisting: true,
+          hasBudget: false
+        });
+      }
     }
 
     const { 
@@ -219,7 +241,7 @@ const createPermit = async (req, res, next) => {
     let optionalDocsPublicId = null;
 
     if (req.files?.pdfData && req.files.pdfData[0]) {
-      console.log('📤 Subiendo Permit PDF a Cloudinary...');
+      // console.log('📤 Subiendo Permit PDF a Cloudinary...');
       
       // ✅ COMPRIMIR PDF si es necesario
       const compressedBuffer = await compressPdfIfNeeded(
@@ -258,7 +280,7 @@ const createPermit = async (req, res, next) => {
     }
 
     if (req.files?.optionalDocs && req.files.optionalDocs[0]) {
-      console.log('📤 Subiendo Optional Docs a Cloudinary...');
+      // console.log('📤 Subiendo Optional Docs a Cloudinary...');
       
       // ✅ COMPRIMIR PDF si es necesario
       const compressedBuffer = await compressPdfIfNeeded(
@@ -292,7 +314,7 @@ const createPermit = async (req, res, next) => {
       );
       optionalDocsUrl = uploadResult.secure_url;
       optionalDocsPublicId = uploadResult.public_id;
-      console.log('✅ Optional Docs subido a Cloudinary:', optionalDocsUrl);
+      // console.log('✅ Optional Docs subido a Cloudinary:', optionalDocsUrl);
     }
 
     // Crear el permiso en la base de datos
@@ -941,15 +963,22 @@ const checkPermitNumber = async (req, res, next) => {
 
     const permit = await Permit.findOne({
       where: { permitNumber: permitNumber.trim() },
-      attributes: ['idPermit', 'permitNumber', 'propertyAddress']
+      attributes: ['idPermit', 'permitNumber', 'propertyAddress'],
+      include: [{
+        model: Budget,
+        as: 'Budgets',
+        attributes: ['idBudget'],
+        required: false
+      }]
     });
 
     if (permit) {
+      const hasBudgets = permit.Budgets && permit.Budgets.length > 0;
       return res.status(200).json({
         exists: true,
-        permitId: permit.idPermit,
         permitNumber: permit.permitNumber,
-        propertyAddress: permit.propertyAddress
+        propertyAddress: permit.propertyAddress,
+        hasBudget: hasBudgets
       });
     } else {
       return res.status(200).json({
@@ -1079,9 +1108,9 @@ const updatePermitFields = async (req, res, next) => {
     Object.assign(permit, updateData);
     await permit.save();
 
-    console.log(`✅ Permit ${idPermit} actualizado correctamente`);
-    console.log('📧 Email principal:', permit.applicantEmail);
-    console.log('📧 Emails adicionales:', permit.notificationEmails);
+    // console.log(`✅ Permit ${idPermit} actualizado correctamente`);
+    // console.log('📧 Email principal:', permit.applicantEmail);
+    // console.log('📧 Emails adicionales:', permit.notificationEmails);
 
     // 🆕 SINCRONIZAR CAMPOS RELACIONADOS EN BUDGET Y WORK
     // Actualizar también los campos del Budget que están denormalizados

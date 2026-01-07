@@ -81,14 +81,12 @@ function getLocalDateString() {
  */
 const checkAndGenerateFixedExpenses = async () => {
   const startTime = new Date();
-  console.log(`\n⏰ [CRON - FIXED EXPENSES] Iniciando verificación de gastos fijos vencidos - ${startTime.toISOString()}`);
+  console.log(`[CRON - FIXED EXPENSES] Iniciando`);
   
   try {
     // Obtener fecha actual en zona local (sin problemas de UTC)
     const todayString = getLocalDateString();
     const today = new Date(todayString + 'T00:00:00');
-    
-    console.log(`📅 [CRON - FIXED EXPENSES] Fecha de verificación: ${todayString}`);
 
     // 🔍 Buscar FixedExpenses vencidos que cumplan las condiciones
     const dueExpenses = await FixedExpense.findAll({
@@ -106,11 +104,8 @@ const checkAndGenerateFixedExpenses = async () => {
     });
 
     if (dueExpenses.length === 0) {
-      console.log(`✅ [CRON - FIXED EXPENSES] No se encontraron gastos fijos vencidos para procesar.`);
       return;
     }
-
-    console.log(`📊 [CRON - FIXED EXPENSES] ${dueExpenses.length} gasto(s) fijo(s) vencido(s) encontrado(s):`);
     
     let successCount = 0;
     let errorCount = 0;
@@ -118,11 +113,6 @@ const checkAndGenerateFixedExpenses = async () => {
     // 🔄 Procesar cada FixedExpense vencido
     for (const fixedExpense of dueExpenses) {
       try {
-        console.log(`\n  ⚙️ Procesando: "${fixedExpense.name}" (ID: ${fixedExpense.idFixedExpense})`);
-        console.log(`     💰 Monto: $${fixedExpense.totalAmount}`);
-        console.log(`     📆 Fecha vencimiento: ${fixedExpense.nextDueDate}`);
-        console.log(`     🔁 Frecuencia: ${fixedExpense.frequency}`);
-
         // ⚠️ CAMBIO: Ya NO creamos Expense automáticamente
         // Solo marcamos el FixedExpense como 'overdue'
 
@@ -131,9 +121,6 @@ const checkAndGenerateFixedExpenses = async () => {
         
         if (fixedExpense.frequency !== 'one_time') {
           newNextDueDate = calculateNextDueDate(fixedExpense.nextDueDate, fixedExpense.frequency);
-          console.log(`     📆 Próxima fecha calculada: ${newNextDueDate.toISOString().split('T')[0]}`);
-        } else {
-          console.log(`     ⚠️ Gasto único (one_time) - No se calculará próxima fecha`);
         }
 
         // ✅ Actualizar el FixedExpense: marcar como 'overdue' y calcular siguiente vencimiento
@@ -141,8 +128,6 @@ const checkAndGenerateFixedExpenses = async () => {
           paymentStatus: 'overdue',
           nextDueDate: newNextDueDate
         });
-
-        console.log(`     ✅ FixedExpense marcado como vencido. Expense se creará al registrar el pago.`);
         successCount++;
 
       } catch (error) {
@@ -154,10 +139,7 @@ const checkAndGenerateFixedExpenses = async () => {
     const endTime = new Date();
     const duration = ((endTime - startTime) / 1000).toFixed(2);
 
-    console.log(`\n✅ [CRON - FIXED EXPENSES] Verificación completada en ${duration}s`);
-    console.log(`   ✅ Exitosos: ${successCount}`);
-    console.log(`   ❌ Errores: ${errorCount}`);
-    console.log(`   📊 Total procesados: ${dueExpenses.length}`);
+    console.log(`[CRON - FIXED EXPENSES] Completado: ${successCount} exitosos, ${errorCount} errores`);
 
   } catch (error) {
     console.error(`\n❌ [CRON - FIXED EXPENSES] Error general en la verificación:`, error);
@@ -170,8 +152,7 @@ const checkAndGenerateFixedExpenses = async () => {
  * Ejecuta la verificación todos los días a las 00:30 AM
  */
 const startFixedExpensesCron = () => {
-  console.log('🚀 [CRON - FIXED EXPENSES] Servicio de auto-generación de gastos fijos iniciado');
-  console.log('   ⏰ Se ejecutará todos los días a las 00:30 AM');
+  console.log('[CRON] Gastos fijos iniciado - Se ejecutará a las 00:30 AM');
   
   // Ejecutar todos los días a las 00:30 AM
   // Formato: '0 30 0 * * *' = segundo 0, minuto 30, hora 0 (medianoche), todos los días

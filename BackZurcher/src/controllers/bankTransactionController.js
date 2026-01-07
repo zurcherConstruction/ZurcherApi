@@ -105,7 +105,6 @@ const createDeposit = async (req, res) => {
       }, { transaction });
       
       incomeId = newIncome.idIncome;
-      console.log(`💰 Income auto-creado: ${newIncome.idIncome}`);
     }
 
     // Crear transacción
@@ -123,8 +122,6 @@ const createDeposit = async (req, res) => {
     }, { transaction });
 
     await transaction.commit();
-
-    console.log(`✅ Depósito registrado: ${account.accountName} | +$${amount} | Nuevo balance: ${account.getFormattedBalance()}`);
 
     res.status(201).json({
       success: true,
@@ -236,8 +233,6 @@ const createWithdrawal = async (req, res) => {
     }, { transaction });
 
     await transaction.commit();
-
-    console.log(`✅ Retiro registrado: ${account.accountName} | -$${amount} | Nuevo balance: $${newBalance.toFixed(2)}`);
 
     res.status(201).json({
       success: true,
@@ -387,9 +382,6 @@ const createTransfer = async (req, res) => {
 
     await transaction.commit();
 
-    console.log(`✅ Transferencia completada: ${fromAccount.accountName} → ${toAccount.accountName} | $${amount}`);
-    console.log(`   ${fromAccount.accountName}: $${fromBalance.toFixed(2)} → $${newFromBalance.toFixed(2)}`);
-    console.log(`   ${toAccount.accountName}: $${parseFloat(toAccount.currentBalance).toFixed(2)} → $${newToBalance.toFixed(2)}`);
 
     res.status(201).json({
       success: true,
@@ -700,7 +692,6 @@ const deleteTransaction = async (req, res) => {
 
     await dbTransaction.commit();
 
-    console.log(`✅ Transacción eliminada: ${account.accountName} | Tipo: ${transaction.transactionType} | Balance: $${newBalance.toFixed(2)}`);
 
     res.status(200).json({
       success: true,

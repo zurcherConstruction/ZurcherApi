@@ -46,8 +46,10 @@ const PdfReceipt = () => {
   
   // 🆕 Estados para validación de permit number en tiempo real
   const [permitNumberValidation, setPermitNumberValidation] = useState({ 
-    status: 'idle', // idle, checking, valid, duplicate, error
-    message: '' 
+    status: 'idle', // idle, checking, valid, duplicate, duplicate_no_budget, error
+    message: '',
+    permitId: null,
+    hasBudget: null
   });
   const [permitNumberCheckTimeout, setPermitNumberCheckTimeout] = useState(null);
   const [lastValidatedPermitNumber, setLastValidatedPermitNumber] = useState(''); // 🆕 Guardar último número validado
@@ -66,7 +68,7 @@ const PdfReceipt = () => {
   const validatePermitNumber = async (permitNumber) => {
     // Si el campo está vacío, resetear validación
     if (!permitNumber || permitNumber.trim() === '') {
-      setPermitNumberValidation({ status: 'idle', message: '' });
+      setPermitNumberValidation({ status: 'idle', message: '', permitId: null, hasBudget: null });
       setLastValidatedPermitNumber('');
       return;
     }
@@ -74,7 +76,7 @@ const PdfReceipt = () => {
     const trimmedNumber = permitNumber.trim();
 
     // Mostrar estado "checking"
-    setPermitNumberValidation({ status: 'checking', message: 'Verificando...' });
+    setPermitNumberValidation({ status: 'checking', message: 'Verificando...', permitId: null, hasBudget: null });
 
     try {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/permit/check-permit-number/${encodeURIComponent(trimmedNumber)}`, {
@@ -85,14 +87,30 @@ const PdfReceipt = () => {
       const data = await response.json();
 
       if (data.exists) {
-        setPermitNumberValidation({ 
-          status: 'duplicate', 
-          message: `❌ Este número de permit ya existe (ID: ${data.permitId})` 
-        });
+        // Verificar si tiene presupuesto asociado
+        if (data.hasBudget) {
+          // Tiene presupuesto: es un duplicado verdadero
+          setPermitNumberValidation({ 
+            status: 'duplicate', 
+            message: `❌ Este número de permit ya existe y tiene presupuestos asociados.`,
+            permitId: null,
+            hasBudget: true
+          });
+        } else {
+          // Existe pero SIN presupuesto: permitir reutilización
+          setPermitNumberValidation({ 
+            status: 'duplicate_no_budget', 
+            message: `⚠️ Este número de permit ya existe pero no tiene presupuestos. Puedes reutilizarlo.`,
+            permitId: null,
+            hasBudget: false
+          });
+        }
       } else {
         setPermitNumberValidation({ 
           status: 'valid', 
-          message: '✅ Número de permit disponible' 
+          message: '✅ Número de permit disponible',
+          permitId: null,
+          hasBudget: null
         });
       }
       
@@ -102,7 +120,9 @@ const PdfReceipt = () => {
       console.error('Error validating permit number:', error);
       setPermitNumberValidation({ 
         status: 'error', 
-        message: '⚠️ Error al verificar el número' 
+        message: '⚠️ Error al verificar el número',
+        permitId: null,
+        hasBudget: null
       });
       setLastValidatedPermitNumber('');
     }
@@ -421,15 +441,15 @@ const PdfReceipt = () => {
     e.preventDefault();
 
     // 🆕 VALIDAR PERMIT NUMBER ANTES DE CONTINUAR
-    // Forzar validación si el estado no es 'valid' o 'duplicate'
-    if (formData.permitNumber && permitNumberValidation.status !== 'valid' && permitNumberValidation.status !== 'duplicate') {
+    // Forzar validación si el estado no es 'valid', 'duplicate', o 'duplicate_no_budget'
+    if (formData.permitNumber && permitNumberValidation.status !== 'valid' && permitNumberValidation.status !== 'duplicate' && permitNumberValidation.status !== 'duplicate_no_budget') {
       toast.info('Validando permit number...');
       await validatePermitNumber(formData.permitNumber);
       // Esperar un poco para que se complete la validación
       await new Promise(resolve => setTimeout(resolve, 500));
     }
 
-    // 🆕 VALIDAR PERMIT NUMBER - Si hay duplicado, no permitir continuar
+    // 🆕 VALIDAR PERMIT NUMBER - Si hay duplicado CON presupuesto, no permitir continuar
     if (permitNumberValidation.status === 'duplicate') {
       await Swal.fire({
         title: 'Permit Number Duplicado',
@@ -438,6 +458,25 @@ const PdfReceipt = () => {
         confirmButtonColor: '#d33'
       });
       return;
+    }
+
+    // 🆕 NUEVO: Si hay duplicado SIN presupuesto, mostrar opción de reutilizar
+    if (permitNumberValidation.status === 'duplicate_no_budget') {
+      const continueWithExisting = await Swal.fire({
+        title: 'Permit Existente',
+        text: permitNumberValidation.message + '\n\n¿Deseas continuar para crear un presupuesto con este permit?',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, reutilizar',
+        cancelButtonText: 'No, cancelar'
+      });
+
+      if (continueWithExisting.isConfirmed) {
+        // Continuar normalmente sin crear un nuevo permit
+        // El backend aceptará el permit duplicado porque no tiene presupuesto
+      } else {
+        return; // El usuario decidió no continuar
+      }
     }
 
     // 🆕 Si está verificando, esperar un momento
@@ -889,6 +928,8 @@ const PdfReceipt = () => {
                         className={`mt-1 block w-full border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
                           permitNumberValidation.status === "duplicate"
                             ? "border-red-500 bg-red-50"
+                            : permitNumberValidation.status === "duplicate_no_budget"
+                            ? "border-yellow-500 bg-yellow-50"
                             : permitNumberValidation.status === "valid"
                             ? "border-green-500 bg-green-50"
                             : permitNumberValidation.status === "checking"
@@ -901,6 +942,8 @@ const PdfReceipt = () => {
                         <p className={`mt-1 text-xs ${
                           permitNumberValidation.status === "duplicate"
                             ? "text-red-600"
+                            : permitNumberValidation.status === "duplicate_no_budget"
+                            ? "text-yellow-600"
                             : permitNumberValidation.status === "valid"
                             ? "text-green-600"
                             : permitNumberValidation.status === "checking"
