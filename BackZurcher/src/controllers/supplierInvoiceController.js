@@ -4,6 +4,7 @@ const { cloudinary } = require('../utils/cloudinaryConfig');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader'); // 🆕 Para subir receipts
 const { sendNotifications } = require('../utils/notifications/notificationManager'); // 🆕 Para notificaciones
 const { createCreditCardPaymentTransaction, isBankAccount, createWithdrawalTransaction } = require('../utils/bankTransactionHelper'); // 🏦 Para pagos de tarjetas
+const { invalidateCache } = require('../middleware/cache'); // 🆕 Para invalidar caché
 
 /**
  * Crear un nuevo invoice de proveedor
@@ -304,8 +305,6 @@ const createSupplierInvoice = async (req, res) => {
  */
 const getSupplierInvoices = async (req, res) => {
   try {
-    console.log('📥 Query params recibidos:', req.query);
-    
     const {
       status,
       vendor,
@@ -341,8 +340,6 @@ const getSupplierInvoices = async (req, res) => {
       };
     }
 
-    console.log('🔍 Filtros aplicados:', where);
-
     // 🆕 Nuevo sistema: incluir expenses vinculados
     const include = [
       {
@@ -368,8 +365,6 @@ const getSupplierInvoices = async (req, res) => {
       order: [['issueDate', 'DESC']]
     });
 
-    console.log(`✅ Invoices encontrados: ${invoices.length}`);
-    
     // Devolver directamente el array para compatibilidad con frontend
     res.json(invoices);
 
@@ -566,34 +561,120 @@ const updateSupplierInvoice = async (req, res) => {
   
   try {
     const { id } = req.params;
-    const { linkedWorks, ...invoiceUpdates } = req.body; // 🆕 Separar linkedWorks
+    
+    // 🆕 Parsear linkedWorks si viene como string JSON
+    let linkedWorks = req.body.linkedWorks;
+    if (linkedWorks && typeof linkedWorks === 'string') {
+      try {
+        linkedWorks = JSON.parse(linkedWorks);
+      } catch (e) {
+        console.warn('⚠️  No se pudo parsear linkedWorks:', e.message);
+        linkedWorks = [];
+      }
+    }
+    
+    const { items, ...invoiceUpdates } = req.body;
 
-    console.log(`📝 [Update Invoice] ID: ${id}`);
-    console.log(`📝 [Update Invoice] Datos recibidos:`, req.body);
-
-    const invoice = await SupplierInvoice.findByPk(id, { transaction });
+    const invoice = await SupplierInvoice.findByPk(id, { 
+      transaction,
+      include: [
+        {
+          model: SupplierInvoiceItem,
+          as: 'items'
+        }
+      ]
+    });
 
     if (!invoice) {
       await transaction.rollback();
-      console.log(`❌ [Update Invoice] Invoice ${id} no encontrado`);
+      console.error(`❌ [UPDATE] Invoice ${id} no encontrado`);
       return res.status(404).json({
         error: 'Invoice no encontrado'
       });
     }
 
-    console.log(`📋 [Update Invoice] Estado actual: ${invoice.paymentStatus}`);
+    console.log(`✅ [UPDATE] Invoice encontrado: ${invoice.invoiceNumber}`);
 
     // No permitir editar invoices pagados completamente
     if (invoice.paymentStatus === 'paid') {
       await transaction.rollback();
-      console.log(`⛔ [Update Invoice] No se puede editar invoice pagado: ${invoice.invoiceNumber}`);
+      console.error(`❌ [UPDATE] Invoice pagado, no se puede editar`);
       return res.status(400).json({
         error: 'No se puede editar un invoice que ya está pagado completamente'
       });
     }
 
     // Actualizar campos del invoice
-    await invoice.update(invoiceUpdates, { transaction });
+    if (Object.keys(invoiceUpdates).length > 0) {
+      await invoice.update(invoiceUpdates, { transaction });
+    }
+
+    // 🆕 Actualizar items si se proporcionan
+    if (Array.isArray(items) && items.length > 0) {
+      
+      // Obtener items existentes si no están ya cargados
+      const existingItems = invoice.items || await SupplierInvoiceItem.findAll({
+        where: { supplierInvoiceId: id },
+        transaction
+      });
+
+      // Identificar items para eliminar (existentes que no están en el nuevo array)
+      const itemIdsToKeep = items
+        .filter(item => item.idSupplierInvoiceItem) // Items existentes con ID
+        .map(item => item.idSupplierInvoiceItem);
+
+      const itemsToDelete = existingItems.filter(item => !itemIdsToKeep.includes(item.idSupplierInvoiceItem));
+
+      // Eliminar items que fueron removidos
+      if (itemsToDelete.length > 0) {
+        console.log(`🗑️  [UPDATE] Eliminando ${itemsToDelete.length} items...`);
+        for (const item of itemsToDelete) {
+          await item.destroy({ transaction });
+        }
+      }
+
+      // Actualizar o crear items
+      let totalAmount = 0;
+      for (const itemData of items) {
+        if (!itemData.description || !itemData.category || itemData.amount === undefined) {
+          await transaction.rollback();
+          console.error(`❌ [UPDATE] Item inválido:`, itemData);
+          return res.status(400).json({
+            error: 'Cada item debe tener: description, category, amount',
+            item: itemData
+          });
+        }
+
+        if (itemData.idSupplierInvoiceItem) {
+          // Actualizar item existente
+          await SupplierInvoiceItem.update({
+            description: itemData.description,
+            category: itemData.category,
+            amount: parseFloat(itemData.amount),
+            workId: itemData.workId || null,
+            relatedExpenseId: itemData.relatedExpenseId || null
+          }, {
+            where: { idSupplierInvoiceItem: itemData.idSupplierInvoiceItem },
+            transaction
+          });
+        } else {
+          // Crear nuevo item
+          await SupplierInvoiceItem.create({
+            supplierInvoiceId: id,
+            workId: itemData.workId || null,
+            description: itemData.description,
+            category: itemData.category,
+            amount: parseFloat(itemData.amount),
+            relatedExpenseId: itemData.relatedExpenseId || null
+          }, { transaction });
+        }
+
+        totalAmount += parseFloat(itemData.amount) || 0;
+      }
+
+      // Actualizar totalAmount del invoice
+      await invoice.update({ totalAmount }, { transaction });
+    }
 
     // 🆕 Actualizar linkedWorks si se proporcionan
     if (linkedWorks !== undefined) {
@@ -611,23 +692,73 @@ const updateSupplierInvoice = async (req, res) => {
             workId: workId
           }, { transaction });
         }
-        console.log(`🔗 [Update Invoice] ${linkedWorks.length} work(s) vinculado(s) al invoice`);
-      } else {
-        console.log(`🔗 [Update Invoice] Sin works vinculados`);
       }
     }
 
     await transaction.commit();
 
-    console.log(`✅ [Update Invoice] Invoice ${invoice.invoiceNumber} actualizado exitosamente`);
+    // 🆕 Procesar archivo si se proporcionó uno nuevo
+    if (req.file) {
+      try {
+        // Subir a Cloudinary
+        const result = await new Promise((resolve, reject) => {
+          const uploadStream = cloudinary.uploader.upload_stream(
+            {
+              folder: 'invoices',
+              resource_type: 'auto',
+              public_id: `invoice_${id}_${Date.now()}`,
+              overwrite: true,
+              invalidate: true
+            },
+            (error, result) => {
+              if (error) reject(error);
+              else resolve(result);
+            }
+          );
+          uploadStream.end(req.file.buffer);
+        });
+
+        // Actualizar URL del invoice en BD
+        const invoiceToUpdate = await SupplierInvoice.findByPk(id);
+        if (invoiceToUpdate) {
+          invoiceToUpdate.invoicePdfPath = result.secure_url;
+          invoiceToUpdate.invoicePdfCloudinaryId = result.public_id;
+          await invoiceToUpdate.save();
+        }
+      } catch (fileError) {
+        console.error(`⚠️  [UPDATE] Error al procesar archivo:`, fileError.message);
+        // No lanzar error - continuar con la actualización del invoice sin archivo
+      }
+    }
+
+    // 🆕 Invalidar caché para este invoice y la lista completa
+    invalidateCache(`/supplier-invoices/${id}`);
+    invalidateCache('/supplier-invoices');
+
+    // Obtener invoice actualizado con items
+    const updatedInvoice = await SupplierInvoice.findByPk(id, {
+      include: [
+        {
+          model: SupplierInvoiceItem,
+          as: 'items'
+        },
+        {
+          model: Staff,
+          as: 'createdBy',
+          attributes: ['id', 'name']
+        }
+      ]
+    });
 
     return res.status(200).json({
+      success: true,
       message: 'Invoice actualizado exitosamente',
-      invoice
+      invoice: updatedInvoice
     });
   } catch (error) {
+    console.error(`\n❌ [UPDATE] ERROR:`, error.message);
+    console.error(`❌ [UPDATE] Stack:`, error.stack);
     await transaction.rollback();
-    console.error('❌ [Update Invoice] Error:', error);
     return res.status(500).json({
       error: 'Error al actualizar invoice',
       details: error.message
@@ -696,6 +827,10 @@ const deleteSupplierInvoice = async (req, res) => {
     await invoice.destroy({ transaction });
 
     await transaction.commit();
+
+    // 🆕 Invalidar caché
+    invalidateCache(`/supplier-invoices/${id}`);
+    invalidateCache('/supplier-invoices');
 
     console.log(`✅ Invoice ${invoice.invoiceNumber} eliminado`);
 
@@ -859,18 +994,7 @@ const getPaymentHistory = async (req, res) => {
  * POST /api/supplier-invoices/:id/upload-invoice
  */
 const uploadInvoicePdf = async (req, res) => {
-  console.log('-----------------------------------------');
-  console.log('[SupplierInvoiceController] uploadInvoicePdf iniciado.');
-  console.log('[SupplierInvoiceController] Params:', req.params);
-  console.log('[SupplierInvoiceController] File:', req.file ? {
-    fieldname: req.file.fieldname,
-    originalname: req.file.originalname,
-    mimetype: req.file.mimetype,
-    size: req.file.size
-  } : 'No file received');
-
   if (!req.file) {
-    console.error('[SupplierInvoiceController] Error: No se recibió ningún archivo.');
     return res.status(400).json({ 
       error: true, 
       message: 'No se subió ningún archivo (PDF o imagen).' 
@@ -887,7 +1011,6 @@ const uploadInvoicePdf = async (req, res) => {
   ];
 
   if (!validMimeTypes.includes(req.file.mimetype)) {
-    console.error('[SupplierInvoiceController] Tipo de archivo no válido:', req.file.mimetype);
     return res.status(400).json({
       error: true,
       message: 'Tipo de archivo no válido. Solo se permiten PDFs e imágenes (JPG, PNG, WEBP).'
@@ -897,7 +1020,6 @@ const uploadInvoicePdf = async (req, res) => {
   const { id } = req.params;
 
   if (!id) {
-    console.error('[SupplierInvoiceController] Error: Falta ID del invoice.');
     return res.status(400).json({ 
       error: true, 
       message: 'ID del invoice es requerido.' 
@@ -909,29 +1031,23 @@ const uploadInvoicePdf = async (req, res) => {
     const invoice = await SupplierInvoice.findByPk(id);
     
     if (!invoice) {
-      console.error(`[SupplierInvoiceController] Invoice ${id} no encontrado.`);
       return res.status(404).json({ 
         error: true, 
         message: 'Invoice no encontrado.' 
       });
     }
 
-    console.log(`[SupplierInvoiceController] Invoice encontrado: ${invoice.invoiceNumber}`);
-
     // Si ya tiene un PDF, eliminar el anterior de Cloudinary
     if (invoice.invoicePdfPublicId) {
-      console.log(`[SupplierInvoiceController] Eliminando PDF anterior: ${invoice.invoicePdfPublicId}`);
       try {
         await cloudinary.uploader.destroy(invoice.invoicePdfPublicId);
-        console.log('[SupplierInvoiceController] PDF anterior eliminado de Cloudinary.');
       } catch (deleteError) {
-        console.error('[SupplierInvoiceController] Error al eliminar PDF anterior:', deleteError);
+        console.error('Error al eliminar PDF anterior:', deleteError);
         // Continuar aunque falle la eliminación
       }
     }
 
     // Subir nuevo PDF o imagen a Cloudinary
-    console.log('[SupplierInvoiceController] Preparando stream para Cloudinary...');
     const isPdf = req.file.mimetype === 'application/pdf';
     const uploadStream = cloudinary.uploader.upload_stream(
       {
@@ -947,18 +1063,13 @@ const uploadInvoicePdf = async (req, res) => {
       },
       async (error, result) => {
         if (error) {
-          console.error('[SupplierInvoiceController] Error subiendo a Cloudinary:', error);
+          console.error('Error subiendo a Cloudinary:', error);
           return res.status(500).json({ 
             error: true, 
             message: 'Error al subir PDF a Cloudinary.', 
             details: error.message 
           });
         }
-
-        console.log('[SupplierInvoiceController] Cloudinary subió el archivo con éxito:', {
-          public_id: result.public_id,
-          secure_url: result.secure_url,
-        });
 
         try {
           // Actualizar el invoice con la información del PDF
@@ -967,7 +1078,9 @@ const uploadInvoicePdf = async (req, res) => {
             invoicePdfPublicId: result.public_id
           });
 
-          console.log(`[SupplierInvoiceController] Invoice ${invoice.invoiceNumber} actualizado con PDF.`);
+          // 🆕 Invalidar caché
+          invalidateCache(`/supplier-invoices/${id}`);
+          invalidateCache('/supplier-invoices');
 
           // Retornar invoice actualizado
           const updatedInvoice = await SupplierInvoice.findByPk(id, {
@@ -998,13 +1111,13 @@ const uploadInvoicePdf = async (req, res) => {
           });
 
         } catch (updateError) {
-          console.error('[SupplierInvoiceController] Error actualizando invoice:', updateError);
+          console.error('Error actualizando invoice:', updateError);
           
           // Intentar eliminar el archivo subido si falla la actualización
           try {
             await cloudinary.uploader.destroy(result.public_id);
           } catch (cleanupError) {
-            console.error('[SupplierInvoiceController] Error limpiando archivo:', cleanupError);
+            console.error('Error limpiando archivo:', cleanupError);
           }
 
           return res.status(500).json({
@@ -1024,7 +1137,7 @@ const uploadInvoicePdf = async (req, res) => {
     bufferStream.pipe(uploadStream);
 
   } catch (error) {
-    console.error('[SupplierInvoiceController] Error en uploadInvoicePdf:', error);
+    console.error('Error en uploadInvoicePdf:', error);
     res.status(500).json({
       error: true,
       message: 'Error al procesar subida de PDF',
@@ -1996,8 +2109,6 @@ const createSimpleSupplierInvoice = async (req, res) => {
  */
 const getVendorsList = async (req, res) => {
   try {
-    console.log('📋 [VendorsList] Obteniendo lista de vendors únicos...');
-
     // Obtener todos los vendors únicos de la base de datos
     const invoices = await SupplierInvoice.findAll({
       attributes: ['vendor'],
@@ -2019,8 +2130,6 @@ const getVendorsList = async (req, res) => {
     const vendors = Array.from(vendorsSet).sort((a, b) => 
       a.toLowerCase().localeCompare(b.toLowerCase())
     );
-
-    console.log(`✅ ${vendors.length} vendor(s) único(s) encontrado(s)`);
 
     res.json({
       success: true,
@@ -3317,8 +3426,6 @@ const getInvoicesByWorkId = async (req, res) => {
   try {
     const { workId } = req.params;
 
-    console.log(`📋 [InvoicesByWork] Obteniendo invoices vinculados al work ${workId}...`);
-
     // Buscar todas las relaciones de este work
     const invoiceWorks = await SupplierInvoiceWork.findAll({
       where: { workId },
@@ -3347,8 +3454,6 @@ const getInvoicesByWorkId = async (req, res) => {
     const invoices = invoiceWorks
       .map(iw => iw.invoice)
       .filter(inv => inv !== null);
-
-    console.log(`✅ Se encontraron ${invoices.length} invoice(s) vinculado(s)`);
 
     res.json({
       success: true,

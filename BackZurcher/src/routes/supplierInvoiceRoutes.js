@@ -180,9 +180,10 @@ router.post('/:id/pay-v2', upload.single('receipt'), paySupplierInvoice);
 /**
  * @route   PUT /api/supplier-invoices/:id
  * @desc    Actualizar un invoice existente
+ * @body    FormData con invoiceNumber, vendor, issueDate, totalAmount, dueDate, notes, linkedWorks, invoiceFile (opcional)
  * @access  Private
  */
-router.put('/:id', updateSupplierInvoice);
+router.put('/:id', upload.single('invoiceFile'), updateSupplierInvoice);
 
 /**
  * @route   DELETE /api/supplier-invoices/:id

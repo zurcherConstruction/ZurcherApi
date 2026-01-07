@@ -309,8 +309,6 @@ const SimpleInvoiceForm = ({ invoice, onClose, onSuccess }) => {
             linkedWorks: linkedWorks // 🆕 Agregar works vinculados
           };
 
-          console.log('📤 Enviando actualización:', jsonData);
-
           response = await fetch(
             `${import.meta.env.VITE_API_URL}/supplier-invoices/${invoice.idSupplierInvoice}`,
             {
@@ -322,6 +320,8 @@ const SimpleInvoiceForm = ({ invoice, onClose, onSuccess }) => {
               body: JSON.stringify(jsonData)
             }
           );
+          
+          console.log('📥 Respuesta status:', response.status, response.statusText);
         }
       } else {
         // ✅ CREAR: Siempre usar FormData (archivo obligatorio en creación)
