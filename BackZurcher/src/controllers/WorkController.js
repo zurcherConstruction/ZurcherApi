@@ -83,7 +83,6 @@ const getWorks = async (req, res) => {
     if (requestedLimit === 'all') {
       limit = null; // Sin límite
       offset = 0;
-      console.log('🌍 Fetching ALL works (no pagination limit)' + (staffId ? ` for staff: ${staffId}` : ''));
     } else {
       const numericLimit = parseInt(requestedLimit) || 50;
       limit = Math.min(numericLimit, 2000); // Máximo 2000 para casos normales
@@ -282,15 +281,6 @@ const getWorks = async (req, res) => {
       filteredByStaff: staffId || null
     };
 
-    // 🎯 LOG PARA DEBUG DEL PROBLEMA
-    console.log(`📊 [getWorks] Retornando:`, {
-      totalWorks: count,
-      worksInResponse: worksWithDetails.length,
-      staffFilter: staffId || 'none',
-      page,
-      limit: limit || 'all'
-    });
-
     res.status(200).json({
       works: worksWithDetails,
       pagination
@@ -311,7 +301,6 @@ const getWorks = async (req, res) => {
 const getWorkById = async (req, res) => {
   try {
     const { idWork } = req.params;
-    console.log(`⏱️  [getWorkById] Iniciando búsqueda de work ${idWork}...`);
     const startTime = Date.now();
     
     const work = await Work.findByPk(idWork, {
@@ -428,14 +417,10 @@ const getWorkById = async (req, res) => {
     });
     
     const queryTime = Date.now() - startTime;
-    console.log(`⏱️  [getWorkById] Query completado en ${queryTime}ms`);
 
     if (!work) {
-      console.log(`❌ [getWorkById] Work ${idWork} no encontrado`);
       return res.status(404).json({ error: true, message: 'Obra no encontrada' });
     }
-    
-    console.log(`✅ [getWorkById] Work ${idWork} encontrado, procesando datos...`);
 
     // Receipts directos
     let directReceipts = [];
@@ -464,11 +449,9 @@ const getWorkById = async (req, res) => {
     workJson.Receipts = [...directReceipts, ...expenseReceipts];
 
     const totalTime = Date.now() - startTime;
-    console.log(`✅ [getWorkById] Respuesta enviada. Tiempo total: ${totalTime}ms (Query: ${queryTime}ms, Procesamiento: ${totalTime - queryTime}ms)`);
     
     res.status(200).json(workJson);
   } catch (error) {
-    console.error('Error al obtener la obra:', error);
     res.status(500).json({ error: true, message: 'Error interno del servidor' });
   }
 };
@@ -692,7 +675,6 @@ const deleteWork = async (req, res) => {
     // 1. Eliminar imágenes de Cloudinary
     if (work.images && work.images.length > 0) {
       deletedCounts.images = work.images.length;
-      console.log(`📸 Eliminando ${deletedCounts.images} imágenes de Cloudinary...`);
       const imageDeletes = work.images.map(img => 
         deleteFromCloudinary(img.publicId)
           .catch(err => console.warn(`⚠️ Error eliminando imagen ${img.publicId}:`, err.message))
@@ -703,7 +685,6 @@ const deleteWork = async (req, res) => {
     // 2. Eliminar receipts de Cloudinary y sus datos asociados
     if (workReceipts && workReceipts.length > 0) {
       deletedCounts.receipts = workReceipts.length;
-      console.log(`🧾 Eliminando ${deletedCounts.receipts} receipts de Cloudinary...`);
       const receiptDeletes = workReceipts.map(receipt => 
         deleteFromCloudinary(receipt.publicId)
           .catch(err => console.warn(`⚠️ Error eliminando receipt ${receipt.publicId}:`, err.message))
@@ -714,7 +695,6 @@ const deleteWork = async (req, res) => {
     // 3. Eliminar receipts asociados a expenses del work
     if (work.expenses && work.expenses.length > 0) {
       deletedCounts.expenses = work.expenses.length;
-      console.log(`💸 Procesando ${deletedCounts.expenses} gastos y sus receipts...`);
       for (const expense of work.expenses) {
         const expenseReceipts = await Receipt.findAll({
           where: {
@@ -737,13 +717,11 @@ const deleteWork = async (req, res) => {
     // 4. Procesar Incomes
     if (work.incomes && work.incomes.length > 0) {
       deletedCounts.incomes = work.incomes.length;
-      console.log(`💰 Marcando ${deletedCounts.incomes} ingresos para eliminación (CASCADE)...`);
     }
 
     // 5. Eliminar MaterialSet invoices de Cloudinary
     if (work.MaterialSets && work.MaterialSets.length > 0) {
       deletedCounts.materialSets = work.MaterialSets.length;
-      console.log(`📦 Eliminando invoices de ${deletedCounts.materialSets} MaterialSets...`);
       for (const matSet of work.MaterialSets) {
         if (matSet.invoiceFile && matSet.invoiceFile.includes('cloudinary')) {
           const urlParts = matSet.invoiceFile.split('/');
@@ -757,11 +735,9 @@ const deleteWork = async (req, res) => {
     // 6. Eliminar PDFs de ChangeOrders
     if (work.changeOrders && work.changeOrders.length > 0) {
       deletedCounts.changeOrders = work.changeOrders.length;
-      console.log(`📝 Eliminando PDFs de ${deletedCounts.changeOrders} ChangeOrders...`);
       for (const co of work.changeOrders) {
         if (co.pdfPath && fs.existsSync(co.pdfPath)) {
           fs.unlinkSync(co.pdfPath);
-          console.log(`  ✓ Eliminado: ${co.pdfPath}`);
         }
       }
     }
@@ -769,7 +745,6 @@ const deleteWork = async (req, res) => {
     // 7. Eliminar MaintenanceVisit media files
     if (work.maintenanceVisits && work.maintenanceVisits.length > 0) {
       deletedCounts.maintenanceVisits = work.maintenanceVisits.length;
-      console.log(`🔧 Eliminando media de ${deletedCounts.maintenanceVisits} MaintenanceVisits...`);
       for (const visit of work.maintenanceVisits) {
         const mediaFiles = await MaintenanceMedia.findAll({
           where: { maintenanceVisitId: visit.idMaintenanceVisit },
@@ -794,14 +769,12 @@ const deleteWork = async (req, res) => {
     if (work.idBudget) {
       const budget = await Budget.findByPk(work.idBudget, { transaction });
       if (budget && (budget.paymentProofAmount || budget.paymentInvoice)) {
-        console.log(`💳 Limpiando información de pago del Budget #${work.idBudget}...`);
         await budget.update({
           paymentProofAmount: null,
           paymentProofMethod: null,
           paymentInvoice: null,
           paymentProofType: null
         }, { transaction });
-        console.log(`   ✓ Campos de pago del Budget limpiados`);
       }
     }
 
@@ -822,21 +795,7 @@ const deleteWork = async (req, res) => {
     await work.destroy({ transaction });
 
     await transaction.commit();
-    
-    // Resumen detallado de eliminación
-    console.log(`\n✅ Work #${idWork} eliminado exitosamente!`);
-    console.log(`📊 Resumen de eliminación:`);
-    console.log(`   🏠 Dirección: ${work.address || work.propertyAddress}`);
-    console.log(`   📸 Imágenes: ${deletedCounts.images}`);
-    console.log(`   🧾 Receipts: ${deletedCounts.receipts}`);
-    console.log(`   🔨 Materiales: ${deletedCounts.materials}`);
-    console.log(`   🔍 Inspecciones: ${deletedCounts.inspections}`);
-    console.log(`   💰 Ingresos: ${deletedCounts.incomes}`);
-    console.log(`   💸 Gastos: ${deletedCounts.expenses}`);
-    console.log(`   📦 Material Sets: ${deletedCounts.materialSets}`);
-    console.log(`   📝 Change Orders: ${deletedCounts.changeOrders}`);
-    console.log(`   🔧 Mantenimientos: ${deletedCounts.maintenanceVisits}\n`);
-    
+
     res.status(200).json({ 
       success: true,
       message: `Obra "${work.address || work.propertyAddress}" eliminada exitosamente`,

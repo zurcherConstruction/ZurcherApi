@@ -29,7 +29,6 @@ const AccountsReceivableController = {
    */
   async getAccountsReceivableSummary(req, res) {
     try {
-      console.log('📊 [AccountsReceivable] Obteniendo resumen de cuentas por cobrar (TODOS los Works)...');
       
       // 1. OBTENER TODOS LOS WORKS (sin filtro de status)
       const worksInProgress = await Work.findAll({
@@ -336,8 +335,6 @@ const AccountsReceivableController = {
    */
   async getPendingCommissions(req, res) {
     try {
-      console.log('🔍 Buscando comisiones pendientes (solo budgets aprobados con Work)...');
-      
       // ✅ FILTRAR: Solo budgets que tienen Work asociado (fueron aprobados)
       const budgetsWithCommissions = await Budget.findAll({
         where: {
@@ -370,10 +367,6 @@ const AccountsReceivableController = {
         ]
       });
 
-      console.log(`✅ Encontrados ${budgetsWithCommissions.length} budgets APROBADOS con comisiones (tienen Work)`);
-      console.log(`   - Sales Reps: ${budgetsWithCommissions.filter(b => b.leadSource === 'sales_rep').length}`);
-      console.log(`   - External Referrals: ${budgetsWithCommissions.filter(b => b.leadSource === 'external_referral').length}`);
-
       // ✅ Calcular totales de comisiones PAGADAS y PENDIENTES
       let totalPendingCommissions = 0;
       let totalPaidCommissions = 0;
@@ -388,9 +381,6 @@ const AccountsReceivableController = {
           totalPendingCommissions += amount;
         }
       });
-
-      console.log(`💰 Total comisiones pendientes: $${totalPendingCommissions}`);
-      console.log(`✅ Total comisiones pagadas: $${totalPaidCommissions}`);
 
       // Agrupar por vendedor/referido
       const commissionsBySalesRep = {}; // Incluye sales reps
@@ -817,7 +807,6 @@ const AccountsReceivableController = {
 
       // ✅ Si se marca como pagada, crear el Expense automáticamente
       if (paid) {
-        console.log(`💰 Creando Expense automático por comisión: $${commissionAmount}`);
 
         // Determinar el vendor según el tipo de comisión
         let vendor = '';
@@ -851,12 +840,9 @@ const AccountsReceivableController = {
           vendor: vendor
         });
 
-        console.log(`✅ Expense creado: ${createdExpense.idExpense}`);
-
         // 🏦 Crear BankTransaction si paymentMethod es cuenta bancaria
         const isBankPayment = ['Chase Bank', 'Proyecto Septic BOFA'].includes(paymentMethod);
         if (isBankPayment) {
-          console.log(`💸 Detectado pago de comisión con cuenta bancaria: ${paymentMethod}`);
           try {
             await createWithdrawalTransaction({
               paymentMethod,
@@ -867,18 +853,14 @@ const AccountsReceivableController = {
               notes: expenseNotes,
               createdByStaffId: req.user?.id || null
             });
-            console.log(`✅ BankTransaction (withdrawal) creada para comisión desde ${paymentMethod}`);
           } catch (bankError) {
             console.error('❌ Error creando transacción bancaria:', bankError.message);
             // No bloqueamos el pago si falla la transacción bancaria
           }
-        } else {
-          console.log(`ℹ️ Comisión pagada con ${paymentMethod} (no requiere transacción bancaria)`);
         }
 
         // ✅ Si hay archivo adjunto, crear Receipt
         if (req.file) {
-          console.log('📎 Subiendo comprobante a Cloudinary...');
           
           const result = await uploadBufferToCloudinary(req.file.buffer, {
             folder: 'zurcher_receipts',
@@ -897,8 +879,6 @@ const AccountsReceivableController = {
             mimeType: req.file.mimetype,
             originalName: req.file.originalname
           });
-
-          console.log(`✅ Receipt creado: ${createdReceipt.idReceipt}`);
         }
 
         // ❌ NOTIFICACIONES DE EXPENSES DESHABILITADAS - Generan demasiado ruido
@@ -908,7 +888,6 @@ const AccountsReceivableController = {
         //     propertyAddress: budget.Work.propertyAddress,
         //     Staff: budget.createdByStaff
         //   });
-        //   console.log(`✅ Notificación de comisión enviada`);
         // } catch (notificationError) {
         //   console.error('❌ Error enviando notificación:', notificationError.message);
         // }
@@ -977,7 +956,6 @@ const AccountsReceivableController = {
    */
   async getIncome(req, res) {
     try {
-      console.log('💰 [Income] Obteniendo todos los ingresos recibidos...');
 
       // 1. Obtener todos los Budgets con Initial Payment
       const budgetsWithInitialPayment = await Budget.findAll({
@@ -1072,8 +1050,6 @@ const AccountsReceivableController = {
       const totalIncome = allIncome.reduce((sum, income) => sum + income.amount, 0);
       const totalInitialPayments = initialPayments.reduce((sum, p) => sum + p.amount, 0);
       const totalFinalPayments = finalPayments.reduce((sum, p) => sum + p.amount, 0);
-
-      console.log(`✅ [Income] ${allIncome.length} ingresos encontrados (${initialPayments.length} initial + ${finalPayments.length} final)`);
 
       res.json({
         summary: {

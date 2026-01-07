@@ -143,11 +143,6 @@ const getGeneralBalance = async (req, res) => {
       const end = new Date(endDate);
       end.setHours(23, 59, 59, 999);
       
-      console.log('📅 Rango de fechas ajustado (Income):', {
-        original: { startDate, endDate },
-        adjusted: { start: start.toISOString(), end: end.toISOString() }
-      });
-      
       incomeWhere.date = {
         [Op.between]: [start, end]
       };
@@ -180,11 +175,6 @@ const getGeneralBalance = async (req, res) => {
       
       const end = new Date(endDate);
       end.setHours(23, 59, 59, 999);
-      
-      console.log('📅 Rango de fechas ajustado (Expense):', {
-        original: { startDate, endDate },
-        adjusted: { start: start.toISOString(), end: end.toISOString() }
-      });
       
       expenseWhere.date = {
         [Op.between]: [start, end]
@@ -247,30 +237,7 @@ const getGeneralBalance = async (req, res) => {
       ]
     });
 
-    // 🚨 DEBUG ESPECÍFICO PARA AMEX EN BACKEND
-    console.log('\n=== DEBUG AMEX EN BACKEND - getGeneralBalance ===');
-    let amexBeforeFilter = 0;
-    let amexAfterFilter = 0;
-    
-    allExpenses.forEach(expense => {
-      if (expense.paymentMethod && expense.paymentMethod.toUpperCase().includes('AMEX')) {
-        amexBeforeFilter++;
-        console.log(`🔍 GASTO AMEX (antes de filtro):`, {
-          id: expense.idExpense,
-          amount: expense.amount,
-          paymentMethod: expense.paymentMethod,
-          paymentStatus: expense.paymentStatus,
-          date: expense.date,
-          notes: expense.notes?.substring(0, 100),
-          relatedFixedExpenseId: expense.relatedFixedExpenseId,
-          supplierInvoiceItemId: expense.supplierInvoiceItemId
-        });
-      }
-    });
-    
-    console.log(`💳 Total gastos AMEX encontrados (antes de filtro): ${amexBeforeFilter}`);
-
-    // 🚫 Filtrar gastos duplicados (misma lógica que FinancialDashboardController)
+    // � Filtrar gastos duplicados (misma lógica que FinancialDashboardController)
     const nonDuplicatedExpenses = allExpenses.filter(exp => {
       // Excluir si tiene relatedFixedExpenseId
       if (exp.relatedFixedExpenseId) return false;
@@ -280,31 +247,6 @@ const getGeneralBalance = async (req, res) => {
       
       return true;
     });
-
-    // 🚨 DEBUG AMEX DESPUÉS DEL FILTRO
-    nonDuplicatedExpenses.forEach(expense => {
-      if (expense.paymentMethod && expense.paymentMethod.toUpperCase().includes('AMEX')) {
-        amexAfterFilter++;
-        console.log(`✅ GASTO AMEX (después de filtro):`, {
-          id: expense.idExpense,
-          amount: expense.amount,
-          paymentMethod: expense.paymentMethod,
-          paymentStatus: expense.paymentStatus,
-          date: expense.date,
-          notes: expense.notes?.substring(0, 100)
-        });
-      }
-    });
-    
-    console.log(`💳 Total gastos AMEX después de filtro: ${amexAfterFilter}`);
-    console.log(`📊 Diferencia AMEX (antes vs después): ${amexBeforeFilter - amexAfterFilter} gastos filtrados`);
-    
-    if (amexBeforeFilter > amexAfterFilter) {
-      console.log('🚨 ALGUNOS GASTOS AMEX FUERON FILTRADOS. Posibles causas:');
-      console.log('   1. Tienen relatedFixedExpenseId');
-      console.log('   2. Las notas contienen "pago parcial de gasto fijo"');
-    }
-    console.log('=== FIN DEBUG AMEX EN BACKEND ===\n');
 
     // Obtener receipts de Income
     const incomeIds = allIncomes.map(income => income.idIncome);
