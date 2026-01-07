@@ -12,14 +12,12 @@ const path = require('path');
 // --- Lógica para Programar Mantenimientos Iniciales ---
 const scheduleInitialMaintenanceVisits = async (workId) => {
   try {
-    console.log(`[MaintenanceController - scheduleInitial] Called for workId: ${workId}`);
     const work = await Work.findByPk(workId);
 
     if (!work) {
       console.error(`[MaintenanceController - scheduleInitial] Work ${workId} NOT FOUND. Cannot schedule visits.`);
       return;
     }
-    console.log(`[MaintenanceController - scheduleInitial] Found Work ${workId}. Status: ${work.status}, MaintenanceStartDate: ${work.maintenanceStartDate}`);
 
     if (work.status !== 'maintenance') {
       console.warn(`[MaintenanceController - scheduleInitial] Work ${workId} is not in 'maintenance' status (current: ${work.status}). Skipping visit scheduling.`);
@@ -31,10 +29,10 @@ const scheduleInitialMaintenanceVisits = async (workId) => {
     }
 
     const existingVisitsCount = await MaintenanceVisit.count({ where: { workId } });
-    console.log(`[MaintenanceController - scheduleInitial] Work ${workId} currently has ${existingVisitsCount} visits.`);
+
 
     if (existingVisitsCount > 0) {
-      console.log(`[MaintenanceController - scheduleInitial] Work ${workId} already has visits. Skipping initial scheduling.`);
+
       return;
     }
 
@@ -44,19 +42,18 @@ const scheduleInitialMaintenanceVisits = async (workId) => {
    let baseDate;
    if (work.maintenanceStartDate instanceof Date) {
      baseDate = work.maintenanceStartDate;
-     console.log(`[MaintenanceController - scheduleInitial] Using Date object directly`);
    } else {
      // Si es string, intentar parsearlo
      const dateStr = String(work.maintenanceStartDate);
-     console.log(`[MaintenanceController - scheduleInitial] Parsing string: "${dateStr}"`);
+
      if (dateStr.includes('T')) {
        // Ya tiene formato ISO completo
        baseDate = new Date(dateStr);
-       console.log(`[MaintenanceController - scheduleInitial] Used new Date() with ISO string`);
+
      } else {
        // Formato YYYY-MM-DD, agregar hora
        baseDate = parseISO(dateStr + 'T12:00:00');
-       console.log(`[MaintenanceController - scheduleInitial] Used parseISO with added time`);
+
      }
    }
    
@@ -66,7 +63,7 @@ const scheduleInitialMaintenanceVisits = async (workId) => {
      return;
    }
    
-   console.log(`[MaintenanceController - scheduleInitial] Base date for scheduling: ${baseDate.toISOString()}`);
+
 
     for (let i = 1; i <= 4; i++) {
        const scheduledDateForVisit = addMonths(baseDate, i * 6); 
@@ -74,7 +71,7 @@ const scheduleInitialMaintenanceVisits = async (workId) => {
       
       const formattedScheduledDate = format(scheduledDateForVisit, 'yyyy-MM-dd');
       
-      console.log(`[MaintenanceController - scheduleInitial] Creating Visit ${i} for work ${workId}: Date ${formattedScheduledDate}`);
+
       
       const newVisit = await MaintenanceVisit.create({
         workId,
@@ -82,9 +79,9 @@ const scheduleInitialMaintenanceVisits = async (workId) => {
         scheduledDate: formattedScheduledDate,
         status: 'pending_scheduling',
       });
-      console.log(`[MaintenanceController - scheduleInitial] CREATED Visit ${i} (ID: ${newVisit.id}) for work ${workId} on ${formattedScheduledDate}`);
+
     }
-    console.log(`[MaintenanceController - scheduleInitial] Successfully scheduled 4 initial visits for work ${workId}.`);
+
 
   } catch (error) {
     console.error(`[MaintenanceController - scheduleInitial] CRITICAL ERROR scheduling visits for workId ${workId}:`, error);
@@ -175,7 +172,7 @@ const updateMaintenanceVisit = async (req, res) => {
     if (visit.visitNumber === 4 && visit.status === 'completed') {
       const work = await Work.findByPk(visit.workId); // visit.workId is the correct FK
       if (work) {
-        console.log(`Ciclo de mantenimiento completado para la obra ${work.idWork}`);
+
         // Example: work.status = 'maintenance_completed';
         // await work.save();
       }
@@ -331,12 +328,12 @@ const updateMaintenanceVisit = async (req, res) => {
           html: emailHtml,
           attachments: emailAttachments,
         }).then(() => {
-          console.log(`✅ Email enviado a ${staff.email} para visita ${visitId}`);
+
         }).catch((emailError) => {
           console.error('❌ Error al enviar email de asignación:', emailError);
         });
 
-        console.log(`📧 Enviando email a ${staff.email} (asíncrono)...`);
+
       } catch (emailError) {
         console.error('❌ Error preparando email de asignación:', emailError);
         // No fallar la request si el email falla
@@ -494,7 +491,7 @@ const scheduleMaintenanceVisits = async (req, res) => {
         
         if (hasMedia || isCompleted || hasActualDate) {
           visitsToPreserve.push(visit);
-          console.log(`⚠️ Preservando visita #${visit.visitNumber} (tiene datos: media=${hasMedia}, status=${visit.status}, actualDate=${hasActualDate})`);
+
         } else {
           visitsToDelete.push(visit.id);
         }
@@ -507,11 +504,11 @@ const scheduleMaintenanceVisits = async (req, res) => {
             id: visitsToDelete 
           } 
         });
-        console.log(`🗑️ Eliminadas ${visitsToDelete.length} visitas sin datos para reprogramar.`);
+
       }
       
       if (visitsToPreserve.length > 0) {
-        console.log(`✅ Preservadas ${visitsToPreserve.length} visitas con datos importantes.`);
+
       }
     }
 
@@ -527,7 +524,7 @@ const scheduleMaintenanceVisits = async (req, res) => {
       raw: true
     });
     const existingNumbers = preservedVisits.map(v => v.visitNumber);
-    console.log('📋 Números de visitas ya existentes (después de limpieza):', existingNumbers);
+
     
     // Crear las 4 visitas de mantenimiento (solo las que no existen)
     // ✅ Usar bulkCreate en lugar de crear una por una (1 query en lugar de 4)
@@ -535,7 +532,7 @@ const scheduleMaintenanceVisits = async (req, res) => {
     for (let i = 1; i <= 4; i++) {
       // Si ya existe una visita con este número, saltarla
       if (existingNumbers.includes(i)) {
-        console.log(`⏭️ Saltando visita #${i} (ya existe)`);
+
         continue;
       }
       
@@ -577,8 +574,6 @@ const scheduleMaintenanceVisits = async (req, res) => {
     const responseMessage = visits.length > 0 
       ? `Se ${existingVisits.length > 0 ? 'reprogramaron' : 'programaron'} ${visits.length} visita(s) de mantenimiento.`
       : 'No se crearon nuevas visitas (todas ya existían).';
-
-    console.log(`✅ Proceso completado: ${visits.length} visitas creadas, ${visitsToPreserve.length} preservadas`);
 
     res.status(201).json({ 
       message: responseMessage,
@@ -714,7 +709,6 @@ const createMaintenanceVisit = async (req, res) => {
     } else {
       // Si no se proporcionó staff, usar el usuario actual
       finalAssignedStaffId = currentUserId;
-      console.log(`Asignando visita al usuario actual: ${currentUserId}`);
     }
 
     // Calcular el siguiente número de visita si no se proporciona
@@ -879,7 +873,6 @@ const createMaintenanceVisit = async (req, res) => {
           attachments: emailAttachments,
         });
 
-        console.log(`✅ Email enviado a ${staff.email} para nueva visita ${newVisit.id}`);
       } catch (emailError) {
         console.error('❌ Error al enviar email de asignación:', emailError);
         // No fallar la request si el email falla
@@ -905,8 +898,6 @@ const getAssignedMaintenances = async (req, res) => {
     if (!workerId) {
       return res.status(400).json({ error: true, message: 'Se requiere workerId.' });
     }
-
-    console.log('[getAssignedMaintenances] Buscando visitas para workerId:', workerId);
 
     // ✅ OPTIMIZACIÓN: NO cargar mediaFiles por defecto (solo bajo demanda)
     const visitsRaw = await MaintenanceVisit.findAll({
@@ -956,8 +947,7 @@ const getAssignedMaintenances = async (req, res) => {
       visit.work = work;
     }
 
-    console.log('[getAssignedMaintenances] Encontradas', visits.length, 'visitas para el worker');
-    console.log('✅ OPTIMIZACIÓN: mediaFiles NO cargados (se cargan bajo demanda en detalle)');
+
 
     res.status(200).json({ message: 'Mantenimientos asignados obtenidos correctamente.', visits, count: visits.length });
   } catch (error) {
@@ -993,13 +983,6 @@ const generateMaintenanceToken = async (req, res) => {
       ['admin', 'owner', 'maintenance'].includes(userRole);
 
     if (!isAuthorized) {
-      console.log('[generateMaintenanceToken] Autorización denegada:', {
-        visitId: visit.id,
-        visitStaffId: visit.staffId,
-        currentUserId,
-        userRole,
-        isMatch: visit.staffId === currentUserId
-      });
       return res.status(403).json({ error: true, message: 'No autorizado para generar token para esta visita.' });
     }
 
@@ -1032,26 +1015,6 @@ const completeMaintenanceVisit = async (req, res) => {
     const { visitId } = req.params;
     const files = req.files; // Objeto con arrays por fieldname cuando usamos upload.fields()
     const currentUserId = req.staff?.id;
-
-    // LOG: Ver qué está llegando
-    console.log('🔍 BACKEND - Datos recibidos para visitId:', visitId);
-    console.log('🔍 BACKEND - actualVisitDate recibido:', req.body.actualVisitDate);
-    console.log('🔍 BACKEND - markAsCompleted:', req.body.markAsCompleted);
-    console.log('🔍 BACKEND - Archivos recibidos:', {
-      maintenanceFiles: files?.maintenanceFiles?.length || 0,
-      wellSample1: files?.wellSample1?.length || 0,
-      wellSample2: files?.wellSample2?.length || 0,
-      wellSample3: files?.wellSample3?.length || 0,
-      systemVideo: files?.systemVideo?.length || 0
-    });
-    console.log('🔍 tank_inlet_level:', req.body.tank_inlet_level);
-    console.log('🔍 tank_outlet_level:', req.body.tank_outlet_level);
-    console.log('🔍 septic_access_clear:', req.body.septic_access_clear);
-    console.log('🔍 needs_pumping:', req.body.needs_pumping);
-    console.log('🔍 alarm_test:', req.body.alarm_test);
-    console.log('🔍 pump_running:', req.body.pump_running);
-    console.log('🔍 float_switches:', req.body.float_switches);
-    console.log('🔍 alarm_working:', req.body.alarm_working);
 
     // Extraer todos los campos del formulario
     const {
