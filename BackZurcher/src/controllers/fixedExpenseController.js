@@ -652,6 +652,20 @@ const updateFixedExpense = async (req, res) => {
       updateData.endDate = null;
     }
 
+    // 🔴 CRÍTICO: Convertir strings vacíos a NULL para campos ENUM
+    // PostgreSQL no permite strings vacíos en ENUMs
+    if (updateData.paymentMethod === '') {
+      updateData.paymentMethod = null;
+    }
+    
+    if (updateData.paymentAccount === '') {
+      updateData.paymentAccount = null;
+    }
+    
+    if (updateData.category === '') {
+      delete updateData.category; // No permitir cambiar a vacío
+    }
+
     // Si cambia la frecuencia o fecha de inicio, recalcular nextDueDate
     if (updateData.frequency || updateData.startDate) {
       const newFrequency = updateData.frequency || fixedExpense.frequency;
