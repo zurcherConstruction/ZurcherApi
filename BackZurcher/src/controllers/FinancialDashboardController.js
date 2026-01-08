@@ -192,42 +192,6 @@ const FinancialDashboardController = {
         order: [['date', 'DESC']]
       });
 
-      console.log(`🎯 [FUENTE ÚNICA] Total Expenses PAID: ${allExpenses.length} transacciones`);
-
-      // 🚨 DEBUG ESPECÍFICO PARA AMEX EN FINANCIAL DASHBOARD
-      console.log('\n=== DEBUG AMEX EN FINANCIAL DASHBOARD ===');
-      let amexCount = 0;
-      const paymentStatusCounts = {};
-      
-      allExpenses.forEach(expense => {
-        // Contar por paymentStatus para estadísticas
-        paymentStatusCounts[expense.paymentStatus] = (paymentStatusCounts[expense.paymentStatus] || 0) + 1;
-        
-        if (expense.paymentMethod && expense.paymentMethod.toUpperCase().includes('AMEX')) {
-          amexCount++;
-          console.log(`🔍 GASTO AMEX en Financial Dashboard:`, {
-            id: expense.idExpense,
-            amount: expense.amount,
-            paymentMethod: expense.paymentMethod,
-            paymentStatus: expense.paymentStatus,
-            date: expense.date,
-            notes: expense.notes?.substring(0, 100),
-            relatedFixedExpenseId: expense.relatedFixedExpenseId,
-            supplierInvoiceItemId: expense.supplierInvoiceItemId
-          });
-        }
-      });
-      
-      console.log(`💳 Total gastos AMEX en Financial Dashboard: ${amexCount}`);
-      console.log('📊 Distribución por paymentStatus:', paymentStatusCounts);
-      console.log('=== FIN DEBUG AMEX EN FINANCIAL DASHBOARD ===\n');
-
-      const totalExpenses = allExpenses.reduce((sum, exp) => 
-        sum + parseFloat(exp.amount || 0), 0
-      );
-
-      console.log(`💰 [FUENTE ÚNICA] Total Amount: $${totalExpenses.toFixed(2)}`);
-
       // Desglose por método de pago
       const expensesByPaymentMethod = {};
       
@@ -348,17 +312,6 @@ const FinancialDashboardController = {
         }
       };
 
-      console.log(`✅ [RESPUESTA] Total Ingresos: $${totalIncome.toFixed(2)}`);
-      console.log(`✅ [RESPUESTA] Total Gastos: $${totalExpenses.toFixed(2)} (${allExpenses.length} transacciones)`);
-      console.log(`✅ [RESPUESTA] Balance: $${(totalIncome - totalExpenses).toFixed(2)}`);
-      console.log(`🔍 [DEBUG] Enviando estructura:`, JSON.stringify({
-        success: true,
-        hasSummary: !!response.data.summary,
-        summaryKeys: response.data.summary ? Object.keys(response.data.summary) : 'NO SUMMARY',
-        totalIncome: response.data.summary?.totalIncome,
-        totalEgresos: response.data.summary?.totalEgresos
-      }));
-
       res.json(response);
 
     } catch (error) {
@@ -477,7 +430,6 @@ const FinancialDashboardController = {
         order: [['date', 'DESC']]
       });
 
-      console.log(`🎯 [DETALLADO] Total Expenses PAID: ${allExpenses.length} transacciones`);
 
       // =============================================================
       // 3. CLASIFICACIÓN CORRECTA POR ORIGEN (proveedores, fijos, directos)
@@ -542,24 +494,6 @@ const FinancialDashboardController = {
         }
       });
 
-      // Log del resumen por origen (igual que nuestro script)
-      console.log('📊 RESUMEN POR ORIGEN:');
-      console.log('======================================================================');
-      console.log(`🏢 Proveedores: $${proveedoresTotal.toFixed(2)} (${expensesByOrigin['Proveedores'].length} transacciones)`);
-      console.log(`🏦 Gastos Fijos: $${gastosFijosTotal.toFixed(2)} (${expensesByOrigin['Gastos Fijos'].length} transacciones)`);
-      console.log(`📂 Gastos Directos: $${gastosDirectosTotal.toFixed(2)} (${allExpenses.length - expensesByOrigin['Proveedores'].length - expensesByOrigin['Gastos Fijos'].length} transacciones)`);
-      console.log(`💰 TOTAL: $${(proveedoresTotal + gastosFijosTotal + gastosDirectosTotal).toFixed(2)} (${allExpenses.length} transacciones)`);
-
-      // 🔍 DEBUG: Mostrar todas las categorías que tienen datos
-      console.log('\n📋 CATEGORÍAS CON DATOS:');
-      Object.entries(expensesByOrigin).forEach(([category, expenses]) => {
-        if (expenses.length > 0) {
-          const total = expenses.reduce((sum, exp) => sum + parseFloat(exp.amount || 0), 0);
-          console.log(`   ${category}: $${total.toFixed(2)} (${expenses.length} items)`);
-        }
-      });
-      console.log('');
-
       // =============================================================
       // 4. TOTALES Y CONTEOS
       // =============================================================
@@ -571,8 +505,6 @@ const FinancialDashboardController = {
       const totalExpenses = allExpenses.reduce((sum, exp) => 
         sum + parseFloat(exp.amount || 0), 0
       );
-
-      console.log(`💰 [DETALLADO] Total Amount: $${totalExpenses.toFixed(2)}`);
 
       // Conteo por método de pago
       const expensesByPaymentMethod = {};
@@ -760,10 +692,6 @@ const FinancialDashboardController = {
           }
         }
       };
-
-      console.log(`✅ [DETALLADO] Total Ingresos: $${totalIncome.toFixed(2)} (${allIncomes.length})`);
-      console.log(`✅ [DETALLADO] Total Gastos: $${totalExpenses.toFixed(2)} (${allExpenses.length})`);
-      console.log(`✅ [DETALLADO] Categorías con datos: ${Object.values(expensesByOrigin).filter(arr => arr.length > 0).length}`);
 
       res.json(response);
 

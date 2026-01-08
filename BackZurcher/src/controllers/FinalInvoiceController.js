@@ -11,8 +11,7 @@ const FinalInvoiceController = {
   // Crear la factura final inicial para una obra
   async createFinalInvoice(req, res) {
     const { workId } = req.params;
-    const startTime = Date.now(); // 🚀 TIMING LOG
-    console.log(`⏰ [FinalInvoice] Iniciando creación para workId: ${workId}`);
+    const startTime = Date.now();
     const transaction = await conn.transaction(); // Start transaction
 
     try {
@@ -82,9 +81,7 @@ const FinalInvoiceController = {
       const discount = parseFloat(req.body.discount) || 0; // 🆕 DESCUENTO opcional desde el body
       const finalAmountDueInitial = originalBudgetTotal + initialSubtotalExtras - discount - actualInitialPaymentMade;
 
-      // 🆕 ASIGNAR NÚMERO DE INVOICE USANDO NUMERACIÓN UNIFICADA
       const invoiceNumber = await getNextInvoiceNumber(transaction);
-      console.log(`📋 Asignando Invoice Number: ${invoiceNumber} (numeración unificada) a Final Invoice`);
 
       const newFinalInvoice = await FinalInvoice.create({
         workId: work.idWork,
@@ -136,7 +133,6 @@ const FinalInvoiceController = {
       }
 
       const totalTime = Date.now() - startTime;
-      console.log(`✅ [FinalInvoice] Creación completada en ${totalTime}ms para workId: ${workId}`);
       res.status(201).json(finalInvoiceWithDetails);
 
     } catch (error) {
@@ -151,7 +147,6 @@ const FinalInvoiceController = {
   // Obtener la factura final y sus items por workId
   async getFinalInvoiceByWorkId(req, res) {
     const { workId } = req.params;
-    console.log(`🔍 [FinalInvoice] Buscando Final Invoice para workId: ${workId}`);
     try {
       // 🆕 DIAGNÓSTICO: Verificar que el Work existe y tiene las asociaciones correctas
       const work = await Work.findByPk(workId, {
@@ -185,7 +180,6 @@ const FinalInvoiceController = {
       });
 
       if (!finalInvoice) {
-        console.log(`❌ [FinalInvoice] No existe Final Invoice para workId: ${workId}`);
         return res.status(404).json({ error: true, message: 'Factura final no encontrada para esta obra.' });
       }
 
@@ -772,7 +766,6 @@ async emailFinalInvoicePDF(req, res) {
        const work = finalInvoice.Work;
        if (work && work.status === 'covered') {
          await work.update({ status: 'invoiceFinal' });
-         console.log(`[FinalInvoiceController] Factura final enviada para work ${work.idWork}. Estado cambiado automáticamente de 'covered' a 'invoiceFinal'.`);
          
          // Enviar notificaciones para el nuevo estado automático
          const { sendNotifications } = require('../utils/notifications/notificationManager');

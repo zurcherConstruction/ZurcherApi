@@ -918,7 +918,6 @@ const attachInvoiceToWork = async (req, res) => {
 
 const getAssignedWorks = async (req, res) => {
   try {
-    console.log('📋 [getAssignedWorks] Iniciando para staff:', req.staff.id);
 
     // Obtener las obras asignadas al worker autenticado
     const works = await Work.findAll({
@@ -971,7 +970,6 @@ const getAssignedWorks = async (req, res) => {
 
     // ✅ Si no hay obras, devolver array vacío (no 404)
     if (works.length === 0) {
-      console.log('📋 [getAssignedWorks] No hay obras asignadas');
       return res.status(200).json({ error: false, works: [], message: 'No tienes tareas asignadas actualmente' });
     }
 
@@ -996,7 +994,6 @@ const getAssignedWorks = async (req, res) => {
     });
 
     const dataSize = JSON.stringify(optimizedWorks).length;
-    console.log(`✅ [getAssignedWorks] ${works.length} obras. Tamaño: ${(dataSize / 1024).toFixed(2)}KB (antes ~193MB)`);
 
     res.status(200).json({ error: false, works: optimizedWorks });
   } catch (error) {
@@ -1201,9 +1198,7 @@ const deleteImagesFromWork = async (req, res) => {
 const getWorkImages = async (req, res) => {
   try {
     const { idWork } = req.params;
-    const { stage } = req.query; // Opcional: filtrar por etapa
-    
-    console.log('🖼️ [getWorkImages] Obteniendo imágenes para work:', idWork, 'stage:', stage || 'todas');
+    const { stage } = req.query;
 
     // Verificar que el trabajo existe
     const work = await Work.findByPk(idWork);
@@ -1222,8 +1217,6 @@ const getWorkImages = async (req, res) => {
       attributes: ['id', 'stage', 'dateTime', 'imageUrl', 'publicId', 'comment', 'truckCount'],
       order: [['dateTime', 'DESC'], ['id', 'DESC']],
     });
-
-    console.log(`✅ [getWorkImages] ${images.length} imágenes encontradas`);
 
     res.status(200).json({ 
       error: false, 

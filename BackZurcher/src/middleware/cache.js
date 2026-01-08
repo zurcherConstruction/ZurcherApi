@@ -27,7 +27,6 @@ function cacheMiddleware(duration = 30) {
       
       // Si el caché no ha expirado
       if (now - timestamp < duration * 1000) {
-        console.log(`💾 [CACHE HIT] ${key} (${Math.round((now - timestamp) / 1000)}s ago)`);
         return res.status(status).json(data);
       } else {
         // Caché expirado, eliminarlo
@@ -45,7 +44,6 @@ function cacheMiddleware(duration = 30) {
           data,
           status: res.statusCode,
         });
-        console.log(`💾 [CACHE SET] ${key} (válido por ${duration}s)`);
       }
       return originalJson(data);
     };
@@ -65,9 +63,6 @@ function invalidateCache(pattern) {
       deleted++;
     }
   }
-  if (deleted > 0) {
-    console.log(`🗑️  [CACHE INVALIDATED] ${deleted} entradas con patrón "${pattern}"`);
-  }
 }
 
 /**
@@ -76,7 +71,6 @@ function invalidateCache(pattern) {
 function clearCache() {
   const size = cache.size;
   cache.clear();
-  console.log(`🗑️  [CACHE CLEARED] ${size} entradas eliminadas`);
 }
 
 module.exports = {

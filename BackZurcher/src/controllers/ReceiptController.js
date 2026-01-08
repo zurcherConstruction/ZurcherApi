@@ -5,16 +5,6 @@ const { sendNotifications } = require('../utils/notifications/notificationManage
 const { createDepositTransaction } = require('../utils/bankTransactionHelper'); 
 
 const createReceipt = async (req, res) => {
-  console.log('-----------------------------------------');
-  console.log('[ReceiptController] createReceipt iniciado.');
-  console.log('[ReceiptController] req.body:', req.body);
-  console.log('[ReceiptController] req.file:', req.file ? {
-      fieldname: req.file.fieldname,
-      originalname: req.file.originalname,
-      mimetype: req.file.mimetype,
-      size: req.file.size
-  } : 'No file received');
-
   if (!req.file) {
     console.error('[ReceiptController] Error: No se recibió ningún archivo.');
     return res.status(400).json({ error: true, message: 'No se subió ningún archivo.' });
@@ -28,7 +18,6 @@ const createReceipt = async (req, res) => {
   }
 
   try {
-    console.log('[ReceiptController] Preparando stream para Cloudinary...');
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder: 'zurcher_receipts',
@@ -42,11 +31,6 @@ const createReceipt = async (req, res) => {
           return res.status(500).json({ error: true, message: 'Error al subir comprobante a Cloudinary.', details: error.message });
         }
 
-        console.log('[ReceiptController] Cloudinary subió el archivo con éxito. Resultado:', {
-            public_id: result.public_id,
-            secure_url: result.secure_url,
-        });
-
         const transaction = await conn.transaction(); 
         let createdIncomeId = null; // Declarar al inicio para que esté disponible en todo el scope
 
@@ -56,7 +40,6 @@ const createReceipt = async (req, res) => {
 
           // --- LÓGICA ESPECIAL PARA FinalInvoice (Actualizaciones de FinalInvoice y Work) ---
           if (relatedModel === 'FinalInvoice') {
-            console.log(`[ReceiptController] Procesando recibo para FinalInvoice. ID: ${relatedId}`);
             if (!amountPaid || isNaN(parseFloat(amountPaid))) {
               await transaction.rollback();
               cloudinary.uploader.destroy(result.public_id, (destroyError) => {
@@ -144,7 +127,6 @@ const createReceipt = async (req, res) => {
               : `Recibo adjuntado el ${new Date().toLocaleDateString()} por $${numericAmountPaidForIncome.toFixed(2)} (ID Recibo a crear).`;
 
             await localFinalInvoiceInstance.save({ transaction });
-            console.log(`[ReceiptController] FinalInvoice ${localFinalInvoiceInstance.id} actualizada. Nuevo total pagado: ${localFinalInvoiceInstance.totalAmountPaid}, Estado: ${localFinalInvoiceInstance.status}`);
 
             if (localFinalInvoiceInstance.status === 'paid' && localFinalInvoiceInstance.workId) {
                 const work = await Work.findByPk(localFinalInvoiceInstance.workId, { transaction });
@@ -152,7 +134,6 @@ const createReceipt = async (req, res) => {
                     if (work.status !== 'completed' && work.status !== 'cancelled') { 
                         work.status = 'paymentReceived'; 
                         await work.save({ transaction });
-                        console.log(`[ReceiptController] Work ${work.idWork} actualizado a '${work.status}'.`);
                     }
                 } else {
                     console.warn(`[ReceiptController] No se encontró Work con ID: ${localFinalInvoiceInstance.workId} para actualizar estado.`);
@@ -178,10 +159,8 @@ const createReceipt = async (req, res) => {
               // El staffId debe ser el usuario que está cargando el comprobante (req.user.id)
               // NO el worker asignado al trabajo (workForStaff.staffId)
 
-              console.log('[ReceiptController] Creando Income para pago de FinalInvoice:', incomeDataForFinalInvoice);
               const createdIncome = await Income.create(incomeDataForFinalInvoice, { transaction });
               createdIncomeId = createdIncome.idIncome;
-              console.log('[ReceiptController] Income para pago de FinalInvoice creado exitosamente.');
               
               // 🏦 AUTO-CREAR BANK TRANSACTION
               try {
@@ -221,7 +200,6 @@ const createReceipt = async (req, res) => {
                   setImmediate(async () => {
                     try {
                       await sendNotifications('incomeRegistered', notificationData);
-                      console.log(`✅ Notificación de pago final enviada: $${numericAmountPaidForIncome} - Factura Final`);
                     } catch (notificationError) {
                       console.error('❌ Error enviando notificación de pago final:', notificationError.message);
                     }
@@ -246,10 +224,7 @@ const createReceipt = async (req, res) => {
             originalName: req.file.originalname,
           };
 
-          console.log('[ReceiptController] Datos para Receipt.create:', newReceiptData);
           const createdReceipt = await Receipt.create(newReceiptData, { transaction });
-          console.log("[ReceiptController] Receipt creado exitosamente en BD:", createdReceipt.toJSON());
-          console.log("[ReceiptController] Receipt ID generado:", createdReceipt.idReceipt);
 
           // Actualizar las notas de FinalInvoice con el ID real del recibo
           if (relatedModel === 'FinalInvoice' && finalInvoiceInstanceForUpdate && createdIncomeId) {
@@ -263,12 +238,10 @@ const createReceipt = async (req, res) => {
             if (finalInvoiceInstanceForUpdate.paymentNotes && finalInvoiceInstanceForUpdate.paymentNotes.includes('(ID Recibo a crear)')) {
               finalInvoiceInstanceForUpdate.paymentNotes = finalInvoiceInstanceForUpdate.paymentNotes.replace('(ID Recibo a crear)', `ID Recibo: ${createdReceipt.idReceipt}`);
               await finalInvoiceInstanceForUpdate.save({ transaction });
-              console.log(`[ReceiptController] Nota de FinalInvoice ${finalInvoiceInstanceForUpdate.id} actualizada con ID de Recibo.`);
             }
           }
 
           await transaction.commit();
-          console.log("[ReceiptController] Transacción completada (commit).");
           
           // Preparar respuesta completa
           const response = {
@@ -284,7 +257,6 @@ const createReceipt = async (req, res) => {
             }
           };
           
-          console.log("[ReceiptController] Enviando respuesta:", response);
           res.status(201).json(response);
 
         } catch (dbError) {
@@ -306,9 +278,7 @@ const createReceipt = async (req, res) => {
       }
     );
 
-    console.log('[ReceiptController] Enviando buffer a Cloudinary...');
     uploadStream.end(req.file.buffer);
-    console.log('[ReceiptController] Buffer enviado a Cloudinary (la subida es asíncrona).');
 
   } catch (generalError) {
     console.error("[ReceiptController] Error general (antes de stream o callback de Cloudinary):", generalError);
@@ -332,24 +302,23 @@ const createReceipt = async (req, res) => {
   
 const deleteReceipt = async (req, res) => {
   const { idReceipt } = req.params;
-  console.log(`[ReceiptController DELETE /receipt/${idReceipt}] Solicitud recibida.`); // <--- LOG INICIAL
+
   const transaction = await conn.transaction();
   let publicIdToDeleteFromCloudinary;
 
     try {
-    console.log(`[ReceiptController DELETE /receipt/${idReceipt}] Buscando Receipt...`);
     const receipt = await Receipt.findByPk(idReceipt, { transaction });
     if (!receipt) {
       await transaction.rollback();
       console.error(`[ReceiptController DELETE /receipt/${idReceipt}] Receipt no encontrado.`);
       return res.status(404).json({ error: true, message: 'Comprobante no encontrado.' });
     }
-    console.log(`[ReceiptController DELETE /receipt/${idReceipt}] Receipt encontrado:`, JSON.stringify(receipt, null, 2));
+
     publicIdToDeleteFromCloudinary = receipt.publicId;// Guardar para borrar después del commit
 
     // --- LÓGICA DE REVERSIÓN PARA FinalInvoice ---
      if (receipt.relatedModel === 'FinalInvoice') {
-      console.log(`[ReceiptController] Reversión iniciada para recibo ${idReceipt} de FinalInvoice ID ${receipt.relatedId}`);
+
 
       // Para una búsqueda más precisa del Income, necesitamos el workId de la FinalInvoice
       const finalInvoiceForIncomeSearch = await FinalInvoice.findByPk(receipt.relatedId, { attributes: ['workId'], transaction });
@@ -367,13 +336,13 @@ const deleteReceipt = async (req, res) => {
 
         if (incomeToRevert) {
             incomeAmountToRevert = parseFloat(incomeToRevert.amount);
-            console.log(`[ReceiptController] Income ID ${incomeToRevert.idIncome} (monto: ${incomeAmountToRevert}) será borrado.`);
+
             await incomeToRevert.destroy({ transaction });
 
             // 2. Actualizar la FinalInvoice
             const finalInvoice = await FinalInvoice.findByPk(receipt.relatedId, { transaction });
             if (finalInvoice) {
-              console.log(`[ReceiptController] Actualizando FinalInvoice ID ${finalInvoice.id}. Total pagado antes: ${finalInvoice.totalAmountPaid}`);
+
               finalInvoice.totalAmountPaid = parseFloat((parseFloat(finalInvoice.totalAmountPaid || 0) - incomeAmountToRevert).toFixed(2));
               
               if (finalInvoice.totalAmountPaid < 0) finalInvoice.totalAmountPaid = 0; // Evitar negativos
@@ -393,7 +362,7 @@ const deleteReceipt = async (req, res) => {
               finalInvoice.paymentNotes = `${finalInvoice.paymentNotes || ''}\nReversión por borrado de Recibo ID: ${idReceipt} (Monto: $${incomeAmountToRevert.toFixed(2)}) el ${new Date().toLocaleDateString()}.`;
 
               await finalInvoice.save({ transaction });
-              console.log(`[ReceiptController] FinalInvoice ID ${finalInvoice.id} actualizada. Total pagado ahora: ${finalInvoice.totalAmountPaid}, Estado: ${finalInvoice.status}`);
+
 
               // 3. (Opcional Avanzado) Revertir estado de Work si es necesario
               if (incomeAmountToRevert > 0 && finalInvoice.workId && finalInvoice.status !== 'paid') {
@@ -404,7 +373,7 @@ const deleteReceipt = async (req, res) => {
                       // Esto depende de tu flujo de estados de Work.
                        work.status = 'invoiceFinal'; 
                       await work.save({ transaction });
-                       console.log(`[ReceiptController] Work ID ${work.idWork} estado revertido (potencialmente).`);
+
                   }
               }
             } else {
@@ -421,14 +390,13 @@ const deleteReceipt = async (req, res) => {
 
     // Borrar el Receipt de la BD
     await receipt.destroy({ transaction }); // Usar destroy en la instancia
-    console.log(`[ReceiptController] Recibo ID ${idReceipt} borrado de la BD.`);
+
 
     await transaction.commit();
-    console.log("[ReceiptController] Transacción completada (commit) para borrado de recibo.");
+
 
     // Borrar de Cloudinary DESPUÉS de que la transacción de BD sea exitosa
     if (publicIdToDeleteFromCloudinary) {
-      console.log(`Intentando borrar archivo de Cloudinary con public_id: ${publicIdToDeleteFromCloudinary}`);
       cloudinary.uploader.destroy(publicIdToDeleteFromCloudinary, (destroyError, destroyResult) => {
         if (destroyError) {
           console.error("[ReceiptController] Error al borrar archivo de Cloudinary tras borrado de recibo:", destroyError);
