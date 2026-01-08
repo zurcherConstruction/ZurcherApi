@@ -189,7 +189,7 @@ const FixedExpensesManager = () => {
         startDate: formData.startDate, // Ya debe venir en formato YYYY-MM-DD del input type="date"
         endDate: formData.endDate || null,
         createdByStaffId: staff?.id,
-        staffId: formData.category === 'Salarios' ? formData.staffId : null
+        staffId: formData.category === 'Salarios' && formData.staffId ? formData.staffId : null
       };
 
       await api.post('/fixed-expenses', payload);
@@ -215,7 +215,7 @@ const FixedExpensesManager = () => {
       const payload = {
         ...formData,
         totalAmount: parseFloat(formData.totalAmount),
-        staffId: formData.category === 'Salarios' ? formData.staffId : null
+        staffId: formData.category === 'Salarios' && formData.staffId ? formData.staffId : null
       };
 
       await api.patch(`/fixed-expenses/${selectedExpense.idFixedExpense}`, payload);

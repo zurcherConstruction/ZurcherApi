@@ -335,7 +335,8 @@ const createFixedExpense = async (req, res) => {
       accountNumber,
       notes,
       createdByStaffId: createdByStaffId || null,
-      staffId: category === 'Salarios' ? staffId : null  // 🆕 Guardar Staff solo para Salarios
+      // 🆕 Guardar Staff solo para Salarios - convertir cadena vacía a null
+      staffId: category === 'Salarios' && staffId ? staffId : null
     });
 
     // Incluir información del Staff si existe
@@ -695,10 +696,11 @@ const updateFixedExpense = async (req, res) => {
 
     // Manejo especial para staffId en categoría Salarios
     if (updateData.category === 'Salarios') {
-      // staffId debe estar presente
+      // staffId puede estar presente o no (empleados sin staff asignado)
       if (updateData.staffId === undefined) {
         updateData.staffId = fixedExpense.staffId; // Mantener el anterior si no se proporciona
       }
+      // Si está vacío o null, dejarlo como null (permitir salarios sin staff)
     } else {
       // Para otras categorías, limpiar staffId
       if (updateData.category) {
