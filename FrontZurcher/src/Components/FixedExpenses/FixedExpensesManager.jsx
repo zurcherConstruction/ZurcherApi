@@ -262,6 +262,78 @@ const FixedExpensesManager = () => {
     return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
   };
 
+  // 🆕 AGRUPACIÓN: Agrupar por Categoría, luego por Staff/Nombre
+  const groupExpensesByCategory = (expensesList) => {
+    const categories = {};
+    
+    expensesList.forEach(expense => {
+      const category = expense.category || 'Sin Categoría';
+      
+      if (!categories[category]) {
+        categories[category] = {};
+      }
+      
+      // Dentro de cada categoría, sub-agrupar por staff o nombre
+      let subGroupKey, subGroupLabel;
+      
+      if (expense.staffId) {
+        // Por staff
+        const staffMember = staffList.find(s => s.id === expense.staffId);
+        subGroupLabel = staffMember?.name || 'Sin Nombre';
+        subGroupKey = `staff_${expense.staffId}`;
+      } else {
+        // Por nombre del gasto
+        subGroupLabel = capitalize(expense.name);
+        subGroupKey = `name_${expense.name}`;
+      }
+      
+      if (!categories[category][subGroupKey]) {
+        categories[category][subGroupKey] = {
+          label: subGroupLabel,
+          expenses: []
+        };
+      }
+      
+      categories[category][subGroupKey].expenses.push(expense);
+    });
+    
+    // Convertir a estructura de grupos para renderizado
+    const result = [];
+    
+    // Ordenar categorías: Salarios primero, luego alfabético
+    const sortedCategories = Object.keys(categories).sort((a, b) => {
+      if (a === 'Salarios') return -1;
+      if (b === 'Salarios') return 1;
+      return a.localeCompare(b);
+    });
+    
+    sortedCategories.forEach(categoryName => {
+      const categorySubGroups = categories[categoryName];
+      
+      // Ordenar sub-grupos alfabéticamente
+      const sortedSubGroups = Object.entries(categorySubGroups)
+        .sort(([, a], [, b]) => a.label.localeCompare(b.label));
+      
+      // Crear entrada para cada sub-grupo
+      sortedSubGroups.forEach(([, subGroup]) => {
+        result.push({
+          label: `${categoryName} - ${subGroup.label}`,
+          categoryLabel: categoryName,
+          subLabel: subGroup.label,
+          priority: categoryName === 'Salarios' ? 0 : 1,
+          expenses: subGroup.expenses.sort((a, b) => a.name.localeCompare(b.name))
+        });
+      });
+    });
+    
+    // Ordenar por prioridad
+    return result.sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      if (a.categoryLabel !== b.categoryLabel) return a.categoryLabel.localeCompare(b.categoryLabel);
+      return a.subLabel.localeCompare(b.subLabel);
+    });
+  };
+
   // 🆕 Ordenar gastos: primero con staffId, luego sin staffId
   const sortedExpenses = [...expenses].sort((a, b) => {
     const aHasStaff = !!a.staffId;
@@ -271,7 +343,17 @@ const FixedExpensesManager = () => {
     return 0;
   });
 
-  // 🆕 Ordenar gastos inactivos/histórico
+  // 🆕 Agrupar los gastos por categoría y sub-grupo
+  const groupedExpenses = groupExpensesByCategory(sortedExpenses);
+  const groupedInactiveExpenses = groupExpensesByCategory([...inactiveExpenses].sort((a, b) => {
+    const aHasStaff = !!a.staffId;
+    const bHasStaff = !!b.staffId;
+    if (aHasStaff && !bHasStaff) return -1;
+    if (!aHasStaff && bHasStaff) return 1;
+    return 0;
+  }));
+
+  // Mantener sortedInactiveExpenses por compatibilidad
   const sortedInactiveExpenses = [...inactiveExpenses].sort((a, b) => {
     const aHasStaff = !!a.staffId;
     const bHasStaff = !!b.staffId;
@@ -497,99 +579,125 @@ const FixedExpensesManager = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {(showHistorical ? sortedInactiveExpenses : sortedExpenses).map((expense) => (
-                  <tr key={expense.idFixedExpense} className={`hover:bg-gray-50 transition ${showHistorical ? 'bg-gray-50' : ''}`}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-medium text-gray-900">{capitalize(expense.name)}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-gray-600">{expense.category || '-'}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <span className="text-sm font-semibold text-gray-900">{formatCurrency(expense.totalAmount)}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-gray-600">{formatDate(expense.nextDueDate)}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-gray-600 capitalize">{expense.frequency}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <div className="flex gap-2 justify-center">
-                        <button
-                          onClick={() => openDetailModal(expense)}
-                          title="Ver detalles"
-                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-900 text-sm font-medium"
-                        >
-                          <ChevronRightIcon className="h-4 w-4" />
-                          Ver
-                        </button>
-                        <button
-                          onClick={() => openEditModal(expense)}
-                          title="Editar"
-                          className="inline-flex items-center gap-1 text-amber-600 hover:text-amber-900 text-sm font-medium"
-                        >
-                          <PencilIcon className="h-4 w-4" />
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => handleDeleteExpense(expense.idFixedExpense)}
-                          title="Eliminar"
-                          className="inline-flex items-center gap-1 text-red-600 hover:text-red-900 text-sm font-medium"
-                        >
-                          <TrashIcon className="h-4 w-4" />
-                          Eliminar
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                {(showHistorical ? groupedInactiveExpenses : groupedExpenses).map((group, groupIdx) => (
+                  <React.Fragment key={`group_${groupIdx}`}>
+                    {/* Encabezado del grupo */}
+                    <tr className="bg-gray-100 hover:bg-gray-100">
+                      <td colSpan="6" className="px-6 py-3">
+                        <span className="text-sm font-bold text-gray-800">
+                          {group.label}
+                        </span>
+                      </td>
+                    </tr>
+                    
+                    {/* Filas de gastos dentro del grupo */}
+                    {group.expenses.map((expense) => (
+                      <tr key={expense.idFixedExpense} className={`hover:bg-gray-50 transition ${showHistorical ? 'bg-gray-50' : ''}`}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm font-medium text-gray-900">{capitalize(expense.name)}</span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm text-gray-600">{expense.category || '-'}</span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <span className="text-sm font-semibold text-gray-900">{formatCurrency(expense.totalAmount)}</span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm text-gray-600">{formatDate(expense.nextDueDate)}</span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm text-gray-600 capitalize">{expense.frequency}</span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          <div className="flex gap-2 justify-center">
+                            <button
+                              onClick={() => openDetailModal(expense)}
+                              title="Ver detalles"
+                              className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-900 text-sm font-medium"
+                            >
+                              <ChevronRightIcon className="h-4 w-4" />
+                              Ver
+                            </button>
+                            <button
+                              onClick={() => openEditModal(expense)}
+                              title="Editar"
+                              className="inline-flex items-center gap-1 text-amber-600 hover:text-amber-900 text-sm font-medium"
+                            >
+                              <PencilIcon className="h-4 w-4" />
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => handleDeleteExpense(expense.idFixedExpense)}
+                              title="Eliminar"
+                              className="inline-flex items-center gap-1 text-red-600 hover:text-red-900 text-sm font-medium"
+                            >
+                              <TrashIcon className="h-4 w-4" />
+                              Eliminar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
           </div>
 
           {/* Vista de cards - Mobile */}
-          <div className="md:hidden grid grid-cols-1 gap-4">
-            {(showHistorical ? sortedInactiveExpenses : sortedExpenses).map((expense) => (
-              <div key={expense.idFixedExpense} className={`rounded-lg border border-gray-200 p-4 space-y-3 ${showHistorical ? 'bg-gray-50' : 'bg-white'}`}>
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <h3 className="text-sm font-bold text-gray-900">{capitalize(expense.name)}</h3>
-                    <p className="text-xs text-gray-500">{expense.category || '-'}</p>
-                  </div>
-                  <span className="text-lg font-bold text-gray-900">{formatCurrency(expense.totalAmount)}</span>
+          <div className="md:hidden space-y-4">
+            {(showHistorical ? groupedInactiveExpenses : groupedExpenses).map((group, groupIdx) => (
+              <div key={`group_${groupIdx}`} className="space-y-2">
+                {/* Encabezado del grupo */}
+                <div className="px-4 py-2 bg-gray-100 rounded-lg">
+                  <h2 className="text-sm font-bold text-gray-800">{group.label}</h2>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <p className="text-gray-500">Próx. Vencimiento</p>
-                    <p className="font-semibold text-gray-900">{formatDate(expense.nextDueDate)}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-500">Frecuencia</p>
-                    <p className="font-semibold text-gray-900 capitalize">{expense.frequency}</p>
-                  </div>
-                </div>
+                {/* Cards del grupo */}
+                <div className="grid grid-cols-1 gap-3">
+                  {group.expenses.map((expense) => (
+                    <div key={expense.idFixedExpense} className={`rounded-lg border border-gray-200 p-4 space-y-3 ${showHistorical ? 'bg-gray-50' : 'bg-white'}`}>
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h3 className="text-sm font-bold text-gray-900">{capitalize(expense.name)}</h3>
+                          <p className="text-xs text-gray-500">{expense.category || '-'}</p>
+                        </div>
+                        <span className="text-lg font-bold text-gray-900">{formatCurrency(expense.totalAmount)}</span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <p className="text-gray-500">Próx. Vencimiento</p>
+                          <p className="font-semibold text-gray-900">{formatDate(expense.nextDueDate)}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Frecuencia</p>
+                          <p className="font-semibold text-gray-900 capitalize">{expense.frequency}</p>
+                        </div>
+                      </div>
 
-                <div className="flex gap-2 pt-2 border-t">
-                  <button
-                    onClick={() => openDetailModal(expense)}
-                    className="flex-1 px-3 py-2 bg-blue-50 text-blue-600 rounded text-xs font-medium hover:bg-blue-100 transition"
-                  >
-                    Ver
-                  </button>
-                  <button
-                    onClick={() => openEditModal(expense)}
-                    className="flex-1 px-3 py-2 bg-amber-50 text-amber-600 rounded text-xs font-medium hover:bg-amber-100 transition"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    onClick={() => handleDeleteExpense(expense.idFixedExpense)}
-                    className="flex-1 px-3 py-2 bg-red-50 text-red-600 rounded text-xs font-medium hover:bg-red-100 transition"
-                  >
-                    Eliminar
-                  </button>
+                      <div className="flex gap-2 pt-2 border-t">
+                        <button
+                          onClick={() => openDetailModal(expense)}
+                          className="flex-1 px-3 py-2 bg-blue-50 text-blue-600 rounded text-xs font-medium hover:bg-blue-100 transition"
+                        >
+                          Ver
+                        </button>
+                        <button
+                          onClick={() => openEditModal(expense)}
+                          className="flex-1 px-3 py-2 bg-amber-50 text-amber-600 rounded text-xs font-medium hover:bg-amber-100 transition"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => handleDeleteExpense(expense.idFixedExpense)}
+                          className="flex-1 px-3 py-2 bg-red-50 text-red-600 rounded text-xs font-medium hover:bg-red-100 transition"
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
