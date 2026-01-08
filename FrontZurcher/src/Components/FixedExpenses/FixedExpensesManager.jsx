@@ -334,10 +334,55 @@ const FixedExpensesManager = () => {
     });
   };
 
+  // 🆕 Calcular estado de vencimiento del gasto
+  const getPaymentStatus = (nextDueDate) => {
+    if (!nextDueDate) return { label: 'Sin fecha', color: 'gray', badge: '?' };
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const dueDate = new Date(nextDueDate);
+    dueDate.setHours(0, 0, 0, 0);
+    
+    const diffTime = dueDate - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 0) {
+      // Vencido
+      return { 
+        label: `Vencido hace ${Math.abs(diffDays)} días`, 
+        color: 'red', 
+        badge: '⚠️' 
+      };
+    } else if (diffDays === 0) {
+      // Vence hoy
+      return { 
+        label: 'Vence hoy', 
+        color: 'orange', 
+        badge: '⏰' 
+      };
+    } else if (diffDays <= 7) {
+      // Próximo a vencer (7 días)
+      return { 
+        label: `Vence en ${diffDays} días`, 
+        color: 'yellow', 
+        badge: '⏱️' 
+      };
+    } else {
+      // Al día
+      return { 
+        label: `Al día (${diffDays} días)`, 
+        color: 'green', 
+        badge: '✓' 
+      };
+    }
+  };
+
   // 🆕 Ordenar gastos: primero con staffId, luego sin staffId
   const sortedExpenses = [...expenses].sort((a, b) => {
     const aHasStaff = !!a.staffId;
     const bHasStaff = !!b.staffId;
+
     if (aHasStaff && !bHasStaff) return -1;
     if (!aHasStaff && bHasStaff) return 1;
     return 0;
@@ -573,6 +618,7 @@ const FixedExpensesManager = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Nombre</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Categoría</th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-700 uppercase tracking-wider">Monto Total</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Estado</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Próx. Vencimiento</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">Frecuencia</th>
                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-700 uppercase tracking-wider">Acciones</th>
@@ -591,53 +637,68 @@ const FixedExpensesManager = () => {
                     </tr>
                     
                     {/* Filas de gastos dentro del grupo */}
-                    {group.expenses.map((expense) => (
-                      <tr key={expense.idFixedExpense} className={`hover:bg-gray-50 transition ${showHistorical ? 'bg-gray-50' : ''}`}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm font-medium text-gray-900">{capitalize(expense.name)}</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm text-gray-600">{expense.category || '-'}</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <span className="text-sm font-semibold text-gray-900">{formatCurrency(expense.totalAmount)}</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm text-gray-600">{formatDate(expense.nextDueDate)}</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm text-gray-600 capitalize">{expense.frequency}</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center">
-                          <div className="flex gap-2 justify-center">
-                            <button
-                              onClick={() => openDetailModal(expense)}
-                              title="Ver detalles"
-                              className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-900 text-sm font-medium"
-                            >
-                              <ChevronRightIcon className="h-4 w-4" />
-                              Ver
-                            </button>
-                            <button
-                              onClick={() => openEditModal(expense)}
-                              title="Editar"
-                              className="inline-flex items-center gap-1 text-amber-600 hover:text-amber-900 text-sm font-medium"
-                            >
-                              <PencilIcon className="h-4 w-4" />
-                              Editar
-                            </button>
-                            <button
-                              onClick={() => handleDeleteExpense(expense.idFixedExpense)}
-                              title="Eliminar"
-                              className="inline-flex items-center gap-1 text-red-600 hover:text-red-900 text-sm font-medium"
-                            >
-                              <TrashIcon className="h-4 w-4" />
-                              Eliminar
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {group.expenses.map((expense) => {
+                      const status = getPaymentStatus(expense.nextDueDate);
+                      const statusColors = {
+                        green: 'bg-green-100 text-green-800',
+                        yellow: 'bg-yellow-100 text-yellow-800',
+                        orange: 'bg-orange-100 text-orange-800',
+                        red: 'bg-red-100 text-red-800',
+                        gray: 'bg-gray-100 text-gray-800'
+                      };
+                      return (
+                        <tr key={expense.idFixedExpense} className={`hover:bg-gray-50 transition ${showHistorical ? 'bg-gray-50' : ''}`}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="text-sm font-medium text-gray-900">{capitalize(expense.name)}</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="text-sm text-gray-600">{expense.category || '-'}</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <span className="text-sm font-semibold text-gray-900">{formatCurrency(expense.totalAmount)}</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${statusColors[status.color]}`}>
+                              {status.badge} {status.label}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="text-sm text-gray-600">{formatDate(expense.nextDueDate)}</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="text-sm text-gray-600 capitalize">{expense.frequency}</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                            <div className="flex gap-2 justify-center">
+                              <button
+                                onClick={() => openDetailModal(expense)}
+                                title="Ver detalles"
+                                className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-900 text-sm font-medium"
+                              >
+                                <ChevronRightIcon className="h-4 w-4" />
+                                Ver
+                              </button>
+                              <button
+                                onClick={() => openEditModal(expense)}
+                                title="Editar"
+                                className="inline-flex items-center gap-1 text-amber-600 hover:text-amber-900 text-sm font-medium"
+                              >
+                                <PencilIcon className="h-4 w-4" />
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => handleDeleteExpense(expense.idFixedExpense)}
+                                title="Eliminar"
+                                className="inline-flex items-center gap-1 text-red-600 hover:text-red-900 text-sm font-medium"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                                Eliminar
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </React.Fragment>
                 ))}
               </tbody>
@@ -655,49 +716,64 @@ const FixedExpensesManager = () => {
                 
                 {/* Cards del grupo */}
                 <div className="grid grid-cols-1 gap-3">
-                  {group.expenses.map((expense) => (
-                    <div key={expense.idFixedExpense} className={`rounded-lg border border-gray-200 p-4 space-y-3 ${showHistorical ? 'bg-gray-50' : 'bg-white'}`}>
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <h3 className="text-sm font-bold text-gray-900">{capitalize(expense.name)}</h3>
-                          <p className="text-xs text-gray-500">{expense.category || '-'}</p>
+                  {group.expenses.map((expense) => {
+                    const status = getPaymentStatus(expense.nextDueDate);
+                    const statusColors = {
+                      green: 'bg-green-100 text-green-800 border-green-200',
+                      yellow: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+                      orange: 'bg-orange-100 text-orange-800 border-orange-200',
+                      red: 'bg-red-100 text-red-800 border-red-200',
+                      gray: 'bg-gray-100 text-gray-800 border-gray-200'
+                    };
+                    return (
+                      <div key={expense.idFixedExpense} className={`rounded-lg border border-gray-200 p-4 space-y-3 ${showHistorical ? 'bg-gray-50' : 'bg-white'}`}>
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="flex-1">
+                            <h3 className="text-sm font-bold text-gray-900">{capitalize(expense.name)}</h3>
+                            <p className="text-xs text-gray-500">{expense.category || '-'}</p>
+                          </div>
+                          <span className="text-lg font-bold text-gray-900">{formatCurrency(expense.totalAmount)}</span>
                         </div>
-                        <span className="text-lg font-bold text-gray-900">{formatCurrency(expense.totalAmount)}</span>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div>
-                          <p className="text-gray-500">Próx. Vencimiento</p>
-                          <p className="font-semibold text-gray-900">{formatDate(expense.nextDueDate)}</p>
+                        
+                        {/* Badge de estado */}
+                        <div className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border ${statusColors[status.color]}`}>
+                          {status.badge} {status.label}
                         </div>
-                        <div>
-                          <p className="text-gray-500">Frecuencia</p>
-                          <p className="font-semibold text-gray-900 capitalize">{expense.frequency}</p>
+                        
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <p className="text-gray-500">Próx. Vencimiento</p>
+                            <p className="font-semibold text-gray-900">{formatDate(expense.nextDueDate)}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500">Frecuencia</p>
+                            <p className="font-semibold text-gray-900 capitalize">{expense.frequency}</p>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="flex gap-2 pt-2 border-t">
-                        <button
-                          onClick={() => openDetailModal(expense)}
-                          className="flex-1 px-3 py-2 bg-blue-50 text-blue-600 rounded text-xs font-medium hover:bg-blue-100 transition"
-                        >
-                          Ver
-                        </button>
-                        <button
-                          onClick={() => openEditModal(expense)}
-                          className="flex-1 px-3 py-2 bg-amber-50 text-amber-600 rounded text-xs font-medium hover:bg-amber-100 transition"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => handleDeleteExpense(expense.idFixedExpense)}
-                          className="flex-1 px-3 py-2 bg-red-50 text-red-600 rounded text-xs font-medium hover:bg-red-100 transition"
-                        >
-                          Eliminar
-                        </button>
+                        <div className="flex gap-2 pt-2 border-t">
+                          <button
+                            onClick={() => openDetailModal(expense)}
+                            className="flex-1 px-3 py-2 bg-blue-50 text-blue-600 rounded text-xs font-medium hover:bg-blue-100 transition"
+                          >
+                            Ver
+                          </button>
+                          <button
+                            onClick={() => openEditModal(expense)}
+                            className="flex-1 px-3 py-2 bg-amber-50 text-amber-600 rounded text-xs font-medium hover:bg-amber-100 transition"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => handleDeleteExpense(expense.idFixedExpense)}
+                            className="flex-1 px-3 py-2 bg-red-50 text-red-600 rounded text-xs font-medium hover:bg-red-100 transition"
+                          >
+                            Eliminar
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}
