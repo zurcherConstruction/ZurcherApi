@@ -98,7 +98,6 @@ async function deactivateCompletedOneTimeExpenses() {
       console.log(`   • Errores: ${errorCount}\n`);
 
       rl.close();
-      await conn.close();
       process.exit(0);
     });
 
