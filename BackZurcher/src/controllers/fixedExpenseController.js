@@ -652,14 +652,18 @@ const updateFixedExpense = async (req, res) => {
       updateData.endDate = null;
     }
 
-    // 🔴 CRÍTICO: Convertir strings vacíos a NULL para campos ENUM
-    // PostgreSQL no permite strings vacíos en ENUMs
+    // 🔴 CRÍTICO: Convertir strings vacíos a NULL para campos ENUM y UUID
+    // PostgreSQL no permite strings vacíos en ENUMs ni en UUIDs
     if (updateData.paymentMethod === '') {
       updateData.paymentMethod = null;
     }
     
     if (updateData.paymentAccount === '') {
       updateData.paymentAccount = null;
+    }
+    
+    if (updateData.staffId === '') {
+      updateData.staffId = null;
     }
     
     if (updateData.category === '') {
