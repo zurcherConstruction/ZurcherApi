@@ -22,10 +22,13 @@ const FixedExpensesManager = () => {
   
   // Estados principales
   const [expenses, setExpenses] = useState([]);
+  const [inactiveExpenses, setInactiveExpenses] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingInactive, setLoadingInactive] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showHistorical, setShowHistorical] = useState(false);
   const [selectedExpense, setSelectedExpense] = useState(null);
   const [paymentHistory, setPaymentHistory] = useState([]);
   const [pendingPeriods, setPendingPeriods] = useState([]);
@@ -54,15 +57,32 @@ const FixedExpensesManager = () => {
   const loadFixedExpenses = async () => {
     try {
       setLoading(true);
+      // Cargar gastos activos (por defecto)
       const response = await api.get('/fixed-expenses');
-      // El endpoint devuelve { fixedExpenses: [], stats: {} }
       const data = response.data.fixedExpenses || response.data;
       setExpenses(Array.isArray(data) ? data : []);
+      
+      // Cargar gastos inactivos/histórico en segundo plano
+      loadInactiveExpenses();
     } catch (error) {
       console.error('Error cargando gastos fijos:', error);
       toast.error('Error cargando gastos fijos');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadInactiveExpenses = async () => {
+    try {
+      setLoadingInactive(true);
+      const response = await api.get('/fixed-expenses?isActive=false');
+      const data = response.data.fixedExpenses || response.data;
+      setInactiveExpenses(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error cargando gastos inactivos:', error);
+      // No mostrar error toast para datos secundarios
+    } finally {
+      setLoadingInactive(false);
     }
   };
 
@@ -251,6 +271,15 @@ const FixedExpensesManager = () => {
     return 0;
   });
 
+  // 🆕 Ordenar gastos inactivos/histórico
+  const sortedInactiveExpenses = [...inactiveExpenses].sort((a, b) => {
+    const aHasStaff = !!a.staffId;
+    const bHasStaff = !!b.staffId;
+    if (aHasStaff && !bHasStaff) return -1;
+    if (!aHasStaff && bHasStaff) return 1;
+    return 0;
+  });
+
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('es-AR', {
       style: 'currency',
@@ -384,7 +413,7 @@ const FixedExpensesManager = () => {
     <div className="min-h-screen bg-gray-50 p-6">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center mb-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Gastos Fijos</h1>
             <p className="text-gray-600 mt-2">Gestiona tus gastos recurrentes</p>
@@ -397,21 +426,59 @@ const FixedExpensesManager = () => {
             Nuevo Gasto
           </button>
         </div>
+
+        {/* Toggle de histórico */}
+        {expenses.length > 0 && (
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowHistorical(false)}
+              disabled={showHistorical && inactiveExpenses.length === 0}
+              className={`px-4 py-2 rounded-lg font-medium transition ${
+                !showHistorical
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+              } ${showHistorical && inactiveExpenses.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              📋 Activos ({expenses.length})
+            </button>
+            <button
+              onClick={() => setShowHistorical(true)}
+              disabled={inactiveExpenses.length === 0}
+              className={`px-4 py-2 rounded-lg font-medium transition ${
+                showHistorical
+                  ? 'bg-orange-500 text-white'
+                  : `${inactiveExpenses.length === 0 ? 'opacity-50 cursor-not-allowed' : ''} bg-white border border-gray-300 text-gray-700 hover:bg-gray-50`
+              }`}
+            >
+              📜 Histórico ({inactiveExpenses.length})
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Listado de gastos */}
-      {loading ? (
+      {loading || (showHistorical && loadingInactive) ? (
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
         </div>
-      ) : expenses.length === 0 ? (
+      ) : !showHistorical && expenses.length === 0 ? (
         <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
-          <p className="text-gray-500 text-lg">No hay gastos fijos registrados</p>
+          <p className="text-gray-500 text-lg">No hay gastos fijos activos</p>
           <button
             onClick={openCreateModal}
             className="mt-4 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600"
           >
-            Crear el primero
+            Crear uno nuevo
+          </button>
+        </div>
+      ) : showHistorical && inactiveExpenses.length === 0 ? (
+        <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+          <p className="text-gray-500 text-lg">No hay gastos completados/histórico</p>
+          <button
+            onClick={() => setShowHistorical(false)}
+            className="mt-4 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600"
+          >
+            Ver activos
           </button>
         </div>
       ) : (
@@ -430,8 +497,8 @@ const FixedExpensesManager = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {sortedExpenses.map((expense) => (
-                  <tr key={expense.idFixedExpense} className="hover:bg-gray-50 transition">
+                {(showHistorical ? sortedInactiveExpenses : sortedExpenses).map((expense) => (
+                  <tr key={expense.idFixedExpense} className={`hover:bg-gray-50 transition ${showHistorical ? 'bg-gray-50' : ''}`}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="text-sm font-medium text-gray-900">{capitalize(expense.name)}</span>
                     </td>
@@ -483,8 +550,8 @@ const FixedExpensesManager = () => {
 
           {/* Vista de cards - Mobile */}
           <div className="md:hidden grid grid-cols-1 gap-4">
-            {sortedExpenses.map((expense) => (
-              <div key={expense.idFixedExpense} className="bg-white rounded-lg border border-gray-200 p-4 space-y-3">
+            {(showHistorical ? sortedInactiveExpenses : sortedExpenses).map((expense) => (
+              <div key={expense.idFixedExpense} className={`rounded-lg border border-gray-200 p-4 space-y-3 ${showHistorical ? 'bg-gray-50' : 'bg-white'}`}>
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <h3 className="text-sm font-bold text-gray-900">{capitalize(expense.name)}</h3>

@@ -397,12 +397,17 @@ const getAllFixedExpenses = async (req, res) => {
     }
 
     // Solo traer gastos activos (sin restricción de fecha de vencimiento)
+    // A menos que se pida explícitamente incluir inactivos
     const today = new Date();
+    
+    // Si no se especifica isActive en query, por defecto mostrar solo activos
+    const finalWhereClause = {
+      ...whereClause,
+      ...(isActive === undefined && { isActive: true })
+    };
+
     const fixedExpenses = await FixedExpense.findAll({
-      where: {
-        ...whereClause,
-        isActive: true
-      },
+      where: finalWhereClause,
       include: [
         {
           model: Staff,
@@ -652,14 +657,18 @@ const updateFixedExpense = async (req, res) => {
       updateData.endDate = null;
     }
 
-    // 🔴 CRÍTICO: Convertir strings vacíos a NULL para campos ENUM
-    // PostgreSQL no permite strings vacíos en ENUMs
+    // 🔴 CRÍTICO: Convertir strings vacíos a NULL para campos ENUM y UUID
+    // PostgreSQL no permite strings vacíos en ENUMs ni en UUIDs
     if (updateData.paymentMethod === '') {
       updateData.paymentMethod = null;
     }
     
     if (updateData.paymentAccount === '') {
       updateData.paymentAccount = null;
+    }
+    
+    if (updateData.staffId === '') {
+      updateData.staffId = null;
     }
     
     if (updateData.category === '') {
