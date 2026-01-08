@@ -25,24 +25,21 @@ function validateNoDuplicatePeriod(paymentHistory, paymentDate, frequency, perio
 
   // Si tenemos periodStart y periodEnd, usarlos para validación exacta
   if (periodStart && periodEnd) {
-    for (const payment of paymentHistory) {
-      console.log(`   Comparando con pago existente: ${payment.periodStart} a ${payment.periodEnd}`);
-      
-      // Validación exacta: mismo período = mismo start Y mismo end
-      const isSamePeriod = 
-        payment.periodStart === periodStart && 
-        payment.periodEnd === periodEnd;
-      
-      if (isSamePeriod) {
-        console.log(`   ❌ DUPLICADO ENCONTRADO! Período exacto ya existe`);
-        return {
-          isValid: false,
-          message: `Ya existe un pago registrado para este período (${payment.paymentDate})`,
-          conflictingPayment: payment
-        };
-      }
+    // 🆕 Buscar si ya existen pagos del MISMO período
+    const samePeriodPayments = paymentHistory.filter(payment => 
+      payment.periodStart === periodStart && 
+      payment.periodEnd === periodEnd
+    );
+
+    if (samePeriodPayments.length > 0) {
+      // 🆕 PERMITIR múltiples pagos del mismo período (pagos parciales)
+      // Esto es válido: permite registrar múltiples pagos que sumen el total
+      console.log(`   ℹ️ Ya existen ${samePeriodPayments.length} pago(s) para este período`);
+      console.log(`   ℹ️ Se permitirá pago adicional (pagos parciales del mismo período)`);
+      return { isValid: true, message: '' };
     }
-    console.log(`   ✅ No hay duplicados de período exacto`);
+
+    console.log(`   ✅ No hay pagos de este período exacto`);
     return { isValid: true, message: '' };
   }
 

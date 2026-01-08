@@ -397,12 +397,17 @@ const getAllFixedExpenses = async (req, res) => {
     }
 
     // Solo traer gastos activos (sin restricción de fecha de vencimiento)
+    // A menos que se pida explícitamente incluir inactivos
     const today = new Date();
+    
+    // Si no se especifica isActive en query, por defecto mostrar solo activos
+    const finalWhereClause = {
+      ...whereClause,
+      ...(isActive === undefined && { isActive: true })
+    };
+
     const fixedExpenses = await FixedExpense.findAll({
-      where: {
-        ...whereClause,
-        isActive: true
-      },
+      where: finalWhereClause,
       include: [
         {
           model: Staff,
