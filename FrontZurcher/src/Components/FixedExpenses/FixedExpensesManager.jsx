@@ -229,17 +229,18 @@ const FixedExpensesManager = () => {
   };
 
   const handleDeleteExpense = async (expenseId) => {
-    if (!window.confirm('¿Estás seguro que deseas eliminar este gasto fijo?')) {
+    const message = '¿Desactivar este gasto fijo?\n\n✅ El histórico de pagos se conserva\n✅ No genera nuevos gastos a futuro\n✅ Puedes reactivarlo después si lo necesitas';
+    if (!window.confirm(message)) {
       return;
     }
 
     try {
       await api.delete(`/fixed-expenses/${expenseId}`);
-      toast.success('Gasto fijo eliminado exitosamente');
+      toast.success('Gasto fijo desactivado. El histórico se conserva.');
       await loadFixedExpenses();
     } catch (error) {
-      console.error('Error eliminando gasto:', error);
-      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Error eliminando gasto fijo';
+      console.error('Error desactivando gasto:', error);
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Error desactivando gasto fijo';
       toast.error(errorMessage);
     }
   };
