@@ -335,7 +335,8 @@ const createFixedExpense = async (req, res) => {
       accountNumber,
       notes,
       createdByStaffId: createdByStaffId || null,
-      staffId: category === 'Salarios' ? staffId : null  // 🆕 Guardar Staff solo para Salarios
+      // 🆕 Guardar Staff solo para Salarios - convertir cadena vacía a null
+      staffId: category === 'Salarios' && staffId ? staffId : null
     });
 
     // Incluir información del Staff si existe
@@ -695,10 +696,11 @@ const updateFixedExpense = async (req, res) => {
 
     // Manejo especial para staffId en categoría Salarios
     if (updateData.category === 'Salarios') {
-      // staffId debe estar presente
+      // staffId puede estar presente o no (empleados sin staff asignado)
       if (updateData.staffId === undefined) {
         updateData.staffId = fixedExpense.staffId; // Mantener el anterior si no se proporciona
       }
+      // Si está vacío o null, dejarlo como null (permitir salarios sin staff)
     } else {
       // Para otras categorías, limpiar staffId
       if (updateData.category) {
@@ -769,23 +771,14 @@ const deleteFixedExpense = async (req, res) => {
       return res.status(404).json({ error: 'Gasto fijo no encontrado' });
     }
 
-    // ⚠️ Verificar si hay Expenses relacionados
-    const relatedExpenses = await Expense.count({
-      where: { relatedFixedExpenseId: id }
-    });
-
-    if (relatedExpenses > 0) {
-      return res.status(409).json({
-        error: 'No se puede eliminar',
-        message: `Este gasto fijo tiene ${relatedExpenses} gasto(s) relacionado(s). Elimine primero los gastos asociados.`,
-        relatedCount: relatedExpenses
-      });
-    }
-
-    await fixedExpense.destroy();
+    // 📝 Soft delete: Desactivar el gasto fijo
+    // ✅ Mantiene el histórico de expenses (pagos pasados)
+    // ✅ El gasto no genera nuevos gastos a futuro
+    await fixedExpense.update({ isActive: false });
 
     res.status(200).json({
-      message: 'Gasto fijo eliminado exitosamente'
+      message: 'Gasto fijo desactivado exitosamente. El histórico de pagos se conserva.',
+      fixedExpense
     });
 
   } catch (error) {

@@ -189,7 +189,7 @@ const FixedExpensesManager = () => {
         startDate: formData.startDate, // Ya debe venir en formato YYYY-MM-DD del input type="date"
         endDate: formData.endDate || null,
         createdByStaffId: staff?.id,
-        staffId: formData.category === 'Salarios' ? formData.staffId : null
+        staffId: formData.category === 'Salarios' && formData.staffId ? formData.staffId : null
       };
 
       await api.post('/fixed-expenses', payload);
@@ -215,7 +215,7 @@ const FixedExpensesManager = () => {
       const payload = {
         ...formData,
         totalAmount: parseFloat(formData.totalAmount),
-        staffId: formData.category === 'Salarios' ? formData.staffId : null
+        staffId: formData.category === 'Salarios' && formData.staffId ? formData.staffId : null
       };
 
       await api.patch(`/fixed-expenses/${selectedExpense.idFixedExpense}`, payload);
@@ -229,17 +229,18 @@ const FixedExpensesManager = () => {
   };
 
   const handleDeleteExpense = async (expenseId) => {
-    if (!window.confirm('¿Estás seguro que deseas eliminar este gasto fijo?')) {
+    const message = '¿Desactivar este gasto fijo?\n\n✅ El histórico de pagos se conserva\n✅ No genera nuevos gastos a futuro\n✅ Puedes reactivarlo después si lo necesitas';
+    if (!window.confirm(message)) {
       return;
     }
 
     try {
       await api.delete(`/fixed-expenses/${expenseId}`);
-      toast.success('Gasto fijo eliminado exitosamente');
+      toast.success('Gasto fijo desactivado. El histórico se conserva.');
       await loadFixedExpenses();
     } catch (error) {
-      console.error('Error eliminando gasto:', error);
-      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Error eliminando gasto fijo';
+      console.error('Error desactivando gasto:', error);
+      const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Error desactivando gasto fijo';
       toast.error(errorMessage);
     }
   };
