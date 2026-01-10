@@ -97,9 +97,9 @@ class StaffAttendanceController {
       const lastDayForISO = new Date(year, month, 0).getDate();
       const endDateISO = `${year}-${month.toString().padStart(2, '0')}-${lastDayForISO.toString().padStart(2, '0')}T23:59:59.999Z`;
 
-      const coveredHistories = await WorkStateHistory.findAll({
+      const installedHistories = await WorkStateHistory.findAll({
         where: {
-          toStatus: 'covered',
+          toStatus: 'installed', // ✅ Cambiar de 'covered' a 'installed'
           changedAt: {
             [Op.between]: [startDateISO, endDateISO]
           }
@@ -122,13 +122,13 @@ class StaffAttendanceController {
       const installationsByStaff = {};
       const workMap = new Map();
       
-      for (const history of coveredHistories) {
+      for (const history of installedHistories) {
         if (!history.work || !history.work.Staff) continue;
         
         const workId = history.work.idWork;
         const staffId = history.work.Staff.id;
         
-        // Solo contar una vez por work (primera vez que llegó a covered)
+        // Solo contar una vez por work (primera vez que llegó a installed)
         if (!workMap.has(workId)) {
           workMap.set(workId, true);
           if (!installationsByStaff[staffId]) {

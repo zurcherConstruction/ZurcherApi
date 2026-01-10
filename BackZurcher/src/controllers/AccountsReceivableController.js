@@ -851,7 +851,8 @@ const AccountsReceivableController = {
               description: `Comisión: ${vendor}`,
               relatedExpenseId: createdExpense.idExpense,
               notes: expenseNotes,
-              createdByStaffId: req.user?.id || null
+              createdByStaffId: req.user?.id || null,
+              skipBalanceCheck: true  // 🏦 Permitir sobregiros
             });
           } catch (bankError) {
             console.error('❌ Error creando transacción bancaria:', bankError.message);

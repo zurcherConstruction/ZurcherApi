@@ -201,19 +201,11 @@ const createWithdrawal = async (req, res) => {
       });
     }
 
-    // Verificar fondos suficientes
+    // Actualizar balance (permitir sobregiros)
     const currentBalance = parseFloat(account.currentBalance);
     const withdrawalAmount = parseFloat(amount);
 
-    if (currentBalance < withdrawalAmount) {
-      await transaction.rollback();
-      return res.status(400).json({
-        success: false,
-        message: `Fondos insuficientes. Balance actual: $${currentBalance.toFixed(2)}, retiro solicitado: $${withdrawalAmount.toFixed(2)}`
-      });
-    }
-
-    // Actualizar balance
+    // ✅ SOBREGIROS PERMITIDOS - No validar fondos suficientes
     const newBalance = currentBalance - withdrawalAmount;
     await account.update({ currentBalance: newBalance }, { transaction });
 
@@ -330,16 +322,11 @@ const createTransfer = async (req, res) => {
     }
 
     // Verificar fondos
+    // Actualizar balances (permitir sobregiros)
     const transferAmount = parseFloat(amount);
     const fromBalance = parseFloat(fromAccount.currentBalance);
 
-    if (fromBalance < transferAmount) {
-      await transaction.rollback();
-      return res.status(400).json({
-        success: false,
-        message: `Fondos insuficientes en ${fromAccount.accountName}. Balance: $${fromBalance.toFixed(2)}, transferencia: $${transferAmount.toFixed(2)}`
-      });
-    }
+    // ✅ SOBREGIROS PERMITIDOS - No validar fondos suficientes en transferencias
 
     // Actualizar balances
     const newFromBalance = fromBalance - transferAmount;

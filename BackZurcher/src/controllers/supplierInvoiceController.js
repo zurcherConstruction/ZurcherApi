@@ -1819,7 +1819,8 @@ const paySupplierInvoice = async (req, res) => {
             relatedExpenseId: createdExpenses.length > 0 ? createdExpenses[0].idExpense : null,
             notes: `Supplier Invoice: ${invoice.idSupplierInvoice}`,
             createdByStaffId: req.user?.id || null,
-            transaction
+            transaction,
+            skipBalanceCheck: true  // 🏦 Permitir sobregiros
           });
           console.log(`✅ BankTransaction (withdrawal) creada para pago a proveedor desde ${paymentMethod}`);
         } catch (bankError) {
@@ -2380,7 +2381,8 @@ const createCreditCardTransaction = async (req, res) => {
             notes: `Pago de tarjeta de crédito. ${updatedExpenses.length} expense(s) pagados.`,
             createdByStaffId: req.staff?.id || null,
             relatedCreditCardPaymentId: paymentInvoice.idSupplierInvoice, // 🆕 Vincular con el pago
-            transaction: dbTransaction
+            transaction: dbTransaction,
+            skipBalanceCheck: true  // 🏦 Permitir sobregiros
           });
 
           console.log(`✅ [BANK] Transacción de retiro creada en ${paymentMethod} por $${transactionAmount}`);
@@ -3010,7 +3012,8 @@ const createAmexTransaction = async (req, res) => {
             createdByStaffId: req.staff?.id || null,
             relatedExpenseId: null,
             relatedCreditCardPaymentId: paymentInvoice.idSupplierInvoice, // 🆕 Vincular con el pago
-            transaction: dbTransaction // ✅ Pasar la transacción de Sequelize
+            transaction: dbTransaction, // ✅ Pasar la transacción de Sequelize
+            skipBalanceCheck: true  // 🏦 Permitir sobregiros
           });
 
           console.log(`✅ [BankTransaction] Retiro bancario creado exitosamente`);

@@ -74,7 +74,8 @@ const createExpense = async (req, res) => {
         relatedExpenseId: newExpense.idExpense,
         notes,
         createdByStaffId: staffId,
-        transaction
+        transaction,
+        skipBalanceCheck: true  // 🏦 Permitir sobregiros
       });
 
       // 💰 Si se creó BankTransaction, marcar el gasto como PAGADO

@@ -1203,10 +1203,12 @@ const AttachReceipt = () => {
                                     }
                                   }}
                                   onBlur={(e) => {
-                                    // Formatear solo al perder foco
+                                    // Formatear solo al perder foco - mantener enteros sin decimales
                                     const value = parseFloat(e.target.value);
                                     if (!isNaN(value) && value >= 0) {
-                                      setFixedExpensePaymentAmount(value.toFixed(2));
+                                      // Si es un número entero, no agregar decimales
+                                      const formatted = value % 1 === 0 ? value.toString() : value.toFixed(2);
+                                      setFixedExpensePaymentAmount(formatted);
                                     }
                                   }}
                                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200"
@@ -1620,9 +1622,12 @@ const AttachReceipt = () => {
                       }
                     }}
                     onBlur={(e) => {
+                      // Formatear solo al perder foco - mantener enteros sin decimales
                       const value = parseFloat(e.target.value);
                       if (!isNaN(value) && value >= 0) {
-                        setFinalPaymentAmount(value.toFixed(2));
+                        // Si es un número entero, no agregar decimales
+                        const formatted = value % 1 === 0 ? value.toString() : value.toFixed(2);
+                        setFinalPaymentAmount(formatted);
                       }
                     }}
                     placeholder="0.00"
@@ -1653,10 +1658,12 @@ const AttachReceipt = () => {
                     }
                   }}
                   onBlur={(e) => {
-                    // Formatear solo al perder foco, no en tiempo real
+                    // Formatear solo al perder foco - mantener enteros sin decimales
                     const value = parseFloat(e.target.value);
                     if (!isNaN(value) && value >= 0) {
-                      setGeneralAmount(value.toFixed(2));
+                      // Si es un número entero, no agregar decimales
+                      const formatted = value % 1 === 0 ? value.toString() : value.toFixed(2);
+                      setGeneralAmount(formatted);
                     }
                   }}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"

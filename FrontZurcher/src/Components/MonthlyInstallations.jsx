@@ -124,7 +124,7 @@ const MonthlyInstallations = () => {
                   Instalaciones Mensuales
                 </h1>
                 <p className="text-slate-600">
-                  Trabajos que cambiaron a estado "Covered"
+                  Trabajos que cambiaron a estado "Installed"
                 </p>
               </div>
             </div>
@@ -286,7 +286,7 @@ const MonthlyInstallations = () => {
                           {/* Fecha y Estado */}
                           <div className="flex flex-col sm:items-end gap-1">
                             <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-1 rounded-full">
-                              Instalado: {formatDate(installation.coveredDate)}
+                              Instalado: {formatDate(installation.installedDate)}
                             </span>
                             <span className="text-xs text-slate-500">
                               Estado actual: {installation.currentStatus}
@@ -306,7 +306,7 @@ const MonthlyInstallations = () => {
                   <p className="text-slate-500 text-sm mt-2">
                     {availableYears.length > 0 && !availableYears.includes(selectedYear) 
                       ? `Prueba seleccionando uno de estos años con datos: ${availableYears.join(', ')}`
-                      : 'Los trabajos aparecerán aquí cuando cambien a estado "Covered"'
+                      : 'Los trabajos aparecerán aquí cuando cambien a estado "Installed"'
                     }
                   </p>
                 </div>

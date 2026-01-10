@@ -329,7 +329,8 @@ const addPartialPayment = async (req, res) => {
           description: `Pago parcial: ${fixedExpense.name}`,
           relatedExpenseId: finalExpenseId,
           notes: notes || `Gasto fijo: ${fixedExpense.name}`,
-          createdByStaffId: staffId || fixedExpense.createdByStaffId
+          createdByStaffId: staffId || fixedExpense.createdByStaffId,
+          skipBalanceCheck: true  // 🏦 Permitir sobregiros
         });
       } catch (bankError) {
         console.error('❌ Error creando transacción bancaria:', bankError.message);

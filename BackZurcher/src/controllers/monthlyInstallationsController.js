@@ -1,16 +1,16 @@
 /**
  * 📊 Monthly Installations Controller
  * 
- * Obtiene los trabajos que fueron instalados (estado "covered" o posterior)
+ * Obtiene los trabajos que fueron instalados (estado "installed")
  * agrupados por mes, basándose en la fecha del WorkStateHistory cuando
- * el trabajo cambió a estado "covered".
+ * el trabajo cambió a estado "installed".
  */
 
 const { Op } = require('sequelize');
 const { WorkStateHistory, Work, Staff, Permit, Budget } = require('../data');
 
 /**
- * Estados que indican que el trabajo ya fue instalado/covered
+ * Estados que indican que el trabajo ya fue instalado
  */
 const INSTALLED_STATUSES = [
   'covered',
@@ -37,7 +37,7 @@ const INSTALLED_STATUSES = [
  *     {
  *       workId: "uuid",
  *       propertyAddress: "123 Main St",
- *       coveredDate: "2026-01-15",
+ *       installedDate: "2026-01-15",
  *       staff: { id: "uuid", name: "John Doe" },
  *       currentStatus: "maintenance"
  *     }
@@ -77,10 +77,10 @@ const getMonthlyInstallations = async (req, res) => {
       endDate = `${targetYear}-12-31T23:59:59.999Z`;
     }
 
-    // Buscar todos los cambios de estado a "covered" en el rango de fechas
-    const coveredHistories = await WorkStateHistory.findAll({
+    // Buscar todos los cambios de estado a "installed" en el rango de fechas
+    const installedHistories = await WorkStateHistory.findAll({
       where: {
-        toStatus: 'covered',
+        toStatus: 'installed',
         changedAt: {
           [Op.between]: [startDate, endDate]
         }
@@ -104,11 +104,11 @@ const getMonthlyInstallations = async (req, res) => {
       order: [['changedAt', 'DESC']]
     });
 
-    // Filtrar duplicados (un work puede tener múltiples entradas si se rechazó y volvió a covered)
-    // Tomamos la PRIMERA vez que llegó a covered
+    // Filtrar duplicados (un work puede tener múltiples entradas si se rechazó y volvió a installed)
+    // Tomamos la PRIMERA vez que llegó a installed
     const workMap = new Map();
     
-    for (const history of coveredHistories) {
+    for (const history of installedHistories) {
       if (!history.work) continue; // Cambiar Work por work (alias)
       
       const workId = history.work.idWork; // Cambiar Work por work (alias)
@@ -118,7 +118,7 @@ const getMonthlyInstallations = async (req, res) => {
         workMap.set(workId, {
           workId: workId,
           propertyAddress: history.work.propertyAddress, // Cambiar Work por work
-          coveredDate: history.changedAt.toISOString().split('T')[0], // Solo fecha YYYY-MM-DD
+          installedDate: history.changedAt.toISOString().split('T')[0], // Solo fecha YYYY-MM-DD
           currentStatus: history.work.status, // Cambiar Work por work
           staff: history.work.Staff ? { // Cambiar Work por work
             id: history.work.Staff.id,
@@ -133,17 +133,17 @@ const getMonthlyInstallations = async (req, res) => {
       } else {
         // Si la fecha actual es anterior, reemplazar
         const existing = workMap.get(workId);
-        const existingDate = new Date(existing.coveredDate + 'T00:00:00Z');
+        const existingDate = new Date(existing.installedDate + 'T00:00:00Z');
         const currentDate = new Date(history.changedAt);
         if (currentDate < existingDate) {
-          existing.coveredDate = history.changedAt.toISOString().split('T')[0];
+          existing.installedDate = history.changedAt.toISOString().split('T')[0];
         }
       }
     }
 
     // Convertir Map a array y ordenar por fecha descendente
     const installations = Array.from(workMap.values()).sort((a, b) => 
-      new Date(b.coveredDate + 'T00:00:00Z') - new Date(a.coveredDate + 'T00:00:00Z')
+      new Date(b.installedDate + 'T00:00:00Z') - new Date(a.installedDate + 'T00:00:00Z')
     );
 
     // Calcular resumen
@@ -219,10 +219,10 @@ const getYearlySummary = async (req, res) => {
       'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
     ];
 
-    // Buscar todos los cambios a "covered" del año
-    const coveredHistories = await WorkStateHistory.findAll({
+    // Buscar todos los cambios a "installed" del año
+    const installedHistories = await WorkStateHistory.findAll({
       where: {
-        toStatus: 'covered',
+        toStatus: 'installed',
         changedAt: {
           [Op.between]: [startDate, endDate]
         }
@@ -230,19 +230,19 @@ const getYearlySummary = async (req, res) => {
       attributes: ['workId', 'changedAt']
     });
 
-    // Agrupar por workId (tomar la primera fecha de covered)
-    const workFirstCovered = {};
-    for (const history of coveredHistories) {
+    // Agrupar por workId (tomar la primera fecha de installed)
+    const workFirstInstalled = {};
+    for (const history of installedHistories) {
       const workId = history.workId;
-      if (!workFirstCovered[workId] || new Date(history.changedAt) < new Date(workFirstCovered[workId])) {
-        workFirstCovered[workId] = history.changedAt;
+      if (!workFirstInstalled[workId] || new Date(history.changedAt) < new Date(workFirstInstalled[workId])) {
+        workFirstInstalled[workId] = history.changedAt;
       }
     }
 
     // Contar por mes
     const monthlyCounts = Array(12).fill(0);
-    for (const coveredDate of Object.values(workFirstCovered)) {
-      const monthIndex = new Date(coveredDate).getMonth();
+    for (const installedDate of Object.values(workFirstInstalled)) {
+      const monthIndex = new Date(installedDate).getMonth();
       monthlyCounts[monthIndex]++;
     }
 
@@ -255,7 +255,7 @@ const getYearlySummary = async (req, res) => {
     res.json({
       year: targetYear,
       monthlyData,
-      totalYear: Object.keys(workFirstCovered).length
+      totalYear: Object.keys(workFirstInstalled).length
     });
 
   } catch (error) {
@@ -276,7 +276,7 @@ const getYearlySummary = async (req, res) => {
 const getAvailableYears = async (req, res) => {
   try {
     const histories = await WorkStateHistory.findAll({
-      where: { toStatus: 'covered' },
+      where: { toStatus: 'installed' },
       attributes: ['changedAt'],
       order: [['changedAt', 'ASC']]
     });
