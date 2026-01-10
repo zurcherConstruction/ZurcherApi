@@ -58,7 +58,7 @@ const getMonthlyInstallations = async (req, res) => {
     // Año por defecto: año actual
     const targetYear = parseInt(year) || new Date().getFullYear();
     
-    // Construir rango de fechas
+    // Construir rango de fechas en UTC para evitar problemas de timezone
     let startDate, endDate;
     
     if (month) {
@@ -67,12 +67,14 @@ const getMonthlyInstallations = async (req, res) => {
       if (targetMonth < 1 || targetMonth > 12) {
         return res.status(400).json({ error: 'Mes inválido. Debe ser entre 1 y 12.' });
       }
-      startDate = new Date(targetYear, targetMonth - 1, 1);
-      endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59, 999); // Último día del mes
+      // Crear fechas en formato ISO para evitar problemas de timezone
+      startDate = `${targetYear}-${targetMonth.toString().padStart(2, '0')}-01T00:00:00.000Z`;
+      const lastDay = new Date(targetYear, targetMonth, 0).getDate(); // Último día del mes
+      endDate = `${targetYear}-${targetMonth.toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}T23:59:59.999Z`;
     } else {
       // Si no se especifica mes, obtener todo el año
-      startDate = new Date(targetYear, 0, 1);
-      endDate = new Date(targetYear, 11, 31, 23, 59, 59, 999);
+      startDate = `${targetYear}-01-01T00:00:00.000Z`;
+      endDate = `${targetYear}-12-31T23:59:59.999Z`;
     }
 
     // Buscar todos los cambios de estado a "covered" en el rango de fechas
@@ -116,7 +118,7 @@ const getMonthlyInstallations = async (req, res) => {
         workMap.set(workId, {
           workId: workId,
           propertyAddress: history.work.propertyAddress, // Cambiar Work por work
-          coveredDate: history.changedAt,
+          coveredDate: history.changedAt.toISOString().split('T')[0], // Solo fecha YYYY-MM-DD
           currentStatus: history.work.status, // Cambiar Work por work
           staff: history.work.Staff ? { // Cambiar Work por work
             id: history.work.Staff.id,
@@ -131,15 +133,17 @@ const getMonthlyInstallations = async (req, res) => {
       } else {
         // Si la fecha actual es anterior, reemplazar
         const existing = workMap.get(workId);
-        if (new Date(history.changedAt) < new Date(existing.coveredDate)) {
-          existing.coveredDate = history.changedAt;
+        const existingDate = new Date(existing.coveredDate + 'T00:00:00Z');
+        const currentDate = new Date(history.changedAt);
+        if (currentDate < existingDate) {
+          existing.coveredDate = history.changedAt.toISOString().split('T')[0];
         }
       }
     }
 
     // Convertir Map a array y ordenar por fecha descendente
     const installations = Array.from(workMap.values()).sort((a, b) => 
-      new Date(b.coveredDate) - new Date(a.coveredDate)
+      new Date(b.coveredDate + 'T00:00:00Z') - new Date(a.coveredDate + 'T00:00:00Z')
     );
 
     // Calcular resumen
@@ -159,11 +163,11 @@ const getMonthlyInstallations = async (req, res) => {
       byStaff: Object.values(staffCounts).sort((a, b) => b.count - a.count)
     };
 
-    // Preparar respuesta
+    // Preparar respuesta con fechas formateadas correctamente
     const response = {
       year: targetYear,
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0],
+      startDate: startDate.split('T')[0], // Solo YYYY-MM-DD
+      endDate: endDate.split('T')[0], // Solo YYYY-MM-DD
       installations,
       summary
     };
@@ -207,8 +211,8 @@ const getYearlySummary = async (req, res) => {
     const { year } = req.query;
     const targetYear = parseInt(year) || new Date().getFullYear();
     
-    const startDate = new Date(targetYear, 0, 1);
-    const endDate = new Date(targetYear, 11, 31, 23, 59, 59, 999);
+    const startDate = `${targetYear}-01-01T00:00:00.000Z`;
+    const endDate = `${targetYear}-12-31T23:59:59.999Z`;
 
     const monthNames = [
       'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',

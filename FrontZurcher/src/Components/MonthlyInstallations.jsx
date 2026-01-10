@@ -42,26 +42,30 @@ const MonthlyInstallations = () => {
   // ✅ Verificar si el usuario es worker (solo lectura)
   const isWorker = user?.role === 'worker';
 
-  // Cargar datos iniciales
+  // Cargar datos iniciales - SOLO una vez al montar
   useEffect(() => {
-    dispatch(fetchAvailableYears()).then((years) => {
-      // Si no hay años o el año actual no tiene datos, usar el año más reciente disponible
-      if (years && years.length > 0 && !years.includes(selectedYear)) {
-        const latestYear = Math.max(...years);
-        dispatch(setSelectedYear(latestYear));
-        dispatch(fetchMonthlyInstallations(latestYear, selectedMonth));
-        dispatch(fetchYearlySummary(latestYear));
-      } else {
-        dispatch(fetchMonthlyInstallations(selectedYear, selectedMonth));
-        dispatch(fetchYearlySummary(selectedYear));
-      }
-    });
-  }, [dispatch]);
+    dispatch(fetchAvailableYears());
+  }, [dispatch]); // Solo dispatch como dependencia
 
-  // Auto-refresh cada 5 minutos
-  useAutoRefresh(() => {
-    return fetchMonthlyInstallations(selectedYear, selectedMonth);
-  }, 300000, [selectedYear, selectedMonth]);
+  // Cambiar al año más reciente si el actual no tiene datos (solo una vez cuando se cargan availableYears)
+  useEffect(() => {
+    if (availableYears.length > 0 && !availableYears.includes(selectedYear)) {
+      const latestYear = Math.max(...availableYears);
+      dispatch(setSelectedYear(latestYear));
+    }
+  }, [availableYears, selectedYear, dispatch]); // Se ejecuta solo cuando availableYears cambia
+
+  // Cargar datos cuando cambien año o mes
+  useEffect(() => {
+    dispatch(fetchMonthlyInstallations(selectedYear, selectedMonth));
+    dispatch(fetchYearlySummary(selectedYear));
+  }, [dispatch, selectedYear, selectedMonth]);
+
+  // Auto-refresh deshabilitado temporalmente para evitar loops
+  // const refreshData = () => {
+  //   dispatch(fetchMonthlyInstallations(selectedYear, selectedMonth));
+  // };
+  // useAutoRefresh(refreshData, 300000, []);
 
   // Handlers
   const handleYearChange = (year) => {
@@ -76,7 +80,11 @@ const MonthlyInstallations = () => {
   };
 
   const formatDate = (dateString) => {
-    const date = new Date(dateString);
+    // Evitar problemas de timezone parseando la fecha como fecha local
+    const dateStr = dateString.split('T')[0]; // Tomar solo la parte de la fecha (YYYY-MM-DD)
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day); // Crear fecha local (month es 0-indexado)
+    
     return date.toLocaleDateString('es-ES', { 
       year: 'numeric', 
       month: 'long', 
