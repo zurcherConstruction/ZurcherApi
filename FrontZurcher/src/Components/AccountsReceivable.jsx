@@ -521,6 +521,38 @@ const AccountsReceivable = () => {
                 </div>
               </div>
             </div>
+
+            {/* 🆕 Suma de trabajos cubiertos/terminados listos para cobrar */}
+            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-3 md:p-4 border border-green-200">
+              <div className="flex items-center gap-2 md:gap-3">
+                <div className="bg-green-600 text-white rounded-full w-8 h-8 md:w-10 md:h-10 flex items-center justify-center flex-shrink-0">
+                  <FaCheckCircle className="text-sm md:text-lg" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-600">Trabajos Listos</p>
+                  <p className="text-lg md:text-2xl font-bold text-green-600 truncate">
+                    {formatCurrency(
+                      filteredInvoices
+                        .filter(inv => {
+                          const status = inv.workStatus;
+                          return status === 'coverPending' || 
+                                 status === 'covered' || 
+                                 status === 'invoiceFinal';
+                        })
+                        .reduce((sum, inv) => sum + (inv.remainingAmount || 0), 0)
+                    )}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {filteredInvoices.filter(inv => {
+                      const status = inv.workStatus;
+                      return status === 'coverPending' || 
+                             status === 'covered' || 
+                             status === 'invoiceFinal';
+                    }).length} trabajos terminados
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Invoices Table */}
