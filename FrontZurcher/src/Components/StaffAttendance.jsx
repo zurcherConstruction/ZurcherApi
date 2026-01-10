@@ -40,7 +40,6 @@ const StaffAttendance = () => {
 
   // Cargar datos iniciales
   useEffect(() => {
-    console.log('🚀 [StaffAttendance] Componente montado, cargando datos iniciales...');
     dispatch(fetchStaff()); // 🆕 Cargar lista de staff
     dispatch(fetchAvailableYears());
     
@@ -51,11 +50,6 @@ const StaffAttendance = () => {
       month: currentDate.getMonth() + 1 
     }));
     
-    console.log('📅 Cargando datos mensuales iniciales:', {
-      year: currentDate.getFullYear(),
-      month: currentDate.getMonth() + 1
-    });
-    
     dispatch(fetchMonthlyAttendance({ 
       year: currentDate.getFullYear(), 
       month: currentDate.getMonth() + 1 
@@ -64,24 +58,11 @@ const StaffAttendance = () => {
 
   // Cargar datos cuando cambien los filtros
   useEffect(() => {
-    console.log('📅 [StaffAttendance] useEffect de filtros ejecutado:', {
-      filtersYear: filters.year,
-      filtersMonth: filters.month,
-      hasYear: !!filters.year,
-      hasMonth: !!filters.month
-    });
-    
     if (filters.year && filters.month) {
-      console.log('📅 [StaffAttendance] Filtros cambiaron:', filters.year, filters.month);
       dispatch(fetchMonthlyAttendance({ 
         year: filters.year, 
         month: filters.month 
       }));
-    } else {
-      console.log('⚠️ [StaffAttendance] Filtros incompletos, no se cargan datos:', {
-        year: filters.year,
-        month: filters.month
-      });
     }
   }, [dispatch, filters.year, filters.month]);
 
@@ -201,20 +182,6 @@ const StaffAttendance = () => {
 
   const calendarDays = generateCalendarDays();
 
-  // Debug completo del estado
-  console.log('📊 [StaffAttendance] Estado completo:', {
-    loading: loading,
-    adminLoading: adminLoading,
-    error: error,
-    filters: filters,
-    monthlyData: monthlyData,
-    availableYears: availableYears,
-    availableYearsType: typeof availableYears,
-    availableYearsIsArray: Array.isArray(availableYears),
-    staffList: staffList?.length,
-    calendarDaysGenerated: calendarDays.length
-  });
-
   if (loading.monthly || adminLoading || !monthlyData?.year) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -313,6 +280,7 @@ const StaffAttendance = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Días Ausente</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Días</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trabajos Realizados</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mantenimientos</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -335,6 +303,9 @@ const StaffAttendance = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-orange-600 font-semibold">
                       {summary.installations || 0}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-purple-600 font-semibold">
+                      {summary.maintenances || 0}
                     </td>
                   </tr>
                 ))}

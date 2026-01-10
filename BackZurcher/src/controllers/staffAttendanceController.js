@@ -1,5 +1,5 @@
 const { Op, fn, col, literal } = require('sequelize');
-const { StaffAttendance, Staff, WorkStateHistory, Work, Permit } = require('../data');
+const { StaffAttendance, Staff, WorkStateHistory, Work, Permit, MaintenanceVisit } = require('../data');
 
 class StaffAttendanceController {
   // Obtener asistencias por mes
@@ -145,18 +145,89 @@ class StaffAttendanceController {
         }
       }
 
-      // Resumen por staff (combinando asistencia e instalaciones)
-      const staffSummaries = monthlyStats.map(stat => ({
-        staff: {
-          id: stat.Staff.id,
-          name: stat.Staff.name,
-          role: stat.Staff.role
+      // 🆕 Obtener mantenimientos completados en el mes
+      const completedMaintenances = await MaintenanceVisit.findAll({
+        where: {
+          status: 'completed',
+          actualVisitDate: {
+            [Op.between]: [startDate, endDate]
+          }
         },
-        totalDays: parseInt(stat.get('totalDays')),
-        workingDays: parseInt(stat.get('workingDays')),
-        absentDays: parseInt(stat.get('absentDays')),
-        installations: installationsByStaff[stat.Staff.id]?.installations || 0
-      }));
+        include: [
+          {
+            model: Staff,
+            as: 'completedByStaff', // Staff que completó el mantenimiento
+            attributes: ['id', 'name', 'role']
+          }
+        ]
+      });
+
+      // Contar mantenimientos por staff completador
+      const maintenancesByStaff = {};
+      
+      for (const maintenance of completedMaintenances) {
+        if (!maintenance.completedByStaff) continue;
+        
+        const staffId = maintenance.completedByStaff.id;
+        
+        if (!maintenancesByStaff[staffId]) {
+          maintenancesByStaff[staffId] = {
+            staff: {
+              id: maintenance.completedByStaff.id,
+              name: maintenance.completedByStaff.name,
+              role: maintenance.completedByStaff.role
+            },
+            maintenances: 0
+          };
+        }
+        maintenancesByStaff[staffId].maintenances++;
+      }
+
+      // Resumen por staff (combinando asistencia, instalaciones y mantenimientos)
+      // 🆕 Crear un Set de todos los staff con actividad
+      const allActiveStaffIds = new Set();
+      
+      // Agregar staff con registros de asistencia
+      monthlyStats.forEach(stat => allActiveStaffIds.add(stat.Staff.id));
+      
+      // Agregar staff con instalaciones
+      Object.keys(installationsByStaff).forEach(staffId => allActiveStaffIds.add(staffId));
+      
+      // Agregar staff con mantenimientos
+      Object.keys(maintenancesByStaff).forEach(staffId => allActiveStaffIds.add(staffId));
+
+      // Crear resumen para todos los staff con actividad
+      const staffSummaries = [];
+      
+      for (const staffId of allActiveStaffIds) {
+        // Buscar datos de asistencia
+        const attendanceStat = monthlyStats.find(stat => stat.Staff.id === staffId);
+        
+        // Obtener datos de staff (de asistencia, instalaciones o mantenimientos)
+        let staffInfo;
+        if (attendanceStat) {
+          staffInfo = {
+            id: attendanceStat.Staff.id,
+            name: attendanceStat.Staff.name,
+            role: attendanceStat.Staff.role
+          };
+        } else if (installationsByStaff[staffId]) {
+          staffInfo = installationsByStaff[staffId].staff;
+        } else if (maintenancesByStaff[staffId]) {
+          staffInfo = maintenancesByStaff[staffId].staff;
+        }
+
+        if (staffInfo) {
+          staffSummaries.push({
+            staff: staffInfo,
+            totalDays: attendanceStat ? parseInt(attendanceStat.get('totalDays')) : 0,
+            workingDays: attendanceStat ? parseInt(attendanceStat.get('workingDays')) : 0,
+            absentDays: attendanceStat ? parseInt(attendanceStat.get('absentDays')) : 0,
+            installations: installationsByStaff[staffId]?.installations || 0,
+            maintenances: maintenancesByStaff[staffId]?.maintenances || 0
+          });
+        }
+      }
 
       const uniqueStaff = Array.from(staffSet).map(s => JSON.parse(s));
 
@@ -169,7 +240,8 @@ class StaffAttendanceController {
           staffSummaries,
           uniqueStaff,
           totalRecords: attendances.length,
-          totalInstallations: Object.values(installationsByStaff).reduce((sum, staff) => sum + staff.installations, 0)
+          totalInstallations: Object.values(installationsByStaff).reduce((sum, staff) => sum + staff.installations, 0),
+          totalMaintenances: Object.values(maintenancesByStaff).reduce((sum, staff) => sum + staff.maintenances, 0)
         }
       });
 

@@ -22,9 +22,9 @@ import {
 export const fetchMonthlyAttendance = ({ year, month }) => async (dispatch) => {
   dispatch(fetchMonthlyAttendanceRequest());
   try {
-    console.log('📡 [fetchMonthlyAttendance] Llamando API:', year, month);
+
     const response = await api.get(`/staff-attendance/monthly?year=${year}&month=${month}`);
-    console.log('✅ [fetchMonthlyAttendance] Respuesta:', response.data);
+    
     dispatch(fetchMonthlyAttendanceSuccess(response.data.data || response.data));
   } catch (error) {
     console.error('Error fetching monthly attendance:', error);
@@ -54,9 +54,9 @@ export const fetchYearlySummary = ({ year, staffId = null }) => async (dispatch)
 export const fetchAvailableYears = () => async (dispatch) => {
   dispatch(fetchAvailableYearsRequest());
   try {
-    console.log('📡 [fetchAvailableYears] Llamando API...');
+
     const response = await api.get('/staff-attendance/available-years');
-    console.log('✅ [fetchAvailableYears] Respuesta:', response.data);
+  
     // La respuesta viene como {success: true, data: {years: [...], count: X}}
     const yearsData = response.data.data?.years || response.data.years || [];
     dispatch(fetchAvailableYearsSuccess(yearsData));
