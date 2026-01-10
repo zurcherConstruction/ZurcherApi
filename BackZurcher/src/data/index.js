@@ -89,7 +89,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -615,6 +615,31 @@ BankTransaction.belongsTo(Staff, {
 Staff.hasMany(BankTransaction, {
   foreignKey: 'createdByStaffId',
   as: 'bankTransactions'
+});
+
+// ========================= STAFF ATTENDANCE ASSOCIATIONS ========================= //
+// Staff puede tener muchos registros de asistencia
+Staff.hasMany(StaffAttendance, {
+  foreignKey: 'staffId',
+  as: 'attendanceRecords'
+});
+
+// Cada registro de asistencia pertenece a un Staff
+StaffAttendance.belongsTo(Staff, {
+  foreignKey: 'staffId',
+  as: 'Staff'
+});
+
+// Staff que creó el registro de asistencia (quien marcó)
+Staff.hasMany(StaffAttendance, {
+  foreignKey: 'createdBy',
+  as: 'markedAttendanceRecords'
+});
+
+// Cada registro de asistencia pertenece a un Staff que lo creó
+StaffAttendance.belongsTo(Staff, {
+  foreignKey: 'createdBy',
+  as: 'CreatedByStaff'
 });
 
 
