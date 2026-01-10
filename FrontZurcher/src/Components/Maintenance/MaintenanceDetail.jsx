@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import Swal from 'sweetalert2';
 import { 
   fetchMaintenanceVisitsByWork,
   scheduleMaintenanceVisits,
   createMaintenanceVisit,
-  initializeHistoricalMaintenance
+  initializeHistoricalMaintenance,
+  cancelMaintenanceByClient,
+  postponeMaintenanceNoAccess,
+  cancelMaintenanceOther
 } from '../../Redux/Actions/maintenanceActions.jsx';
 import { fetchStaff } from '../../Redux/Actions/adminActions';
 import { 
@@ -13,8 +17,8 @@ import {
 } from '../../Redux/Reducer/maintenanceReducer';
 import VisitCard from './VisitCard';
 import VisitForm from './VisitForm';
+import CancellationModal from './CancellationModal';
 import LoadingSpinner from '../LoadingSpinner';
-import Swal from 'sweetalert2';
 
 const MaintenanceDetail = ({ work, isOpen, onClose }) => {
   const dispatch = useDispatch();
@@ -55,9 +59,276 @@ const MaintenanceDetail = ({ work, isOpen, onClose }) => {
     };
   }, [work, dispatch, visitsLoadedForWork]);
 
-  const handleVisitSelect = (visit) => {
-    setSelectedVisit(visit);
-    setShowVisitForm(true);
+  const handleVisitSelect = async (visit) => {
+    // Si la visita ya está cancelada/completada, solo mostrar detalles
+    if (['completed', 'cancelled_by_client', 'postponed_no_access', 'cancelled_other'].includes(visit.status)) {
+      setSelectedVisit(visit);
+      setShowVisitForm(true);
+      return;
+    }
+
+    // Si la visita está pendiente/asignada, mostrar opciones
+    if (['pending_scheduling', 'scheduled', 'assigned'].includes(visit.status)) {
+      const { value: option } = await Swal.fire({
+        title: `🎯 Gestionar Visita #${visit.visitNumber}`,
+        html: `
+          <div class="text-left space-y-4">
+            <div class="p-3 bg-blue-50 rounded-lg">
+              <p class="text-sm text-blue-800">
+                <strong>Estado:</strong> ${getStatusText(visit.status)}<br>
+                <strong>Fecha programada:</strong> ${visit.scheduledDate || 'No programada'}<br>
+                ${visit.assignedStaff ? `<strong>Asignado a:</strong> ${visit.assignedStaff.name}` : ''}
+              </p>
+            </div>
+            <p class="text-sm text-gray-600">
+              ¿Qué desea hacer con esta visita?
+            </p>
+          </div>
+        `,
+        showCancelButton: true,
+        showDenyButton: true,
+        showConfirmButton: true,
+        confirmButtonText: '📝 Gestionar/Editar',
+        denyButtonText: '⚠️ Marcar problema',
+        cancelButtonText: 'Cerrar',
+        confirmButtonColor: '#3b82f6',
+        denyButtonColor: '#f59e0b',
+        focusConfirm: false
+      });
+
+      if (option === true) {
+        // Gestionar/Editar visita
+        setSelectedVisit(visit);
+        setShowVisitForm(true);
+      } else if (option === false) {
+        // Mostrar opciones de problemas/cancelación
+        await handleVisitProblem(visit);
+      }
+    } else {
+      // Para otros estados, mostrar directamente
+      setSelectedVisit(visit);
+      setShowVisitForm(true);
+    }
+  };
+
+  const getStatusText = (status) => {
+    const statusTexts = {
+      pending_scheduling: 'Pendiente',
+      scheduled: 'Programada',
+      assigned: 'Asignada',
+      completed: 'Completada',
+      cancelled_by_client: 'Cliente no quiere',
+      postponed_no_access: 'Cliente ausente',
+      cancelled_other: 'Cancelada'
+    };
+    return statusTexts[status] || status;
+  };
+
+  const handleVisitProblem = async (visit) => {
+    const { value: option } = await Swal.fire({
+      title: '⚠️ ¿Qué sucedió con la visita?',
+      html: `
+        <div class="text-left space-y-4">
+          <p class="text-sm text-gray-600 mb-4">
+            <strong>Visita #${visit.visitNumber}</strong><br>
+            Seleccione lo que sucedió durante la visita:
+          </p>
+        </div>
+      `,
+      showCancelButton: true,
+      showDenyButton: true,
+      showConfirmButton: true,
+      confirmButtonText: '🚫 Cliente no quiere',
+      denyButtonText: '📍 Cliente ausente',
+      cancelButtonText: '❌ Otros motivos',
+      confirmButtonColor: '#ea580c',
+      denyButtonColor: '#7c3aed',
+      cancelButtonColor: '#dc2626',
+      focusConfirm: false
+    });
+
+    if (option === true) {
+      await handleCancelByClient(visit);
+    } else if (option === false) {
+      await handlePostponeNoAccess(visit);
+    } else if (option === null) {
+      await handleCancelOther(visit);
+    }
+  };
+
+  const handleCancelByClient = async (visit) => {
+    const { value: reason } = await Swal.fire({
+      title: '🚫 Cliente no quiere mantenimiento',
+      html: `
+        <div class="text-left space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              Motivo detallado:
+            </label>
+            <textarea 
+              id="reason" 
+              rows="4"
+              placeholder="Ej: Cliente dice que no necesita mantenimiento este año, sistema funciona bien..."
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+              required
+            ></textarea>
+          </div>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Cancelar Visita',
+      cancelButtonText: 'Volver',
+      confirmButtonColor: '#ea580c',
+      preConfirm: () => {
+        const reason = document.getElementById('reason').value;
+        if (!reason.trim()) {
+          Swal.showValidationMessage('Debe especificar el motivo');
+          return false;
+        }
+        return reason.trim();
+      }
+    });
+
+    if (reason) {
+      try {
+        await dispatch(cancelMaintenanceByClient(visit.id, reason));
+        Swal.fire({
+          icon: 'success',
+          title: 'Visita Cancelada',
+          text: 'La visita ha sido cancelada por solicitud del cliente.',
+          timer: 3000
+        });
+      } catch (error) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Error al cancelar la visita.'
+        });
+      }
+    }
+  };
+
+  const handlePostponeNoAccess = async (visit) => {
+    const { value: formData } = await Swal.fire({
+      title: '📍 Cliente no está presente',
+      html: `
+        <div class="text-left space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              Motivo detallado:
+            </label>
+            <textarea 
+              id="reason" 
+              rows="3"
+              placeholder="Ej: Nadie en casa, vecino dice que están de viaje..."
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+              required
+            ></textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              Reagendar para (opcional):
+            </label>
+            <input 
+              type="date" 
+              id="rescheduleDate" 
+              min="${new Date().toISOString().split('T')[0]}"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+          </div>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Postergar Visita',
+      cancelButtonText: 'Volver',
+      confirmButtonColor: '#7c3aed',
+      preConfirm: () => {
+        const reason = document.getElementById('reason').value;
+        const rescheduleDate = document.getElementById('rescheduleDate').value;
+        
+        if (!reason.trim()) {
+          Swal.showValidationMessage('Debe especificar el motivo');
+          return false;
+        }
+        
+        return {
+          reason: reason.trim(),
+          rescheduleDate: rescheduleDate || null
+        };
+      }
+    });
+
+    if (formData) {
+      try {
+        await dispatch(postponeMaintenanceNoAccess(visit.id, formData.reason, formData.rescheduleDate));
+        Swal.fire({
+          icon: 'success',
+          title: 'Visita Postergada',
+          text: formData.rescheduleDate 
+            ? `Visita postergada y reagendada para ${formData.rescheduleDate}`
+            : 'Visita postergada por cliente ausente.',
+          timer: 3000
+        });
+      } catch (error) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Error al postergar la visita.'
+        });
+      }
+    }
+  };
+
+  const handleCancelOther = async (visit) => {
+    const { value: reason } = await Swal.fire({
+      title: '❌ Cancelar por otros motivos',
+      html: `
+        <div class="text-left space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              Motivo de cancelación:
+            </label>
+            <textarea 
+              id="reason" 
+              rows="4"
+              placeholder="Ej: Clima adverso, emergencia, problema de acceso..."
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+              required
+            ></textarea>
+          </div>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Cancelar Visita',
+      cancelButtonText: 'Volver',
+      confirmButtonColor: '#dc2626',
+      preConfirm: () => {
+        const reason = document.getElementById('reason').value;
+        if (!reason.trim()) {
+          Swal.showValidationMessage('Debe especificar el motivo');
+          return false;
+        }
+        return reason.trim();
+      }
+    });
+
+    if (reason) {
+      try {
+        await dispatch(cancelMaintenanceOther(visit.id, reason));
+        Swal.fire({
+          icon: 'success',
+          title: 'Visita Cancelada',
+          text: 'La visita ha sido cancelada.',
+          timer: 3000
+        });
+      } catch (error) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Error al cancelar la visita.'
+        });
+      }
+    }
   };
 
   const handleCloseVisitForm = () => {

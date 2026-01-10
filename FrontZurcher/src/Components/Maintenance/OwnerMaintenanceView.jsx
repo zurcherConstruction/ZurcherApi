@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
 import { 
   WrenchScrewdriverIcon,
   MagnifyingGlassIcon,
@@ -10,7 +11,8 @@ import {
   CalendarIcon,
   CheckCircleIcon,
   ClockIcon,
-  ArrowDownTrayIcon
+  ArrowDownTrayIcon,
+  ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import { toast } from 'react-toastify';
 import api from '../../utils/axios';
@@ -23,7 +25,7 @@ const OwnerMaintenanceView = () => {
   const [downloadingPdfId, setDownloadingPdfId] = useState(null);
   const [filters, setFilters] = useState({
     search: '',
-    status: 'active', // ✅ Mostrar solo programadas, en progreso y completadas
+    status: 'all', // ✅ Mostrar todas las visitas por defecto
     startDate: '',
     endDate: ''
   });
@@ -37,10 +39,16 @@ const OwnerMaintenanceView = () => {
       setLoading(true);
       const params = {};
       
-      // ✅ Filtrar por estados importantes
+      // ✅ Filtrar por estados
       if (filters.status === 'active') {
         // Traer scheduled, assigned y completed
         params.status = 'scheduled,assigned,completed';
+      } else if (filters.status === 'cancelled') {
+        // Traer solo las canceladas y postergadas
+        params.status = 'cancelled_by_client,postponed_no_access,cancelled_other';
+      } else if (filters.status === 'pending') {
+        // Solo pendientes de programar
+        params.status = 'pending_scheduling';
       } else if (filters.status && filters.status !== 'all') {
         params.status = filters.status;
       }
@@ -73,10 +81,13 @@ const OwnerMaintenanceView = () => {
 
   const getStatusBadge = (status) => {
     const badges = {
-      completed: { bg: 'bg-green-100', text: 'text-green-800', label: 'Completada' },
-      assigned: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'En Proceso' },
-      scheduled: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Programada' },
-      pending_scheduling: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Pendiente' }
+      completed: { bg: 'bg-green-100', text: 'text-green-800', label: '✅ Completada' },
+      assigned: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: '🔧 En Proceso' },
+      scheduled: { bg: 'bg-blue-100', text: 'text-blue-800', label: '📅 Programada' },
+      pending_scheduling: { bg: 'bg-gray-100', text: 'text-gray-800', label: '⏳ Pendiente' },
+      cancelled_by_client: { bg: 'bg-red-100', text: 'text-red-800', label: '🚫 Cliente no quiere' },
+      postponed_no_access: { bg: 'bg-purple-100', text: 'text-purple-800', label: '📍 Cliente ausente' },
+      cancelled_other: { bg: 'bg-orange-100', text: 'text-orange-800', label: '❌ Cancelada' }
     };
     const badge = badges[status] || badges.pending_scheduling;
     return (
@@ -135,6 +146,237 @@ const OwnerMaintenanceView = () => {
     } finally {
       setDownloadingPdfId(null);
     }
+  };
+
+  const handleCancellation = async (visit) => {
+    const { value: option } = await Swal.fire({
+      title: '⚠️ ¿Qué sucedió con la visita?',
+      html: `
+        <div class="text-left space-y-4">
+          <p class="text-sm text-gray-600 mb-4">
+            <strong>Visita #${visit.visitNumber || 'N/A'}</strong><br>
+            <strong>Dirección:</strong> ${visit.work?.propertyAddress || 'N/A'}<br>
+            Seleccione lo que sucedió durante la visita:
+          </p>
+        </div>
+      `,
+      showCancelButton: true,
+      showDenyButton: true,
+      showConfirmButton: true,
+      confirmButtonText: '🚫 Cliente no quiere',
+      denyButtonText: '📍 Cliente ausente',
+      cancelButtonText: '❌ Otros motivos',
+      confirmButtonColor: '#ea580c',
+      denyButtonColor: '#7c3aed',
+      cancelButtonColor: '#dc2626',
+      focusConfirm: false
+    });
+
+    if (option === true) {
+      await handleCancelByClient(visit);
+    } else if (option === false) {
+      await handlePostponeNoAccess(visit);
+    } else if (option === null) {
+      await handleCancelOther(visit);
+    }
+  };
+
+  const handleCancelByClient = async (visit) => {
+    const { value: reason } = await Swal.fire({
+      title: '🚫 Cliente no quiere mantenimiento',
+      html: `
+        <div class="text-left space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              Motivo detallado:
+            </label>
+            <textarea 
+              id="reason" 
+              rows="4"
+              placeholder="Ej: Cliente dice que no necesita mantenimiento este año, sistema funciona bien..."
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+              required
+            ></textarea>
+          </div>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Cancelar Visita',
+      cancelButtonText: 'Volver',
+      confirmButtonColor: '#ea580c',
+      preConfirm: () => {
+        const reason = document.getElementById('reason').value;
+        if (!reason.trim()) {
+          Swal.showValidationMessage('Debe especificar el motivo');
+          return false;
+        }
+        return reason.trim();
+      }
+    });
+
+    if (reason) {
+      try {
+        await api.post(`/maintenance/${visit.id}/cancel-by-client`, {
+          reason
+        });
+        
+        Swal.fire({
+          icon: 'success',
+          title: 'Visita Cancelada',
+          text: 'La visita ha sido cancelada por solicitud del cliente.',
+          timer: 3000
+        });
+        
+        // Recargar la lista
+        loadCompletedVisits();
+      } catch (error) {
+        console.error('Error:', error);
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Error al cancelar la visita.'
+        });
+      }
+    }
+  };
+
+  const handlePostponeNoAccess = async (visit) => {
+    const { value: formData } = await Swal.fire({
+      title: '📍 Cliente no está presente',
+      html: `
+        <div class="text-left space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              Motivo detallado:
+            </label>
+            <textarea 
+              id="reason" 
+              rows="3"
+              placeholder="Ej: Nadie en casa, vecino dice que están de viaje..."
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+              required
+            ></textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              Reagendar para (opcional):
+            </label>
+            <input 
+              type="date" 
+              id="rescheduleDate" 
+              min="${new Date().toISOString().split('T')[0]}"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+          </div>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Postergar Visita',
+      cancelButtonText: 'Volver',
+      confirmButtonColor: '#7c3aed',
+      preConfirm: () => {
+        const reason = document.getElementById('reason').value;
+        const rescheduleDate = document.getElementById('rescheduleDate').value;
+        
+        if (!reason.trim()) {
+          Swal.showValidationMessage('Debe especificar el motivo');
+          return false;
+        }
+        
+        return {
+          reason: reason.trim(),
+          rescheduleDate: rescheduleDate || null
+        };
+      }
+    });
+
+    if (formData) {
+      try {
+        await api.post(`/maintenance/${visit.id}/postpone-no-access`, formData);
+        
+        Swal.fire({
+          icon: 'success',
+          title: 'Visita Postergada',
+          text: formData.rescheduleDate 
+            ? `Visita postergada y reagendada para ${formData.rescheduleDate}`
+            : 'Visita postergada por cliente ausente.',
+          timer: 3000
+        });
+        
+        // Recargar la lista
+        loadCompletedVisits();
+      } catch (error) {
+        console.error('Error:', error);
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Error al postergar la visita.'
+        });
+      }
+    }
+  };
+
+  const handleCancelOther = async (visit) => {
+    const { value: reason } = await Swal.fire({
+      title: '❌ Cancelar por otros motivos',
+      html: `
+        <div class="text-left space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+              Motivo de cancelación:
+            </label>
+            <textarea 
+              id="reason" 
+              rows="4"
+              placeholder="Ej: Clima adverso, emergencia, problema de acceso..."
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+              required
+            ></textarea>
+          </div>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Cancelar Visita',
+      cancelButtonText: 'Volver',
+      confirmButtonColor: '#dc2626',
+      preConfirm: () => {
+        const reason = document.getElementById('reason').value;
+        if (!reason.trim()) {
+          Swal.showValidationMessage('Debe especificar el motivo');
+          return false;
+        }
+        return reason.trim();
+      }
+    });
+
+    if (reason) {
+      try {
+        await api.post(`/maintenance/${visit.id}/cancel-other`, {
+          reason
+        });
+        
+        Swal.fire({
+          icon: 'success',
+          title: 'Visita Cancelada',
+          text: 'La visita ha sido cancelada.',
+          timer: 3000
+        });
+        
+        // Recargar la lista
+        loadCompletedVisits();
+      } catch (error) {
+        console.error('Error:', error);
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Error al cancelar la visita.'
+        });
+      }
+    }
+  };
+
+  const canBeCancelled = (visit) => {
+    return ['pending_scheduling', 'scheduled', 'assigned'].includes(visit.status);
   };
 
   // Filtrar visitas localmente por búsqueda
@@ -222,11 +464,16 @@ const OwnerMaintenanceView = () => {
               onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
-              <option value="active">Activas (Programadas + En Proceso + Completadas)</option>
-              <option value="scheduled">Solo Programadas</option>
-              <option value="assigned">Solo En Proceso</option>
-              <option value="completed">Solo Completadas</option>
-              <option value="all">Todas (incluye pendientes)</option>
+              <option value="all">📋 Todas las Visitas</option>
+              <option value="active">✅ Activas (Programadas + En Proceso + Completadas)</option>
+              <option value="cancelled">❌ Problemáticas (Canceladas + Postergadas)</option>
+              <option value="scheduled">📅 Solo Programadas</option>
+              <option value="assigned">🔧 Solo En Proceso</option>
+              <option value="completed">✅ Solo Completadas</option>
+              <option value="pending">⏳ Pendientes de Programar</option>
+              <option value="cancelled_by_client">🚫 Cliente no quiere</option>
+              <option value="postponed_no_access">📍 Cliente ausente</option>
+              <option value="cancelled_other">❌ Otros motivos</option>
             </select>
           </div>
 
@@ -343,6 +590,37 @@ const OwnerMaintenanceView = () => {
                       </span>
                     )}
                   </div>
+
+                  {/* Información de cancelación */}
+                  {['cancelled_by_client', 'postponed_no_access', 'cancelled_other'].includes(visit.status) && (
+                    <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-start gap-2 mb-2">
+                        <ExclamationTriangleIcon className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-xs font-medium text-red-700 mb-1">
+                            {visit.status === 'cancelled_by_client' && '🚫 Cliente no quiere mantenimiento'}
+                            {visit.status === 'postponed_no_access' && '📍 Cliente ausente'}
+                            {visit.status === 'cancelled_other' && '❌ Visita cancelada'}
+                          </p>
+                          {visit.cancellationReason && (
+                            <p className="text-xs text-red-600">
+                              <strong>Motivo:</strong> {visit.cancellationReason}
+                            </p>
+                          )}
+                          {visit.cancellationDate && (
+                            <p className="text-xs text-red-600 mt-1">
+                              <strong>Fecha:</strong> {formatDate(visit.cancellationDate)}
+                            </p>
+                          )}
+                          {visit.rescheduledDate && (
+                            <p className="text-xs text-purple-600 mt-1">
+                              <strong>Reagendada para:</strong> {formatDate(visit.rescheduledDate)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Acciones */}
@@ -354,6 +632,17 @@ const OwnerMaintenanceView = () => {
                     <DocumentTextIcon className="h-4 w-4" />
                     Ver Detalle
                   </button>
+                  
+                  {canBeCancelled(visit) && (
+                    <button
+                      onClick={() => handleCancellation(visit)}
+                      className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-2 text-sm font-medium"
+                    >
+                      <ExclamationTriangleIcon className="h-4 w-4" />
+                      Gestionar Problema
+                    </button>
+                  )}
+                  
                   <button
                     onClick={() => handleDownloadPDF(visit)}
                     disabled={downloadingPdfId === visit.id}

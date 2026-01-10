@@ -186,3 +186,55 @@ export const deleteMaintenanceMedia = (mediaId) => async (dispatch) => {
     throw error;
   }
 };
+
+// 🆕 Cancelar visita por cliente (no quiere mantenimiento)
+export const cancelMaintenanceByClient = (visitId, reason) => async (dispatch) => {
+  dispatch(updateMaintenanceVisitRequest());
+  try {
+    const response = await api.post(`/maintenance/${visitId}/cancel-by-client`, {
+      reason
+    });
+    dispatch(updateMaintenanceVisitSuccess(response.data.visit));
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.message || 'Error al cancelar visita por cliente';
+    dispatch(updateMaintenanceVisitFailure(errorMessage));
+    throw error;
+  }
+};
+
+// 🆕 Postergar visita por cliente ausente
+export const postponeMaintenanceNoAccess = (visitId, reason, rescheduledDate) => async (dispatch) => {
+  dispatch(updateMaintenanceVisitRequest());
+  try {
+    const response = await api.post(`/maintenance/${visitId}/postpone-no-access`, {
+      reason,
+      rescheduledDate
+    });
+    dispatch(updateMaintenanceVisitSuccess(response.data.visit));
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.message || 'Error al postergar visita';
+    dispatch(updateMaintenanceVisitFailure(errorMessage));
+    throw error;
+  }
+};
+
+// 🆕 Cancelar visita por otros motivos
+export const cancelMaintenanceOther = (visitId, reason) => async (dispatch) => {
+  dispatch(updateMaintenanceVisitRequest());
+  try {
+    const response = await api.post(`/maintenance/${visitId}/cancel-other`, {
+      reason
+    });
+    dispatch(updateMaintenanceVisitSuccess(response.data.visit));
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.message || 'Error al cancelar visita';
+    dispatch(updateMaintenanceVisitFailure(errorMessage));
+    throw error;
+  }
+};

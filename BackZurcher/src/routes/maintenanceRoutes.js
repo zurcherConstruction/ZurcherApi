@@ -114,5 +114,25 @@ router.get('/:visitId/download-pdf',
     MaintenanceController.downloadMaintenancePDF
 );
 
+// 🚫 Cancelar visita por cliente (no quiere mantenimiento)
+router.post('/:visitId/cancel-by-client',
+    verifyToken,
+    allowRoles(['admin', 'owner', 'maintenance', 'worker']),
+    MaintenanceController.cancelMaintenanceByClient
+);
+
+// 📅 Postergar visita por cliente ausente
+router.post('/:visitId/postpone-no-access',
+    verifyToken,
+    allowRoles(['admin', 'owner', 'maintenance', 'worker']),
+    MaintenanceController.postponeMaintenanceNoAccess
+);
+
+// 🚫 Cancelar visita por otros motivos
+router.post('/:visitId/cancel-other',
+    verifyToken,
+    allowRoles(['admin', 'owner', 'maintenance', 'worker']),
+    MaintenanceController.cancelMaintenanceOther
+);
 
 module.exports = router;
