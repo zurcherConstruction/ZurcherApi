@@ -25,7 +25,8 @@ import {
   FaHistory,
   FaFileInvoice,
   FaUniversity,
-  FaMapMarkedAlt // 🆕 Icono para mapa de zonas
+  FaMapMarkedAlt, // 🆕 Icono para mapa de zonas
+  FaChartPie // 🆕 Icono para instalaciones mensuales
 } from "react-icons/fa";
 
 const BarraLateral = () => {
@@ -57,6 +58,7 @@ const BarraLateral = () => {
         { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
         { name: "Maintenance List", path: "/maintenance-tracker", icon: FaClipboardList },
         { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
+        { name: "Monthly Installations", path: "/monthly-installations", icon: FaChartPie }, // 🆕 Instalaciones mensuales
         { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
         { name: "Maintenance", path: "/maintenance", icon: FaWrench },
         { name: "Edit Maintenance", path: "/legacy-maintenance", icon: FaHistory }, // 🆕 Editor de todos los maintenance
@@ -128,6 +130,7 @@ const BarraLateral = () => {
             // Tracking Work removido para admin
             { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
             { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
+            { name: "Monthly Installations", path: "/monthly-installations", icon: FaChartPie }, // 🆕 Instalaciones mensuales
             { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
             { name: "Maintenance", path: "/maintenance", icon: FaWrench },
             { name: "Edit Maintenance", path: "/legacy-maintenance", icon: FaHistory }, // 🆕 Editor de todos los maintenance
@@ -182,6 +185,7 @@ const BarraLateral = () => {
             { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
             { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
             { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
+            { name: "Monthly Installations", path: "/monthly-installations", icon: FaChartPie }, // 🆕 Instalaciones mensuales
           ],
         },
       ];

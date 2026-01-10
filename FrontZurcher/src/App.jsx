@@ -26,6 +26,7 @@ import Works from "./Components/Works/Work";
 import ProgressTracker from "./Components/ProgressTracker";
 import MaintenanceTracker from "./Components/MaintenanceTracker";
 import WorkZoneMap from "./Components/WorkZoneMap"; //  Mapa de obras por zona
+import MonthlyInstallations from "./Components/MonthlyInstallations"; // 🆕 Vista de instalaciones mensuales
 import WorkDetail from "./Components/Works/WorkDetail";
 import Materiales from "./Components/Materiales";
 import MaterialsCheck from "./Components/Seguimiento/WorkStatusManager";
@@ -180,6 +181,15 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["admin", "recept", "owner", "finance", "worker"]}>
                     <WorkZoneMap />
+                  </PrivateRoute>
+                }
+              />
+
+              <Route
+                path="/monthly-installations"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "recept", "owner", "finance", "worker"]}>
+                    <MonthlyInstallations />
                   </PrivateRoute>
                 }
               />
