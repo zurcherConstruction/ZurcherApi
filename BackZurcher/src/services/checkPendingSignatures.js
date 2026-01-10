@@ -235,13 +235,13 @@ const checkPendingSignatures = async () => {
 };
 
 const startSignatureCheckCron = () => {
-  // Ejecutar cada 30 minutos (0, 30)
-  cron.schedule('*/30 * * * *', checkPendingSignatures, {
+  // Ejecutar a las 23:00 y 7:00 (horarios de baja actividad)
+  cron.schedule('0 23,7 * * *', checkPendingSignatures, {
     scheduled: true,
-    timezone: "America/New_York" // IMPORTANTE: Ajusta a tu zona horaria.
+    timezone: "America/New_York"
   });
 
-  console.log('✅ Cron job para verificar firmas de SignNow programado para ejecutarse cada 30 minutos.');
+  console.log('✅ Cron job para verificar firmas programado para las 23:00 y 7:00 (horarios de baja actividad).');
 };
 
 module.exports = { startSignatureCheckCron, checkPendingSignatures };
