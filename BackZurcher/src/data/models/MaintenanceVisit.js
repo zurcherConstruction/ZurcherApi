@@ -37,13 +37,42 @@ module.exports = (sequelize) => {
       },
     },
     status: {
-      type: DataTypes.ENUM('pending_scheduling', 'scheduled', 'completed', 'skipped', 'assigned'),
+      type: DataTypes.ENUM(
+        'pending_scheduling', 
+        'scheduled', 
+        'completed', 
+        'skipped', 
+        'assigned',
+        'cancelled_by_client',    // 🆕 Cliente no quiere mantenimiento
+        'postponed_no_access',    // 🆕 Cliente no está, reagendar
+        'cancelled_other'         // 🆕 Otros motivos de cancelación
+      ),
       allowNull: false,
       defaultValue: 'pending_scheduling',
     },
     notes: {
       type: DataTypes.TEXT,
       allowNull: true,
+    },
+    
+    // 🆕 Campos para manejar cancelaciones y postergaciones
+    cancellationReason: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: 'cancellation_reason',
+      comment: 'Motivo detallado de cancelación o postergación'
+    },
+    rescheduledDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      field: 'rescheduled_date',
+      comment: 'Nueva fecha propuesta cuando se posterga'
+    },
+    cancellationDate: {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+      field: 'cancellation_date',
+      comment: 'Fecha en que se canceló o postergó'
     },
     
     // === Campos del formulario de inspección ===

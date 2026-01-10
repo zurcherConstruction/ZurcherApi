@@ -1920,6 +1920,125 @@ const getMaintenanceVisitDetails = async (req, res) => {
   }
 };
 
+// --- Cancelar visita por cliente ---
+const cancelMaintenanceByClient = async (req, res) => {
+  try {
+    const { visitId } = req.params;
+    const { reason } = req.body;
+    const currentUserId = req.staff?.id;
+
+    const visit = await MaintenanceVisit.findByPk(visitId, {
+      include: [
+        { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] },
+        { model: Work, as: 'work', attributes: ['idWork', 'propertyAddress'] }
+      ]
+    });
+
+    if (!visit) {
+      return res.status(404).json({ error: true, message: 'Visita de mantenimiento no encontrada.' });
+    }
+
+    await visit.update({
+      status: 'cancelled_by_client',
+      cancellationReason: reason || 'Cliente no desea mantenimiento',
+      cancellationDate: new Date().toISOString().split('T')[0],
+      actualVisitDate: new Date().toISOString().split('T')[0]
+    });
+
+    console.log(`✅ [MaintenanceController] Visita ${visitId} cancelada por cliente`);
+
+    res.json({
+      success: true,
+      message: 'Visita cancelada por solicitud del cliente',
+      visit: visit
+    });
+  } catch (error) {
+    console.error('❌ Error al cancelar visita por cliente:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor.' });
+  }
+};
+
+// --- Postergar visita por cliente ausente ---
+const postponeMaintenanceNoAccess = async (req, res) => {
+  try {
+    const { visitId } = req.params;
+    const { reason, rescheduledDate } = req.body;
+    const currentUserId = req.staff?.id;
+
+    const visit = await MaintenanceVisit.findByPk(visitId, {
+      include: [
+        { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] },
+        { model: Work, as: 'work', attributes: ['idWork', 'propertyAddress'] }
+      ]
+    });
+
+    if (!visit) {
+      return res.status(404).json({ error: true, message: 'Visita de mantenimiento no encontrada.' });
+    }
+
+    await visit.update({
+      status: 'postponed_no_access',
+      cancellationReason: reason || 'Cliente no estaba presente',
+      cancellationDate: new Date().toISOString().split('T')[0],
+      rescheduledDate: rescheduledDate || null,
+      actualVisitDate: new Date().toISOString().split('T')[0]
+    });
+
+    console.log(`📅 [MaintenanceController] Visita ${visitId} postergada - cliente ausente`);
+
+    res.json({
+      success: true,
+      message: 'Visita postergada - cliente no disponible',
+      visit: visit
+    });
+  } catch (error) {
+    console.error('❌ Error al postergar visita:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor.' });
+  }
+};
+
+// --- Cancelar por otros motivos ---
+const cancelMaintenanceOther = async (req, res) => {
+  try {
+    const { visitId } = req.params;
+    const { reason } = req.body;
+    const currentUserId = req.staff?.id;
+
+    if (!reason) {
+      return res.status(400).json({ error: true, message: 'Debe especificar el motivo de cancelación.' });
+    }
+
+    const visit = await MaintenanceVisit.findByPk(visitId, {
+      include: [
+        { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] },
+        { model: Work, as: 'work', attributes: ['idWork', 'propertyAddress'] }
+      ]
+    });
+
+    if (!visit) {
+      return res.status(404).json({ error: true, message: 'Visita de mantenimiento no encontrada.' });
+    }
+
+    await visit.update({
+      status: 'cancelled_other',
+      cancellationReason: reason,
+      cancellationDate: new Date().toISOString().split('T')[0],
+      actualVisitDate: new Date().toISOString().split('T')[0]
+    });
+
+    console.log(`🚫 [MaintenanceController] Visita ${visitId} cancelada por otros motivos: ${reason}`);
+
+    res.json({
+      success: true,
+      message: 'Visita cancelada',
+      visit: visit
+    });
+  } catch (error) {
+    console.error('❌ Error al cancelar visita:', error);
+    res.status(500).json({ error: true, message: 'Error interno del servidor.' });
+  }
+};
+
 module.exports = {
   scheduleInitialMaintenanceVisits, // Exportar para uso interno
   scheduleMaintenanceVisits, // Nueva función para programar manualmente
@@ -1936,4 +2055,8 @@ module.exports = {
   getAllCompletedMaintenances, // ⭐ Para Owner/Admin
   downloadMaintenancePDF, // 📄 Generar PDF
   uploadMaintenanceImage, // 📸 Subir imagen individual (autoguardado)
+  // 🆕 Nuevas funciones para cancelaciones
+  cancelMaintenanceByClient,   // Cliente no quiere mantenimiento
+  postponeMaintenanceNoAccess, // Cliente no está presente
+  cancelMaintenanceOther       // Otros motivos
 };

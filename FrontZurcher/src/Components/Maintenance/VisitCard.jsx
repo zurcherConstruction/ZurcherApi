@@ -29,6 +29,22 @@ function getStatusConfig(status) {
       color: 'bg-red-100 text-red-800 border-red-200',
       icon: '⏭️',
       text: 'Omitida'
+    },
+    // 🆕 Nuevos estados para cancelaciones
+    cancelled_by_client: {
+      color: 'bg-orange-100 text-orange-800 border-orange-200',
+      icon: '🚫',
+      text: 'Cliente no quiere'
+    },
+    postponed_no_access: {
+      color: 'bg-purple-100 text-purple-800 border-purple-200',
+      icon: '📍',
+      text: 'Cliente ausente'
+    },
+    cancelled_other: {
+      color: 'bg-pink-100 text-pink-800 border-pink-200',
+      icon: '❌',
+      text: 'Cancelada'
     }
   };
 
@@ -105,6 +121,37 @@ const VisitCard = ({ visit, onClick }) => {
             <p className="text-sm text-gray-600 line-clamp-2">
               <span className="font-medium">Notas:</span> {visit.notes}
             </p>
+          </div>
+        )}
+
+        {/* 🆕 Información de cancelación */}
+        {(visit.status?.includes('cancelled') || visit.status === 'postponed_no_access') && visit.cancellationReason && (
+          <div className="mb-3 p-3 bg-gray-50 rounded-lg border">
+            <div className="flex items-start space-x-2">
+              <span className="text-lg">📝</span>
+              <div>
+                <p className="text-sm font-medium text-gray-700">
+                  {visit.status === 'cancelled_by_client' && 'Motivo - Cliente no quiere:'}
+                  {visit.status === 'postponed_no_access' && 'Motivo - Cliente ausente:'}
+                  {visit.status === 'cancelled_other' && 'Motivo de cancelación:'}
+                </p>
+                <p className="text-sm text-gray-600 mt-1">{visit.cancellationReason}</p>
+                
+                {/* Fecha de cancelación */}
+                {visit.cancellationDate && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Fecha: {format(parseDateOnly(visit.cancellationDate), 'dd/MM/yyyy', { locale: es })}
+                  </p>
+                )}
+                
+                {/* Fecha de reagendamiento */}
+                {visit.rescheduledDate && visit.status === 'postponed_no_access' && (
+                  <p className="text-xs text-blue-600 mt-1">
+                    Reagendado para: {format(parseDateOnly(visit.rescheduledDate), 'dd/MM/yyyy', { locale: es })}
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
