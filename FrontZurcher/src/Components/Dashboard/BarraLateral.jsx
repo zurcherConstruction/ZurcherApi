@@ -26,7 +26,8 @@ import {
   FaFileInvoice,
   FaUniversity,
   FaMapMarkedAlt, // 🆕 Icono para mapa de zonas
-  FaChartPie // 🆕 Icono para instalaciones mensuales
+  FaChartPie, // 🆕 Icono para instalaciones mensuales
+  FaCalendarCheck // 🆕 Icono para asistencia del personal
 } from "react-icons/fa";
 
 const BarraLateral = () => {
@@ -59,6 +60,7 @@ const BarraLateral = () => {
         { name: "Maintenance List", path: "/maintenance-tracker", icon: FaClipboardList },
         { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
         { name: "Monthly Installations", path: "/monthly-installations", icon: FaChartPie }, // 🆕 Instalaciones mensuales
+        { name: "Staff Attendance", path: "/staff-attendance", icon: FaCalendarCheck }, // 🆕 Asistencia del personal
         { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
         { name: "Maintenance", path: "/maintenance", icon: FaWrench },
         { name: "Edit Maintenance", path: "/legacy-maintenance", icon: FaHistory }, // 🆕 Editor de todos los maintenance
@@ -131,6 +133,7 @@ const BarraLateral = () => {
             { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
             { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
             { name: "Monthly Installations", path: "/monthly-installations", icon: FaChartPie }, // 🆕 Instalaciones mensuales
+            { name: "Staff Attendance", path: "/staff-attendance", icon: FaCalendarCheck }, // 🆕 Asistencia del personal
             { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
             { name: "Maintenance", path: "/maintenance", icon: FaWrench },
             { name: "Edit Maintenance", path: "/legacy-maintenance", icon: FaHistory }, // 🆕 Editor de todos los maintenance

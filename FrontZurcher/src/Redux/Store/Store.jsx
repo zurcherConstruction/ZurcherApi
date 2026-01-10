@@ -23,6 +23,7 @@ import budgetNoteReducer from '../Reducer/budgetNoteReducer';
 import workNoteReducer from '../Reducer/workNoteReducer';
 import checklistReducer from '../Reducer/checklistReducer'; // 🆕 Checklist reducer
 import monthlyInstallationsReducer from '../Reducer/monthlyInstallationsReducer'; // 🆕 Monthly installations reducer
+import staffAttendanceReducer from '../Reducer/staffAttendanceReducer'; // 🆕 Staff attendance reducer
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -47,6 +48,7 @@ const rootReducer = combineReducers({
   workNote: workNoteReducer,
   checklist: checklistReducer, // 🆕 Checklist reducer
   monthlyInstallations: monthlyInstallationsReducer, // 🆕 Monthly installations reducer
+  staffAttendance: staffAttendanceReducer, // 🆕 Staff attendance reducer
 });
 
 export const store = configureStore({
