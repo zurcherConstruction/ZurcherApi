@@ -487,6 +487,17 @@ const stateNotificationMap = {
       `;
     }
   },
+
+  // 🆕 Configuración para SimpleWork enviado
+  simpleWorkSent: {
+    roles: ['owner', 'finance'],
+    subject: (work) => `SimpleWork Enviado: #${work?.workNumber || 'N/A'} - ${work?.clientData?.firstName || ''} ${work?.clientData?.lastName || ''}`,
+    message: (work) => {
+      const clientName = work?.clientData ? `${work.clientData.firstName || ''} ${work.clientData.lastName || ''}`.trim() : 'Cliente desconocido';
+      const clientEmail = work?.clientData?.email || 'Email no especificado';
+      return `El SimpleWork #${work?.workNumber || 'N/A'} ha sido enviado por email al cliente ${clientName} (${clientEmail}). El presupuesto está disponible para revisión y aprobación del cliente.`;
+    }
+  },
 };
 
 // Función para obtener los empleados a notificar y el mensaje

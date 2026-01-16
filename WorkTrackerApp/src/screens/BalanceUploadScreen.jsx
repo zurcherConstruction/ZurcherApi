@@ -15,6 +15,7 @@ const incomeTypes = [
   'Factura Pago Final Budget',
   'DiseñoDif',
   'Comprobante Ingreso',
+  'SimpleWork Payment', // 🆕 Payment from SimpleWork
 ];
 
 const expenseTypes = [

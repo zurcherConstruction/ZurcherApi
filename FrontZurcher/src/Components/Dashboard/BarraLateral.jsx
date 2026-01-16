@@ -55,6 +55,7 @@ const BarraLateral = () => {
       color: "text-green-400",
       items: [
         { name: "Works", path: "/works", icon: FaTasks },
+        { name: "Simple Works", path: "/simple-works", icon: FaTools },
         { name: "Tracking Work", path: "/check", icon: FaClipboardCheck },
         { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
         { name: "Maintenance List", path: "/maintenance-tracker", icon: FaClipboardList },
@@ -129,6 +130,7 @@ const BarraLateral = () => {
           color: "text-green-400",
           items: [
             { name: "Works", path: "/works", icon: FaTasks },
+            { name: "Simple Works", path: "/simple-works", icon: FaTools },
             // Tracking Work removido para admin
             { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
             { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
@@ -185,6 +187,7 @@ const BarraLateral = () => {
             { name: "Items Budgets", path: "/itemBudget", icon: FaBoxes },
             { name: "Upload Vouchers", path: "/attachInvoice", icon: FaReceipt },
             { name: "Send Message", path: "/send-notifications", icon: FaBell },
+            { name: "Simple Works", path: "/simple-works", icon: FaTools },
             { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
             { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
             { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona

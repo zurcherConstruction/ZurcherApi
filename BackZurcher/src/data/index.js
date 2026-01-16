@@ -97,7 +97,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -648,6 +648,103 @@ Staff.hasMany(StaffAttendance, {
 StaffAttendance.belongsTo(Staff, {
   foreignKey: 'createdBy',
   as: 'CreatedByStaff'
+});
+
+// ========================= SIMPLE WORK ASSOCIATIONS ========================= //
+// 🔗 SimpleWork tiene muchos pagos
+SimpleWork.hasMany(SimpleWorkPayment, {
+  foreignKey: 'simpleWorkId',
+  as: 'payments'
+});
+
+// SimpleWorkPayment pertenece a SimpleWork
+SimpleWorkPayment.belongsTo(SimpleWork, {
+  foreignKey: 'simpleWorkId',
+  as: 'simpleWork'
+});
+
+// 🔗 SimpleWork tiene muchos gastos
+SimpleWork.hasMany(SimpleWorkExpense, {
+  foreignKey: 'simpleWorkId',
+  as: 'expenses'
+});
+
+// SimpleWorkExpense pertenece a SimpleWork
+SimpleWorkExpense.belongsTo(SimpleWork, {
+  foreignKey: 'simpleWorkId',
+  as: 'simpleWork'
+});
+
+// 🔗 SimpleWork tiene muchos items
+SimpleWork.hasMany(SimpleWorkItem, {
+  foreignKey: 'simpleWorkId',
+  as: 'items'
+});
+
+// SimpleWorkItem pertenece a SimpleWork
+SimpleWorkItem.belongsTo(SimpleWork, {
+  foreignKey: 'simpleWorkId',
+  as: 'simpleWork'
+});
+
+// 🔗 SimpleWork pertenece a Staff (asignado)
+SimpleWork.belongsTo(Staff, {
+  foreignKey: 'assignedStaffId',
+  as: 'assignedStaff'
+});
+
+// Staff puede tener muchos SimpleWork asignados
+Staff.hasMany(SimpleWork, {
+  foreignKey: 'assignedStaffId',
+  as: 'assignedSimpleWorks'
+});
+
+// 🔗 SimpleWork pertenece a Staff (creado por)
+SimpleWork.belongsTo(Staff, {
+  foreignKey: 'createdBy',
+  as: 'creator'
+});
+
+// Staff puede crear muchos SimpleWork
+Staff.hasMany(SimpleWork, {
+  foreignKey: 'createdBy',
+  as: 'createdSimpleWorks'
+});
+
+// 🔗 SimpleWork opcionalmente vinculado a Work
+SimpleWork.belongsTo(Work, {
+  foreignKey: 'linkedWorkId',
+  as: 'linkedWork'
+});
+
+// Work puede tener muchos SimpleWork vinculados
+Work.hasMany(SimpleWork, {
+  foreignKey: 'linkedWorkId',
+  as: 'linkedSimpleWorks'
+});
+
+// 🔗 SimpleWorkPayment creado por Staff
+SimpleWorkPayment.belongsTo(Staff, {
+  foreignKey: 'createdBy',
+  as: 'creator'
+});
+
+// Staff puede crear muchos pagos de SimpleWork
+Staff.hasMany(SimpleWorkPayment, {
+  foreignKey: 'createdBy',
+  as: 'createdSimpleWorkPayments'
+});
+
+// 🔗 SimpleWorkExpense creado por Staff
+SimpleWorkExpense.belongsTo(Staff, {
+  foreignKey: 'createdBy',
+  as: 'creator'
+});
+
+// Staff puede crear muchos gastos de SimpleWork
+Staff.hasMany(SimpleWorkExpense, {
+  foreignKey: 'createdBy',
+  as: 'createdSimpleWorkExpenses'
 });
 
 

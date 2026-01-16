@@ -17,6 +17,7 @@ const COLOR_TEXT_MEDIUM = '#555555';
 const COLOR_TEXT_LIGHT = '#777777';
 const COLOR_PRIMARY_ACCENT = '#007bff';
 const COLOR_BORDER_LIGHT = '#DDDDDD';
+const COLOR_BORDER_MEDIUM = '#AAAAAA'; // 🆕 Color para bordes medianos
 const COLOR_BACKGROUND_TABLE_HEADER = '#f2f2f2';
 
 module.exports = {
@@ -36,5 +37,6 @@ module.exports = {
   COLOR_TEXT_LIGHT,
   COLOR_PRIMARY_ACCENT,
   COLOR_BORDER_LIGHT,
+  COLOR_BORDER_MEDIUM, // 🆕 Exportar nueva constante
   COLOR_BACKGROUND_TABLE_HEADER
 };

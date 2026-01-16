@@ -78,7 +78,7 @@ import WorkerWorkUpload from "./Components/Workers/WorkerWorkUpload";
 import WorkerMaintenanceDashboard from "./Components/Workers/WorkerMaintenanceDashboard";
 import WorkerMaintenanceDetail from "./Components/Workers/WorkerMaintenanceDetail";
 import WorkerGeneralExpense from "./Components/Workers/WorkerGeneralExpense";
-
+import SimpleWorkList from "./Components/SimpleWork/SimpleWorkList";
 
 function App() {
   const dispatch = useDispatch();
@@ -209,6 +209,14 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["owner", "admin"]}>
                     <Works />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/simple-works"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin", "recept"]}>
+                    <SimpleWorkList />
                   </PrivateRoute>
                 }
               />
