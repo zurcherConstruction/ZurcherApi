@@ -43,6 +43,7 @@ const budgetPublicRoutes = require('./BudgetPublicRoutes');
 const stripeWebhookRoutes = require('./stripeWebhookRoutes'); // 🆕 Webhooks de Stripe
 const docusignRoutes = require('./docusign.routes'); // 🆕 OAuth de DocuSign
 const exportRoutes = require('./exportRoutes'); // 🆕 Rutas para exportar datos a Excel
+const simpleWorkRoutes = require('./simpleWorkRoutes'); // 🆕 Rutas para trabajos varios
 // Health check endpoint (público, sin autenticación)
 router.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -98,5 +99,6 @@ router.use('/import', importRoutes); // Ruta para importar trabajos legacy
 router.use('/export', exportRoutes); // 🆕 Ruta para exportar datos a Excel
 router.use('/monthly-installations', monthlyInstallationsRoutes); // 🆕 Ruta para instalaciones mensuales
 router.use('/staff-attendance', staffAttendanceRoutes); // 🆕 Ruta para asistencia del personal
+router.use('/simple-works', simpleWorkRoutes); // 🆕 Ruta para trabajos varios (culvert, drainfield, etc.)
 
 module.exports = router;

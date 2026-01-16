@@ -254,6 +254,52 @@ const createCreditCardPaymentTransaction = async ({
   });
 };
 
+/**
+ * Crear transacción de pago de SimpleWork (Income)
+ * 
+ * @param {Object} params
+ * @param {string} params.paymentMethod - Método de pago del SimpleWork
+ * @param {number} params.amount - Monto del pago
+ * @param {string} params.date - Fecha en formato YYYY-MM-DD
+ * @param {string} params.simpleWorkNumber - Número del SimpleWork
+ * @param {string} params.relatedSimpleWorkPaymentId - UUID del SimpleWorkPayment relacionado
+ * @param {string} params.notes - Notas adicionales (opcional)
+ * @param {string} params.createdByStaffId - UUID del Staff que creó (opcional)
+ * @param {Object} params.transaction - Transacción de Sequelize (opcional)
+ * 
+ * @returns {Object|null} BankTransaction creado o null si no es cuenta bancaria
+ */
+const createSimpleWorkPaymentTransaction = async ({
+  paymentMethod,
+  amount,
+  date,
+  simpleWorkNumber,
+  relatedSimpleWorkPaymentId,
+  notes = null,
+  createdByStaffId = null,
+  transaction = null
+}) => {
+  return await createDepositTransaction({
+    paymentMethod,
+    amount,
+    date,
+    description: `Pago SimpleWork #${simpleWorkNumber}`,
+    relatedIncomeId: null, // SimpleWork payments are not Incomes
+    notes,
+    createdByStaffId,
+    transaction
+  }).then(bankTransaction => {
+    if (bankTransaction && relatedSimpleWorkPaymentId) {
+      // Agregar la vinculación específica con SimpleWork
+      return bankTransaction.update({
+        relatedSimpleWorkPaymentId,
+        category: 'simple_work_payment'
+      }, { transaction });
+    }
+    return bankTransaction;
+  });
+};
+
 module.exports = {
   isBankAccount,
   getAccountName,
@@ -261,5 +307,6 @@ module.exports = {
   createDepositTransaction,
   createWithdrawalTransaction,
   createCreditCardPaymentTransaction,
+  createSimpleWorkPaymentTransaction,
   PAYMENT_METHOD_TO_ACCOUNT
 };

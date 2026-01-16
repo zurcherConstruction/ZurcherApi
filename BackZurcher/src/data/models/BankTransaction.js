@@ -77,6 +77,11 @@ module.exports = (sequelize) => {
         key: 'idSupplierInvoice'
       }
     },
+    relatedSimpleWorkPaymentId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      comment: 'Vinculación con pagos de SimpleWork'
+    },
 
     // Para transferencias
     transferToAccountId: {

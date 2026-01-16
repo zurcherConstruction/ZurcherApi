@@ -27,7 +27,7 @@ const normalizeDateToLocal = (dateInput) => {
 
 // Crear un nuevo ingreso
 const createIncome = async (req, res) => {
-  let { date, amount, typeIncome, notes, workId, staffId, paymentMethod, paymentDetails, verified } = req.body;
+  let { date, amount, typeIncome, notes, workId, staffId, paymentMethod, paymentDetails, verified, simpleWorkId } = req.body;
   
   // ✅ Normalizar fecha (acepta ISO completo o YYYY-MM-DD)
   date = normalizeDateToLocal(date);
@@ -56,6 +56,42 @@ const createIncome = async (req, res) => {
       paymentDetails,
       verified: verified || false 
     }, { transaction });
+
+    // 🆕 CREAR SIMPLEWORKPAYMENT SI ES UN PAGO DE SIMPLEWORK
+    if (simpleWorkId && typeIncome === 'Factura SimpleWork') {
+      try {
+        const { SimpleWork, SimpleWorkPayment } = require('../data');
+        
+        // Verificar que el SimpleWork existe
+        const simpleWork = await SimpleWork.findByPk(simpleWorkId, { transaction });
+        if (simpleWork) {
+          // Crear SimpleWorkPayment
+          await SimpleWorkPayment.create({
+            simpleWorkId: simpleWorkId,
+            amount: amount,
+            paymentMethod: paymentMethod,
+            paymentDate: date,
+            description: notes,
+            createdAt: new Date()
+          }, { transaction });
+
+          // Actualizar totalPaid en SimpleWork
+          const totalPaid = await SimpleWorkPayment.sum('amount', {
+            where: { simpleWorkId: simpleWorkId },
+            transaction
+          });
+
+          await simpleWork.update({ 
+            totalPaid: totalPaid || 0 
+          }, { transaction });
+
+          console.log(`✅ [SIMPLEWORK] Pago registrado: ${simpleWork.workNumber} +$${amount} → Total: $${totalPaid || 0}`);
+        }
+      } catch (simpleWorkError) {
+        console.error('⚠️ Error procesando SimpleWork payment (no crítico):', simpleWorkError.message);
+        // No hacer rollback, mantener el Income
+      }
+    }
     
     // 🏦 AUTO-CREAR BANK TRANSACTION SI EL PAGO ES A CUENTA BANCARIA
     try {
@@ -321,6 +357,70 @@ const deleteIncome = async (req, res) => {
 
     // Eliminar el income
     await income.destroy({ transaction });
+    
+    // 🆕 REVERTIR PAGO DE SIMPLEWORK SI EXISTE
+    if (income.typeIncome === 'Factura SimpleWork') {
+      try {
+        const { SimpleWork, SimpleWorkPayment } = require('../data');
+        
+        // Buscar el SimpleWorkPayment correspondiente
+        const simpleWorkPayment = await SimpleWorkPayment.findOne({
+          where: {
+            amount: income.amount,
+            paymentDate: income.date,
+            paymentMethod: income.paymentMethod
+          },
+          transaction
+        });
+
+        if (simpleWorkPayment) {
+          const simpleWork = await SimpleWork.findByPk(simpleWorkPayment.simpleWorkId, { transaction });
+          
+          if (simpleWork) {
+            // Eliminar el SimpleWorkPayment
+            await simpleWorkPayment.destroy({ transaction });
+
+            // Recalcular totalPaid
+            const newTotalPaid = await SimpleWorkPayment.sum('amount', {
+              where: { simpleWorkId: simpleWork.id },
+              transaction
+            }) || 0;
+
+            await simpleWork.update({ 
+              totalPaid: newTotalPaid 
+            }, { transaction });
+
+            console.log(`🔄 [SIMPLEWORK] Pago eliminado: ${simpleWork.workNumber} -$${income.amount} → Total: $${newTotalPaid.toFixed(2)}`);
+          }
+        }
+      } catch (simpleWorkError) {
+        console.error('⚠️ [SIMPLEWORK] Error revirtiendo pago (no crítico):', simpleWorkError.message);
+      }
+    }
+
+    // Legacy: Revertir usando simpleWorkId directo (para compatibilidad con datos viejos)
+    if (income.simpleWorkId) {
+      try {
+        const { SimpleWork } = require('../data');
+        const simpleWork = await SimpleWork.findByPk(income.simpleWorkId, { transaction });
+        
+        if (simpleWork) {
+          const currentTotalPaid = parseFloat(simpleWork.totalPaid || 0);
+          const incomeAmount = parseFloat(income.amount || 0);
+          const newTotalPaid = Math.max(0, currentTotalPaid - incomeAmount);
+          
+          await simpleWork.update({ 
+            totalPaid: newTotalPaid,
+            // También actualizar el status si es necesario
+            status: newTotalPaid === 0 ? 'sent' : 'invoiced'
+          }, { transaction });
+          
+          console.log(`🔄 [SIMPLEWORK] Pago legacy revertido: ${simpleWork.workNumber} -$${incomeAmount.toFixed(2)} → Total: $${newTotalPaid.toFixed(2)}`);
+        }
+      } catch (simpleWorkError) {
+        console.error('⚠️ [SIMPLEWORK] Error revirtiendo pago legacy (no crítico):', simpleWorkError.message);
+      }
+    }
     
     await transaction.commit();
 

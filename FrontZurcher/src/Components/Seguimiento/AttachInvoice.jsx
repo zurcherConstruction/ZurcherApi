@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { fetchWorks } from "../../Redux/Actions/workActions"; // Acción para obtener todas las obras
 import { createReceipt } from "../../Redux/Actions/receiptActions"; // Acción para crear comprobantes
 import { incomeActions, expenseActions } from "../../Redux/Actions/balanceActions"; // Acciones para Income y Expense
+import { fetchSimpleWorks } from "../../Redux/Actions/simpleWorkActions"; // 🆕 Acciones para SimpleWork
 import { toast } from "react-toastify";
 import {
   DocumentTextIcon,
@@ -136,6 +137,8 @@ const AttachReceipt = () => {
 
   // Obtener las obras desde el estado global
   const { works, loading, error: worksError } = useSelector((state) => state.work);
+  // 🆕 Obtener SimpleWorks desde el estado global
+  const { simpleWorks, loading: simpleWorksLoading, error: simpleWorksError } = useSelector((state) => state.simpleWork);
   const staff = useSelector((state) => state.auth.currentStaff);
   // Estados locales
   const [selectedWork, setSelectedWork] = useState(""); // ID de la obra seleccionada
@@ -153,6 +156,8 @@ const AttachReceipt = () => {
   const [paymentDetails, setPaymentDetails] = useState(''); // 🆕 Detalles adicionales del pago
   const [fixedExpenses, setFixedExpenses] = useState([]); // 🆕 Lista de gastos fijos
   const [selectedFixedExpense, setSelectedFixedExpense] = useState(''); // 🆕 Gasto fijo seleccionado
+  const [selectedSimpleWork, setSelectedSimpleWork] = useState(''); // 🆕 SimpleWork seleccionado
+  const [simpleWorkPaymentAmount, setSimpleWorkPaymentAmount] = useState(''); // 🆕 Monto a pagar de SimpleWork
   const [loadingFixedExpenses, setLoadingFixedExpenses] = useState(false); // 🆕 Loading para gastos fijos
   const [fixedExpensePaymentAmount, setFixedExpensePaymentAmount] = useState(''); // 🆕 Monto del pago parcial para gasto fijo
   const [workSearchTerm, setWorkSearchTerm] = useState(''); // 🆕 Término de búsqueda para works
@@ -170,6 +175,7 @@ const AttachReceipt = () => {
 
   useEffect(() => {
     dispatch(fetchWorks(1, 'all')); // ✅ Usar 'all' para obtener TODOS los works sin límite
+    dispatch(fetchSimpleWorks()); // 🆕 Cargar todos los SimpleWorks
   }, [dispatch]);
 
   // Verificar Works disponibles para filtrado
@@ -331,6 +337,17 @@ const AttachReceipt = () => {
     if (type === 'Gasto Fijo') {
       setIsGeneralTransaction(true);
       setSelectedWork(""); // Limpiar selección de obra
+    }
+  }, [type]);
+
+  // 🆕 Auto-marcar como transacción general cuando se selecciona "Factura SimpleWork"
+  useEffect(() => {
+    if (type === 'Factura SimpleWork') {
+      setIsGeneralTransaction(true);
+      setSelectedWork(""); // Limpiar selección de obra
+      // Resetear campos de SimpleWork
+      setSelectedSimpleWork("");
+      setSimpleWorkPaymentAmount("");
     }
   }, [type]);
 
@@ -631,6 +648,113 @@ const AttachReceipt = () => {
             throw error; // Re-lanzar para que se capture en el catch principal
           }
 
+        } else if (type === 'Factura SimpleWork') {
+          // 🆕 MANEJO ESPECIAL PARA PAGOS DE SIMPLEWORK
+          if (!selectedSimpleWork) {
+            toast.error("Por favor, selecciona un SimpleWork para registrar el pago.");
+            return;
+          }
+
+          if (!simpleWorkPaymentAmount || parseFloat(simpleWorkPaymentAmount) <= 0) {
+            toast.error("Por favor, ingresa un monto válido a cobrar.");
+            return;
+          }
+
+          // Obtener detalles del SimpleWork seleccionado
+          const simpleWork = simpleWorks?.find(sw => sw.id === selectedSimpleWork);
+          if (!simpleWork) {
+            toast.error("SimpleWork no encontrado.");
+            return;
+          }
+
+          const paymentAmount = parseFloat(simpleWorkPaymentAmount);
+          
+          // 🔍 VALIDACIÓN CRÍTICA: Asegurar que usamos el monto correcto
+          if (!paymentAmount || paymentAmount <= 0 || isNaN(paymentAmount)) {
+            toast.error(`Monto inválido: ${simpleWorkPaymentAmount}. Por favor verifica el valor.`);
+            return;
+          }
+          
+          // 🔍 DEBUG: Log detallado del proceso de pago
+          console.log('🔍 === DEBUGGING PROCESO DE PAGO SIMPLEWORK ===');
+          console.log('📝 simpleWorkPaymentAmount (campo manual):', simpleWorkPaymentAmount);
+          console.log('📝 amount (campo sincronizado):', amount);
+          console.log('💰 paymentAmount (calculado para usar):', paymentAmount);
+          console.log('📊 SimpleWork seleccionado:', simpleWork);
+          console.log('💵 estimatedAmount:', simpleWork.estimatedAmount);
+          console.log('💵 finalAmount:', simpleWork.finalAmount);
+          console.log('💵 totalPaid:', simpleWork.totalPaid);
+          console.log('💵 initialPayment:', simpleWork.initialPayment);
+          console.log('💵 initialPaymentPercentage:', simpleWork.initialPaymentPercentage);
+
+          // Crear Income para el pago de SimpleWork
+          const incomeData = {
+            date: paymentDate,
+            amount: paymentAmount,
+            typeIncome: 'Factura SimpleWork',
+            notes: `Pago SimpleWork #${simpleWork.workNumber} - ${simpleWork.description}`,
+            staffId: staff?.id,
+            paymentMethod: paymentMethod || null,
+            paymentDetails: paymentDetails || null,
+            // Agregar referencia al SimpleWork
+            simpleWorkId: selectedSimpleWork
+          };
+
+          console.log('💰 Creando Income para SimpleWork:', incomeData);
+          console.log('🔍 Monto específico que se enviará:', incomeData.amount);
+
+          try {
+            const createdIncome = await incomeActions.create(incomeData);
+            if (!createdIncome || !createdIncome.idIncome) {
+              throw new Error("No se pudo crear el ingreso para SimpleWork.");
+            }
+
+            console.log('✅ Income creado con ID:', createdIncome.idIncome);
+
+            // Adjuntar comprobante al Income
+            formData.append("relatedModel", "Income");
+            formData.append("relatedId", createdIncome.idIncome.toString());
+
+            console.log('📎 Adjuntando comprobante al pago SimpleWork');
+            
+            // Crear receipt directamente via API
+            if (file) {
+              const receiptResponse = await api.post('/receipt', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+              });
+              console.log('📄 Receipt de SimpleWork creado:', receiptResponse.data);
+            }
+
+            // 🆕 Actualizar estado del SimpleWork y totales pagados
+            const finalAmount = parseFloat(simpleWork.finalAmount || simpleWork.estimatedAmount || 0);
+            const currentPaid = parseFloat(simpleWork.totalPaid || 0);
+            const newTotalPaid = currentPaid + paymentAmount;
+            const isFullyPaid = Math.abs(newTotalPaid - finalAmount) <= 0.01; // Tolerancia de 1 centavo
+
+            try {
+              const updateData = {
+                totalPaid: newTotalPaid,
+                // Actualizar estado según el pago
+                status: isFullyPaid ? 'paid' : 'invoiced' // paid si está completamente pagado, invoiced si es parcial
+              };
+
+              await api.patch(`/simple-works/${selectedSimpleWork}`, updateData);
+              console.log(`✅ SimpleWork actualizado: totalPaid=${newTotalPaid}, status=${updateData.status}`);
+            } catch (updateError) {
+              console.warn('⚠️ Error actualizando SimpleWork (no crítico):', updateError);
+              // No fallar toda la operación por esto
+            }
+
+            // TODO: Integrar con BankTransaction si es cuenta bancaria
+            
+            const statusMsg = isFullyPaid ? 'completamente pagado' : 'pago parcial registrado';
+            toast.success(`✅ Pago SimpleWork ${statusMsg}: #${simpleWork.workNumber} - $${paymentAmount.toFixed(2)}`);
+
+          } catch (error) {
+            console.error('❌ Error procesando pago SimpleWork:', error);
+            throw error;
+          }
+
         } else {
           // Lógica original para otros tipos de gastos/ingresos
           if (!generalAmount || isNaN(parseFloat(generalAmount)) || parseFloat(generalAmount) <= 0) {
@@ -692,6 +816,12 @@ const AttachReceipt = () => {
         }
       }
 
+      // 🆕 Refrescar SimpleWorks si se procesó un pago de SimpleWork
+      if (selectedSimpleWork) {
+        console.log('🔄 Refrescando lista de SimpleWorks después del pago...');
+        dispatch(fetchSimpleWorks());
+      }
+
       // Limpiar el formulario
       setSelectedWork("");
       setType("");
@@ -710,6 +840,7 @@ const AttachReceipt = () => {
       setSelectedFixedExpense(""); // 🆕 Limpiar gasto fijo seleccionado
       setFixedExpensePaymentAmount(""); // 🆕 Limpiar monto de pago de gasto fijo
       setFixedExpensePeriodMonth(""); // 🆕 Limpiar periodo de gasto fijo
+      setSelectedSimpleWork(""); // 🆕 Limpiar SimpleWork seleccionado
 
     } catch (err) {
       console.error("❌❌❌ Error completo en handleSubmit:", err);
@@ -1299,6 +1430,170 @@ const AttachReceipt = () => {
               </div>
             )}
 
+            {/* 🆕 SELECTOR DE SIMPLEWORK */}
+            {type === 'Factura SimpleWork' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
+                <div className="flex items-center space-x-3 mb-3">
+                  <div className="p-2 bg-blue-500 rounded-lg">
+                    <CurrencyDollarIcon className="h-5 w-5 text-white" />
+                  </div>
+                  <h5 className="font-semibold text-blue-800">
+                    🔧 Seleccionar SimpleWork para Cobrar
+                  </h5>
+                </div>
+
+                {simpleWorksLoading && (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+                    <span className="ml-3 text-sm text-gray-600">Cargando SimpleWorks...</span>
+                  </div>
+                )}
+
+                {!simpleWorksLoading && (!simpleWorks || simpleWorks.length === 0) && (
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div className="flex items-start space-x-2">
+                      <InformationCircleIcon className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-yellow-800">
+                          No hay SimpleWorks disponibles
+                        </p>
+                        <p className="text-xs text-yellow-700 mt-1">
+                          No hay trabajos SimpleWork para registrar pagos.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!simpleWorksLoading && simpleWorks && simpleWorks.length > 0 && (
+                  <>
+                    <div className="mb-4">
+                      <label htmlFor="simpleWork" className="block text-sm font-medium text-gray-700 mb-2">
+                        Selecciona el SimpleWork: <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        id="simpleWork"
+                        value={selectedSimpleWork}
+                        onChange={(e) => {
+                          const simpleWorkId = e.target.value;
+                          setSelectedSimpleWork(simpleWorkId);
+                          
+                          // 🆕 Auto-llenar el monto cuando se selecciona un SimpleWork
+                          if (simpleWorkId) {
+                            const selectedSW = simpleWorks.find(sw => sw.id === simpleWorkId);
+                            if (selectedSW) {
+                              const estimatedAmount = parseFloat(selectedSW.estimatedAmount || 0);
+                              const finalAmount = parseFloat(selectedSW.finalAmount || estimatedAmount);
+                              const paidAmount = parseFloat(selectedSW.totalPaid || 0);
+                              const initialPayment = parseFloat(selectedSW.initialPayment || 0);
+                              
+                              let amountToFill;
+                              
+                              // 🎯 Si nunca se ha pagado nada, sugerir el pago inicial
+                              if (paidAmount === 0 && initialPayment > 0) {
+                                amountToFill = initialPayment.toFixed(2);
+                                console.log('💡 Sugiriendo pago inicial:', amountToFill);
+                              } else {
+                                // Si ya hay pagos, calcular el restante
+                                const remainingAmount = Math.max(0, finalAmount - paidAmount);
+                                amountToFill = remainingAmount.toFixed(2);
+                                console.log('💡 Sugiriendo monto restante:', amountToFill);
+                              }
+                              
+                              // Auto-llenar ambos campos
+                              setSimpleWorkPaymentAmount(amountToFill);
+                              setAmount(amountToFill); // Sincronizar con "Monto del Ingreso"
+                            }
+                          } else {
+                            // Limpiar campos cuando se deselecciona
+                            setSimpleWorkPaymentAmount('');
+                            setAmount('');
+                          }
+                        }}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
+                        required
+                      >
+                        <option value="">Seleccionar SimpleWork...</option>
+                        {simpleWorks.map((sw) => {
+                          const clientName = sw.clientData?.firstName && sw.clientData?.lastName
+                            ? `${sw.clientData.firstName} ${sw.clientData.lastName}`
+                            : 'Cliente no especificado';
+                          
+                          return (
+                            <option key={sw.id} value={sw.id}>
+                              #{sw.workNumber} - {clientName} - ${parseFloat(sw.finalAmount || sw.estimatedAmount || 0).toFixed(2)}
+                            </option>
+                          );
+                        })}
+                      </select>
+                    </div>
+
+                    {/* Campo de monto a cobrar */}
+                    {selectedSimpleWork && (
+                      <div className="mb-4">
+                        <label htmlFor="simpleWorkAmount" className="block text-sm font-medium text-gray-700 mb-2">
+                          Monto a cobrar: <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          id="simpleWorkAmount"
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={simpleWorkPaymentAmount}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            console.log('🔄 Cambiando monto SimpleWork de', simpleWorkPaymentAmount, 'a', value);
+                            setSimpleWorkPaymentAmount(value);
+                            // Sincronizar automáticamente con el campo "Monto del Ingreso"
+                            setAmount(value);
+                            console.log('🔄 Campos sincronizados - simpleWorkPaymentAmount:', value, 'amount:', value);
+                          }}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                          placeholder="Ingrese monto a cobrar"
+                          required
+                        />
+                        
+                        {/* Mostrar detalles del SimpleWork seleccionado */}
+                        {(() => {
+                          const selectedSW = simpleWorks.find(sw => sw.id === selectedSimpleWork);
+                          if (!selectedSW) return null;
+                          
+                          const estimatedAmount = parseFloat(selectedSW.estimatedAmount || 0);
+                          const finalAmount = parseFloat(selectedSW.finalAmount || estimatedAmount);
+                          const paidAmount = parseFloat(selectedSW.totalPaid || 0);
+                          const remainingAmount = finalAmount - paidAmount;
+                          
+                          return (
+                            <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                              <div className="grid grid-cols-3 gap-2 text-center text-sm">
+                                <div>
+                                  <p className="text-gray-600 font-medium mb-1">Monto Total</p>
+                                  <p className="text-gray-800 font-semibold">${finalAmount.toFixed(2)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-600 font-medium mb-1">Ya Pagado</p>
+                                  <p className="text-green-600 font-semibold">${paidAmount.toFixed(2)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-600 font-medium mb-1">🎯 Pendiente</p>
+                                  <p className="text-blue-600 font-bold">${remainingAmount.toFixed(2)}</p>
+                                </div>
+                              </div>
+                              
+                              <div className="mt-2 text-xs text-gray-600">
+                                <p><strong>Descripción:</strong> {selectedSW.description}</p>
+                                <p><strong>Estado:</strong> {selectedSW.status}</p>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
             {/* Work Selection - Only show if not general transaction and type is selected */}
             {type && !isGeneralTransaction && (
               <div>
@@ -1649,25 +1944,34 @@ const AttachReceipt = () => {
                   step="any"
                   min="0"
                   id="generalAmount"
-                  value={generalAmount}
+                  value={selectedSimpleWork ? simpleWorkPaymentAmount : generalAmount}
+                  readOnly={selectedSimpleWork} // Solo lectura cuando hay SimpleWork seleccionado
                   onChange={(e) => {
-                    const value = e.target.value;
-                    // Permitir valores vacíos y números válidos
-                    if (value === '' || !isNaN(parseFloat(value))) {
-                      setGeneralAmount(value);
+                    // Solo permitir cambios si NO hay SimpleWork seleccionado
+                    if (!selectedSimpleWork) {
+                      const value = e.target.value;
+                      // Permitir valores vacíos y números válidos
+                      if (value === '' || !isNaN(parseFloat(value))) {
+                        setGeneralAmount(value);
+                      }
                     }
                   }}
                   onBlur={(e) => {
-                    // Formatear solo al perder foco - mantener enteros sin decimales
-                    const value = parseFloat(e.target.value);
-                    if (!isNaN(value) && value >= 0) {
-                      // Si es un número entero, no agregar decimales
-                      const formatted = value % 1 === 0 ? value.toString() : value.toFixed(2);
-                      setGeneralAmount(formatted);
+                    // Solo formatear si NO hay SimpleWork seleccionado
+                    if (!selectedSimpleWork) {
+                      // Formatear solo al perder foco - mantener enteros sin decimales
+                      const value = parseFloat(e.target.value);
+                      if (!isNaN(value) && value >= 0) {
+                        // Si es un número entero, no agregar decimales
+                        const formatted = value % 1 === 0 ? value.toString() : value.toFixed(2);
+                        setGeneralAmount(formatted);
+                      }
                     }
                   }}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                  placeholder="0.00"
+                  className={`w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
+                    selectedSimpleWork ? 'bg-gray-50 cursor-not-allowed' : ''
+                  }`}
+                  placeholder={selectedSimpleWork ? 'Monto automático desde SimpleWork' : '0.00'}
                   required
                 />
               </div>
