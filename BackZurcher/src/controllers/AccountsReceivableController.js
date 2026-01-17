@@ -1,4 +1,4 @@
-const { Work, Budget, FinalInvoice, ChangeOrder, WorkExtraItem, Staff, Expense, Receipt } = require('../data');
+const { Work, Budget, FinalInvoice, ChangeOrder, WorkExtraItem, Staff, Expense, Receipt, WorkNote } = require('../data');
 const { Sequelize, Op } = require('sequelize');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader');
 const { sendNotifications } = require('../utils/notifications/notificationManager');
@@ -139,7 +139,57 @@ const AccountsReceivableController = {
         ]
       });
 
-      const totalPendingFromFinalInvoices = pendingFinalInvoices.reduce((sum, invoice) => {
+      // Obtener información de envío para cada factura desde WorkNote
+      const finalInvoicesWithSentInfo = await Promise.all(
+        pendingFinalInvoices.map(async (invoice) => {
+          // Buscar WorkNote que indique envío de esta factura
+          const sentNote = await WorkNote.findOne({
+            where: {
+              workId: invoice.workId,
+              [Op.and]: [
+                {
+                  message: {
+                    [Op.like]: '%Factura Final%'
+                  }
+                },
+                {
+                  message: {
+                    [Op.like]: '%ENVIADA%'
+                  }
+                }
+              ],
+              noteType: 'payment'
+            },
+            order: [['createdAt', 'DESC']],
+            attributes: ['id', 'message', 'createdAt', 'workId']
+          });
+
+          console.log(`📧 [AccountsReceivable] Factura ${invoice.id} (Work: ${invoice.workId}):`, {
+            sentNote: sentNote ? {
+              id: sentNote.id,
+              message: sentNote.message,
+              createdAt: sentNote.createdAt,
+              createdAtType: typeof sentNote.createdAt
+            } : null
+          });
+
+          const resultData = {
+            ...invoice.toJSON(),
+            sentAt: sentNote?.createdAt || null,
+            wasSent: !!sentNote
+          };
+
+          console.log(`🔍 [AccountsReceivable] Datos resultado para factura ${invoice.id}:`, {
+            sentAt: resultData.sentAt,
+            sentAtType: typeof resultData.sentAt,
+            wasSent: resultData.wasSent
+          });
+
+          return resultData;
+        })
+      );
+
+      const totalPendingFromFinalInvoices = finalInvoicesWithSentInfo.reduce((sum, invoice) => {
         return sum + parseFloat(invoice.finalAmountDue || 0);
       }, 0);
 
@@ -198,8 +248,9 @@ const AccountsReceivableController = {
         details: {
           // ✅ ELIMINADO: budgetsWithoutWork (no son seguros, no deberían estar aquí)
           worksInProgress: worksPendingDetails,
-          pendingFinalInvoices: pendingFinalInvoices.map(fi => ({
+          pendingFinalInvoices: finalInvoicesWithSentInfo.map(fi => ({
             finalInvoiceId: fi.id,
+            invoiceNumber: fi.invoiceNumber,
             workId: fi.workId,
             propertyAddress: fi.Work?.propertyAddress || 'N/A',
             clientName: fi.Work?.budget?.applicantName || 'N/A',
@@ -209,7 +260,9 @@ const AccountsReceivableController = {
             finalAmountDue: parseFloat(fi.finalAmountDue || 0),
             status: fi.status,
             invoiceDate: fi.invoiceDate,
-            extraItemsCount: fi.extraItems?.length || 0
+            extraItemsCount: fi.extraItems?.length || 0,
+            wasSent: fi.wasSent,
+            sentAt: fi.sentAt
           })),
           approvedChangeOrders: changeOrdersPendingDetails
         }

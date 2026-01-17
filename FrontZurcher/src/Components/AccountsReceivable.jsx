@@ -269,25 +269,48 @@ const AccountsReceivable = () => {
     }).format(amount || 0);
   };
 
+  // Debug: Ver los datos completos que llegan del backend
+  useEffect(() => {
+    if (data.details?.pendingFinalInvoices) {
+      console.log('🔍 [Frontend] Datos completos recibidos:', {
+        count: data.details.pendingFinalInvoices.length,
+        invoices: data.details.pendingFinalInvoices.map(inv => ({
+          id: inv.finalInvoiceId,
+          wasSent: inv.wasSent,
+          sentAt: inv.sentAt,
+          invoiceDate: inv.invoiceDate
+        }))
+      });
+    }
+  }, [data.details?.pendingFinalInvoices]);
+
   const formatDate = (date) => {
     if (!date) return 'N/A';
     
+    let d;
+    
     // Si es un string en formato YYYY-MM-DD, parsearlo sin conversión UTC
-    if (typeof date === 'string' && date.includes('-')) {
+    if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
       const [year, month, day] = date.split('-').map(Number);
-      const d = new Date(year, month - 1, day);
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
-      const yyyy = d.getFullYear();
-      return `${mm}-${dd}-${yyyy}`;
+      d = new Date(year, month - 1, day);
+    } 
+    // Si es un string ISO o cualquier otro formato válido de fecha
+    else if (typeof date === 'string' || date instanceof Date) {
+      d = new Date(date);
+    } 
+    else {
+      return 'Formato inválido';
     }
     
-    // Fallback para otros formatos
-    const d = new Date(date);
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${month}-${day}-${year}`;
+    // Verificar que la fecha sea válida
+    if (isNaN(d.getTime())) {
+      return 'Fecha inválida';
+    }
+    
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${mm}-${dd}-${yyyy}`;
   };
 
   if (loading) {
@@ -329,32 +352,46 @@ const AccountsReceivable = () => {
           </div>
         </div>
 
-        {/* Total del Contrato */}
+        {/* Total Works */}
         <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-4 md:p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-blue-100 text-xs md:text-sm font-medium">Total Contratos</p>
+              <p className="text-blue-100 text-xs md:text-sm font-medium">Total Works</p>
               <p className="text-2xl md:text-3xl font-bold mt-1 md:mt-2">
-                {formatCurrency(invoicesData.summary?.totalExpected || 0)}
+                {filteredInvoices.length}
               </p>
               <p className="text-blue-100 text-xs mt-1">
-                Suma de todos los contratos
+                Works activos
               </p>
             </div>
             <FaFileInvoiceDollar className="text-3xl md:text-5xl text-blue-200 opacity-50" />
           </div>
         </div>
 
-        {/* Total Cobrado */}
+        {/* Trabajos Listos para Cobrar */}
         <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-4 md:p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-green-100 text-xs md:text-sm font-medium">Total Cobrado</p>
+              <p className="text-green-100 text-xs md:text-sm font-medium">Trabajos Listos</p>
               <p className="text-2xl md:text-3xl font-bold mt-1 md:mt-2">
-                {formatCurrency(invoicesData.summary?.totalCollected || 0)}
+                {formatCurrency(
+                  filteredInvoices
+                    .filter(inv => {
+                      const status = inv.workStatus;
+                      return status === 'coverPending' || 
+                             status === 'covered' || 
+                             status === 'invoiceFinal';
+                    })
+                    .reduce((sum, inv) => sum + (inv.remainingAmount || 0), 0)
+                )}
               </p>
               <p className="text-green-100 text-xs mt-1">
-                Ya recibido
+                {filteredInvoices.filter(inv => {
+                  const status = inv.workStatus;
+                  return status === 'coverPending' || 
+                         status === 'covered' || 
+                         status === 'invoiceFinal';
+                }).length} trabajos terminados
               </p>
             </div>
             <FaCheckCircle className="text-3xl md:text-5xl text-green-200 opacity-50" />
@@ -386,7 +423,7 @@ const AccountsReceivable = () => {
               }`}
             >
               <FaChartLine className="inline mr-2" />
-              Resumen General
+              Invoice Final Por Cobrar
             </button>
             <button
               onClick={() => setActiveTab('income')}
@@ -489,69 +526,6 @@ const AccountsReceivable = () => {
               >
                 Limpiar Filtros
               </button>
-            </div>
-          </div>
-
-          {/* Summary Cards Simplificadas */}
-          <div className="grid grid-cols-2 md:grid-cols-2 gap-3 md:gap-4 mb-4 md:mb-6">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-3 md:p-4 border border-blue-200">
-              <div className="flex items-center gap-2 md:gap-3">
-                <div className="bg-blue-500 text-white rounded-full w-8 h-8 md:w-10 md:h-10 flex items-center justify-center flex-shrink-0">
-                  <FaFileInvoiceDollar className="text-sm md:text-lg" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-gray-600">Total Works</p>
-                  <p className="text-lg md:text-2xl font-bold text-blue-600 truncate">
-                    {filteredInvoices.length}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg p-3 md:p-4 border border-orange-200">
-              <div className="flex items-center gap-2 md:gap-3">
-                <div className="bg-orange-500 text-white rounded-full w-8 h-8 md:w-10 md:h-10 flex items-center justify-center flex-shrink-0">
-                  <FaExclamationTriangle className="text-sm md:text-lg" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-gray-600">Por Cobrar</p>
-                  <p className="text-lg md:text-2xl font-bold text-orange-600 truncate">
-                    {formatCurrency(filteredInvoices.reduce((sum, inv) => sum + (inv.remainingAmount || 0), 0))}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* 🆕 Suma de trabajos cubiertos/terminados listos para cobrar */}
-            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-3 md:p-4 border border-green-200">
-              <div className="flex items-center gap-2 md:gap-3">
-                <div className="bg-green-600 text-white rounded-full w-8 h-8 md:w-10 md:h-10 flex items-center justify-center flex-shrink-0">
-                  <FaCheckCircle className="text-sm md:text-lg" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-gray-600">Trabajos Listos</p>
-                  <p className="text-lg md:text-2xl font-bold text-green-600 truncate">
-                    {formatCurrency(
-                      filteredInvoices
-                        .filter(inv => {
-                          const status = inv.workStatus;
-                          return status === 'coverPending' || 
-                                 status === 'covered' || 
-                                 status === 'invoiceFinal';
-                        })
-                        .reduce((sum, inv) => sum + (inv.remainingAmount || 0), 0)
-                    )}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {filteredInvoices.filter(inv => {
-                      const status = inv.workStatus;
-                      return status === 'coverPending' || 
-                             status === 'covered' || 
-                             status === 'invoiceFinal';
-                    }).length} trabajos terminados
-                  </p>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -668,10 +642,26 @@ const AccountsReceivable = () => {
           {/* Pending Final Invoices */}
           {data.details.pendingFinalInvoices.length > 0 && (
             <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <FaClock className="text-orange-500" />
-                Final Invoices Pendientes ({data.details.pendingFinalInvoices.length})
-              </h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <FaClock className="text-orange-500" />
+                  Final Invoices Pendientes ({data.details.pendingFinalInvoices.length})
+                </h2>
+                <div className="text-right">
+                  <p className="text-sm text-gray-600">Total por Cobrar:</p>
+                  <p className="text-2xl font-bold text-red-600">
+                    {formatCurrency(
+                      data.details.pendingFinalInvoices.reduce(
+                        (sum, invoice) => {
+                          const amount = parseFloat(invoice.finalAmountDue || 0);
+                          return sum + Math.abs(amount); // Usar valor absoluto para evitar negativos
+                        },
+                        0
+                      )
+                    )}
+                  </p>
+                </div>
+              </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
@@ -695,6 +685,9 @@ const AccountsReceivable = () => {
                         Estado
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                        Estado Envío
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                         Fecha
                       </th>
                     </tr>
@@ -702,8 +695,14 @@ const AccountsReceivable = () => {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {data.details.pendingFinalInvoices.map((invoice) => (
                       <tr key={invoice.finalInvoiceId} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
-                          #{invoice.finalInvoiceId}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <button 
+                            onClick={() => window.open(`/work/${invoice.workId}?section=final-invoice`, '_blank')}
+                            className="text-blue-600 hover:text-blue-800 hover:underline font-semibold"
+                            title="Ver Final Invoice de esta obra"
+                          >
+                            #{invoice.invoiceNumber || String(invoice.finalInvoiceId).substring(0, 8)}
+                          </button>
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
                           {invoice.propertyAddress}
@@ -727,8 +726,26 @@ const AccountsReceivable = () => {
                             {invoice.status}
                           </span>
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            invoice.wasSent ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {invoice.wasSent ? 'Enviado' : 'Pendiente'}
+                          </span>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {formatDate(invoice.invoiceDate)}
+                          {(() => {
+                            if (invoice.wasSent && invoice.sentAt && invoice.sentAt !== null && !isNaN(new Date(invoice.sentAt))) {
+                              return formatDate(invoice.sentAt);
+                            } else if (invoice.invoiceDate && !isNaN(new Date(invoice.invoiceDate))) {
+                              return formatDate(invoice.invoiceDate);
+                            } else {
+                              return 'Fecha no disponible';
+                            }
+                          })()} 
+                          {invoice.wasSent && invoice.sentAt && invoice.sentAt !== null && !isNaN(new Date(invoice.sentAt)) && (
+                            <div className="text-xs text-green-600 font-medium">Enviado</div>
+                          )}
                         </td>
                       </tr>
                     ))}

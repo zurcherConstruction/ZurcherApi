@@ -162,6 +162,7 @@ const BarraLateral = () => {
           items: [
             // Solo Upload Vouchers para admin
             { name: "Upload Vouchers", path: "/attachInvoice", icon: FaReceipt },
+            { name: "Accounts Receivable", path: "/accounts-receivable", icon: FaDollarSign },
           ],
         },
         {
