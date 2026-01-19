@@ -38,7 +38,11 @@ const BarraLateral = () => {
   const { currentStaff: staff } = useSelector((state) => state.auth);
 
   // New state to manage open sections
-  const [openSections, setOpenSections] = useState({});
+  const [openSections, setOpenSections] = useState({
+    "Works Management": true, // Abrir sección Works Management por defecto
+    "Maintenance & Calendar": true, // Abrir sección Maintenance & Calendar por defecto
+    "Dashboard": true, // Abrir sección Dashboard por defecto
+  });
 
   const menuSections = [
     {
@@ -58,13 +62,20 @@ const BarraLateral = () => {
         { name: "Simple Works", path: "/simple-works", icon: FaTools },
         { name: "Tracking Work", path: "/check", icon: FaClipboardCheck },
         { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
-        { name: "Maintenance List", path: "/maintenance-tracker", icon: FaClipboardList },
         { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
         { name: "Monthly Installations", path: "/monthly-installations", icon: FaChartPie }, // 🆕 Instalaciones mensuales
-        { name: "Staff Attendance", path: "/staff-attendance", icon: FaCalendarCheck }, // 🆕 Asistencia del personal
+      ],
+    },
+    {
+      name: "Maintenance & Calendar",
+      icon: FaWrench,
+      color: "text-orange-400",
+      items: [
         { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
+        { name: "Maintenance List", path: "/maintenance-tracker", icon: FaClipboardList },
         { name: "Maintenance", path: "/maintenance", icon: FaWrench },
         { name: "Edit Maintenance", path: "/legacy-maintenance", icon: FaHistory }, // 🆕 Editor de todos los maintenance
+        { name: "Staff Attendance", path: "/staff-attendance", icon: FaCalendarCheck }, // 🆕 Asistencia del personal
       ],
     },
     {
@@ -135,10 +146,18 @@ const BarraLateral = () => {
             { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
             { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
             { name: "Monthly Installations", path: "/monthly-installations", icon: FaChartPie }, // 🆕 Instalaciones mensuales
-            { name: "Staff Attendance", path: "/staff-attendance", icon: FaCalendarCheck }, // 🆕 Asistencia del personal
+          ],
+        },
+        {
+          name: "Maintenance & Calendar",
+          icon: FaWrench,
+          color: "text-orange-400",
+          items: [
             { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
+            { name: "Maintenance List", path: "/maintenance-tracker", icon: FaClipboardList },
             { name: "Maintenance", path: "/maintenance", icon: FaWrench },
             { name: "Edit Maintenance", path: "/legacy-maintenance", icon: FaHistory }, // 🆕 Editor de todos los maintenance
+            { name: "Staff Attendance", path: "/staff-attendance", icon: FaCalendarCheck }, // 🆕 Asistencia del personal
           ],
         },
         {
