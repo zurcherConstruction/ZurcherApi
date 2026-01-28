@@ -106,6 +106,14 @@ router.post(
   BudgetController.sendBudgetToSignNow
 );
 
+// ✅ NUEVA RUTA: Regenerar enlace de firma cuando expire (solo DocuSign)
+router.post(
+  '/:idBudget/resend-signature-link',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner', 'finance']),
+  BudgetController.resendSignatureLink
+);
+
 // Verificar estado de firma del presupuesto
 router.get(
   '/:idBudget/signature-status',

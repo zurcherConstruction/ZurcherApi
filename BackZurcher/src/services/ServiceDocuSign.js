@@ -69,9 +69,9 @@ class DocuSignService {
    * @param {string} fileName - Nombre del archivo
    * @param {string} subject - Asunto del email
    * @param {string} message - Mensaje del email
-   * @param {boolean} getSigningUrl - Si true, retorna URL de firma en lugar de enviar email
+   * @param {boolean} getSigningUrl - Si true, usa Embedded Signing (expira en 5-15 min). Si false, usa Remote Signing (válido por 365 días)
    */
-  async sendBudgetForSignature(pdfPath, clientEmail, clientName, fileName, subject, message, getSigningUrl = true) {
+  async sendBudgetForSignature(pdfPath, clientEmail, clientName, fileName, subject, message, getSigningUrl = false) {
     // Usar el sistema robusto de operaciones DocuSign con auto-refresh
     return await withAutoRefreshToken(async (accessToken) => {
       // 🔧 Normalizar email a minúsculas para evitar problemas de entrega
@@ -80,7 +80,7 @@ class DocuSignService {
       console.log('\n🚀 === ENVIANDO DOCUMENTO A DOCUSIGN (SISTEMA ROBUSTO) ===');
       console.log('📧 Cliente:', normalizedEmail, '-', clientName);
       console.log('📄 Archivo:', fileName);
-      console.log('🔗 Generar URL de firma:', getSigningUrl ? 'Sí' : 'No (enviar email)');
+      console.log('🔗 Tipo de firma:', getSigningUrl ? 'Embedded (expira en 5-15 min)' : '✅ Remote (válido por 365 días)');
       console.log('🔐 Usando token robusto con auto-refresh');
 
       // Token ya fue obtenido y validado por withAutoRefreshToken
@@ -101,6 +101,8 @@ class DocuSignService {
       const pdfBase64 = pdfBytes.toString('base64');
 
       // Crear el envelope (sobre)
+      // ✅ IMPORTANTE: getSigningUrl = false para Remote Signing (enlace válido 365 días)
+      //                getSigningUrl = true para Embedded Signing (enlace expira en 5-15 min)
       const envelopeDefinition = this.createEnvelopeDefinition(
         pdfBase64,
         fileName,
@@ -108,7 +110,7 @@ class DocuSignService {
         clientName,
         subject,
         message,
-        getSigningUrl // Pasar flag para usar clientUserId
+        getSigningUrl // false = Remote Signing (recomendado)
       );
 
       // Enviar el envelope
@@ -129,16 +131,23 @@ class DocuSignService {
         statusDateTime: results.statusDateTime
       };
 
-      // Si se solicitó URL de firma, generarla
+      // Si se solicitó URL de firma embebida (getSigningUrl = true)
       if (getSigningUrl) {
-        console.log('🔗 Generando URL de firma embebida...');
+        console.log('🔗 Generando URL de firma embebida (expira en 5-15 min)...');
         const signingUrl = await this.getRecipientViewUrl(
           results.envelopeId,
           normalizedEmail,
           clientName
         );
         response.signingUrl = signingUrl;
-        console.log('✅ URL de firma generada exitosamente');
+        console.log('✅ URL de firma embebida generada');
+        console.log('⚠️  ADVERTENCIA: Este enlace expirará en 5-15 minutos de inactividad');
+      } else {
+        console.log('✅ Envelope enviado en modo Remote Signing (sin correo de DocuSign)');
+        console.log('📧 Tu sistema enviará correo con botón de firma on-demand');
+        console.log('🔗 El enlace será válido por 365 días (se genera al hacer clic)');
+        console.log('✨ El cliente puede firmar cuando quiera sin preocuparse por expiración');
+        console.log('🚫 Correo automático de DocuSign SUPRIMIDO (usas tu propio correo)');
       }
 
       return response;
@@ -159,19 +168,16 @@ class DocuSignService {
     });
 
     // Firmante
-    // Si useEmbeddedSigning = true, usar clientUserId para poder generar URL
-    // Además, suprimir notificación de email de DocuSign
+    // ✅ IMPORTANTE:
+    // - useEmbeddedSigning = true  → Usa clientUserId → Genera URL temporal (expira 5-15 min)
+    // - useEmbeddedSigning = false → NO usa clientUserId → DocuSign envía correo con enlace permanente (válido 365 días)
     const signer = docusign.Signer.constructFromObject({
       email: clientEmail,
       name: clientName,
       recipientId: '1',
       routingOrder: '1',
-      clientUserId: useEmbeddedSigning ? clientEmail : null, // clientUserId necesario para RecipientView
-      emailNotification: useEmbeddedSigning ? { 
-        emailSubject: 'Please sign this document',
-        emailBody: 'Please sign this document',
-        supportedLanguage: 'en'
-      } : undefined
+      // ✅ NO usar clientUserId para Remote Signing (enlace válido por 365 días)
+      clientUserId: useEmbeddedSigning ? clientEmail : undefined
     });
 
     // Tab de firma (dónde firmar) - Usar Anchor Text para ubicación automática
@@ -205,21 +211,24 @@ class DocuSignService {
     });
 
     // Configurar notificaciones de email
+    // ✅ SOLUCIÓN: Aumentar expiración a 365 días (1 año) para que el cliente pueda firmar cuando quiera
     const notification = docusign.Notification.constructFromObject({
       useAccountDefaults: 'false',
       reminders: docusign.Reminders.constructFromObject({
         reminderEnabled: 'true',
-        reminderDelay: '2',
-        reminderFrequency: '2'
+        reminderDelay: '2',      // Recordatorio después de 2 días
+        reminderFrequency: '3'    // Cada 3 días
       }),
       expirations: docusign.Expirations.constructFromObject({
         expireEnabled: 'true',
-        expireAfter: '120',
-        expireWarn: '5'
+        expireAfter: '365',       // ✅ 365 días (1 año completo)
+        expireWarn: '7'           // Advertir 7 días antes de expirar
       })
     });
 
     // Definición del envelope
+    // ✅ Si NO es Embedded Signing, suprimir el correo automático de DocuSign
+    // porque nosotros enviamos un correo más completo con PDF y botón de pago
     const envelopeDefinition = docusign.EnvelopeDefinition.constructFromObject({
       emailSubject: subject || 'Please sign this document',
       emailBlurb: message || 'Please review and sign the attached document.',
@@ -227,11 +236,16 @@ class DocuSignService {
       recipients: docusign.Recipients.constructFromObject({
         signers: [signer]
       }),
-      notification: notification,
-      status: useEmbeddedSigning ? 'sent' : 'sent', // ✅ Debe ser 'sent' para poder generar RecipientView
-      enableWetSign: 'false', // No permitir firma manual (solo digital)
+      notification: !useEmbeddedSigning ? undefined : notification, // ✅ Suprimir notificación para Remote Signing
+      status: 'sent',
+      enableWetSign: 'false',
       allowMarkup: 'false',
-      allowReassign: 'false'
+      allowReassign: 'false',
+      // ✅ Suprimir correos de DocuSign si NO es Embedded (enviamos nuestro propio correo)
+      emailSettings: !useEmbeddedSigning ? {
+        replyEmailAddressOverride: process.env.SMTP_FROM || 'noreply@zurcherseptic.com',
+        replyEmailNameOverride: 'Zurcher Construction'
+      } : undefined
     });
 
     return envelopeDefinition;
@@ -438,6 +452,64 @@ class DocuSignService {
       console.error('❌ Error reenviando notificación:', error.message);
       throw error;
     }
+  }
+
+  /**
+   * ✅ NUEVA FUNCIONALIDAD: Regenerar enlace de firma cuando expire el token de sesión
+   * Este método genera un nuevo enlace de firma para el cliente sin necesidad de reenviar el envelope
+   * @param {string} envelopeId - ID del envelope
+   * @param {string} clientEmail - Email del cliente que firmará
+   * @param {string} clientName - Nombre del cliente
+   * @param {string} returnUrl - URL de retorno opcional
+   */
+  async regenerateSigningLink(envelopeId, clientEmail, clientName, returnUrl = null) {
+    return await withAutoRefreshToken(async (accessToken) => {
+      try {
+        console.log('\n🔄 === REGENERANDO ENLACE DE FIRMA ===');
+        console.log('📋 Envelope ID:', envelopeId);
+        console.log('📧 Cliente:', clientEmail, '-', clientName);
+        
+        this.apiClient.addDefaultHeader('Authorization', `Bearer ${accessToken}`);
+
+        // Primero verificar el estado del envelope
+        const envelopesApi = new docusign.EnvelopesApi(this.apiClient);
+        const envelope = await envelopesApi.getEnvelope(this.accountId, envelopeId);
+
+        console.log('📊 Estado del envelope:', envelope.status);
+
+        // Solo permitir regenerar si está en estado 'sent' o 'delivered'
+        if (!['sent', 'delivered'].includes(envelope.status)) {
+          throw new Error(`No se puede regenerar enlace. Estado actual: ${envelope.status}`);
+        }
+
+        // Generar nuevo enlace de firma
+        const signingUrl = await this.getRecipientViewUrl(
+          envelopeId,
+          clientEmail.toLowerCase(),
+          clientName,
+          returnUrl
+        );
+
+        console.log('✅ Enlace de firma regenerado exitosamente');
+        console.log('🔗 Nuevo enlace válido por 5-15 minutos desde que se accede');
+        
+        return {
+          success: true,
+          envelopeId: envelopeId,
+          status: envelope.status,
+          signingUrl: signingUrl,
+          expiresIn: '5-15 minutes from first access',
+          regeneratedAt: new Date().toISOString()
+        };
+
+      } catch (error) {
+        console.error('❌ Error regenerando enlace de firma:', error.message);
+        if (error.response) {
+          console.error('Response:', JSON.stringify(error.response.body, null, 2));
+        }
+        throw error;
+      }
+    });
   }
 
   /**
