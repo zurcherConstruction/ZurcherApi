@@ -4643,7 +4643,7 @@ async optionalDocs(req, res) {
                       fileName,
                       emailSubject,
                       emailMessage,
-                      true // ✅ Generar URL de firma en lugar de enviar email
+                      false // ✅ Remote Signing - enlace válido 365 días (sin correo de DocuSign)
                     )
                   : await signatureService.sendBudgetForSignature(
                       newPdfPath,
@@ -4693,21 +4693,25 @@ async optionalDocs(req, res) {
                 try {
                   console.log(`📧 Enviando email adicional con botón de pago a ${clientEmail}...`);
 
-                  // Construir sección de botón de firma (solo si tenemos URL de DocuSign)
-                  let signatureButtonHtml = '';
-                  if (signingUrl) {
-                    signatureButtonHtml = `
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${signingUrl}" 
-                           style="display: inline-block; background-color: #4CAF50; color: white; padding: 15px 40px; text-decoration: none; border-radius: 5px; font-size: 16px; font-weight: bold;">
-                          📝 Sign Document Now
-                        </a>
-                        <p style="margin-top: 10px; font-size: 13px; color: #666;">
-                          Click the button above to sign your invoice electronically
-                        </p>
-                      </div>
-                    `;
-                  }
+                  // ✅ Construir enlace de firma on-demand (válido por 365 días)
+                  const apiUrl = process.env.API_URL || 'https://zurcherapi.up.railway.app';
+                  const signatureLinkOnDemand = `${apiUrl}/budgets/${updatedBudget.idBudget}/sign`;
+                  
+                  // Construir sección de botón de firma
+                  const signatureButtonHtml = `
+                    <div style="text-align: center; margin: 30px 0;">
+                      <a href="${signatureLinkOnDemand}" 
+                         style="display: inline-block; background-color: #4CAF50; color: white; padding: 15px 40px; text-decoration: none; border-radius: 5px; font-size: 16px; font-weight: bold;">
+                        📝 Sign Document Now
+                      </a>
+                      <p style="margin-top: 10px; font-size: 13px; color: #666;">
+                        Click the button above to sign your invoice electronically
+                      </p>
+                      <p style="margin-top: 5px; font-size: 12px; color: #999;">
+                        💡 This link is valid for 365 days - sign at your convenience
+                      </p>
+                    </div>
+                  `;
 
                   // Construir sección de montos
                   let paymentInfoHtml = '';
@@ -4761,7 +4765,7 @@ async optionalDocs(req, res) {
                         <h3 style="color: #2c5f2d;">📋 Next Steps:</h3>
                         
                         <ol style="line-height: 1.8;">
-                          <li><strong>Sign the Document:</strong> ${signingUrl ? 'Click the green button above to sign digitally.' : 'You will receive a separate email to digitally sign the invoice.'}</li>
+                          <li><strong>Sign the Document:</strong> Click the green button above to sign digitally (link valid for 365 days).</li>
                           <li><strong>Make Payment:</strong> Use the payment link in the attached PDF to proceed with ${hasInitialPayment ? 'the initial payment' : 'payment'}.</li>
                         </ol>
 
