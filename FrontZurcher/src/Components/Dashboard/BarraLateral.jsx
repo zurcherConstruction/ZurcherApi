@@ -41,7 +41,7 @@ const BarraLateral = () => {
   const [openSections, setOpenSections] = useState({
     "Works Management": true, // Abrir sección Works Management por defecto
     "Maintenance & Calendar": true, // Abrir sección Maintenance & Calendar por defecto
-    "Dashboard": true, // Abrir sección Dashboard por defecto
+    
   });
 
   const menuSections = [
@@ -210,6 +210,7 @@ const BarraLateral = () => {
             { name: "Simple Works", path: "/simple-works", icon: FaTools },
             { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
             { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
+            { name: "Works", path: "/works", icon: FaTasks },
             { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
             { name: "Monthly Installations", path: "/monthly-installations", icon: FaChartPie }, // 🆕 Instalaciones mensuales
           ],

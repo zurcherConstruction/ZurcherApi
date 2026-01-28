@@ -47,7 +47,7 @@ const Dashboard = () => {
           description: 'Manage all construction projects',
           icon: BuildingOfficeIcon,
           gradient: 'from-blue-500 to-blue-600',
-          allowedRoles: ['owner', 'admin', 'finance'],
+          allowedRoles: ['owner', 'admin', 'finance', 'recept'],
         },
         {
           path: '/progress-tracker',
@@ -92,7 +92,7 @@ const Dashboard = () => {
           description: 'Set item prices and costs',
           icon: CurrencyDollarIcon,
           gradient: 'from-yellow-500 to-yellow-600',
-          allowedRoles: ['owner', 'recept'],
+          allowedRoles: ['owner', 'recept', 'admin'],
         },
         {
           path: '/editBudget',
@@ -203,7 +203,7 @@ const Dashboard = () => {
           description: 'Team communication',
           icon: ChatBubbleLeftIcon,
           gradient: 'from-pink-500 to-pink-600',
-          allowedRoles: ['owner', 'admin', 'recept', 'worker', 'finance'],
+          allowedRoles: ['owner', 'admin', 'recept', 'worker', 'finance', 'maintenance', 'follow-up'],
         },
         {
           path: '/register',
