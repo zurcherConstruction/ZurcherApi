@@ -489,7 +489,7 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
             </div>
             <div style="margin-bottom: 12px;">
               <span style="display: inline-block; width: 20px; color: #007bff;">2.</span>
-              <strong>You will receive a separate email from SignNow</strong> to digitally sign the document
+              <strong>Click the button below to digitally sign the document</strong>
             </div>
             <div style="margin-bottom: 12px;">
               <span style="display: inline-block; width: 20px; color: #007bff;">3.</span>
@@ -500,6 +500,18 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
               <strong>Contact us</strong> if you have any questions
             </div>
           </div>
+          
+          <!-- ✅ Botones de Acción -->
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${process.env.API_URL || 'https://zurcherapi.up.railway.app'}/budgets/${idBudget}/sign" 
+               style="display: inline-block; background-color: #007bff; color: white; padding: 15px 40px; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 10px; font-size: 16px;">
+              ✍️ Sign Document
+            </a>
+          </div>
+          
+          <p style="text-align: center; color: #666; font-size: 14px; margin-top: 20px;">
+            💡 <strong>Note:</strong> The signature link is valid for 365 days. You can sign at your convenience.
+          </p>
           
           <p style="margin-top: 30px; margin-bottom: 30px;">
             Thank you for choosing <strong>Zurcher Construction</strong>!
@@ -811,6 +823,191 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
         message: 'Error verificando estado de firma',
         details: error.message
       });
+    }
+  },
+
+  // ✅ NUEVA FUNCIONALIDAD: Reenviar/Regenerar enlace de firma cuando expire
+  async resendSignatureLink(req, res) {
+    const { idBudget } = req.params;
+
+    try {
+      console.log('\n🔄 === REGENERANDO ENLACE DE FIRMA ===');
+      console.log(`📋 ID Presupuesto: ${idBudget}`);
+
+      // Buscar el presupuesto con información del solicitante
+      const budget = await Budget.findByPk(idBudget, {
+        include: [{
+          model: Permit,
+          attributes: ['applicantEmail', 'applicantName', 'propertyAddress']
+        }]
+      });
+
+      if (!budget) {
+        return res.status(404).json({
+          error: true,
+          message: 'Presupuesto no encontrado'
+        });
+      }
+
+      // Verificar que tiene documento de firma
+      const documentId = budget.signatureDocumentId || budget.signNowDocumentId;
+      const envelopeId = budget.docusignEnvelopeId;
+      
+      if (!documentId && !envelopeId) {
+        return res.status(400).json({
+          error: true,
+          message: 'Este presupuesto no ha sido enviado para firma'
+        });
+      }
+
+      // Solo funciona con DocuSign
+      if (budget.signatureMethod !== 'docusign') {
+        return res.status(400).json({
+          error: true,
+          message: 'La regeneración de enlace solo está disponible para documentos enviados con DocuSign. Para SignNow, el enlace en el correo original sigue siendo válido.'
+        });
+      }
+
+      console.log(`📧 Cliente: ${budget.Permit?.applicantEmail} - ${budget.Permit?.applicantName}`);
+      console.log(`📋 Envelope ID: ${envelopeId || documentId}`);
+
+      // Inicializar servicio DocuSign
+      const docuSignService = new DocuSignService();
+
+      // Regenerar enlace de firma
+      const result = await docuSignService.regenerateSigningLink(
+        envelopeId || documentId,
+        budget.Permit?.applicantEmail,
+        budget.Permit?.applicantName || 'Valued Client'
+      );
+
+      console.log('✅ Enlace regenerado exitosamente');
+
+      res.status(200).json({
+        error: false,
+        message: 'Enlace de firma regenerado exitosamente. El nuevo enlace es válido por 5-15 minutos desde el primer acceso.',
+        data: {
+          budgetId: budget.idBudget,
+          envelopeId: result.envelopeId,
+          status: result.status,
+          signingUrl: result.signingUrl,
+          signerEmail: budget.Permit?.applicantEmail,
+          signerName: budget.Permit?.applicantName,
+          expiresIn: result.expiresIn,
+          regeneratedAt: result.regeneratedAt,
+          note: 'Este enlace expirará después de 5-15 minutos de inactividad una vez abierto. Si expira nuevamente, puede regenerar el enlace cuantas veces sea necesario.'
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error regenerando enlace de firma:', error);
+
+      res.status(500).json({
+        error: true,
+        message: 'Error al regenerar enlace de firma',
+        details: error.message
+      });
+    }
+  },
+
+  // ✅ NUEVO: Generar enlace de firma on-demand y redirigir (para usar en correos)
+  async getSigningLinkAndRedirect(req, res) {
+    const { idBudget } = req.params;
+
+    try {
+      console.log('\n🔗 === GENERANDO ENLACE DE FIRMA ON-DEMAND ===');
+      console.log(`📋 ID Presupuesto: ${idBudget}`);
+
+      // Buscar el presupuesto con información del solicitante
+      const budget = await Budget.findByPk(idBudget, {
+        include: [{
+          model: Permit,
+          attributes: ['applicantEmail', 'applicantName', 'propertyAddress']
+        }]
+      });
+
+      if (!budget) {
+        return res.status(404).send(`
+          <html>
+            <body style="font-family: Arial; text-align: center; padding: 50px;">
+              <h1>❌ Documento no encontrado</h1>
+              <p>El presupuesto solicitado no existe.</p>
+            </body>
+          </html>
+        `);
+      }
+
+      // Verificar que tiene documento de firma
+      const envelopeId = budget.docusignEnvelopeId || budget.signatureDocumentId;
+      
+      if (!envelopeId) {
+        return res.status(400).send(`
+          <html>
+            <body style="font-family: Arial; text-align: center; padding: 50px;">
+              <h1>⚠️ Documento no disponible</h1>
+              <p>Este presupuesto aún no ha sido enviado para firma.</p>
+            </body>
+          </html>
+        `);
+      }
+
+      // Verificar que sea DocuSign
+      if (budget.signatureMethod !== 'docusign') {
+        return res.status(400).send(`
+          <html>
+            <body style="font-family: Arial; text-align: center; padding: 50px;">
+              <h1>⚠️ Método no soportado</h1>
+              <p>Este documento no usa DocuSign. Por favor use el enlace en el correo original.</p>
+            </body>
+          </html>
+        `);
+      }
+
+      // Verificar si ya está firmado
+      if (budget.status === 'signed' || budget.status === 'approved') {
+        return res.status(200).send(`
+          <html>
+            <body style="font-family: Arial; text-align: center; padding: 50px;">
+              <h1>✅ Documento ya firmado</h1>
+              <p>Este presupuesto ya ha sido firmado exitosamente.</p>
+              <p>Estado: ${budget.status === 'approved' ? 'Aprobado' : 'Firmado'}</p>
+            </body>
+          </html>
+        `);
+      }
+
+      console.log(`📧 Cliente: ${budget.Permit?.applicantEmail} - ${budget.Permit?.applicantName}`);
+      console.log(`📋 Envelope ID: ${envelopeId}`);
+
+      // Inicializar servicio DocuSign
+      const docuSignService = new DocuSignService();
+
+      // Generar enlace de firma en este momento
+      const result = await docuSignService.regenerateSigningLink(
+        envelopeId,
+        budget.Permit?.applicantEmail,
+        budget.Permit?.applicantName || 'Valued Client'
+      );
+
+      console.log('✅ Enlace generado, redirigiendo a DocuSign...');
+      console.log(`🔗 URL: ${result.signingUrl}`);
+
+      // Redirigir directamente a DocuSign
+      res.redirect(result.signingUrl);
+
+    } catch (error) {
+      console.error('❌ Error generando enlace de firma:', error);
+
+      res.status(500).send(`
+        <html>
+          <body style="font-family: Arial; text-align: center; padding: 50px;">
+            <h1>❌ Error al generar enlace</h1>
+            <p>Ocurrió un error al generar el enlace de firma.</p>
+            <p style="color: #666; font-size: 14px;">${error.message}</p>
+            <p>Por favor contacte con soporte.</p>
+          </body>
+        </html>
+      `);
     }
   },
 

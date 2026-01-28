@@ -42,4 +42,14 @@ router.post(
   BudgetController.rejectReview
 );
 
+/**
+ * ✅ NUEVO: Generar enlace de firma on-demand y redirigir a DocuSign
+ * GET /api/budgets/:idBudget/sign
+ * Público (sin autenticación) para usar en correos al cliente
+ */
+router.get(
+  '/:idBudget/sign',
+  BudgetController.getSigningLinkAndRedirect
+);
+
 module.exports = router;
