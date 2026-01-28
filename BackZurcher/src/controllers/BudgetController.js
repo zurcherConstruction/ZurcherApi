@@ -4643,7 +4643,7 @@ async optionalDocs(req, res) {
                       fileName,
                       emailSubject,
                       emailMessage,
-                      false // ✅ Remote Signing - enlace válido 365 días (sin correo de DocuSign)
+                      false // ✅ NO generar URL ahora, se genera on-demand cuando cliente hace clic
                     )
                   : await signatureService.sendBudgetForSignature(
                       newPdfPath,
@@ -4693,7 +4693,7 @@ async optionalDocs(req, res) {
                 try {
                   console.log(`📧 Enviando email adicional con botón de pago a ${clientEmail}...`);
 
-                  // ✅ Construir enlace de firma on-demand (válido por 365 días)
+                  // ✅ Construir enlace de firma on-demand
                   const apiUrl = process.env.API_URL || 'https://zurcherapi.up.railway.app';
                   const signatureLinkOnDemand = `${apiUrl}/budgets/${updatedBudget.idBudget}/sign`;
                   
@@ -4707,8 +4707,8 @@ async optionalDocs(req, res) {
                       <p style="margin-top: 10px; font-size: 13px; color: #666;">
                         Click the button above to sign your invoice electronically
                       </p>
-                      <p style="margin-top: 5px; font-size: 12px; color: #999;">
-                        💡 This link is valid for 365 days - sign at your convenience
+                      <p style="margin-top: 5px; font-size: 12px; color: #28a745; font-weight: 500;">
+                        💡 You can click this button multiple times - it works whenever you're ready!
                       </p>
                     </div>
                   `;
