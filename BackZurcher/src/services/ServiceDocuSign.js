@@ -69,7 +69,7 @@ class DocuSignService {
    * @param {string} fileName - Nombre del archivo
    * @param {string} subject - Asunto del email
    * @param {string} message - Mensaje del email
-   * @param {boolean} getSigningUrl - Si true, usa Embedded Signing (expira en 5-15 min). Si false, usa Remote Signing (válido por 365 días)
+   * @param {boolean} getSigningUrl - Si true, genera URL inmediatamente. Si false, crea envelope con clientUserId pero sin generar URL (on-demand)
    */
   async sendBudgetForSignature(pdfPath, clientEmail, clientName, fileName, subject, message, getSigningUrl = false) {
     // Usar el sistema robusto de operaciones DocuSign con auto-refresh
@@ -143,11 +143,11 @@ class DocuSignService {
         console.log('✅ URL de firma embebida generada');
         console.log('⚠️  ADVERTENCIA: Este enlace expirará en 5-15 minutos de inactividad');
       } else {
-        console.log('✅ Envelope enviado en modo Remote Signing (sin correo de DocuSign)');
-        console.log('📧 Tu sistema enviará correo con botón de firma on-demand');
-        console.log('🔗 El enlace será válido por 365 días (se genera al hacer clic)');
-        console.log('✨ El cliente puede firmar cuando quiera sin preocuparse por expiración');
-        console.log('🚫 Correo automático de DocuSign SUPRIMIDO (usas tu propio correo)');
+        console.log('✅ Envelope creado con clientUserId (permite generación on-demand)');
+        console.log('📧 Tu sistema enviará correo con botón de firma');
+        console.log('🔗 URL se generará cuando cliente haga clic (válida 5-15 min cada vez)');
+        console.log('✨ Cliente puede hacer clic múltiples veces, siempre genera URL fresca');
+        console.log('🚫 Correos automáticos de DocuSign SUPRIMIDOS');
       }
 
       return response;
@@ -168,16 +168,14 @@ class DocuSignService {
     });
 
     // Firmante
-    // ✅ IMPORTANTE:
-    // - useEmbeddedSigning = true  → Usa clientUserId → Genera URL temporal (expira 5-15 min)
-    // - useEmbeddedSigning = false → NO usa clientUserId → DocuSign envía correo con enlace permanente (válido 365 días)
+    // ✅ SIEMPRE usar clientUserId para poder generar URLs on-demand
+    // Suprimir el correo de DocuSign, nuestro sistema envía el correo con botón
     const signer = docusign.Signer.constructFromObject({
       email: clientEmail,
       name: clientName,
       recipientId: '1',
       routingOrder: '1',
-      // ✅ NO usar clientUserId para Remote Signing (enlace válido por 365 días)
-      clientUserId: useEmbeddedSigning ? clientEmail : undefined
+      clientUserId: clientEmail // ✅ Siempre usar para permitir generación on-demand
     });
 
     // Tab de firma (dónde firmar) - Usar Anchor Text para ubicación automática
@@ -227,25 +225,28 @@ class DocuSignService {
     });
 
     // Definición del envelope
-    // ✅ Si NO es Embedded Signing, suprimir el correo automático de DocuSign
-    // porque nosotros enviamos un correo más completo con PDF y botón de pago
+    // ✅ SIEMPRE suprimir correos de DocuSign (enviamos nuestro propio correo con botón)
     const envelopeDefinition = docusign.EnvelopeDefinition.constructFromObject({
       emailSubject: subject || 'Please sign this document',
       emailBlurb: message || 'Please review and sign the attached document.',
       documents: [document],
       recipients: docusign.Recipients.constructFromObject({
-        signers: [signer]
+        signers: [signer],
+        // ✅ Configurar Carbon Copies vacío para evitar correos automáticos
+        carbonCopies: []
       }),
-      notification: !useEmbeddedSigning ? undefined : notification, // ✅ Suprimir notificación para Remote Signing
+      notification: undefined, // ✅ Suprimir todas las notificaciones
       status: 'sent',
       enableWetSign: 'false',
       allowMarkup: 'false',
       allowReassign: 'false',
-      // ✅ Suprimir correos de DocuSign si NO es Embedded (enviamos nuestro propio correo)
-      emailSettings: !useEmbeddedSigning ? {
+      // ✅ Configuración para suprimir correos
+      emailSettings: {
         replyEmailAddressOverride: process.env.SMTP_FROM || 'noreply@zurcherseptic.com',
         replyEmailNameOverride: 'Zurcher Construction'
-      } : undefined
+      },
+      // ✅ Configurar para NO enviar correos a los firmantes
+      eventNotification: undefined
     });
 
     return envelopeDefinition;
