@@ -4736,7 +4736,14 @@ async optionalDocs(req, res) {
             
             const updatedBudget = await Budget.findByPk(idBudget, {
               include: [
-                { model: Permit, attributes: ['idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'applicantName', 'lot', 'block'] },
+                { 
+                  model: Permit, 
+                  attributes: [
+                    'idPermit', 'propertyAddress', 'permitNumber', 'applicantEmail', 'applicantName', 'lot', 'block',
+                    // 🆕 PPI fields para envío automático
+                    'ppiInspectorType', 'ppiCloudinaryUrl', 'ppiGeneratedPath', 'ppiDocusignEnvelopeId', 'ppiSignatureStatus'
+                  ]
+                },
                 { model: BudgetLineItem, as: 'lineItems' }
               ]
             });
@@ -5143,9 +5150,12 @@ async optionalDocs(req, res) {
                 console.log(`✅ Proceso completo: Invoice #${invoiceNumber} aprobado, PDF regenerado, enviado a ${serviceName}, email con pago enviado al cliente y notificación enviada al equipo de finanzas`);
 
                 // 🆕 ENVIAR PPI A DOCUSIGN AUTOMÁTICAMENTE SI EXISTE
+                console.log('\n🔍 === VERIFICANDO SI ENVIAR PPI AUTOMÁTICAMENTE ===');
+                console.log(`USE_DOCUSIGN: ${USE_DOCUSIGN}, hasPermit: ${!!updatedBudget.Permit}, idPermit: ${updatedBudget.idPermit}`);
+                
                 if (USE_DOCUSIGN && updatedBudget.Permit && updatedBudget.idPermit) {
                   try {
-                    console.log('\n📋 === ENVIANDO PPI A DOCUSIGN AUTOMÁTICAMENTE ===');
+                    console.log('📋 === ENVIANDO PPI A DOCUSIGN AUTOMÁTICAMENTE ===');
                     
                     const permitForPPI = await Permit.findByPk(updatedBudget.idPermit);
                     
