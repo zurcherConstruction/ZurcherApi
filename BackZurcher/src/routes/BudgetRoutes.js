@@ -174,6 +174,9 @@ router.post(
 
 // ========== RUTAS EXISTENTES ==========
 
+// 🔔 RUTA PARA OBTENER BUDGETS CON ALERTAS PRÓXIMAS (debe ir ANTES de /:idBudget)
+router.get('/upcoming-alerts', verifyToken, isStaff, BudgetController.getBudgetsWithUpcomingAlerts);
+
   router.put('/:idBudget', verifyToken, BudgetController.updateBudget); // Solo administradores pueden actualizar presupuestos
   router.get('/:idBudget', verifyToken, isStaff, BudgetController.getBudgetById); // Personal del hotel puede ver un presupuesto específico
 
@@ -203,6 +206,30 @@ router.post(
   verifyToken,
   isStaff, // Cualquier staff puede verificar
   verifyPendingSignatures
+);
+
+// 🔔 Ejecutar manualmente verificación de recordatorios de budget
+router.post(
+  '/check-reminders',
+  verifyToken,
+  isStaff, // Cualquier staff puede ejecutar
+  async (req, res) => {
+    try {
+      const { checkBudgetReminders } = require('../services/checkBudgetReminders');
+      await checkBudgetReminders();
+      res.json({ 
+        success: true, 
+        message: 'Verificación de recordatorios completada. Revisa los logs del servidor para ver los resultados.' 
+      });
+    } catch (error) {
+      console.error('Error al verificar recordatorios:', error);
+      res.status(500).json({ 
+        error: true, 
+        message: 'Error al verificar recordatorios',
+        details: error.message 
+      });
+    }
+  }
 );
 
 // 🆕 Archivar presupuestos antiguos manualmente

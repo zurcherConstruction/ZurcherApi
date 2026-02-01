@@ -7,7 +7,8 @@ import {
   deleteBudget,
   updateBudget,
   downloadSignedBudget,
-  exportBudgetsToExcel // 🆕 Importar la acción de exportación
+  exportBudgetsToExcel, // 🆕 Importar la acción de exportación
+  fetchBudgetsWithUpcomingAlerts // 🔔 Importar acción de alertas
 } from '../../Redux/Actions/budgetActions';
 import {
   MagnifyingGlassIcon,
@@ -93,10 +94,16 @@ const GestionBudgets = () => {
   // 🆕 Estado para verificación manual de firmas
   const [verifyingSignatures, setVerifyingSignatures] = useState(false);
   const [verifyingPPISignatures, setVerifyingPPISignatures] = useState(false);
+  const [verifyingReminders, setVerifyingReminders] = useState(false); // 🔔 Para recordatorios
 
   // 📝 Estado para modal de notas de seguimiento
   const [showNotesModal, setShowNotesModal] = useState(false);
   const [budgetForNotes, setBudgetForNotes] = useState(null);
+
+  // 🔔 Estado para budgets con alertas próximas
+  const [upcomingAlertBudgets, setUpcomingAlertBudgets] = useState([]);
+  const [loadingUpcomingAlerts, setLoadingUpcomingAlerts] = useState(false);
+  const [alertsCollapsed, setAlertsCollapsed] = useState(true); // 🆕 Cerrado por defecto
 
   // 🆕 Estado para alertas de notas (cargadas una sola vez)
   const [budgetAlerts, setBudgetAlerts] = useState({});
@@ -111,12 +118,19 @@ const GestionBudgets = () => {
   const [currentPermitId, setCurrentPermitId] = useState(null);
 
   // 🆕 Función reutilizable para recargar alertas
+  // 🆕 Función reutilizable para recargar alertas
   const reloadBudgetAlerts = async () => {
     try {
       setLoadingAlerts(true);
       // Agregar timestamp para evitar caché
       const response = await api.get(`/budget-notes/alerts/budgets?_t=${Date.now()}`);
       setBudgetAlerts(response.data.budgetsWithAlerts || {});
+      
+      // 🔔 También recargar upcoming alerts (para el componente desplegable)
+      const upcomingResponse = await fetchBudgetsWithUpcomingAlerts(7);
+      if (upcomingResponse?.data?.budgets) {
+        setUpcomingAlertBudgets(upcomingResponse.data.budgets);
+      }
     } catch (error) {
       console.error('Error al cargar alertas de budgets:', error);
     } finally {
@@ -128,6 +142,28 @@ const GestionBudgets = () => {
   useEffect(() => {
     reloadBudgetAlerts();
   }, []); // Solo cargar una vez al montar el componente
+
+  // 🔔 Cargar budgets con alertas próximas (próximos 7 días)
+  useEffect(() => {
+    const loadUpcomingAlerts = async () => {
+      try {
+        setLoadingUpcomingAlerts(true);
+        const result = await dispatch(fetchBudgetsWithUpcomingAlerts(7));
+        if (result.payload?.budgets) {
+          setUpcomingAlertBudgets(result.payload.budgets);
+        }
+      } catch (error) {
+        console.error('Error al cargar budgets con alertas próximas:', error);
+      } finally {
+        setLoadingUpcomingAlerts(false);
+      }
+    };
+    
+    loadUpcomingAlerts();
+    // Recargar cada 5 minutos
+    const interval = setInterval(loadUpcomingAlerts, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [dispatch]);
 
   // ✅ useEffect para debounce del searchTerm (esperar 800ms después de que el usuario deje de escribir)
   useEffect(() => {
@@ -359,6 +395,42 @@ const GestionBudgets = () => {
       alert(`❌ Error al verificar firmas PPI:\n${error.response?.data?.error || error.message}`);
     } finally {
       setVerifyingPPISignatures(false);
+    }
+  };
+
+  // 🔔 Verificar recordatorios de budget manualmente
+  const handleCheckReminders = async () => {
+    if (verifyingReminders) return;
+
+    const confirm = window.confirm(
+      '¿Ejecutar ahora la verificación de recordatorios de budget?\n\n' +
+      'Esto buscará recordatorios programados para mañana (24hs antes) ' +
+      'y enviará emails a los usuarios de follow-up correspondientes.'
+    );
+
+    if (!confirm) return;
+
+    setVerifyingReminders(true);
+    try {
+      const response = await api.post('/budget/check-reminders');
+      
+      if (response.data.success) {
+        alert(
+          '✅ Verificación de recordatorios completada\n\n' +
+          'Revisa los logs del servidor para ver los detalles de los emails enviados.'
+        );
+        
+        // Recargar alertas para reflejar cambios
+        const alertsResponse = await fetchBudgetsWithUpcomingAlerts(7);
+        if (alertsResponse?.data?.budgets) {
+          setUpcomingAlertBudgets(alertsResponse.data.budgets);
+        }
+      }
+    } catch (error) {
+      console.error('Error verificando recordatorios:', error);
+      alert(`❌ Error al verificar recordatorios:\n${error.response?.data?.details || error.message}`);
+    } finally {
+      setVerifyingReminders(false);
     }
   };
 
@@ -945,6 +1017,32 @@ const GestionBudgets = () => {
               </>
             )}
           </button>
+
+          {/* 🔔 Botón Verificar Recordatorios */}
+          <button
+            onClick={handleCheckReminders}
+            disabled={verifyingReminders}
+            className={`inline-flex items-center px-4 py-2 rounded-lg font-medium text-sm transition-all ${
+              verifyingReminders
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-amber-600 text-white hover:bg-amber-700 hover:shadow-lg'
+            }`}
+          >
+            {verifyingReminders ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Verificando...
+              </>
+            ) : (
+              <>
+                <span className="text-lg mr-2">🔔</span>
+                Verificar Recordatorios
+              </>
+            )}
+          </button>
         </div>
 
         {/* Filtros */}
@@ -1034,6 +1132,121 @@ const GestionBudgets = () => {
           </select>
         </div>
       </div>
+
+      {/* 🔔 Sección de Alertas Próximas - DESPLEGABLE */}
+      {upcomingAlertBudgets.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-orange-200 rounded-lg shadow-md mb-6">
+          {/* Header - siempre visible, clickeable para expandir/colapsar */}
+          <div 
+            className="flex items-center justify-between p-4 cursor-pointer hover:bg-orange-100 transition-colors rounded-t-lg"
+            onClick={() => setAlertsCollapsed(!alertsCollapsed)}
+          >
+            <h3 className="text-lg font-bold text-orange-800 flex items-center gap-2">
+              <svg className="w-6 h-6 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+              </svg>
+              🔔 Budgets con Recordatorios Próximos ({upcomingAlertBudgets.length})
+            </h3>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-orange-600 font-medium">Próximos 7 días</span>
+              {/* Icono de expandir/colapsar */}
+              <svg 
+                className={`w-5 h-5 text-orange-600 transition-transform ${alertsCollapsed ? '' : 'rotate-180'}`}
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
+          
+          {/* Contenido colapsable */}
+          {!alertsCollapsed && (
+            <div className="px-6 pb-6 pt-2 space-y-3">
+              {upcomingAlertBudgets.map((budget) => {
+              const alert = budget.nearestAlert;
+              const priorityColors = {
+                urgent: 'bg-red-100 border-red-400 text-red-800',
+                high: 'bg-orange-100 border-orange-400 text-orange-800',
+                medium: 'bg-yellow-100 border-yellow-400 text-yellow-800',
+                low: 'bg-blue-100 border-blue-400 text-blue-800'
+              };
+              const priorityIcons = {
+                urgent: '🔴',
+                high: '🟠',
+                medium: '🟡',
+                low: '⚪'
+              };
+              
+              return (
+                <div
+                  key={budget.idBudget}
+                  className={`border-l-4 rounded-lg p-4 ${alert.isToday ? 'bg-red-50 border-red-600' : alert.isUrgent ? 'bg-orange-50 border-orange-500' : 'bg-white border-gray-300'} hover:shadow-md transition-shadow cursor-pointer`}
+                  onClick={() => {
+                    setBudgetForNotes(budget);
+                    setShowNotesModal(true);
+                  }}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="font-bold text-gray-900">#{budget.idBudget}</span>
+                        <span className="text-sm font-medium text-gray-700">{budget.propertyAddress}</span>
+                        {alert.isToday && (
+                          <span className="px-2 py-1 bg-red-600 text-white text-xs font-bold rounded-full animate-pulse">
+                            ¡HOY!
+                          </span>
+                        )}
+                        {!alert.isToday && alert.isUrgent && (
+                          <span className="px-2 py-1 bg-orange-500 text-white text-xs font-bold rounded-full">
+                            {alert.daysRemaining} día{alert.daysRemaining !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                        {!alert.isToday && !alert.isUrgent && (
+                          <span className="px-2 py-1 bg-blue-500 text-white text-xs font-medium rounded-full">
+                            {alert.daysRemaining} día{alert.daysRemaining !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold border ${priorityColors[alert.priority]}`}>
+                          {priorityIcons[alert.priority]} {alert.priority.toUpperCase()}
+                        </span>
+                        <span className="text-xs text-gray-600">
+                          {alert.noteType.replace('_', ' ').toUpperCase()}
+                        </span>
+                        {budget.alertCount > 1 && (
+                          <span className="text-xs text-gray-500">
+                            (+{budget.alertCount - 1} más)
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-700 line-clamp-2">{alert.message}</p>
+                      {alert.Staff && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          Por: {alert.Staff.name}
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setBudgetForNotes(budget);
+                        setShowNotesModal(true);
+                      }}
+                      className="ml-4 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                    >
+                      📝 Ver Notas
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Lista de Budgets */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
