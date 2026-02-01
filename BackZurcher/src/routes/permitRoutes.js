@@ -39,6 +39,88 @@ router.get('/check-permit-number/:permitNumber', verifyToken, allowRoles(['admin
 // Obtener todos los permisos (permitido para staff)
 router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker']), PermitController.getPermits);
 
+// ========== RUTAS PARA PPI (Pre-Permit Inspection) ==========
+// ⚠️ IMPORTANTE: Estas rutas DEBEN estar ANTES de /:idPermit para que no sean interceptadas
+
+// 🆕 RUTA PÚBLICA: Generar enlace de firma on-demand y redirigir a DocuSign (SIN AUTENTICACIÓN)
+router.get(
+  '/:idPermit/ppi/sign',
+  PermitController.getPPISigningLinkAndRedirect
+);
+
+// 🆕 Generar PPI preview/prueba
+router.post(
+  '/:idPermit/ppi/generate',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner']),
+  PermitController.generatePPIPreview
+);
+
+// 🆕 Descargar PPI generado
+router.get(
+  '/:idPermit/ppi/download',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner']),
+  PermitController.downloadPPI
+);
+
+// 🆕 Ver PPI inline en navegador
+router.get(
+  '/:idPermit/ppi/view',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner']),
+  PermitController.viewPPIInline
+);
+
+// 🆕 Enviar PPI a DocuSign para firma
+router.post(
+  '/:idPermit/ppi/send-for-signature',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner']),
+  PermitController.sendPPIForSignature
+);
+
+// 🆕 Ver PPI firmado inline
+router.get(
+  '/:idPermit/ppi/signed/view',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner']),
+  PermitController.viewPPISignedInline
+);
+
+// 🆕 Descargar PPI firmado
+router.get(
+  '/:idPermit/ppi/signed/download',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner']),
+  PermitController.downloadPPISigned
+);
+
+// 🆕 Verificar estado de firma del PPI manualmente
+router.post(
+  '/:idPermit/ppi/check-signature',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner']),
+  PermitController.checkPPISignatureStatus
+);
+
+// 🆕 Verificar TODAS las firmas PPI pendientes (ejecución manual)
+router.post(
+  '/verify-ppi-signatures',
+  verifyToken,
+  allowRoles(['admin', 'owner']),
+  PermitController.verifyAllPPISignatures
+);
+
+// 🆕 Subir PPI firmado manualmente
+router.post(
+  '/:idPermit/ppi/upload-manual-signed',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner']),
+  upload.single('file'),
+  PermitController.uploadManualSignedPPI
+);
+
 // Obtener un permiso por ID (permitido para staff)
 router.get('/:idPermit', allowRoles(['admin', 'recept', 'owner']), PermitController.getPermitById);
 
@@ -95,5 +177,8 @@ router.put(
   upload.single('optionalDocs'), // Acepta un solo archivo con el nombre 'optionalDocs'
   PermitController.replaceOptionalDocs
 );
+
+// Eliminar un permiso (permitido solo para admin)
+// router.delete('/:idPermit', verifyToken, allowRoles(['admin']), PermitController.deletePermit);
 
 module.exports = router;

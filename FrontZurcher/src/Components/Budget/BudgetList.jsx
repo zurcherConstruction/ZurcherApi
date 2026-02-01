@@ -203,6 +203,10 @@ const BudgetList = () => {
   const [showClientDataModal, setShowClientDataModal] = useState(false);
   const [selectedBudgetIdForClient, setSelectedBudgetIdForClient] = useState(null);
 
+  // 🆕 ESTADOS PARA PPI
+  const [checkingPPISignature, setCheckingPPISignature] = useState(null); // ID del permit verificando firma
+  const [viewingPPISigned, setViewingPPISigned] = useState(null); // ID del permit viendo PPI firmado
+
   // ✅ useEffect para debounce del searchTerm (esperar 800ms después de que el usuario deje de escribir)
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -468,6 +472,110 @@ const BudgetList = () => {
 
   // --- FIN NUEVAS FUNCIONES ---
 
+  // 🆕 === FUNCIONES PARA PPI ===
+  
+  // Verificar firma del PPI manualmente
+  const handleCheckPPISignature = async (permitId) => {
+    setCheckingPPISignature(permitId);
+    try {
+      const response = await api.post(`/permit/${permitId}/ppi/check-signature`);
+      
+      if (response.data.success) {
+        if (response.data.data.signatureStatus === 'completed') {
+          alert('✅ PPI firmado exitosamente. El documento firmado se ha descargado y guardado.');
+          // Refrescar la lista para mostrar el nuevo estado
+          refreshBudgets();
+        } else {
+          alert(`⏳ PPI aún no está firmado. Estado actual: ${response.data.data.signatureStatus}`);
+        }
+      }
+    } catch (error) {
+      console.error("Error checking PPI signature:", error);
+      alert(`Error al verificar la firma del PPI: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setCheckingPPISignature(null);
+    }
+  };
+
+  // Ver PPI firmado en modal
+  const handleViewPPISigned = async (permitId) => {
+    setViewingPPISigned(permitId);
+    
+    if (pdfUrlForModal) {
+      window.URL.revokeObjectURL(pdfUrlForModal);
+    }
+
+    try {
+      const response = await api.get(`/permit/${permitId}/ppi/signed/view`, {
+        responseType: "blob",
+      });
+
+      const objectUrl = window.URL.createObjectURL(
+        new Blob([response.data], { type: "application/pdf" })
+      );
+
+      setPdfUrlForModal(objectUrl);
+      setPdfTitleForModal(`📋 PPI Firmado - Permit ${permitId}`);
+      setIsModalOpen(true);
+    } catch (error) {
+      console.error("Error viewing signed PPI:", error);
+      alert(`Error al visualizar el PPI firmado: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setViewingPPISigned(null);
+    }
+  };
+
+  // Descargar PPI firmado
+  const handleDownloadPPISigned = async (permitId) => {
+    try {
+      const response = await api.get(`/permit/${permitId}/ppi/signed/download`, {
+        responseType: "blob",
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `PPI_Signed_Permit_${permitId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error downloading signed PPI:", error);
+      alert(`Error al descargar el PPI firmado: ${error.response?.data?.error || error.message}`);
+    }
+  };
+
+  // Ver PPI original (no firmado) en modal
+  const handleViewPPIOriginal = async (permitId) => {
+    setViewingPdfId(permitId);
+    
+    if (pdfUrlForModal) {
+      window.URL.revokeObjectURL(pdfUrlForModal);
+    }
+
+    try {
+      const response = await api.get(`/permit/${permitId}/ppi/view`, {
+        responseType: "blob",
+      });
+
+      const objectUrl = window.URL.createObjectURL(
+        new Blob([response.data], { type: "application/pdf" })
+      );
+
+      setPdfUrlForModal(objectUrl);
+      setPdfTitleForModal(`📄 PPI Original - Permit ${permitId}`);
+      setIsModalOpen(true);
+    } catch (error) {
+      console.error("Error viewing original PPI:", error);
+      alert(`Error al visualizar el PPI original: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setViewingPdfId(null);
+    }
+  };
+
+  // 🆕 === FIN FUNCIONES PARA PPI ===
+
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
     
@@ -619,6 +727,46 @@ const BudgetList = () => {
     } catch (error) {
       console.error('Error al enviar a SignNow:', error);
       alert(`❌ Error al enviar a SignNow: ${error.message}`);
+    }
+  };
+
+  // 🆕 FUNCIÓN: Reenviar PPI a DocuSign
+  const handleResendPPI = async (budget) => {
+    if (!budget.idPermit) {
+      alert('❌ Este presupuesto no tiene un permiso asociado');
+      return;
+    }
+
+    const statusText = budget.Permit?.ppiSignatureStatus 
+      ? `\nEstado actual: ${budget.Permit.ppiSignatureStatus}`
+      : '';
+    
+    const envelopeText = budget.Permit?.ppiDocusignEnvelopeId
+      ? `\nEnvelope ID: ${budget.Permit.ppiDocusignEnvelopeId}`
+      : '';
+
+    if (!window.confirm(
+      `¿Reenviar PPI a DocuSign para presupuesto #${budget.idBudget}?${statusText}${envelopeText}\n\n` +
+      `Se enviará el PPI (Pre-Permit Inspection) al cliente para firma digital.`
+    )) {
+      return;
+    }
+
+    try {
+      const response = await api.post(`/permit/${budget.idPermit}/ppi/send-for-signature`);
+      
+      if (response.data.success) {
+        alert(
+          `✅ PPI enviado a DocuSign exitosamente\n\n` +
+          `Envelope ID: ${response.data.envelopeId}\n` +
+          `El cliente recibirá un email para firmar el PPI.`
+        );
+        refreshBudgets();
+      }
+    } catch (error) {
+      console.error('Error al reenviar PPI:', error);
+      const errorMsg = error.response?.data?.message || error.message;
+      alert(`❌ Error al reenviar PPI: ${errorMsg}`);
     }
   };
   
@@ -1180,6 +1328,39 @@ const BudgetList = () => {
                                   >
                                     📝 Sign
                                   </button>
+                                  
+                                  {/* 🆕 BOTÓN: Reenviar PPI a DocuSign */}
+                                  {budget.idPermit && budget.Permit?.ppiGeneratedPath && (
+                                    <button
+                                      onClick={() => handleResendPPI(budget)}
+                                      disabled={isReadOnly}
+                                      className={`inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm mt-0.5 ${
+                                        isReadOnly 
+                                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                          : budget.Permit?.ppiSignatureStatus === 'signed'
+                                            ? 'bg-green-500 text-white hover:bg-green-600'
+                                            : budget.Permit?.ppiSignatureStatus === 'sent'
+                                            ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                                            : 'bg-blue-500 text-white hover:bg-blue-600'
+                                      }`}
+                                      title={
+                                        isReadOnly 
+                                          ? "View only - No edit permissions" 
+                                          : budget.Permit?.ppiSignatureStatus === 'signed'
+                                          ? `PPI Signed - Resend if needed (Envelope: ${budget.Permit?.ppiDocusignEnvelopeId || 'N/A'})`
+                                          : budget.Permit?.ppiSignatureStatus === 'sent'
+                                          ? `PPI Sent - Resend if needed (Envelope: ${budget.Permit?.ppiDocusignEnvelopeId || 'N/A'})`
+                                          : "Send PPI to DocuSign for signature"
+                                      }
+                                    >
+                                      {budget.Permit?.ppiSignatureStatus === 'signed' 
+                                        ? '✅ PPI' 
+                                        : budget.Permit?.ppiSignatureStatus === 'sent'
+                                        ? '⏳ PPI'
+                                        : '📄 PPI'
+                                      }
+                                    </button>
+                                  )}
                                 </div>
                               )}
                               
@@ -1532,6 +1713,76 @@ const BudgetList = () => {
                                     <DocumentArrowDownIcon className="h-3 w-3" />
                                   )}
                                 </button>
+                              )}
+
+                              {/* 🆕 BOTONES PARA PPI */}
+                              {permitId && budget.Permit?.ppiCloudinaryUrl && (
+                                <>
+                                  {/* Separador visual */}
+                                  <div className="border-l border-orange-300 h-6 mx-0.5"></div>
+                                  
+                                  {/* Botón Ver PPI Original */}
+                                  <button
+                                    onClick={() => handleViewPPIOriginal(permitId)}
+                                    disabled={viewingPdfId === permitId}
+                                    className="inline-flex items-center justify-center bg-orange-600 text-white p-1 rounded hover:bg-orange-700 disabled:opacity-50 shadow-sm"
+                                    title="Ver PPI Original"
+                                  >
+                                    {viewingPdfId === permitId ? (
+                                      <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                      </svg>
+                                    ) : (
+                                      <span className="text-[10px] font-bold">📋</span>
+                                    )}
+                                  </button>
+
+                                  {/* Botón Ver PPI Firmado (solo si está firmado) */}
+                                  {budget.Permit?.ppiSignatureStatus === 'completed' && budget.Permit?.ppiSignedPdfUrl && (
+                                    <button
+                                      onClick={() => handleViewPPISigned(permitId)}
+                                      disabled={viewingPPISigned === permitId}
+                                      className="inline-flex items-center justify-center bg-green-600 text-white p-1 rounded hover:bg-green-700 disabled:opacity-50 shadow-sm"
+                                      title="Ver PPI Firmado"
+                                    >
+                                      {viewingPPISigned === permitId ? (
+                                        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                      ) : (
+                                        <DocumentCheckIcon className="h-3 w-3" />
+                                      )}
+                                    </button>
+                                  )}
+
+                                  {/* Botón Verificar Firma (solo si está enviado pero no completado) */}
+                                  {budget.Permit?.ppiDocusignEnvelopeId && 
+                                   budget.Permit?.ppiSignatureStatus !== 'completed' && (
+                                    <button
+                                      onClick={() => handleCheckPPISignature(permitId)}
+                                      disabled={checkingPPISignature === permitId || isReadOnly}
+                                      className={`inline-flex items-center justify-center p-1 rounded shadow-sm ${
+                                        isReadOnly 
+                                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                          : checkingPPISignature === permitId
+                                          ? 'bg-yellow-400 text-white'
+                                          : 'bg-yellow-600 text-white hover:bg-yellow-700'
+                                      }`}
+                                      title={isReadOnly ? "View only - No edit permissions" : "Verificar Firma PPI"}
+                                    >
+                                      {checkingPPISignature === permitId ? (
+                                        <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
+                                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                      ) : (
+                                        <CheckIcon className="h-3 w-3" />
+                                      )}
+                                    </button>
+                                  )}
+                                </>
                               )}
 
                               {/* Botón para editar datos de cliente */}
@@ -2246,6 +2497,73 @@ const BudgetList = () => {
                                 )}
                                 🏷️ Ver PDF Legacy
                               </button>
+                            )}
+
+                            {/* 🆕 BOTONES PPI - Vista Móvil */}
+                            {permitId && budget.Permit?.ppiCloudinaryUrl && (
+                              <>
+                                {/* Botón Ver PPI Original */}
+                                <button
+                                  onClick={() => handleViewPPIOriginal(permitId)}
+                                  disabled={viewingPdfId === permitId}
+                                  className="w-full flex items-center justify-center bg-orange-600 text-white px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-orange-700 disabled:opacity-50 transition-colors"
+                                >
+                                  {viewingPdfId === permitId ? (
+                                    <svg className="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                  ) : (
+                                    <span className="text-lg mr-2">📋</span>
+                                  )}
+                                  Ver PPI Original
+                                </button>
+
+                                {/* Botón Ver PPI Firmado (solo si está firmado) */}
+                                {budget.Permit?.ppiSignatureStatus === 'completed' && budget.Permit?.ppiSignedPdfUrl && (
+                                  <button
+                                    onClick={() => handleViewPPISigned(permitId)}
+                                    disabled={viewingPPISigned === permitId}
+                                    className="w-full flex items-center justify-center bg-green-600 text-white px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
+                                  >
+                                    {viewingPPISigned === permitId ? (
+                                      <svg className="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                      </svg>
+                                    ) : (
+                                      <DocumentCheckIcon className="h-4 w-4 mr-2" />
+                                    )}
+                                    ✅ Ver PPI Firmado
+                                  </button>
+                                )}
+
+                                {/* Botón Verificar Firma (solo si está enviado pero no completado) */}
+                                {budget.Permit?.ppiDocusignEnvelopeId && 
+                                 budget.Permit?.ppiSignatureStatus !== 'completed' && (
+                                  <button
+                                    onClick={() => handleCheckPPISignature(permitId)}
+                                    disabled={checkingPPISignature === permitId || isReadOnly}
+                                    className={`w-full flex items-center justify-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                                      isReadOnly 
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                        : checkingPPISignature === permitId
+                                        ? 'bg-yellow-400 text-white'
+                                        : 'bg-yellow-600 text-white hover:bg-yellow-700'
+                                    }`}
+                                  >
+                                    {checkingPPISignature === permitId ? (
+                                      <svg className="animate-spin h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                      </svg>
+                                    ) : (
+                                      <CheckIcon className="h-4 w-4 mr-2" />
+                                    )}
+                                    🔍 Verificar Firma PPI
+                                  </button>
+                                )}
+                              </>
                             )}
 
                             {/* Botón para editar datos de cliente */}

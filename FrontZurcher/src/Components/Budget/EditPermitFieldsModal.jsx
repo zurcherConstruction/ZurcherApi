@@ -22,7 +22,23 @@ const EditPermitFieldsModal = ({ permitId, onClose, onSuccess }) => {
     applicantPhone: '',
     applicantEmail: '',
     propertyAddress: '',
-    notificationEmails: []
+    notificationEmails: [],
+    // 🆕 Campos PPI Part 1
+    ppiPropertyOwnerEmail: 'admin@zurcherseptic.com',
+    ppiPropertyOwnerPhone: '(954) 636-8200',
+    // 🆕 Campos PPI Part 2
+    city: '',
+    state: 'FL',
+    zipCode: '',
+    subdivision: '',
+    unit: '',
+    section: '',
+    township: '',
+    range: '',
+    parcelNo: '',
+    applicationNo: '',
+    // 🆕 Campos PPI Part 3
+    ppiAuthorizationType: 'initial', // initial, rescind, amend
   });
 
   const [newEmail, setNewEmail] = useState('');
@@ -81,7 +97,23 @@ const EditPermitFieldsModal = ({ permitId, onClose, onSuccess }) => {
         applicantPhone: permit.applicantPhone || '',
         applicantEmail: permit.applicantEmail || '',
         propertyAddress: permit.propertyAddress || '',
-        notificationEmails: permit.notificationEmails || []
+        notificationEmails: permit.notificationEmails || [],
+        // 🆕 Campos PPI Part 1
+        ppiPropertyOwnerEmail: permit.ppiPropertyOwnerEmail || 'admin@zurcherseptic.com',
+        ppiPropertyOwnerPhone: permit.ppiPropertyOwnerPhone || '(941) 505-5104',
+        // 🆕 Campos PPI Part 2
+        city: permit.city || '',
+        state: permit.state || 'FL',
+        zipCode: permit.zipCode || '',
+        subdivision: permit.subdivision || '',
+        unit: permit.unit || '',
+        section: permit.section || '',
+        township: permit.township || '',
+        range: permit.range || '',
+        parcelNo: permit.parcelNo || '',
+        applicationNo: permit.applicationNo || '',
+        // 🆕 Campos PPI Part 3
+        ppiAuthorizationType: permit.ppiAuthorizationType || 'initial',
       });
     } catch (err) {
       console.error('Error loading permit:', err);
@@ -682,6 +714,210 @@ const EditPermitFieldsModal = ({ permitId, onClose, onSuccess }) => {
               <p className="text-xs text-gray-500 mt-1">
                 Estos emails recibirán copias de las notificaciones (vendedores, managers, etc)
               </p>
+            </div>
+          </section>
+
+          {/* 🆕 Sección PPI Part 1 - Applicant Information */}
+          <section>
+            <h3 className="text-lg font-semibold mb-4 text-gray-700">📋 PPI Part 1 - Applicant Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Property Owner Email (Zurcher)
+                </label>
+                <input
+                  type="email"
+                  name="ppiPropertyOwnerEmail"
+                  value={formData.ppiPropertyOwnerEmail}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Property Owner Phone (Zurcher)
+                </label>
+                <input
+                  type="tel"
+                  name="ppiPropertyOwnerPhone"
+                  value={formData.ppiPropertyOwnerPhone}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Estos datos aparecen en Part 1 del PPI como Property Owner (Zurcher como empresa)
+            </p>
+          </section>
+
+          {/* 🆕 Sección PPI Part 2 - Property Information */}
+          <section>
+            <h3 className="text-lg font-semibold mb-4 text-gray-700">🏠 PPI Part 2 - Property Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                <input
+                  type="text"
+                  name="city"
+                  value={formData.city}
+                  onChange={handleInputChange}
+                  placeholder="Ej: Fort Myers"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
+                <input
+                  type="text"
+                  name="state"
+                  value={formData.state}
+                  onChange={handleInputChange}
+                  placeholder="FL"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Zip Code</label>
+                <input
+                  type="text"
+                  name="zipCode"
+                  value={formData.zipCode}
+                  onChange={handleInputChange}
+                  placeholder="33976"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Subdivision</label>
+                <input
+                  type="text"
+                  name="subdivision"
+                  value={formData.subdivision}
+                  onChange={handleInputChange}
+                  placeholder="N/A si no aplica"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                <input
+                  type="text"
+                  name="unit"
+                  value={formData.unit}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
+                <input
+                  type="text"
+                  name="section"
+                  value={formData.section}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Township</label>
+                <input
+                  type="text"
+                  name="township"
+                  value={formData.township}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Range</label>
+                <input
+                  type="text"
+                  name="range"
+                  value={formData.range}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Parcel No.</label>
+                <input
+                  type="text"
+                  name="parcelNo"
+                  value={formData.parcelNo}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Application No. (if known)</label>
+                <input
+                  type="text"
+                  name="applicationNo"
+                  value={formData.applicationNo}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="PPI-2026-001"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Información de la propiedad para Part 2 del PPI
+            </p>
+          </section>
+
+          {/* 🆕 Sección PPI Part 3 - Authorization Type */}
+          <section>
+            <h3 className="text-lg font-semibold mb-4 text-gray-700">✅ PPI Part 3 - Request Type</h3>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tipo de Autorización
+              </label>
+              <div className="space-y-2">
+                <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="ppiAuthorizationType"
+                    value="initial"
+                    checked={formData.ppiAuthorizationType === 'initial'}
+                    onChange={handleInputChange}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm">
+                    <strong>Initial:</strong> Autorización inicial para usar Inspector Privado (requiere fee)
+                  </span>
+                </label>
+                <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="ppiAuthorizationType"
+                    value="rescind"
+                    checked={formData.ppiAuthorizationType === 'rescind'}
+                    onChange={handleInputChange}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm">
+                    <strong>Rescind:</strong> Revocar autorización previa (inspección por Department, sin fee)
+                  </span>
+                </label>
+                <label className="flex items-center space-x-3 p-3 border border-gray-300 rounded-md hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="ppiAuthorizationType"
+                    value="amend"
+                    checked={formData.ppiAuthorizationType === 'amend'}
+                    onChange={handleInputChange}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm">
+                    <strong>Amend:</strong> Cambiar a diferente Inspector Privado (sin fee)
+                  </span>
+                </label>
+              </div>
             </div>
           </section>
 

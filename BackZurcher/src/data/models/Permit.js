@@ -190,8 +190,151 @@ module.exports = (sequelize) => {
       allowNull: true,
       defaultValue: false,
       comment: 'Indica si este permit fue importado desde sistema externo'
-    }
-  }, {
+    },
+    
+    // --- CAMPOS PPI (Pre-Permit Inspection) ---
+    // Part 1 - Applicant Information (Zurcher como Property Owner)
+    ppiPropertyOwnerEmail: {
+      type: DataTypes.STRING(150),
+      allowNull: true,
+      defaultValue: 'admin@zurcherseptic.com',
+      comment: 'Email de Zurcher para Part 1 del PPI'
+    },
+    ppiPropertyOwnerPhone: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      defaultValue: '(941) 505-5104',
+      comment: 'Teléfono de Zurcher para Part 1 del PPI'
+    },
+    
+    // Part 2 - Property Information
+    city: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+      comment: 'Ciudad de la propiedad'
+    },
+    state: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      defaultValue: 'FL',
+      comment: 'Estado de la propiedad'
+    },
+    zipCode: {
+      type: DataTypes.STRING(20),
+      allowNull: true,
+      comment: 'Código postal'
+    },
+    subdivision: {
+      type: DataTypes.STRING(200),
+      allowNull: true,
+      comment: 'Subdivisión'
+    },
+    unit: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      comment: 'Unidad'
+    },
+    section: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      comment: 'Sección'
+    },
+    township: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      comment: 'Township'
+    },
+    range: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      comment: 'Range'
+    },
+    parcelNo: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+      comment: 'Número de parcela'
+    },
+    applicationNo: {
+      type: DataTypes.STRING(100),
+      allowNull: true,
+      comment: '🆕 PPI Part 2: Application Number (if known)'
+    },
+    
+    // Part 3 - Request Type
+    ppiAuthorizationType: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      defaultValue: 'initial',
+      validate: {
+        isIn: [['initial', 'rescind', 'amend']]
+      },
+      comment: 'Tipo de autorización: initial, rescind, o amend'
+    },
+    
+    // Part 4 - Inspector Type & Generated Files
+    ppiInspectorType: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      validate: {
+        isIn: [['type-a', 'type-b']]
+      },
+      comment: 'Tipo de inspector: type-a (Landperc) o type-b (Carlos)'
+    },
+    ppiTemplatePath: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+      comment: 'Ruta al template PDF original (ppi-type-a.pdf o ppi-type-b.pdf)'
+    },
+    ppiGeneratedPath: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+      comment: 'Ruta al PPI generado con datos del permit'
+    },
+    ppiUploadedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Fecha de generación/carga del PPI'
+    },
+    ppiDocusignEnvelopeId: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      comment: '🆕 DocuSign Envelope ID para firma del PPI'
+    },
+    ppiSentForSignatureAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: '🆕 Fecha de envío del PPI a DocuSign'
+    },
+    ppiSignatureStatus: {
+      type: DataTypes.STRING(50),
+      allowNull: true,
+      comment: '🆕 Estado de firma del PPI: sent, signed, declined'
+    },
+    ppiSignedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: '🆕 Fecha en que se firmó el PPI'
+    },
+    ppiSignedPdfUrl: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: '🆕 URL del PPI firmado en Cloudinary'
+    },
+    ppiSignedPdfPublicId: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      comment: '🆕 Public ID del PPI firmado en Cloudinary para eliminación'
+    },
+    ppiCloudinaryUrl: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: '🆕 URL del PPI en Cloudinary'
+    },
+    ppiCloudinaryPublicId: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      comment: '🆕 Public ID del PPI en Cloudinary para eliminación'
+    },  }, {
     timestamps: true
   });
 };

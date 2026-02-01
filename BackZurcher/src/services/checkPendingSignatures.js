@@ -234,9 +234,123 @@ const checkPendingSignatures = async () => {
   console.log('🏁 [CRON JOB] Tarea de verificación de firmas finalizada.');
 };
 
+// --- TAREA 3: VERIFICAR PPIs PENDIENTES DE FIRMA ---
+const checkPendingPPISignatures = async () => {
+  console.log(`\n⏰ [CRON JOB PPI] Iniciando la verificación de firmas PPI pendientes - ${new Date().toISOString()}`);
+  
+  const docuSignService = new DocuSignService();
+
+  try {
+    const pendingPPIs = await Permit.findAll({
+      where: {
+        ppiDocusignEnvelopeId: { [Op.ne]: null },
+        ppiSignatureStatus: { [Op.notIn]: ['completed', 'signed'] }
+      }
+    });
+
+    if (pendingPPIs.length > 0) {
+      console.log(`[CRON JOB PPI] Se encontraron ${pendingPPIs.length} PPIs pendientes para verificar.`);
+      
+      for (const permit of pendingPPIs) {
+        try {
+          const envelopeId = permit.ppiDocusignEnvelopeId;
+          
+          if (!envelopeId) {
+            console.warn(`⚠️ [CRON JOB PPI] El permit ${permit.idPermit} no tiene envelopeId. Omitiendo.`);
+            continue;
+          }
+
+          console.log(`🔍 Verificando PPI del permit ${permit.idPermit} en DocuSign...`);
+          
+          const signatureStatus = await docuSignService.isDocumentSigned(envelopeId);
+
+          if (signatureStatus.signed) {
+            console.log(`✅ ¡PPI FIRMADO! Permit ID: ${permit.idPermit}`);
+            
+            // Descargar automáticamente el PDF firmado a Cloudinary
+            try {
+              const tempDir = path.join(__dirname, '../../temp');
+              if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir, { recursive: true });
+              }
+
+              const tempFilePath = path.join(tempDir, `ppi_${permit.idPermit}_signed_${Date.now()}.pdf`);
+              
+              // Descargar desde DocuSign
+              await docuSignService.downloadSignedDocument(envelopeId, tempFilePath);
+              console.log(`   -> PPI firmado descargado temporalmente: ${tempFilePath}`);
+
+              // Subir a Cloudinary con metadata
+              const uploadResult = await cloudinary.uploader.upload(tempFilePath, {
+                folder: 'zurcher/ppi/signed',
+                resource_type: 'raw',
+                public_id: `ppi_signed_permit_${permit.idPermit}_${Date.now()}`,
+                tags: [
+                  `permit-${permit.idPermit}`,
+                  `property-${(permit.propertyAddress || '').replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`,
+                  'ppi',
+                  'signed'
+                ],
+                context: {
+                  permit_id: permit.idPermit,
+                  property: permit.propertyAddress || '',
+                  signed_at: new Date().toISOString()
+                }
+              });
+
+              console.log(`   -> PPI firmado subido a Cloudinary: ${uploadResult.secure_url}`);
+
+              // Actualizar Permit con la info del PDF firmado
+              await permit.update({
+                ppiSignatureStatus: 'completed',
+                ppiSignedAt: new Date(),
+                ppiSignedPdfUrl: uploadResult.secure_url,
+                ppiSignedPdfPublicId: uploadResult.public_id
+              });
+
+              // Borrar archivo temporal
+              fs.unlinkSync(tempFilePath);
+              console.log(`   -> Archivo temporal PPI eliminado`);
+              
+            } catch (downloadError) {
+              console.error(`❌ Error al descargar/subir PPI firmado del permit ${permit.idPermit}:`, downloadError.message);
+              // Aún así actualizamos el status pero sin el PDF
+              await permit.update({
+                ppiSignatureStatus: 'completed',
+                ppiSignedAt: new Date()
+              });
+            }
+            
+            console.log(`   -> Estado de firma del PPI actualizado a 'completed'.`);
+
+            // Enviar notificación de PPI firmado
+            const notificationData = {
+              permitId: permit.idPermit,
+              propertyAddress: permit.propertyAddress,
+              applicantName: permit.applicantName || 'El cliente',
+            };
+            await sendNotifications('ppiSigned', notificationData, null, null);
+          }
+        } catch (error) {
+          console.error(`❌ [CRON JOB PPI] Error al verificar el PPI del permit ${permit.idPermit}:`, error.message);
+        }
+      }
+    } else {
+      console.log('✅ [CRON JOB PPI] No hay PPIs pendientes de firma.');
+    }
+  } catch (error) {
+    console.error('❌ [CRON JOB PPI] Error fatal durante la búsqueda de PPIs pendientes:', error);
+  }
+
+  console.log('🏁 [CRON JOB PPI] Tarea de verificación de firmas PPI finalizada.');
+};
+
 const startSignatureCheckCron = () => {
   // Ejecutar a las 23:00 y 7:00 (horarios de baja actividad)
-  cron.schedule('0 23,7 * * *', checkPendingSignatures, {
+  cron.schedule('0 23,7 * * *', async () => {
+    await checkPendingSignatures();
+    await checkPendingPPISignatures();
+  }, {
     scheduled: true,
     timezone: "America/New_York"
   });
@@ -246,4 +360,4 @@ const startSignatureCheckCron = () => {
 
 };
 
-module.exports = { startSignatureCheckCron, checkPendingSignatures };
+module.exports = { startSignatureCheckCron, checkPendingSignatures, checkPendingPPISignatures };
