@@ -143,6 +143,38 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true,
       comment: 'Notas sobre Notice to Owner y Lien'
+    },
+
+    // --- DOCUMENTOS FINALES ---
+    operatingPermitUrl: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+      comment: 'URL del Permiso de Operación en Cloudinary'
+    },
+    operatingPermitPublicId: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      comment: 'Public ID de Cloudinary para el Permiso de Operación'
+    },
+    operatingPermitSentAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Fecha y hora cuando se envió el Permiso de Operación al cliente'
+    },
+    maintenanceServiceUrl: {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+      comment: 'URL del Servicio de Mantenimiento en Cloudinary'
+    },
+    maintenanceServicePublicId: {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+      comment: 'Public ID de Cloudinary para el Servicio de Mantenimiento'
+    },
+    maintenanceServiceSentAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Fecha y hora cuando se envió el Servicio de Mantenimiento al cliente'
     }
 
   }, {

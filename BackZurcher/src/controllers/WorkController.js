@@ -1,8 +1,9 @@
-const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, Expense, Income, ChangeOrder, FinalInvoice, MaintenanceVisit, MaintenanceMedia, WorkChecklist } = require('../data');
+const { Work, Permit, Budget, Material, Inspection, Image, Staff, InstallationDetail, MaterialSet, Receipt, Expense, Income, ChangeOrder, FinalInvoice, MaintenanceVisit, MaintenanceMedia, WorkChecklist, WorkNote } = require('../data');
 
 const convertPdfDataToUrl = require('../utils/convertPdfDataToUrl');
 const { sendNotifications } = require('../utils/notifications/notificationManager');
 const {  deleteFromCloudinary, uploadBufferToCloudinary } = require('../utils/cloudinaryUploader'); // Asegúrate de importar la función de subida a Cloudinary
+const { cloudinary } = require('../utils/cloudinaryConfig');
 const multer = require('multer');
 const path = require('path');
 const {generateAndSaveChangeOrderPDF} = require('../utils/pdfGenerator')
@@ -341,6 +342,11 @@ const getWorkById = async (req, res) => {
             'permitPdfPublicId',
             'optionalDocsUrl',
             'optionalDocsPublicId',
+            // 🆕 Campos PPI firmado
+            'ppiCloudinaryUrl',
+            'ppiSignedPdfUrl',
+            'ppiSignatureStatus',
+            'ppiSignedAt',
             // ❌ EXCLUIDOS: pdfData, optionalDocs (BLOBs pesados, migrados a Cloudinary)
           ],
         },
@@ -1588,6 +1594,190 @@ const updateNoticeToOwner = async (req, res) => {
   }
 };
 
+// ============================================
+// 📄 SUBIR PERMISO DE OPERACIÓN
+// ============================================
+const uploadOperatingPermit = async (req, res) => {
+  try {
+    const { idWork } = req.params;
+    const staffId = req.user?.id || null;
+
+    // Validar que existe archivo
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No se recibió ningún archivo'
+      });
+    }
+
+    // Buscar el Work
+    const work = await Work.findByPk(idWork);
+    if (!work) {
+      return res.status(404).json({
+        success: false,
+        message: 'Work no encontrado'
+      });
+    }
+
+    console.log(`📄 Subiendo Permiso de Operación para Work ${idWork}...`);
+
+    // Subir a Cloudinary
+    const cloudinaryResult = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'zurcher/work-documents/operating-permits',
+          resource_type: 'auto',
+          public_id: `operating_permit_work_${idWork}_${Date.now()}`
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      uploadStream.end(req.file.buffer);
+    });
+
+    console.log(`✅ Permiso de Operación subido a Cloudinary: ${cloudinaryResult.secure_url}`);
+
+    // Actualizar Work con URLs y fecha
+    work.operatingPermitUrl = cloudinaryResult.secure_url;
+    work.operatingPermitPublicId = cloudinaryResult.public_id;
+    work.operatingPermitSentAt = new Date();
+    await work.save();
+
+    // Crear nota automática
+    const noteMessage = `📄 Permiso de Operación subido al sistema - ${new Date().toLocaleDateString('es-ES', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })}`;
+
+    await WorkNote.create({
+      workId: idWork,
+      staffId: staffId,
+      message: noteMessage,
+      noteType: 'other',
+      priority: 'medium',
+      isResolved: true,
+      mentionedStaffIds: []
+    });
+
+    console.log(`✅ Nota automática creada: "${noteMessage}"`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Permiso de Operación subido exitosamente',
+      data: {
+        url: cloudinaryResult.secure_url,
+        publicId: cloudinaryResult.public_id,
+        sentAt: work.operatingPermitSentAt
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error al subir Permiso de Operación:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al subir Permiso de Operación',
+      details: error.message
+    });
+  }
+};
+
+// ============================================
+// 🔧 SUBIR SERVICIO DE MANTENIMIENTO
+// ============================================
+const uploadMaintenanceService = async (req, res) => {
+  try {
+    const { idWork } = req.params;
+    const staffId = req.user?.id || null;
+
+    // Validar que existe archivo
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No se recibió ningún archivo'
+      });
+    }
+
+    // Buscar el Work
+    const work = await Work.findByPk(idWork);
+    if (!work) {
+      return res.status(404).json({
+        success: false,
+        message: 'Work no encontrado'
+      });
+    }
+
+    console.log(`🔧 Subiendo Servicio de Mantenimiento para Work ${idWork}...`);
+
+    // Subir a Cloudinary
+    const cloudinaryResult = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'zurcher/work-documents/maintenance-services',
+          resource_type: 'auto',
+          public_id: `maintenance_service_work_${idWork}_${Date.now()}`
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+      uploadStream.end(req.file.buffer);
+    });
+
+    console.log(`✅ Servicio de Mantenimiento subido a Cloudinary: ${cloudinaryResult.secure_url}`);
+
+    // Actualizar Work con URLs y fecha
+    work.maintenanceServiceUrl = cloudinaryResult.secure_url;
+    work.maintenanceServicePublicId = cloudinaryResult.public_id;
+    work.maintenanceServiceSentAt = new Date();
+    await work.save();
+
+    // Crear nota automática
+    const noteMessage = `🔧 Servicio de Mantenimiento subido al sistema - ${new Date().toLocaleDateString('es-ES', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })}`;
+
+    await WorkNote.create({
+      workId: idWork,
+      staffId: staffId,
+      message: noteMessage,
+      noteType: 'other',
+      priority: 'medium',
+      isResolved: true,
+      mentionedStaffIds: []
+    });
+
+    console.log(`✅ Nota automática creada: "${noteMessage}"`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Servicio de Mantenimiento subido exitosamente',
+      data: {
+        url: cloudinaryResult.secure_url,
+        publicId: cloudinaryResult.public_id,
+        sentAt: work.maintenanceServiceSentAt
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error al subir Servicio de Mantenimiento:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al subir Servicio de Mantenimiento',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   createWork,
   getWorks,
@@ -1605,4 +1795,6 @@ module.exports = {
   validateStatusChangeOnly,
   getWorksInMaintenance,
   updateNoticeToOwner,
+  uploadOperatingPermit,        // 🆕 NUEVO
+  uploadMaintenanceService,      // 🆕 NUEVO
 };
