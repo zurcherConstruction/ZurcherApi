@@ -250,7 +250,15 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
               'initialPaymentPercentage'
             ],
             include: [
-              { model: Permit, attributes: ['idPermit', 'propertyAddress', 'applicantEmail', 'applicantName', 'permitNumber', 'lot', 'block'] }
+              { 
+                model: Permit, 
+                attributes: [
+                  'idPermit', 'propertyAddress', 'applicantEmail', 'applicantName', 
+                  'permitNumber', 'lot', 'block', 
+                  'ppiCloudinaryUrl', 'ppiGeneratedPath', 'ppiInspectorType', // 🆕 Campos PPI
+                  'ppiSignatureStatus', 'ppiSignedAt', 'ppiSignedPdfUrl', 'ppiSignedPdfPublicId' // 🆕 Campos PPI firmado
+                ] 
+              }
             ]
           });
 
@@ -277,6 +285,9 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
 
           // ✅ PREPARAR Y ENVIAR NOTIFICACIONES
           const attachments = [];
+          let ppiPath = null; // 🆕 Declarar aquí para disponibilidad posterior
+          const permit = budgetForPdf.Permit; // 🆕 Obtener Permit desde budgetForPdf
+          
           if (generatedPdfPath && fs.existsSync(generatedPdfPath)) {
             attachments.push({
               filename: `Budget_${newBudgetId}.pdf`,
@@ -284,12 +295,53 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
               contentType: 'application/pdf'
             });
           }
+          
+          // 🆕 Adjuntar PPI si existe
+          if (permit) {
+            const ppiUrl = permit.ppiCloudinaryUrl || permit.ppiGeneratedPath;
+            if (ppiUrl) {
+              ppiPath = null; // Reinicializar
+              
+              // Si es URL de Cloudinary, descargar temporalmente
+              if (ppiUrl.startsWith('http')) {
+                console.log(`☁️  Descargando PPI desde Cloudinary para notificación: ${ppiUrl}`);
+                const axios = require('axios');
+                const path = require('path');
+                const uploadsDir = path.join(__dirname, '../uploads/temp');
+                
+                if (!fs.existsSync(uploadsDir)) {
+                  fs.mkdirSync(uploadsDir, { recursive: true });
+                }
+                
+                try {
+                  const response = await axios.get(ppiUrl, { responseType: 'arraybuffer' });
+                  ppiPath = path.join(uploadsDir, `ppi_notification_${permit.idPermit}_${Date.now()}.pdf`);
+                  fs.writeFileSync(ppiPath, response.data);
+                  console.log(`✅ PPI descargado para notificación: ${ppiPath}`);
+                } catch (downloadError) {
+                  console.error(`❌ Error descargando PPI:`, downloadError.message);
+                }
+              } else if (fs.existsSync(ppiUrl)) {
+                ppiPath = ppiUrl;
+              }
+              
+              if (ppiPath) {
+                const ppiFilename = `PPI_${permit.ppiInspectorType || 'inspection'}_Permit_${permit.idPermit}.pdf`;
+                attachments.push({
+                  filename: ppiFilename,
+                  path: ppiPath,
+                  contentType: 'application/pdf'
+                });
+                console.log(`📎 PPI adjuntado a notificación de owner: ${ppiFilename}`);
+              }
+            }
+          }
 
           const budgetLink = "https://www.zurcherseptic.com/budgets";
           const notificationDetails = {
-            propertyAddress: permit.propertyAddress,
+            propertyAddress: permit?.propertyAddress || budgetForPdf.propertyAddress,
             idBudget: newBudgetId,
-            applicantEmail: permit.applicantEmail || null,
+            applicantEmail: permit?.applicantEmail || null,
             budgetLink,
             attachments
           };
@@ -297,6 +349,16 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
           console.log(`📧 Enviando notificaciones para Budget ID ${newBudgetId}...`);
           await sendNotifications('budgetCreated', notificationDetails, null, req.io);
           console.log(`✅ Proceso en background completado para Budget ID ${newBudgetId}`);
+
+          // 🆕 Limpiar archivo PPI temporal si existe
+          if (ppiPath && ppiPath.includes('/temp/') && fs.existsSync(ppiPath)) {
+            try {
+              fs.unlinkSync(ppiPath);
+              console.log(`🗑️  PPI temporal eliminado: ${ppiPath}`);
+            } catch (cleanupError) {
+              console.warn(`⚠️  No se pudo eliminar PPI temporal:`, cleanupError.message);
+            }
+          }
 
         } catch (backgroundError) {
           console.error(`❌ Error en proceso background para Budget ID ${newBudgetId}:`, backgroundError);
@@ -1492,6 +1554,10 @@ async getBudgets(req, res) {
             // ✅ URLs de Cloudinary (prioridad)
             'permitPdfUrl', 'permitPdfPublicId',
             'optionalDocsUrl', 'optionalDocsPublicId',
+            // 🆕 Campos PPI para firma con DocuSign
+            'ppiGeneratedPath', 'ppiDocusignEnvelopeId', 'ppiSentForSignatureAt', 'ppiSignatureStatus',
+            'ppiCloudinaryUrl', 'ppiCloudinaryPublicId', 'ppiInspectorType',
+            'ppiSignatureStatus', 'ppiSignedAt', 'ppiSignedPdfUrl', 'ppiSignedPdfPublicId',
             // ✅ Flags virtuales para saber si existen PDFs (fallback a BLOB legacy)
             [sequelize.literal('CASE WHEN "Permit"."permitPdfUrl" IS NOT NULL OR "Permit"."pdfData" IS NOT NULL THEN true ELSE false END'), 'hasPermitPdfData'],
             [sequelize.literal('CASE WHEN "Permit"."optionalDocsUrl" IS NOT NULL OR "Permit"."optionalDocs" IS NOT NULL THEN true ELSE false END'), 'hasOptionalDocs']
@@ -4138,6 +4204,7 @@ async optionalDocs(req, res) {
    */
   async sendBudgetForReview(req, res) {
     let pdfPath; // ✅ Declarar aquí para disponibilidad en finally (patrón Change Order)
+    let ppiPath; // 🆕 Declarar aquí para disponibilidad en finally
     try {
       const { idBudget } = req.params;
       
@@ -4150,7 +4217,12 @@ async optionalDocs(req, res) {
         include: [
           { 
             model: Permit, 
-            attributes: ['idPermit', 'propertyAddress', 'applicantEmail', 'applicantName', 'lot', 'block', 'notificationEmails'] 
+            attributes: [
+              'idPermit', 'propertyAddress', 'applicantEmail', 'applicantName', 
+              'lot', 'block', 'notificationEmails',
+              'ppiCloudinaryUrl', 'ppiGeneratedPath', 'ppiInspectorType', // 🆕 Campos PPI
+              'ppiSignatureStatus', 'ppiSignedAt', 'ppiSignedPdfUrl', 'ppiSignedPdfPublicId' // 🆕 Campos PPI firmado
+            ] 
           },
           { model: BudgetLineItem, as: 'lineItems' }
         ]
@@ -4210,6 +4282,43 @@ async optionalDocs(req, res) {
       }
 
       console.log(`✅ PDF generado exitosamente: ${pdfPath}`);
+
+      // 🆕 Verificar si existe PPI generado para este Permit
+      ppiPath = null; // Inicializar
+      let ppiUrl = budget.Permit.ppiCloudinaryUrl || budget.Permit.ppiGeneratedPath;
+      
+      if (ppiUrl) {
+        // Si es URL de Cloudinary, descargar temporalmente
+        if (ppiUrl.startsWith('http')) {
+          console.log(` Descargando PPI desde Cloudinary: ${ppiUrl}`);
+          const axios = require('axios');
+          const path = require('path');
+          const uploadsDir = path.join(__dirname, '../uploads/temp');
+          
+          // Crear directorio temporal si no existe
+          if (!fs.existsSync(uploadsDir)) {
+            fs.mkdirSync(uploadsDir, { recursive: true });
+          }
+          
+          try {
+            const response = await axios.get(ppiUrl, { responseType: 'arraybuffer' });
+            ppiPath = path.join(uploadsDir, `ppi_${budget.Permit.idPermit}_${Date.now()}.pdf`);
+            fs.writeFileSync(ppiPath, response.data);
+            console.log(` PPI descargado temporalmente: ${ppiPath}`);
+          } catch (downloadError) {
+            console.error(` Error descargando PPI desde Cloudinary:`, downloadError.message);
+            ppiPath = null;
+          }
+        } else if (fs.existsSync(ppiUrl)) {
+          // Es ruta local y existe
+          ppiPath = ppiUrl;
+          console.log(` PPI encontrado localmente: ${ppiPath}`);
+        }
+      }
+      
+      if (!ppiPath) {
+        console.log(`ℹ No se encontró PPI generado para este Permit`);
+      }
 
       // Construir URL pública para revisión
       const frontendUrl = process.env.FRONTEND_URL || 'https://zurcherseptic.com';
@@ -4392,17 +4501,30 @@ async optionalDocs(req, res) {
 
       // ✅ ENVIAR EMAIL AL CLIENTE PRINCIPAL CON BOTONES DE ACCIÓN
       console.log(`📧 Enviando email principal a ${budget.Permit.applicantEmail} con botones de acción...`);
+      
+      // Preparar adjuntos: Budget PDF + PPI (si existe)
+      const attachments = [
+        { 
+          filename: `Budget_${budget.idBudget}.pdf`, 
+          path: pdfPath 
+        }
+      ];
+      
+      if (ppiPath) {
+        const ppiFilename = `PPI_${budget.Permit.ppiInspectorType || 'inspection'}_Permit_${budget.Permit.idPermit}.pdf`;
+        attachments.push({
+          filename: ppiFilename,
+          path: ppiPath
+        });
+        console.log(`📎 Adjuntando PPI: ${ppiFilename}`);
+      }
+      
       await sendEmail({
         to: budget.Permit.applicantEmail,
         subject: emailSubject,
         html: generateEmailHtml(true), // CON botones de aprobación
         text: `Alternative text: ${emailSubject}`,
-        attachments: [
-          { 
-            filename: `Budget_${budget.idBudget}.pdf`, 
-            path: pdfPath 
-          }
-        ]
+        attachments: attachments
       });
 
       console.log(`✅ Email principal enviado a ${budget.Permit.applicantEmail}`);
@@ -4415,17 +4537,28 @@ async optionalDocs(req, res) {
         
         for (const email of notificationEmails) {
           try {
+            // Preparar adjuntos para emails adicionales
+            const notificationAttachments = [
+              { 
+                filename: `Budget_${budget.idBudget}.pdf`, 
+                path: pdfPath 
+              }
+            ];
+            
+            if (ppiPath) {
+              const ppiFilename = `PPI_${budget.Permit.ppiInspectorType || 'inspection'}_Permit_${budget.Permit.idPermit}.pdf`;
+              notificationAttachments.push({
+                filename: ppiFilename,
+                path: ppiPath
+              });
+            }
+            
             await sendEmail({
               to: email,
               subject: emailSubjectNotification,
               html: generateEmailHtml(false), // SIN botones de aprobación
               text: `Alternative text: ${emailSubjectNotification}`,
-              attachments: [
-                { 
-                  filename: `Budget_${budget.idBudget}.pdf`, 
-                  path: pdfPath 
-                }
-              ]
+              attachments: notificationAttachments
             });
             console.log(`✅ Email informativo enviado a ${email}`);
           } catch (emailError) {
@@ -4493,6 +4626,16 @@ async optionalDocs(req, res) {
           console.log(`🗑️  PDF temporal eliminado: ${pdfPath}`);
         } catch (cleanupError) {
           console.warn(`⚠️  No se pudo eliminar el PDF temporal: ${cleanupError.message}`);
+        }
+      }
+      
+      // 🆕 LIMPIAR PPI TEMPORAL descargado de Cloudinary
+      if (ppiPath && ppiPath.includes('/temp/') && fs.existsSync(ppiPath)) {
+        try {
+          fs.unlinkSync(ppiPath);
+          console.log(`🗑️  PPI temporal eliminado: ${ppiPath}`);
+        } catch (cleanupError) {
+          console.warn(`⚠️  No se pudo eliminar el PPI temporal: ${cleanupError.message}`);
         }
       }
     }
@@ -4634,23 +4777,109 @@ async optionalDocs(req, res) {
 
                 console.log(`📧 Enviando a: ${clientEmail} (normalizado desde ${updatedBudget.Permit.applicantEmail})`);
 
-                // Enviar según el servicio configurado
-                const signatureResult = USE_DOCUSIGN
-                  ? await signatureService.sendBudgetForSignature(
-                      newPdfPath,
+                // 📄 GENERAR PPI SI EL PERMIT TIENE CONFIGURADO EL TIPO DE INSPECTOR
+                let ppiPath = null;
+                let signatureResult = null;
+                
+                if (USE_DOCUSIGN && updatedBudget.Permit && updatedBudget.Permit.ppiInspectorType) {
+                  try {
+                    console.log('\n📋 === GENERANDO PPI PARA ENVÍO JUNTO CON INVOICE ===');
+                    console.log(`🔍 Tipo de Inspector: ${updatedBudget.Permit.ppiInspectorType}`);
+                    
+                    const ServicePPI = require('../services/ServicePPI');
+                    
+                    // Preparar datos del permit y cliente
+                    const permitData = {
+                      idPermit: updatedBudget.Permit.idPermit,
+                      permitNumber: updatedBudget.Permit.permitNumber,
+                      jobAddress: updatedBudget.Permit.propertyAddress,
+                      city: updatedBudget.propertyCity || '',
+                      state: 'FL',
+                      zipCode: updatedBudget.propertyZip || '',
+                      lot: updatedBudget.Permit.lot || '',
+                      block: updatedBudget.Permit.block || '',
+                      subdivision: '',
+                      unit: '',
+                      section: '',
+                      township: '',
+                      range: '',
+                      parcelNo: ''
+                    };
+                    
+                    const clientData = {
+                      name: clientName,
+                      email: clientEmail,
+                      phone: updatedBudget.Permit.applicantPhone || ''
+                    };
+                    
+                    // Generar PPI
+                    ppiPath = await ServicePPI.generatePPI(
+                      permitData,
+                      clientData,
+                      updatedBudget.Permit.ppiInspectorType
+                    );
+                    
+                    console.log(`✅ PPI generado: ${ppiPath}`);
+                    
+                    // Actualizar budget con ruta del PPI
+                    await updatedBudget.update({
+                      ppiDocumentPath: ppiPath,
+                      ppiStatus: 'sent',
+                      ppiSentAt: new Date()
+                    });
+                    
+                    // Enviar Invoice + PPI juntos a DocuSign
+                    console.log('📤 Enviando Invoice + PPI a DocuSign...');
+                    
+                    const documents = [
+                      {
+                        pdfPath: newPdfPath,
+                        fileName: fileName
+                      },
+                      {
+                        pdfPath: ppiPath,
+                        fileName: `PPI_${updatedBudget.Permit.ppiInspectorType.toUpperCase()}_Invoice_${invoiceNumber}.pdf`
+                      }
+                    ];
+                    
+                    signatureResult = await signatureService.sendMultipleDocuments(
+                      documents,
                       clientEmail,
                       clientName,
-                      fileName,
-                      emailSubject,
-                      emailMessage,
-                      false // ✅ NO generar URL ahora, se genera on-demand cuando cliente hace clic
-                    )
-                  : await signatureService.sendBudgetForSignature(
-                      newPdfPath,
-                      fileName,
-                      clientEmail,
-                      clientName
+                      `Please sign Invoice #${invoiceNumber} and PPI - ${propertyAddress}`,
+                      `Dear ${clientName},\n\nPlease review and sign both documents:\n1. Invoice #${invoiceNumber}\n2. Pre-Permit Inspection (PPI) form\n\nThe PPI form is required for inspection approval and must be returned signed.\n\nBest regards,\nZurcher Construction`,
+                      false // On-demand signing
                     );
+                    
+                    console.log('✅ Invoice + PPI enviados juntos a DocuSign');
+                    
+                  } catch (ppiError) {
+                    console.error('❌ Error generando/enviando PPI:', ppiError.message);
+                    console.log('⚠️  Continuando con envío solo de Invoice...');
+                    // Si falla el PPI, continuar solo con el Invoice
+                    ppiPath = null;
+                  }
+                }
+                
+                // Si NO se generó PPI o NO es DocuSign, enviar solo el Invoice
+                if (!signatureResult) {
+                  signatureResult = USE_DOCUSIGN
+                    ? await signatureService.sendBudgetForSignature(
+                        newPdfPath,
+                        clientEmail,
+                        clientName,
+                        fileName,
+                        emailSubject,
+                        emailMessage,
+                        false // ✅ NO generar URL ahora, se genera on-demand cuando cliente hace clic
+                      )
+                    : await signatureService.sendBudgetForSignature(
+                        newPdfPath,
+                        fileName,
+                        clientEmail,
+                        clientName
+                      );
+                }
 
                 // ✅ Validar respuesta según el servicio
                 const documentId = USE_DOCUSIGN ? signatureResult.envelopeId : signatureResult.documentId;

@@ -89,6 +89,11 @@ const EditBudget = () => {
   const [manualSignedPdfFile, setManualSignedPdfFile] = useState(null);
   const [uploadingManualSignedPdf, setUploadingManualSignedPdf] = useState(false);
 
+  // 🆕 Estados para carga manual de PPI firmado
+  const [showPPIManualSignatureUpload, setShowPPIManualSignatureUpload] = useState(false);
+  const [ppiManualSignedPdfFile, setPpiManualSignedPdfFile] = useState(null);
+  const [uploadingPPIManualSignedPdf, setUploadingPPIManualSignedPdf] = useState(false);
+
   // 🆕 Estados para vista previa de PDFs
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
   const [pdfModalUrl, setPdfModalUrl] = useState('');
@@ -294,6 +299,12 @@ const editableBudgets = useMemo(() => {
           optionalDocsUrl: permitData.optionalDocsUrl || null,
           pdfDataFile: null,
           optionalDocsFile: null,
+          // 🆕 Campos PPI del Permit
+          ppiCloudinaryUrl: permitData.ppiCloudinaryUrl || null,
+          ppiSignatureStatus: permitData.ppiSignatureStatus || null,
+          ppiSignedPdfUrl: permitData.ppiSignedPdfUrl || null,
+          ppiDocusignEnvelopeId: permitData.ppiDocusignEnvelopeId || null,
+          PermitIdPermit: permitData.idPermit || null,
           subtotalPrice: 0,
           totalPrice: 0,
           initialPayment: 0,
@@ -846,6 +857,61 @@ const editableBudgets = useMemo(() => {
     }
   };
 
+  // 🆕 Handler para subir PPI firmado manualmente
+  const handlePPIManualSignedPdfUpload = async () => {
+    console.log('📤 === INICIO DE HANDLEPPIMANULSIGNEDPDFUPLOAD ===');
+    console.log('📄 Archivo seleccionado:', ppiManualSignedPdfFile?.name);
+    console.log('🎯 Permit ID:', formData?.PermitIdPermit);
+    
+    if (!ppiManualSignedPdfFile || !formData?.PermitIdPermit) {
+      console.error('❌ Validación fallida:');
+      console.log('   - ppiManualSignedPdfFile:', !!ppiManualSignedPdfFile);
+      console.log('   - PermitIdPermit:', !!formData?.PermitIdPermit);
+      toast.error('Por favor selecciona un archivo PDF');
+      return;
+    }
+
+    console.log('✅ Validación pasada, iniciando carga...');
+    setUploadingPPIManualSignedPdf(true);
+    
+    try {
+      const formDataUpload = new FormData();
+      formDataUpload.append('file', ppiManualSignedPdfFile);
+      console.log('📦 FormData creado con archivo:', ppiManualSignedPdfFile.name);
+
+      console.log(`🌐 Enviando petición POST a /permit/${formData.PermitIdPermit}/ppi/upload-manual-signed`);
+      const response = await api.post(`/permit/${formData.PermitIdPermit}/ppi/upload-manual-signed`, formDataUpload, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      console.log('✅ Respuesta recibida:', response.data);
+      
+      if (response.data.success) {
+        toast.success('✅ PPI firmado cargado exitosamente');
+        console.log('🔄 Cerrando modal y limpiando estado...');
+        setShowPPIManualSignatureUpload(false);
+        setPpiManualSignedPdfFile(null);
+        
+        // Recargar el budget actual para ver los cambios
+        console.log('🔄 Recargando budget desde el servidor...');
+        dispatch(fetchBudgetById(selectedBudgetId));
+      } else {
+        console.warn('⚠️ Respuesta no exitosa:', response.data);
+      }
+    } catch (error) {
+      console.error('❌ Error al cargar PPI firmado:', error);
+      console.error('   - Status:', error.response?.status);
+      console.error('   - Data:', error.response?.data);
+      console.error('   - Message:', error.message);
+      toast.error(error.response?.data?.error || 'Error al cargar el PPI firmado');
+    } finally {
+      setUploadingPPIManualSignedPdf(false);
+      console.log('🏁 handlePPIManualSignedPdfUpload finalizado');
+    }
+  };
+
   // 🆕 Funciones para abrir modales de vista previa de PDFs
   const handleViewBudgetPdf = async () => {
     // Limpiar URL anterior si existe (solo object URLs)
@@ -1161,6 +1227,32 @@ const editableBudgets = useMemo(() => {
                     >
                       🔧 Editar Permit
                     </button>
+                    
+                    {/* 🆕 BOTÓN PARA SUBIR PPI FIRMADO MANUAL - Aparece si hay Permit */}
+                    {formData.PermitIdPermit && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log('🔘 === BOTÓN "Subir PPI Firmado" CLICKEADO ===');
+                          console.log('   - Permit ID:', formData?.PermitIdPermit);
+                          console.log('   - Estado actual showPPIManualSignatureUpload:', showPPIManualSignatureUpload);
+                          setShowPPIManualSignatureUpload(true);
+                          console.log('   - ✅ Modal debe abrirse ahora (showPPIManualSignatureUpload = true)');
+                        }}
+                        className="inline-flex items-center px-3 py-2 text-sm font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-md hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-colors"
+                      >
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        {formData.ppiSignatureStatus === 'completed' 
+                          ? 'Reemplazar PPI Firmado' 
+                          : '📋 Subir PPI Firmado'
+                        }
+                      </button>
+                    )}
+                    
                     {/* 🆕 BOTÓN PARA SUBIR PDF FIRMADO - AHORA FUERA DEL FORM */}
                     {(!formData.signatureMethod || formData.signatureMethod !== 'legacy') && (
                       <button
@@ -1791,6 +1883,96 @@ const editableBudgets = useMemo(() => {
                     </>
                   ) : (
                     <>✓ Cargar PDF</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🆕 Modal para subir/reemplazar PPI firmado manualmente */}
+      {showPPIManualSignatureUpload && (
+        <div className="fixed inset-0 bg-gray-700 bg-opacity-60 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6 relative">
+            <button
+              onClick={() => {
+                setShowPPIManualSignatureUpload(false);
+                setPpiManualSignedPdfFile(null);
+              }}
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <h2 className="text-lg font-bold mb-4 text-center text-orange-900">
+              {formData?.ppiSignatureStatus === 'completed' 
+                ? 'Reemplazar PPI Firmado' 
+                : 'Subir PPI Firmado (PDF)'}
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Seleccionar archivo PDF firmado del PPI
+                </label>
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={(e) => {
+                    console.log('📁 === ARCHIVO PPI SELECCIONADO ===');
+                    console.log('   - Archivo:', e.target.files[0]?.name);
+                    console.log('   - Tipo:', e.target.files[0]?.type);
+                    console.log('   - Tamaño:', e.target.files[0]?.size, 'bytes');
+                    setPpiManualSignedPdfFile(e.target.files[0]);
+                  }}
+                  className="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+                />
+                {ppiManualSignedPdfFile && (
+                  <p className="mt-2 text-sm text-orange-600">
+                    ✓ Archivo seleccionado: <span className="font-medium">{ppiManualSignedPdfFile.name}</span>
+                  </p>
+                )}
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                <p className="text-xs text-blue-800">
+                  📋 Este PDF firmado del PPI reemplazará cualquier documento anterior. El PPI se marcará como firmado manualmente.
+                </p>
+              </div>
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setShowPPIManualSignatureUpload(false);
+                    setPpiManualSignedPdfFile(null);
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
+                  disabled={uploadingPPIManualSignedPdf}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('🎯 === BOTÓN "✓ Cargar PPI" CLICKEADO ===');
+                    console.log('   - Archivo:', ppiManualSignedPdfFile?.name);
+                    console.log('   - Permit ID:', formData?.PermitIdPermit);
+                    console.log('   - uploadingPPIManualSignedPdf:', uploadingPPIManualSignedPdf);
+                    handlePPIManualSignedPdfUpload();
+                  }}
+                  disabled={!ppiManualSignedPdfFile || uploadingPPIManualSignedPdf}
+                  className="px-4 py-2 text-sm font-medium text-white bg-orange-600 border border-transparent rounded-md hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {uploadingPPIManualSignedPdf ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Subiendo...
+                    </>
+                  ) : (
+                    <>✓ Cargar PPI</>
                   )}
                 </button>
               </div>

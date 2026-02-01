@@ -155,6 +155,168 @@ class DocuSignService {
   }
 
   /**
+   * Enviar múltiples documentos para firma (Invoice + PPI)
+   * @param {Array} documents - Array de objetos {pdfPath, fileName}
+   * @param {string} clientEmail - Email del cliente
+   * @param {string} clientName - Nombre del cliente
+   * @param {string} subject - Asunto del email
+   * @param {string} message - Mensaje del email
+   * @param {boolean} getSigningUrl - Si generar URL inmediatamente
+   */
+  async sendMultipleDocuments(documents, clientEmail, clientName, subject, message, getSigningUrl = false) {
+    return await withAutoRefreshToken(async (accessToken) => {
+      const normalizedEmail = clientEmail.toLowerCase();
+      
+      console.log('\n🚀 === ENVIANDO MÚLTIPLES DOCUMENTOS A DOCUSIGN ===');
+      console.log('📧 Cliente:', normalizedEmail, '-', clientName);
+      console.log(`📄 Total documentos: ${documents.length}`);
+      documents.forEach((doc, idx) => console.log(`   ${idx + 1}. ${doc.fileName}`));
+      console.log('🔗 Tipo de firma:', getSigningUrl ? 'Embedded' : '✅ Remote (válido 365 días)');
+
+      this.apiClient.addDefaultHeader('Authorization', `Bearer ${accessToken}`);
+
+      // Leer y convertir todos los PDFs a base64
+      const docusignDocuments = [];
+      for (let i = 0; i < documents.length; i++) {
+        const { pdfPath, fileName } = documents[i];
+        
+        let pdfBytes;
+        if (pdfPath.startsWith('http://') || pdfPath.startsWith('https://')) {
+          const axios = require('axios');
+          const response = await axios.get(pdfPath, { responseType: 'arraybuffer' });
+          pdfBytes = Buffer.from(response.data);
+        } else {
+          pdfBytes = fs.readFileSync(pdfPath);
+        }
+
+        const pdfBase64 = pdfBytes.toString('base64');
+        
+        docusignDocuments.push(docusign.Document.constructFromObject({
+          documentBase64: pdfBase64,
+          name: fileName,
+          fileExtension: 'pdf',
+          documentId: String(i + 1)
+        }));
+        
+        console.log(`✅ Documento ${i + 1} cargado: ${fileName}`);
+      }
+
+      // Crear envelope con múltiples documentos
+      const envelopeDefinition = this.createMultiDocumentEnvelopeDefinition(
+        docusignDocuments,
+        normalizedEmail,
+        clientName,
+        subject,
+        message,
+        getSigningUrl
+      );
+
+      const envelopesApi = new docusign.EnvelopesApi(this.apiClient);
+      const results = await envelopesApi.createEnvelope(this.accountId, {
+        envelopeDefinition: envelopeDefinition
+      });
+
+      console.log('✅ Documentos enviados exitosamente a DocuSign');
+      console.log('📋 Envelope ID:', results.envelopeId);
+      console.log('📊 Status:', results.status);
+
+      const response = {
+        success: true,
+        envelopeId: results.envelopeId,
+        status: results.status,
+        uri: results.uri,
+        statusDateTime: results.statusDateTime
+      };
+
+      if (getSigningUrl) {
+        const signingUrl = await this.getRecipientViewUrl(
+          results.envelopeId,
+          normalizedEmail,
+          clientName
+        );
+        response.signingUrl = signingUrl;
+      } else {
+        console.log('✅ Envelope con múltiples documentos creado con clientUserId');
+        console.log('🚫 Correos automáticos de DocuSign SUPRIMIDOS');
+      }
+
+      return response;
+    });
+  }
+
+  /**
+   * Crear definición del envelope para múltiples documentos
+   */
+  createMultiDocumentEnvelopeDefinition(documents, clientEmail, clientName, subject, message, useEmbeddedSigning) {
+    // Firmante
+    const signer = docusign.Signer.constructFromObject({
+      email: clientEmail,
+      name: clientName,
+      recipientId: '1',
+      routingOrder: '1',
+      clientUserId: clientEmail
+    });
+
+    // Crear tabs de firma para cada documento
+    const signHereTabs = [];
+    const dateSignedTabs = [];
+
+    documents.forEach((doc, idx) => {
+      const docId = doc.documentId;
+      
+      signHereTabs.push(docusign.SignHere.constructFromObject({
+        documentId: docId,
+        anchorString: 'Client Signature:',
+        anchorUnits: 'pixels',
+        anchorXOffset: '90',
+        anchorYOffset: '-5',
+        name: `SignHere_Doc${docId}`,
+        optional: 'false',
+        scaleValue: '1'
+      }));
+
+      dateSignedTabs.push(docusign.DateSigned.constructFromObject({
+        documentId: docId,
+        anchorString: 'Date:',
+        anchorUnits: 'pixels',
+        anchorXOffset: '35',
+        anchorYOffset: '-5',
+        name: `DateSigned_Doc${docId}`,
+        optional: 'false',
+        fontSize: 'size9'
+      }));
+    });
+
+    signer.tabs = docusign.Tabs.constructFromObject({
+      signHereTabs: signHereTabs,
+      dateSignedTabs: dateSignedTabs
+    });
+
+    // Envelope definition
+    const envelopeDefinition = docusign.EnvelopeDefinition.constructFromObject({
+      emailSubject: subject || 'Please sign these documents',
+      emailBlurb: message || 'Please review and sign the attached documents.',
+      documents: documents,
+      recipients: docusign.Recipients.constructFromObject({
+        signers: [signer],
+        carbonCopies: []
+      }),
+      notification: undefined,
+      status: 'sent',
+      enableWetSign: 'false',
+      allowMarkup: 'false',
+      allowReassign: 'false',
+      emailSettings: {
+        replyEmailAddressOverride: process.env.SMTP_FROM || 'noreply@zurcherseptic.com',
+        replyEmailNameOverride: 'Zurcher Construction'
+      },
+      eventNotification: undefined
+    });
+
+    return envelopeDefinition;
+  }
+
+  /**
    * Crear definición del envelope para firma
    */
   createEnvelopeDefinition(pdfBase64, fileName, clientEmail, clientName, subject, message, useEmbeddedSigning) {

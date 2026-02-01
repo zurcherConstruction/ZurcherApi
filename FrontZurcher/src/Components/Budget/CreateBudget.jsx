@@ -9,6 +9,8 @@ import { fetchBudgetItems } from "../../Redux/Actions/budgetItemActions";
 import { fetchPermitById } from "../../Redux/Actions/permitActions";
 import { createBudget } from "../../Redux/Actions/budgetActions";
 import { fetchStaff } from "../../Redux/Actions/adminActions";
+import PPISelectorSimple from "./PPISelectorSimple";
+import EditPermitFieldsModal from "./EditPermitFieldsModal";
 import "@react-pdf-viewer/core/lib/styles/index.css";
 import "@react-pdf-viewer/default-layout/lib/styles/index.css";
 import Swal from 'sweetalert2';
@@ -140,10 +142,12 @@ const CreateBudget = () => {
   const [permitExpirationAlert, setPermitExpirationAlert] = useState({ type: "", message: "" });
   const [pdfPreview, setPdfPreview] = useState(null);
   const [optionalDocPreview, setOptionalDocPreview] = useState(null);
+  const [ppiPreview, setPpiPreview] = useState(null); // 🆕 Preview del PPI
   const [currentPage, setCurrentPage] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false); // Estado para deshabilitar botón
   const [submissionProgress, setSubmissionProgress] = useState(''); // Estado para mostrar progreso
   const [createdBudgetInfo, setCreatedBudgetInfo] = useState(null); // Para guardar info del budget creado
+  const [showEditPermitModal, setShowEditPermitModal] = useState(false); // 🆕 Modal para editar Permit
   
   // Estados para manejar fechas en formato USA
   const [displayDate, setDisplayDate] = useState(() => {
@@ -646,6 +650,35 @@ const customCategoryOrder = [
 
 
 
+  // 🆕 Handler para abrir modal de edición de Permit
+  const handleEditPermitClick = () => {
+    setShowEditPermitModal(true);
+  };
+
+  // 🆕 Handler para cerrar modal
+  const handleEditPermitClose = () => {
+    setShowEditPermitModal(false);
+  };
+
+  // 🆕 Handler cuando se actualiza el Permit exitosamente
+  const handleEditPermitSuccess = async (updatedPermit) => {
+    setShowEditPermitModal(false);
+    
+    // Recargar los datos del Permit
+    if (permitIdFromQuery) {
+      dispatch(fetchPermitById(permitIdFromQuery));
+    }
+    
+    // Mostrar mensaje de éxito
+    Swal.fire({
+      icon: 'success',
+      title: 'Permit actualizado',
+      text: 'Puedes regenerar el PPI para reflejar los cambios',
+      timer: 3000,
+      showConfirmButton: false
+    });
+  };
+
   // --- Submit Handler (Solo Crear) ---
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -897,6 +930,24 @@ const customCategoryOrder = [
                   <span>Planos</span>
                 </div>
               </button>
+              {/* 🆕 Pestaña PPI */}
+              {selectedPermit && selectedPermit.ppiInspectorType && (
+                <button
+                  onClick={() => setCurrentPage(3)}
+                  className={`py-1 px-2 rounded-lg text-xs  transition-all duration-200 ${
+                    currentPage === 3 
+                      ? "bg-indigo-600 text-white shadow-lg transform scale-105" 
+                      : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300 hover:border-indigo-300"
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    </svg>
+                    <span>PPI</span>
+                  </div>
+                </button>
+              )}
             </div>
 
             {/* Vista previa del PDF */}
@@ -919,6 +970,15 @@ const customCategoryOrder = [
                     />
                   </Worker>
                 </div>
+              ) : currentPage === 3 && ppiPreview ? (
+                <div className="h-full w-full">
+                  <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+                    <Viewer
+                      fileUrl={ppiPreview}
+                      plugins={[defaultLayoutPluginInstance]}
+                    />
+                  </Worker>
+                </div>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full min-h-[400px] p-8">
                   <div className="text-center">
@@ -929,12 +989,27 @@ const customCategoryOrder = [
                     <p className="text-sm text-gray-400">
                       {currentPage === 1
                         ? "No se ha cargado el documento del permiso"
-                        : "No se han cargado los planos"}
+                        : currentPage === 2
+                        ? "No se han cargado los planos"
+                        : "Genera el PPI primero usando el botón de abajo"}
                     </p>
                   </div>
                 </div>
               )}
             </div>
+
+            {/* 🆕 Sección PPI - Selector y generación */}
+            {selectedPermit && permitIdFromQuery && (
+              <PPISelectorSimple
+                permitId={permitIdFromQuery}
+                currentInspectorType={selectedPermit.ppiInspectorType}
+                onPPIGenerated={(ppiUrl) => {
+                  setPpiPreview(ppiUrl);
+                  setCurrentPage(3); // Cambiar automáticamente a la pestaña PPI
+                }}
+                onEditPermit={handleEditPermitClick}
+              />
+            )}
           </div>
 
           {/* --- Formulario (Columna Derecha) --- */}
@@ -1600,6 +1675,15 @@ const customCategoryOrder = [
           </form>
         </div>
       </div>
+
+      {/* 🆕 Modal para editar Permit */}
+      {showEditPermitModal && permitIdFromQuery && (
+        <EditPermitFieldsModal
+          permitId={permitIdFromQuery}
+          onClose={handleEditPermitClose}
+          onSuccess={handleEditPermitSuccess}
+        />
+      )}
 
 </div>
     </div>

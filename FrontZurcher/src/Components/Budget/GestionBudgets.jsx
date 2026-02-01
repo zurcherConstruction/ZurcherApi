@@ -18,7 +18,9 @@ import {
   CalendarDaysIcon,
   DocumentTextIcon,
   ArrowDownTrayIcon, // 🆕 Icono para exportar Excel
-  ChatBubbleLeftRightIcon // 📝 Icono para seguimiento
+  ChatBubbleLeftRightIcon, // 📝 Icono para seguimiento
+  CheckIcon, // 🆕 Icono para verificar PPI
+  DocumentCheckIcon // 🆕 Icono para PPI firmado
 } from '@heroicons/react/24/outline';
 import { Worker, Viewer } from '@react-pdf-viewer/core';
 import api from '../../utils/axios';
@@ -90,6 +92,7 @@ const GestionBudgets = () => {
 
   // 🆕 Estado para verificación manual de firmas
   const [verifyingSignatures, setVerifyingSignatures] = useState(false);
+  const [verifyingPPISignatures, setVerifyingPPISignatures] = useState(false);
 
   // 📝 Estado para modal de notas de seguimiento
   const [showNotesModal, setShowNotesModal] = useState(false);
@@ -98,6 +101,13 @@ const GestionBudgets = () => {
   // 🆕 Estado para alertas de notas (cargadas una sola vez)
   const [budgetAlerts, setBudgetAlerts] = useState({});
   const [loadingAlerts, setLoadingAlerts] = useState(false);
+
+  // 🆕 Estados para PPI
+  const [verifyingPPISignature, setVerifyingPPISignature] = useState(null);
+  const [showPPIModal, setShowPPIModal] = useState(false);
+  const [ppiUrl, setPpiUrl] = useState(null);
+  const [ppiTitle, setPpiTitle] = useState('');
+  const [loadingPPI, setLoadingPPI] = useState(false);
 
   // 🆕 Función reutilizable para recargar alertas
   const reloadBudgetAlerts = async () => {
@@ -303,6 +313,51 @@ const GestionBudgets = () => {
       alert(`❌ Error al verificar firmas:\n${error.response?.data?.details || error.message}`);
     } finally {
       setVerifyingSignatures(false);
+    }
+  };
+
+  // 🆕 Verificar firmas PPI manualmente
+  const handleVerifyPPISignatures = async () => {
+    if (verifyingPPISignatures) return;
+
+    const confirm = window.confirm(
+      '¿Verificar ahora todas las firmas PPI pendientes de DocuSign?\n\n' +
+      'Esto revisará todos los PPIs enviados a DocuSign y actualizará ' +
+      'el estado de los que ya fueron firmados.'
+    );
+
+    if (!confirm) return;
+
+    setVerifyingPPISignatures(true);
+    try {
+      const response = await api.post('/permit/verify-ppi-signatures');
+      
+      if (response.data.success) {
+        const { checked, completed, results } = response.data;
+        
+        let message = `✅ Verificación PPI completada\n\n`;
+        message += `📊 PPIs revisados: ${checked}\n`;
+        message += `✍️ Firmados encontrados: ${completed}\n\n`;
+        
+        if (completed > 0) {
+          message += `PPIs actualizados:\n`;
+          results
+            .filter(r => r.status === 'completed')
+            .forEach((r, i) => {
+              message += `${i + 1}. Permit #${r.permitId} - ${r.propertyAddress}\n`;
+            });
+        }
+        
+        alert(message);
+        
+        // Recargar budgets para ver cambios
+        refreshBudgets();
+      }
+    } catch (error) {
+      console.error('Error verificando firmas PPI:', error);
+      alert(`❌ Error al verificar firmas PPI:\n${error.response?.data?.error || error.message}`);
+    } finally {
+      setVerifyingPPISignatures(false);
     }
   };
 
@@ -522,6 +577,71 @@ const GestionBudgets = () => {
     setDownloadingSignedPdf(false);
   };
 
+  // 🆕 Handler para verificar firma PPI manualmente
+  const handleVerifyPPISignature = async (permitId) => {
+    if (verifyingPPISignature) return;
+    
+    setVerifyingPPISignature(permitId);
+    try {
+      const response = await api.post(`/permit/${permitId}/ppi/check-signature`);
+      
+      if (response.data.success) {
+        if (response.data.signatureStatus === 'completed') {
+          alert('✅ PPI firmado correctamente y descargado');
+        } else {
+          alert(`ℹ️ Estado de firma PPI: ${response.data.signatureStatus}`);
+        }
+        // Refrescar lista de budgets
+        refreshBudgets();
+      }
+    } catch (error) {
+      console.error('Error al verificar firma PPI:', error);
+      alert(`❌ Error al verificar firma PPI: ${error.response?.data?.error || error.message}`);
+    } finally {
+      setVerifyingPPISignature(null);
+    }
+  };
+
+  // 🆕 Handler para ver PPI firmado
+  const handleViewPPISigned = async (permitId) => {
+    setLoadingPPI(true);
+    try {
+      const response = await api.get(`/permit/${permitId}/ppi/signed/view`, {
+        responseType: 'blob'
+      });
+      const blob = response.data;
+      const url = window.URL.createObjectURL(blob);
+      setPpiUrl(url);
+      setPpiTitle('PPI Firmado');
+      setShowPPIModal(true);
+    } catch (error) {
+      console.error('Error al ver PPI firmado:', error);
+      alert('No se pudo cargar el PPI firmado.');
+    } finally {
+      setLoadingPPI(false);
+    }
+  };
+
+  // 🆕 Handler para ver PPI original
+  const handleViewPPIOriginal = async (permitId) => {
+    setLoadingPPI(true);
+    try {
+      const response = await api.get(`/permit/${permitId}/ppi/view`, {
+        responseType: 'blob'
+      });
+      const blob = response.data;
+      const url = window.URL.createObjectURL(blob);
+      setPpiUrl(url);
+      setPpiTitle('PPI Original');
+      setShowPPIModal(true);
+    } catch (error) {
+      console.error('Error al ver PPI original:', error);
+      alert('No se pudo cargar el PPI original.');
+    } finally {
+      setLoadingPPI(false);
+    }
+  };
+
   // Handler para reemplazar PDF del Permit
   const handleReplacePermitPdf = async () => {
     if (!newPermitPdfFile || !selectedBudget?.PermitIdPermit) {
@@ -737,7 +857,7 @@ const GestionBudgets = () => {
             <span className="sm:hidden">Excel</span>
           </button>
 
-          {/* Botón Verificar Firmas */}
+          {/* Botón Verificar Firmas Budget */}
           <button
             onClick={handleVerifySignatures}
             disabled={verifyingSignatures}
@@ -761,6 +881,32 @@ const GestionBudgets = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 Verificar Firmas Ahora
+              </>
+            )}
+          </button>
+
+          {/* 🆕 Botón Verificar Firmas PPI */}
+          <button
+            onClick={handleVerifyPPISignatures}
+            disabled={verifyingPPISignatures}
+            className={`inline-flex items-center px-4 py-2 rounded-lg font-medium text-sm transition-all ${
+              verifyingPPISignatures
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-orange-600 text-white hover:bg-orange-700 hover:shadow-lg'
+            }`}
+          >
+            {verifyingPPISignatures ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Verificando PPI...
+              </>
+            ) : (
+              <>
+                <span className="text-lg mr-2">📋</span>
+                Verificar Firmas PPI
               </>
             )}
           </button>
@@ -981,6 +1127,53 @@ const GestionBudgets = () => {
                         >
                           <DocumentTextIcon className="h-4 w-4" />
                         </button>
+                      )}
+                      
+                      {/* 🆕 BOTONES PPI */}
+                      {budget.Permit?.ppiCloudinaryUrl && (
+                        <>
+                          {/* Ver PPI Original */}
+                          <button
+                            onClick={() => handleViewPPIOriginal(budget.Permit.idPermit)}
+                            disabled={loadingPPI}
+                            className="text-orange-600 hover:text-orange-900 p-1 rounded disabled:opacity-50"
+                            title="Ver PPI Original"
+                          >
+                            <span className="text-sm">📋</span>
+                          </button>
+                          
+                          {/* Ver PPI Firmado (solo si está completado) */}
+                          {budget.Permit?.ppiSignatureStatus === 'completed' && budget.Permit?.ppiSignedPdfUrl && (
+                            <button
+                              onClick={() => handleViewPPISigned(budget.Permit.idPermit)}
+                              disabled={loadingPPI}
+                              className="text-green-600 hover:text-green-900 p-1 rounded disabled:opacity-50"
+                              title="Ver PPI Firmado"
+                            >
+                              <DocumentCheckIcon className="h-4 w-4" />
+                            </button>
+                          )}
+                          
+                          {/* Verificar Firma PPI (solo si está enviado pero no completado) */}
+                          {budget.Permit?.ppiDocusignEnvelopeId && 
+                           budget.Permit?.ppiSignatureStatus !== 'completed' && (
+                            <button
+                              onClick={() => handleVerifyPPISignature(budget.Permit.idPermit)}
+                              disabled={verifyingPPISignature === budget.Permit.idPermit}
+                              className="text-yellow-600 hover:text-yellow-900 p-1 rounded disabled:opacity-50"
+                              title="Verificar Firma PPI"
+                            >
+                              {verifyingPPISignature === budget.Permit.idPermit ? (
+                                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                              ) : (
+                                <CheckIcon className="h-4 w-4" />
+                              )}
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   </td>
@@ -1285,6 +1478,34 @@ const GestionBudgets = () => {
               {signedPdfUrl && (
                 <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
                   <Viewer fileUrl={signedPdfUrl} />
+                </Worker>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🆕 Modal visor PPI (original o firmado) */}
+      {showPPIModal && (
+        <div className="fixed inset-0 bg-gray-700 bg-opacity-60 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full p-4 relative">
+            <button
+              onClick={() => {
+                setShowPPIModal(false);
+                setPpiUrl(null);
+                setPpiTitle('');
+              }}
+              className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <h2 className="text-lg font-bold mb-4 text-center">{ppiTitle}</h2>
+            <div className="h-[70vh] overflow-y-auto border rounded shadow-inner bg-gray-50">
+              {ppiUrl && (
+                <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">
+                  <Viewer fileUrl={ppiUrl} />
                 </Worker>
               )}
             </div>
