@@ -354,3 +354,20 @@ export const exportBudgetsToExcel = ({ search = '', status = '', month = '', yea
     };
   }
 };
+
+// 🔔 Obtener budgets con alertas próximas (para priorizar en primera página)
+export const fetchBudgetsWithUpcomingAlerts = (days = 7) => async (dispatch) => {
+  try {
+    const response = await api.get(`/budget/upcoming-alerts?days=${days}`);
+    return {
+      type: 'FETCH_BUDGETS_WITH_ALERTS_SUCCESS',
+      payload: response.data
+    };
+  } catch (error) {
+    console.error('Error al obtener budgets con alertas:', error);
+    return {
+      type: 'FETCH_BUDGETS_WITH_ALERTS_FAILURE',
+      payload: error.message
+    };
+  }
+};

@@ -108,6 +108,11 @@ module.exports = (sequelize) => {
       type: DataTypes.DATE,
       allowNull: true,
       comment: 'Cuándo se completó/canceló el recordatorio'
+    },
+    reminderEmailSentAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Fecha y hora en que se envió el email de recordatorio (para enviar solo una vez)'
     }
   }, {
     timestamps: true, // Crea automáticamente createdAt y updatedAt

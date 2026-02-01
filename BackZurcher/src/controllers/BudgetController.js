@@ -1,4 +1,4 @@
-const { Budget, Permit, Work, Income, BudgetItem, BudgetLineItem, Receipt, Staff, conn, sequelize } = require('../data');
+const { Budget, Permit, Work, Income, BudgetItem, BudgetLineItem, Receipt, Staff, BudgetNote, conn, sequelize } = require('../data');
 const { Op, literal } = require('sequelize'); 
 const { cloudinary } = require('../utils/cloudinaryConfig.js');
 const { sendNotifications } = require('../utils/notifications/notificationManager.js');
@@ -1568,9 +1568,32 @@ async getBudgets(req, res) {
             [sequelize.literal('CASE WHEN "Permit"."permitPdfUrl" IS NOT NULL OR "Permit"."pdfData" IS NOT NULL THEN true ELSE false END'), 'hasPermitPdfData'],
             [sequelize.literal('CASE WHEN "Permit"."optionalDocsUrl" IS NOT NULL OR "Permit"."optionalDocs" IS NOT NULL THEN true ELSE false END'), 'hasOptionalDocs']
           ],
+        },
+        // 🔔 LEFT JOIN a BudgetNotes para obtener alertas próximas
+        {
+          model: BudgetNote,
+          as: 'notes',
+          required: false, // LEFT JOIN - no excluir budgets sin alertas
+          where: {
+            isReminderActive: true,
+            reminderDate: {
+              [Op.gte]: new Date(),
+              [Op.lte]: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // Próximos 7 días
+            },
+            reminderCompletedAt: null
+          },
+          attributes: ['id', 'reminderDate', 'priority'],
+          separate: false // Importante: no hacer query separada para poder ordenar
         }
       ],
-      order: [['idBudget', 'DESC']],
+      // 🔔 Ordenar: primero los que tienen alertas (por fecha de alerta), luego el resto por ID
+      order: [
+        [sequelize.literal('CASE WHEN "notes"."id" IS NOT NULL THEN 0 ELSE 1 END'), 'ASC'], // Alertas primero
+        [sequelize.literal('MIN("notes"."reminderDate")'), 'ASC NULLS LAST'], // Fecha de alerta más próxima
+        ['idBudget', 'DESC'] // Luego por ID descendente
+      ],
+      group: ['Budget.idBudget', 'Permit.idPermit', 'notes.id'], // Necesario por el MIN en ORDER BY
+      subQuery: false, // Evitar subquery para que el ORDER BY funcione correctamente
       limit: pageSize,
       offset,
       attributes: [
@@ -6055,6 +6078,105 @@ async optionalDocs(req, res) {
       res.status(500).json({
         error: true,
         message: 'Error al diagnosticar estados',
+        details: error.message
+      });
+    }
+  },
+
+  /**
+   * 🔔 Obtener budgets con alertas/recordatorios próximos
+   * Usado para priorizar en la primera página de GestionBudgets
+   */
+  async getBudgetsWithUpcomingAlerts(req, res) {
+    try {
+      const { days = 7 } = req.query; // Por defecto, próximos 7 días
+
+      // Calcular rango de fechas
+      const now = new Date();
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + parseInt(days));
+
+      // Importar BudgetNote si no está ya importado
+      const { BudgetNote } = require('../data');
+
+      // Buscar notas con recordatorios activos en el rango
+      const budgetsWithAlerts = await Budget.findAll({
+        include: [
+          {
+            model: BudgetNote,
+            as: 'notes', // 🔧 Usar el alias correcto de la asociación
+            required: true, // INNER JOIN - solo budgets con notas
+            where: {
+              isReminderActive: true,
+              reminderDate: {
+                [Op.gte]: now,
+                [Op.lte]: futureDate
+              },
+              reminderCompletedAt: null
+            },
+            attributes: ['id', 'message', 'noteType', 'priority', 'reminderDate', 'createdAt'],
+            include: [
+              {
+                model: Staff,
+                as: 'author', // 🔧 Usar el alias correcto
+                attributes: ['id', 'name', 'email']
+              }
+            ]
+          },
+          {
+            model: Permit,
+            attributes: ['idPermit', 'propertyAddress']
+          },
+          {
+            model: Staff,
+            as: 'createdByStaff',
+            attributes: ['id', 'name', 'email']
+          }
+        ],
+        attributes: [
+          'idBudget',
+          'propertyAddress',
+          'applicantName',
+          'status',
+          'date',
+          'createdAt',
+          'updatedAt'
+        ],
+        order: [[{ model: BudgetNote, as: 'notes' }, 'reminderDate', 'ASC']] // Ordenar por fecha de alerta más próxima
+      });
+
+      // Calcular días restantes para cada alerta
+      const budgetsWithDaysRemaining = budgetsWithAlerts.map(budget => {
+        const budgetData = budget.toJSON();
+        
+        // Encontrar la alerta más próxima (usar alias 'notes')
+        const nearestAlert = budgetData.notes[0];
+        const daysRemaining = Math.ceil(
+          (new Date(nearestAlert.reminderDate) - now) / (1000 * 60 * 60 * 24)
+        );
+
+        return {
+          ...budgetData,
+          nearestAlert: {
+            ...nearestAlert,
+            daysRemaining,
+            isToday: daysRemaining === 0,
+            isUrgent: daysRemaining <= 2
+          },
+          alertCount: budgetData.notes.length
+        };
+      });
+
+      res.status(200).json({
+        success: true,
+        count: budgetsWithDaysRemaining.length,
+        budgets: budgetsWithDaysRemaining
+      });
+
+    } catch (error) {
+      console.error('Error al obtener budgets con alertas:', error);
+      res.status(500).json({
+        error: 'Error al obtener budgets con alertas próximas',
         details: error.message
       });
     }
