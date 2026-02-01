@@ -5167,7 +5167,7 @@ async optionalDocs(req, res) {
                                 </ol>
                                 
                                 <div style="text-align: center; margin: 35px 0;">
-                                  <a href="${process.env.API_URL || 'https://zurcherapi.up.railway.app'}/permit/${permitForPPI.idPermit}/ppi/sign" 
+                                  <a href="${process.env.API_URL || 'https://zurcherapi.up.railway.app'}/ppi/${permitForPPI.idPermit}/sign" 
                                      style="display: inline-block; background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%); color: white; padding: 18px 45px; text-decoration: none; border-radius: 8px; font-size: 18px; font-weight: bold; box-shadow: 0 4px 15px rgba(255, 107, 53, 0.4);">
                                     📝 SIGN PPI NOW
                                   </a>
