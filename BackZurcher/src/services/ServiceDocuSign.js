@@ -155,6 +155,89 @@ class DocuSignService {
   }
 
   /**
+   * Enviar PPI (Pre-Permit Inspection) para firma con 2 firmas
+   * @param {string} pdfPath - Ruta o URL del PDF del PPI
+   * @param {string} clientEmail - Email del cliente
+   * @param {string} clientName - Nombre del cliente
+   * @param {string} fileName - Nombre del archivo PDF
+   * @param {string} subject - Asunto del email
+   * @param {string} message - Mensaje del email
+   * @param {boolean} getSigningUrl - Si generar URL inmediatamente (default false = Remote Signing)
+   */
+  async sendPPIForSignature(pdfPath, clientEmail, clientName, fileName, subject, message, getSigningUrl = false) {
+    return await withAutoRefreshToken(async (accessToken) => {
+      const normalizedEmail = clientEmail.toLowerCase();
+      
+      console.log('\n🚀 === ENVIANDO PPI A DOCUSIGN (2 FIRMAS) ===');
+      console.log('📧 Cliente:', normalizedEmail, '-', clientName);
+      console.log('📄 Archivo:', fileName);
+      console.log('🔗 Tipo de firma:', getSigningUrl ? 'Embedded' : '✅ Remote (válido 365 días)');
+      console.log('✍️  Firmas requeridas: 2 (Property Owner + Applicant)');
+
+      this.apiClient.addDefaultHeader('Authorization', `Bearer ${accessToken}`);
+
+      // Leer el PDF (local o remoto)
+      let pdfBytes;
+      if (pdfPath.startsWith('http://') || pdfPath.startsWith('https://')) {
+        const axios = require('axios');
+        const response = await axios.get(pdfPath, { responseType: 'arraybuffer' });
+        pdfBytes = Buffer.from(response.data);
+      } else {
+        pdfBytes = fs.readFileSync(pdfPath);
+      }
+
+      const pdfBase64 = pdfBytes.toString('base64');
+
+      // Crear el envelope con 2 firmas usando el nuevo método
+      const envelopeDefinition = this.createPPIEnvelopeDefinition(
+        pdfBase64,
+        fileName,
+        normalizedEmail,
+        clientName,
+        subject,
+        message
+      );
+
+      // Enviar el envelope
+      const envelopesApi = new docusign.EnvelopesApi(this.apiClient);
+      const results = await envelopesApi.createEnvelope(this.accountId, {
+        envelopeDefinition: envelopeDefinition
+      });
+
+      console.log('✅ PPI enviado exitosamente a DocuSign');
+      console.log('📋 Envelope ID:', results.envelopeId);
+      console.log('📊 Status:', results.status);
+      console.log('✍️  Cliente debe firmar en 2 lugares del documento');
+
+      const response = {
+        success: true,
+        envelopeId: results.envelopeId,
+        status: results.status,
+        uri: results.uri,
+        statusDateTime: results.statusDateTime
+      };
+
+      if (getSigningUrl) {
+        console.log('🔗 Generando URL de firma embebida...');
+        const signingUrl = await this.getRecipientViewUrl(
+          results.envelopeId,
+          normalizedEmail,
+          clientName
+        );
+        response.signingUrl = signingUrl;
+        console.log('✅ URL de firma embebida generada');
+      } else {
+        console.log('✅ Envelope PPI creado con clientUserId (generación on-demand)');
+        console.log('📧 Tu sistema enviará correo personalizado con botón de firma');
+        console.log('🔗 URL se generará cuando cliente haga clic');
+        console.log('🚫 Correos automáticos de DocuSign SUPRIMIDOS');
+      }
+
+      return response;
+    });
+  }
+
+  /**
    * Enviar múltiples documentos para firma (Invoice + PPI)
    * @param {Array} documents - Array de objetos {pdfPath, fileName}
    * @param {string} clientEmail - Email del cliente
@@ -408,6 +491,143 @@ class DocuSignService {
         replyEmailNameOverride: 'Zurcher Construction'
       },
       // ✅ Configurar para NO enviar correos a los firmantes
+      eventNotification: undefined
+    });
+
+    return envelopeDefinition;
+  }
+
+  /**
+   * Crear definición del envelope para PPI (Pre-Permit Inspection) con 2 firmas
+   */
+  createPPIEnvelopeDefinition(pdfBase64, fileName, clientEmail, clientName, subject, message) {
+    // Documento
+    const document = docusign.Document.constructFromObject({
+      documentBase64: pdfBase64,
+      name: fileName,
+      fileExtension: 'pdf',
+      documentId: '1'
+    });
+
+    // Firmante - SIEMPRE usar clientUserId para generación on-demand
+    const signer = docusign.Signer.constructFromObject({
+      email: clientEmail,
+      name: clientName,
+      recipientId: '1',
+      routingOrder: '1',
+      clientUserId: clientEmail // Permite regenerar URL on-demand
+    });
+
+    // 🆕 FIRMA #1 - Primera ocurrencia (Página 1)
+    const signHereTab1 = docusign.SignHere.constructFromObject({
+      documentId: '1',
+      anchorString: '(Property Owner Signature)', // Texto exacto del PDF
+      anchorUnits: 'pixels',
+      anchorXOffset: '0',    // Centrar en el campo
+      anchorYOffset: '-10',  // Ajustar verticalmente
+      name: 'SignHere_Page1',
+      optional: 'false',
+      scaleValue: '0.8',
+      tabLabel: 'Property Owner Signature - Page 1',
+      anchorIgnoreIfNotPresent: 'false'
+    });
+
+    // 🆕 NOMBRE #1 - Primera ocurrencia (Página 1)
+    const fullNameTab1 = docusign.FullName.constructFromObject({
+      documentId: '1',
+      anchorString: '(Printed Property Owner Name)', // Texto exacto del PDF
+      anchorUnits: 'pixels',
+      anchorXOffset: '0',
+      anchorYOffset: '-10',
+      name: 'FullName_Page1',
+      optional: 'false',
+      fontSize: 'size9',
+      tabLabel: 'Property Owner Name - Page 1',
+      anchorIgnoreIfNotPresent: 'false'
+    });
+
+    // 🆕 FECHA #1 - Primera ocurrencia (Página 1)
+    const dateSignedTab1 = docusign.DateSigned.constructFromObject({
+      documentId: '1',
+      anchorString: 'Date', // Texto exacto del PDF
+      anchorUnits: 'pixels',
+      anchorXOffset: '0',
+      anchorYOffset: '-10',
+      name: 'DateSigned_Page1',
+      optional: 'false',
+      fontSize: 'size9',
+      tabLabel: 'Date - Page 1',
+      anchorIgnoreIfNotPresent: 'false'
+    });
+
+    // 🆕 FIRMA #2 - Segunda ocurrencia (Página 2)
+    const signHereTab2 = docusign.SignHere.constructFromObject({
+      documentId: '1',
+      anchorString: '(Property Owner Signature)', // Mismo texto, segunda ocurrencia
+      anchorUnits: 'pixels',
+      anchorXOffset: '0',
+      anchorYOffset: '-10',
+      name: 'SignHere_Page2',
+      optional: 'false',
+      scaleValue: '0.8',
+      tabLabel: 'Property Owner Signature - Page 2',
+      anchorIgnoreIfNotPresent: 'false'
+    });
+
+    // 🆕 NOMBRE #2 - Segunda ocurrencia (Página 2)
+    const fullNameTab2 = docusign.FullName.constructFromObject({
+      documentId: '1',
+      anchorString: '(Printed Property Owner Name)', // Mismo texto, segunda ocurrencia
+      anchorUnits: 'pixels',
+      anchorXOffset: '0',
+      anchorYOffset: '-10',
+      name: 'FullName_Page2',
+      optional: 'false',
+      fontSize: 'size9',
+      tabLabel: 'Property Owner Name - Page 2',
+      anchorIgnoreIfNotPresent: 'false'
+    });
+
+    // 🆕 FECHA #2 - Segunda ocurrencia (Página 2)
+    const dateSignedTab2 = docusign.DateSigned.constructFromObject({
+      documentId: '1',
+      anchorString: 'Date', // Mismo texto, segunda ocurrencia
+      anchorUnits: 'pixels',
+      anchorXOffset: '0',
+      anchorYOffset: '-10',
+      name: 'DateSigned_Page2',
+      optional: 'false',
+      fontSize: 'size9',
+      tabLabel: 'Date - Page 2',
+      anchorIgnoreIfNotPresent: 'false'
+    });
+
+    // Asignar todos los tabs al firmante (2 firmas + 2 nombres + 2 fechas)
+    // DocuSign automáticamente encontrará ambas ocurrencias de cada anchor string
+    signer.tabs = docusign.Tabs.constructFromObject({
+      signHereTabs: [signHereTab1, signHereTab2],
+      fullNameTabs: [fullNameTab1, fullNameTab2],
+      dateSignedTabs: [dateSignedTab1, dateSignedTab2]
+    });
+
+    // Definición del envelope
+    const envelopeDefinition = docusign.EnvelopeDefinition.constructFromObject({
+      emailSubject: subject || 'Please sign the Pre-Permit Inspection (PPI)',
+      emailBlurb: message || 'Please review and sign the Pre-Permit Inspection document in two places.',
+      documents: [document],
+      recipients: docusign.Recipients.constructFromObject({
+        signers: [signer],
+        carbonCopies: []
+      }),
+      notification: undefined,
+      status: 'sent',
+      enableWetSign: 'false',
+      allowMarkup: 'false',
+      allowReassign: 'false',
+      emailSettings: {
+        replyEmailAddressOverride: process.env.SMTP_FROM || 'noreply@zurcherseptic.com',
+        replyEmailNameOverride: 'Zurcher Construction'
+      },
       eventNotification: undefined
     });
 

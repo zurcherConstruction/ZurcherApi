@@ -4784,109 +4784,25 @@ async optionalDocs(req, res) {
 
                 console.log(`📧 Enviando a: ${clientEmail} (normalizado desde ${updatedBudget.Permit.applicantEmail})`);
 
-                // 📄 GENERAR PPI SI EL PERMIT TIENE CONFIGURADO EL TIPO DE INSPECTOR
-                let ppiPath = null;
+                // ✅ ENVIAR SOLO EL INVOICE (El PPI se enviará después en un envelope separado)
                 let signatureResult = null;
                 
-                if (USE_DOCUSIGN && updatedBudget.Permit && updatedBudget.Permit.ppiInspectorType) {
-                  try {
-                    console.log('\n📋 === GENERANDO PPI PARA ENVÍO JUNTO CON INVOICE ===');
-                    console.log(`🔍 Tipo de Inspector: ${updatedBudget.Permit.ppiInspectorType}`);
-                    
-                    const ServicePPI = require('../services/ServicePPI');
-                    
-                    // Preparar datos del permit y cliente
-                    const permitData = {
-                      idPermit: updatedBudget.Permit.idPermit,
-                      permitNumber: updatedBudget.Permit.permitNumber,
-                      jobAddress: updatedBudget.Permit.propertyAddress,
-                      city: updatedBudget.propertyCity || '',
-                      state: 'FL',
-                      zipCode: updatedBudget.propertyZip || '',
-                      lot: updatedBudget.Permit.lot || '',
-                      block: updatedBudget.Permit.block || '',
-                      subdivision: '',
-                      unit: '',
-                      section: '',
-                      township: '',
-                      range: '',
-                      parcelNo: ''
-                    };
-                    
-                    const clientData = {
-                      name: clientName,
-                      email: clientEmail,
-                      phone: updatedBudget.Permit.applicantPhone || ''
-                    };
-                    
-                    // Generar PPI
-                    ppiPath = await ServicePPI.generatePPI(
-                      permitData,
-                      clientData,
-                      updatedBudget.Permit.ppiInspectorType
-                    );
-                    
-                    console.log(`✅ PPI generado: ${ppiPath}`);
-                    
-                    // Actualizar budget con ruta del PPI
-                    await updatedBudget.update({
-                      ppiDocumentPath: ppiPath,
-                      ppiStatus: 'sent',
-                      ppiSentAt: new Date()
-                    });
-                    
-                    // Enviar Invoice + PPI juntos a DocuSign
-                    console.log('📤 Enviando Invoice + PPI a DocuSign...');
-                    
-                    const documents = [
-                      {
-                        pdfPath: newPdfPath,
-                        fileName: fileName
-                      },
-                      {
-                        pdfPath: ppiPath,
-                        fileName: `PPI_${updatedBudget.Permit.ppiInspectorType.toUpperCase()}_Invoice_${invoiceNumber}.pdf`
-                      }
-                    ];
-                    
-                    signatureResult = await signatureService.sendMultipleDocuments(
-                      documents,
+                signatureResult = USE_DOCUSIGN
+                  ? await signatureService.sendBudgetForSignature(
+                      newPdfPath,
                       clientEmail,
                       clientName,
-                      `Please sign Invoice #${invoiceNumber} and PPI - ${propertyAddress}`,
-                      `Dear ${clientName},\n\nPlease review and sign both documents:\n1. Invoice #${invoiceNumber}\n2. Pre-Permit Inspection (PPI) form\n\nThe PPI form is required for inspection approval and must be returned signed.\n\nBest regards,\nZurcher Construction`,
-                      false // On-demand signing
+                      fileName,
+                      emailSubject,
+                      emailMessage,
+                      false // ✅ NO generar URL ahora, se genera on-demand cuando cliente hace clic
+                    )
+                  : await signatureService.sendBudgetForSignature(
+                      newPdfPath,
+                      fileName,
+                      clientEmail,
+                      clientName
                     );
-                    
-                    console.log('✅ Invoice + PPI enviados juntos a DocuSign');
-                    
-                  } catch (ppiError) {
-                    console.error('❌ Error generando/enviando PPI:', ppiError.message);
-                    console.log('⚠️  Continuando con envío solo de Invoice...');
-                    // Si falla el PPI, continuar solo con el Invoice
-                    ppiPath = null;
-                  }
-                }
-                
-                // Si NO se generó PPI o NO es DocuSign, enviar solo el Invoice
-                if (!signatureResult) {
-                  signatureResult = USE_DOCUSIGN
-                    ? await signatureService.sendBudgetForSignature(
-                        newPdfPath,
-                        clientEmail,
-                        clientName,
-                        fileName,
-                        emailSubject,
-                        emailMessage,
-                        false // ✅ NO generar URL ahora, se genera on-demand cuando cliente hace clic
-                      )
-                    : await signatureService.sendBudgetForSignature(
-                        newPdfPath,
-                        fileName,
-                        clientEmail,
-                        clientName
-                      );
-                }
 
                 // ✅ Validar respuesta según el servicio
                 const documentId = USE_DOCUSIGN ? signatureResult.envelopeId : signatureResult.documentId;
@@ -5190,8 +5106,8 @@ async optionalDocs(req, res) {
                         const propertyAddress = permitForPPI.propertyAddress || 'Property';
                         const fileName = `PPI_${permitForPPI.ppiInspectorType || 'Inspection'}_Permit_${permitForPPI.idPermit}.pdf`;
                         
-                        // Enviar a DocuSign (usa el servicio ya inicializado)
-                        const ppiSignatureResult = await signatureService.sendBudgetForSignature(
+                        // Enviar PPI a DocuSign usando el método específico para PPI (2 firmas)
+                        const ppiSignatureResult = await signatureService.sendPPIForSignature(
                           ppiTempPath,
                           clientEmail, // Usar el mismo email normalizado
                           clientName,
@@ -5201,7 +5117,7 @@ async optionalDocs(req, res) {
                           false // On-demand signing
                         );
                         
-                        console.log(`✅ PPI enviado a DocuSign (Envelope: ${ppiSignatureResult.envelopeId})`);
+                        console.log(`✅ PPI enviado a DocuSign con 2 firmas (Envelope: ${ppiSignatureResult.envelopeId})`);
                         
                         // Actualizar permit con info de DocuSign
                         await permitForPPI.update({
