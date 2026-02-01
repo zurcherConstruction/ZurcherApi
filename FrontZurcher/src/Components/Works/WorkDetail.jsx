@@ -26,6 +26,7 @@ import useDataLoader from '../../hooks/useDataLoader';
 import WorkDetailError from './WorkDetailError';
 import WorkChecklistModal from './WorkChecklistModal'; // 📋 Modal de checklist
 import { fetchChecklistByWorkId } from '../../Redux/Actions/checklistActions'; // 📋 Action de checklist
+import FinalDocumentsSection from './FinalDocumentsSection'; // 🆕 Sección de documentos finales
   // --- Estado para modal de resultado rápido de inspección ---
   
 // Asegúrate de que esta ruta sea correcta
@@ -243,6 +244,12 @@ const workRef = useRef(work);
   const [linkedInvoices, setLinkedInvoices] = useState([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [selectedInvoiceModal, setSelectedInvoiceModal] = useState(null);
+  
+  // 🆕 Estados para documentos finales
+  const [operatingPermitFile, setOperatingPermitFile] = useState(null);
+  const [maintenanceServiceFile, setMaintenanceServiceFile] = useState(null);
+  const [uploadingOperatingPermit, setUploadingOperatingPermit] = useState(false);
+  const [uploadingMaintenanceService, setUploadingMaintenanceService] = useState(false);
   
   const {
     incomes,
@@ -1333,9 +1340,27 @@ const handleUploadImage = async () => {
               </div>
             )}
 
+            {/* 🆕 SECCIÓN DE DOCUMENTOS FINALES */}
+            <FinalDocumentsSection
+              work={work}
+              idWork={idWork}
+              isOpen={openSections.finalDocuments}
+              toggleSection={toggleSection}
+              formatDateSafe={formatDateSafe}
+              isViewOnly={isViewOnly}
+              operatingPermitFile={operatingPermitFile}
+              setOperatingPermitFile={setOperatingPermitFile}
+              uploadingOperatingPermit={uploadingOperatingPermit}
+              setUploadingOperatingPermit={setUploadingOperatingPermit}
+              maintenanceServiceFile={maintenanceServiceFile}
+              setMaintenanceServiceFile={setMaintenanceServiceFile}
+              uploadingMaintenanceService={uploadingMaintenanceService}
+              setUploadingMaintenanceService={setUploadingMaintenanceService}
+              onDocumentUploaded={() => dispatch(fetchWorkById(idWork))}
+            />
+
             {/* Tarjeta: Imágenes */}
-            <div className="bg-white shadow-md rounded-lg p-4 md:p-6 border-l-4 border-yellow-500">
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 space-y-2 sm:space-y-0">
+            <div className="bg-white shadow-md rounded-lg p-4 md:p-6 border-l-4 border-yellow-500">              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 space-y-2 sm:space-y-0">
                 <h2
                   className="text-lg md:text-xl font-semibold cursor-pointer"
                   onClick={() => toggleSection("images")}

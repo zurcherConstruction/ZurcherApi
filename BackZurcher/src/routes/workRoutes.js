@@ -77,6 +77,12 @@ router.get('/:idWork/images', verifyToken, allowRoles(['owner', 'worker', 'admin
 // Actualizar Notice to Owner y Lien
 router.put('/:idWork/notice-to-owner', verifyToken, allowRoles(['admin', 'owner', 'finance', 'recept']), invalidateWorkCache, WorkController.updateNoticeToOwner);
 
+// 🆕 Subir Permiso de Operación
+router.post('/:idWork/operating-permit', verifyToken, allowRoles(['admin', 'owner', 'worker']), upload.single('document'), invalidateWorkCache, WorkController.uploadOperatingPermit);
+
+// 🆕 Subir Servicio de Mantenimiento
+router.post('/:idWork/maintenance-service', verifyToken, allowRoles(['admin', 'owner', 'worker']), upload.single('document'), invalidateWorkCache, WorkController.uploadMaintenanceService);
+
 router.post('/:idWork/validate-status-change',verifyToken, allowRoles(['admin', 'owner']), WorkController.validateStatusChangeOnly);
 router.post('/:idWork/change-status', verifyToken, allowRoles(['admin', 'owner',]), invalidateWorkCache, WorkController.changeWorkStatus);
 
