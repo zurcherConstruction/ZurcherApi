@@ -5142,6 +5142,164 @@ async optionalDocs(req, res) {
 
                 console.log(`✅ Proceso completo: Invoice #${invoiceNumber} aprobado, PDF regenerado, enviado a ${serviceName}, email con pago enviado al cliente y notificación enviada al equipo de finanzas`);
 
+                // 🆕 ENVIAR PPI A DOCUSIGN AUTOMÁTICAMENTE SI EXISTE
+                if (USE_DOCUSIGN && updatedBudget.Permit && updatedBudget.idPermit) {
+                  try {
+                    console.log('\n📋 === ENVIANDO PPI A DOCUSIGN AUTOMÁTICAMENTE ===');
+                    
+                    const permitForPPI = await Permit.findByPk(updatedBudget.idPermit);
+                    
+                    // Verificar que tenga PPI generado y email del cliente
+                    if (permitForPPI && permitForPPI.applicantEmail && (permitForPPI.ppiCloudinaryUrl || permitForPPI.ppiGeneratedPath)) {
+                      const ppiUrl = permitForPPI.ppiCloudinaryUrl || permitForPPI.ppiGeneratedPath;
+                      let ppiTempPath = null;
+                      
+                      console.log(`📧 Enviando PPI a: ${permitForPPI.applicantEmail}`);
+                      console.log(`📄 PPI URL: ${ppiUrl.substring(0, 80)}...`);
+                      
+                      // Descargar PPI si es URL de Cloudinary
+                      if (ppiUrl.startsWith('http')) {
+                        console.log(`☁️  Descargando PPI desde Cloudinary...`);
+                        const axios = require('axios');
+                        const uploadsDir = path.join(__dirname, '../uploads/temp');
+                        
+                        if (!fs.existsSync(uploadsDir)) {
+                          fs.mkdirSync(uploadsDir, { recursive: true });
+                        }
+                        
+                        const response = await axios.get(ppiUrl, { responseType: 'arraybuffer' });
+                        ppiTempPath = path.join(uploadsDir, `ppi_auto_${permitForPPI.idPermit}_${Date.now()}.pdf`);
+                        fs.writeFileSync(ppiTempPath, response.data);
+                        console.log(`✅ PPI descargado: ${ppiTempPath}`);
+                      } else if (fs.existsSync(ppiUrl)) {
+                        ppiTempPath = ppiUrl;
+                      }
+                      
+                      if (ppiTempPath) {
+                        // Preparar información
+                        const propertyAddress = permitForPPI.propertyAddress || 'Property';
+                        const fileName = `PPI_${permitForPPI.ppiInspectorType || 'Inspection'}_Permit_${permitForPPI.idPermit}.pdf`;
+                        
+                        // Enviar a DocuSign (usa el servicio ya inicializado)
+                        const ppiSignatureResult = await signatureService.sendBudgetForSignature(
+                          ppiTempPath,
+                          clientEmail, // Usar el mismo email normalizado
+                          clientName,
+                          fileName,
+                          `🚨 IMPORTANT: PPI Signature Required - ${propertyAddress}`,
+                          `Property Owner signature required for Pre-Permit Inspection document.`,
+                          false // On-demand signing
+                        );
+                        
+                        console.log(`✅ PPI enviado a DocuSign (Envelope: ${ppiSignatureResult.envelopeId})`);
+                        
+                        // Actualizar permit con info de DocuSign
+                        await permitForPPI.update({
+                          ppiDocusignEnvelopeId: ppiSignatureResult.envelopeId,
+                          ppiSentForSignatureAt: new Date(),
+                          ppiSignatureStatus: 'sent'
+                        });
+                        
+                        // 📧 ENVIAR CORREO PERSONALIZADO DEL PPI
+                        console.log('📧 Enviando correo personalizado del PPI al cliente...');
+                        
+                        await sendEmail({
+                          to: clientEmail,
+                          subject: `🚨 IMPORTANT: Property Owner Signature Required - PPI for ${propertyAddress}`,
+                          html: `
+                            <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto;">
+                              <div style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%); color: white; padding: 30px; text-align: center; border-radius: 0 0 20px 20px;">
+                                <h1 style="margin: 0; font-size: 28px;">🚨 PPI Signature Required</h1>
+                              </div>
+                              
+                              <div style="background: linear-gradient(135deg, #ff4757 0%, #ff6348 100%); color: white; padding: 15px; text-align: center; font-size: 18px; font-weight: bold;">
+                                ⚠️ PROPERTY OWNER ACTION REQUIRED
+                              </div>
+                              
+                              <div style="padding: 30px; background-color: #ffffff;">
+                                <p>Dear ${clientName},</p>
+                                
+                                <div style="background: linear-gradient(135deg, #fff3cd 0%, #ffe8a1 100%); border-left: 6px solid #ff6b35; padding: 20px; margin: 25px 0; border-radius: 8px;">
+                                  <h3 style="color: #ff6b35; margin-top: 0;">📋 Pre-Permit Inspection (PPI) Signature Required</h3>
+                                  <p style="margin: 0;">Property: <strong>${propertyAddress}</strong></p>
+                                </div>
+                                
+                                <div style="background: linear-gradient(135deg, #fee 0%, #fdd 100%); border: 3px solid #ff4757; padding: 20px; margin: 25px 0; border-radius: 10px;">
+                                  <h3 style="color: #c23616; margin-top: 0;">⚠️ CRITICAL REQUIREMENT</h3>
+                                  <p style="font-size: 16px; line-height: 1.8;">
+                                    This Pre-Permit Inspection (PPI) form <strong style="text-decoration: underline;">MUST be signed by the Property Owner</strong> before the inspection can proceed.
+                                  </p>
+                                </div>
+                                
+                                <h3 style="color: #2c5f2d;">📝 How to Sign:</h3>
+                                <ol style="line-height: 1.8; font-size: 15px;">
+                                  <li>Click the orange button below to access the PPI document</li>
+                                  <li>Review the Pre-Permit Inspection form</li>
+                                  <li>Sign electronically as the Property Owner</li>
+                                  <li>Submit your signature to complete the process</li>
+                                </ol>
+                                
+                                <div style="text-align: center; margin: 35px 0;">
+                                  <a href="${process.env.API_URL || 'https://zurcherapi.up.railway.app'}/permit/${permitForPPI.idPermit}/ppi/sign" 
+                                     style="display: inline-block; background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%); color: white; padding: 18px 45px; text-decoration: none; border-radius: 8px; font-size: 18px; font-weight: bold; box-shadow: 0 4px 15px rgba(255, 107, 53, 0.4);">
+                                    📝 SIGN PPI NOW
+                                  </a>
+                                  <p style="margin-top: 15px; font-size: 13px; color: #666;">
+                                    This link is always active - click whenever you're ready to sign
+                                  </p>
+                                </div>
+                                
+                                <div style="background: #f0f8ff; padding: 20px; border-radius: 8px; margin: 25px 0;">
+                                  <h4 style="color: #1a365d; margin-top: 0;">ℹ️ Important Information:</h4>
+                                  <ul style="line-height: 1.8; color: #4b5563; margin: 0;">
+                                    <li>You've also received your Invoice #${invoiceNumber} for signature</li>
+                                    <li>Both documents (Invoice + PPI) must be signed</li>
+                                    <li>The PPI is required for permit approval</li>
+                                    <li>The signature link never expires</li>
+                                  </ul>
+                                </div>
+                                
+                                <p style="margin-top: 30px;">
+                                  If you have any questions, please don't hesitate to contact us.
+                                </p>
+                                
+                                <p style="margin-top: 30px;">
+                                  Best regards,<br>
+                                  <strong>Zurcher Septic</strong><br>
+                                  📞 Phone: +1 (954) 636-8200<br>
+                                  📧 Email: admin@zurcherseptic.com
+                                </p>
+                              </div>
+                            </div>
+                          `
+                        });
+                        
+                        console.log(`✅ Correo personalizado del PPI enviado`);
+                        
+                        // Limpiar archivo temporal
+                        if (ppiTempPath && ppiUrl.startsWith('http')) {
+                          try {
+                            fs.unlinkSync(ppiTempPath);
+                            console.log(`🗑️  PPI temporal eliminado`);
+                          } catch (cleanupError) {
+                            console.error('Error limpiando PPI temporal:', cleanupError);
+                          }
+                        }
+                        
+                        console.log(`✅ PPI enviado exitosamente a ${clientEmail}`);
+                      } else {
+                        console.warn('⚠️ No se pudo acceder al archivo PPI');
+                      }
+                    } else {
+                      console.log('ℹ️ PPI no disponible o sin email de cliente - omitiendo envío automático');
+                    }
+                    
+                  } catch (ppiError) {
+                    console.error('❌ Error al enviar PPI automáticamente:', ppiError);
+                    // No fallar todo el proceso
+                  }
+                }
+
               } catch (signatureServiceError) {
                 console.error(`❌ Error al enviar Invoice #${invoiceNumber} a ${serviceName}:`, signatureServiceError);
                 // No fallar todo el proceso, el admin puede reenviar manualmente
