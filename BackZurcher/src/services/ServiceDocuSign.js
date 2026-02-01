@@ -524,7 +524,7 @@ class DocuSignService {
       anchorString: '(Property Owner Signature)', // Texto exacto del PDF
       anchorUnits: 'pixels',
       anchorXOffset: '0',    // Centrar en el campo
-      anchorYOffset: '-10',  // Ajustar verticalmente
+      anchorYOffset: '-25',  // Subir más arriba de la línea
       name: 'SignHere_Page1',
       optional: 'false',
       scaleValue: '0.8',
@@ -532,27 +532,29 @@ class DocuSignService {
       anchorIgnoreIfNotPresent: 'false'
     });
 
-    // 🆕 NOMBRE #1 - Primera ocurrencia (Página 1)
-    const fullNameTab1 = docusign.FullName.constructFromObject({
+    // 🆕 NOMBRE #1 - Primera ocurrencia (Página 1) - Manual
+    const nameTab1 = docusign.Text.constructFromObject({
       documentId: '1',
       anchorString: '(Printed Property Owner Name)', // Texto exacto del PDF
       anchorUnits: 'pixels',
       anchorXOffset: '0',
-      anchorYOffset: '-10',
-      name: 'FullName_Page1',
+      anchorYOffset: '-25',  // Subir más arriba de la línea
+      name: 'PropertyOwnerName_Page1',
       optional: 'false',
       fontSize: 'size9',
       tabLabel: 'Property Owner Name - Page 1',
-      anchorIgnoreIfNotPresent: 'false'
+      anchorIgnoreIfNotPresent: 'false',
+      required: 'true',
+      width: 200
     });
 
     // 🆕 FECHA #1 - Primera ocurrencia (Página 1)
     const dateSignedTab1 = docusign.DateSigned.constructFromObject({
       documentId: '1',
-      anchorString: 'Date', // Texto exacto del PDF
+      anchorString: '(Property Owner Signature)', // Buscar desde la firma
       anchorUnits: 'pixels',
-      anchorXOffset: '0',
-      anchorYOffset: '-10',
+      anchorXOffset: '220',  // Mover a la derecha hacia el campo Date
+      anchorYOffset: '-25',  // Misma altura que la firma
       name: 'DateSigned_Page1',
       optional: 'false',
       fontSize: 'size9',
@@ -566,7 +568,7 @@ class DocuSignService {
       anchorString: '(Property Owner Signature)', // Mismo texto, segunda ocurrencia
       anchorUnits: 'pixels',
       anchorXOffset: '0',
-      anchorYOffset: '-10',
+      anchorYOffset: '-25',  // Subir más arriba de la línea
       name: 'SignHere_Page2',
       optional: 'false',
       scaleValue: '0.8',
@@ -574,27 +576,29 @@ class DocuSignService {
       anchorIgnoreIfNotPresent: 'false'
     });
 
-    // 🆕 NOMBRE #2 - Segunda ocurrencia (Página 2)
-    const fullNameTab2 = docusign.FullName.constructFromObject({
+    // 🆕 NOMBRE #2 - Segunda ocurrencia (Página 2) - Manual
+    const nameTab2 = docusign.Text.constructFromObject({
       documentId: '1',
       anchorString: '(Printed Property Owner Name)', // Mismo texto, segunda ocurrencia
       anchorUnits: 'pixels',
       anchorXOffset: '0',
-      anchorYOffset: '-10',
-      name: 'FullName_Page2',
+      anchorYOffset: '-25',  // Subir más arriba de la línea
+      name: 'PropertyOwnerName_Page2',
       optional: 'false',
       fontSize: 'size9',
       tabLabel: 'Property Owner Name - Page 2',
-      anchorIgnoreIfNotPresent: 'false'
+      anchorIgnoreIfNotPresent: 'false',
+      required: 'true',
+      width: 200
     });
 
     // 🆕 FECHA #2 - Segunda ocurrencia (Página 2)
     const dateSignedTab2 = docusign.DateSigned.constructFromObject({
       documentId: '1',
-      anchorString: 'Date', // Mismo texto, segunda ocurrencia
+      anchorString: '(Property Owner Signature)', // Buscar desde la firma
       anchorUnits: 'pixels',
-      anchorXOffset: '0',
-      anchorYOffset: '-10',
+      anchorXOffset: '220',  // Mover a la derecha hacia el campo Date
+      anchorYOffset: '-25',  // Misma altura que la firma
       name: 'DateSigned_Page2',
       optional: 'false',
       fontSize: 'size9',
@@ -606,7 +610,7 @@ class DocuSignService {
     // DocuSign automáticamente encontrará ambas ocurrencias de cada anchor string
     signer.tabs = docusign.Tabs.constructFromObject({
       signHereTabs: [signHereTab1, signHereTab2],
-      fullNameTabs: [fullNameTab1, fullNameTab2],
+      textTabs: [nameTab1, nameTab2],  // Cambiado de fullNameTabs a textTabs para entrada manual
       dateSignedTabs: [dateSignedTab1, dateSignedTab2]
     });
 
