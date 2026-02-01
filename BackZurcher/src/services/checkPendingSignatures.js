@@ -8,6 +8,48 @@ const { sendNotifications } = require('../utils/notifications/notificationManage
 const path = require('path');
 const fs = require('fs');
 const { cloudinary } = require('../utils/cloudinaryConfig');
+const { PDFDocument } = require('pdf-lib');
+
+// 🆕 Función auxiliar para combinar PDF firmado con adjunto
+const combinePPIWithAttachment = async (signedPdfPath) => {
+  try {
+    const attachmentPath = path.join(__dirname, '../templates/ppi/ppi-adjunto.pdf');
+    
+    if (!fs.existsSync(attachmentPath)) {
+      console.warn('⚠️ No se encontró el archivo de adjunto PPI, continuando sin combinar');
+      return signedPdfPath; // Retornar el PDF original sin modificar
+    }
+
+    // Leer ambos PDFs
+    const signedPdfBytes = fs.readFileSync(signedPdfPath);
+    const attachmentBytes = fs.readFileSync(attachmentPath);
+
+    // Cargar PDFs con pdf-lib
+    const signedPdf = await PDFDocument.load(signedPdfBytes);
+    const attachmentPdf = await PDFDocument.load(attachmentBytes);
+
+    // Copiar todas las páginas del adjunto al PDF firmado
+    const attachmentPages = await signedPdf.copyPages(attachmentPdf, attachmentPdf.getPageIndices());
+    attachmentPages.forEach((page) => {
+      signedPdf.addPage(page);
+    });
+
+    // Guardar el PDF combinado
+    const combinedPdfBytes = await signedPdf.save();
+    const combinedPath = signedPdfPath.replace('.pdf', '_combined.pdf');
+    fs.writeFileSync(combinedPath, combinedPdfBytes);
+
+    console.log(`✅ PDF combinado creado: ${combinedPath}`);
+    
+    // Eliminar el PDF original sin combinar
+    fs.unlinkSync(signedPdfPath);
+    
+    return combinedPath;
+  } catch (error) {
+    console.error('❌ Error al combinar PDF con adjunto:', error.message);
+    return signedPdfPath; // En caso de error, retornar el PDF original
+  }
+};
 
 const checkPendingSignatures = async () => {
   console.log(`\n⏰ [CRON JOB] Iniciando la verificación de firmas pendientes - ${new Date().toISOString()}`);
@@ -280,8 +322,12 @@ const checkPendingPPISignatures = async () => {
               await docuSignService.downloadSignedDocument(envelopeId, tempFilePath);
               console.log(`   -> PPI firmado descargado temporalmente: ${tempFilePath}`);
 
-              // Subir a Cloudinary con metadata
-              const uploadResult = await cloudinary.uploader.upload(tempFilePath, {
+              // 🆕 Combinar con archivo adjunto
+              const combinedPdfPath = await combinePPIWithAttachment(tempFilePath);
+              console.log(`   -> PPI combinado con adjunto: ${combinedPdfPath}`);
+
+              // Subir a Cloudinary con metadata (usar el PDF combinado)
+              const uploadResult = await cloudinary.uploader.upload(combinedPdfPath, {
                 folder: 'zurcher/ppi/signed',
                 resource_type: 'raw',
                 public_id: `ppi_signed_permit_${permit.idPermit}_${Date.now()}`,
@@ -308,9 +354,11 @@ const checkPendingPPISignatures = async () => {
                 ppiSignedPdfPublicId: uploadResult.public_id
               });
 
-              // Borrar archivo temporal
-              fs.unlinkSync(tempFilePath);
-              console.log(`   -> Archivo temporal PPI eliminado`);
+              // Borrar archivo temporal combinado
+              if (fs.existsSync(combinedPdfPath)) {
+                fs.unlinkSync(combinedPdfPath);
+                console.log(`   -> Archivo temporal PPI combinado eliminado`);
+              }
               
             } catch (downloadError) {
               console.error(`❌ Error al descargar/subir PPI firmado del permit ${permit.idPermit}:`, downloadError.message);

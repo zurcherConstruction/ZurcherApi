@@ -47,6 +47,50 @@ const compressPdfIfNeeded = async (buffer, filename) => {
   }
 };
 
+// 🆕 Función auxiliar para combinar PDF firmado con adjunto
+const combinePPIWithAttachment = async (signedPdfPath) => {
+  const fs = require('fs');
+  const path = require('path');
+  
+  try {
+    const attachmentPath = path.join(__dirname, '../templates/ppi/ppi-adjunto.pdf');
+    
+    if (!fs.existsSync(attachmentPath)) {
+      console.warn('⚠️ No se encontró el archivo de adjunto PPI, continuando sin combinar');
+      return signedPdfPath; // Retornar el PDF original sin modificar
+    }
+
+    // Leer ambos PDFs
+    const signedPdfBytes = fs.readFileSync(signedPdfPath);
+    const attachmentBytes = fs.readFileSync(attachmentPath);
+
+    // Cargar PDFs con pdf-lib
+    const signedPdf = await PDFDocument.load(signedPdfBytes);
+    const attachmentPdf = await PDFDocument.load(attachmentBytes);
+
+    // Copiar todas las páginas del adjunto al PDF firmado
+    const attachmentPages = await signedPdf.copyPages(attachmentPdf, attachmentPdf.getPageIndices());
+    attachmentPages.forEach((page) => {
+      signedPdf.addPage(page);
+    });
+
+    // Guardar el PDF combinado
+    const combinedPdfBytes = await signedPdf.save();
+    const combinedPath = signedPdfPath.replace('.pdf', '_combined.pdf');
+    fs.writeFileSync(combinedPath, combinedPdfBytes);
+
+    console.log(`✅ PDF combinado creado: ${combinedPath}`);
+    
+    // Eliminar el PDF original sin combinar
+    fs.unlinkSync(signedPdfPath);
+    
+    return combinedPath;
+  } catch (error) {
+    console.error('❌ Error al combinar PDF con adjunto:', error.message);
+    return signedPdfPath; // En caso de error, retornar el PDF original
+  }
+};
+
 // NUEVO MÉTODO: Verificar Permit por Property Address
 const checkPermitByPropertyAddress = async (req, res, next) => {
   try {
@@ -2050,7 +2094,15 @@ const downloadPPISigned = async (req, res) => {
       responseType: 'arraybuffer' 
     });
 
-    const fileName = `PPI_Signed_Permit_${permit.idPermit}.pdf`;
+    // El PDF ya viene combinado con el adjunto desde el cron job
+    // Crear nombre de archivo con propertyAddress sanitizado
+    const propertyAddress = permit.propertyAddress || 'Unknown';
+    const sanitizedAddress = propertyAddress
+      .replace(/[^a-zA-Z0-9\s]/g, '') // Eliminar caracteres especiales
+      .replace(/\s+/g, '_') // Reemplazar espacios con guiones bajos
+      .substring(0, 50); // Limitar longitud
+    
+    const fileName = `PPI_${sanitizedAddress}.pdf`;
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     res.send(response.data);
@@ -2103,9 +2155,13 @@ const checkPPISignatureStatus = async (req, res) => {
       
       await docuSignService.downloadSignedDocument(permit.ppiDocusignEnvelopeId, tempFilePath);
 
-      // Subir a Cloudinary
+      // 🆕 Combinar con archivo adjunto
+      const combinedPdfPath = await combinePPIWithAttachment(tempFilePath);
+      console.log(`   -> PPI combinado con adjunto: ${combinedPdfPath}`);
+
+      // Subir a Cloudinary (usar el PDF combinado)
       const { cloudinary } = require('../utils/cloudinaryConfig');
-      const uploadResult = await cloudinary.uploader.upload(tempFilePath, {
+      const uploadResult = await cloudinary.uploader.upload(combinedPdfPath, {
         folder: 'zurcher/ppi/signed',
         resource_type: 'raw',
         public_id: `ppi_signed_permit_${permit.idPermit}_${Date.now()}`,
@@ -2124,8 +2180,10 @@ const checkPPISignatureStatus = async (req, res) => {
         ppiSignedPdfPublicId: uploadResult.public_id
       });
 
-      // Limpiar archivo temporal
-      fs.unlinkSync(tempFilePath);
+      // Limpiar archivo temporal combinado
+      if (fs.existsSync(combinedPdfPath)) {
+        fs.unlinkSync(combinedPdfPath);
+      }
 
       res.json({
         success: true,
@@ -2286,6 +2344,9 @@ const verifyAllPPISignatures = async (req, res) => {
 
 // 🆕 NUEVO: Subir PPI firmado manualmente
 const uploadManualSignedPPI = async (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  
   try {
     const { idPermit } = req.params;
     
@@ -2300,7 +2361,24 @@ const uploadManualSignedPPI = async (req, res) => {
       return res.status(404).json({ error: 'Permit not found' });
     }
 
-    // Subir a Cloudinary
+    // 🆕 Paso 1: Guardar el PDF subido temporalmente
+    const tempDir = path.join(__dirname, '../uploads/temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    const tempUploadedPath = path.join(tempDir, `ppi_manual_${idPermit}_${Date.now()}.pdf`);
+    fs.writeFileSync(tempUploadedPath, req.file.buffer);
+    console.log(`   -> PDF manual guardado temporalmente: ${tempUploadedPath}`);
+
+    // 🆕 Paso 2: Combinar con el adjunto
+    const combinedPdfPath = await combinePPIWithAttachment(tempUploadedPath);
+    console.log(`   -> PDF combinado con adjunto: ${combinedPdfPath}`);
+
+    // 🆕 Paso 3: Leer el PDF combinado para subirlo
+    const combinedBuffer = fs.readFileSync(combinedPdfPath);
+
+    // Paso 4: Subir a Cloudinary el PDF combinado
     const { cloudinary } = require('../utils/cloudinaryConfig');
     const streamifier = require('streamifier');
 
@@ -2312,6 +2390,15 @@ const uploadManualSignedPPI = async (req, res) => {
         tags: [`permit-${idPermit}`, 'ppi', 'signed', 'manual']
       },
       async (error, result) => {
+        // Limpiar archivos temporales
+        try {
+          if (fs.existsSync(combinedPdfPath)) {
+            fs.unlinkSync(combinedPdfPath);
+          }
+        } catch (cleanupError) {
+          console.warn('⚠️ Error limpiando archivo temporal:', cleanupError.message);
+        }
+
         if (error) {
           console.error('❌ Error uploading to Cloudinary:', error);
           return res.status(500).json({ 
@@ -2329,11 +2416,11 @@ const uploadManualSignedPPI = async (req, res) => {
             ppiSignedPdfPublicId: result.public_id
           });
 
-          console.log(`✅ PPI firmado manual cargado para Permit ${idPermit}`);
+          console.log(`✅ PPI firmado manual (con adjunto) cargado para Permit ${idPermit}`);
 
           res.json({
             success: true,
-            message: 'PPI signed manually uploaded successfully',
+            message: 'PPI signed manually uploaded successfully (with attachment)',
             data: {
               permitId: permit.idPermit,
               signatureStatus: 'completed',
@@ -2351,7 +2438,7 @@ const uploadManualSignedPPI = async (req, res) => {
       }
     );
 
-    streamifier.createReadStream(req.file.buffer).pipe(uploadStream);
+    streamifier.createReadStream(combinedBuffer).pipe(uploadStream);
 
   } catch (error) {
     console.error('❌ Error uploading manual signed PPI:', error);
