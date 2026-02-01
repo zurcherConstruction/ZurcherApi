@@ -4735,7 +4735,7 @@ async optionalDocs(req, res) {
             console.log(`📄 Regenerando PDF para Invoice #${invoiceNumber}...`);
             
             const updatedBudget = await Budget.findByPk(idBudget, {
-              attributes: ['idBudget', 'applicantEmail', 'applicantName', 'status', 'total', 'reviewToken', 'pdfPath', 'idPermit'], // 🆕 Incluir idPermit
+              // No especificar attributes para traer todos los campos del budget incluyendo idPermit
               include: [
                 { 
                   model: Permit, 
@@ -5068,13 +5068,13 @@ async optionalDocs(req, res) {
 
                 // 🆕 ENVIAR PPI A DOCUSIGN AUTOMÁTICAMENTE SI EXISTE
                 console.log('\n🔍 === VERIFICANDO SI ENVIAR PPI AUTOMÁTICAMENTE ===');
-                console.log(`USE_DOCUSIGN: ${USE_DOCUSIGN}, hasPermit: ${!!updatedBudget.Permit}, idPermit: ${updatedBudget.idPermit}`);
+                console.log(`USE_DOCUSIGN: ${USE_DOCUSIGN}, hasPermit: ${!!updatedBudget.Permit}, PermitIdPermit: ${updatedBudget.PermitIdPermit}`);
                 
-                if (USE_DOCUSIGN && updatedBudget.Permit && updatedBudget.idPermit) {
+                if (USE_DOCUSIGN && updatedBudget.Permit && updatedBudget.PermitIdPermit) {
                   try {
                     console.log('📋 === ENVIANDO PPI A DOCUSIGN AUTOMÁTICAMENTE ===');
                     
-                    const permitForPPI = await Permit.findByPk(updatedBudget.idPermit);
+                    const permitForPPI = await Permit.findByPk(updatedBudget.PermitIdPermit);
                     
                     // Verificar que tenga PPI generado y email del cliente
                     if (permitForPPI && permitForPPI.applicantEmail && (permitForPPI.ppiCloudinaryUrl || permitForPPI.ppiGeneratedPath)) {
