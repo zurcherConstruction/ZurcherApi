@@ -4735,6 +4735,7 @@ async optionalDocs(req, res) {
             console.log(`📄 Regenerando PDF para Invoice #${invoiceNumber}...`);
             
             const updatedBudget = await Budget.findByPk(idBudget, {
+              attributes: ['idBudget', 'applicantEmail', 'applicantName', 'status', 'total', 'reviewToken', 'pdfPath', 'idPermit'], // 🆕 Incluir idPermit
               include: [
                 { 
                   model: Permit, 
