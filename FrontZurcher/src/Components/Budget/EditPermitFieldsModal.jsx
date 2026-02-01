@@ -357,6 +357,14 @@ const EditPermitFieldsModal = ({ permitId, onClose, onSuccess }) => {
       if (response.data.success) {
         setSuccessMessage(`✅ PPI generado exitosamente: ${response.data.fileName}`);
         alert(`✅ PPI generado exitosamente\n\nArchivo: ${response.data.fileName}\n\nEl PPI ha sido guardado en Cloudinary.`);
+        
+        // 🆕 Recargar datos para mostrar el PPI generado
+        await loadPermitData();
+        
+        // 🆕 Notificar al componente padre para refrescar (con anti-caché)
+        if (onSuccess) {
+          onSuccess({ timestamp: Date.now() });
+        }
       }
     } catch (err) {
       console.error('Error al generar PPI:', err);

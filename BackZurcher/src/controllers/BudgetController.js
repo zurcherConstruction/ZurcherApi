@@ -1345,6 +1345,12 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
               // ✅ URLs de Cloudinary (prioridad)
               'permitPdfUrl', 'permitPdfPublicId',
               'optionalDocsUrl', 'optionalDocsPublicId',
+              // ✅ PPI fields (Cloudinary URLs)
+              'ppiGeneratedPath', 'ppiDocusignEnvelopeId', 
+              'ppiCloudinaryUrl', 'ppiCloudinaryPublicId',
+              'ppiSignatureStatus', 'ppiSignedAt',
+              'ppiSignedPdfUrl', 'ppiSignedPdfPublicId',
+              'applicant',
               // ✅ Flags virtuales para saber si existen PDFs (Cloudinary o BLOB legacy)
               [sequelize.literal('CASE WHEN "Permit"."permitPdfUrl" IS NOT NULL OR "Permit"."pdfData" IS NOT NULL THEN true ELSE false END'), 'hasPermitPdfData'],
               [sequelize.literal('CASE WHEN "Permit"."optionalDocsUrl" IS NOT NULL OR "Permit"."optionalDocs" IS NOT NULL THEN true ELSE false END'), 'hasOptionalDocs']
