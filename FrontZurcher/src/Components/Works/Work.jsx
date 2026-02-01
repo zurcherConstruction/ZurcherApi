@@ -9,7 +9,9 @@ import {
   ClockIcon,
   TrashIcon,
   ChevronLeftIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  MagnifyingGlassIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
 
 const Works = () => {
@@ -20,6 +22,10 @@ const Works = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(50);
   
+  // 🔍 Estado de búsqueda
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  
   // Obtener works desde el estado de Redux
   const { works, pagination, loading, error } = useSelector((state) => state.work);
 
@@ -29,10 +35,30 @@ const Works = () => {
   const userRole = staff?.role || '';
   const canDeleteWork = userRole === 'owner';
 
-  // Cargar works al montar el componente y cuando cambie la página
+  // Cargar works al montar el componente y cuando cambie la página o búsqueda
   useEffect(() => {
-    dispatch(fetchWorks(currentPage, itemsPerPage)); // Cargar los works desde el backend con paginación
-  }, [dispatch, currentPage, itemsPerPage]);
+    if (searchTerm.trim()) {
+      // Si hay búsqueda, cargar TODOS los works
+      setIsSearching(true);
+      dispatch(fetchWorks(1, 'all'));
+    } else {
+      // Sin búsqueda, cargar solo la página actual
+      setIsSearching(false);
+      dispatch(fetchWorks(currentPage, itemsPerPage));
+    }
+  }, [dispatch, currentPage, itemsPerPage, searchTerm]);
+
+  // 🔍 Filtrar works según el término de búsqueda
+  const filteredWorks = works.filter(work => {
+    if (!searchTerm.trim()) return true;
+    
+    const search = searchTerm.toLowerCase();
+    return (
+      work.propertyAddress?.toLowerCase().includes(search) ||
+      work.idWork?.toString().includes(search) ||
+      work.status?.toLowerCase().includes(search)
+    );
+  });
 
   // Funciones de paginación
   const handlePreviousPage = () => {
@@ -120,19 +146,59 @@ const Works = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 p-4">
       {/* Header */}
       <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
-        <div className="flex items-center gap-4">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg">
-            <BuildingOfficeIcon className="w-6 h-6 text-white" />
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-4">
+            <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg">
+              <BuildingOfficeIcon className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">Construction Works</h1>
+              <p className="text-gray-600">Manage and monitor all active projects</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">Construction Works</h1>
-            <p className="text-gray-600">Manage and monitor all active projects</p>
+
+          {/* Search Bar */}
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by address, ID, or status..."
+              className="w-full pl-11 pr-10 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            )}
           </div>
+
+          {/* Search Results Counter */}
+          {searchTerm && (
+            <div className="text-sm text-gray-600">
+              {loading ? (
+                <span className="text-blue-600">🔍 Buscando en todos los proyectos...</span>
+              ) : filteredWorks.length === 0 ? (
+                <span className="text-red-600">❌ No results found for "{searchTerm}"</span>
+              ) : (
+                <span>
+                  ✅ Found {filteredWorks.length} {filteredWorks.length === 1 ? 'project' : 'projects'}
+                  {works.length > 0 && ` (searching across ${works.length} total projects)`}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Loading State */}
-      {loading && (
+      {loading && !searchTerm && (
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
           <span className="ml-4 text-lg text-gray-600">Loading projects...</span>
@@ -155,11 +221,25 @@ const Works = () => {
       {/* Works Content */}
       {!loading && !error && (
         <>
-          {works.length === 0 ? (
+          {filteredWorks.length === 0 ? (
             <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
               <BuildingOfficeIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-600 mb-2">No Projects Found</h3>
-              <p className="text-gray-500">No construction projects available at the moment.</p>
+              <h3 className="text-xl font-semibold text-gray-600 mb-2">
+                {searchTerm ? 'No Results Found' : 'No Projects Found'}
+              </h3>
+              <p className="text-gray-500">
+                {searchTerm 
+                  ? `No projects match "${searchTerm}". Try a different search term.`
+                  : 'No construction projects available at the moment.'}
+              </p>
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                >
+                  Clear Search
+                </button>
+              )}
             </div>
           ) : (
             <>
@@ -187,7 +267,7 @@ const Works = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {works.map((work, index) => (
+                      {filteredWorks.map((work, index) => (
                         <tr 
                           key={work.idWork} 
                           className={`hover:bg-gray-50 transition-colors duration-200 ${
@@ -247,7 +327,7 @@ const Works = () => {
 
               {/* Mobile Cards */}
               <div className="block lg:hidden space-y-4">
-                {works.map((work) => (
+                {filteredWorks.map((work) => (
                   <div
                     key={work.idWork}
                     className="bg-white rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
@@ -295,7 +375,7 @@ const Works = () => {
               </div>
 
               {/* 📄 Controles de Paginación */}
-              {pagination && pagination.totalPages > 1 && (
+              {!searchTerm && pagination && pagination.totalPages > 1 && (
                 <div className="mt-6 flex items-center justify-between bg-white rounded-2xl shadow-lg p-4">
                   <div className="text-sm text-gray-600">
                     Mostrando <span className="font-semibold">{works.length}</span> de{' '}
