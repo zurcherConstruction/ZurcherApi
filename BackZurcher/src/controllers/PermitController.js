@@ -1057,6 +1057,7 @@ const updatePermitFields = async (req, res, next) => {
       pump,
       applicantEmail, // Email principal
       notificationEmails, // Emails secundarios
+      applicant, // 🆕 Applicant para PPI
       applicantName,
       applicantPhone,
       propertyAddress,
@@ -1163,6 +1164,7 @@ const updatePermitFields = async (req, res, next) => {
     if (squareFeetSystem !== undefined) updateData.squareFeetSystem = squareFeetSystem;
     if (pump !== undefined) updateData.pump = pump;
     if (applicantEmail !== undefined) updateData.applicantEmail = applicantEmail;
+    if (applicant !== undefined) updateData.applicant = applicant; // 🆕 Applicant para PPI
     if (applicantName !== undefined) updateData.applicantName = applicantName;
     if (applicantPhone !== undefined) updateData.applicantPhone = applicantPhone;
     if (propertyAddress !== undefined) updateData.propertyAddress = propertyAddress;
@@ -1313,9 +1315,9 @@ const generatePPIPreview = async (req, res) => {
       ppiAuthorizationType: permit.ppiAuthorizationType || 'initial'
     };
 
-    // Preparar datos del cliente
+    // Preparar datos del cliente (usando applicant en vez de applicantName)
     const clientData = {
-      name: permit.applicantName || '',
+      name: permit.applicant || permit.applicantName || '',
       email: permit.applicantEmail || '',
       phone: permit.applicantPhone || ''
     };
@@ -1615,13 +1617,15 @@ const sendPPIForSignature = async (req, res) => {
 
     console.log(`📤 Enviando PPI a DocuSign (sin correo automático)...`);
     console.log(`📧 Cliente: ${permit.applicantEmail} - ${permit.applicantName}`);
+    console.log(`� Applicant: ${permit.applicant || permit.applicantName}`);
     console.log(`📁 Archivo: ${fileName}`);
 
-    // Enviar a DocuSign SIN correo automático
-    const signatureResult = await docusignService.sendBudgetForSignature(
+    // Enviar a DocuSign SIN correo automático usando el método PPI correcto
+    const signatureResult = await docusignService.sendPPIForSignature(
       ppiPath,
       permit.applicantEmail,
       permit.applicantName || 'Property Owner',
+      permit.applicant || permit.applicantName || 'Property Owner', // 🆕 Pasar applicant
       fileName,
       emailSubject,
       emailMessage

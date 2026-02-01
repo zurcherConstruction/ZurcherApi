@@ -5112,9 +5112,10 @@ async optionalDocs(req, res) {
                           ppiTempPath,
                           clientEmail, // Usar el mismo email normalizado
                           clientName,
+                          permitForPPI.applicant || permitForPPI.applicantName || clientName, // 🆕 Pasar applicant
                           fileName,
                           `🚨 IMPORTANT: PPI Signature Required - ${propertyAddress}`,
-                          `Property Owner signature required for Pre-Permit Inspection document.`,
+                          `The owner's signature is required for the inspection document..`,
                           false // On-demand signing
                         );
                         
@@ -5135,9 +5136,6 @@ async optionalDocs(req, res) {
                           subject: `🚨 IMPORTANT: Property Owner Signature Required - PPI for ${propertyAddress}`,
                           html: `
                             <div style="font-family: Arial, sans-serif; max-width: 650px; margin: 0 auto;">
-                              <div style="background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%); color: white; padding: 30px; text-align: center; border-radius: 0 0 20px 20px;">
-                                <h1 style="margin: 0; font-size: 28px;">🚨 PPI Signature Required</h1>
-                              </div>
                               
                               <div style="background: linear-gradient(135deg, #ff4757 0%, #ff6348 100%); color: white; padding: 15px; text-align: center; font-size: 18px; font-weight: bold;">
                                 ⚠️ PROPERTY OWNER ACTION REQUIRED
@@ -5147,21 +5145,21 @@ async optionalDocs(req, res) {
                                 <p>Dear ${clientName},</p>
                                 
                                 <div style="background: linear-gradient(135deg, #fff3cd 0%, #ffe8a1 100%); border-left: 6px solid #ff6b35; padding: 20px; margin: 25px 0; border-radius: 8px;">
-                                  <h3 style="color: #ff6b35; margin-top: 0;">📋 Pre-Permit Inspection (PPI) Signature Required</h3>
+                                  <h3 style="color: #ff6b35; margin-top: 0;">(PPI) Signature Required</h3>
                                   <p style="margin: 0;">Property: <strong>${propertyAddress}</strong></p>
                                 </div>
                                 
                                 <div style="background: linear-gradient(135deg, #fee 0%, #fdd 100%); border: 3px solid #ff4757; padding: 20px; margin: 25px 0; border-radius: 10px;">
                                   <h3 style="color: #c23616; margin-top: 0;">⚠️ CRITICAL REQUIREMENT</h3>
                                   <p style="font-size: 16px; line-height: 1.8;">
-                                    This Pre-Permit Inspection (PPI) form <strong style="text-decoration: underline;">MUST be signed by the Property Owner</strong> before the inspection can proceed.
+                                    This inspection form (PPI) <strong style="text-decoration: underline;">MUST be signed by the owner </strong> in order for us to inspect the work performed. Without it, we cannot proceed.
                                   </p>
                                 </div>
                                 
                                 <h3 style="color: #2c5f2d;">📝 How to Sign:</h3>
                                 <ol style="line-height: 1.8; font-size: 15px;">
                                   <li>Click the orange button below to access the PPI document</li>
-                                  <li>Review the Pre-Permit Inspection form</li>
+                                  <li>Review the PPI form</li>
                                   <li>Sign electronically as the Property Owner</li>
                                   <li>Submit your signature to complete the process</li>
                                 </ol>
@@ -5181,7 +5179,7 @@ async optionalDocs(req, res) {
                                   <ul style="line-height: 1.8; color: #4b5563; margin: 0;">
                                     <li>You've also received your Invoice #${invoiceNumber} for signature</li>
                                     <li>Both documents (Invoice + PPI) must be signed</li>
-                                    <li>The PPI is required for permit approval</li>
+                                   <li>The PPI is required for Job Approval</li>
                                     <li>The signature link never expires</li>
                                   </ul>
                                 </div>

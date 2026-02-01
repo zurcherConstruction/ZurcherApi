@@ -164,12 +164,13 @@ class DocuSignService {
    * @param {string} message - Mensaje del email
    * @param {boolean} getSigningUrl - Si generar URL inmediatamente (default false = Remote Signing)
    */
-  async sendPPIForSignature(pdfPath, clientEmail, clientName, fileName, subject, message, getSigningUrl = false) {
+  async sendPPIForSignature(pdfPath, clientEmail, clientName, applicant, fileName, subject, message, getSigningUrl = false) {
     return await withAutoRefreshToken(async (accessToken) => {
       const normalizedEmail = clientEmail.toLowerCase();
       
       console.log('\n🚀 === ENVIANDO PPI A DOCUSIGN (2 FIRMAS) ===');
       console.log('📧 Cliente:', normalizedEmail, '-', clientName);
+      console.log('👤 Applicant (para autocompletar):', applicant);
       console.log('📄 Archivo:', fileName);
       console.log('🔗 Tipo de firma:', getSigningUrl ? 'Embedded' : '✅ Remote (válido 365 días)');
       console.log('✍️  Firmas requeridas: 2 (Property Owner + Applicant)');
@@ -194,6 +195,7 @@ class DocuSignService {
         fileName,
         normalizedEmail,
         clientName,
+        applicant, // 🆕 Pasar applicant para autocompletar
         subject,
         message
       );
@@ -500,7 +502,7 @@ class DocuSignService {
   /**
    * Crear definición del envelope para PPI (Pre-Permit Inspection) con 2 firmas
    */
-  createPPIEnvelopeDefinition(pdfBase64, fileName, clientEmail, clientName, subject, message) {
+  createPPIEnvelopeDefinition(pdfBase64, fileName, clientEmail, clientName, applicant, subject, message) {
     // Documento
     const document = docusign.Document.constructFromObject({
       documentBase64: pdfBase64,
@@ -532,15 +534,17 @@ class DocuSignService {
       anchorIgnoreIfNotPresent: 'false'
     });
 
-    // 🆕 NOMBRE #1 - Primera ocurrencia (Página 1) - Autocompletar
-    const fullNameTab1 = docusign.FullName.constructFromObject({
+    // 🆕 NOMBRE #1 - Primera ocurrencia (Página 1) - Autocompletar con applicant
+    const textTab1 = docusign.Text.constructFromObject({
       documentId: '1',
       anchorString: '(Printed Property Owner Name)', // Texto exacto del PDF
       anchorUnits: 'pixels',
       anchorXOffset: '0',
       anchorYOffset: '-25',  // Subir más arriba de la línea
       name: 'PropertyOwnerName_Page1',
-      optional: 'false',
+      value: applicant || clientName || '', // 🆕 Valor predefinido del applicant
+      locked: 'true', // Bloqueado para que no se pueda editar
+      required: 'true',
       fontSize: 'size9',
       tabLabel: 'Property Owner Name - Page 1',
       anchorIgnoreIfNotPresent: 'false'
@@ -574,15 +578,17 @@ class DocuSignService {
       anchorIgnoreIfNotPresent: 'false'
     });
 
-    // 🆕 NOMBRE #2 - Segunda ocurrencia (Página 2) - Autocompletar
-    const fullNameTab2 = docusign.FullName.constructFromObject({
+    // 🆕 NOMBRE #2 - Segunda ocurrencia (Página 2) - Autocompletar con applicant
+    const textTab2 = docusign.Text.constructFromObject({
       documentId: '1',
       anchorString: '(Printed Property Owner Name)', // Mismo texto, segunda ocurrencia
       anchorUnits: 'pixels',
       anchorXOffset: '0',
       anchorYOffset: '-25',  // Subir más arriba de la línea
       name: 'PropertyOwnerName_Page2',
-      optional: 'false',
+      value: applicant || clientName || '', // 🆕 Valor predefinido del applicant
+      locked: 'true', // Bloqueado para que no se pueda editar
+      required: 'true',
       fontSize: 'size9',
       tabLabel: 'Property Owner Name - Page 2',
       anchorIgnoreIfNotPresent: 'false'
@@ -606,7 +612,7 @@ class DocuSignService {
     // DocuSign automáticamente encontrará ambas ocurrencias de cada anchor string
     signer.tabs = docusign.Tabs.constructFromObject({
       signHereTabs: [signHereTab1, signHereTab2],
-      fullNameTabs: [fullNameTab1, fullNameTab2],  // Autocompletar nombre del firmante
+      textTabs: [textTab1, textTab2],  // 🆕 Cambio de fullNameTabs a textTabs con valores predefinidos
       dateSignedTabs: [dateSignedTab1, dateSignedTab2]
     });
 
