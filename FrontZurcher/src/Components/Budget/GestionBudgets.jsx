@@ -108,6 +108,7 @@ const GestionBudgets = () => {
   const [ppiUrl, setPpiUrl] = useState(null);
   const [ppiTitle, setPpiTitle] = useState('');
   const [loadingPPI, setLoadingPPI] = useState(false);
+  const [currentPermitId, setCurrentPermitId] = useState(null);
 
   // 🆕 Función reutilizable para recargar alertas
   const reloadBudgetAlerts = async () => {
@@ -602,6 +603,38 @@ const GestionBudgets = () => {
     }
   };
 
+  // 🆕 Handler para descargar PPI firmado
+  const handleDownloadPPISigned = async (permitId) => {
+    try {
+      const response = await api.get(`/permit/${permitId}/ppi/signed/download`, {
+        responseType: 'blob'
+      });
+
+      // Extraer nombre del archivo desde el header Content-Disposition
+      const contentDisposition = response.headers['content-disposition'];
+      let fileName = `PPI_Signed_Permit_${permitId}.pdf`; // Fallback
+      
+      if (contentDisposition) {
+        const fileNameMatch = contentDisposition.match(/filename="(.+)"/i);
+        if (fileNameMatch && fileNameMatch[1]) {
+          fileName = fileNameMatch[1];
+        }
+      }
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading signed PPI:', error);
+      alert(`Error al descargar el PPI firmado: ${error.response?.data?.error || error.message}`);
+    }
+  };
+
   // 🆕 Handler para ver PPI firmado
   const handleViewPPISigned = async (permitId) => {
     setLoadingPPI(true);
@@ -613,6 +646,7 @@ const GestionBudgets = () => {
       const url = window.URL.createObjectURL(blob);
       setPpiUrl(url);
       setPpiTitle('PPI Firmado');
+      setCurrentPermitId(permitId);
       setShowPPIModal(true);
     } catch (error) {
       console.error('Error al ver PPI firmado:', error);
@@ -633,6 +667,7 @@ const GestionBudgets = () => {
       const url = window.URL.createObjectURL(blob);
       setPpiUrl(url);
       setPpiTitle('PPI Original');
+      setCurrentPermitId(permitId);
       setShowPPIModal(true);
     } catch (error) {
       console.error('Error al ver PPI original:', error);
@@ -1494,6 +1529,7 @@ const GestionBudgets = () => {
                 setShowPPIModal(false);
                 setPpiUrl(null);
                 setPpiTitle('');
+                setCurrentPermitId(null);
               }}
               className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
             >
@@ -1502,6 +1538,19 @@ const GestionBudgets = () => {
               </svg>
             </button>
             <h2 className="text-lg font-bold mb-4 text-center">{ppiTitle}</h2>
+            {ppiTitle === 'PPI Firmado' && currentPermitId && (
+              <div className="flex justify-center mb-3">
+                <button
+                  onClick={() => handleDownloadPPISigned(currentPermitId)}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-md"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Descargar PPI
+                </button>
+              </div>
+            )}
             <div className="h-[70vh] overflow-y-auto border rounded shadow-inner bg-gray-50">
               {ppiUrl && (
                 <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.4.120/build/pdf.worker.min.js">

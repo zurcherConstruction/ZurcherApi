@@ -532,8 +532,8 @@ class DocuSignService {
       anchorIgnoreIfNotPresent: 'false'
     });
 
-    // 🆕 NOMBRE #1 - Primera ocurrencia (Página 1) - Manual
-    const nameTab1 = docusign.Text.constructFromObject({
+    // 🆕 NOMBRE #1 - Primera ocurrencia (Página 1) - Autocompletar
+    const fullNameTab1 = docusign.FullName.constructFromObject({
       documentId: '1',
       anchorString: '(Printed Property Owner Name)', // Texto exacto del PDF
       anchorUnits: 'pixels',
@@ -543,9 +543,7 @@ class DocuSignService {
       optional: 'false',
       fontSize: 'size9',
       tabLabel: 'Property Owner Name - Page 1',
-      anchorIgnoreIfNotPresent: 'false',
-      required: 'true',
-      width: 200
+      anchorIgnoreIfNotPresent: 'false'
     });
 
     // 🆕 FECHA #1 - Primera ocurrencia (Página 1)
@@ -576,8 +574,8 @@ class DocuSignService {
       anchorIgnoreIfNotPresent: 'false'
     });
 
-    // 🆕 NOMBRE #2 - Segunda ocurrencia (Página 2) - Manual
-    const nameTab2 = docusign.Text.constructFromObject({
+    // 🆕 NOMBRE #2 - Segunda ocurrencia (Página 2) - Autocompletar
+    const fullNameTab2 = docusign.FullName.constructFromObject({
       documentId: '1',
       anchorString: '(Printed Property Owner Name)', // Mismo texto, segunda ocurrencia
       anchorUnits: 'pixels',
@@ -587,9 +585,7 @@ class DocuSignService {
       optional: 'false',
       fontSize: 'size9',
       tabLabel: 'Property Owner Name - Page 2',
-      anchorIgnoreIfNotPresent: 'false',
-      required: 'true',
-      width: 200
+      anchorIgnoreIfNotPresent: 'false'
     });
 
     // 🆕 FECHA #2 - Segunda ocurrencia (Página 2)
@@ -610,7 +606,7 @@ class DocuSignService {
     // DocuSign automáticamente encontrará ambas ocurrencias de cada anchor string
     signer.tabs = docusign.Tabs.constructFromObject({
       signHereTabs: [signHereTab1, signHereTab2],
-      textTabs: [nameTab1, nameTab2],  // Cambiado de fullNameTabs a textTabs para entrada manual
+      fullNameTabs: [fullNameTab1, fullNameTab2],  // Autocompletar nombre del firmante
       dateSignedTabs: [dateSignedTab1, dateSignedTab2]
     });
 

@@ -532,10 +532,25 @@ const BudgetList = () => {
         responseType: "blob",
       });
 
+      // Extraer nombre del archivo desde el header Content-Disposition
+      const contentDisposition = response.headers['content-disposition'];
+      console.log('Content-Disposition header:', contentDisposition);
+      let fileName = `PPI_Signed_Permit_${permitId}.pdf`; // Fallback
+      
+      if (contentDisposition) {
+        const fileNameMatch = contentDisposition.match(/filename="(.+)"/i);
+        if (fileNameMatch && fileNameMatch[1]) {
+          fileName = fileNameMatch[1];
+          console.log('Extracted filename:', fileName);
+        }
+      } else {
+        console.warn('Content-Disposition header not found, using fallback name');
+      }
+
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `PPI_Signed_Permit_${permitId}.pdf`);
+      link.setAttribute("download", fileName);
       document.body.appendChild(link);
       link.click();
       link.parentNode.removeChild(link);

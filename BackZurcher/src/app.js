@@ -127,6 +127,7 @@ app.use(cors({
   credentials: true,
   methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma'], // ✅ Agregados Cache-Control y Pragma
+  exposedHeaders: ['Content-Disposition'], // ✅ Exponer Content-Disposition para que el frontend pueda leerlo
 }));
 
 // CORS Headers
