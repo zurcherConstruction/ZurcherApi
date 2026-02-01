@@ -2107,7 +2107,7 @@ const editableBudgets = useMemo(() => {
           permitId={currentBudget.PermitIdPermit}
           onClose={() => setShowEditPermitFieldsModal(false)}
           onSuccess={(updatedPermit) => {
-            console.log('✅ Permit actualizado, recargando datos...', updatedPermit);
+           
             
             // 1. Forzar recreación de formData con datos actualizados
             setForceFormDataRefresh(prev => prev + 1);
@@ -2115,7 +2115,12 @@ const editableBudgets = useMemo(() => {
             // 2. Recargar budget completo desde el servidor
             // NOTA: fetchBudgetById actualiza TANTO currentBudget como el budget en la lista global
             // (Ver BudgetReducer.jsx línea 51-53: actualiza state.budgets[index])
-            dispatch(fetchBudgetById(selectedBudgetId));
+            dispatch(fetchBudgetById(selectedBudgetId))
+              .then((result) => {
+                console.log('🔄 Budget recargado después de generar PPI:', result);
+                console.log('🔍 Permit en budget recargado:', result?.payload?.Permit);
+                console.log('🔍 ppiCloudinaryUrl en Permit:', result?.payload?.Permit?.ppiCloudinaryUrl);
+              });
             
             // 3. 🆕 Refrescar works para actualizar alertas de permit en ProgressTracker
             dispatch(fetchWorks());

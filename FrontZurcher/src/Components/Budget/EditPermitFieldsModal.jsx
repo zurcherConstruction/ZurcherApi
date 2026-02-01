@@ -18,6 +18,7 @@ const EditPermitFieldsModal = ({ permitId, onClose, onSuccess }) => {
     squareFeetSystem: '',
     pump: '',
     expirationDate: '',
+    applicant: '',
     applicantName: '',
     applicantPhone: '',
     applicantEmail: '',
@@ -94,6 +95,7 @@ const EditPermitFieldsModal = ({ permitId, onClose, onSuccess }) => {
         squareFeetSystem: permit.squareFeetSystem || '',
         pump: permit.pump || '',
         expirationDate: permit.expirationDate || '',
+        applicant: permit.applicant || '',
         applicantName: permit.applicantName || '',
         applicantPhone: permit.applicantPhone || '',
         applicantEmail: permit.applicantEmail || '',
@@ -355,6 +357,14 @@ const EditPermitFieldsModal = ({ permitId, onClose, onSuccess }) => {
       if (response.data.success) {
         setSuccessMessage(`✅ PPI generado exitosamente: ${response.data.fileName}`);
         alert(`✅ PPI generado exitosamente\n\nArchivo: ${response.data.fileName}\n\nEl PPI ha sido guardado en Cloudinary.`);
+        
+        // 🆕 Recargar datos para mostrar el PPI generado
+        await loadPermitData();
+        
+        // 🆕 Notificar al componente padre para refrescar (con anti-caché)
+        if (onSuccess) {
+          onSuccess({ timestamp: Date.now() });
+        }
       }
     } catch (err) {
       console.error('Error al generar PPI:', err);
@@ -612,6 +622,23 @@ const EditPermitFieldsModal = ({ permitId, onClose, onSuccess }) => {
           <section className="border-b pb-4">
             <h3 className="text-lg font-semibold mb-4 text-gray-700">👤 Información de Contacto</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Applicant (para PPI) <span className="text-orange-600">★</span>
+                </label>
+                <input
+                  type="text"
+                  name="applicant"
+                  value={formData.applicant}
+                  onChange={handleInputChange}
+                  placeholder="Ej: (Kargabi LLC)"
+                  className="w-full px-3 py-2 border border-orange-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 bg-orange-50"
+                />
+                <p className="mt-1 text-xs text-orange-600">
+                  Este campo se usa en el documento PPI. Formato recomendado: (Nombre o Empresa)
+                </p>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Applicant Name
