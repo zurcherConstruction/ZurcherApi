@@ -1583,17 +1583,10 @@ async getBudgets(req, res) {
             reminderCompletedAt: null
           },
           attributes: ['id', 'reminderDate', 'priority'],
-          separate: false // Importante: no hacer query separada para poder ordenar
+          separate: true // Query separada para evitar problemas con GROUP BY
         }
       ],
-      // 🔔 Ordenar: primero los que tienen alertas (por fecha de alerta), luego el resto por ID
-      order: [
-        [sequelize.literal('CASE WHEN "notes"."id" IS NOT NULL THEN 0 ELSE 1 END'), 'ASC'], // Alertas primero
-        [sequelize.literal('MIN("notes"."reminderDate")'), 'ASC NULLS LAST'], // Fecha de alerta más próxima
-        ['idBudget', 'DESC'] // Luego por ID descendente
-      ],
-      group: ['Budget.idBudget', 'Permit.idPermit', 'notes.id'], // Necesario por el MIN en ORDER BY
-      subQuery: false, // Evitar subquery para que el ORDER BY funcione correctamente
+      order: [['idBudget', 'DESC']], // Ordenar por ID descendente
       limit: pageSize,
       offset,
       attributes: [
