@@ -285,18 +285,21 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
 
           // ✅ PREPARAR Y ENVIAR NOTIFICACIONES
           const attachments = [];
+          const attachmentsForClient = []; // 🆕 Separar adjuntos para cliente
           let ppiPath = null; // 🆕 Declarar aquí para disponibilidad posterior
           const permit = budgetForPdf.Permit; // 🆕 Obtener Permit desde budgetForPdf
           
           if (generatedPdfPath && fs.existsSync(generatedPdfPath)) {
-            attachments.push({
+            const budgetAttachment = {
               filename: `Budget_${newBudgetId}.pdf`,
               path: generatedPdfPath,
               contentType: 'application/pdf'
-            });
+            };
+            attachments.push(budgetAttachment); // Para notificaciones internas
+            attachmentsForClient.push(budgetAttachment); // 🆕 Para cliente también
           }
           
-          // 🆕 Adjuntar PPI si existe
+          // 🆕 Adjuntar PPI solo para notificaciones internas (NO para cliente)
           if (permit) {
             const ppiUrl = permit.ppiCloudinaryUrl || permit.ppiGeneratedPath;
             if (ppiUrl) {
@@ -304,7 +307,7 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
               
               // Si es URL de Cloudinary, descargar temporalmente
               if (ppiUrl.startsWith('http')) {
-                console.log(`☁️  Descargando PPI desde Cloudinary para notificación: ${ppiUrl}`);
+                console.log(`☁️  Descargando PPI desde Cloudinary para notificación INTERNA: ${ppiUrl}`);
                 const axios = require('axios');
                 const path = require('path');
                 const uploadsDir = path.join(__dirname, '../uploads/temp');
@@ -317,7 +320,7 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
                   const response = await axios.get(ppiUrl, { responseType: 'arraybuffer' });
                   ppiPath = path.join(uploadsDir, `ppi_notification_${permit.idPermit}_${Date.now()}.pdf`);
                   fs.writeFileSync(ppiPath, response.data);
-                  console.log(`✅ PPI descargado para notificación: ${ppiPath}`);
+                  console.log(`✅ PPI descargado para notificación INTERNA: ${ppiPath}`);
                 } catch (downloadError) {
                   console.error(`❌ Error descargando PPI:`, downloadError.message);
                 }
@@ -327,12 +330,14 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
               
               if (ppiPath) {
                 const ppiFilename = `PPI_${permit.ppiInspectorType || 'inspection'}_Permit_${permit.idPermit}.pdf`;
+                // ✅ SOLO agregar a notificaciones internas, NO a cliente
                 attachments.push({
                   filename: ppiFilename,
                   path: ppiPath,
                   contentType: 'application/pdf'
                 });
-                console.log(`📎 PPI adjuntado a notificación de owner: ${ppiFilename}`);
+                console.log(`📎 PPI adjuntado SOLO para notificaciones INTERNAS: ${ppiFilename}`);
+                console.log(`ℹ️  PPI NO se enviará al cliente (solo Budget PDF)`);
               }
             }
           }
@@ -590,24 +595,23 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
         </div>
       </div>
     `,
-          attachments: [{
-            filename: `budget_${idBudget}.pdf`,
-            path: localPdfPath,
-            contentType: 'application/pdf'
-          }],
+          // 🆕 Usar attachmentsForClient (solo Budget PDF, SIN PPI)
+          attachments: attachmentsForClient,
         };
 
         try {
-          console.log(`Intentando enviar correo con PDF al cliente: ${budget.Permit.applicantEmail}`);
+          console.log(`📧 Enviando email al cliente: ${budget.Permit.applicantEmail}`);
+          console.log(`   ✅ Adjuntos: SOLO Budget PDF (${attachmentsForClient.length} archivo)`);
+          console.log(`   ⛔ PPI NO incluido (solo se envía en notificaciones internas)`);
           const clientEmailResult = await sendEmail(clientMailOptions);
           
           if (clientEmailResult.success) {
-            console.log(`✅ Correo con PDF enviado exitosamente al cliente en ${clientEmailResult.duration}ms.`);
+            console.log(`✅ Email enviado exitosamente al cliente en ${clientEmailResult.duration}ms`);
           } else {
-            console.error(`❌ Error al enviar correo con PDF al cliente: ${clientEmailResult.error}`);
+            console.error(`❌ Error al enviar email al cliente: ${clientEmailResult.error}`);
           }
         } catch (clientEmailError) {
-          console.error(`❌ Error al enviar correo con PDF al cliente ${budget.Permit.applicantEmail}:`, clientEmailError);
+          console.error(`❌ Error al enviar email al cliente ${budget.Permit.applicantEmail}:`, clientEmailError);
           // No fallar la operación, continuar con servicio de firma
         }
       }
@@ -4524,21 +4528,30 @@ async optionalDocs(req, res) {
       // ✅ ENVIAR EMAIL AL CLIENTE PRINCIPAL CON BOTONES DE ACCIÓN
       console.log(`📧 Enviando email principal a ${budget.Permit.applicantEmail} con botones de acción...`);
       
-      // Preparar adjuntos: Budget PDF + PPI (si existe)
-      const attachments = [
+      // 🆕 Preparar adjuntos separados: Cliente vs Notificaciones Internas
+      const attachmentsForClient = [
         { 
           filename: `Budget_${budget.idBudget}.pdf`, 
           path: pdfPath 
         }
       ];
       
+      const attachmentsForNotifications = [
+        { 
+          filename: `Budget_${budget.idBudget}.pdf`, 
+          path: pdfPath 
+        }
+      ];
+      
+      // ✅ SOLO agregar PPI a notificaciones internas, NO al cliente
       if (ppiPath) {
         const ppiFilename = `PPI_${budget.Permit.ppiInspectorType || 'inspection'}_Permit_${budget.Permit.idPermit}.pdf`;
-        attachments.push({
+        attachmentsForNotifications.push({
           filename: ppiFilename,
           path: ppiPath
         });
-        console.log(`📎 Adjuntando PPI: ${ppiFilename}`);
+        console.log(`📎 PPI adjuntado SOLO para notificaciones INTERNAS: ${ppiFilename}`);
+        console.log(`ℹ️  PPI NO se enviará al cliente (solo Budget PDF)`);
       }
       
       await sendEmail({
@@ -4546,12 +4559,14 @@ async optionalDocs(req, res) {
         subject: emailSubject,
         html: generateEmailHtml(true), // CON botones de aprobación
         text: `Alternative text: ${emailSubject}`,
-        attachments: attachments
+        attachments: attachmentsForClient // 🆕 Solo Budget PDF para cliente
       });
 
       console.log(`✅ Email principal enviado a ${budget.Permit.applicantEmail}`);
+      console.log(`   ✅ Adjuntos: SOLO Budget PDF (${attachmentsForClient.length} archivo)`);
+      console.log(`   ⛔ PPI NO incluido para el cliente`);
 
-      // 🆕 ENVIAR EMAILS INFORMATIVOS A EMAILS ADICIONALES (SIN BOTONES)
+      // 🆕 ENVIAR EMAILS INFORMATIVOS A EMAILS ADICIONALES (SIN BOTONES, CON PPI)
       if (hasNotificationEmails) {
         console.log(`📧 Enviando emails informativos a ${notificationEmails.length} email(s) adicional(es)...`);
         

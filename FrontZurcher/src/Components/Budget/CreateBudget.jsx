@@ -337,6 +337,18 @@ const CreateBudget = () => {
       } else {
         setOptionalDocPreview(null);
       }
+      
+      // 🆕 CARGAR PPI AUTO-GENERADO SI EXISTE
+      if (selectedPermit.ppiCloudinaryUrl) {
+        console.log('✅ PPI auto-generado encontrado, cargando preview...');
+        setPpiPreview(selectedPermit.ppiCloudinaryUrl);
+      } else if (selectedPermit.ppiGeneratedPath) {
+        console.log('✅ PPI generado (local) encontrado...');
+        setPpiPreview(selectedPermit.ppiGeneratedPath);
+      } else {
+        console.log('ℹ️  No hay PPI auto-generado para este permit');
+        setPpiPreview(null);
+      }
     } else if (!permitIdFromQuery && !loadingPermit) { 
       setPermitExpirationAlert({ type: "error", message: "No se ha cargado la información del permiso." });
   }

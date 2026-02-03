@@ -81,6 +81,92 @@ class ServicePPI {
   }
 
   /**
+   * 🆕 FUNCIÓN AUXILIAR: Separar dirección completa en componentes
+   * Convierte "2607 49th St Lehigh Acres, FL 33971" en partes separadas
+   * @private
+   */
+  _parseAddress(fullAddress) {
+    if (!fullAddress) {
+      return {
+        streetAddress: '',
+        city: '',
+        state: '',
+        zipCode: ''
+      };
+    }
+
+    try {
+      // Patrón: "Street Address City, State ZipCode"
+      // Ejemplo: "2607 49th St Lehigh Acres, FL 33971"
+      
+      // Dividir por coma primero (separa ciudad de estado/zip)
+      const parts = fullAddress.split(',');
+      
+      if (parts.length >= 2) {
+        // Parte 1: Street Address + City (antes de la coma)
+        const beforeComma = parts[0].trim();
+        
+        // Parte 2: State + Zip (después de la coma)
+        const afterComma = parts[1].trim();
+        
+        // Extraer State y Zip de la segunda parte
+        // Regex mejorado: puede tener o no espacios, y captura cualquier formato de zip
+        const stateZipMatch = afterComma.match(/([A-Z]{2})\s*(\d{5}(-\d{4})?)/);
+        const state = stateZipMatch ? stateZipMatch[1] : '';
+        const zipCode = stateZipMatch ? stateZipMatch[2] : '';
+        
+        console.log(`🔍 DEBUG afterComma: "${afterComma}"`);
+        console.log(`🔍 DEBUG stateZipMatch:`, stateZipMatch);
+        
+        // Para separar Street Address de City, buscamos la última palabra compuesta
+        // que probablemente sea la ciudad (ej: "Lehigh Acres")
+        // Asumimos que la ciudad son las últimas 1-3 palabras antes de la coma
+        const words = beforeComma.split(' ');
+        
+        // Si hay al menos 4 palabras, las últimas 2 probablemente sean la ciudad
+        let streetAddress = beforeComma;
+        let city = '';
+        
+        if (words.length >= 4) {
+          // Intentar extraer ciudad (últimas 2 palabras típicamente)
+          city = words.slice(-2).join(' ');
+          streetAddress = words.slice(0, -2).join(' ');
+        }
+        
+        console.log(`🔍 Dirección parseada:`);
+        console.log(`   📍 Calle: "${streetAddress}"`);
+        console.log(`   🏙️  Ciudad: "${city}"`);
+        console.log(`   🗺️  Estado: "${state}"`);
+        console.log(`   📮 Zip: "${zipCode}"`);
+        
+        return {
+          streetAddress,
+          city,
+          state,
+          zipCode
+        };
+      }
+      
+      // Si no se puede parsear, retornar la dirección completa en streetAddress
+      return {
+        streetAddress: fullAddress,
+        city: '',
+        state: '',
+        zipCode: ''
+      };
+      
+    } catch (error) {
+      console.error('❌ Error parseando dirección:', error);
+      return {
+        streetAddress: fullAddress,
+        city: '',
+        state: '',
+        zipCode: ''
+      };
+    }
+  }
+
+  /**
    * Llena campos comunes a ambos tipos de PPI
    * @private
    */
@@ -89,7 +175,9 @@ class ServicePPI {
     
     // 🔍 DEBUG: Ver qué datos llegan
     console.log('\n🔍 === DATOS RECIBIDOS EN _fillCommonFields ===');
+    console.log('permitData.propertyAddress:', permitData.propertyAddress);
     console.log('permitData.city:', permitData.city);
+    console.log('permitData.state:', permitData.state);
     console.log('permitData.zipCode:', permitData.zipCode);
     console.log('permitData.unit:', permitData.unit);
     console.log('permitData.section:', permitData.section);
@@ -99,6 +187,28 @@ class ServicePPI {
     console.log('permitData.applicationNo:', permitData.applicationNo);
     console.log('permitData.ppiAuthorizationType:', permitData.ppiAuthorizationType);
     console.log('=== FIN DATOS RECIBIDOS ===\n');
+    
+    // 🆕 Si city, state o zipCode NO están en el permit, parsear desde propertyAddress
+    let addressParts = {
+      streetAddress: permitData.propertyAddress || '',
+      city: permitData.city || '',
+      state: permitData.state || 'FL',
+      zipCode: permitData.zipCode || ''
+    };
+    
+    // Si faltan datos, intentar parsear desde propertyAddress
+    if (!permitData.city || !permitData.zipCode) {
+      console.log('⚠️  City o ZipCode faltantes, parseando desde propertyAddress...');
+      const parsed = this._parseAddress(permitData.propertyAddress);
+      
+      // Solo usar los datos parseados si no existen en permitData
+      addressParts = {
+        streetAddress: parsed.streetAddress || permitData.propertyAddress || '',
+        city: permitData.city || parsed.city,
+        state: permitData.state || parsed.state || 'FL',
+        zipCode: permitData.zipCode || parsed.zipCode
+      };
+    }
     
     // 🔍 DEBUG: Listar TODOS los campos del formulario
     console.log('\n🔍 === CAMPOS DISPONIBLES EN EL PDF ===');
@@ -113,7 +223,7 @@ class ServicePPI {
       // Part 1 - Applicant Information
       'Property Owner Name': clientData.name || permitData.applicantName || '',
       'Property Owner Email': permitData.ppiPropertyOwnerEmail || 'admin@zurcherseptic.com',
-      'Property Owner Phone': permitData.ppiPropertyOwnerPhone || '(941) 505-5104',
+      'Property Owner Phone': permitData.ppiPropertyOwnerPhone || '+1 (407) 419-4495', // 🆕 Teléfono por defecto
       
       // Authorized Contractor N/A (cliente firma, no hay contratista autorizado)
       'Authorized Contractor if applicable': 'N/A',
@@ -121,11 +231,11 @@ class ServicePPI {
       'Authorized Contractor Email': 'N/A',
       'Authorized Contractor Phone': 'N/A',
       
-      // Part 2 - Property Information
-      'Property Address': permitData.propertyAddress || permitData.jobAddress || '',
-      'City': permitData.city || '',
-      'State': permitData.state || 'FL',
-      'Zip Code': permitData.zipCode || '',
+      // Part 2 - Property Information (🆕 USAR DATOS PARSEADOS)
+      'Property Address': addressParts.streetAddress, // ✅ Solo calle y número
+      'City': addressParts.city, // ✅ Ciudad separada
+      'State': addressParts.state, // ✅ Estado separado
+      'Zip Code': addressParts.zipCode, // ✅ Código postal separado
       
       // Datos del lote/parcela
       'Lot': permitData.lot || '',

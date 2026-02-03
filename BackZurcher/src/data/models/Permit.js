@@ -203,7 +203,7 @@ module.exports = (sequelize) => {
     ppiPropertyOwnerPhone: {
       type: DataTypes.STRING(50),
       allowNull: true,
-      defaultValue: '(941) 505-5104',
+      defaultValue: null,
       comment: 'Teléfono de Zurcher para Part 1 del PPI'
     },
     
