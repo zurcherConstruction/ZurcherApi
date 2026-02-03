@@ -1,0 +1,19 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+
+# Block access to internal employee/admin routes
+Disallow: /api/
+Disallow: /login
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /staff
+Disallow: /budget
+Disallow: /works
+Disallow: /change-order-response
+
+# Sitemap location
+Sitemap: https://zurcherseptic.com/sitemap.xml
+
+# Crawl-delay for polite crawling (optional)
+Crawl-delay: 1
