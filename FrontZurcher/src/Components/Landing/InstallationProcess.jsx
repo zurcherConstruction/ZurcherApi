@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ScheduleQuoteModal from './ScheduleQuoteModal';
 
 const InstallationProcess = () => {
   const [presentationPhase, setPresentationPhase] = useState(true); // true = presentación, false = interactivo
@@ -6,6 +7,7 @@ const InstallationProcess = () => {
   const [showDescription, setShowDescription] = useState(false); // Mostrar descripción en presentación
   const [hoveredStep, setHoveredStep] = useState(null); // Paso con hover en fase interactiva
   const [isMobile, setIsMobile] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false); // 🆕 Modal de agendamiento
   const videoRef = useRef(null);
 
   // Video for large screens (horizontal) - Optimized with Cloudinary transformations
@@ -38,36 +40,43 @@ const InstallationProcess = () => {
     {
       number: '01',
       title: 'Customized Budget',
+      subtitle: '',
       description: 'Every project is different. We begin with a clear and detailed budget, tailored to each client\'s specific needs. We assess whether the project already has approved plans and permits or if it requires comprehensive support from the outset. Once the budget is approved, we launch the project.'
     },
     {
       number: '02',
-      title: 'System Design (when applicable)',
+      title: 'System Design',
+      subtitle: 'when applicable',
       description: 'If the client already has an approved design and permits, our team will carry out the installation according to the established plan. If the design is not yet defined, we will assist the client in developing the most suitable septic system, evaluating the site, intended use, and technical requirements to ensure efficient and safe operation.'
     },
     {
       number: '03',
-      title: 'Administrative Management and Permits (Our Key Differentiator)',
+      title: 'Administrative Management and Permits',
+      subtitle: 'Our Key Differentiator',
       description: 'In addition to an excellent installation team, at Zurcher Septic we have an administrative team dedicated exclusively to project management. This team handles requesting inspections, coordinating with the Health Department, managing permits, monitoring progress, and ensuring that all documentation is correctly submitted, signed, and submitted on time. This approach allows us to avoid delays, errors, or interruptions that could hinder the project\'s progress and guarantees constant communication with the client throughout the entire process.'
     },
     {
       number: '04',
-      title: ' Planning and Ordering Materials',
+      title: 'Planning and Ordering Materials',
+      subtitle: '',
       description: 'We orWith the permits approved, we plan each stage of the work and order the necessary materials for the installation, including tanks, pipes, and components specific to each system. We use only high-quality materials to ensure durability and proper functioning.'
     },
     {
       number: '05',
       title: 'System Installation',
+      subtitle: '',
       description: 'Our field technical team handles the installation of your septic system with precision, care, and efficiency. We execute each stage according to approved plans and technical standards, ensuring a reliable system ready for long-term operation in both residential and commercial projects.'
     },
     {
       number: '06',
       title: 'Final Inspections and Closure',
+      subtitle: '',
       description: 'We coordinate final inspections and verify that the system is functioning correctly. We handle obtaining the necessary approvals and closing the project without any outstanding issues.'
     },
     {
       number: '07',
       title: 'Customer Support and Assistance',
+      subtitle: '',
       description: 'Once installation is complete, we continue to support our customers. We provide guidance, maintenance recommendations, and ongoing support. Our team is always available to answer questions and offer assistance whenever the customer needs it.'
     }
 
@@ -155,8 +164,8 @@ const InstallationProcess = () => {
         <div 
           className={`absolute inset-0 transition-all duration-1000 ${
             presentationPhase 
-              ? 'bg-black/70' 
-              : 'bg-gradient-to-b from-black/40 via-black/30 to-black/40'
+              ? 'bg-black/75' 
+              : 'bg-gradient-to-b from-black/50 via-black/40 to-black/50'
           }`}
         ></div>
       </div>
@@ -173,9 +182,14 @@ const InstallationProcess = () => {
               <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 text-white text-3xl font-bold mb-6 shadow-2xl shadow-blue-500/50">
                 {steps[currentStep].number}
               </div>
-              <h3 className="text-4xl md:text-6xl font-bold text-white drop-shadow-2xl">
+              <h3 className="text-4xl md:text-6xl font-bold text-slate-300 drop-shadow-2xl">
                 {steps[currentStep].title}
               </h3>
+              {steps[currentStep].subtitle && (
+                <p className="text-xl md:text-2xl text-white/70 mt-3 italic drop-shadow-lg">
+                  {steps[currentStep].subtitle}
+                </p>
+              )}
             </div>
 
             {/* Descripción (aparece/desaparece) */}
@@ -260,9 +274,11 @@ const InstallationProcess = () => {
                     >
                       {step.number}
                     </div>
-                    <h3 className="text-2xl md:text-3xl font-bold text-white ml-6 drop-shadow-lg">
-                      {step.title}
-                    </h3>
+                    <div className="ml-6">
+                      <h3 className="text-2xl md:text-3xl font-bold text-slate-300 drop-shadow-lg">
+                        {step.title}
+                      </h3>
+                    </div>
                   </div>
 
                   {/* Descripción (aparece en hover) */}
@@ -273,14 +289,21 @@ const InstallationProcess = () => {
                         : 'max-h-0 opacity-0'
                     }`}
                   >
-                    <p className="px-6 pb-6 text-white/90 text-base md:text-lg leading-relaxed">
-                      {step.description}
-                    </p>
+                    <div className="px-6 pb-6">
+                      {step.subtitle && (
+                        <p className="text-white/70 text-base md:text-lg italic mb-2">
+                          {step.subtitle}
+                        </p>
+                      )}
+                      <p className="text-white/90 text-base md:text-lg leading-relaxed">
+                        {step.description}
+                      </p>
+                    </div>
                   </div>
 
                   {/* Glow effect en hover */}
                   {hoveredStep === index && (
-                    <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-cyan-400 rounded-xl -z-10 opacity-50 blur"></div>
+                    <div className="absolute -inset-0.5 bg-gradient-to-r from-slate-700 to-slate-400 rounded-xl -z-10 opacity-50 blur"></div>
                   )}
                 </div>
               </div>
@@ -289,12 +312,12 @@ const InstallationProcess = () => {
 
           {/* CTA Button */}
           <div className="text-center mt-12">
-            <a
-              href="#contact"
+            <button
+              onClick={() => setShowScheduleModal(true)}
               className="inline-block px-10 py-4 bg-gradient-to-r from-blue-600 to-cyan-500 text-white text-lg font-bold rounded-full shadow-2xl shadow-blue-500/50 hover:shadow-blue-500/70 hover:scale-105 transition-all duration-300 backdrop-blur-sm"
             >
               Start Your Project Today
-            </a>
+            </button>
           </div>
 
           {/* Botón para volver a ver presentación */}
@@ -312,6 +335,12 @@ const InstallationProcess = () => {
           </div>
         </div>
       )}
+
+      {/* Modal de Agendamiento */}
+      <ScheduleQuoteModal 
+        isOpen={showScheduleModal} 
+        onClose={() => setShowScheduleModal(false)} 
+      />
 
       {/* Animated CSS */}
       <style>{`
