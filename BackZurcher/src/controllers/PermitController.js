@@ -363,6 +363,28 @@ const createPermit = async (req, res, next) => {
       // console.log('✅ Optional Docs subido a Cloudinary:', optionalDocsUrl);
     }
 
+    // 🆕 PARSEAR Y GUARDAR COMPONENTES DE LA DIRECCIÓN
+    let ppiStreetAddress = null;
+    let cityParsed = null;
+    let stateParsed = null;
+    let zipCodeParsed = null;
+    
+    if (propertyAddress) {
+      const servicePPI = require('../services/ServicePPI');
+      const parsed = servicePPI.ServicePPI._parseAddress(propertyAddress);
+      
+      ppiStreetAddress = parsed.streetAddress;
+      cityParsed = parsed.city;
+      stateParsed = parsed.state;
+      zipCodeParsed = parsed.zipCode;
+      
+      console.log('\n🔍 Dirección parseada al crear permit:');
+      console.log(`   📍 Calle: "${ppiStreetAddress}"`);
+      console.log(`   🏙️  Ciudad: "${cityParsed}"`);
+      console.log(`   🗺️  Estado: "${stateParsed}"`);
+      console.log(`   📮 Zip: "${zipCodeParsed}"\n`);
+    }
+
     // Crear el permiso en la base de datos
     const permitDataToCreate = {
       permitNumber: permitNumber.trim(), // ✅ Limpiar espacios
@@ -374,6 +396,11 @@ const createPermit = async (req, res, next) => {
       constructionPermitFor,
       applicant,
       propertyAddress,
+      // 🆕 GUARDAR COMPONENTES PARSEADOS
+      ppiStreetAddress,
+      city: cityParsed,
+      state: stateParsed || 'FL',
+      zipCode: zipCodeParsed,
       lot,
       block,
       propertyId,
@@ -417,8 +444,9 @@ const createPermit = async (req, res, next) => {
         id: permit.idPermit,
         idPermit: permit.idPermit,
         permitNumber: permit.permitNumber,
-        propertyAddress: permit.propertyAddress,
-        jobAddress: permit.propertyAddress,
+        propertyAddress: permit.propertyAddress, // 🔧 Dirección completa original
+        ppiStreetAddress: permit.ppiStreetAddress, // 🆕 Street address parseada/editable
+        jobAddress: permit.propertyAddress, // 🔄 Alias por compatibilidad
         city: permit.city || '',
         state: permit.state || 'FL',
         zipCode: permit.zipCode || '',
@@ -612,6 +640,26 @@ const updatePermit = async (req, res) => {
 
     // 🔍 Detectar si cambió el email
     const emailChanged = updates.applicantEmail && updates.applicantEmail !== permit.applicantEmail;
+    
+    // 🆕 Detectar si cambió la dirección
+    const addressChanged = updates.propertyAddress && updates.propertyAddress !== permit.propertyAddress;
+    
+    // 🆕 Si cambió la dirección, parsear y actualizar componentes
+    if (addressChanged) {
+      const servicePPI = require('../services/ServicePPI');
+      const parsed = servicePPI.ServicePPI._parseAddress(updates.propertyAddress);
+      
+      updates.ppiStreetAddress = parsed.streetAddress;
+      updates.city = parsed.city;
+      updates.state = parsed.state || 'FL';
+      updates.zipCode = parsed.zipCode;
+      
+      console.log('\n🔍 Dirección actualizada y parseada:');
+      console.log(`   📍 Calle: "${updates.ppiStreetAddress}"`);
+      console.log(`   🏙️  Ciudad: "${updates.city}"`);
+      console.log(`   🗺️  Estado: "${updates.state}"`);
+      console.log(`   📮 Zip: "${updates.zipCode}"\n`);
+    }
 
     Object.assign(permit, updates);
     if (pdfData) permit.pdfData = pdfData;
@@ -1160,6 +1208,7 @@ const updatePermitFields = async (req, res, next) => {
       ppiPropertyOwnerEmail,
       ppiPropertyOwnerPhone,
       // 🆕 Campos PPI Part 2
+      ppiStreetAddress, // 🆕 Dirección de calle parseada/editable
       city,
       state,
       zipCode,
@@ -1270,6 +1319,7 @@ const updatePermitFields = async (req, res, next) => {
     if (ppiPropertyOwnerPhone !== undefined) updateData.ppiPropertyOwnerPhone = ppiPropertyOwnerPhone;
     
     // 🆕 Campos PPI Part 2
+    if (ppiStreetAddress !== undefined) updateData.ppiStreetAddress = ppiStreetAddress; // 🆕 Street Address editable
     if (city !== undefined) updateData.city = city;
     if (state !== undefined) updateData.state = state;
     if (zipCode !== undefined) updateData.zipCode = zipCode;
@@ -1391,7 +1441,9 @@ const generatePPIPreview = async (req, res) => {
     const permitData = {
       idPermit: permit.idPermit,
       permitNumber: permit.permitNumber,
-      jobAddress: permit.propertyAddress,
+      propertyAddress: permit.propertyAddress, // 🔧 Dirección completa original
+      ppiStreetAddress: permit.ppiStreetAddress, // 🆕 Street address parseada/editable
+      jobAddress: permit.propertyAddress, // 🔄 Alias por compatibilidad
       city: permit.city || '',
       state: permit.state || 'FL',
       zipCode: permit.zipCode || '',
@@ -2547,6 +2599,103 @@ const uploadManualSignedPPI = async (req, res) => {
   }
 };
 
+// 🆕 NUEVO: Actualizar SOLO campos de dirección del PPI y regenerar
+const updatePPIAddress = async (req, res) => {
+  try {
+    const { idPermit } = req.params;
+    const { ppiStreetAddress, city, state, zipCode } = req.body;
+
+    console.log(`📝 Actualizando dirección del PPI para Permit ${idPermit}...`);
+
+    // Buscar el permit
+    const permit = await Permit.findByPk(idPermit);
+
+    if (!permit) {
+      return res.status(404).json({
+        error: true,
+        message: 'Permit no encontrado'
+      });
+    }
+
+    // Actualizar solo los campos del PPI
+    const updates = {};
+    if (ppiStreetAddress !== undefined) updates.ppiStreetAddress = ppiStreetAddress;
+    if (city !== undefined) updates.city = city;
+    if (state !== undefined) updates.state = state;
+    if (zipCode !== undefined) updates.zipCode = zipCode;
+
+    await permit.update(updates);
+
+    console.log('✅ Campos del PPI actualizados:', updates);
+
+    // Regenerar el PPI con los nuevos datos
+    const ServicePPI = require('../services/ServicePPI');
+    
+    const permitDataForPPI = {
+      propertyAddress: permit.propertyAddress,
+      applicant: permit.applicant || permit.applicantName,
+      permitNumber: permit.permitNumber,
+      lot: permit.lot,
+      block: permit.block,
+      subdivision: permit.subdivision,
+      unit: permit.unit,
+      section: permit.section,
+      township: permit.township,
+      range: permit.range,
+      parcelNo: permit.parcelNo,
+      applicationNo: permit.applicationNo,
+      // Campos editados manualmente (tendrán prioridad)
+      ppiStreetAddress: permit.ppiStreetAddress,
+      city: permit.city,
+      state: permit.state,
+      zipCode: permit.zipCode
+    };
+
+    const clientDataForPPI = {
+      applicantName: permit.applicantName,
+      applicantEmail: permit.applicantEmail,
+      applicantPhone: permit.applicantPhone,
+      ppiPropertyOwnerEmail: permit.ppiPropertyOwnerEmail,
+      ppiPropertyOwnerPhone: permit.ppiPropertyOwnerPhone
+    };
+
+    const ppiResult = await ServicePPI.generatePPI(
+      permitDataForPPI,
+      clientDataForPPI,
+      permit.ppiInspectorType || 'type-a',
+      permit.ppiAuthorizationType || 'initial'
+    );
+
+    // Actualizar permit con nueva URL del PPI
+    await permit.update({
+      ppiCloudinaryUrl: ppiResult.cloudinaryUrl,
+      ppiCloudinaryPublicId: ppiResult.cloudinaryPublicId,
+      ppiGeneratedPath: ppiResult.localPath,
+      ppiUploadedAt: new Date()
+    });
+
+    console.log(`✅ PPI regenerado exitosamente para Permit ${idPermit}`);
+
+    res.json({
+      success: true,
+      message: 'PPI address updated and document regenerated successfully',
+      data: {
+        permitId: permit.idPermit,
+        updatedFields: updates,
+        ppiUrl: ppiResult.cloudinaryUrl,
+        ppiPreviewUrl: ppiResult.cloudinaryUrl
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error updating PPI address:', error);
+    res.status(500).json({ 
+      error: 'Error updating PPI address',
+      details: error.message 
+    });
+  }
+};
+
 module.exports = {
   createPermit,
   getPermits,
@@ -2571,5 +2720,6 @@ module.exports = {
   downloadPPISigned, // 🆕 NUEVO: Descargar PPI firmado
   checkPPISignatureStatus, // 🆕 NUEVO: Verificar estado de firma del PPI
   verifyAllPPISignatures, // 🆕 NUEVO: Verificar TODAS las firmas PPI pendientes
-  uploadManualSignedPPI // 🆕 NUEVO: Subir PPI firmado manualmente
+  uploadManualSignedPPI, // 🆕 NUEVO: Subir PPI firmado manualmente
+  updatePPIAddress // 🆕 NUEVO: Actualizar solo dirección del PPI y regenerar
 };

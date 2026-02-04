@@ -31,6 +31,7 @@ const EditPermitFieldsModal = ({ permitId, onClose, onSuccess }) => {
     city: '',
     state: 'FL',
     zipCode: '',
+    ppiStreetAddress: '',
     subdivision: '',
     unit: '',
     section: '',
@@ -108,6 +109,7 @@ const EditPermitFieldsModal = ({ permitId, onClose, onSuccess }) => {
         city: permit.city || '',
         state: permit.state || 'FL',
         zipCode: permit.zipCode || '',
+        ppiStreetAddress: permit.ppiStreetAddress || '',
         subdivision: permit.subdivision || '',
         unit: permit.unit || '',
         section: permit.section || '',
@@ -815,6 +817,25 @@ const EditPermitFieldsModal = ({ permitId, onClose, onSuccess }) => {
           {/* 🆕 Sección PPI Part 2 - Property Information */}
           <section>
             <h3 className="text-lg font-semibold mb-4 text-gray-700">🏠 PPI Part 2 - Property Information</h3>
+            
+            {/* Street Address para PPI */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Street Address (PPI)
+                <span className="text-xs text-gray-500 ml-2">
+                  (Se auto-parsea de Property Address, edita si es necesario)
+                </span>
+              </label>
+              <input
+                type="text"
+                name="ppiStreetAddress"
+                value={formData.ppiStreetAddress}
+                onChange={handleInputChange}
+                placeholder="Ej: 2607 49th St"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">City</label>

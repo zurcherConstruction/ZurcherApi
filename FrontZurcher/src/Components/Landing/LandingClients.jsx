@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { FaWhatsapp, FaEnvelope, FaPhone, FaMapMarkerAlt, FaClock, FaUser } from "react-icons/fa";
+import SEOHelmet from '../SEO/SEOHelmet';
+import InstallationProcess from './InstallationProcess';
 import logo from '/logo.png';
 import compromisoImg from '../../assets/landing/6.jpeg';
 import dedicacionImg from '../../assets/landing/4.jpeg';
@@ -54,6 +56,14 @@ const LandingClients = () => {
 
   return (
    <>
+    {/* SEO Meta Tags dinámicos */}
+    <SEOHelmet 
+      title="Septic Tank Installation Florida | ATU Aerobic Systems"
+      description="Professional septic system installation in Southwest Florida. ATU aerobic systems, drain field replacement, FHA inspections, new construction septic. Serving Lehigh Acres, Fort Myers, Cape Coral, Port Charlotte, North Port, Sarasota. Licensed & insured septic contractors."
+      keywords="septic tank installation, ATU septic system, aerobic septic system, septic installation Florida, septic installers Lehigh Acres, septic system Fort Myers, drain field installation, FHA septic inspection, new construction septic, septic system replacement, instalación tanque séptico"
+      canonicalUrl="https://zurcherseptic.com"
+    />
+    
     {/* HEADER */}
     <header className="bg-gradient-to-r from-slate-800 to-slate-700 px-4 py-4 flex items-center justify-between shadow-xl">
       <div className="flex items-center gap-3">
@@ -299,7 +309,7 @@ const LandingClients = () => {
         </p>
       </div>
     </div>
-
+{/* <InstallationProcess /> */}
     {/* SERVICES SECTION */}
     <div className="py-20 px-4">
       <div className="max-w-6xl mx-auto">
@@ -499,6 +509,7 @@ const LandingClients = () => {
                 <img
                   src={img}
                   alt={alt}
+                  loading="lazy"
                   className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-70"></div>
@@ -514,6 +525,9 @@ const LandingClients = () => {
         </div>
       </div>
     </div>
+
+    {/* INSTALLATION PROCESS SECTION - NEW video interactivo */}
+    {/* <InstallationProcess /> */}
 
     {/* CONTACT SECTION */}
     <div className="bg-slate-800 py-20 px-4">
@@ -975,7 +989,7 @@ const LandingClients = () => {
           {/* Company Info */}
           <div className="md:col-span-2 flex flex-col justify-between">
             <div className="flex items-center gap-3 mb-4">
-              <img src={logo} alt="Zurcher Septic Systems" className="h-12 w-12 rounded-lg bg-white p-1" />
+              <img src={logo} alt="Zurcher Septic Systems" loading="lazy" className="h-12 w-12 rounded-lg bg-white p-1" />
               <div>
                 <h3 className="text-xl font-bold">ZURCHER SEPTIC</h3>
                 <p className="text-slate-400 text-sm">Professional Septic Solutions</p>

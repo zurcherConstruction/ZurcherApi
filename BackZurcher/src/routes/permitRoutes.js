@@ -178,6 +178,14 @@ router.put(
   PermitController.replaceOptionalDocs
 );
 
+// 🆕 Actualizar solo dirección del PPI y regenerar documento
+router.put(
+  '/:idPermit/ppi-address',
+  verifyToken,
+  allowRoles(['admin', 'recept', 'owner']),
+  PermitController.updatePPIAddress
+);
+
 // Eliminar un permiso (permitido solo para admin)
 // router.delete('/:idPermit', verifyToken, allowRoles(['admin']), PermitController.deletePermit);
 
