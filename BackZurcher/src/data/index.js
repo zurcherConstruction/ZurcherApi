@@ -30,7 +30,8 @@ const sequelize = (DB_DEPLOY && DB_DEPLOY.startsWith('postgresql://'))
       },
       isolationLevel: 'READ COMMITTED', // 🆕 Evitar locks largos
       dialectOptions: {
-        ssl: NODE_ENV === 'production' ? { require: true, rejectUnauthorized: false } : false
+        ssl: NODE_ENV === 'production' ? { require: true, rejectUnauthorized: false } : false,
+        statement_timeout: 60000  // ⏰ 60 segundos para queries pesadas (uploads, múltiples expenses)
       }
     })
   : new Sequelize(

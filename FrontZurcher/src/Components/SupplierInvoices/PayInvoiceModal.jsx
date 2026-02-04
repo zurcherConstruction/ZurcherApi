@@ -202,8 +202,11 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
 
       const total = getDistributionTotal();
       const invoiceTotal = parseFloat(invoice.totalAmount);
-      if (Math.abs(total - invoiceTotal) > 0.01) {
-        alert(`El total distribuido ($${total.toFixed(2)}) debe coincidir con el total del invoice ($${invoiceTotal.toFixed(2)})`);
+      const alreadyPaid = parseFloat(invoice.paidAmount) || 0;
+      const remainingAmount = invoiceTotal - alreadyPaid; // 🔧 Monto pendiente
+      
+      if (Math.abs(total - remainingAmount) > 0.01) {
+        alert(`El total distribuido ($${total.toFixed(2)}) debe coincidir con el monto pendiente ($${remainingAmount.toFixed(2)})`);
         return false;
       }
 
@@ -641,22 +644,35 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
                           <span className="text-gray-600">Total del Invoice:</span>
                           <span className="font-semibold text-gray-800">{formatCurrency(invoice.totalAmount)}</span>
                         </div>
-                        {Math.abs(getDistributionTotal() - parseFloat(invoice.totalAmount)) >= 0.01 && (
+                        {parseFloat(invoice.paidAmount || 0) > 0 && (
+                          <div className="flex justify-between items-center text-sm text-blue-600">
+                            <span>Ya Pagado:</span>
+                            <span className="font-semibold">-{formatCurrency(invoice.paidAmount)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center text-sm border-t pt-2">
+                          <span className="text-gray-700 font-medium">Monto Pendiente:</span>
+                          <span className="font-bold text-gray-900">
+                            {formatCurrency(parseFloat(invoice.totalAmount) - parseFloat(invoice.paidAmount || 0))}
+                          </span>
+                        </div>
+                        {Math.abs(getDistributionTotal() - (parseFloat(invoice.totalAmount) - parseFloat(invoice.paidAmount || 0))) >= 0.01 && (
                           <div className="flex justify-between items-center mt-2 text-sm">
                             <span className="text-red-600 font-medium">Diferencia:</span>
                             <span className="font-semibold text-red-600">
-                              {formatCurrency(Math.abs(getDistributionTotal() - parseFloat(invoice.totalAmount)))}
+                              {formatCurrency(Math.abs(getDistributionTotal() - (parseFloat(invoice.totalAmount) - parseFloat(invoice.paidAmount || 0))))}
                             </span>
                           </div>
                         )}
                       </div>
 
                       {/* Advertencia si no coincide */}
-                      {Math.abs(getDistributionTotal() - parseFloat(invoice.totalAmount)) >= 0.01 && (
+                      {Math.abs(getDistributionTotal() - (parseFloat(invoice.totalAmount) - parseFloat(invoice.paidAmount || 0))) >= 0.01 && (
                         <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start space-x-2">
                           <span className="text-red-600 text-lg">⚠️</span>
                           <p className="text-sm text-red-700">
-                            La suma de los montos debe ser igual al total del invoice (${invoice.totalAmount})
+                            La suma de los montos debe ser igual al monto pendiente ($
+                            {(parseFloat(invoice.totalAmount) - parseFloat(invoice.paidAmount || 0)).toFixed(2)})
                           </p>
                         </div>
                       )}

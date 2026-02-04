@@ -455,10 +455,14 @@ const deleteExpense = async (req, res) => {
       try {
         const { SupplierInvoice } = require('../data');
         
-        const invoice = await SupplierInvoice.findByPk(expense.supplierInvoiceItemId, { transaction });
+        // Buscar invoice usando la columna correcta idSupplierInvoice
+        const invoice = await SupplierInvoice.findOne({
+          where: { idSupplierInvoice: expense.supplierInvoiceItemId },
+          transaction
+        });
         
         if (invoice) {
-          const expenseAmount = parseFloat(expense.totalAmount);
+          const expenseAmount = parseFloat(expense.amount);  // 🔧 Corregido: amount en vez de totalAmount
           const currentPaid = parseFloat(invoice.paidAmount) || 0;
           const newPaidAmount = Math.max(0, currentPaid - expenseAmount);
           const totalInvoice = parseFloat(invoice.totalAmount);
@@ -480,13 +484,13 @@ const deleteExpense = async (req, res) => {
           
           revertedInvoicePayment = {
             invoiceId: invoice.idSupplierInvoice,
-            vendorName: invoice.vendorName,
+            vendorName: invoice.vendor,  // 🔧 Corregido: vendor en vez de vendorName
             previousPaid: currentPaid,
             newPaid: newPaidAmount,
             newStatus: newPaymentStatus
           };
           
-          console.log(`✅ [INVOICE] Pago revertido: ${invoice.vendorName} - $${currentPaid} → $${newPaidAmount} (${newPaymentStatus})`);
+          console.log(`✅ [INVOICE] Pago revertido: ${invoice.vendor} - $${currentPaid} → $${newPaidAmount} (${newPaymentStatus})`);
         }
       } catch (invoiceError) {
         console.error('❌ [INVOICE] Error revirtiendo pago de invoice:', invoiceError.message);
@@ -510,7 +514,18 @@ const deleteExpense = async (req, res) => {
       revertedInvoicePayment: revertedInvoicePayment
     });
   } catch (error) {
-    await transaction.rollback();
+    // 🔧 Verificar estado de transacción antes de rollback (evitar crash por timeout)
+    if (transaction && !transaction.finished) {
+      try {
+        await transaction.rollback();
+      } catch (rollbackError) {
+        console.error('⚠️ [DeleteExpense] Error en rollback:', rollbackError.message);
+      }
+    } else {
+      console.warn('⚠️ [DeleteExpense] Transacción ya finalizada, no se puede hacer rollback');
+    }
+    
+    console.error('❌ [DeleteExpense] Error:', error);
     res.status(500).json({ message: 'Error al eliminar el gasto', error: error.message });
   }
 };

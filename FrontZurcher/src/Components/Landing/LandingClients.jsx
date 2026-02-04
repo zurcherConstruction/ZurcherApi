@@ -309,7 +309,7 @@ const LandingClients = () => {
         </p>
       </div>
     </div>
-{/* <InstallationProcess /> */}
+<InstallationProcess />
     {/* SERVICES SECTION */}
     <div className="py-20 px-4">
       <div className="max-w-6xl mx-auto">
