@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FaWhatsapp, FaEnvelope, FaPhone, FaMapMarkerAlt, FaClock, FaUser } from "react-icons/fa";
 import SEOHelmet from '../SEO/SEOHelmet';
+import InstallationProcess from './InstallationProcess';
 import logo from '/logo.png';
 import compromisoImg from '../../assets/landing/6.jpeg';
 import dedicacionImg from '../../assets/landing/4.jpeg';
@@ -308,7 +309,7 @@ const LandingClients = () => {
         </p>
       </div>
     </div>
-
+{/* <InstallationProcess /> */}
     {/* SERVICES SECTION */}
     <div className="py-20 px-4">
       <div className="max-w-6xl mx-auto">
@@ -524,6 +525,9 @@ const LandingClients = () => {
         </div>
       </div>
     </div>
+
+    {/* INSTALLATION PROCESS SECTION - NEW video interactivo */}
+    {/* <InstallationProcess /> */}
 
     {/* CONTACT SECTION */}
     <div className="bg-slate-800 py-20 px-4">
