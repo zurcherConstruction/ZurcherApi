@@ -83,9 +83,9 @@ class ServicePPI {
   /**
    * 🆕 FUNCIÓN AUXILIAR: Separar dirección completa en componentes
    * Convierte "2607 49th St Lehigh Acres, FL 33971" en partes separadas
-   * @private
+   * @static - Puede ser llamada sin instancia
    */
-  _parseAddress(fullAddress) {
+  static _parseAddress(fullAddress) {
     if (!fullAddress) {
       return {
         streetAddress: '',
@@ -188,18 +188,18 @@ class ServicePPI {
     console.log('permitData.ppiAuthorizationType:', permitData.ppiAuthorizationType);
     console.log('=== FIN DATOS RECIBIDOS ===\n');
     
-    // 🆕 Si city, state o zipCode NO están en el permit, parsear desde propertyAddress
+    // 🆕 PRIORIDAD: Usar campos editados manualmente (ppiStreetAddress) si existen
     let addressParts = {
-      streetAddress: permitData.propertyAddress || '',
+      streetAddress: permitData.ppiStreetAddress || permitData.propertyAddress || '',
       city: permitData.city || '',
       state: permitData.state || 'FL',
       zipCode: permitData.zipCode || ''
     };
     
-    // Si faltan datos, intentar parsear desde propertyAddress
-    if (!permitData.city || !permitData.zipCode) {
-      console.log('⚠️  City o ZipCode faltantes, parseando desde propertyAddress...');
-      const parsed = this._parseAddress(permitData.propertyAddress);
+    // Si NO hay ppiStreetAddress Y faltan city/zipCode, parsear desde propertyAddress
+    if (!permitData.ppiStreetAddress && (!permitData.city || !permitData.zipCode)) {
+      console.log('⚠️  City o ZipCode faltantes y sin edición manual, parseando desde propertyAddress...');
+      const parsed = ServicePPI._parseAddress(permitData.propertyAddress);
       
       // Solo usar los datos parseados si no existen en permitData
       addressParts = {
@@ -208,7 +208,22 @@ class ServicePPI {
         state: permitData.state || parsed.state || 'FL',
         zipCode: permitData.zipCode || parsed.zipCode
       };
+    } else if (permitData.ppiStreetAddress) {
+      console.log('✅ Usando dirección editada manualmente para PPI');
     }
+    
+    // 🔍 DEBUG: Ver qué valores se usarán en el PPI
+    console.log('\n📍 === DATOS DE DIRECCIÓN PARA PPI ===');
+    console.log('  🏠 Property Address (completa):', permitData.propertyAddress);
+    console.log('  📍 ppiStreetAddress (campo editable):', permitData.ppiStreetAddress);
+    console.log('  🏙️ City:', permitData.city);
+    console.log('  🗺️ State:', permitData.state);
+    console.log('  📮 ZipCode:', permitData.zipCode);
+    console.log('  ✅ addressParts.streetAddress (usado en PDF):', addressParts.streetAddress);
+    console.log('  ✅ addressParts.city (usado en PDF):', addressParts.city);
+    console.log('  ✅ addressParts.state (usado en PDF):', addressParts.state);
+    console.log('  ✅ addressParts.zipCode (usado en PDF):', addressParts.zipCode);
+    console.log('=== FIN DATOS DE DIRECCIÓN ===\n');
     
     // 🔍 DEBUG: Listar TODOS los campos del formulario
     console.log('\n🔍 === CAMPOS DISPONIBLES EN EL PDF ===');
@@ -394,4 +409,7 @@ class ServicePPI {
   }
 }
 
-module.exports = new ServicePPI();
+// Exportar tanto la instancia (default) como la clase (para métodos estáticos)
+const servicePPIInstance = new ServicePPI();
+servicePPIInstance.ServicePPI = ServicePPI; // Adjuntar la clase
+module.exports = servicePPIInstance;

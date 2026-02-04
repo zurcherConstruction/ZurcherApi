@@ -224,6 +224,11 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: 'Código postal'
     },
+    ppiStreetAddress: {
+      type: DataTypes.STRING(300),
+      allowNull: true,
+      comment: ' Dirección de calle para PPI (editable manualmente si parsing falla)'
+    },
     subdivision: {
       type: DataTypes.STRING(200),
       allowNull: true,
