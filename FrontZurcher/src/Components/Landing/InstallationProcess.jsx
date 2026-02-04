@@ -164,8 +164,8 @@ const InstallationProcess = () => {
         <div 
           className={`absolute inset-0 transition-all duration-1000 ${
             presentationPhase 
-              ? 'bg-black/75' 
-              : 'bg-gradient-to-b from-black/50 via-black/40 to-black/50'
+              ? 'bg-black/80' 
+              : 'bg-black/70'
           }`}
         ></div>
       </div>
