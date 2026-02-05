@@ -3,25 +3,28 @@ const { FixedExpense, Expense } = require('../data');
 const { Op } = require('sequelize');
 
 /**
- * 🔄 CRON JOB: Verificar FixedExpenses vencidos
+ * 🔄 CRON JOB: Auto-generar Expenses desde FixedExpenses vencidos
  * 
  * Este servicio verifica diariamente si hay gastos fijos (FixedExpenses) 
- * que han llegado a su fecha de vencimiento (nextDueDate) y actualiza su estado.
+ * que han llegado a su fecha de vencimiento (nextDueDate) y crea automáticamente
+ * un registro de Expense para cada uno.
  * 
- * ⚠️ IMPORTANTE: NO crea Expenses automáticamente.
- * Los Expenses solo se crean cuando el usuario registra el pago manualmente.
- * Esto evita duplicación de expenses.
+ * ✅ IMPORTANTE: SÍ crea Expenses automáticamente como deuda.
+ * Los Expenses se generan con estado 'unpaid' y se acumulan hasta que se paguen.
+ * Esto permite que los gastos recurrentes (salarios, rentas, etc.) se registren
+ * automáticamente cada período sin importar si el anterior se pagó.
  * 
  * Características:
  * - Se ejecuta todos los días a las 00:30 AM
  * - Solo procesa FixedExpenses con autoCreateExpense = true
  * - Solo procesa gastos activos (isActive = true)
- * - Marca como 'overdue' los gastos vencidos
+ * - Crea Expense con estado 'unpaid'
  * - Actualiza automáticamente el nextDueDate para el próximo período
+ * - NO modifica el paymentStatus del FixedExpense (siempre 'unpaid')
  * 
  * Flujo:
  * 1. Busca FixedExpenses vencidos (nextDueDate <= hoy)
- * 2. Actualiza su paymentStatus a 'overdue'
+ * 2. Crea un Expense con estado 'unpaid' para cada uno
  * 3. Calcula y actualiza el nextDueDate del FixedExpense
  * 4. Registra todo en consola para auditoría
  */
@@ -93,9 +96,7 @@ const checkAndGenerateFixedExpenses = async () => {
       where: {
         isActive: true,                        // Solo activos
         autoCreateExpense: true,                // Solo los que tienen auto-generación habilitada
-        paymentStatus: {
-          [Op.in]: ['unpaid', 'overdue']       // Sin pagar o ya vencidos
-        },
+        paymentStatus: 'unpaid',                // ✅ Solo gastos sin pagar
         nextDueDate: {
           [Op.lte]: today                       // Vencidos o que vencen hoy
         }
@@ -113,9 +114,6 @@ const checkAndGenerateFixedExpenses = async () => {
     // 🔄 Procesar cada FixedExpense vencido
     for (const fixedExpense of dueExpenses) {
       try {
-        // ⚠️ CAMBIO: Ya NO creamos Expense automáticamente
-        // Solo marcamos el FixedExpense como 'overdue'
-
         // 📅 Calcular la próxima fecha de vencimiento
         let newNextDueDate = null;
         
@@ -123,9 +121,9 @@ const checkAndGenerateFixedExpenses = async () => {
           newNextDueDate = calculateNextDueDate(fixedExpense.nextDueDate, fixedExpense.frequency);
         }
 
-        // ✅ Actualizar el FixedExpense: marcar como 'overdue' y calcular siguiente vencimiento
+        // ✅ Actualizar solo el nextDueDate para el siguiente período
+        // El paymentStatus se mantiene como 'unpaid' hasta que se pague manualmente
         await fixedExpense.update({ 
-          paymentStatus: 'overdue',
           nextDueDate: newNextDueDate
         });
         successCount++;
