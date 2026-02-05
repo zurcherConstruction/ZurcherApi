@@ -82,12 +82,101 @@ const submitContactRequest = catchedAsync(async (req, res) => {
     await ContactFile.create({ ...file, contactRequestId: contactRequest.id });
   }
 
-  // Enviar email
+  // Detectar si es solicitud de presupuesto (por el formato del mensaje)
+  const isQuoteRequest = message && message.includes('📅 SOLICITUD DE PRESUPUESTO');
+  
+  // Asunto llamativo según el tipo
+  const subject = isQuoteRequest
+    ? `🔔 NUEVA SOLICITUD DE PRESUPUESTO - ${name}`
+    : `📧 NUEVO CONTACTO WEB - ${name}`;
+
+  // Enviar email a la empresa
   await sendEmail({
     to: process.env.CONTACT_FORM_EMAIL || process.env.SMTP_USER,
-    subject: 'New Contact Request from Website',
+    subject: subject,
     text: `Name: ${name}\nEmail: ${email}\nPhone: ${phone || ''}\nMessage: ${message || ''}`,
     attachments: attachmentsForEmail,
+  });
+
+  // Enviar email de confirmación al cliente
+  const clientEmailHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(to right, #1e40af, #06b6d4); padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+        .logo { max-width: 80px; height: auto; background: white; padding: 10px; border-radius: 10px; }
+        .content { background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; }
+        .footer { background: #f9fafb; padding: 20px; text-align: center; border-radius: 0 0 10px 10px; font-size: 14px; color: #6b7280; }
+        .button { display: inline-block; padding: 12px 30px; background: linear-gradient(to right, #1e40af, #06b6d4); color: white; text-decoration: none; border-radius: 25px; margin: 20px 0; font-weight: bold; }
+        .info-box { background: #eff6ff; border-left: 4px solid #1e40af; padding: 15px; margin: 20px 0; }
+        h1 { color: white; margin: 0; font-size: 24px; }
+        h2 { color: #1e40af; font-size: 20px; }
+        .contact-info { margin: 20px 0; }
+        .contact-item { margin: 10px 0; }
+        .icon { color: #1e40af; margin-right: 8px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <img src="https://res.cloudinary.com/dt4ah1jmy/image/upload/v1770244237/logo_v2cxn3.png" alt="Zurcher Septic Logo" class="logo" />
+          <h1>Thank You for Contacting Us!</h1>
+        </div>
+        
+        <div class="content">
+          <h2>Hi ${name},</h2>
+          
+          <p>We've received your ${isQuoteRequest ? 'quote request' : 'message'} and we're excited to help you!</p>
+          
+          <div class="info-box">
+            <strong>What happens next?</strong><br>
+            Our team will review your request and get back to you within 24 hours. We're committed to providing you with the best septic system solutions in Southwest Florida.
+          </div>
+          
+          <p>If you need immediate assistance, feel free to reach out to us directly:</p>
+          
+          <div class="contact-info">
+            <div class="contact-item">
+              <span class="icon">📞</span> <strong>Phone:</strong> <a href="tel:+19546368200" style="color: #1e40af;">+1 (954) 636-8200</a>
+            </div>
+            <div class="contact-item">
+              <span class="icon">📧</span> <strong>Email:</strong> <a href="mailto:admin@zurcherseptic.com" style="color: #1e40af;">admin@zurcherseptic.com</a>
+            </div>
+
+          </div>
+          
+          <center>
+            <a href="https://zurcherseptic.com" class="button">Visit Our Website</a>
+          </center>
+          
+          <p style="margin-top: 30px;">We appreciate your interest in Zurcher Septic Systems!</p>
+          
+          <p style="color: #6b7280; font-size: 14px; margin-top: 20px;">
+            <em>This is an automated confirmation. Please do not reply to this email.</em>
+          </p>
+        </div>
+        
+        <div class="footer">
+          <p><strong>Zurcher Septic Systems</strong></p>
+          <p>Professional Septic Solutions | Serving Southwest & South-Central Florida</p>
+          <p style="font-size: 12px; color: #9ca3af;">
+            © ${new Date().getFullYear()} Zurcher Septic. All rights reserved.
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  await sendEmail({
+    to: email,
+    subject: isQuoteRequest 
+      ? 'Quote Request Received - Zurcher Septic' 
+      : 'Message Received - Zurcher Septic',
+    html: clientEmailHTML,
   });
 
   res.status(201).json({ error: false, message: 'Contact request sent successfully' });

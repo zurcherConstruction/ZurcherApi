@@ -1573,13 +1573,19 @@ const paySupplierInvoice = async (req, res) => {
           });
         }
 
-        // Validar distribución
+        // Validar distribución contra monto pendiente
+        const alreadyPaid = parseFloat(invoice.paidAmount) || 0;
+        const invoiceTotal = parseFloat(invoice.totalAmount);
+        const remainingAmount = invoiceTotal - alreadyPaid; // 🔧 Monto pendiente
         const totalDistributed = distribution.reduce((sum, d) => sum + parseFloat(d.amount), 0);
-        if (Math.abs(totalDistributed - parseFloat(invoice.totalAmount)) > 0.01) {
+        
+        if (Math.abs(totalDistributed - remainingAmount) > 0.01) {
           await transaction.rollback();
           return res.status(400).json({
-            error: 'El total distribuido no coincide con el total del invoice',
-            invoiceTotal: parseFloat(invoice.totalAmount),
+            error: 'El total distribuido no coincide con el monto pendiente del invoice',
+            invoiceTotal: invoiceTotal,
+            alreadyPaid: alreadyPaid,
+            remainingAmount: remainingAmount,
             distributed: totalDistributed
           });
         }
@@ -1851,8 +1857,28 @@ const paySupplierInvoice = async (req, res) => {
     });
 
   } catch (error) {
-    await transaction.rollback();
+    // 🔧 Verificar estado de transacción antes de rollback (evitar crash por timeout)
+    if (transaction && !transaction.finished) {
+      try {
+        await transaction.rollback();
+      } catch (rollbackError) {
+        console.error('⚠️ [PayInvoice] Error en rollback:', rollbackError.message);
+      }
+    } else {
+      console.warn('⚠️ [PayInvoice] Transacción ya finalizada, no se puede hacer rollback');
+    }
+    
     console.error('❌ [PayInvoice] Error:', error);
+    
+    // Si el error es por timeout pero la transacción se completó, informar al usuario
+    if (error.message?.includes('timeout') && transaction?.finished === 'commit') {
+      return res.status(200).json({
+        success: true,
+        message: 'Pago procesado exitosamente (timeout en respuesta pero transacción completada)',
+        warning: 'La operación se completó correctamente a pesar del timeout'
+      });
+    }
+    
     res.status(500).json({
       error: true,
       message: 'Error al procesar el pago del invoice',

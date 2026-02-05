@@ -32,12 +32,14 @@ const sequelize = (DB_DEPLOY && DB_DEPLOY.startsWith('postgresql://'))
       isolationLevel: 'READ COMMITTED', // 🆕 Evitar locks largos
       dialectOptions: {
         ssl: NODE_ENV === 'production' ? { require: true, rejectUnauthorized: false } : false,
+
         // ⚡ Optimizaciones para Railway V1 con proxy público
         keepAlive: true,              // Mantener conexiones TCP vivas
         keepAliveInitialDelayMillis: 10000, // Enviar keepalive cada 10s
-        statement_timeout: 30000,     // Timeout de 30s por query
-        query_timeout: 30000,
+        statement_timeout: 60000,     // Timeout de 60s por query
+        query_timeout: 60000,
         connectionTimeoutMillis: 10000, // Timeout de conexión 10s (más rápido)
+
       }
     })
   : new Sequelize(
