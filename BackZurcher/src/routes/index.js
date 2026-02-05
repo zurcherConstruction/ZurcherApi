@@ -38,6 +38,7 @@ const adobeRoutes = require('./adobeRoutes'); // Asegúrate de que la ruta sea c
 
 const signNowRoutes = require('./signNowRoutes'); // Asegúrate de que la ruta sea correcta
 const contactRoutes = require('./contactRoutes'); // Asegúrate de que la ruta sea correcta
+const galleryRoutes = require('./galleryRoutes'); // 🆕 Rutas para galería de Cloudinary
 const importRoutes = require('./importRoutes'); // Rutas para importar trabajos legacy
 const budgetPublicRoutes = require('./BudgetPublicRoutes');
 const ppiPublicRoutes = require('./ppiPublicRoutes'); // 🆕 Rutas públicas para firma de PPI
@@ -57,6 +58,7 @@ router.use('/change-orders',changeOrdersRoutes); // Ruta para change orders (inc
 router.use('/stripe', stripeWebhookRoutes); // 🆕 Webhooks de Stripe (público, sin auth)
 router.use('/signnow', signNowRoutes);
 router.use('/contact', contactRoutes); // Ruta pública para formulario de contacto
+router.use('/gallery', galleryRoutes); // 🆕 Galería de trabajos (público)
 router.use('/docusign', docusignRoutes); // 🆕 OAuth de DocuSign (público, sin auth)
 
 // 🆕 RUTAS PÚBLICAS DE BUDGETS (antes del verifyToken)

@@ -3,6 +3,8 @@ import { FaWhatsapp, FaEnvelope, FaPhone, FaMapMarkerAlt, FaClock, FaUser, FaCal
 import SEOHelmet from '../SEO/SEOHelmet';
 import InstallationProcess from './InstallationProcess';
 import ScheduleQuoteModal from './ScheduleQuoteModal';
+//import WorkGallery from './WorkGallery';
+//import AboutTeam from './AboutTeam';
 import logo from '/logo.png';
 import compromisoImg from '../../assets/landing/6.jpeg';
 import dedicacionImg from '../../assets/landing/4.jpeg';
@@ -193,7 +195,7 @@ const LandingClients = () => {
     {/* HERO SECTION */}
     <div className="flex flex-col lg:flex-row items-stretch min-h-[70vh] bg-gradient-to-r from-slate-800 to-slate-700 shadow-2xl overflow-hidden">
       {/* Hero Images - 3 del mismo tamaño */}
-      <div className="flex-1 min-h-[400px] relative">
+      <div className="flex-1 min-h-[400px] relative animate-fade-in-left">
         <div className="absolute inset-0 bg-gradient-to-r from-slate-800 to-slate-700"></div>
         {/*
           - xl:grid-cols-3: 3 images for large desktops (side by side)
@@ -208,40 +210,40 @@ const LandingClients = () => {
         {/* Tablet (iPad Pro): 2 images stacked vertically */}
         <div className="hidden md:flex xl:hidden flex-col gap-2 p-4 h-full">
         
-          <div className="relative overflow-hidden rounded-lg flex-1 min-h-[180px]">
+          <div className="relative overflow-hidden rounded-lg flex-1 min-h-[180px] group">
             <img
               src={img2}
               alt="Professional septic tank installation crew working in Lehigh Acres Florida"
-              className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
+              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
             />
-            <div className="absolute inset-0 bg-black opacity-25"></div>
+            <div className="absolute inset-0 bg-black opacity-25 group-hover:opacity-10 transition-opacity duration-700"></div>
           </div>
         </div>
         {/* Desktop: 3 images side by side */}
         <div className="hidden xl:grid grid-cols-3 gap-3 p-4 h-full">
-          <div className="relative overflow-hidden rounded-lg">
+          <div className="relative overflow-hidden rounded-lg group">
             <img
               src={img1}
               alt="ATU aerobic septic system installation Fort Myers"
-              className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
+              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
             />
-            <div className="absolute inset-0 bg-black opacity-25"></div>
+            <div className="absolute inset-0 bg-black opacity-25 group-hover:opacity-10 transition-opacity duration-700"></div>
           </div>
-          <div className="relative overflow-hidden rounded-lg">
+          <div className="relative overflow-hidden rounded-lg group">
             <img
               src={img2}
               alt="Drain field installation and replacement Cape Coral Florida"
-              className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
+              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
             />
-            <div className="absolute inset-0 bg-black opacity-25"></div>
+            <div className="absolute inset-0 bg-black opacity-25 group-hover:opacity-10 transition-opacity duration-700"></div>
           </div>
-          <div className="relative overflow-hidden rounded-lg">
+          <div className="relative overflow-hidden rounded-lg group">
             <img
               src={img3}
               alt="FHA septic inspection certified contractor Southwest Florida"
-              className="w-full h-full object-cover hover:scale-110 transition-transform duration-500"
+              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
             />
-            <div className="absolute inset-0 bg-black opacity-25"></div>
+            <div className="absolute inset-0 bg-black opacity-25 group-hover:opacity-10 transition-opacity duration-700"></div>
           </div>
         </div>
         <div className="block md:hidden h-full w-full">
@@ -249,26 +251,28 @@ const LandingClients = () => {
         </div>
 </div>
 {/* Hero Content */}
-<div className="flex-1 flex flex-col justify-center px-8 lg:px-12 py-16 text-center lg:text-left">
-  <h1 className="text-4xl lg:text-5xl xl:text-6xl font-bold text-white mb-6 leading-tight">
+<div className="flex-1 flex flex-col justify-center px-8 lg:px-12 py-16 text-center lg:text-left animate-fade-in-right">
+  <h1 className="text-4xl lg:text-5xl xl:text-6xl font-bold text-white mb-6 leading-tight animate-slide-up" style={{animationDelay: '0.2s'}}>
           Professional Septic Tank Installation & ATU Aerobic Systems in <span className="text-blue-400">Southwest Florida</span>
         </h1>
-        <p className="text-lg lg:text-xl text-slate-300 mb-4 leading-relaxed">
+        <p className="text-lg lg:text-xl text-slate-300 mb-4 leading-relaxed animate-slide-up" style={{animationDelay: '0.4s'}}>
           Licensed septic system installation serving Lehigh Acres, Fort Myers, Cape Coral, Port Charlotte, North Port, Sarasota, and Poinciana. We specialize in ATU aerobic septic systems, drain field installation, FHA inspections, and new construction septic services.
         </p>
-        <p className="text-base lg:text-lg text-slate-300 mb-8 leading-relaxed">
+        <p className="text-base lg:text-lg text-slate-300 mb-8 leading-relaxed animate-slide-up" style={{animationDelay: '0.6s'}}>
           At Zurcher Septic, we handle everything from start to finish: fieldwork, permit processing, Health Department coordination, and certified inspections. Your complete septic solution with transparency and personalized attention.
         </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-2">
+        <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-2 animate-slide-up" style={{animationDelay: '0.8s'}}>
           {/* Dropdown Request a Free Quote */}
           <div className="relative quote-dropdown-parent pb-3">
             <button
               type="button"
-              className="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-lg transition-all duration-300 shadow-lg transform hover:scale-105 flex items-center gap-2"
+              className="relative px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold text-lg transition-all duration-300 shadow-lg transform hover:scale-105 flex items-center gap-2"
               onClick={() => setShowQuoteDropdown((prev) => !prev)}
             >
-              Request a Free Quote
-              <svg className="w-5 h-5 ml-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+              {/* Glow pulsante permanente */}
+              <div className="absolute -inset-1 bg-gradient-to-r from-blue-400 to-cyan-400 rounded-lg blur opacity-40 animate-pulse"></div>
+              <span className="relative">Request a Free Quote</span>
+              <svg className="w-5 h-5 ml-1 relative" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
             </button>
             {showQuoteDropdown && (
               <div className="absolute left-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50 animate-fade-in">
@@ -978,6 +982,12 @@ const LandingClients = () => {
         </div>
       </div>
     </div> */}
+
+    {/* ABOUT TEAM SECTION */}
+    {/* <AboutTeam /> */}
+
+    {/* WORK GALLERY SECTION */}
+    {/* <WorkGallery /> */}
 
     {/* MAPA Y FORMULARIO DE CONTACTO */}
     <div className="w-full py-8 px-0 border-t-2 border-slate-600">
