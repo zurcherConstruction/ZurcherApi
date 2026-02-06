@@ -101,6 +101,15 @@ app.use(morgan('dev'));
 app.use(passport.initialize());
 
 
+// ==== RUTA RAÍZ PARA HEALTH CHECKS (antes de CORS) ====
+app.get('/', (req, res) => {
+  res.status(200).json({ 
+    status: 'ok', 
+    message: 'Zurcher Septic API',
+    timestamp: new Date().toISOString() 
+  });
+});
+
 // Session
 
 // ==== CORS CONFIGURACIÓN ====

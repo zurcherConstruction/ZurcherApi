@@ -43,3 +43,28 @@ function startServer() {
   });
 }
 
+// 🛑 Manejo graceful de señales de terminación
+const gracefulShutdown = (signal) => {
+  console.log(`\n⚠️ Señal ${signal} recibida, cerrando servidor...`);
+  
+  server.close(() => {
+    console.log('✅ Servidor HTTP cerrado');
+    
+    conn.close().then(() => {
+      console.log('✅ Conexión a base de datos cerrada');
+      process.exit(0);
+    }).catch((err) => {
+      console.error('❌ Error al cerrar BD:', err);
+      process.exit(1);
+    });
+  });
+
+  // Forzar cierre después de 10 segundos si no termina
+  setTimeout(() => {
+    console.error('⏱️ Forzando cierre por timeout');
+    process.exit(1);
+  }, 10000);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
