@@ -154,14 +154,14 @@ ${fileList.length > 0 ? `\n📎 Archivos adjuntos: ${fileList.length}` : ''}
         ></div>
 
         {/* Header */}
-        <div className="relative bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-6 py-4">
+        <div className="relative bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-4 md:px-6 py-4">
           <button
             onClick={onClose}
-            className="absolute top-3 right-3 text-white/80 hover:text-white transition-colors"
+            className="absolute top-3 right-2 md:right-3 text-white/80 hover:text-white transition-colors z-10"
           >
-            <FaTimes className="text-xl" />
+            <FaTimes className="text-lg md:text-xl" />
           </button>
-          <h2 className="text-2xl font-bold mb-4">Schedule Your Free Quote</h2>
+          <h2 className="text-lg md:text-2xl font-bold mb-4 pr-8 md:pr-0">Schedule Your Free Quote</h2>
           
           {/* Progress Steps */}
           <div className="flex items-center justify-between">

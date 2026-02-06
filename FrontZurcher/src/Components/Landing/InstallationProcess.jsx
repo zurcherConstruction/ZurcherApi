@@ -179,10 +179,10 @@ const InstallationProcess = () => {
               className="animate-slide-up mb-6"
               key={`title-${currentStep}`}
             >
-              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 text-white text-3xl font-bold mb-6 shadow-2xl shadow-blue-500/50">
+              <div className="inline-flex items-center justify-center w-12 h-12 md:w-20 md:h-20 rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 text-white text-xl md:text-3xl font-bold mb-4 md:mb-6 shadow-2xl shadow-blue-500/50">
                 {steps[currentStep].number}
               </div>
-              <h3 className="text-3xl md:text-5xl font-bold text-slate-300 drop-shadow-2xl">
+              <h3 className="text-2xl md:text-5xl font-bold text-slate-300 drop-shadow-2xl">
                 {steps[currentStep].title}
               </h3>
               {steps[currentStep].subtitle && (
@@ -264,9 +264,9 @@ const InstallationProcess = () => {
                   }`}
                 >
                   {/* Título siempre visible */}
-                  <div className="flex items-center p-4 md:p-5">
+                  <div className="flex items-center p-3 md:p-5">
                     <div 
-                      className={`flex items-center justify-center w-12 h-12 md:w-14 md:h-14 rounded-full font-bold text-lg md:text-xl transition-all duration-300 flex-shrink-0 ${
+                      className={`flex items-center justify-center w-8 h-8 md:w-12 md:h-12 rounded-full font-bold text-sm md:text-lg transition-all duration-300 flex-shrink-0 ${
                         hoveredStep === index
                           ? 'bg-gradient-to-br from-blue-500 to-cyan-400 text-white shadow-lg shadow-blue-500/50'
                           : 'bg-white/20 text-white/80'
@@ -274,8 +274,8 @@ const InstallationProcess = () => {
                     >
                       {step.number}
                     </div>
-                    <div className="ml-4 md:ml-6">
-                      <h3 className="text-xl md:text-2xl font-bold text-slate-300 drop-shadow-lg">
+                    <div className="ml-2 md:ml-6">
+                      <h3 className="text-lg md:text-2xl font-bold text-slate-300 drop-shadow-lg">
                         {step.title}
                       </h3>
                     </div>

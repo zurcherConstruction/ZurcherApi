@@ -132,7 +132,7 @@ const LandingClients = () => {
           </div>
         </div>
         <div className="block md:hidden h-full w-full">
-          <HeroImageSliceCarouselMobile />
+          <HeroVideoMobile />
         </div>
 </div>
 {/* Hero Content */}
@@ -988,6 +988,101 @@ const LandingClients = () => {
   </>
 );
 };
+
+// 🎬 Hero Video Component for Mobile (replaces carousel)
+function HeroVideoMobile() {
+  const videoRef = React.useRef(null);
+  
+  const mobileVideo = {
+    url: 'https://res.cloudinary.com/dt4ah1jmy/video/upload/v1770173307/0203_1_zthwlg.mp4',
+    poster: 'https://res.cloudinary.com/dt4ah1jmy/image/upload/v1770149965/tank_kyplf8_poster.jpg'
+  };
+
+  React.useEffect(() => {
+    if (videoRef.current) {
+      const playVideo = async () => {
+        try {
+          videoRef.current.load();
+          await videoRef.current.play();
+        } catch (err) {
+          // Silently handle - video will autoplay on user interaction
+        }
+      };
+      playVideo();
+    }
+  }, []);
+
+  const scrollToServices = () => {
+    // Scroll al siguiente elemento después del hero
+    const heroSection = document.getElementById('home');
+    if (heroSection) {
+      const nextSection = heroSection.nextElementSibling;
+      if (nextSection) {
+        nextSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  };
+
+  return (
+    <div className="relative w-full h-[150vw] max-h-[600px] min-h-[320px] overflow-hidden">
+      {/* Video Background */}
+      <video
+        ref={videoRef}
+        className="absolute inset-0 w-full h-full object-cover"
+        autoPlay
+        loop
+        muted
+        playsInline
+        preload="auto"
+        poster={mobileVideo.poster}
+        src={mobileVideo.url}
+        onEnded={(e) => {
+          e.target.currentTime = 0;
+          e.target.play();
+        }}
+      />
+      
+      {/* Dark Overlay */}
+      <div className="absolute inset-0 bg-black/70"></div>
+
+      {/* Centered Title - ZURCHER SEPTIC */}
+      <div className="absolute inset-0 flex items-center justify-center z-10">
+        <div className="text-center animate-fade-in-up">
+          <h1 className="text-5xl md:text-6xl font-extrabold text-gray-400 drop-shadow-2xl tracking-wide">
+            Zurcher
+          </h1>
+          <h1 className="text-5xl md:text-6xl font-extrabold text-gray-400 drop-shadow-2xl tracking-wide">
+            Septic
+          </h1>
+        </div>
+      </div>
+
+      {/* Scroll Down Indicator */}
+      <div className="absolute bottom-8 inset-x-0 flex justify-center z-20">
+        <button
+          onClick={scrollToServices}
+          className="flex flex-col items-center gap-2 text-white/90 hover:text-white transition-all duration-300 group animate-bounce"
+          aria-label="Scroll to services"
+        >
+          <span className="text-xs font-light tracking-widest uppercase">Scroll Down</span>
+          <svg
+            className="w-6 h-6 group-hover:scale-110 transition-transform"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 14l-7 7m0 0l-7-7m7 7V3"
+            />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function HeroImageSliceCarouselMobile() {
   const images = [
