@@ -58,6 +58,13 @@ import MonthlyExpensesView from "./Components/MonthlyExpensesView"; // 🆕 Gast
 import BudgetReviewPage from "./Components/Budget/BudgetReviewPage";
 // Importar componentes de la Landing
 import LandingClients from "./Components/Landing/LandingClients";
+import AboutPage from "./Components/Landing/AboutPage";
+import ServicesPage from "./Components/Landing/ServicesPage";
+import InstallationPage from "./Components/Landing/InstallationPage";
+import GalleryPage from "./Components/Landing/GalleryPage";
+import MaintenancePage from "./Components/Landing/MaintenancePage";
+import RepairsPage from "./Components/Landing/RepairsPage";
+import ContactPage from "./Components/Landing/ContactPage";
 import ThankYou from "./Components/Landing/ThankYou";
 import ChangeOrderResponsePage from "./Components/Landing/ChangeOrderResponsePage";
 import PrivacyPolicy from "./Components/PrivacyPolicy";
@@ -79,6 +86,7 @@ import WorkerMaintenanceDashboard from "./Components/Workers/WorkerMaintenanceDa
 import WorkerMaintenanceDetail from "./Components/Workers/WorkerMaintenanceDetail";
 import WorkerGeneralExpense from "./Components/Workers/WorkerGeneralExpense";
 import SimpleWorkList from "./Components/SimpleWork/SimpleWorkList";
+import GalleryManager from "./Components/Admin/GalleryManager";
 
 function App() {
   const dispatch = useDispatch();
@@ -94,7 +102,10 @@ function App() {
 
   useEffect(() => {
     // Lista de rutas públicas que no requieren redirección automática
-    const publicRoutes = ["/", "/thank-you", "/change-order-response", "/privacy-policy", "/login", "/forgot-password", "/maintenance-form"];
+    const publicRoutes = [
+      "/", "/about", "/services", "/installation", "/gallery", "/maintenance", "/repairs", "/contact",
+      "/thank-you", "/change-order-response", "/privacy-policy", "/login", "/forgot-password", "/maintenance-form"
+    ];
     const isPublicRoute = publicRoutes.some(route =>
       location.pathname === route || location.pathname.startsWith("/reset-password")
     );
@@ -110,7 +121,10 @@ function App() {
   }
 
   // Determinar si estamos en una ruta pública de la landing
-  const publicLandingRoutes = ["/", "/thank-you", "/change-order-response", "/privacy-policy", "/maintenance-form"];
+  const publicLandingRoutes = [
+    "/", "/about", "/services", "/installation", "/gallery", "/maintenance", "/repairs", "/contact",
+    "/thank-you", "/change-order-response", "/privacy-policy", "/maintenance-form"
+  ];
   const isBudgetReviewRoute = location.pathname.startsWith("/budget-review/");
   const isPublicLandingRoute = publicLandingRoutes.includes(location.pathname) || isBudgetReviewRoute;
 
@@ -128,6 +142,13 @@ function App() {
             <Routes>
               {/* Rutas públicas */}
               <Route path="/" element={<LandingClients />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/services" element={<ServicesPage />} />
+              <Route path="/installation" element={<InstallationPage />} />
+              <Route path="/gallery" element={<GalleryPage />} />
+              <Route path="/maintenance" element={<MaintenancePage />} />
+              <Route path="/repairs" element={<RepairsPage />} />
+              <Route path="/contact" element={<ContactPage />} />
 
               <Route path="/thank-you" element={<ThankYou />} />
               <Route path="/change-order-response" element={<ChangeOrderResponsePage />} />
@@ -378,6 +399,16 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["owner", "finance"]}>
                     <MonthlyExpensesView />
+                  </PrivateRoute>
+                }
+              />
+
+              {/* Gallery Manager - Solo Owner */}
+              <Route
+                path="/gallery-manager"
+                element={
+                  <PrivateRoute allowedRoles={["owner"]}>
+                    <GalleryManager />
                   </PrivateRoute>
                 }
               />

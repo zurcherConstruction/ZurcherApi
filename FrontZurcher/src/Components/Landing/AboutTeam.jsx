@@ -96,7 +96,7 @@ const AboutTeam = () => {
   ];
 
   return (
-    <section className="py-20 bg-gradient-to-b from-white to-slate-50">
+    <section className="pt-24 pb-20 bg-gradient-to-b from-white to-slate-50">
       <div className="container mx-auto px-4">
         {/* Header */}
         <div className="text-center mb-16">
