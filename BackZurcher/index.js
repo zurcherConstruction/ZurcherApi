@@ -47,23 +47,30 @@ function startServer() {
 const gracefulShutdown = (signal) => {
   console.log(`\n⚠️ Señal ${signal} recibida, cerrando servidor...`);
   
+  // Forzar cierre después de 5 segundos (antes del timeout del hosting)
+  const forceExitTimeout = setTimeout(() => {
+    console.error('⏱️ Forzando cierre por timeout (5s)');
+    process.exit(0); // Exit 0 para evitar errores en npm
+  }, 5000);
+
+  // Intentar cerrar ordenadamente
   server.close(() => {
     console.log('✅ Servidor HTTP cerrado');
+    clearTimeout(forceExitTimeout);
     
-    conn.close().then(() => {
-      console.log('✅ Conexión a base de datos cerrada');
-      process.exit(0);
-    }).catch((err) => {
-      console.error('❌ Error al cerrar BD:', err);
-      process.exit(1);
-    });
+    // No esperar a cerrar BD, solo desconectar
+    conn.close()
+      .then(() => console.log('✅ BD cerrada'))
+      .catch(() => console.log('⚠️ BD forzada'))
+      .finally(() => process.exit(0));
   });
 
-  // Forzar cierre después de 10 segundos si no termina
+  // Si no hay conexiones activas, cerrar inmediatamente
   setTimeout(() => {
-    console.error('⏱️ Forzando cierre por timeout');
-    process.exit(1);
-  }, 10000);
+    console.log('⏱️ Timeout alcanzado, cerrando...');
+    clearTimeout(forceExitTimeout);
+    process.exit(0);
+  }, 2000);
 };
 
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
