@@ -320,15 +320,22 @@ const deleteIncome = async (req, res) => {
             const transactionAmount = parseFloat(bankTransaction.amount);
             const newBalance = parseFloat(bankAccount.currentBalance) - transactionAmount;
             
-            // Validar que no quede negativo
+            // Advertir si queda negativo - PERMITIR para correcciones de datos
             if (newBalance < 0) {
-              await transaction.rollback();
-              return res.status(400).json({
-                message: 'No se puede eliminar el ingreso: el balance de la cuenta quedaría negativo',
+              console.warn('⚠️ ADVERTENCIA: Balance de cuenta quedará negativo al eliminar ingreso');
+              console.warn(`   Cuenta: ${bankAccount.accountName}`);
+              console.warn(`   Balance actual: $${parseFloat(bankAccount.currentBalance)}`);
+              console.warn(`   Ingreso a eliminar: $${transactionAmount}`);
+              console.warn(`   Balance resultante: $${newBalance}`);
+              console.warn('   Se permite eliminación para corrección de datos - REQUIERE AJUSTE MANUAL');
+              
+              // Marcar para notificación en respuesta
+              req.negativeBalanceWarning = {
                 accountName: bankAccount.accountName,
                 currentBalance: parseFloat(bankAccount.currentBalance),
-                incomeAmount: transactionAmount
-              });
+                incomeAmount: transactionAmount,
+                newBalance: newBalance
+              };
             }
             
             await bankAccount.update({ currentBalance: newBalance }, { transaction });
@@ -357,6 +364,74 @@ const deleteIncome = async (req, res) => {
 
     // Eliminar el income
     await income.destroy({ transaction });
+    
+    // 🆕 REVERTIR PAGO DE BUDGET SI ES PAGO INICIAL O FINAL
+    if (income.typeIncome === 'Factura Pago Inicial Budget' || income.typeIncome === 'Factura Pago Final Budget') {
+      try {
+        const { Work, Budget } = require('../data');
+        
+        // Buscar el Work asociado al income
+        if (income.workId) {
+          const work = await Work.findByPk(income.workId, {
+            include: [{ model: Budget, as: 'budget' }],
+            transaction
+          });
+          
+          if (work && work.budget) {
+            const budget = work.budget;
+            const incomeAmount = parseFloat(income.amount || 0);
+            const currentPaymentProof = parseFloat(budget.paymentProofAmount || 0);
+            
+            // Restar el monto del income del paymentProofAmount
+            const newPaymentProof = Math.max(0, currentPaymentProof - incomeAmount);
+            
+            // 🔍 VERIFICAR ESTADO DE FIRMA
+            const hasFirmaCompleta = budget.manualSignedPdfPath || 
+                                     budget.signatureStatus === 'signed' || 
+                                     budget.signatureStatus === 'completed';
+            
+            const fueEnviadoAFirmar = budget.signatureStatus === 'sent' || 
+                                      budget.signatureStatus === 'pending' ||
+                                      budget.signNowDocumentId ||
+                                      budget.docusignEnvelopeId;
+            
+            // Determinar el nuevo estado
+            let newStatus = budget.status; // Por defecto mantener el estado actual
+            
+            if (budget.status === 'approved' && newPaymentProof === 0) {
+              // Si estaba approved y ahora no tiene pago
+              if (hasFirmaCompleta) {
+                // Si tiene firma completa → volver a 'signed'
+                newStatus = 'signed';
+                console.log(`🔄 [BUDGET] Budget con firma completa → estado: approved → signed`);
+              } else if (fueEnviadoAFirmar) {
+                // Si fue enviado para firma pero no está firmado → volver a 'sent_for_signature'
+                newStatus = 'sent_for_signature';
+                console.log(`🔄 [BUDGET] Budget enviado a firma (pendiente) → estado: approved → sent_for_signature`);
+              } else {
+                // Si no tiene firma ni fue enviado → volver a 'send'
+                newStatus = 'send';
+                console.log(`🔄 [BUDGET] Budget sin firma ni envío electrónico → estado: approved → send`);
+              }
+            }
+            
+            await budget.update({
+              paymentProofAmount: newPaymentProof === 0 ? null : newPaymentProof,
+              status: newStatus
+            }, { transaction });
+            
+            console.log(`🔄 [BUDGET] Pago revertido en Budget #${budget.idBudget}: -$${incomeAmount.toFixed(2)} → PaymentProof: $${newPaymentProof.toFixed(2)} | Estado: ${budget.status} → ${newStatus}`);
+          } else {
+            console.warn(`⚠️ [BUDGET] No se encontró Budget asociado al Work ${income.workId} para revertir pago`);
+          }
+        } else {
+          console.warn(`⚠️ [BUDGET] Income ${income.idIncome} no tiene workId asociado, no se puede revertir pago en Budget`);
+        }
+      } catch (budgetError) {
+        console.error('❌ [BUDGET] Error revirtiendo pago en Budget:', budgetError.message);
+        // No hacer rollback aquí, solo loggear el error (el Income ya se eliminó correctamente)
+      }
+    }
     
     // 🆕 REVERTIR PAGO DE SIMPLEWORK SI EXISTE
     if (income.typeIncome === 'Factura SimpleWork') {
@@ -424,10 +499,18 @@ const deleteIncome = async (req, res) => {
     
     await transaction.commit();
 
-    res.status(200).json({
+    const response = {
       message: 'Ingreso eliminado correctamente',
       revertedBankTransaction: revertedBankTransaction
-    });
+    };
+
+    // Incluir advertencia si el balance quedó negativo
+    if (req.negativeBalanceWarning) {
+      response.warning = 'ATENCIÓN: El balance de la cuenta quedó negativo';
+      response.negativeBalanceDetails = req.negativeBalanceWarning;
+    }
+
+    res.status(200).json(response);
   } catch (error) {
     await transaction.rollback();
     res.status(500).json({ message: 'Error al eliminar el ingreso', error: error.message });
