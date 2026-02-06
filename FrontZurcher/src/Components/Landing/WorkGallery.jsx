@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { FaPlay, FaTimes, FaChevronLeft, FaChevronRight, FaImage, FaVideo, FaSpinner } from 'react-icons/fa';
+import React, { useState, useEffect, useRef } from 'react';
+import { FaPlay, FaTimes, FaChevronLeft, FaChevronRight, FaImage, FaVideo, FaSpinner, FaChevronDown, FaThLarge } from 'react-icons/fa';
 import axios from 'axios';
 import img3 from '../../assets/landing/3.jpeg';
 
@@ -12,9 +12,23 @@ const WorkGallery = () => {
   const [selectedMedia, setSelectedMedia] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [filter, setFilter] = useState('all'); // 'all', 'image', 'video'
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
 
   useEffect(() => {
     fetchGalleryResources();
+  }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const fetchGalleryResources = async () => {
@@ -83,14 +97,80 @@ const WorkGallery = () => {
       <div className="relative z-10 px-6 pt-32 pb-20 min-h-screen">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
-          <div className="text-center mb-12 animate-fade-in-up">
+          <div className="relative z-50 text-center mb-12 animate-fade-in-up">
             <h1 className="text-4xl md:text-6xl font-bold text-white mb-4 drop-shadow-2xl">
               Our Work Gallery
             </h1>
             <div className="w-32 h-1 bg-gradient-to-r from-blue-500 via-cyan-400 to-blue-500 mx-auto mb-6"></div>
-            <p className="text-lg md:text-xl text-slate-200 max-w-3xl mx-auto leading-relaxed drop-shadow-lg">
-              Explore our completed septic system installations, repairs, and maintenance projects across Southwest Florida
-            </p>
+            <div className="text-lg md:text-xl text-slate-200 max-w-3xl mx-auto leading-relaxed drop-shadow-lg flex items-center justify-center gap-3 flex-wrap">
+              <span>Explore our completed septic system installations, repairs, and maintenance projects across Southwest Florida</span>
+              
+              {/* Inline Filter Dropdown */}
+              <span className="relative inline-flex items-center z-[200]" ref={dropdownRef}>
+                <button
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="group inline-flex items-center gap-1.5 text-sm text-cyan-300 hover:text-cyan-200 transition-all duration-300 border-b border-cyan-400/50 hover:border-cyan-300 pb-0.5"
+                >
+                  <span className="font-light italic">filter view</span>
+                  <FaChevronRight 
+                    className={`text-xs transition-transform duration-300 ${
+                      isDropdownOpen ? 'rotate-90' : ''
+                    }`}
+                  />
+                </button>
+
+                {/* Dropdown Menu */}
+                {isDropdownOpen && (
+                  <div className="absolute top-0 left-full ml-3 flex items-center gap-2 animate-fade-in z-[200]">
+                    <button
+                      onClick={() => {
+                        setFilter('all');
+                        setIsDropdownOpen(false);
+                      }}
+                      className={`inline-flex items-center gap-1 text-xs transition-all duration-300 pb-0.5 border-b whitespace-nowrap ${
+                        filter === 'all'
+                          ? 'text-cyan-300 border-cyan-400'
+                          : 'text-slate-300 border-slate-400/50 hover:text-cyan-200 hover:border-cyan-300'
+                      }`}
+                    >
+                      <span className="font-light">All</span>
+                    </button>
+                    
+                    <span className="text-slate-500">|</span>
+                    
+                    <button
+                      onClick={() => {
+                        setFilter('image');
+                        setIsDropdownOpen(false);
+                      }}
+                      className={`inline-flex items-center gap-1 text-xs transition-all duration-300 pb-0.5 border-b whitespace-nowrap ${
+                        filter === 'image'
+                          ? 'text-blue-300 border-blue-400'
+                          : 'text-slate-300 border-slate-400/50 hover:text-blue-200 hover:border-blue-300'
+                      }`}
+                    >
+                      <span className="font-light">Photos</span>
+                    </button>
+                    
+                    <span className="text-slate-500">|</span>
+                    
+                    <button
+                      onClick={() => {
+                        setFilter('video');
+                        setIsDropdownOpen(false);
+                      }}
+                      className={`inline-flex items-center gap-1 text-xs transition-all duration-300 pb-0.5 border-b whitespace-nowrap ${
+                        filter === 'video'
+                          ? 'text-pink-300 border-pink-400'
+                          : 'text-slate-300 border-slate-400/50 hover:text-pink-200 hover:border-pink-300'
+                      }`}
+                    >
+                      <span className="font-light">Videos</span>
+                    </button>
+                  </div>
+                )}
+              </span>
+            </div>
           </div>
 
           {/* Loading State */}
@@ -117,40 +197,6 @@ const WorkGallery = () => {
           {/* Gallery Content */}
           {!loading && !error && (
             <>
-              {/* Filter Buttons */}
-              <div className="flex flex-wrap justify-center gap-4 mb-12 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
-                <button
-                  onClick={() => setFilter('all')}
-                  className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 ${
-                    filter === 'all'
-                      ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg scale-105'
-                      : 'bg-white/10 backdrop-blur-md text-white hover:bg-white/20 border border-white/30'
-                  }`}
-                >
-                  All ({resources.length})
-                </button>
-                <button
-                  onClick={() => setFilter('image')}
-                  className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
-                    filter === 'image'
-                      ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg scale-105'
-                      : 'bg-white/10 backdrop-blur-md text-white hover:bg-white/20 border border-white/30'
-                  }`}
-                >
-                  <FaImage /> Photos ({resources.filter(r => r.type === 'image').length})
-                </button>
-                <button
-                  onClick={() => setFilter('video')}
-                  className={`px-6 py-3 rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
-                    filter === 'video'
-                      ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white shadow-lg scale-105'
-                      : 'bg-white/10 backdrop-blur-md text-white hover:bg-white/20 border border-white/30'
-                  }`}
-                >
-                  <FaVideo /> Videos ({resources.filter(r => r.type === 'video').length})
-                </button>
-              </div>
-
               {/* Gallery Grid */}
               {filteredResources.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
