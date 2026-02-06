@@ -21,7 +21,7 @@ const Navbar = ({ onLoginClick }) => {
     { name: 'Installation', path: '/installation' },
     { name: 'Gallery', path: '/gallery' },
     { name: 'Services', path: '/services' },
-    { name: 'Maintenance', path: '/maintenance' },
+    { name: 'Maintenance', path: '/maintenance-services' },
     { name: 'Repairs', path: '/repairs' },
     { name: 'About Us', path: '/about' },
     { name: 'Contact', path: '/contact' },

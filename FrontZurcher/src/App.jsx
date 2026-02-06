@@ -103,7 +103,7 @@ function App() {
   useEffect(() => {
     // Lista de rutas públicas que no requieren redirección automática
     const publicRoutes = [
-      "/", "/about", "/services", "/installation", "/gallery", "/maintenance", "/repairs", "/contact",
+      "/", "/about", "/services", "/installation", "/gallery", "/maintenance-services", "/repairs", "/contact",
       "/thank-you", "/change-order-response", "/privacy-policy", "/login", "/forgot-password", "/maintenance-form"
     ];
     const isPublicRoute = publicRoutes.some(route =>
@@ -122,7 +122,7 @@ function App() {
 
   // Determinar si estamos en una ruta pública de la landing
   const publicLandingRoutes = [
-    "/", "/about", "/services", "/installation", "/gallery", "/maintenance", "/repairs", "/contact",
+    "/", "/about", "/services", "/installation", "/gallery", "/maintenance-services", "/repairs", "/contact",
     "/thank-you", "/change-order-response", "/privacy-policy", "/maintenance-form"
   ];
   const isBudgetReviewRoute = location.pathname.startsWith("/budget-review/");
@@ -146,7 +146,7 @@ function App() {
               <Route path="/services" element={<ServicesPage />} />
               <Route path="/installation" element={<InstallationPage />} />
               <Route path="/gallery" element={<GalleryPage />} />
-              <Route path="/maintenance" element={<MaintenancePage />} />
+              <Route path="/maintenance-services" element={<MaintenancePage />} />
               <Route path="/repairs" element={<RepairsPage />} />
               <Route path="/contact" element={<ContactPage />} />
 
