@@ -27,7 +27,8 @@ import {
   FaUniversity,
   FaMapMarkedAlt, // 🆕 Icono para mapa de zonas
   FaChartPie, // 🆕 Icono para instalaciones mensuales
-  FaCalendarCheck // 🆕 Icono para asistencia del personal
+  FaCalendarCheck, // 🆕 Icono para asistencia del personal
+  FaImage // 🆕 Icono para galería
 } from "react-icons/fa";
 
 const BarraLateral = () => {
@@ -116,6 +117,14 @@ const BarraLateral = () => {
         { name: "Materials", path: "/materiales", icon: FaTools },
         { name: "Send Message", path: "/send-notifications", icon: FaBell },
         { name: "Staff", path: "/register", icon: FaUsers },
+      ],
+    },
+    {
+      name: "Content Management",
+      icon: FaImage,
+      color: "text-pink-400",
+      items: [
+        { name: "Gallery Manager", path: "/gallery-manager", icon: FaImage },
       ],
     },
   ];

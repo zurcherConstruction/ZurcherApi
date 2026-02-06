@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { FaPlay, FaTimes, FaChevronLeft, FaChevronRight, FaImage, FaVideo } from 'react-icons/fa';
+import React, { useState, useEffect, useRef } from 'react';
+import { FaPlay, FaTimes, FaChevronLeft, FaChevronRight, FaImage, FaVideo, FaSpinner, FaChevronDown, FaThLarge } from 'react-icons/fa';
 import axios from 'axios';
+import img3 from '../../assets/landing/3.jpeg';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3500';
 
 const WorkGallery = () => {
   const [resources, setResources] = useState([]);
@@ -11,16 +12,30 @@ const WorkGallery = () => {
   const [selectedMedia, setSelectedMedia] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [filter, setFilter] = useState('all'); // 'all', 'image', 'video'
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
 
   useEffect(() => {
     fetchGalleryResources();
   }, []);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const fetchGalleryResources = async () => {
     try {
       setLoading(true);
-      // Cambiar 'work_gallery' por el nombre de tu carpeta en Cloudinary
-      const response = await axios.get(`${API_URL}/gallery/works/all?max_results=100`);
+      // Obtener todos los recursos (imágenes + videos) de work_gallery
+      const response = await axios.get(`${API_URL}/gallery/work_gallery/all?max_results=100`);
       
       if (response.data.success) {
         setResources(response.data.resources);
@@ -65,151 +80,229 @@ const WorkGallery = () => {
 
   const filteredResources = getFilteredResources();
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-slate-600 text-lg">Cargando galería...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center text-red-600">
-          <p className="text-xl">{error}</p>
-          <button 
-            onClick={fetchGalleryResources}
-            className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Reintentar
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <section className="py-20 bg-gradient-to-b from-slate-50 to-white">
-      <div className="container mx-auto px-4">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h2 className="text-4xl lg:text-5xl font-bold text-blue-600 mb-4">
-            Our Work Gallery
-          </h2>
-          <p className="text-xl text-slate-600 max-w-3xl mx-auto">
-            Explore our completed septic system installations, repairs, and maintenance projects across Southwest Florida
-          </p>
-        </div>
+    <div className="relative min-h-screen w-full overflow-hidden">
+      {/* Background Image */}
+      <div className="absolute inset-0 w-full h-full">
+        <img
+          src={img3}
+          alt="Zurcher Septic Background"
+          className="w-full h-full object-cover"
+        />
+        {/* Dark Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-900/90 via-slate-900/85 to-slate-800/90"></div>
+      </div>
 
-        {/* Filter Buttons */}
-        <div className="flex justify-center gap-4 mb-8">
-          <button
-            onClick={() => setFilter('all')}
-            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-              filter === 'all'
-                ? 'bg-blue-600 text-white shadow-lg'
-                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
-            }`}
-          >
-            All ({resources.length})
-          </button>
-          <button
-            onClick={() => setFilter('image')}
-            className={`px-6 py-3 rounded-lg font-semibold transition-all flex items-center gap-2 ${
-              filter === 'image'
-                ? 'bg-blue-600 text-white shadow-lg'
-                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
-            }`}
-          >
-            <FaImage /> Photos ({resources.filter(r => r.type === 'image').length})
-          </button>
-          <button
-            onClick={() => setFilter('video')}
-            className={`px-6 py-3 rounded-lg font-semibold transition-all flex items-center gap-2 ${
-              filter === 'video'
-                ? 'bg-blue-600 text-white shadow-lg'
-                : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-300'
-            }`}
-          >
-            <FaVideo /> Videos ({resources.filter(r => r.type === 'video').length})
-          </button>
-        </div>
-
-        {/* Gallery Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredResources.map((media, index) => (
-            <div
-              key={media.public_id}
-              onClick={() => openLightbox(media, index)}
-              className="relative group cursor-pointer overflow-hidden rounded-lg shadow-md hover:shadow-2xl transition-all duration-300"
-            >
-              <div className="aspect-w-16 aspect-h-12 bg-slate-200">
-                <img
-                  src={media.thumbnail}
-                  alt={`Work ${index + 1}`}
-                  className="w-full h-64 object-cover group-hover:scale-110 transition-transform duration-500"
-                />
-              </div>
+      {/* Content */}
+      <div className="relative z-10 px-6 pt-32 pb-20 min-h-screen">
+        <div className="max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="relative z-50 text-center mb-12 animate-fade-in-up">
+            <h1 className="text-4xl md:text-6xl font-bold text-white mb-4 drop-shadow-2xl">
+              Our Work Gallery
+            </h1>
+            <div className="w-32 h-1 bg-gradient-to-r from-blue-500 via-cyan-400 to-blue-500 mx-auto mb-6"></div>
+            <div className="text-lg md:text-xl text-slate-200 max-w-3xl mx-auto leading-relaxed drop-shadow-lg flex items-center justify-center gap-3 flex-wrap">
+              <span>Explore our completed septic system installations, repairs, and maintenance projects across Southwest Florida</span>
               
-              {/* Overlay */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                {media.type === 'video' ? (
-                  <FaPlay className="text-white text-5xl" />
-                ) : (
-                  <FaImage className="text-white text-5xl" />
-                )}
-              </div>
+              {/* Inline Filter Dropdown */}
+              <span className="relative inline-flex items-center z-[200]" ref={dropdownRef}>
+                <button
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="group inline-flex items-center gap-1.5 text-sm text-cyan-300 hover:text-cyan-200 transition-all duration-300 border-b border-cyan-400/50 hover:border-cyan-300 pb-0.5"
+                >
+                  <span className="font-light italic">filter view</span>
+                  <FaChevronRight 
+                    className={`text-xs transition-transform duration-300 ${
+                      isDropdownOpen ? 'rotate-90' : ''
+                    }`}
+                  />
+                </button>
 
-              {/* Type Badge */}
-              <div className="absolute top-3 right-3">
-                {media.type === 'video' && (
-                  <span className="bg-red-600 text-white px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
-                    <FaVideo /> Video
-                  </span>
+                {/* Dropdown Menu */}
+                {isDropdownOpen && (
+                  <div className="absolute top-0 left-full ml-3 flex items-center gap-2 animate-fade-in z-[200]">
+                    <button
+                      onClick={() => {
+                        setFilter('all');
+                        setIsDropdownOpen(false);
+                      }}
+                      className={`inline-flex items-center gap-1 text-xs transition-all duration-300 pb-0.5 border-b whitespace-nowrap ${
+                        filter === 'all'
+                          ? 'text-cyan-300 border-cyan-400'
+                          : 'text-slate-300 border-slate-400/50 hover:text-cyan-200 hover:border-cyan-300'
+                      }`}
+                    >
+                      <span className="font-light">All</span>
+                    </button>
+                    
+                    <span className="text-slate-500">|</span>
+                    
+                    <button
+                      onClick={() => {
+                        setFilter('image');
+                        setIsDropdownOpen(false);
+                      }}
+                      className={`inline-flex items-center gap-1 text-xs transition-all duration-300 pb-0.5 border-b whitespace-nowrap ${
+                        filter === 'image'
+                          ? 'text-blue-300 border-blue-400'
+                          : 'text-slate-300 border-slate-400/50 hover:text-blue-200 hover:border-blue-300'
+                      }`}
+                    >
+                      <span className="font-light">Photos</span>
+                    </button>
+                    
+                    <span className="text-slate-500">|</span>
+                    
+                    <button
+                      onClick={() => {
+                        setFilter('video');
+                        setIsDropdownOpen(false);
+                      }}
+                      className={`inline-flex items-center gap-1 text-xs transition-all duration-300 pb-0.5 border-b whitespace-nowrap ${
+                        filter === 'video'
+                          ? 'text-pink-300 border-pink-400'
+                          : 'text-slate-300 border-slate-400/50 hover:text-pink-200 hover:border-pink-300'
+                      }`}
+                    >
+                      <span className="font-light">Videos</span>
+                    </button>
+                  </div>
                 )}
-              </div>
+              </span>
             </div>
-          ))}
-        </div>
-
-        {/* Empty State */}
-        {filteredResources.length === 0 && (
-          <div className="text-center py-20">
-            <p className="text-slate-500 text-xl">No {filter !== 'all' ? filter + 's' : 'media'} found</p>
           </div>
-        )}
+
+          {/* Loading State */}
+          {loading && (
+            <div className="flex flex-col items-center justify-center py-20 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+              <FaSpinner className="animate-spin text-5xl text-blue-400 mb-4" />
+              <p className="text-slate-200 text-lg">Loading gallery...</p>
+            </div>
+          )}
+
+          {/* Error State */}
+          {error && (
+            <div className="bg-red-500/20 backdrop-blur-md border border-red-500 rounded-xl p-8 text-center max-w-md mx-auto animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+              <p className="text-red-200 text-lg mb-4">{error}</p>
+              <button 
+                onClick={fetchGalleryResources}
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-500 hover:from-blue-700 hover:to-cyan-600 text-white rounded-lg font-semibold transition-all duration-300 shadow-lg transform hover:scale-105"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {/* Gallery Content */}
+          {!loading && !error && (
+            <>
+              {/* Gallery Grid */}
+              {filteredResources.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {filteredResources.map((media, index) => (
+                    <div
+                      key={media.public_id}
+                      onClick={() => openLightbox(media, index)}
+                      className="relative group cursor-pointer overflow-hidden rounded-xl bg-white/10 backdrop-blur-md border border-white/20 shadow-2xl hover:shadow-cyan-500/50 transition-all duration-500 animate-fade-in-up hover:scale-105"
+                      style={{ animationDelay: `${0.1 * (index % 12)}s` }}
+                    >
+                      {/* Image/Video Content */}
+                      <div className="aspect-w-16 aspect-h-12 bg-slate-800">
+                        {media.type === 'video' ? (
+                          <video
+                            src={media.url}
+                            autoPlay
+                            muted
+                            loop
+                            playsInline
+                            className="w-full h-64 object-cover group-hover:scale-110 transition-transform duration-700"
+                          />
+                        ) : (
+                          <img
+                            src={media.thumbnail}
+                            alt={`Work ${index + 1}`}
+                            className="w-full h-64 object-cover group-hover:scale-110 transition-transform duration-700"
+                          />
+                        )}
+                      </div>
+                      
+                      {/* Overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                        {media.type === 'video' ? (
+                          <div className="flex flex-col items-center gap-2">
+                            <FaPlay className="text-white text-5xl drop-shadow-2xl" />
+                            <span className="text-white font-semibold text-sm">View Fullscreen</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-2">
+                            <FaImage className="text-white text-5xl drop-shadow-2xl" />
+                            <span className="text-white font-semibold text-sm">View Image</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Type Badge */}
+                      {/* <div className="absolute top-3 right-3 z-10">
+                        {media.type === 'video' ? (
+                          <span className="bg-gradient-to-r from-red-600 to-pink-500 text-white px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-lg">
+                            <FaVideo /> VIDEO
+                          </span>
+                        ) : (
+                          <span className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-lg">
+                            <FaImage /> PHOTO
+                          </span>
+                        )}
+                      </div> */}
+
+                      {/* Bottom Gradient */}
+                      <div className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-black/60 to-transparent"></div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-20 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
+                  <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-12 max-w-md mx-auto">
+                    <p className="text-slate-200 text-xl mb-2">No {filter !== 'all' ? filter + 's' : 'media'} found</p>
+                    <p className="text-slate-400">Try selecting a different filter</p>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Lightbox Modal */}
       {selectedMedia && (
-        <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4 animate-fade-in">
           {/* Close Button */}
           <button
             onClick={closeLightbox}
-            className="absolute top-4 right-4 text-white hover:text-red-500 transition-colors z-10"
+            className="absolute top-4 right-4 text-white hover:text-red-500 transition-colors z-10 bg-black/50 rounded-full p-3 hover:bg-red-500/20"
           >
             <FaTimes size={32} />
           </button>
 
           {/* Previous Button */}
-          <button
-            onClick={prevMedia}
-            className="absolute left-4 text-white hover:text-blue-400 transition-colors z-10"
-          >
-            <FaChevronLeft size={48} />
-          </button>
+          {filteredResources.length > 1 && (
+            <button
+              onClick={prevMedia}
+              className="absolute left-4 text-white hover:text-blue-400 transition-colors z-10 bg-black/50 rounded-full p-4 hover:bg-blue-500/20"
+            >
+              <FaChevronLeft size={32} />
+            </button>
+          )}
 
           {/* Next Button */}
-          <button
-            onClick={nextMedia}
-            className="absolute right-4 text-white hover:text-blue-400 transition-colors z-10"
-          >
-            <FaChevronRight size={48} />
-          </button>
+          {filteredResources.length > 1 && (
+            <button
+              onClick={nextMedia}
+              className="absolute right-4 text-white hover:text-blue-400 transition-colors z-10 bg-black/50 rounded-full p-4 hover:bg-blue-500/20"
+            >
+              <FaChevronRight size={32} />
+            </button>
+          )}
 
           {/* Media Content */}
           <div className="max-w-6xl max-h-full flex items-center justify-center">
@@ -218,6 +311,9 @@ const WorkGallery = () => {
                 src={selectedMedia.url}
                 controls
                 autoPlay
+                muted
+                loop
+                playsInline
                 className="max-w-full max-h-[90vh] rounded-lg shadow-2xl"
               />
             ) : (
@@ -229,13 +325,24 @@ const WorkGallery = () => {
             )}
           </div>
 
-          {/* Counter */}
-          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-white bg-black/50 px-4 py-2 rounded-full">
-            {currentIndex + 1} / {filteredResources.length}
+          {/* Counter & Info */}
+          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/70 backdrop-blur-md px-6 py-3 rounded-full border border-white/20">
+            <div className="flex items-center gap-4 text-white">
+              <span className="font-semibold">{currentIndex + 1} / {filteredResources.length}</span>
+              {selectedMedia.type === 'video' ? (
+                <span className="flex items-center gap-2 text-sm">
+                  <FaVideo className="text-red-400" /> Video
+                </span>
+              ) : (
+                <span className="flex items-center gap-2 text-sm">
+                  <FaImage className="text-blue-400" /> Photo
+                </span>
+              )}
+            </div>
           </div>
         </div>
       )}
-    </section>
+    </div>
   );
 };
 

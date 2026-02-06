@@ -172,21 +172,21 @@ const InstallationProcess = () => {
 
       {/* ========== FASE 1: PRESENTACIÓN AUTOMÁTICA ========== */}
       {presentationPhase && (
-        <div className="relative z-10 flex items-center justify-center min-h-screen px-6">
+        <div className="relative z-10 flex items-center justify-center min-h-screen px-6 pt-32 pb-20">
           <div className="max-w-4xl w-full text-center">
             {/* Título del paso actual */}
             <div 
-              className="animate-slide-up mb-8"
+              className="animate-slide-up mb-6"
               key={`title-${currentStep}`}
             >
               <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-cyan-400 text-white text-3xl font-bold mb-6 shadow-2xl shadow-blue-500/50">
                 {steps[currentStep].number}
               </div>
-              <h3 className="text-4xl md:text-6xl font-bold text-slate-300 drop-shadow-2xl">
+              <h3 className="text-3xl md:text-5xl font-bold text-slate-300 drop-shadow-2xl">
                 {steps[currentStep].title}
               </h3>
               {steps[currentStep].subtitle && (
-                <p className="text-xl md:text-2xl text-white/70 mt-3 italic drop-shadow-lg">
+                <p className="text-lg md:text-xl text-white/70 mt-3 italic drop-shadow-lg">
                   {steps[currentStep].subtitle}
                 </p>
               )}
@@ -200,7 +200,7 @@ const InstallationProcess = () => {
                   : 'opacity-0 translate-y-4'
               }`}
             >
-              <p className="text-xl md:text-2xl text-white/90 leading-relaxed drop-shadow-lg max-w-3xl mx-auto">
+              <p className="text-lg md:text-xl text-white/90 leading-relaxed drop-shadow-lg max-w-3xl mx-auto">
                 {steps[currentStep].description}
               </p>
             </div>
@@ -234,20 +234,20 @@ const InstallationProcess = () => {
 
       {/* ========== FASE 2: VISTA INTERACTIVA (HOVER) ========== */}
       {!presentationPhase && (
-        <div className="relative z-10 container mx-auto px-6 md:px-4 py-12 md:py-16">
+        <div className="relative z-10 container mx-auto px-6 md:px-4 pt-24 md:pt-32 pb-12 md:pb-16">
           {/* Header */}
           <div className="text-center mb-12 animate-fade-in">
-            <h2 className="text-3xl md:text-5xl font-bold text-white mb-4 drop-shadow-2xl">
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4 drop-shadow-2xl">
               Our Installation Process
             </h2>
             <div className="w-24 h-1 bg-gradient-to-r from-blue-500 to-cyan-400 mx-auto mb-4"></div>
-            <p className="text-lg md:text-xl text-white/90 max-w-3xl mx-auto drop-shadow-lg px-4 md:px-0">
+            <p className="text-base md:text-lg text-white/90 max-w-3xl mx-auto drop-shadow-lg px-4 md:px-0">
               From start to finish, we handle every detail with professionalism
             </p>
           </div>
 
           {/* Lista vertical de pasos (solo títulos, descripción en hover) */}
-          <div className="max-w-4xl mx-auto space-y-4">
+          <div className="max-w-4xl mx-auto space-y-3">
             {steps.map((step, index) => (
               <div
                 key={index}
@@ -259,14 +259,14 @@ const InstallationProcess = () => {
                 <div
                   className={`relative backdrop-blur-md bg-white/10 border border-white/20 rounded-xl overflow-hidden transition-all duration-500 ${
                     hoveredStep === index 
-                      ? 'bg-white/20 border-blue-400/50 shadow-2xl shadow-blue-500/30 scale-105' 
+                      ? 'bg-white/20 border-blue-400/50 shadow-2xl shadow-blue-500/30 scale-[1.02]' 
                       : 'hover:bg-white/15'
                   }`}
                 >
                   {/* Título siempre visible */}
-                  <div className="flex items-center p-6">
+                  <div className="flex items-center p-4 md:p-5">
                     <div 
-                      className={`flex items-center justify-center w-14 h-14 rounded-full font-bold text-xl transition-all duration-300 flex-shrink-0 ${
+                      className={`flex items-center justify-center w-12 h-12 md:w-14 md:h-14 rounded-full font-bold text-lg md:text-xl transition-all duration-300 flex-shrink-0 ${
                         hoveredStep === index
                           ? 'bg-gradient-to-br from-blue-500 to-cyan-400 text-white shadow-lg shadow-blue-500/50'
                           : 'bg-white/20 text-white/80'
@@ -274,8 +274,8 @@ const InstallationProcess = () => {
                     >
                       {step.number}
                     </div>
-                    <div className="ml-6">
-                      <h3 className="text-2xl md:text-3xl font-bold text-slate-300 drop-shadow-lg">
+                    <div className="ml-4 md:ml-6">
+                      <h3 className="text-xl md:text-2xl font-bold text-slate-300 drop-shadow-lg">
                         {step.title}
                       </h3>
                     </div>
@@ -285,17 +285,17 @@ const InstallationProcess = () => {
                   <div 
                     className={`overflow-hidden transition-all duration-500 ${
                       hoveredStep === index 
-                        ? 'max-h-96 opacity-100' 
+                        ? 'max-h-60 opacity-100' 
                         : 'max-h-0 opacity-0'
                     }`}
                   >
-                    <div className="px-6 pb-6">
+                    <div className="px-4 md:px-6 pb-4 md:pb-5 max-h-60 overflow-y-auto custom-scrollbar">
                       {step.subtitle && (
-                        <p className="text-white/70 text-base md:text-lg italic mb-2">
+                        <p className="text-white/70 text-sm md:text-base italic mb-2">
                           {step.subtitle}
                         </p>
                       )}
-                      <p className="text-white/90 text-base md:text-lg leading-relaxed">
+                      <p className="text-white/90 text-sm md:text-base leading-relaxed">
                         {step.description}
                       </p>
                     </div>

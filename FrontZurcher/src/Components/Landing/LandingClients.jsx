@@ -1,10 +1,15 @@
 import React, { useState } from 'react';
-import { FaWhatsapp, FaEnvelope, FaPhone, FaMapMarkerAlt, FaClock, FaUser, FaCalendarAlt } from "react-icons/fa";
+import { FaWhatsapp, FaEnvelope, FaPhone, FaMapMarkerAlt, FaClock, FaUser } from "react-icons/fa";
 import SEOHelmet from '../SEO/SEOHelmet';
+import Navbar from './Navbar';
+import ServicesSection from './ServicesSection';
 import InstallationProcess from './InstallationProcess';
 import ScheduleQuoteModal from './ScheduleQuoteModal';
-//import WorkGallery from './WorkGallery';
-//import AboutTeam from './AboutTeam';
+import FloatingQuoteButton from './FloatingQuoteButton';
+import WorkGallery from './WorkGallery';
+import AboutTeam from './AboutTeam';
+import MaintenanceServices from './MaintenanceServices';
+import RepairServices from './RepairServices';
 import logo from '/logo.png';
 import compromisoImg from '../../assets/landing/6.jpeg';
 import dedicacionImg from '../../assets/landing/4.jpeg';
@@ -68,132 +73,12 @@ const LandingClients = () => {
       canonicalUrl="https://zurcherseptic.com"
     />
     
-    {/* HEADER */}
-    <header className="bg-gradient-to-r from-slate-800 to-slate-700 px-4 py-4 flex items-center justify-between shadow-xl">
-      <div className="flex items-center gap-3">
-        <img src={logo} alt="Zurcher Septic Systems Logo" className="h-16 w-16 p-1 shadow-lg rounded-lg bg-white" />
-        <div>
-          <span className="text-2xl font-bold text-white tracking-wide drop-shadow">Zurcher Septic</span>
-          <p className="text-sm text-slate-300 font-medium"></p>
-        </div>
-      </div>
-      <div className="flex items-center gap-4">
-        {/* Desktop: botón Call Now con dropdown, Email y Login, Mobile: menú hamburguesa */}
-        <div className="hidden md:flex items-center gap-4">
-          <div className="relative contact-dropdown-parent">
-            <button
-              onClick={() => setShowContactDropdown((prev) => !prev)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-300 font-medium focus:outline-none"
-              aria-haspopup="true"
-              aria-expanded={showContactDropdown ? 'true' : 'false'}
-              type="button"
-            >
-              <FaPhone className="w-4 h-4" />
-              Call Now
-              <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-            </button>
-            {showContactDropdown && (
-              <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50 animate-fade-in">
-                <a
-                  href={`tel:${phone}`}
-                  className="flex items-center gap-2 px-4 py-3 hover:bg-blue-50 text-blue-700 font-medium border-b border-gray-100"
-                >
-                  <FaPhone className="w-4 h-4" />
-                  Call by Phone
-                </a>
-                <a
-                  href={`sms:${phone.replace(/[^\d]/g, '')}`}
-                  className="flex items-center gap-2 px-4 py-3 hover:bg-blue-50 text-blue-700 font-medium border-b border-gray-100"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 10.5V6a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2h5.5" /><path strokeLinecap="round" strokeLinejoin="round" d="M21 10.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" /></svg>
-                  Send SMS
-                </a>
-                <a
-                  href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMessage)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-3 hover:bg-green-50 text-green-700 font-medium border-b border-gray-100"
-                >
-                  <FaWhatsapp className="w-4 h-4" />
-                  WhatsApp
-                </a>
-              </div>
-            )}
-          </div>
-          <a
-            href={`mailto:${email}`}
-            className="inline-flex items-center justify-center w-10 h-10 bg-blue-500 hover:bg-blue-600 rounded-full transition-all duration-300 shadow-lg"
-            aria-label="Email"
-          >
-            <FaEnvelope className="w-5 h-5 text-white" />
-          </a>
-          <button
-            onClick={() => setIsLoginModalOpen(true)}
-            className="inline-flex items-center justify-center w-10 h-10 bg-slate-600 hover:bg-slate-700 rounded-full transition-all duration-300 shadow-lg"
-            aria-label="Employee Login"
-            title="Employee Access"
-          >
-            <FaUser className="w-5 h-5 text-white" />
-          </button>
-        </div>
-        {/* Mobile: menú desplegable con todas las opciones */}
-        <div className="relative md:hidden contact-dropdown-parent">
-          <button
-            onClick={() => setShowContactDropdown((prev) => !prev)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-all duration-300 font-medium focus:outline-none"
-            aria-haspopup="true"
-            aria-expanded={showContactDropdown ? 'true' : 'false'}
-            type="button"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" /></svg>
-          </button>
-          {showContactDropdown && (
-            <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50 animate-fade-in">
-              <a
-                href={`tel:${phone}`}
-                className="flex items-center gap-2 px-4 py-3 hover:bg-blue-50 text-blue-700 font-medium border-b border-gray-100"
-              >
-                <FaPhone className="w-4 h-4" />
-                Call by Phone
-              </a>
-              <a
-                href={`sms:${phone.replace(/[^\d]/g, '')}`}
-                className="flex items-center gap-2 px-4 py-3 hover:bg-blue-50 text-blue-700 font-medium border-b border-gray-100"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 10.5V6a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2h5.5" /><path strokeLinecap="round" strokeLinejoin="round" d="M21 10.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" /></svg>
-                Send SMS
-              </a>
-              <a
-                href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(whatsappMessage)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-3 hover:bg-green-50 text-green-700 font-medium border-b border-gray-100"
-              >
-                <FaWhatsapp className="w-4 h-4" />
-                WhatsApp
-              </a>
-              <a
-                href={`mailto:${email}`}
-                className="flex items-center gap-2 px-4 py-3 hover:bg-blue-50 text-blue-700 font-medium border-b border-gray-100"
-              >
-                <FaEnvelope className="w-4 h-4" />
-                Email
-              </a>
-              <button
-                onClick={() => { setIsLoginModalOpen(true); setShowContactDropdown(false); }}
-                className="flex items-center gap-2 w-full px-4 py-3 hover:bg-slate-100 text-slate-700 font-medium"
-              >
-                <FaUser className="w-4 h-4" />
-                Employee Login
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </header>
+    {/* NAVBAR */}
+    <Navbar onLoginClick={() => setIsLoginModalOpen(true)} />
+    
   <div className="font-sans bg-gradient-to-b from-slate-50 to-slate-100 min-h-screen">
     {/* HERO SECTION */}
-    <div className="flex flex-col lg:flex-row items-stretch min-h-[70vh] bg-gradient-to-r from-slate-800 to-slate-700 shadow-2xl overflow-hidden">
+    <div id="home" className="flex flex-col lg:flex-row items-stretch min-h-[70vh] bg-gradient-to-r from-slate-800 to-slate-700 shadow-2xl overflow-hidden scroll-mt-20">
       {/* Hero Images - 3 del mismo tamaño */}
       <div className="flex-1 min-h-[400px] relative animate-fade-in-left">
         <div className="absolute inset-0 bg-gradient-to-r from-slate-800 to-slate-700"></div>
@@ -315,7 +200,7 @@ const LandingClients = () => {
         </p>
       </div>
     </div>
-<InstallationProcess />
+
     {/* SERVICES SECTION */}
     <div className="py-20 px-4">
       <div className="max-w-6xl mx-auto">
@@ -983,14 +868,38 @@ const LandingClients = () => {
       </div>
     </div> */}
 
+    {/* INSTALLATION PROCESS SECTION */}
+    {/* <div id="installation" className="scroll-mt-20">
+      <InstallationProcess />
+    </div> */}
+
+    {/* SERVICES SECTION */}
+    {/* <div id="services" className="scroll-mt-20">
+      <ServicesSection />
+    </div> */}
+
     {/* ABOUT TEAM SECTION */}
-    {/* <AboutTeam /> */}
+    {/* <div id="about" className="scroll-mt-20">
+      <AboutTeam />
+    </div> */}
 
     {/* WORK GALLERY SECTION */}
-    {/* <WorkGallery /> */}
+    {/* <div id="gallery" className="scroll-mt-20">
+      <WorkGallery />
+    </div> */}
 
-    {/* MAPA Y FORMULARIO DE CONTACTO */}
-    <div className="w-full py-8 px-0 border-t-2 border-slate-600">
+    {/* MAINTENANCE SERVICES SECTION */}
+    {/* <div id="maintenance" className="scroll-mt-20">
+      <MaintenanceServices />
+    </div> */}
+
+    {/* REPAIR SERVICES SECTION */}
+    {/* <div id="repairs" className="scroll-mt-20">
+      <RepairServices />
+    </div> */}
+
+    {/* CONTACT & MAP SECTION */}
+    <div id="contact" className="w-full py-8 px-0 border-t-2 border-slate-600 scroll-mt-20">
       <ContactMapForm />
     </div>
 
@@ -1121,58 +1030,5 @@ function HeroImageSliceCarouselMobile() {
     </div>
   );
 }
-
-const FloatingQuoteButton = ({ onClick }) => {
-  const [isHovered, setIsHovered] = useState(false);
-
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className="fixed bottom-6 right-6 z-50 group"
-      aria-label="Schedule Free Quote"
-    >
-      {/* Botón principal */}
-      <div className={`relative flex items-center gap-3 transition-all duration-300 ${
-        isHovered ? 'scale-110' : 'scale-100'
-      }`}>
-        {/* Texto que aparece en hover */}
-        <div className={`transition-all duration-300 ${
-          isHovered ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4 pointer-events-none'
-        }`}>
-          <div className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white px-4 py-2 rounded-lg shadow-lg font-semibold whitespace-nowrap">
-            Schedule Free Quote
-          </div>
-        </div>
-
-        {/* Logo circular */}
-        <div className="relative">
-          {/* Glow effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-full blur-lg opacity-60 animate-pulse"></div>
-          
-          {/* Botón con logo */}
-          <div className="relative w-16 h-16 bg-white rounded-full shadow-2xl flex items-center justify-center border-4 border-blue-500 overflow-hidden">
-            <img 
-              src="https://res.cloudinary.com/dt4ah1jmy/image/upload/v1770244237/logo_v2cxn3.png" 
-              alt="Zurcher Septic" 
-              className="w-12 h-12 object-contain"
-            />
-          </div>
-
-          {/* Badge de calendario */}
-          <div className="absolute -top-1 -right-1 bg-gradient-to-r from-green-500 to-emerald-400 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-lg">
-            <FaCalendarAlt className="text-xs" />
-          </div>
-        </div>
-      </div>
-
-      {/* Ripple effect en hover */}
-      {isHovered && (
-        <div className="absolute bottom-0 right-0 w-16 h-16 rounded-full border-4 border-blue-400 animate-ping opacity-20"></div>
-      )}
-    </button>
-  );
-};
 
 export default LandingClients;
