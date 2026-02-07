@@ -111,14 +111,14 @@ const Navbar = ({ onLoginClick }) => {
 
         {/* Mobile Menu */}
         <div className={`xl:hidden transition-all duration-300 ease-in-out ${
-          isOpen ? 'max-h-screen opacity-100' : 'max-h-0 opacity-0 overflow-hidden'
+          isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0 overflow-hidden'
         }`}>
           <div className={`border-t border-slate-600/50 shadow-lg backdrop-blur-md ${
             isHome 
               ? 'bg-gradient-to-b from-slate-700/95 to-slate-800/95' 
               : 'bg-slate-900/70'
           }`}>
-            <div className="container mx-auto px-4 py-4 space-y-2">
+            <div className="container mx-auto px-4 py-4 space-y-2 max-h-80 overflow-y-auto">
               {navLinks.map((link) => (
                 <Link
                   key={link.name}
