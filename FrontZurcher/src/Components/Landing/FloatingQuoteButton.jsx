@@ -9,7 +9,7 @@ const FloatingQuoteButton = ({ onClick }) => {
       onClick={onClick}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="fixed bottom-6 right-6 z-50 group"
+      className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-50 group"
       aria-label="Schedule Free Quote"
     >
       {/* Botón principal */}

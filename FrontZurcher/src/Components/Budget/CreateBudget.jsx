@@ -262,6 +262,7 @@ const CreateBudget = () => {
     if (selectedPermit && selectedPermit.idPermit === permitIdFromQuery) { // Asegurarse que es el permit correcto
       // Construir los lineItems iniciales
       let initialLineItems = [];
+      
       // Si excavationRequired tiene texto, agregar item EXCAVATION incluido
       if (selectedPermit.excavationRequired && selectedPermit.excavationRequired.trim() !== "") {
         initialLineItems.push({
@@ -276,6 +277,89 @@ const CreateBudget = () => {
           notes: "Incluido automáticamente por excavationRequired"
         });
       }
+
+      // 🆕 AGREGAR ITEMS AUTOMÁTICOS SI EL CATÁLOGO ESTÁ CARGADO
+      if (normalizedBudgetItemsCatalog && normalizedBudgetItemsCatalog.length > 0) {
+        console.log("🔍 Buscando items automáticos en catálogo...");
+        
+        const autoItems = [
+          // 1. SYSTEM PARTS & ELECTRICAL - Siempre (ID: 552)
+          { 
+            category: "ACCESORIOS", 
+            name: "SYSTEM PARTS & ELECTRICAL INSTALLATION (IF THIS INCLUDES)"
+            // Descripción se buscará con partial match por si está cortada
+          },
+          // 2. FEE FIRST $70 - Siempre
+          { 
+            category: "FEE DE INSPECCION", 
+            name: "FEE HEALTH DEPARTMENT",
+            description: "FIRST FEE HEALTH DEPARTMENT $70"
+          },
+          // 3. PRIVATE INSPECTION FIRST - Siempre
+          { 
+            category: "INSPECTION", 
+            name: "PRIVATE INSPECTION",
+            description: "FIRST INSPECTION"
+          },
+          // 4. PRIVATE INSPECTION FINAL - Siempre
+          { 
+            category: "INSPECTION", 
+            name: "PRIVATE INSPECTION",
+            description: "FINAL INSPECTION (IF NECESSARY)"
+          }
+        ];
+
+        // 5. FEE FINAL $175 - Solo si systemType contiene ATU
+        const systemType = selectedPermit.systemType || "";
+        console.log(`📋 System Type del Permit: "${systemType}"`);
+        if (systemType.toUpperCase().includes("ATU")) {
+          autoItems.push({
+            category: "FEE DE INSPECCION", 
+            name: "FEE HEALTH DEPARTMENT",
+            description: "FINAL FEE HEALTH DEPARTMENT $175"
+          });
+          console.log("✅ Sistema ATU detectado - agregando FEE FINAL $175");
+        }
+
+        // Buscar cada item en el catálogo y agregarlo
+        autoItems.forEach(itemDef => {
+          let found;
+          
+          // Para ACCESORIOS: buscar solo por categoría y nombre (descripción puede variar)
+          if (itemDef.category === "ACCESORIOS") {
+            found = normalizedBudgetItemsCatalog.find(cat => 
+              cat.category === itemDef.category.toUpperCase() &&
+              cat.name.includes("SYSTEM PARTS") && cat.name.includes("ELECTRICAL")
+            );
+          } else {
+            // Para otros: buscar con descripción exacta
+            found = normalizedBudgetItemsCatalog.find(cat => 
+              cat.category === itemDef.category.toUpperCase() &&
+              cat.name === itemDef.name.toUpperCase() &&
+              (itemDef.description ? (cat.description || '').toUpperCase() === itemDef.description.toUpperCase() : true)
+            );
+          }
+          
+          if (found) {
+            initialLineItems.push({
+              _tempId: generateTempId(),
+              budgetItemId: found.id,
+              category: found.category,
+              name: found.name,
+              description: found.description,
+              unitPrice: found.unitPrice,
+              quantity: 1,
+              notes: "🔧 Item requerido (puede remover si no aplica)",
+              marca: found.marca || '',
+              capacity: found.capacity || ''
+            });
+            console.log(`✅ Item automático agregado: ${found.category} - ${found.name} - $${found.unitPrice}`);
+          } else {
+            console.warn(`⚠️ Item automático NO encontrado en catálogo:`, itemDef);
+          }
+        });
+      }
+
       setFormData(prev => ({
         ...prev,
         permitNumber: selectedPermit.permitNumber || "",
@@ -599,19 +683,22 @@ const addManualItem = () => {
 const customCategoryOrder = [
   'SYSTEM TYPE',
   'SISTEMA CHAMBERS',
-  'ACCESORIOS',
-  'PUMP',
+  'PUMP', 
   'SAND',
   'DIRT',
   'ROCK',
-  'INSPECTION',
   'LABOR FEE',
   // El resto aparecerá después
+  // Nota: ACCESORIOS, INSPECTION y FEE DE INSPECCION se auto-agregan y no se muestran aquí
 ];
   const availableCategories = useMemo(() => {
     const categories = [...new Set(normalizedBudgetItemsCatalog.map(item => item.category))];
-    // Filtrar para NO mostrar la categoría "MATERIALES"
-    const filtered = categories.filter(cat => (cat || '').toUpperCase().trim() !== 'MATERIALES');
+    // Filtrar categorías que se auto-agregan o no se deben mostrar
+    const excludedCategories = ['MATERIALES', 'INSPECTION', 'ACCESORIOS', 'FEE DE INSPECCION'];
+    const filtered = categories.filter(cat => {
+      const catUpper = (cat || '').toUpperCase().trim();
+      return !excludedCategories.includes(catUpper);
+    });
     // Ordenar según customCategoryOrder, el resto al final
     return filtered.sort((a, b) => {
       const aIdx = customCategoryOrder.indexOf((a || '').toUpperCase());
