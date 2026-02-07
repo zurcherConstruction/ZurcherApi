@@ -378,11 +378,8 @@ const createPermit = async (req, res, next) => {
       stateParsed = parsed.state;
       zipCodeParsed = parsed.zipCode;
       
-      console.log('\n🔍 Dirección parseada al crear permit:');
-      console.log(`   📍 Calle: "${ppiStreetAddress}"`);
-      console.log(`   🏙️  Ciudad: "${cityParsed}"`);
-      console.log(`   🗺️  Estado: "${stateParsed}"`);
-      console.log(`   📮 Zip: "${zipCodeParsed}"\n`);
+      // Dirección parseada (log removido para producción)
+      // Logs de dirección parseada removidos para producción
     }
 
     // Crear el permiso en la base de datos
@@ -434,7 +431,7 @@ const createPermit = async (req, res, next) => {
     let ppiCloudinaryUrl = null;
     
     try {
-      console.log('\n🤖 === AUTO-GENERANDO PPI ===');
+      console.log('🤖 Auto-generando PPI para permit:', permit.permitNumber);
       
       const ServicePPI = require('../services/ServicePPI');
       const inspectorType = ppiInspectorType || 'type-a'; // Usar el tipo del request o default type-a
