@@ -106,9 +106,9 @@ const extractData = async (text) => {
     text.match(/EXCAVATION REQUIRED:\s*(\d+)/i)?.[1] || null;
 
   // Log final de resultados
-  console.log("=== DATOS EXTRAÍDOS ===");
+  // Datos extraídos del PDF (logs removidos para producción)
   console.log(JSON.stringify(result, null, 2));
-  console.log("=== FIN DATOS EXTRAÍDOS ===");
+  // Fin datos extraídos (log removido para producción)
   
   return result;
 };
@@ -137,8 +137,7 @@ const processPdf = async (req, res) => {
   }
 
   try {
-    console.log("=== INICIO PROCESAMIENTO PDF ===");
-    console.log("Archivo recibido:", req.file.originalname);
+    console.log("📄 Procesando PDF:", req.file.originalname);
 
     // ✅ VALIDAR TAMAÑO DEL PDF ANTES DE PROCESAR
     const fileSizeMB = (req.file.size / 1024 / 1024).toFixed(2);
@@ -160,7 +159,7 @@ const processPdf = async (req, res) => {
     const extractedData = await extractWithPdfJs(req.file.buffer);
 
     // Debug de campos específicos
-    console.log("Verificando campos específicos:");
+    // Verificando campos específicos (log removido para producción)
     console.log("- gpdCapacity:", extractedData.gpdCapacity || "no encontrado");
     console.log(
       "- drainfieldDepth:",
@@ -179,7 +178,7 @@ const processPdf = async (req, res) => {
       data: extractedData,
     });
 
-    console.log("=== FIN PROCESAMIENTO PDF ===");
+    // Fin procesamiento PDF (log removido para producción)
   } catch (err) {
     console.error("Error procesando el PDF:", err);
     res.status(500).json({ message: "Error al procesar el PDF" });

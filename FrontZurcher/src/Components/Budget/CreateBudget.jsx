@@ -321,12 +321,80 @@ const CreateBudget = () => {
           console.log("✅ Sistema ATU detectado - agregando FEE FINAL $175");
         }
 
+        // 6. 🆕 SAND AUTOMÁTICO POR CIUDAD - Agregar según la ciudad del Permit
+        const permitCity = selectedPermit.city || "";
+        console.log(`🏙️ Ciudad del Permit: "${permitCity}"`);
+        if (permitCity.trim() !== "") {
+          // Buscar items de SAND que coincidan con la ciudad
+          const sandItems = normalizedBudgetItemsCatalog.filter(item => 
+            item.category === "SAND" && 
+            (
+              // Buscar ciudad en supplierLocation (campo principal para ubicación)
+              (item.supplierLocation && item.supplierLocation.toUpperCase().includes(permitCity.toUpperCase())) ||
+              // Buscar ciudad en supplierName (proveedor)
+              (item.supplierName && item.supplierName.toUpperCase().includes(permitCity.toUpperCase())) ||
+              // Buscar ciudad en description como respaldo
+              (item.description && item.description.toUpperCase().includes(permitCity.toUpperCase()))
+            )
+          );
+
+          if (sandItems.length > 0) {
+            // Priorizar "LOADS SAND ALL INCLUDED" sobre otros tipos
+            let selectedSandItem = null;
+            
+            // 1. Buscar primero "LOADS SAND ALL INCLUDED"
+            selectedSandItem = sandItems.find(item => 
+              (item.description && item.description.toUpperCase().includes("LOADS SAND ALL INCLUDED")) ||
+              (item.name && item.name.toUpperCase().includes("LOADS SAND ALL INCLUDED")) ||
+              (item.description && item.description.toUpperCase().includes("ALL INCLUDED"))
+            );
+            
+            // 2. Si no encuentra "ALL INCLUDED", buscar "SAND INCLUDED" (evitar "NOT INCLUDED")
+            if (!selectedSandItem) {
+              selectedSandItem = sandItems.find(item => 
+                (item.description && item.description.toUpperCase().includes("SAND INCLUDED") && 
+                 !item.description.toUpperCase().includes("NOT INCLUDED")) ||
+                (item.name && item.name.toUpperCase().includes("SAND INCLUDED") && 
+                 !item.name.toUpperCase().includes("NOT INCLUDED"))
+              );
+            }
+            
+            // 3. Como último recurso, tomar cualquiera que NO sea "NOT INCLUDED"
+            if (!selectedSandItem) {
+              selectedSandItem = sandItems.find(item => 
+                !(item.description && item.description.toUpperCase().includes("NOT INCLUDED")) &&
+                !(item.name && item.name.toUpperCase().includes("NOT INCLUDED"))
+              );
+            }
+            
+            // 4. Si aún no encuentra nada, tomar el primero (fallback)
+            if (!selectedSandItem) {
+              selectedSandItem = sandItems[0];
+            }
+            
+            autoItems.push({
+              category: "SAND",
+              name: selectedSandItem.name,
+              description: selectedSandItem.description,
+              // Este será encontrado automáticamente por su ID específico
+              _directMatch: selectedSandItem // Referencia directa para búsqueda fácil
+            });
+            console.log(`✅ Item SAND automático agregado para ${permitCity}: ${selectedSandItem.name} - $${selectedSandItem.unitPrice} (${selectedSandItem.description || 'Sin descripción'}) - Proveedor: ${selectedSandItem.supplierName || 'N/A'}`);
+          } else {
+            console.warn(`⚠️ No se encontró item SAND para la ciudad: "${permitCity}"`);
+          }
+        }
+
         // Buscar cada item en el catálogo y agregarlo
         autoItems.forEach(itemDef => {
           let found;
           
+          // Para SAND: usar referencia directa si está disponible
+          if (itemDef.category === "SAND" && itemDef._directMatch) {
+            found = itemDef._directMatch;
+          }
           // Para ACCESORIOS: buscar solo por categoría y nombre (descripción puede variar)
-          if (itemDef.category === "ACCESORIOS") {
+          else if (itemDef.category === "ACCESORIOS") {
             found = normalizedBudgetItemsCatalog.find(cat => 
               cat.category === itemDef.category.toUpperCase() &&
               cat.name.includes("SYSTEM PARTS") && cat.name.includes("ELECTRICAL")
@@ -351,13 +419,17 @@ const CreateBudget = () => {
               quantity: 1,
               notes: "🔧 Item requerido (puede remover si no aplica)",
               marca: found.marca || '',
-              capacity: found.capacity || ''
+              capacity: found.capacity || '',
+              supplierName: found.supplierName || '', // 🔍 DEBUG: Agregar supplierName
+              supplierLocation: found.supplierLocation || '' // 🔍 DEBUG: Agregar supplierLocation
             });
-            console.log(`✅ Item automático agregado: ${found.category} - ${found.name} - $${found.unitPrice}`);
+            console.log(`✅ Item automático agregado: ${found.category} - ${found.name} - $${found.unitPrice}${found.supplierName ? ` - Proveedor: ${found.supplierName}` : ''}`);
           } else {
             console.warn(`⚠️ Item automático NO encontrado en catálogo:`, itemDef);
           }
         });
+      } else {
+        console.warn("⚠️ Catálogo no disponible para items automáticos");
       }
 
       setFormData(prev => ({
@@ -435,8 +507,8 @@ const CreateBudget = () => {
       }
     } else if (!permitIdFromQuery && !loadingPermit) { 
       setPermitExpirationAlert({ type: "error", message: "No se ha cargado la información del permiso." });
-  }
-  }, [selectedPermit, permitIdFromQuery, loadingPermit]); // Dependencias ajustadas
+    }
+  }, [selectedPermit, permitIdFromQuery, loadingPermit, normalizedBudgetItemsCatalog]); // 🔧 AGREGADO normalizedBudgetItemsCatalog
 
   // --- Calcular Totales (Subtotal, Total, Initial Payment) ---
   useEffect(() => {
@@ -1639,6 +1711,13 @@ const customCategoryOrder = [
                                 {item.marca && <span>{item.marca}</span>}
                                 {item.marca && item.capacity && <span> &bull; </span>}
                                 {item.capacity && <span>{item.capacity}</span>}
+                                {/* 🔍 DEBUG: Mostrar supplierName para items SAND */}
+                                {item.category === "SAND" && item.supplierName && (
+                                  <span className="text-blue-600 font-medium">
+                                    {(item.marca || item.capacity) && <span> &bull; </span>}
+                                    Proveedor: {item.supplierName}
+                                  </span>
+                                )}
                               </p>
                               <p className="text-gray-700 text-xs mt-1">Cant: {item.quantity} @ ${parseFloat(item.unitPrice).toFixed(2)} c/u</p>
                               {item.notes && <p className="text-xs text-gray-500 italic mt-1.5 ml-2">- {item.notes}</p>}

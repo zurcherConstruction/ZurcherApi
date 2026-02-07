@@ -23,14 +23,13 @@ const extractWithPdfJs = async (buffer) => {
     const sortedY = Object.keys(lines).sort((a, b) => b - a);
     const linesArray = sortedY.map(y => lines[y].join(' '));
 
-    // Log para depurar las líneas extraídas
-    console.log('Líneas extraídas del PDF:', linesArray);
+    // Líneas extraídas procesadas (log removido para producción)
 
     const result = {};
 
     // Procesar cada línea para extraer datos
     linesArray.forEach((line, index) => {
-        console.log('Procesando línea:', line); // Log para depurar cada línea
+        // Procesando línea (log removido para producción)
 
         // Capturar permitNumber
         if (/PERMIT #/i.test(line)) {

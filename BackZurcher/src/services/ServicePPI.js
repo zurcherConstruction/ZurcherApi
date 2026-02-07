@@ -32,7 +32,7 @@ class ServicePPI {
    */
   async generatePPI(permitData, clientData, inspectorType = 'type-a') {
     try {
-      console.log(`\n📄 === GENERANDO PPI ${inspectorType.toUpperCase()} ===`);
+      console.log(`📄 Generando PPI ${inspectorType.toUpperCase()}:`, permitData.permitNumber);
       
       // Validar tipo de inspector
       if (!['type-a', 'type-b'].includes(inspectorType)) {
@@ -115,8 +115,7 @@ class ServicePPI {
         const state = stateZipMatch ? stateZipMatch[1] : '';
         const zipCode = stateZipMatch ? stateZipMatch[2] : '';
         
-        console.log(`🔍 DEBUG afterComma: "${afterComma}"`);
-        console.log(`🔍 DEBUG stateZipMatch:`, stateZipMatch);
+        // Debug logs removidos para producción
         
         // Para separar Street Address de City, buscamos la última palabra compuesta
         // que probablemente sea la ciudad (ej: "Lehigh Acres")
@@ -133,11 +132,7 @@ class ServicePPI {
           streetAddress = words.slice(0, -2).join(' ');
         }
         
-        console.log(`🔍 Dirección parseada:`);
-        console.log(`   📍 Calle: "${streetAddress}"`);
-        console.log(`   🏙️  Ciudad: "${city}"`);
-        console.log(`   🗺️  Estado: "${state}"`);
-        console.log(`   📮 Zip: "${zipCode}"`);
+        // Dirección parseada (logs removidos para producción)
         
         return {
           streetAddress,
@@ -171,10 +166,10 @@ class ServicePPI {
    * @private
    */
   _fillCommonFields(form, permitData, clientData) {
-    console.log('✏️  Llenando campos comunes...');
+    // Llenando campos comunes del PPI (log removido para producción)
     
     // 🔍 DEBUG: Ver qué datos llegan
-    console.log('\n🔍 === DATOS RECIBIDOS EN _fillCommonFields ===');
+    // Datos recibidos en _fillCommonFields (logs removidos para producción)
     console.log('permitData.propertyAddress:', permitData.propertyAddress);
     console.log('permitData.city:', permitData.city);
     console.log('permitData.state:', permitData.state);
@@ -186,7 +181,7 @@ class ServicePPI {
     console.log('permitData.parcelNo:', permitData.parcelNo);
     console.log('permitData.applicationNo:', permitData.applicationNo);
     console.log('permitData.ppiAuthorizationType:', permitData.ppiAuthorizationType);
-    console.log('=== FIN DATOS RECIBIDOS ===\n');
+    // Fin datos recibidos (log removido para producción)
     
     // 🆕 PRIORIDAD: Usar campos editados manualmente (ppiStreetAddress) si existen
     let addressParts = {
@@ -209,30 +204,15 @@ class ServicePPI {
         zipCode: permitData.zipCode || parsed.zipCode
       };
     } else if (permitData.ppiStreetAddress) {
-      console.log('✅ Usando dirección editada manualmente para PPI');
+      // Usando dirección editada manualmente para PPI (log removido)
     }
     
     // 🔍 DEBUG: Ver qué valores se usarán en el PPI
-    console.log('\n📍 === DATOS DE DIRECCIÓN PARA PPI ===');
+    // Datos de dirección para PPI (logs removidos para producción)
     console.log('  🏠 Property Address (completa):', permitData.propertyAddress);
     console.log('  📍 ppiStreetAddress (campo editable):', permitData.ppiStreetAddress);
     console.log('  🏙️ City:', permitData.city);
-    console.log('  🗺️ State:', permitData.state);
-    console.log('  📮 ZipCode:', permitData.zipCode);
-    console.log('  ✅ addressParts.streetAddress (usado en PDF):', addressParts.streetAddress);
-    console.log('  ✅ addressParts.city (usado en PDF):', addressParts.city);
-    console.log('  ✅ addressParts.state (usado en PDF):', addressParts.state);
-    console.log('  ✅ addressParts.zipCode (usado en PDF):', addressParts.zipCode);
-    console.log('=== FIN DATOS DE DIRECCIÓN ===\n');
-    
-    // 🔍 DEBUG: Listar TODOS los campos del formulario
-    console.log('\n🔍 === CAMPOS DISPONIBLES EN EL PDF ===');
-    const fields = form.getFields();
-    fields.forEach(field => {
-      const fieldName = field.getName();
-      console.log(`  📝 Campo: "${fieldName}"`);
-    });
-    console.log('=== FIN LISTA DE CAMPOS ===\n');
+    // Datos de dirección y campos PDF (logs removidos para producción)
 
     const fieldMappings = {
       // Part 1 - Applicant Information
@@ -294,7 +274,7 @@ class ServicePPI {
    * @private
    */
   _fillTypeASpecificFields(form, permitData) {
-    console.log('✏️  Llenando campos específicos de Type A...');
+    // Llenando campos Type A (log removido para producción)
     
     try {
       // Part 3 - Marcar checkbox según ppiAuthorizationType
@@ -329,7 +309,7 @@ class ServicePPI {
    * @private
    */
   _fillTypeBSpecificFields(form, permitData) {
-    console.log('✏️  Llenando campos específicos de Type B...');
+    // Llenando campos Type B (log removido para producción)
     
     try {
       // Part 3 - Marcar checkbox según ppiAuthorizationType  
