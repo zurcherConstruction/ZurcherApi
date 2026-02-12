@@ -745,30 +745,66 @@ router.get('/:token/ppi-sign/:workId', async (req, res) => {
 router.get('/:token/pdf/signed-budget/:budgetId', async (req, res) => {
   try {
     const { token, budgetId } = req.params;
+    console.log(`📄 Requesting signed budget - Token: ${token.substring(0, 10)}..., BudgetId: ${budgetId}`);
 
-    // Verificar token y obtener budget
+    // Primero verificar que el token es válido
+    const tokenValidation = await Budget.findOne({
+      where: { clientPortalToken: token }
+    });
+
+    if (!tokenValidation) {
+      console.log(`❌ Token inválido o no encontrado`);
+      return res.status(404).json({
+        success: false,
+        message: 'Invalid token'
+      });
+    }
+
+    console.log(`✅ Token válido para cliente: ${tokenValidation.applicantEmail}`);
+
+    // Obtener el budget específico (puede ser de cualquier work del cliente)
     const budget = await Budget.findOne({
-      where: { 
-        clientPortalToken: token,
-        idBudget: budgetId 
-      }
+      where: { idBudget: budgetId }
     });
 
     if (!budget) {
+      console.log(`❌ Budget ${budgetId} no encontrado`);
       return res.status(404).json({
         success: false,
-        message: 'Budget not found or invalid token'
+        message: 'Budget not found'
+      });
+    }
+
+    console.log(`✅ Budget encontrado: ${budget.idBudget} - Cliente: ${budget.applicantEmail}`);
+
+    // Verificar que el budget pertenece al mismo cliente (mismo email)
+    if (budget.applicantEmail !== tokenValidation.applicantEmail) {
+      console.log(`⚠️  Budget ${budgetId} no pertenece al mismo cliente del token`);
+      console.log(`   Budget email: ${budget.applicantEmail}`);
+      console.log(`   Token email: ${tokenValidation.applicantEmail}`);
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
       });
     }
 
     const filePath = budget.signedPdfPath || budget.manualSignedPdfPath || budget.legacySignedPdfUrl;
     
+    console.log(`🔍 Buscando PDF firmado para Budget ${budgetId}:`);
+    console.log(`   signedPdfPath: ${budget.signedPdfPath || 'null'}`);
+    console.log(`   manualSignedPdfPath: ${budget.manualSignedPdfPath || 'null'}`);
+    console.log(`   legacySignedPdfUrl: ${budget.legacySignedPdfUrl || 'null'}`);
+    console.log(`   → Usando: ${filePath || 'NINGUNO'}`);
+    
     if (!filePath) {
+      console.log(`⚠️  Budget ${budgetId} no tiene PDF firmado`);
       return res.status(404).json({
         success: false,
         message: 'Signed PDF file not found'
       });
     }
+
+    console.log(`📄 Sirviendo Budget firmado #${budgetId} para cliente ${budget.applicantEmail}`);
 
     // Si es URL de Cloudinary, descargar y servir (no redirect para evitar problemas CORS)
     if (filePath.includes('cloudinary.com')) {
@@ -833,9 +869,12 @@ router.get('/:token/pdf/signed-budget/:budgetId', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error serving signed budget PDF:', error);
+    console.error('❌ Budget ID:', req.params.budgetId);
+    console.error('❌ Token:', req.params.token);
     res.status(500).json({
       success: false,
-      message: 'Error loading signed budget PDF'
+      message: 'Error loading signed budget PDF',
+      error: error.message
     });
   }
 });
