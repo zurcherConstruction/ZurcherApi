@@ -423,7 +423,11 @@ router.get('/:token/work/:workId/documents', async (req, res) => {
         include: [{
           model: Permit,
           as: 'Permit',
-          required: false
+          required: false,
+          attributes: [
+            'permitPdfUrl', 'ppiSignedPdfUrl', 'ppiCloudinaryUrl',
+            'ppiDocusignEnvelopeId', 'ppiSignatureStatus', 'ppiGeneratedPath'
+          ]
         }]
       }],
       attributes: [
@@ -483,13 +487,9 @@ router.get('/:token/work/:workId/documents', async (req, res) => {
         }
       },
       operationPermit: {
-        available: !!(work.operatingPermitUrl || work.Permit),
-        url: work.operatingPermitUrl ? convertToServerUrl(work.operatingPermitUrl) : 
-             (work.Permit?.permitPdfUrl ? work.Permit.permitPdfUrl : null),
-        sentAt: work.operatingPermitSentAt || null,
-        permitData: work.Permit || null,
-        hasDocument: !!(work.operatingPermitUrl || work.Permit?.permitPdfUrl),
-        hasDataOnly: !!work.Permit && !work.operatingPermitUrl && !work.Permit?.permitPdfUrl
+        available: !!work.operatingPermitUrl,
+        url: convertToServerUrl(work.operatingPermitUrl),
+        sentAt: work.operatingPermitSentAt || null
       },
       maintenanceService: {
         available: !!work.maintenanceServiceUrl,
@@ -519,8 +519,8 @@ router.get('/:token/work/:workId/documents', async (req, res) => {
       },
       ppiSignature: {
         required: true, // Por defecto requerido
-        signed: !!(budget.signatureDocumentId),
-        signatureUrl: budget.signatureDocumentId ? `/client-portal/${token}/ppi-sign/${workId}` : null
+        signed: !!(work.Permit?.ppiSignedPdfUrl || work.Permit?.ppiSignatureStatus === 'signed'),
+        signatureUrl: work.Permit?.ppiDocusignEnvelopeId ? `/client-portal/${token}/ppi-sign/${workId}` : null
       }
     };
 
@@ -644,7 +644,7 @@ router.get('/:token/ppi-sign/:workId', async (req, res) => {
         required: true
       }, {
         model: Permit,
-        attributes: ['applicantEmail', 'applicantName']
+        attributes: ['applicantEmail', 'applicantName', 'ppiSignedPdfUrl', 'ppiCloudinaryUrl', 'ppiDocusignEnvelopeId', 'ppiSignatureStatus', 'ppiGeneratedPath']
       }]
     });
 
@@ -655,23 +655,24 @@ router.get('/:token/ppi-sign/:workId', async (req, res) => {
       });
     }
 
-    const isSigned = !!(budget.signatureDocumentId);
+    const permit = budget.Permit;
+    const isSigned = !!(permit?.ppiSignedPdfUrl || permit?.ppiSignatureStatus === 'signed');
     
-    // Si ya está firmado, retornar URL del documento firmado
+    // Si ya está firmado, retornar URL del documento PPI firmado
     if (isSigned) {
       return res.json({
         success: true,
         data: {
           isSigned: true,
-          signedPdfUrl: budget.signedPdfPath || budget.manualSignedPdfPath || null,
+          signedPdfUrl: permit.ppiSignedPdfUrl || null,
           budgetId: budget.idBudget,
-          signatureMethod: budget.signatureMethod
+          signatureMethod: 'docusign'
         }
       });
     }
 
     // Si no está firmado, verificar que haya un envelope de DocuSign
-    const envelopeId = budget.docusignEnvelopeId || budget.signatureDocumentId;
+    const envelopeId = permit?.ppiDocusignEnvelopeId;
     
     if (!envelopeId) {
       // No hay documento enviado para firma aún
@@ -686,23 +687,9 @@ router.get('/:token/ppi-sign/:workId', async (req, res) => {
       });
     }
 
-    // Solo funciona con DocuSign
-    if (budget.signatureMethod !== 'docusign') {
-      return res.json({
-        success: true,
-        data: {
-          isSigned: false,
-          notDocuSign: true,
-          message: 'This document was sent with a different signature method. Please check your email for the signing link.',
-          signatureMethod: budget.signatureMethod,
-          budgetId: budget.idBudget
-        }
-      });
-    }
-
     // Obtener datos del cliente
-    const clientEmail = budget.Permit?.applicantEmail || budget.applicantEmail;
-    const clientName = budget.Permit?.applicantName || budget.applicantName || 'Valued Client';
+    const clientEmail = permit?.applicantEmail || budget.applicantEmail;
+    const clientName = permit?.applicantName || budget.applicantName || 'Valued Client';
 
     if (!clientEmail) {
       return res.status(400).json({
@@ -733,7 +720,7 @@ router.get('/:token/ppi-sign/:workId', async (req, res) => {
         isSigned: false,
         signUrl: signingUrl,
         budgetId: budget.idBudget,
-        signatureMethod: budget.signatureMethod,
+        signatureMethod: 'docusign',
         expiresIn: '5-15 minutes after first access'
       }
     });
@@ -794,7 +781,7 @@ router.get('/:token/pdf/signed-budget/:budgetId', async (req, res) => {
     
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Length', stat.size);
-    res.setHeader('Content-Disposition', 'inline; filename="signed-budget.pdf"');
+    res.setHeader('Content-Disposition', 'inline');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
@@ -824,13 +811,16 @@ router.get('/:token/work/:workId/pdf/ppi-signed', async (req, res) => {
   try {
     const { token, workId } = req.params;
 
-    // Verificar token y obtener budget asociado al work
+    // Verificar token y obtener budget asociado al work con permit
     const budget = await Budget.findOne({
       where: { clientPortalToken: token },
       include: [{
         model: Work,
         where: { idWork: workId },
         required: true
+      }, {
+        model: Permit,
+        attributes: ['ppiSignedPdfUrl', 'ppiCloudinaryUrl', 'ppiGeneratedPath']
       }]
     });
 
@@ -841,7 +831,52 @@ router.get('/:token/work/:workId/pdf/ppi-signed', async (req, res) => {
       });
     }
 
-    const filePath = budget.signedPdfPath || budget.manualSignedPdfPath;
+    const permit = budget.Permit;
+    if (!permit) {
+      return res.status(404).json({
+        success: false,
+        message: 'Permit not found for this work'
+      });
+    }
+
+    // Verificar si hay PPI firmado
+    let filePath = null;
+    
+    // Si es URL de Cloudinary, descargar y servir (no redirect para evitar problemas CORS)
+    if (permit.ppiSignedPdfUrl && permit.ppiSignedPdfUrl.includes('cloudinary.com')) {
+      console.log(`☁️  Descargando PPI firmado desde Cloudinary: ${permit.ppiSignedPdfUrl}`);
+      
+      const axios = require('axios');
+      const cloudinaryResponse = await axios.get(permit.ppiSignedPdfUrl, { 
+        responseType: 'arraybuffer' 
+      });
+
+      // Configurar headers para vista inline
+      const origin = req.headers.origin || '*';
+      console.log('🌐 Setting CORS origin to:', origin);
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+      
+      console.log('✅ Serving Cloudinary PPI with inline headers');
+      return res.send(cloudinaryResponse.data);
+    }
+    
+    // Si es ruta local
+    if (permit.ppiSignedPdfUrl && !permit.ppiSignedPdfUrl.includes('http')) {
+      filePath = permit.ppiSignedPdfUrl;
+    } else if (permit.ppiGeneratedPath) {
+      // Fallback al PPI generado (sin firmar) si no hay firmado
+      filePath = permit.ppiGeneratedPath;
+    }
+
     if (!filePath || !fs.existsSync(filePath)) {
       return res.status(404).json({
         success: false,
@@ -858,7 +893,7 @@ router.get('/:token/work/:workId/pdf/ppi-signed', async (req, res) => {
     
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Length', stat.size);
-    res.setHeader('Content-Disposition', 'inline; filename="ppi-signed.pdf"');
+    res.setHeader('Content-Disposition', 'inline');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
@@ -942,7 +977,7 @@ router.get('/:token/pdf/final-invoice/:budgetId', async (req, res) => {
           console.log('🌐 Setting CORS origin to:', origin);
           
           res.setHeader('Content-Type', 'application/pdf');
-          res.setHeader('Content-Disposition', 'inline; filename="final-invoice.pdf"');
+          res.setHeader('Content-Disposition', 'inline');
           res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
           res.setHeader('Pragma', 'no-cache');
           res.setHeader('Expires', '0');
@@ -996,7 +1031,7 @@ router.get('/:token/pdf/final-invoice/:budgetId', async (req, res) => {
     
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Length', stat.size);
-    res.setHeader('Content-Disposition', 'inline; filename="final-invoice.pdf"');
+    res.setHeader('Content-Disposition', 'inline');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
@@ -1112,7 +1147,7 @@ router.get('/:token/work/:workId/pdf/final-invoice-generated/:finalInvoiceId', a
     console.log('🌐 Setting CORS origin to:', origin);
 
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="final-invoice-${finalInvoice.invoiceNumber}.pdf"`);
+    res.setHeader('Content-Disposition', 'inline');
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
