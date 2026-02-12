@@ -46,22 +46,23 @@ const ClientPortalDashboard = () => {
     rejectedInspection: { label: 'Inspection Pending', color: 'bg-orange-500', icon: FaClipboardList, step: 3 },
     coverPending: { label: 'Cover Pending', color: 'bg-purple-500', icon: FaTools, step: 4 },
     covered: { label: 'Cover Pending', color: 'bg-purple-500', icon: FaTools, step: 4 },
-    invoiceFinal: { label: 'Send Final Payment', color: 'bg-indigo-500', icon: FaDollarSign, step: 0 }, // Skip in visual tracker
-    paymentReceived: { label: 'Send Final Payment', color: 'bg-green-500', icon: FaCheckCircle, step: 0 }, // Skip in visual tracker
+    invoiceFinal: { label: 'Final Payment Pending', color: 'bg-indigo-500', icon: FaDollarSign, step: 5 },
+    paymentReceived: { label: 'Final Payment Pending', color: 'bg-green-500', icon: FaCheckCircle, step: 5 },
     finalInspectionPending: { label: 'Final Inspection Pending', color: 'bg-blue-400', icon: FaClipboardList, step: 6 },
-    finalApproved: { label: 'Final Inspection Pending', color: 'bg-blue-400', icon: FaClipboardList, step: 6 },
+    finalApproved: { label: 'Work Completed', color: 'bg-green-600', icon: FaCheckCircle, step: 7 },
     finalRejected: { label: 'Final Inspection Pending', color: 'bg-blue-400', icon: FaClipboardList, step: 6 },
     maintenance: { label: 'Work Completed', color: 'bg-green-600', icon: FaCheckCircle, step: 7 }
   };
 
-  // Progress steps for visual tracker (showing consecutive numbers 1-6 to client)
+  // Progress steps for visual tracker (showing consecutive numbers 1-7 to client)
   const progressSteps = [
     { id: 1, label: 'Purchase in Progress', status: 'assigned' },
     { id: 2, label: 'Installing', status: 'inProgress' },
     { id: 3, label: 'Inspection Pending', status: 'installed' },
     { id: 4, label: 'Cover Pending', status: 'coverPending' },
-    { id: 5, label: 'Final Inspection Pending', status: 'finalInspectionPending' },
-    { id: 6, label: 'Work Completed', status: 'maintenance' }
+    { id: 5, label: 'Final Payment Pending', status: 'invoiceFinal' },
+    { id: 6, label: 'Final Inspection Pending', status: 'finalInspectionPending' },
+    { id: 7, label: 'Work Completed', status: 'maintenance' }
   ];
 
   // Cargar información del cliente
@@ -214,20 +215,10 @@ const ClientPortalDashboard = () => {
           break;
           
         case 'permit':
-          if (workDocuments.operationPermit.hasDocument && workDocuments.operationPermit.url) {
-            // Permit PDF disponible - usar URL directamente (normalmente Cloudinary)
+          if (workDocuments.operationPermit.available && workDocuments.operationPermit.url) {
             setSelectedPdfUrl(workDocuments.operationPermit.url);
             setSelectedPdfTitle('Operation Permit');
             setShowPdfModal(true);
-          } else if (workDocuments.operationPermit.hasDataOnly && workDocuments.operationPermit.permitData) {
-            // Solo datos JSON disponibles
-            const permitInfo = workDocuments.operationPermit.permitData;
-            let message = 'Operation permit details:\n';
-            if (permitInfo.permitNumber) message += `Permit Number: ${permitInfo.permitNumber}\n`;
-            if (permitInfo.applicationNumber) message += `Application Number: ${permitInfo.applicationNumber}\n`;
-            if (permitInfo.applicant) message += `Applicant: ${permitInfo.applicant}\n`;
-            if (permitInfo.propertyAddress) message += `Property: ${permitInfo.propertyAddress}\n`;
-            alert(message);
           } else {
             alert('Operation permit not available yet.');
           }
@@ -339,28 +330,31 @@ const ClientPortalDashboard = () => {
       
       if (data.success) {
         if (data.data.isSigned) {
-          // Documento ya firmado - cargar el PDF firmado
+          // Documento ya firmado - cargar el PDF firmado desde el backend
           if (data.data.signedPdfUrl) {
-            // Si es Cloudinary o una URL completa, usar directamente
-            if (data.data.signedPdfUrl.includes('cloudinary.com') || data.data.signedPdfUrl.startsWith('http')) {
-              setSelectedPdfUrl(data.data.signedPdfUrl);
+            console.log('📄 Loading signed PPI through backend proxy');
+            const blobResponse = await fetch(`${API_URL}/client-portal/${token}/work/${selectedWork.idWork}/pdf/ppi-signed`, {
+              method: 'GET',
+              headers: {
+                'Accept': 'application/pdf',
+              },
+              credentials: 'include'
+            });
+            
+            console.log('📋 PPI Response status:', blobResponse.status);
+            console.log('📋 PPI Response headers:', Object.fromEntries(blobResponse.headers.entries()));
+            
+            if (blobResponse.ok) {
+              const blob = await blobResponse.blob();
+              console.log('📄 PPI Blob size:', blob.size, 'type:', blob.type);
+              const objectUrl = URL.createObjectURL(blob);
+              console.log('🔗 PPI Object URL created:', objectUrl);
+              setSelectedPdfUrl(objectUrl);
               setSelectedPdfTitle('PPI Document - Signed');
               setShowPdfModal(true);
             } else {
-              // Si es un path local, cargar como blob
-              const blobResponse = await fetch(`${API_URL}/client-portal/${token}/work/${selectedWork.idWork}/pdf/ppi-signed`, {
-                credentials: 'include'
-              });
-              
-              if (blobResponse.ok) {
-                const blob = await blobResponse.blob();
-                const objectUrl = URL.createObjectURL(blob);
-                setSelectedPdfUrl(objectUrl);
-                setSelectedPdfTitle('PPI Document - Signed');
-                setShowPdfModal(true);
-              } else {
-                alert('Error loading signed PPI document');
-              }
+              console.error('❌ Error response:', await blobResponse.text());
+              alert('Error loading signed PPI document');
             }
           } else {
             alert('PPI document is signed but file not available');
@@ -445,11 +439,8 @@ const ClientPortalDashboard = () => {
     const statusInfo = workStatusLabels[status];
     if (!statusInfo || statusInfo.step === 0) return 0;
     
-    // Map internal steps to visual steps: 1,2,3,4,6,7 -> 1,2,3,4,5,6
-    let visualStep = statusInfo.step;
-    if (statusInfo.step >= 6) visualStep = statusInfo.step - 1; // 6->5, 7->6
-    
-    return visualStep;
+    // Con 7 pasos visuales, devolver el step directamente
+    return statusInfo.step;
   };
 
   // Progress Tracker Component
@@ -459,55 +450,114 @@ const ClientPortalDashboard = () => {
     return (
       <div className="bg-gradient-to-br from-slate-50 to-blue-50 rounded-xl shadow-md p-4 lg:p-6 mb-6 border border-slate-200">
         <h3 className="text-base lg:text-lg font-semibold text-slate-800 mb-4 lg:mb-6">Project Progress</h3>
-        <div className="relative">
-          {/* Progress Line */}
-          <div className="absolute top-6 left-6 right-6 h-1 bg-slate-200 rounded-full hidden lg:block">
-            <div 
-              className="h-full bg-gradient-to-r from-green-400 to-green-600 rounded-full transition-all duration-1000 ease-out shadow-sm"
-              style={{ width: `${Math.max(0, (currentStep - 1) / (progressSteps.length - 1) * 100)}%` }}
-            ></div>
+        
+        {/* Desktop/Tablet: Horizontal Layout */}
+        <div className="hidden md:block">
+          <div className="relative">
+            {/* Progress Line */}
+            <div className="absolute top-7 left-0 right-0 h-1 bg-slate-200 rounded-full mx-8">
+              <div 
+                className="h-full bg-gradient-to-r from-green-400 to-green-600 rounded-full transition-all duration-1000 ease-out shadow-sm"
+                style={{ width: `${Math.max(0, (currentStep - 1) / (progressSteps.length - 1) * 100)}%` }}
+              ></div>
+            </div>
+            
+            {/* Steps */}
+            <div className="flex justify-between items-start relative z-10">
+              {progressSteps.map((step, index) => {
+                const isCompleted = currentStep > step.id;
+                const isCurrent = currentStep === step.id;
+                const isUpcoming = currentStep < step.id;
+                
+                return (
+                  <div key={step.id} className="flex flex-col items-center w-20 lg:w-24">
+                    {/* Step Circle */}
+                    <div className={`
+                      w-14 h-14 lg:w-16 lg:h-16 rounded-full flex items-center justify-center text-sm lg:text-base font-bold transition-all duration-300 shadow-lg
+                      ${
+                        isCompleted 
+                          ? 'bg-gradient-to-br from-green-400 to-green-600 text-white scale-110 ring-4 ring-green-200' 
+                          : isCurrent 
+                          ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white scale-110 ring-4 ring-blue-300 animate-pulse' 
+                          : 'bg-gradient-to-br from-slate-200 to-slate-300 text-slate-500 shadow-inner'
+                      }
+                    `}>
+                      {isCompleted ? (
+                        <FaCheckCircle className="text-xl lg:text-2xl" />
+                      ) : (
+                        step.id
+                      )}
+                    </div>
+                    
+                    {/* Step Label */}
+                    <div className="mt-3 text-center">
+                      <p className={`text-xs lg:text-sm font-semibold leading-tight ${
+                        isCompleted || isCurrent 
+                          ? 'text-slate-800' 
+                          : 'text-slate-500'
+                      }`}>
+                        {step.label}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          
-          {/* Steps */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:flex lg:justify-between items-center gap-3 lg:gap-0">
-            {progressSteps.map((step, index) => {
-              const isCompleted = currentStep > step.id;
-              const isCurrent = currentStep === step.id;
-              const isUpcoming = currentStep < step.id;
-              
-              return (
-                <div key={step.id} className="flex flex-col items-center relative z-10">
-                  {/* Step Circle */}
-                  <div className={`
-                    w-12 h-12 lg:w-14 lg:h-14 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 shadow-lg
-                    ${
-                      isCompleted 
-                        ? 'bg-gradient-to-br from-green-400 to-green-600 text-white scale-110 ring-4 ring-green-200' 
-                        : isCurrent 
-                        ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white scale-110 ring-4 ring-blue-300 animate-pulse' 
-                        : 'bg-gradient-to-br from-slate-200 to-slate-300 text-slate-500 shadow-inner'
-                    }
-                  `}>
-                    {isCompleted ? (
-                      <FaCheckCircle className="text-lg lg:text-xl" />
-                    ) : (
-                      step.id
-                    )}
+        </div>
+
+        {/* Mobile: Vertical Layout */}
+        <div className="md:hidden">
+          <div className="relative">
+            {/* Vertical Progress Line */}
+            <div className="absolute top-0 bottom-0 left-6 w-1 bg-slate-200 rounded-full">
+              <div 
+                className="w-full bg-gradient-to-b from-green-400 to-green-600 rounded-full transition-all duration-1000 ease-out shadow-sm"
+                style={{ height: `${Math.max(0, (currentStep - 1) / (progressSteps.length - 1) * 100)}%` }}
+              ></div>
+            </div>
+            
+            {/* Steps */}
+            <div className="flex flex-col space-y-4 relative z-10">
+              {progressSteps.map((step, index) => {
+                const isCompleted = currentStep > step.id;
+                const isCurrent = currentStep === step.id;
+                const isUpcoming = currentStep < step.id;
+                
+                return (
+                  <div key={step.id} className="flex items-center">
+                    {/* Step Circle */}
+                    <div className={`
+                      flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 shadow-lg
+                      ${
+                        isCompleted 
+                          ? 'bg-gradient-to-br from-green-400 to-green-600 text-white ring-4 ring-green-200' 
+                          : isCurrent 
+                          ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white ring-4 ring-blue-300 animate-pulse' 
+                          : 'bg-gradient-to-br from-slate-200 to-slate-300 text-slate-500 shadow-inner'
+                      }
+                    `}>
+                      {isCompleted ? (
+                        <FaCheckCircle className="text-lg" />
+                      ) : (
+                        step.id
+                      )}
+                    </div>
+                    
+                    {/* Step Label */}
+                    <div className="ml-4 flex-1">
+                      <p className={`text-sm font-semibold ${
+                        isCompleted || isCurrent 
+                          ? 'text-slate-800' 
+                          : 'text-slate-500'
+                      }`}>
+                        {step.label}
+                      </p>
+                    </div>
                   </div>
-                  
-                  {/* Step Label */}
-                  <div className="mt-2 lg:mt-3 text-center">
-                    <p className={`text-xs font-semibold ${
-                      isCompleted || isCurrent 
-                        ? 'text-slate-800' 
-                        : 'text-slate-500'
-                    }`}>
-                      {step.label}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -1058,10 +1108,8 @@ const ClientPortalDashboard = () => {
                           <FaSpinner className="animate-spin" />
                           Loading...
                         </>
-                      ) : workDocuments?.operationPermit?.hasDocument ? (
+                      ) : workDocuments?.operationPermit?.available ? (
                         'View Document'
-                      ) : workDocuments?.operationPermit?.hasDataOnly ? (
-                        'View Details'
                       ) : (
                         'Not Available'
                       )}
