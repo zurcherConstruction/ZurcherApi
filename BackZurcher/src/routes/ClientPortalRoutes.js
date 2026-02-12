@@ -416,8 +416,8 @@ router.get('/:token/work/:workId/documents', async (req, res) => {
         where: { idWork: workId },
         required: true,
         attributes: [
-          'idWork', 'operatingPermitUrl', 'operatingPermitSentAt',
-          'maintenanceServiceUrl', 'maintenanceServiceSentAt',
+          'idWork', 'operatingPermitUrl', 'operatingPermitPublicId', 'operatingPermitSentAt',
+          'maintenanceServiceUrl', 'maintenanceServicePublicId', 'maintenanceServiceSentAt',
           'noticeToOwnerDocumentUrl', 'lienDocumentUrl', 'createdAt'
         ],
         include: [{
@@ -488,13 +488,17 @@ router.get('/:token/work/:workId/documents', async (req, res) => {
         }
       },
       operationPermit: {
-        available: !!work.operatingPermitUrl,
-        url: convertToServerUrl(work.operatingPermitUrl),
+        available: !!(work.operatingPermitUrl || work.operatingPermitPublicId),
+        url: (work.operatingPermitUrl || work.operatingPermitPublicId) 
+          ? `/client-portal/${token}/pdf/operating-permit/${workId}`
+          : null,
         sentAt: work.operatingPermitSentAt || null
       },
       maintenanceService: {
-        available: !!work.maintenanceServiceUrl,
-        url: convertToServerUrl(work.maintenanceServiceUrl),
+        available: !!(work.maintenanceServiceUrl || work.maintenanceServicePublicId),
+        url: (work.maintenanceServiceUrl || work.maintenanceServicePublicId)
+          ? `/client-portal/${token}/pdf/maintenance-service/${workId}`
+          : null,
         sentAt: work.maintenanceServiceSentAt || null
       },
       finalInvoice: {
@@ -519,9 +523,12 @@ router.get('/:token/work/:workId/documents', async (req, res) => {
         }
       },
       ppiSignature: {
+        available: !!(work.Permit?.ppiDocusignEnvelopeId || work.Permit?.ppiSignedPdfUrl), // Disponible si hay envelope o ya está firmado
         required: true, // Por defecto requerido
-        signed: !!(work.Permit?.ppiSignedPdfUrl || work.Permit?.ppiSignatureStatus === 'signed'),
-        signatureUrl: work.Permit?.ppiDocusignEnvelopeId ? `/client-portal/${token}/ppi-sign/${workId}` : null
+        signed: !!(work.Permit?.ppiSignedPdfUrl || work.Permit?.ppiSignatureStatus === 'completed' || work.Permit?.ppiSignatureStatus === 'signed'),
+        signatureUrl: work.Permit?.ppiDocusignEnvelopeId ? `/client-portal/${token}/ppi-sign/${workId}` : null,
+        envelopeId: work.Permit?.ppiDocusignEnvelopeId || null,
+        status: work.Permit?.ppiSignatureStatus || null
       }
     };
 
@@ -630,13 +637,16 @@ router.get('/:token/work/:workId/receipts', async (req, res) => {
 
 /**
  * Generar enlace para firma PPI o vista del documento firmado
- * GET /api/client-portal/:token/ppi-sign/:workId
+ * GET /client-portal/:token/ppi-sign/:workId
  */
 router.get('/:token/ppi-sign/:workId', async (req, res) => {
   try {
     const { token, workId } = req.params;
+    console.log(`\n📋 === GENERANDO ENLACE PPI ===`);
+    console.log(`🔑 Token: ${token.substring(0, 10)}...`);
+    console.log(`🏗️  Work ID: ${workId}`);
 
-    // Verificar token
+    // Verificar token y obtener budget con permit
     const budget = await Budget.findOne({
       where: { clientPortalToken: token },
       include: [{
@@ -645,11 +655,18 @@ router.get('/:token/ppi-sign/:workId', async (req, res) => {
         required: true
       }, {
         model: Permit,
-        attributes: ['applicantEmail', 'applicantName', 'ppiSignedPdfUrl', 'ppiCloudinaryUrl', 'ppiDocusignEnvelopeId', 'ppiSignatureStatus', 'ppiGeneratedPath']
+        required: false,
+        attributes: [
+          'idPermit', 'applicantEmail', 'applicantName', 
+          'ppiSignedPdfUrl', 'ppiCloudinaryUrl', 
+          'ppiDocusignEnvelopeId', 'ppiSignatureStatus', 
+          'ppiGeneratedPath', 'ppiSignedPdfPublicId'
+        ]
       }]
     });
 
     if (!budget) {
+      console.log(`❌ Work no encontrado o token inválido`);
       return res.status(404).json({
         success: false,
         message: 'Work not found or invalid token'
@@ -657,10 +674,31 @@ router.get('/:token/ppi-sign/:workId', async (req, res) => {
     }
 
     const permit = budget.Permit;
-    const isSigned = !!(permit?.ppiSignedPdfUrl || permit?.ppiSignatureStatus === 'signed');
+    
+    if (!permit) {
+      console.log(`⚠️  No hay Permit asociado a este Budget`);
+      return res.json({
+        success: true,
+        data: {
+          isSigned: false,
+          notSentYet: true,
+          message: 'PPI document has not been created yet. Please contact support.',
+          budgetId: budget.idBudget
+        }
+      });
+    }
+
+    console.log(`✅ Permit encontrado: ${permit.idPermit}`);
+    console.log(`📧 Cliente: ${permit.applicantEmail || budget.applicantEmail}`);
+    console.log(`📋 Envelope ID: ${permit.ppiDocusignEnvelopeId || 'none'}`);
+    console.log(`📊 Status: ${permit.ppiSignatureStatus || 'none'}`);
+    console.log(`📄 Signed PDF: ${permit.ppiSignedPdfUrl ? 'YES' : 'NO'}`);
+
+    const isSigned = !!(permit.ppiSignedPdfUrl || permit.ppiSignatureStatus === 'completed' || permit.ppiSignatureStatus === 'signed');
     
     // Si ya está firmado, retornar URL del documento PPI firmado
     if (isSigned) {
+      console.log(`✅ PPI ya está firmado`);
       return res.json({
         success: true,
         data: {
@@ -673,34 +711,35 @@ router.get('/:token/ppi-sign/:workId', async (req, res) => {
     }
 
     // Si no está firmado, verificar que haya un envelope de DocuSign
-    const envelopeId = permit?.ppiDocusignEnvelopeId;
+    const envelopeId = permit.ppiDocusignEnvelopeId;
     
     if (!envelopeId) {
-      // No hay documento enviado para firma aún
-      return res.json({
-        success: true,
-        data: {
-          isSigned: false,
-          notSentYet: true,
-          message: 'PPI document has not been sent for signature yet. Please contact support.',
-          budgetId: budget.idBudget
-        }
-      });
+      console.log(`⚠️  No hay envelope de DocuSign para este PPI`);
+      console.log(`🔄 Redirigiendo al endpoint público para generar envelope on-demand...`);
+      
+      // Redirigir al endpoint público que crea envelope on-demand y redirige a DocuSign
+      const publicPPISignUrl = `/permit/${permit.idPermit}/ppi/sign`;
+      console.log(`🔗 Redirect URL: ${publicPPISignUrl}`);
+      
+      return res.redirect(publicPPISignUrl);
     }
 
     // Obtener datos del cliente
-    const clientEmail = permit?.applicantEmail || budget.applicantEmail;
-    const clientName = permit?.applicantName || budget.applicantName || 'Valued Client';
+    const clientEmail = permit.applicantEmail || budget.applicantEmail;
+    const clientName = permit.applicantName || budget.applicantName || 'Valued Client';
 
     if (!clientEmail) {
+      console.log(`❌ No se encontró email del cliente`);
       return res.status(400).json({
         success: false,
         message: 'Client email not found'
       });
     }
 
-    console.log(`📧 Generando enlace de firma PPI para: ${clientEmail}`);
-    console.log(`📋 Envelope ID: ${envelopeId}`);
+    console.log(`🔗 Generando enlace de firma PPI on-demand...`);
+    console.log(`   Email: ${clientEmail}`);
+    console.log(`   Nombre: ${clientName}`);
+    console.log(`   Envelope: ${envelopeId}`);
 
     // Inicializar servicio DocuSign y generar enlace de firma
     const docuSignService = new DocuSignService();
@@ -714,6 +753,7 @@ router.get('/:token/ppi-sign/:workId', async (req, res) => {
     );
 
     console.log('✅ Enlace de firma generado exitosamente');
+    console.log(`🔗 URL: ${signingUrl.substring(0, 80)}...`);
 
     res.json({
       success: true,
@@ -722,16 +762,20 @@ router.get('/:token/ppi-sign/:workId', async (req, res) => {
         signUrl: signingUrl,
         budgetId: budget.idBudget,
         signatureMethod: 'docusign',
-        expiresIn: '5-15 minutes after first access'
+        expiresIn: '5-15 minutes after first access',
+        clientEmail: clientEmail,
+        envelopeId: envelopeId
       }
     });
 
   } catch (error) {
     console.error('❌ Error generando enlace PPI:', error);
+    console.error('❌ Error stack:', error.stack);
     res.status(500).json({
       success: false,
       message: 'Error generating PPI signature link',
-      error: error.message
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
@@ -1377,6 +1421,222 @@ router.get('/:token/work/:workId/pdf/final-invoice-generated/:finalInvoiceId', a
     res.status(500).json({
       success: false,
       message: 'Error generating final invoice PDF'
+    });
+  }
+});
+
+/**
+ * Servir Operating Permit PDF con proxy de Cloudinary
+ * GET /api/client-portal/:token/pdf/operating-permit/:workId
+ */
+router.get('/:token/pdf/operating-permit/:workId', async (req, res) => {
+  try {
+    const { token, workId } = req.params;
+    console.log(`📄 Requesting operating permit - Token: ${token.substring(0, 10)}..., WorkId: ${workId}`);
+
+    // Verificar token
+    const tokenValidation = await Budget.findOne({
+      where: { clientPortalToken: token },
+      attributes: ['applicantEmail']
+    });
+
+    if (!tokenValidation) {
+      console.log(`❌ Token inválido`);
+      return res.status(403).json({
+        success: false,
+        message: 'Invalid token'
+      });
+    }
+
+    console.log(`✅ Token válido para cliente: ${tokenValidation.applicantEmail}`);
+
+    // Buscar Work con validación de cliente
+    const budgets = await Budget.findAll({
+      where: {
+        clientPortalToken: token,
+        applicantEmail: tokenValidation.applicantEmail
+      },
+      include: [{
+        model: Work,
+        where: { idWork: workId },
+        required: true,
+        attributes: ['operatingPermitUrl', 'operatingPermitPublicId']
+      }],
+      attributes: ['applicantEmail']
+    });
+
+    if (budgets.length === 0) {
+      console.log(`❌ Work ${workId} no encontrado para este cliente`);
+      return res.status(404).json({
+        success: false,
+        message: 'Work not found'
+      });
+    }
+
+    const work = budgets[0].Work;
+    let pdfUrl = work.operatingPermitUrl;
+
+    // 🆕 Si no hay URL pero hay publicId, construir URL de Cloudinary
+    if (!pdfUrl && work.operatingPermitPublicId) {
+      console.log(`☁️  Construyendo URL de Cloudinary desde publicId: ${work.operatingPermitPublicId}`);
+      pdfUrl = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/raw/upload/${work.operatingPermitPublicId}`;
+      console.log(`   URL construida: ${pdfUrl}`);
+    }
+
+    if (!pdfUrl) {
+      console.log(`⚠️  Work ${workId} no tiene Operating Permit PDF`);
+      return res.status(404).json({
+        success: false,
+        message: 'Operating Permit PDF not found'
+      });
+    }
+
+    console.log(`📄 Sirviendo Operating Permit para Work #${workId}`);
+
+    // Si es URL de Cloudinary, descargar y servir (proxy para evitar CORS)
+    if (pdfUrl.includes('cloudinary.com')) {
+      console.log(`☁️  Descargando Operating Permit desde Cloudinary: ${pdfUrl}`);
+      
+      const axios = require('axios');
+      const cloudinaryResponse = await axios.get(pdfUrl, { 
+        responseType: 'arraybuffer' 
+      });
+
+      const origin = req.headers.origin || '*';
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+      
+      console.log('✅ Serving Cloudinary Operating Permit with inline headers');
+      return res.send(cloudinaryResponse.data);
+    }
+
+    // Si es archivo local (poco común para estos documentos)
+    return res.status(404).json({
+      success: false,
+      message: 'Operating Permit PDF not available'
+    });
+
+  } catch (error) {
+    console.error('❌ Error serving operating permit PDF:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error loading operating permit PDF',
+      error: error.message
+    });
+  }
+});
+
+/**
+ * Servir Maintenance Service PDF con proxy de Cloudinary
+ * GET /api/client-portal/:token/pdf/maintenance-service/:workId
+ */
+router.get('/:token/pdf/maintenance-service/:workId', async (req, res) => {
+  try {
+    const { token, workId } = req.params;
+    console.log(`📄 Requesting maintenance service - Token: ${token.substring(0, 10)}..., WorkId: ${workId}`);
+
+    // Verificar token
+    const tokenValidation = await Budget.findOne({
+      where: { clientPortalToken: token },
+      attributes: ['applicantEmail']
+    });
+
+    if (!tokenValidation) {
+      console.log(`❌ Token inválido`);
+      return res.status(403).json({
+        success: false,
+        message: 'Invalid token'
+      });
+    }
+
+    console.log(`✅ Token válido para cliente: ${tokenValidation.applicantEmail}`);
+
+    // Buscar Work con validación de cliente
+    const budgets = await Budget.findAll({
+      where: {
+        clientPortalToken: token,
+        applicantEmail: tokenValidation.applicantEmail
+      },
+      include: [{
+        model: Work,
+        where: { idWork: workId },
+        required: true,
+        attributes: ['maintenanceServiceUrl', 'maintenanceServicePublicId']
+      }],
+      attributes: ['applicantEmail']
+    });
+
+    if (budgets.length === 0) {
+      console.log(`❌ Work ${workId} no encontrado para este cliente`);
+      return res.status(404).json({
+        success: false,
+        message: 'Work not found'
+      });
+    }
+
+    const work = budgets[0].Work;
+    let pdfUrl = work.maintenanceServiceUrl;
+
+    // 🆕 Si no hay URL pero hay publicId, construir URL de Cloudinary
+    if (!pdfUrl && work.maintenanceServicePublicId) {
+      console.log(`☁️  Construyendo URL de Cloudinary desde publicId: ${work.maintenanceServicePublicId}`);
+      pdfUrl = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/raw/upload/${work.maintenanceServicePublicId}`;
+      console.log(`   URL construida: ${pdfUrl}`);
+    }
+
+    if (!pdfUrl) {
+      console.log(`⚠️  Work ${workId} no tiene Maintenance Service PDF`);
+      return res.status(404).json({
+        success: false,
+        message: 'Maintenance Service PDF not found'
+      });
+    }
+
+    console.log(`📄 Sirviendo Maintenance Service para Work #${workId}`);
+
+    // Si es URL de Cloudinary, descargar y servir (proxy para evitar CORS)
+    if (pdfUrl.includes('cloudinary.com')) {
+      console.log(`☁️  Descargando Maintenance Service desde Cloudinary: ${pdfUrl}`);
+      
+      const axios = require('axios');
+      const cloudinaryResponse = await axios.get(pdfUrl, { 
+        responseType: 'arraybuffer' 
+      });
+
+      const origin = req.headers.origin || '*';
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+      
+      console.log('✅ Serving Cloudinary Maintenance Service with inline headers');
+      return res.send(cloudinaryResponse.data);
+    }
+
+    // Si es archivo local (poco común para estos documentos)
+    return res.status(404).json({
+      success: false,
+      message: 'Maintenance Service PDF not available'
+    });
+
+  } catch (error) {
+    console.error('❌ Error serving maintenance service PDF:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error loading maintenance service PDF',
+      error: error.message
     });
   }
 });

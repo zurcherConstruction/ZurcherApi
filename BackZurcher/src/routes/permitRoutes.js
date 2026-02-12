@@ -36,6 +36,9 @@ router.get('/check-by-address', verifyToken, allowRoles(['admin', 'recept', 'own
 // 🆕 Verificar si un número de permit ya existe
 router.get('/check-permit-number/:permitNumber', verifyToken, allowRoles(['admin', 'recept', 'owner']), PermitController.checkPermitNumber);
 
+// 🆕 Diagnóstico: Verificar permits con PDFs corruptos en Cloudinary
+router.get('/diagnostic/cloudinary-corrupted', verifyToken, allowRoles(['admin']), PermitController.getCorruptedCloudinaryPermits);
+
 // Obtener todos los permisos (permitido para staff)
 router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker']), PermitController.getPermits);
 
