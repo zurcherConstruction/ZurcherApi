@@ -87,6 +87,8 @@ import WorkerMaintenanceDetail from "./Components/Workers/WorkerMaintenanceDetai
 import WorkerGeneralExpense from "./Components/Workers/WorkerGeneralExpense";
 import SimpleWorkList from "./Components/SimpleWork/SimpleWorkList";
 import GalleryManager from "./Components/Admin/GalleryManager";
+import ClientPortalDashboard from "./Components/ClientPortal/ClientPortalDashboard";
+import ClientPortalAdmin from "./Components/ClientPortal/ClientPortalAdmin";
 
 function App() {
   const dispatch = useDispatch();
@@ -107,7 +109,9 @@ function App() {
       "/thank-you", "/change-order-response", "/privacy-policy", "/login", "/forgot-password", "/maintenance-form"
     ];
     const isPublicRoute = publicRoutes.some(route =>
-      location.pathname === route || location.pathname.startsWith("/reset-password")
+      location.pathname === route || 
+      location.pathname.startsWith("/reset-password") ||
+      location.pathname.startsWith("/client-portal/")
     );
 
     // No redirigir automáticamente desde la landing principal
@@ -126,7 +130,8 @@ function App() {
     "/thank-you", "/change-order-response", "/privacy-policy", "/maintenance-form"
   ];
   const isBudgetReviewRoute = location.pathname.startsWith("/budget-review/");
-  const isPublicLandingRoute = publicLandingRoutes.includes(location.pathname) || isBudgetReviewRoute;
+  const isClientPortalRoute = location.pathname.startsWith("/client-portal/");
+  const isPublicLandingRoute = publicLandingRoutes.includes(location.pathname) || isBudgetReviewRoute || isClientPortalRoute;
 
   // Determinar si mostrar header y sidebar
   const shouldShowLayout = isAuthenticated && !isPublicLandingRoute;
@@ -159,6 +164,9 @@ function App() {
 
               {/* 🆕 Ruta pública para formulario de mantenimiento (protegida por token en query params) */}
               <Route path="/maintenance-form" element={<MaintenanceForm />} />
+              
+              {/* 🆕 Ruta pública para portal de clientes (protegida por token) */}
+              <Route path="/client-portal/:token" element={<ClientPortalDashboard />} />
 
               {/* Rutas privadas */}
               <Route
@@ -409,6 +417,16 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["owner"]}>
                     <GalleryManager />
+                  </PrivateRoute>
+                }
+              />
+
+              {/* Client Portal Admin - Owner y Admin */}
+              <Route
+                path="/client-portal-admin"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin"]}>
+                    <ClientPortalAdmin />
                   </PrivateRoute>
                 }
               />

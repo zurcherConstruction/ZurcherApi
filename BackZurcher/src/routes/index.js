@@ -41,6 +41,7 @@ const contactRoutes = require('./contactRoutes'); // Asegúrate de que la ruta s
 const galleryRoutes = require('./galleryRoutes'); // 🆕 Rutas para galería de Cloudinary
 const importRoutes = require('./importRoutes'); // Rutas para importar trabajos legacy
 const budgetPublicRoutes = require('./BudgetPublicRoutes');
+const clientPortalRoutes = require('./ClientPortalRoutes'); // 🆕 Portal del cliente
 const ppiPublicRoutes = require('./ppiPublicRoutes'); // 🆕 Rutas públicas para firma de PPI
 const stripeWebhookRoutes = require('./stripeWebhookRoutes'); // 🆕 Webhooks de Stripe
 const docusignRoutes = require('./docusign.routes'); // 🆕 OAuth de DocuSign
@@ -64,6 +65,7 @@ router.use('/docusign', docusignRoutes); // 🆕 OAuth de DocuSign (público, si
 // 🆕 RUTAS PÚBLICAS DE BUDGETS (antes del verifyToken)
 // Estas rutas permiten a los clientes revisar presupuestos sin autenticación
 router.use('/budgets', budgetPublicRoutes); // Rutas públicas de presupuestos
+router.use('/client-portal', clientPortalRoutes); // 🆕 Portal del cliente (público)
 router.use('/ppi', ppiPublicRoutes); // 🆕 Rutas públicas de firma de PPI
 
 // Rutas protegidas (requieren token)

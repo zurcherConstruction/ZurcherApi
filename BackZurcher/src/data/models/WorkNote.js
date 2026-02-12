@@ -74,6 +74,13 @@ module.exports = (sequelize) => {
       allowNull: true,
       defaultValue: [],
       comment: 'IDs de staff mencionados con @ en el mensaje'
+    },
+    // 🆕 Control de visibilidad para portal del cliente
+    isVisibleToClient: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      comment: 'Indica si esta nota es visible en el portal del cliente'
     }
   }, {
     timestamps: true,
