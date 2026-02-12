@@ -776,6 +776,8 @@ router.get('/:token/pdf/signed-budget/:budgetId', async (req, res) => {
     }
 
     console.log(`✅ Budget encontrado: ${budget.idBudget} - Cliente: ${budget.applicantEmail}`);
+    console.log(`📋 Método de firma: ${budget.signatureMethod || 'none'}`);
+    console.log(`📋 Status: ${budget.status}`);
 
     // Verificar que el budget pertenece al mismo cliente (mismo email)
     if (budget.applicantEmail !== tokenValidation.applicantEmail) {
@@ -836,12 +838,84 @@ router.get('/:token/pdf/signed-budget/:budgetId', async (req, res) => {
     // Si es archivo local
     const fs = require('fs');
     
-    if (!fs.existsSync(filePath)) {
+    console.log(`📂 Verificando existencia del archivo local...`);
+    console.log(`   Ruta completa: ${filePath}`);
+    console.log(`   __dirname: ${__dirname}`);
+    console.log(`   process.cwd(): ${process.cwd()}`);
+    
+    const fileExists = fs.existsSync(filePath);
+    console.log(`   fs.existsSync() result: ${fileExists}`);
+    
+    if (!fileExists) {
+      console.error(`❌ Archivo no encontrado en: ${filePath}`);
+      console.error(`   Listando archivos en directorio padre si existe...`);
+      
+      // Intentar listar el directorio para debug
+      const path = require('path');
+      const parentDir = path.dirname(filePath);
+      try {
+        if (fs.existsSync(parentDir)) {
+          const files = fs.readdirSync(parentDir);
+          console.log(`   📂 Archivos en ${parentDir}:`);
+          files.slice(0, 10).forEach(f => console.log(`      - ${f}`));
+          if (files.length > 10) console.log(`      ... y ${files.length - 10} más`);
+        } else {
+          console.log(`   ⚠️  Directorio padre no existe: ${parentDir}`);
+        }
+      } catch (dirError) {
+        console.log(`   ⚠️  No se pudo listar directorio: ${dirError.message}`);
+      }
+      
+      // Intentar con ruta relativa desde process.cwd()
+      const relativePath = path.join(process.cwd(), 'src', 'uploads', 'signed-budgets', `Budget_${budgetId}_signed.pdf`);
+      console.log(`   Intentando ruta relativa: ${relativePath}`);
+      
+      if (fs.existsSync(relativePath)) {
+        console.log(`✅ Archivo encontrado en ruta relativa, usando esa`);
+        // Actualizar filePath para usar la ruta que funciona
+        const stat = fs.statSync(relativePath);
+        
+        const origin = req.headers.origin || '*';
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Length', stat.size);
+        res.setHeader('Content-Disposition', 'inline');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+        
+        console.log('✅ Serving local Budget file with inline headers (relative path)');
+        const fileStream = fs.createReadStream(relativePath);
+        
+        // Agregar manejador de errores al stream
+        fileStream.on('error', (streamError) => {
+          console.error('❌ Error en stream de lectura (relative path):', streamError);
+          if (!res.headersSent) {
+            res.status(500).json({
+              success: false,
+              message: 'Error reading PDF file',
+              error: streamError.message
+            });
+          }
+        });
+        
+        fileStream.on('open', () => {
+          console.log('✅ Stream de archivo abierto correctamente (relative path)');
+        });
+        
+        return fileStream.pipe(res);
+      }
+      
       return res.status(404).json({
         success: false,
         message: 'Signed PDF file not found on server'
       });
     }
+
+    console.log(`✅ Archivo existe, preparando para servir...`);
 
     // Obtener estadísticas del archivo
     const stat = fs.statSync(filePath);
@@ -862,6 +936,23 @@ router.get('/:token/pdf/signed-budget/:budgetId', async (req, res) => {
     res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
     
     console.log('✅ Serving local Budget file with inline headers');
+    
+    
+    // Agregar manejador de errores al stream
+    fileStream.on('error', (streamError) => {
+      console.error('❌ Error en stream de lectura:', streamError);
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          message: 'Error reading PDF file',
+          error: streamError.message
+        });
+      }
+    });
+    
+    fileStream.on('open', () => {
+      console.log('✅ Stream de archivo abierto correctamente');
+    });
     
     // Crear stream de lectura y pipe a la respuesta
     const fileStream = fs.createReadStream(filePath);
