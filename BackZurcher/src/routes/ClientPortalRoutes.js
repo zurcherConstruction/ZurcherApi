@@ -790,13 +790,21 @@ router.get('/:token/pdf/signed-budget/:budgetId', async (req, res) => {
       });
     }
 
-    const filePath = budget.signedPdfPath || budget.manualSignedPdfPath || budget.legacySignedPdfUrl;
+    let filePath = budget.signedPdfPath || budget.manualSignedPdfPath || budget.legacySignedPdfUrl;
     
     console.log(`🔍 Buscando PDF firmado para Budget ${budgetId}:`);
     console.log(`   signedPdfPath: ${budget.signedPdfPath || 'null'}`);
     console.log(`   manualSignedPdfPath: ${budget.manualSignedPdfPath || 'null'}`);
     console.log(`   legacySignedPdfUrl: ${budget.legacySignedPdfUrl || 'null'}`);
+    console.log(`   signedPdfPublicId: ${budget.signedPdfPublicId || 'null'}`);
     console.log(`   → Usando: ${filePath || 'NINGUNO'}`);
+    
+    // 🆕 Si no hay filePath pero hay signedPdfPublicId, construir URL de Cloudinary
+    if (!filePath && budget.signedPdfPublicId) {
+      console.log(`☁️  Construyendo URL de Cloudinary desde publicId: ${budget.signedPdfPublicId}`);
+      filePath = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/raw/upload/${budget.signedPdfPublicId}`;
+      console.log(`   URL construida: ${filePath}`);
+    }
     
     if (!filePath) {
       console.log(`⚠️  Budget ${budgetId} no tiene PDF firmado`);
@@ -848,82 +856,101 @@ router.get('/:token/pdf/signed-budget/:budgetId', async (req, res) => {
     
     if (!fileExists) {
       console.error(`❌ Archivo no encontrado en: ${filePath}`);
-      console.error(`   Listando archivos en directorio padre si existe...`);
       
-      // Intentar listar el directorio para debug
-      const path = require('path');
-      const parentDir = path.dirname(filePath);
-      try {
-        if (fs.existsSync(parentDir)) {
-          const files = fs.readdirSync(parentDir);
-          console.log(`   📂 Archivos en ${parentDir}:`);
-          files.slice(0, 10).forEach(f => console.log(`      - ${f}`));
-          if (files.length > 10) console.log(`      ... y ${files.length - 10} más`);
-        } else {
-          console.log(`   ⚠️  Directorio padre no existe: ${parentDir}`);
-        }
-      } catch (dirError) {
-        console.log(`   ⚠️  No se pudo listar directorio: ${dirError.message}`);
-      }
+      // 🆕 Si el archivo no existe pero tenemos el documento en DocuSign/SignNow, intentar descargarlo
+      const documentId = budget.signatureDocumentId || budget.signNowDocumentId || budget.docusignEnvelopeId;
       
-      // Intentar con ruta relativa desde process.cwd()
-      const relativePath = path.join(process.cwd(), 'src', 'uploads', 'signed-budgets', `Budget_${budgetId}_signed.pdf`);
-      console.log(`   Intentando ruta relativa: ${relativePath}`);
-      
-      if (fs.existsSync(relativePath)) {
-        console.log(`✅ Archivo encontrado en ruta relativa, usando esa`);
-        // Actualizar filePath para usar la ruta que funciona
-        const stat = fs.statSync(relativePath);
+      if (documentId && (budget.signatureMethod === 'docusign' || budget.signatureMethod === 'signnow')) {
+        console.log(`🔄 Intentando descargar PDF desde ${budget.signatureMethod}...`);
+        console.log(`   Document ID: ${documentId}`);
         
-        const origin = req.headers.origin || '*';
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Length', stat.size);
-        res.setHeader('Content-Disposition', 'inline');
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-        res.setHeader('Access-Control-Allow-Origin', origin);
-        res.setHeader('Access-Control-Allow-Credentials', 'true');
-        res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-        
-        console.log('✅ Serving local Budget file with inline headers (relative path)');
-        const fileStream = fs.createReadStream(relativePath);
-        
-        // Agregar manejador de errores al stream
-        fileStream.on('error', (streamError) => {
-          console.error('❌ Error en stream de lectura (relative path):', streamError);
-          if (!res.headersSent) {
-            res.status(500).json({
+        try {
+          // Importar el servicio correspondiente
+          const DocuSignService = require('../services/ServiceDocuSign');
+          const SignNowService = require('../services/ServiceSignNow');
+          
+          const isDocuSign = budget.signatureMethod === 'docusign';
+          const signatureService = isDocuSign ? new DocuSignService() : new SignNowService();
+          
+          // Crear directorio si no existe
+          const uploadsDir = path.join(process.cwd(), 'src', 'uploads', 'signed-budgets');
+          if (!fs.existsSync(uploadsDir)) {
+            fs.mkdirSync(uploadsDir, { recursive: true });
+            console.log(`   📁 Directorio creado: ${uploadsDir}`);
+          }
+          
+          // Descargar documento
+          const signedFileName = `Budget_${budgetId}_signed.pdf`;
+          const signedFilePath = path.join(uploadsDir, signedFileName);
+          
+          console.log(`   📥 Descargando a: ${signedFilePath}`);
+          await signatureService.downloadSignedDocument(documentId, signedFilePath);
+          
+          // Actualizar budget con la nueva ruta
+          await budget.update({ signedPdfPath: signedFilePath });
+          console.log(`   ✅ PDF descargado y guardado exitosamente`);
+          
+          // Actualizar filePath para servir el archivo recién descargado
+          filePath = signedFilePath;
+          
+        } catch (downloadError) {
+          console.error(`   ❌ Error descargando desde ${budget.signatureMethod}:`, downloadError.message);
+          
+          // Fallback: intentar con ruta relativa
+          const relativePath = path.join(process.cwd(), 'src', 'uploads', 'signed-budgets', `Budget_${budgetId}_signed.pdf`);
+          console.log(`   Intentando ruta relativa: ${relativePath}`);
+          
+          if (fs.existsSync(relativePath)) {
+            console.log(`   ✅ Archivo encontrado en ruta relativa como fallback`);
+            filePath = relativePath;
+          } else {
+            return res.status(500).json({
               success: false,
-              message: 'Error reading PDF file',
-              error: streamError.message
+              message: 'Error retrieving signed document',
+              error: downloadError.message
             });
           }
-        });
+        }
+      } else {
+        console.error(`   ⚠️  No hay documento ID para descargar`);
+        console.error(`   Listando archivos en directorio padre si existe...`);
         
-        fileStream.on('open', () => {
-          console.log('✅ Stream de archivo abierto correctamente (relative path)');
-        });
+        // Intentar listar el directorio para debug
+        const parentDir = path.dirname(filePath);
+        try {
+          if (fs.existsSync(parentDir)) {
+            const files = fs.readdirSync(parentDir);
+            console.log(`   📂 Archivos en ${parentDir}:`);
+            files.slice(0, 10).forEach(f => console.log(`      - ${f}`));
+            if (files.length > 10) console.log(`      ... y ${files.length - 10} más`);
+          } else {
+            console.log(`   ⚠️  Directorio padre no existe: ${parentDir}`);
+          }
+        } catch (dirError) {
+          console.log(`   ⚠️  No se pudo listar directorio: ${dirError.message}`);
+        }
         
-        return fileStream.pipe(res);
+        // Intentar con ruta relativa desde process.cwd()
+        const relativePath = path.join(process.cwd(), 'src', 'uploads', 'signed-budgets', `Budget_${budgetId}_signed.pdf`);
+        console.log(`   Intentando ruta relativa: ${relativePath}`);
+        
+        if (fs.existsSync(relativePath)) {
+          console.log(`✅ Archivo encontrado en ruta relativa, usando esa`);
+          filePath = relativePath;
+        } else {
+          return res.status(404).json({
+            success: false,
+            message: 'Signed PDF file not found on server'
+          });
+        }
       }
-      
-      return res.status(404).json({
-        success: false,
-        message: 'Signed PDF file not found on server'
-      });
     }
-
-    console.log(`✅ Archivo existe, preparando para servir...`);
-
-    // Obtener estadísticas del archivo
+    
+    // Servir el archivo local (ya existe o fue descargado)
+    console.log(`✅ Sirviendo archivo local: ${filePath}`);
     const stat = fs.statSync(filePath);
     
-    // Servir archivo con headers optimizados para vista inline
     const origin = req.headers.origin || '*';
-    console.log('🌐 Setting CORS origin to:', origin);
-    
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Length', stat.size);
     res.setHeader('Content-Disposition', 'inline');
@@ -936,7 +963,7 @@ router.get('/:token/pdf/signed-budget/:budgetId', async (req, res) => {
     res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
     
     console.log('✅ Serving local Budget file with inline headers');
-    
+    const fileStream = fs.createReadStream(filePath);
     
     // Agregar manejador de errores al stream
     fileStream.on('error', (streamError) => {
@@ -954,9 +981,7 @@ router.get('/:token/pdf/signed-budget/:budgetId', async (req, res) => {
       console.log('✅ Stream de archivo abierto correctamente');
     });
     
-    // Crear stream de lectura y pipe a la respuesta
-    const fileStream = fs.createReadStream(filePath);
-    fileStream.pipe(res);
+    return fileStream.pipe(res);
 
   } catch (error) {
     console.error('❌ Error serving signed budget PDF:', error);
