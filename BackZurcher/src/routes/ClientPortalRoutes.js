@@ -480,6 +480,7 @@ router.get('/:token/work/:workId/documents', async (req, res) => {
         available: !!(budget.signedPdfPath || budget.manualSignedPdfPath),
         url: convertToServerUrl(budget.signedPdfPath || budget.manualSignedPdfPath),
         signatureMethod: budget.signatureMethod || 'none',
+        budgetId: budget.idBudget, // 🔧 Agregado para que el frontend pueda construir la URL del endpoint
         budgetInfo: {
           applicantName: budget.applicantName,
           propertyAddress: budget.propertyAddress,
@@ -760,18 +761,52 @@ router.get('/:token/pdf/signed-budget/:budgetId', async (req, res) => {
       });
     }
 
-    const filePath = budget.signedPdfPath || budget.manualSignedPdfPath;
-    if (!filePath || !require('fs').existsSync(filePath)) {
+    const filePath = budget.signedPdfPath || budget.manualSignedPdfPath || budget.legacySignedPdfUrl;
+    
+    if (!filePath) {
       return res.status(404).json({
         success: false,
         message: 'Signed PDF file not found'
       });
     }
 
-    // Leer el archivo y enviarlo como stream
+    // Si es URL de Cloudinary, descargar y servir (no redirect para evitar problemas CORS)
+    if (filePath.includes('cloudinary.com')) {
+      console.log(`☁️  Descargando Budget firmado desde Cloudinary: ${filePath}`);
+      
+      const axios = require('axios');
+      const cloudinaryResponse = await axios.get(filePath, { 
+        responseType: 'arraybuffer' 
+      });
+
+      // Configurar headers para vista inline
+      const origin = req.headers.origin || '*';
+      console.log('🌐 Setting CORS origin to:', origin);
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'inline');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+      
+      console.log('✅ Serving Cloudinary Budget with inline headers');
+      return res.send(cloudinaryResponse.data);
+    }
+
+    // Si es archivo local
     const fs = require('fs');
-    const path = require('path');
     
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        success: false,
+        message: 'Signed PDF file not found on server'
+      });
+    }
+
     // Obtener estadísticas del archivo
     const stat = fs.statSync(filePath);
     
@@ -789,6 +824,8 @@ router.get('/:token/pdf/signed-budget/:budgetId', async (req, res) => {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    
+    console.log('✅ Serving local Budget file with inline headers');
     
     // Crear stream de lectura y pipe a la respuesta
     const fileStream = fs.createReadStream(filePath);

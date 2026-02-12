@@ -175,39 +175,32 @@ const ClientPortalDashboard = () => {
     try {
       switch (documentType) {
         case 'signedBudget':
-          if (workDocuments.signedBudget.available) {
-            if (workDocuments.signedBudget.url && workDocuments.signedBudget.url.includes('cloudinary.com')) {
-              // URL de Cloudinary - usar directamente
-              setSelectedPdfUrl(workDocuments.signedBudget.url);
+          if (workDocuments.signedBudget.available && workDocuments.signedBudget.budgetId) {
+            // Siempre usar endpoint del backend (maneja tanto Cloudinary como local)
+            console.log('🔍 Loading signed budget through backend proxy');
+            
+            const response = await fetch(`${API_URL}/client-portal/${token}/pdf/signed-budget/${workDocuments.signedBudget.budgetId}`, {
+              method: 'GET',
+              headers: {
+                'Accept': 'application/pdf',
+              },
+              credentials: 'include'
+            });
+            
+            console.log('📋 Budget Response status:', response.status);
+            console.log('📋 Budget Response headers:', Object.fromEntries(response.headers.entries()));
+            
+            if (response.ok) {
+              const blob = await response.blob();
+              console.log('📄 Budget Blob size:', blob.size, 'type:', blob.type);
+              const objectUrl = URL.createObjectURL(blob);
+              console.log('🔗 Budget Object URL created:', objectUrl);
+              setSelectedPdfUrl(objectUrl);
               setSelectedPdfTitle('Signed Budget');
               setShowPdfModal(true);
             } else {
-              // Archivo local - usar endpoint blob
-              console.log('🔍 Loading signed budget from:', `${API_URL}/client-portal/${token}/pdf/signed-budget/${selectedWork.idBudget}`);
-              
-              const response = await fetch(`${API_URL}/client-portal/${token}/pdf/signed-budget/${selectedWork.idBudget}`, {
-                method: 'GET',
-                headers: {
-                  'Accept': 'application/pdf',
-                },
-                credentials: 'include'
-              });
-              
-              console.log('📋 Response status:', response.status);
-              console.log('📋 Response headers:', Object.fromEntries(response.headers.entries()));
-              
-              if (response.ok) {
-                const blob = await response.blob();
-                console.log('📄 Blob size:', blob.size, 'type:', blob.type);
-                const objectUrl = URL.createObjectURL(blob);
-                console.log('🔗 Object URL created:', objectUrl);
-                setSelectedPdfUrl(objectUrl);
-                setSelectedPdfTitle('Signed Budget');
-                setShowPdfModal(true);
-              } else {
-                console.error('❌ Error response:', await response.text());
-                alert('Error loading signed budget PDF');
-              }
+              console.error('❌ Error response:', await response.text());
+              alert('Error loading signed budget PDF');
             }
           } else {
             alert('Signed budget not available yet.');
