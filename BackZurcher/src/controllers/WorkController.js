@@ -12,6 +12,7 @@ const { v4: uuidv4 } = require('uuid');
 const { Op, literal} = require('sequelize');
 const {scheduleInitialMaintenanceVisits} = require('./MaintenanceController'); // Asegúrate de importar la función de programación de mantenimientos iniciales
 const { sequelize } = require('../data'); 
+const { autoGenerateTokenForWork, getPortalInfoForWork } = require('../services/ClientPortalService'); // 🆕 Portal de cliente 
 
 const { 
   STATUS_ORDER,
@@ -59,6 +60,17 @@ const createWork = async (req, res) => {
       notes: `Work creado a partir del presupuesto N° ${idBudget}`,
     });
 
+    // 🆕 Auto-generar token del portal de cliente
+    try {
+      console.log('🔄 Intentando generar token del portal para work:', work.id);
+      await autoGenerateTokenForWork({
+        idWork: work.id,
+        idBudget: work.idBudget
+      });
+    } catch (tokenError) {
+      console.error('❌ Error generando token del portal:', tokenError);
+      // No afecta la creación del work, solo es una funcionalidad adicional
+    }
     
     await sendNotifications('pending', work, req.app.get('io'));
 
@@ -319,6 +331,9 @@ const getWorkById = async (req, res) => {
             'paymentProofAmount', 
             'date', 
             'applicantName',
+            'applicantEmail',        // 🆕 Necesario para ClientPortalLink
+            'contactCompany',        // 🆕 Necesario para ClientPortalLink
+            'clientPortalToken',     // 🆕 Necesario para ClientPortalLink
             'totalPrice', 
             'initialPaymentPercentage',
             'signatureMethod',
@@ -1778,6 +1793,42 @@ const uploadMaintenanceService = async (req, res) => {
   }
 };
 
+// 🆕 Obtener información del portal de cliente para un work
+const getWorkPortalInfo = async (req, res) => {
+  try {
+    const { workId } = req.params;
+
+    if (!workId) {
+      return res.status(400).json({
+        success: false,
+        message: 'workId es requerido'
+      });
+    }
+
+    const portalInfo = await getPortalInfoForWork(workId);
+
+    if (!portalInfo) {
+      return res.status(404).json({
+        success: false,
+        message: 'Work no encontrado o sin información de cliente'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: portalInfo
+    });
+
+  } catch (error) {
+    console.error('❌ Error obteniendo información del portal:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   createWork,
   getWorks,
@@ -1797,4 +1848,5 @@ module.exports = {
   updateNoticeToOwner,
   uploadOperatingPermit,        // 🆕 NUEVO
   uploadMaintenanceService,      // 🆕 NUEVO
+  getWorkPortalInfo,            // 🆕 Portal de cliente
 };

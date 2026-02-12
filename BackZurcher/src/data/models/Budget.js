@@ -294,6 +294,13 @@ module.exports = (sequelize) => {
     unique: true
   },
   
+  // 🆕 Token único para portal del cliente (ver progreso de works)
+  clientPortalToken: {
+    type: DataTypes.STRING(64),
+    allowNull: true,
+    index: true // Agregar índice para búsquedas rápidas
+  },
+  
   // Fecha en que se envió para revisión
   sentForReviewAt: {
     type: DataTypes.DATE,

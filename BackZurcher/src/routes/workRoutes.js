@@ -49,6 +49,9 @@ router.get('/', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker', '
 // Obtener una obra por ID  - CON CACHÉ de 30 segundos
 router.get('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker', 'maintenance', 'finance']), cacheMiddleware(30), WorkController.getWorkById);
 
+// 🆕 Obtener información del portal de cliente para un work
+router.get('/:workId/portal-info', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker']), WorkController.getWorkPortalInfo);
+
 // Actualizar una obra (solo administradores)
 router.put('/:idWork', verifyToken, allowRoles(['admin', 'recept', 'owner', 'worker', 'maintenance']), invalidateWorkCache, WorkController.updateWork);
 

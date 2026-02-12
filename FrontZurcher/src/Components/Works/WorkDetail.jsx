@@ -27,6 +27,7 @@ import WorkDetailError from './WorkDetailError';
 import WorkChecklistModal from './WorkChecklistModal'; // 📋 Modal de checklist
 import { fetchChecklistByWorkId } from '../../Redux/Actions/checklistActions'; // 📋 Action de checklist
 import FinalDocumentsSection from './FinalDocumentsSection'; // 🆕 Sección de documentos finales
+import ClientPortalLink from './ClientPortalLink'; // 🆕 Portal de cliente
   // --- Estado para modal de resultado rápido de inspección ---
   
 // Asegúrate de que esta ruta sea correcta
@@ -1155,6 +1156,11 @@ const handleUploadImage = async () => {
                         </p>
                       </div>
                     )}
+                    
+                    {/* 🆕 Portal de Cliente */}
+                    <div className="mt-4">
+                      <ClientPortalLink work={work} budget={work.budget} />
+                    </div>
                   </>
                 )}
                 <button
