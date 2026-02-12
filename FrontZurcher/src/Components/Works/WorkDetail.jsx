@@ -32,11 +32,36 @@ import ClientPortalLink from './ClientPortalLink'; // 🆕 Portal de cliente
   
 // Asegúrate de que esta ruta sea correcta
 
+// URL de la API desde variables de entorno o config
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const WorkDetail = () => {
   const { idWork } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
+
+  // ✅ Get Redux state - MUST BE BEFORE useEffects that reference them
+  const { user, currentStaff } = useSelector((state) => state.auth);
+  const staff = currentStaff || user;
+  const userRole = staff?.role || '';
+  
+  const {
+    selectedWork: work,
+    loading: workLoading,
+    error: workError,
+  } = useSelector((state) => state.work);
+  
+  const workRef = useRef(work);
+  
+  // ✅ Estados para PDFs de Permit - MUST BE DECLARED BEFORE useEffects
+  const [permitPdfBlob, setPermitPdfBlob] = useState(null);
+  const [optionalDocsBlob, setOptionalDocsBlob] = useState(null);
+  const [loadingPermitPdf, setLoadingPermitPdf] = useState(false);
+  const [loadingOptionalDocs, setLoadingOptionalDocs] = useState(false);
+  
+  // ✅ Estados para supplier invoices vinculados
+  const [linkedInvoices, setLinkedInvoices] = useState([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
 
   // ✅ Función para formatear fechas de YYYY-MM-DD a MM-DD-YYYY
   const formatDate = (dateString) => {
@@ -196,6 +221,92 @@ const WorkDetail = () => {
     loadLinkedInvoices();
   }, [idWork]);
 
+  // 🆕 Cargar Permit PDF mediante fetch y convertir a blob URL
+  useEffect(() => {
+    const loadPermitPdf = async () => {
+      // Solo cargar si hay URL o publicId (no legacy BLOB)
+      if (!work?.Permit?.idPermit || !(work.Permit?.permitPdfUrl || work.Permit?.permitPdfPublicId)) {
+        setPermitPdfBlob(null);
+        return;
+      }
+      
+      setLoadingPermitPdf(true);
+      try {
+        const response = await api.get(`/permit/${work.Permit.idPermit}/view/pdf`, {
+          responseType: 'blob'
+        });
+        
+        if (response.data) {
+          const blob = new Blob([response.data], { type: 'application/pdf' });
+          const blobUrl = URL.createObjectURL(blob);
+          setPermitPdfBlob(blobUrl);
+        }
+      } catch (error) {
+        // Silenciar 404 esperados (archivo no existe)
+        if (error.response?.status !== 404) {
+          console.error('Error cargando Permit PDF:', error);
+        }
+        setPermitPdfBlob(null);
+      } finally {
+        setLoadingPermitPdf(false);
+      }
+    };
+
+    if (!workLoading && work) {
+      loadPermitPdf();
+    }
+
+    // Cleanup: revocar blob URL cuando el componente se desmonte
+    return () => {
+      if (permitPdfBlob) {
+        URL.revokeObjectURL(permitPdfBlob);
+      }
+    };
+  }, [work?.Permit?.idPermit, workLoading]);
+
+  // Cargar Optional Docs mediante fetch y convertir a blob URL
+  useEffect(() => {
+    const loadOptionalDocs = async () => {
+      // Solo cargar si hay URL o publicId (no legacy BLOB)
+      if (!work?.Permit?.idPermit || !(work.Permit?.optionalDocsUrl || work.Permit?.optionalDocsPublicId)) {
+        setOptionalDocsBlob(null);
+        return;
+      }
+      
+      setLoadingOptionalDocs(true);
+      try {
+        const response = await api.get(`/permit/${work.Permit.idPermit}/view/optional`, {
+          responseType: 'blob'
+        });
+        
+        if (response.data) {
+          const blob = new Blob([response.data], { type: 'application/pdf' });
+          const blobUrl = URL.createObjectURL(blob);
+          setOptionalDocsBlob(blobUrl);
+        }
+      } catch (error) {
+        // Silenciar 404 esperados (archivo no existe)
+        if (error.response?.status !== 404) {
+          console.error('Error cargando Optional Docs:', error);
+        }
+        setOptionalDocsBlob(null);
+      } finally {
+        setLoadingOptionalDocs(false);
+      }
+    };
+
+    if (!workLoading && work) {
+      loadOptionalDocs();
+    }
+
+    // Cleanup: revocar blob URL cuando el componente se desmonte
+    return () => {
+      if (optionalDocsBlob) {
+        URL.revokeObjectURL(optionalDocsBlob);
+      }
+    };
+  }, [work?.Permit?.idPermit, workLoading]);
+
   // Mostrar error si falla después de reintentos
   if (initialError && initialRetryCount >= 3) {
     return (
@@ -207,22 +318,10 @@ const WorkDetail = () => {
     );
   }
 
-
-
-
-  const {
-    selectedWork: work,
-    loading: workLoading, // Renombrado para evitar conflicto si FinalInvoice usa 'loading'
-    error: workError,     // Renombrado
-  } = useSelector((state) => state.work);
-
-const workRef = useRef(work);
-
+  // ✅ Update workRef when work changes
   useEffect(() => {
-    // Compara la referencia actual de work con la guardada
     if (workRef.current !== work) {
-     
-      workRef.current = work; // Actualiza la referencia guardada
+      workRef.current = work;
     } else {
      
     }
@@ -240,10 +339,6 @@ const workRef = useRef(work);
   const [quickInspectionFile, setQuickInspectionFile] = useState(null);
   const [quickInspectionNotes, setQuickInspectionNotes] = useState('');
   const [quickInspectionLoading, setQuickInspectionLoading] = useState(false);
-  
-  // 🆕 Estados para supplier invoices vinculados
-  const [linkedInvoices, setLinkedInvoices] = useState([]);
-  const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [selectedInvoiceModal, setSelectedInvoiceModal] = useState(null);
   
   // 🆕 Estados para documentos finales
@@ -290,10 +385,7 @@ const workRef = useRef(work);
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }, [inspectionsByWork]);
 
-  // ✅ Get current user role for permissions
-  const { user, currentStaff } = useSelector((state) => state.auth);
-  const staff = currentStaff || user;
-  const userRole = staff?.role || '';
+  // ✅ Permissions based on user role (already declared at top)
   const canUploadImages = ['owner', 'admin', 'worker'].includes(userRole);
   const isViewOnly = userRole === 'finance'; // Finance role is view-only
 
@@ -832,9 +924,9 @@ const handleUploadImage = async () => {
     }, {})
     : {};
 
-  // ✅ Priorizar URLs de Cloudinary, fallback a BLOB
-  const pdfUrl = work.Permit?.permitPdfUrl 
-    ? work.Permit.permitPdfUrl
+  // ✅ Usar blob URLs cargados mediante fetch (con autenticación) o fallback a BLOB legacy
+  const pdfUrl = permitPdfBlob
+    ? permitPdfBlob
     : work.Permit?.pdfData 
       ? URL.createObjectURL(
           new Blob([new Uint8Array(work.Permit.pdfData.data)], {
@@ -843,8 +935,8 @@ const handleUploadImage = async () => {
         )
       : null;
 
-  const optionalDocs = work.Permit?.optionalDocsUrl
-    ? work.Permit.optionalDocsUrl
+  const optionalDocs = optionalDocsBlob
+    ? optionalDocsBlob
     : work.Permit?.optionalDocs 
       ? URL.createObjectURL(
           new Blob([new Uint8Array(work.Permit.optionalDocs.data)], {

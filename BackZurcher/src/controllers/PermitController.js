@@ -749,26 +749,85 @@ const getContactList = async (req, res) => {
 const getPermitPdfInline = async (req, res) => {
   try {
     const { idPermit } = req.params;
+    
     const permit = await Permit.findByPk(idPermit, {
-      attributes: ['permitPdfUrl', 'pdfData', 'isLegacy'] // ✅ Incluir URL de Cloudinary
+      attributes: ['permitPdfUrl', 'permitPdfPublicId', 'pdfData', 'isLegacy']
     });
 
     if (!permit) {
       return res.status(404).send('Permit no encontrado');
     }
 
-    // ✅ PRIORIDAD 1: URL de Cloudinary (nuevo)
-    if (permit.permitPdfUrl) {
-      console.log(`🔗 Redirigiendo a Cloudinary URL para permit PDF: ${permit.permitPdfUrl}`);
-      return res.redirect(permit.permitPdfUrl);
+    let pdfUrl = permit.permitPdfUrl;
+
+    // Si no hay URL pero hay publicId, construir URL de Cloudinary
+    if (!pdfUrl && permit.permitPdfPublicId) {
+      pdfUrl = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/raw/upload/${permit.permitPdfPublicId}`;
     }
 
-    // ✅ FALLBACK: pdfData (BLOB legacy)
+    // PRIORIDAD 1: URL de Cloudinary (proxy para evitar CORS)
+    if (pdfUrl) {
+      const axios = require('axios');
+      
+      try {
+        const cloudinaryResponse = await axios.get(pdfUrl, { 
+          responseType: 'arraybuffer',
+          timeout: 10000
+        });
+        
+        // Si el archivo es sospechosamente pequeño, verificar si es ruta local
+        if (cloudinaryResponse.data.length < 1000) {
+          const content = cloudinaryResponse.data.toString('utf8');
+          
+          // DETECTAR SI ES UNA RUTA LOCAL DE ARCHIVO
+          if (content.includes(':\\\\') || content.includes('BackZurcher')) {
+            const fs = require('fs');
+            const filePath = content.trim();
+            
+            if (fs.existsSync(filePath)) {
+              // Usar stream no bloqueante para mejor performance
+              res.setHeader('Content-Type', 'application/pdf');
+              res.setHeader('Content-Disposition', 'inline');
+              res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+              res.setHeader('Pragma', 'no-cache');
+              res.setHeader('Expires', '0');
+              res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+              res.setHeader('Access-Control-Allow-Credentials', 'true');
+              
+              const readStream = fs.createReadStream(filePath);
+              readStream.on('error', () => {
+                if (!res.headersSent) {
+                  res.status(500).send('Error leyendo archivo');
+                }
+              });
+              return readStream.pipe(res);
+            } else {
+              return res.status(404).send('Archivo PDF no encontrado');
+            }
+          }
+        }
+
+        // Configurar headers para vista inline
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'inline');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        
+        return res.send(cloudinaryResponse.data);
+      } catch (cloudinaryError) {
+        // Continuar con fallback a pdfData si falla Cloudinary
+      }
+    }
+
+    // FALLBACK: pdfData (BLOB legacy)
     if (!permit.pdfData) {
       return res.status(404).send('PDF principal no encontrado');
     }
 
-    // --- DETECTAR SI ES LEGACY Y MANEJAR CLOUDINARY URLs EN pdfData ---
+    // Detectar si es legacy y manejar Cloudinary URLs en pdfData
     const isLegacy = permit.isLegacy;
     
     if (isLegacy) {
@@ -786,19 +845,16 @@ const getPermitPdfInline = async (req, res) => {
       }
       
       if (cloudinaryUrl) {
-        console.log(`🔗 Redirigiendo a Cloudinary URL para permit PDF: ${cloudinaryUrl}`);
         return res.redirect(cloudinaryUrl);
       }
     }
 
     res.setHeader('Content-Type', 'application/pdf');
-    // Sugiere mostrar inline en lugar de descargar
     res.setHeader('Content-Disposition', `inline; filename="permit_${idPermit}.pdf"`);
     res.send(permit.pdfData); // Enviar los datos binarios
 
   } catch (error) {
-    console.error(`Error al obtener PDF principal del permit ${req.params.idPermit}:`, error);
-    res.status(500).send('Error al obtener el PDF principal'); // Enviar texto simple
+    res.status(500).send('Error al obtener el PDF principal');
   }
 };
 
@@ -806,21 +862,85 @@ const getPermitPdfInline = async (req, res) => {
 const getPermitOptionalDocInline = async (req, res) => {
   try {
     const { idPermit } = req.params;
+    
     const permit = await Permit.findByPk(idPermit, {
-      attributes: ['optionalDocsUrl', 'optionalDocs', 'isLegacy'] // ✅ Incluir URL de Cloudinary
+      attributes: ['optionalDocsUrl', 'optionalDocsPublicId', 'optionalDocs', 'isLegacy']
     });
 
     if (!permit) {
       return res.status(404).send('Permit no encontrado');
     }
 
-    // ✅ PRIORIDAD 1: URL de Cloudinary (nuevo)
-    if (permit.optionalDocsUrl) {
-      console.log(`🔗 Redirigiendo a Cloudinary URL para optional docs: ${permit.optionalDocsUrl}`);
-      return res.redirect(permit.optionalDocsUrl);
+    let docsUrl = permit.optionalDocsUrl;
+
+    // Si no hay URL pero hay publicId, construir URL de Cloudinary
+    if (!docsUrl && permit.optionalDocsPublicId) {
+      docsUrl = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/raw/upload/${permit.optionalDocsPublicId}`;
     }
 
-    // ✅ FALLBACK: optionalDocs (BLOB legacy)
+    // PRIORIDAD 1: URL de Cloudinary (proxy para evitar CORS)
+    if (docsUrl) {
+      const axios = require('axios');
+      
+      try {
+        const cloudinaryResponse = await axios.get(docsUrl, { 
+          responseType: 'arraybuffer',
+          timeout: 10000
+        });
+        
+        // Si el archivo es sospechosamente pequeño, verificar si es JSON con ruta local
+        if (cloudinaryResponse.data.length < 1000) {
+          const content = cloudinaryResponse.data.toString('utf8');
+          
+          // DETECTAR SI ES UN JSON CON RUTA LOCAL
+          try {
+            const parsed = JSON.parse(content);
+            if (Array.isArray(parsed) && parsed[0]?.path) {
+              const fs = require('fs');
+              const filePath = parsed[0].path;
+              
+              if (fs.existsSync(filePath)) {
+                // Usar stream no bloqueante para mejor performance
+                res.setHeader('Content-Type', 'application/pdf');
+                res.setHeader('Content-Disposition', 'inline');
+                res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+                res.setHeader('Pragma', 'no-cache');
+                res.setHeader('Expires', '0');
+                res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+                res.setHeader('Access-Control-Allow-Credentials', 'true');
+                
+                const readStream = fs.createReadStream(filePath);
+                readStream.on('error', () => {
+                  if (!res.headersSent) {
+                    res.status(500).send('Error leyendo archivo');
+                  }
+                });
+                return readStream.pipe(res);
+              } else {
+                return res.status(404).send('Archivo PDF no encontrado');
+              }
+            }
+          } catch (e) {
+            // No es JSON, continuar
+          }
+        }
+
+        // Configurar headers para vista inline
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', 'inline');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+        
+        return res.send(cloudinaryResponse.data);
+      } catch (cloudinaryError) {
+        // Continuar con fallback a optionalDocs si falla Cloudinary
+      }
+    }
+
+    // FALLBACK: optionalDocs (BLOB legacy)
     if (!permit.optionalDocs) {
       return res.status(404).send('Documento opcional no encontrado');
     }
@@ -843,19 +963,16 @@ const getPermitOptionalDocInline = async (req, res) => {
       }
       
       if (cloudinaryUrl) {
-        console.log(`🔗 Redirigiendo a Cloudinary URL para permit optional docs: ${cloudinaryUrl}`);
         return res.redirect(cloudinaryUrl);
       }
     }
 
     res.setHeader('Content-Type', 'application/pdf');
-    // Sugiere mostrar inline
     res.setHeader('Content-Disposition', `inline; filename="optional_${idPermit}.pdf"`);
-    res.send(permit.optionalDocs); // Enviar los datos binarios
+    res.send(permit.optionalDocs);
 
   } catch (error) {
-    console.error(`Error al obtener Doc Opcional del permit ${req.params.idPermit}:`, error);
-    res.status(500).send('Error al obtener el documento opcional'); // Enviar texto simple
+    res.status(500).send('Error al obtener el documento opcional');
   }
 };
 
@@ -2693,6 +2810,116 @@ const updatePPIAddress = async (req, res) => {
   }
 };
 
+/**
+ * Verificar qué permits tienen PDFs corruptos en Cloudinary
+ * GET /api/permits/diagnostic/cloudinary-corrupted
+ * Solo admin
+ */
+const getCorruptedCloudinaryPermits = async (req, res) => {
+  try {
+    const axios = require('axios');
+    const { Op } = require('sequelize');
+
+    const permits = await Permit.findAll({
+      attributes: ['idPermit', 'permitPdfUrl', 'optionalDocsUrl', 'propertyAddress', 'permitNumber'],
+      where: {
+        [Op.or]: [
+          { permitPdfUrl: { [Op.ne]: null } },
+          { optionalDocsUrl: { [Op.ne]: null } }
+        ]
+      },
+      order: [['createdAt', 'DESC']],
+      limit: 500
+    });
+
+    const corrupted = [];
+
+    for (const permit of permits) {
+      const issues = [];
+      
+      // Verificar Permit PDF
+      if (permit.permitPdfUrl) {
+        try {
+          const response = await axios.get(permit.permitPdfUrl, {
+            responseType: 'arraybuffer',
+            timeout: 5000,
+            validateStatus: () => true
+          });
+          
+          if (response.status === 200 && response.data.length < 1000) {
+            const content = response.data.toString('utf8');
+            if (content.includes(':\\\\') || content.includes('BackZurcher')) {
+              issues.push({
+                type: 'permitPdf',
+                size: response.data.length,
+                message: 'Contiene ruta local en lugar de PDF'
+              });
+            }
+          }
+        } catch (error) {
+          issues.push({
+            type: 'permitPdf',
+            message: `Error: ${error.message}`
+          });
+        }
+      }
+
+      // Verificar Optional Docs
+      if (permit.optionalDocsUrl) {
+        try {
+          const response = await axios.get(permit.optionalDocsUrl, {
+            responseType: 'arraybuffer',
+            timeout: 5000,
+            validateStatus: () => true
+          });
+          
+          if (response.status === 200 && response.data.length < 1000) {
+            const content = response.data.toString('utf8');
+            if (content.includes(':\\\\') || content.includes('BackZurcher') || content.includes('"path"')) {
+              issues.push({
+                type: 'optionalDocs',
+                size: response.data.length,
+                message: 'Contiene ruta local en lugar de PDF'
+              });
+            }
+          }
+        } catch (error) {
+          issues.push({
+            type: 'optionalDocs',
+            message: `Error: ${error.message}`
+          });
+        }
+      }
+
+      if (issues.length > 0) {
+        corrupted.push({
+          idPermit: permit.idPermit,
+          propertyAddress: permit.propertyAddress,
+          permitNumber: permit.permitNumber,
+          issues
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      summary: {
+        totalAnalyzed: permits.length,
+        corruptedCount: corrupted.length,
+        percentage: ((corrupted.length / permits.length) * 100).toFixed(2)
+      },
+      corrupted
+    });
+
+  } catch (error) {
+    console.error('Error verificando Cloudinary:', error);
+    res.status(500).json({
+      error: true,
+      message: 'Error verificando archivos de Cloudinary'
+    });
+  }
+};
+
 module.exports = {
   createPermit,
   getPermits,
@@ -2703,20 +2930,21 @@ module.exports = {
   getPermitOptionalDocInline,
   getContactList,
   checkPermitByPropertyAddress,
-  checkPermitNumber, // 🆕 NUEVO
-  updatePermitClientData, // NUEVO MÉTODO
-  updatePermitFields, // 🆕 NUEVO: Actualizar campos completos del Permit
-  replacePermitPdf, // 🆕 NUEVO: Reemplazar PDF principal
-  replaceOptionalDocs, // 🆕 NUEVO: Reemplazar documentos opcionales
-  generatePPIPreview, // 🆕 NUEVO: Generar PPI preview
-  downloadPPI, // 🆕 NUEVO: Descargar PPI
-  viewPPIInline, // 🆕 NUEVO: Ver PPI inline
-  getPPISigningLinkAndRedirect, // 🆕 NUEVO: Redirigir a firma DocuSign
-  sendPPIForSignature, // 🆕 NUEVO: Enviar PPI a DocuSign
-  viewPPISignedInline, // 🆕 NUEVO: Ver PPI firmado inline
-  downloadPPISigned, // 🆕 NUEVO: Descargar PPI firmado
-  checkPPISignatureStatus, // 🆕 NUEVO: Verificar estado de firma del PPI
-  verifyAllPPISignatures, // 🆕 NUEVO: Verificar TODAS las firmas PPI pendientes
-  uploadManualSignedPPI, // 🆕 NUEVO: Subir PPI firmado manualmente
-  updatePPIAddress // 🆕 NUEVO: Actualizar solo dirección del PPI y regenerar
+  checkPermitNumber,
+  updatePermitClientData,
+  updatePermitFields,
+  replacePermitPdf,
+  replaceOptionalDocs,
+  generatePPIPreview,
+  downloadPPI,
+  viewPPIInline,
+  getPPISigningLinkAndRedirect,
+  sendPPIForSignature,
+  viewPPISignedInline,
+  downloadPPISigned,
+  checkPPISignatureStatus,
+  verifyAllPPISignatures,
+  uploadManualSignedPPI,
+  updatePPIAddress,
+  getCorruptedCloudinaryPermits // 🆕 NUEVO: Diagnóstico de Cloudinary
 };

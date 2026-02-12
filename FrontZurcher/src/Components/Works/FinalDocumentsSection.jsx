@@ -101,14 +101,28 @@ const FinalDocumentsSection = ({
     }
   };
 
+  // Verificar qué documentos faltan
+  const missingOperatingPermit = !work?.operatingPermitUrl;
+  const missingMaintenanceService = !work?.maintenanceServiceUrl;
+  const hasMissingDocuments = missingOperatingPermit || missingMaintenanceService;
+  const missingCount = (missingOperatingPermit ? 1 : 0) + (missingMaintenanceService ? 1 : 0);
+
   return (
-    <div className="bg-white shadow-md rounded-lg p-4 md:p-6 border-l-4 border-green-500">
+    <div className={`bg-white shadow-md rounded-lg p-4 md:p-6 border-l-4 ${hasMissingDocuments ? 'border-yellow-500' : 'border-green-500'}`}>
       <h2
         className="text-lg md:text-xl font-semibold mb-4 cursor-pointer flex items-center justify-between"
         onClick={() => toggleSection("finalDocuments")}
       >
         <span className="flex items-center">
           📄 Documentos
+          {hasMissingDocuments && (
+            <span className="ml-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold bg-yellow-400 text-yellow-900 border-2 border-yellow-600 shadow-lg animate-pulse">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              {missingCount} Faltante{missingCount > 1 ? 's' : ''}
+            </span>
+          )}
         </span>
         <svg
           className={`w-5 h-5 transition-transform ${isOpen ? 'rotate-180' : ''}`}
@@ -122,6 +136,47 @@ const FinalDocumentsSection = ({
       
       {isOpen && (
         <div className="space-y-4">
+          {/* Alerta de Documentos Faltantes */}
+          {hasMissingDocuments && (
+            <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-500 rounded-lg p-5 shadow-lg">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg className="h-8 w-8 text-yellow-600 animate-bounce" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-4 flex-1">
+                  <h3 className="text-lg font-bold text-yellow-900 mb-2 flex items-center gap-2">
+                    ⚠️ DOCUMENTOS FALTANTES - ACCIÓN REQUERIDA
+                  </h3>
+                  <p className="text-sm text-yellow-800 font-medium mb-3">
+                    Se requieren los siguientes documentos para completar el trabajo:
+                  </p>
+                  <ul className="space-y-2">
+                    {missingOperatingPermit && (
+                      <li className="flex items-center gap-2 text-sm text-yellow-900 font-semibold bg-yellow-100 p-2 rounded border border-yellow-400">
+                        <svg className="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                        </svg>
+                        <span className="flex-1">🏛️ Permiso de Operación</span>
+                        <span className="text-xs bg-red-200 text-red-800 px-2 py-0.5 rounded">REQUERIDO</span>
+                      </li>
+                    )}
+                    {missingMaintenanceService && (
+                      <li className="flex items-center gap-2 text-sm text-yellow-900 font-semibold bg-yellow-100 p-2 rounded border border-yellow-400">
+                        <svg className="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                        </svg>
+                        <span className="flex-1">🔧 Servicio de Mantenimiento</span>
+                        <span className="text-xs bg-red-200 text-red-800 px-2 py-0.5 rounded">REQUERIDO</span>
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+          
           {/* Permiso de Operación */}
           <div className="border rounded-lg p-4 bg-gray-50">
             <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">

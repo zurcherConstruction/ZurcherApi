@@ -50,6 +50,18 @@ module.exports = (sequelize) => {
       comment: 'Se pagó la inspección final'
     },
     
+    // ✅ DOCUMENTOS FINALES
+    operatingPermitUploaded: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      comment: 'Se subió el permiso de operación oficial'
+    },
+    maintenanceServiceUploaded: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      comment: 'Se subió el documento de servicio de mantenimiento'
+    },
+    
     // ✅ APROBACIÓN FINAL
     finalReviewCompleted: {
       type: DataTypes.BOOLEAN,

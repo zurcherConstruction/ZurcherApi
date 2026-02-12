@@ -49,6 +49,16 @@ const WorkChecklistModal = ({ work, onClose, onUpdate }) => {
       key: 'finalInspectionPaid',
       label: 'Pago total del Trabajo',
       description: 'Se pagó el invoice final'
+    },
+    {
+      key: 'operatingPermitUploaded',
+      label: 'Permiso de Operación',
+      description: 'Se subió el permiso de operación oficial'
+    },
+    {
+      key: 'maintenanceServiceUploaded',
+      label: 'Servicio de Mantenimiento',
+      description: 'Se subió el documento de servicio de mantenimiento'
     }
   ];
 

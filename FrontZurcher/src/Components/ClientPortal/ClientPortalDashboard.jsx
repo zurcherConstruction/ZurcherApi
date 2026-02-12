@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { 
   FaHome, FaFileContract, FaImages, FaClipboardList, 
   FaPhone, FaEnvelope, FaCalendarAlt, FaDollarSign,
-  FaCheckCircle, FaClock, FaExclamationTriangle, FaTools, FaSpinner 
+  FaCheckCircle, FaClock, FaExclamationTriangle, FaTools, FaSpinner,
+  FaFileAlt, FaFileSignature, FaInfoCircle
 } from 'react-icons/fa';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import SEOHelmet from '../SEO/SEOHelmet';
@@ -318,11 +319,18 @@ const ClientPortalDashboard = () => {
     
     try {
       setLoadingPdf(true);
+      console.log('🔗 === INICIANDO PROCESO PPI ===');
+      console.log('Work ID:', selectedWork.idWork);
+      
       const response = await fetch(`${API_URL}/client-portal/${token}/ppi-sign/${selectedWork.idWork}`);
+      console.log('Response status:', response.status);
+      
       const data = await response.json();
+      console.log('Response data:', data);
       
       if (data.success) {
         if (data.data.isSigned) {
+          console.log('✅ PPI ya está firmado - cargando PDF');
           // Documento ya firmado - cargar el PDF firmado desde el backend
           if (data.data.signedPdfUrl) {
             console.log('📄 Loading signed PPI through backend proxy');
@@ -335,43 +343,56 @@ const ClientPortalDashboard = () => {
             });
             
             console.log('📋 PPI Response status:', blobResponse.status);
-            console.log('📋 PPI Response headers:', Object.fromEntries(blobResponse.headers.entries()));
             
             if (blobResponse.ok) {
               const blob = await blobResponse.blob();
               console.log('📄 PPI Blob size:', blob.size, 'type:', blob.type);
               const objectUrl = URL.createObjectURL(blob);
-              console.log('🔗 PPI Object URL created:', objectUrl);
               setSelectedPdfUrl(objectUrl);
               setSelectedPdfTitle('PPI Document - Signed');
               setShowPdfModal(true);
             } else {
               console.error('❌ Error response:', await blobResponse.text());
-              alert('Error loading signed PPI document');
+              alert('Error loading signed PPI document. Please try again or contact support.');
             }
           } else {
-            alert('PPI document is signed but file not available');
+            alert('PPI document is signed but file is not available. Please contact support.');
           }
         } else if (data.data.notSentYet) {
+          console.log('⚠️ PPI no enviado aún');
           // Documento no enviado aún
           alert(data.data.message || 'PPI document has not been sent for signature yet. Please contact support.');
-        } else if (data.data.notDocuSign) {
-          // Método diferente a DocuSign
-          alert(data.data.message || 'Please check your email for the signing link.');
         } else {
+          console.log('🔗 Abriendo DocuSign para firma');
           // Documento NO firmado - abrir enlace de DocuSign en nueva pestaña
           if (data.data.signUrl) {
-            window.open(data.data.signUrl, '_blank');
+            console.log('✅ Signing URL:', data.data.signUrl.substring(0, 80) + '...');
+            console.log('📧 Client Email:', data.data.clientEmail);
+            console.log('📋 Envelope ID:', data.data.envelopeId);
+            
+            // Abrir en nueva pestaña
+            const newWindow = window.open(data.data.signUrl, '_blank');
+            
+            if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+              // El popup fue bloqueado
+              alert('Pop-up blocked. Please allow pop-ups for this site to sign the PPI document, or copy this link: ' + data.data.signUrl);
+            } else {
+              console.log('✅ DocuSign window opened successfully');
+              // Opcional: Mostrar mensaje de éxito
+              alert('DocuSign signing page opened in a new tab. Please complete the signature process there.');
+            }
           } else {
-            alert('Signature link not available');
+            console.error('❌ No signUrl in response');
+            alert('Signature link not available. Please contact support.');
           }
         }
       } else {
-        alert(data.message || 'Error accessing PPI document');
+        console.error('❌ Request failed:', data.message);
+        alert(data.message || 'Error accessing PPI document. Please contact support.');
       }
     } catch (error) {
-      console.error('Error accessing PPI signature:', error);
-      alert('Error accessing PPI signature link.');
+      console.error('❌ Error accessing PPI signature:', error);
+      alert('Error accessing PPI signature link. Please check your connection and try again.');
     } finally {
       setLoadingPdf(false);
     }
@@ -1157,8 +1178,8 @@ const ClientPortalDashboard = () => {
                 </div>
               </div>
 
-              {/* PPI Signature Section */}
-              {selectedWork && workDocuments && (
+              {/* PPI Signature Section - Solo mostrar si está disponible */}
+              {selectedWork && workDocuments && workDocuments.ppiSignature?.available && (
                 <div className={`border-2 rounded-xl p-4 lg:p-6 shadow-lg ${
                   workDocuments.ppiSignature.signed 
                     ? 'bg-gradient-to-br from-green-50 to-green-100 border-green-300' 
@@ -1176,38 +1197,59 @@ const ClientPortalDashboard = () => {
                         <FaExclamationTriangle className="text-white text-2xl" />
                       )}
                     </div>
-                    <h3 className="text-lg lg:text-xl font-bold text-slate-800">
-                      {workDocuments.ppiSignature.signed ? 'PPI Document Signed' : 'PPI Signature Required'}
-                    </h3>
+                    <div>
+                      <h3 className="text-lg lg:text-xl font-bold text-slate-800">
+                        {workDocuments.ppiSignature.signed ? 'PPI Document Signed ✓' : 'PPI Signature Required'}
+                      </h3>
+                      {workDocuments.ppiSignature.status && !workDocuments.ppiSignature.signed && (
+                        <p className="text-xs text-slate-600 mt-1">
+                          Status: {workDocuments.ppiSignature.status}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   <p className="text-slate-700 mb-4 leading-relaxed text-sm lg:text-base">
                     {workDocuments.ppiSignature.signed 
-                      ? 'Your PPI (Pre-Installation Information) document has been signed successfully. You can view the signed document below.'
-                      : 'Your project requires a PPI (Pre-Installation Information) signature before proceeding. Please complete the digital signature process through DocuSign.'
+                      ? 'Your PPI (Pre-Installation Information) document has been signed successfully. Click below to view the signed document.'
+                      : 'Your project requires a PPI (Pre-Installation Information) signature before proceeding. Click below to complete the digital signature process through DocuSign. The same link was sent to your email.'
                     }
                   </p>
-                  <button 
-                    onClick={handlePPISign}
-                    disabled={loadingPdf}
-                    className={`w-full lg:w-auto px-6 py-3 rounded-xl transition-all flex items-center justify-center gap-2 font-semibold shadow-md hover:shadow-lg ${
-                      loadingPdf 
-                        ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                        : workDocuments.ppiSignature.signed
-                          ? 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white'
-                          : 'bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white'
-                    }`}
-                  >
-                    {loadingPdf ? (
-                      <>
-                        <FaSpinner className="animate-spin" />
-                        Loading...
-                      </>
-                    ) : workDocuments.ppiSignature.signed ? (
-                      'View Signed PPI'
-                    ) : (
-                      'Sign PPI Document'
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <button 
+                      onClick={handlePPISign}
+                      disabled={loadingPdf}
+                      className={`flex-1 sm:flex-none px-6 py-3 rounded-xl transition-all flex items-center justify-center gap-2 font-semibold shadow-md hover:shadow-lg ${
+                        loadingPdf 
+                          ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                          : workDocuments.ppiSignature.signed
+                            ? 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white'
+                            : 'bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white'
+                      }`}
+                    >
+                      {loadingPdf ? (
+                        <>
+                          <FaSpinner className="animate-spin" />
+                          Loading...
+                        </>
+                      ) : workDocuments.ppiSignature.signed ? (
+                        <>
+                          <FaFileAlt />
+                          View Signed PPI
+                        </>
+                      ) : (
+                        <>
+                          <FaFileSignature />
+                          Sign PPI Document via DocuSign
+                        </>
+                      )}
+                    </button>
+                    {!workDocuments.ppiSignature.signed && workDocuments.ppiSignature.envelopeId && (
+                      <div className="text-xs text-slate-500 flex items-center gap-2 px-3">
+                        <FaInfoCircle />
+                        <span>Opens in new tab • Valid for 120 days from approval</span>
+                      </div>
                     )}
-                  </button>
+                  </div>
                 </div>
               )}
 
