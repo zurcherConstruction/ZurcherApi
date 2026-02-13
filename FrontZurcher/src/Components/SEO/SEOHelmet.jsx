@@ -26,7 +26,46 @@ const SEOHelmet = ({
   // Base URL for absolute paths  
   const baseUrl = 'https://zurcherseptic.com';
   const fullOgImage = ogImage.startsWith('http') ? ogImage : `${baseUrl}${ogImage}`;
-  const fullCanonicalUrl = canonicalUrl || (typeof window !== 'undefined' ? window.location.href : baseUrl);
+  
+  // Normalizar canonical URL para evitar duplicados
+  const normalizeUrl = (url) => {
+    if (!url) return baseUrl;
+    
+    try {
+      let normalized = url;
+      
+      // Si es una URL relativa del navegador, construir URL completa
+      if (typeof window !== 'undefined' && !url.startsWith('http')) {
+        normalized = `${baseUrl}${url.startsWith('/') ? url : '/' + url}`;
+      }
+      
+      // Si viene de window.location.href, parsear
+      if (normalized.startsWith('http')) {
+        const urlObj = new URL(normalized);
+        
+        // Remover www. si existe
+        let hostname = urlObj.hostname.replace(/^www\./, '');
+        
+        // Remover trailing slash (excepto para la raíz)
+        let pathname = urlObj.pathname;
+        if (pathname !== '/' && pathname.endsWith('/')) {
+          pathname = pathname.slice(0, -1);
+        }
+        
+        // Construir URL normalizada (sin query params ni fragments para canonical)
+        normalized = `https://${hostname}${pathname}`;
+      }
+      
+      return normalized;
+    } catch (error) {
+      console.error('Error normalizando URL:', error);
+      return baseUrl;
+    }
+  };
+  
+  const fullCanonicalUrl = normalizeUrl(
+    canonicalUrl || (typeof window !== 'undefined' ? window.location.href : baseUrl)
+  );
 
   return (
     <Helmet>
