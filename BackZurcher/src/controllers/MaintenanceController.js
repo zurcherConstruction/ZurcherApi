@@ -899,59 +899,155 @@ const getAssignedMaintenances = async (req, res) => {
       return res.status(400).json({ error: true, message: 'Se requiere workerId.' });
     }
 
-    // ✅ OPTIMIZACIÓN: NO cargar mediaFiles por defecto (solo bajo demanda)
+    console.log(`[getAssignedMaintenances] Fetching for workerId: ${workerId}`);
+
+    // ✅ OPTIMIZACIÓN: Usar JOIN directo en lugar de query separada
     const visitsRaw = await MaintenanceVisit.findAll({
       where: {
         staffId: workerId
+        // No filtrar por status aquí - el frontend maneja los tabs
       },
       attributes: { 
         exclude: [] // Traer todos los campos de MaintenanceVisit
       },
       include: [
-        // ❌ REMOVIDO: { model: MaintenanceMedia, as: 'mediaFiles' }
-        // Los mediaFiles se cargan bajo demanda cuando se abre el detalle de una visita
-        { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] },
-        { model: Work, as: 'work', attributes: ['idWork', 'status', 'maintenanceStartDate', 'propertyAddress'] }
+        { 
+          model: Staff, 
+          as: 'assignedStaff', 
+          attributes: ['id', 'name', 'email'] 
+        },
+        { 
+          model: Work, 
+          as: 'work', 
+          attributes: ['idWork', 'status', 'maintenanceStartDate', 'propertyAddress'],
+          include: [
+            {
+              model: Permit,
+              attributes: [
+                'idPermit', 'propertyAddress', 'applicant', 'applicantName', 
+                'systemType', 'permitNumber',
+                // Solo URLs, no buffers
+                'permitPdfUrl', 'permitPdfPublicId', 'optionalDocsUrl', 'optionalDocsPublicId'
+              ]
+            }
+          ]
+        }
       ],
       order: [['scheduledDate', 'ASC']],
+      limit: 200 // Limitar resultados para evitar timeouts
     });
 
-    // Convertir a objetos planos para manipular fácilmente
-    const visits = visitsRaw.map(v => v.get({ plain: true }));
+    console.log(`[getAssignedMaintenances] Found ${visitsRaw.length} visits`);
 
-    // Recolectar direcciones para buscar Permits en una segunda consulta
-    const addresses = Array.from(new Set(visits.map(v => v.work?.propertyAddress).filter(Boolean)));
-
-    let permitsByAddress = {};
-    if (addresses.length > 0) {
-      const permits = await Permit.findAll({
-        where: { propertyAddress: addresses },
-        attributes: [
-          'idPermit', 'propertyAddress', 'applicant', 'applicantName', 'systemType', 'permitNumber',
-          // ✅ Solo incluir URLs de Cloudinary (no cargar buffers pesados)
-          'permitPdfUrl', 'permitPdfPublicId', 'optionalDocsUrl', 'optionalDocsPublicId'
-        ]
+    // DEBUG: Ver estructura de la primera visita
+    if (visitsRaw.length > 0) {
+      const firstVisitRaw = visitsRaw[0].get({ plain: true });
+      console.log('🔍 [DEBUG] Estructura primera visita:', {
+        id: firstVisitRaw.id,
+        workId: firstVisitRaw.workId,
+        hasWork: !!firstVisitRaw.work,
+        hasWorkCapital: !!firstVisitRaw.Work,
+        workKeys: firstVisitRaw.work ? Object.keys(firstVisitRaw.work) : null,
+        WorkKeys: firstVisitRaw.Work ? Object.keys(firstVisitRaw.Work) : null
       });
-      permitsByAddress = permits.reduce((acc, p) => {
-        acc[p.propertyAddress] = p.get({ plain: true });
-        return acc;
-      }, {});
     }
 
-    // Adjuntar Permit (tanto en .permit como en .Permit) al objeto work para mantener compatibilidad
-    for (const visit of visits) {
-      const work = visit.work || {};
-      const permit = work.propertyAddress ? permitsByAddress[work.propertyAddress] || null : null;
-      work.permit = permit;
-      work.Permit = permit;
-      visit.work = work;
-    }
+    // Convertir a objetos planos
+    const visits = visitsRaw.map(v => {
+      const visit = v.get({ plain: true });
+      
+      // DEBUG: Acceder tanto con 'work' como con 'Work'
+      const workLower = visit.work || null;
+      const workUpper = visit.Work || null;
+      const work = workLower || workUpper;
+      
+      // Acceso directo al Permit desde Work
+      const permit = work?.Permit || null;
+      
+      // Mantener compatibilidad con múltiples formatos
+      if (work) {
+        visit.work = work;
+        visit.Work = work;
+        work.permit = permit;
+        work.Permit = permit;
+      }
+      
+      // Extraer información de zona
+      const address = permit?.propertyAddress || work?.propertyAddress || '';
+      
+      // DEBUG: Log para ver qué dirección se está usando
+      if (!address) {
+        console.log(`⚠️ [getAssignedMaintenances] Visita ${visit.id} sin dirección:`, {
+          permitPropertyAddress: permit?.propertyAddress,
+          workPropertyAddress: work?.propertyAddress,
+          hasPermit: !!permit,
+          hasWork: !!work
+        });
+      }
+      
+      // ZIP code (5 dígitos)
+      const zipMatch = address.match(/\b\d{5}\b/);
+      visit.extractedZipCode = zipMatch ? zipMatch[0] : null;
+      
+      // City - extracción mejorada
+      let city = null;
+      if (address) {
+        // Normalizar dirección para búsqueda
+        const normalizedAddress = address.toLowerCase().replace(/\s+/g, ' ').trim();
+        
+        // Lista de palabras clave de ciudades conocidas
+        const cityKeywords = [
+          'lehigh acres', 'lehigh', 'cape coral', 'fort myers', 'ft myers',
+          'north port', 'port charlotte', 'la belle', 'labelle',
+          'deltona', 'poinciana', 'orlando'
+        ];
+        
+        // Buscar coincidencias en el orden de prioridad (más específico primero)
+        for (const keyword of cityKeywords) {
+          if (normalizedAddress.includes(keyword)) {
+            city = keyword;
+            break;
+          }
+        }
+        
+        // Si no se encuentra keyword, intentar extracción por comas
+        if (!city) {
+          const parts = address.split(',').map(p => p.trim());
+          if (parts.length >= 2) {
+            city = parts[parts.length - 2].toLowerCase();
+          }
+        }
+      }
+      visit.extractedCity = city;
+      visit.fullAddress = address;
+      
+      // Calcular días hasta visita
+      const scheduledDate = new Date(visit.scheduledDate);
+      scheduledDate.setHours(0, 0, 0, 0);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      visit.daysUntilVisit = Math.floor((scheduledDate - today) / (1000 * 60 * 60 * 24));
+      visit.isOverdue = visit.daysUntilVisit < 0;
 
+      return visit;
+    });
 
+    // Ordenar: vencidas primero
+    visits.sort((a, b) => {
+      if (a.isOverdue && !b.isOverdue) return -1;
+      if (!a.isOverdue && b.isOverdue) return 1;
+      return a.daysUntilVisit - b.daysUntilVisit;
+    });
 
-    res.status(200).json({ message: 'Mantenimientos asignados obtenidos correctamente.', visits, count: visits.length });
+    console.log(`[getAssignedMaintenances] Returning ${visits.length} visits (${visits.filter(v => v.isOverdue).length} overdue)`);
+
+    res.status(200).json({ 
+      message: 'Mantenimientos asignados obtenidos correctamente.', 
+      visits, 
+      count: visits.length 
+    });
   } catch (error) {
-    console.error('Error al obtener mantenimientos asignados:', error);
+    console.error('[getAssignedMaintenances] Error:', error);
     res.status(500).json({ error: true, message: 'Error interno del servidor.' });
   }
 };

@@ -1498,18 +1498,72 @@ const getWorksInMaintenance = async (req, res) => {
           as: 'maintenanceVisits',
           include: [
             { model: Staff, as: 'assignedStaff', attributes: ['id', 'name', 'email'] }
-          ]
+          ],
+          order: [['scheduledDate', 'ASC']] // Ordenar visitas por fecha ascendente
         },
         { 
           model: Budget, 
           as: 'budget', 
-          attributes: ['applicantName', 'propertyAddress'] 
+          attributes: ['applicantName', 'propertyAddress', 'applicantEmail'] 
+        },
+        {
+          model: Permit,
+          attributes: ['propertyAddress', 'applicantName', 'applicantPhone', 'applicantEmail']
         }
       ],
       order: [['createdAt', 'DESC']]
     });
 
-    res.status(200).json(works);
+    // Enriquecer cada obra con información de zona (ZIP code y city extraídos)
+    const enrichedWorks = works.map(work => {
+      const workData = work.get({ plain: true });
+      
+      // Extraer información de la dirección
+      const address = workData.budget?.propertyAddress || workData.Permit?.propertyAddress || workData.propertyAddress || '';
+      
+      // Extraer ZIP code (buscar patrón de 5 dígitos)
+      const zipMatch = address.match(/\b\d{5}\b/);
+      const zipCode = zipMatch ? zipMatch[0] : null;
+      
+      // City - extracción mejorada
+      let city = null;
+      if (address) {
+        // Normalizar dirección para búsqueda
+        const normalizedAddress = address.toLowerCase().replace(/\s+/g, ' ').trim();
+        
+        // Lista de palabras clave de ciudades conocidas
+        const cityKeywords = [
+          'lehigh acres', 'lehigh', 'cape coral', 'fort myers', 'ft myers',
+          'north port', 'port charlotte', 'la belle', 'labelle',
+          'deltona', 'poinciana', 'orlando'
+        ];
+        
+        // Buscar coincidencias en el orden de prioridad (más específico primero)
+        for (const keyword of cityKeywords) {
+          if (normalizedAddress.includes(keyword)) {
+            city = keyword;
+            break;
+          }
+        }
+        
+        // Si no se encuentra keyword, intentar extracción por comas
+        if (!city) {
+          const parts = address.split(',').map(p => p.trim());
+          if (parts.length >= 2) {
+            city = parts[parts.length - 2].toLowerCase();
+          }
+        }
+      }
+      
+      return {
+        ...workData,
+        extractedZipCode: zipCode,
+        extractedCity: city,
+        fullAddress: address
+      };
+    });
+
+    res.status(200).json(enrichedWorks);
   } catch (error) {
     console.error('Error al obtener obras en mantenimiento:', error);
     res.status(500).json({ error: true, message: 'Error interno del servidor' });

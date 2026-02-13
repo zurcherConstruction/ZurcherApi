@@ -155,3 +155,24 @@ FRONTEND_STATUS_AUDIT_COMPLETE.md
 UPLOAD_INITIAL_PAY_FLEXIBLE_FLOW.md
 *_AUDIT*.md
 *_FLOW*.md
+
+# 🔧 Development scripts and documentation (no subir a producción)
+BackZurcher/add-*.js
+BackZurcher/test-*.js
+BackZurcher/check-*.js
+BackZurcher/debug-*.js
+BackZurcher/create-*.js
+BackZurcher/clean-*.js
+BackZurcher/cleanup-*.js
+BackZurcher/analyze-*.js
+BackZurcher/deploy-*.js
+BackZurcher/deactivate-*.js
+BackZurcher/delete-*.js
+BackZurcher/complete-*.js
+BackZurcher/convert-*.js
+BackZurcher/*.sql
+*.md
+!README.md
+!FrontZurcher/README.md
+!BackZurcher/README.md
+!WorkTrackerApp/README.md

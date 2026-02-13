@@ -70,6 +70,7 @@ import ChangeOrderResponsePage from "./Components/Landing/ChangeOrderResponsePag
 import PrivacyPolicy from "./Components/PrivacyPolicy";
 // Importar componentes de Mantenimiento
 import MaintenanceList from "./Components/Maintenance/MaintenanceList";
+import MaintenanceWorks from "./Components/Maintenance/MaintenanceWorks"; // 🆕 Visitas por zona
 import MaintenanceForm from "./pages/MaintenanceForm";
 import OwnerMaintenanceView from "./Components/Maintenance/OwnerMaintenanceView";
 import LegacyMaintenanceEditor from "./Components/Maintenance/LegacyMaintenanceEditor"; // 🆕 Editor de trabajos legacy
@@ -202,6 +203,15 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["admin", "recept", "owner", "finance"]}>
                     <MaintenanceTracker />
+                  </PrivateRoute>
+                }
+              />
+
+              <Route
+                path="/maintenance/works"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "recept", "owner", "finance"]}>
+                    <MaintenanceWorks />
                   </PrivateRoute>
                 }
               />
