@@ -323,7 +323,6 @@ const CreateBudget = () => {
 
         // 6. 🆕 SAND AUTOMÁTICO POR CIUDAD - Agregar según la ciudad del Permit
         const permitCity = selectedPermit.city || "";
-        console.log(`🏙️ Ciudad del Permit: "${permitCity}"`);
         if (permitCity.trim() !== "") {
           // Buscar items de SAND que coincidan con la ciudad
           const sandItems = normalizedBudgetItemsCatalog.filter(item => 
@@ -342,8 +341,9 @@ const CreateBudget = () => {
             // Priorizar "LOADS SAND ALL INCLUDED" sobre otros tipos
             let selectedSandItem = null;
             
-            // 1. Buscar primero "LOADS SAND ALL INCLUDED"
+            // 1. Buscar primero "LOADS SAND ALL INCLUDED" o "7 ALL INCLUDED"
             selectedSandItem = sandItems.find(item => 
+              (item.capacity && item.capacity.toUpperCase().includes("7 ALL INCLUDED")) ||
               (item.description && item.description.toUpperCase().includes("LOADS SAND ALL INCLUDED")) ||
               (item.name && item.name.toUpperCase().includes("LOADS SAND ALL INCLUDED")) ||
               (item.description && item.description.toUpperCase().includes("ALL INCLUDED"))
@@ -376,10 +376,11 @@ const CreateBudget = () => {
               category: "SAND",
               name: selectedSandItem.name,
               description: selectedSandItem.description,
+              capacity: selectedSandItem.capacity,
+              supplierName: selectedSandItem.supplierName,
               // Este será encontrado automáticamente por su ID específico
               _directMatch: selectedSandItem // Referencia directa para búsqueda fácil
             });
-            console.log(`✅ Item SAND automático agregado para ${permitCity}: ${selectedSandItem.name} - $${selectedSandItem.unitPrice} (${selectedSandItem.description || 'Sin descripción'}) - Proveedor: ${selectedSandItem.supplierName || 'N/A'}`);
           } else {
             console.warn(`⚠️ No se encontró item SAND para la ciudad: "${permitCity}"`);
           }
@@ -409,7 +410,7 @@ const CreateBudget = () => {
           }
           
           if (found) {
-            initialLineItems.push({
+            const lineItemToAdd = {
               _tempId: generateTempId(),
               budgetItemId: found.id,
               category: found.category,
@@ -420,10 +421,11 @@ const CreateBudget = () => {
               notes: "🔧 Item requerido (puede remover si no aplica)",
               marca: found.marca || '',
               capacity: found.capacity || '',
-              supplierName: found.supplierName || '', // 🔍 DEBUG: Agregar supplierName
-              supplierLocation: found.supplierLocation || '' // 🔍 DEBUG: Agregar supplierLocation
-            });
-            console.log(`✅ Item automático agregado: ${found.category} - ${found.name} - $${found.unitPrice}${found.supplierName ? ` - Proveedor: ${found.supplierName}` : ''}`);
+              supplierName: found.supplierName || '',
+              supplierLocation: found.supplierLocation || ''
+            };
+
+            initialLineItems.push(lineItemToAdd);
           } else {
             console.warn(`⚠️ Item automático NO encontrado en catálogo:`, itemDef);
           }

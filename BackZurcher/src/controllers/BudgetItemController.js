@@ -411,35 +411,55 @@ async updateBudgetItem(req, res) {
         skipped: []
       };
 
-      // 🆕 PASO 1: Recolectar todos los IDs válidos del Excel
-      const excelIds = [];
+      // ✅ PASO 1: Recolectar identificadores únicos del Excel (no solo IDs)
+      const excelItemKeys = new Set();
+      
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         if (!row || row.length < 3) continue;
-        const [id] = row;
-        if (id && id !== '' && !isNaN(parseInt(id))) {
-          excelIds.push(parseInt(id));
+        
+        const [id, category, name, marca, description, capacity, unitPrice, supplierName] = row;
+        
+        if (name && category) {
+          // Crear clave única basada en los campos identificadores
+          const key = JSON.stringify({
+            category: category?.toString().trim(),
+            name: name?.toString().trim(),
+            capacity: capacity?.toString().trim() || null,
+            description: description?.toString().trim() || null,
+            supplierName: supplierName?.toString().trim() || null
+          });
+          excelItemKeys.add(key);
         }
       }
 
-      // 🆕 PASO 2: Eliminar items que NO están en el Excel
-      if (excelIds.length > 0) {
-        const { Op } = require('sequelize');
-        const deletedItems = await BudgetItem.destroy({
-          where: {
-            id: {
-              [Op.notIn]: excelIds
-            }
-          }
+      // ✅ PASO 2: Eliminar items que NO están en el Excel
+      const allExistingItems = await BudgetItem.findAll();
+      const itemsToDelete = [];
+      
+      for (const existingItem of allExistingItems) {
+        const existingKey = JSON.stringify({
+          category: existingItem.category,
+          name: existingItem.name,
+          capacity: existingItem.capacity || null,
+          description: existingItem.description || null,
+          supplierName: existingItem.supplierName || null
         });
         
-        if (deletedItems > 0) {
-          results.deleted.push({ count: deletedItems, message: `${deletedItems} items eliminados (no están en el Excel)` });
-          console.log(`🗑️ ${deletedItems} items eliminados porque no están en el Excel importado`);
+        if (!excelItemKeys.has(existingKey)) {
+          itemsToDelete.push(existingItem.id);
         }
       }
+      
+      if (itemsToDelete.length > 0) {
+        const deletedCount = await BudgetItem.destroy({
+          where: { id: itemsToDelete }
+        });
+        results.deleted.push({ count: deletedCount, message: `${deletedCount} items eliminados (no están en el Excel)` });
+        console.log(`🗑️  ${deletedCount} items eliminados (no están en el Excel)`);
+      }
 
-      // 🆕 PASO 3: Crear o actualizar items del Excel
+      // ✅ PASO 3: Crear o actualizar items del Excel
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
         if (!row || row.length < 3) continue; // Skip empty rows
@@ -466,21 +486,41 @@ async updateBudgetItem(req, res) {
             imageUrl: imageUrl?.toString().trim() || null
           };
 
-          if (id && id !== '' && !isNaN(parseInt(id))) {
-            // Intentar actualizar item existente
-            const existingItem = await BudgetItem.findByPk(parseInt(id));
-            if (existingItem) {
-              await existingItem.update(itemData);
-              results.updated.push({ id: parseInt(id), name: itemData.name });
-            } else {
-              // Si no existe, crear uno nuevo (ignorando el ID del Excel)
-              const newItem = await BudgetItem.create(itemData);
-              results.created.push({ id: newItem.id, name: itemData.name });
-            }
+          // ✅ Buscar item existente por clave compuesta
+          const whereClause = {
+            category: itemData.category,
+            name: itemData.name
+          };
+
+          // Agregar campos opcionales a la búsqueda solo si tienen valor
+          if (itemData.capacity) whereClause.capacity = itemData.capacity;
+          if (itemData.description) whereClause.description = itemData.description;
+          if (itemData.supplierName) whereClause.supplierName = itemData.supplierName;
+
+          const existingItem = await BudgetItem.findOne({ where: whereClause });
+
+          if (existingItem) {
+            // ✅ ACTUALIZAR item existente
+            const oldPrice = existingItem.unitPrice;
+            await existingItem.update(itemData);
+            results.updated.push({ 
+              id: existingItem.id, 
+              name: itemData.name, 
+              category: itemData.category,
+              oldPrice: oldPrice,
+              newPrice: itemData.unitPrice 
+            });
+            console.log(`🔄 Actualizado: ${itemData.category} - ${itemData.name} (${itemData.supplierName || 'N/A'}) | $${oldPrice} → $${itemData.unitPrice}`);
           } else {
-            // Crear nuevo item
+            // ✅ CREAR nuevo item
             const newItem = await BudgetItem.create(itemData);
-            results.created.push({ id: newItem.id, name: itemData.name });
+            results.created.push({ 
+              id: newItem.id, 
+              name: itemData.name, 
+              category: itemData.category,
+              price: itemData.unitPrice 
+            });
+            console.log(`✨ Creado: ${itemData.category} - ${itemData.name} (${itemData.supplierName || 'N/A'}) | $${itemData.unitPrice}`);
           }
 
         } catch (error) {
@@ -489,14 +529,15 @@ async updateBudgetItem(req, res) {
       }
 
       res.json({
-        message: 'Importación completada',
+        message: 'Importación completada exitosamente',
         results,
         summary: {
           created: results.created.length,
           updated: results.updated.length,
           deleted: results.deleted.length,
           errors: results.errors.length,
-          skipped: results.skipped.length
+          skipped: results.skipped.length,
+          total: results.created.length + results.updated.length
         }
       });
 
