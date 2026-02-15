@@ -134,7 +134,7 @@ const BarraLateral = () => {
   // Filtrar opciones según el rol
   const getFilteredMenuSections = () => {
     if (staff?.role === "owner") {
-      return menuSections; // Acceso completo para owner
+      return menuSections; // Acceso completo para owner, este ve todo completo
     } else if (staff?.role === "admin") {
       // Admin tiene acceso limitado: sin Tracking Work y solo Upload Vouchers en Financial
       return [
