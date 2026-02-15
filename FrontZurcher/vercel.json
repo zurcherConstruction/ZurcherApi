@@ -1,17 +1,4 @@
 {
-  "redirects": [
-    {
-      "source": "https://www.zurcherseptic.com/:path*",
-      "destination": "https://zurcherseptic.com/:path*",
-      "permanent": true
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
-  ],
   "headers": [
     {
       "source": "/(.*)",
