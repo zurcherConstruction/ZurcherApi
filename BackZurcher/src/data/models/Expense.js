@@ -36,7 +36,7 @@ module.exports = (sequelize) => {
             'Inspección Inicial',
             'Inspección Final',
             'Comisión Vendedor', // 🆕 Nuevo tipo para comisiones
-            'Gasto Fijo', // 🆕 Para gastos fijos recurrentes (alquiler, servicios, etc.)
+            'Gasto Fijo' // 🆕 Para gastos fijos recurrentes (alquiler, servicios, etc.)
         ),
         allowNull: false,
     },
@@ -47,6 +47,12 @@ module.exports = (sequelize) => {
      workId: { // Add workId to Expense model
       type: DataTypes.UUID,
       allowNull: true, // or false, depending on your requirements
+    },
+    // 🆕 SimpleWork ID - Para vincular gastos con Simple Works
+    simpleWorkId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      comment: 'Vincula el gasto con un SimpleWork (trabajos varios/cotizaciones)'
     },
     // 🆕 Método/Cuenta de pago
     paymentMethod: {

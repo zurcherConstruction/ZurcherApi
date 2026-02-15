@@ -32,7 +32,7 @@ const normalizeDateToLocal = (dateInput) => {
 
 // Crear un nuevo gasto
 const createExpense = async (req, res) => {
-  let { date, amount, typeExpense, notes, workId, staffId, paymentMethod, paymentDetails, verified } = req.body;
+  let { date, amount, typeExpense, notes, workId, simpleWorkId, staffId, paymentMethod, paymentDetails, verified } = req.body;
   
   // ✅ Normalizar fecha (acepta ISO completo o YYYY-MM-DD)
   date = normalizeDateToLocal(date);
@@ -57,12 +57,25 @@ const createExpense = async (req, res) => {
       typeExpense, 
       notes, 
       workId, 
+      simpleWorkId,  // 🆕 Incluir simpleWorkId
       staffId, 
       paymentMethod, 
       paymentDetails,
       verified: verified || false,
       paymentStatus: 'unpaid'  // 🆕 Todos los gastos inician como no pagados
     }, { transaction });
+
+    console.log('✅ [EXPENSE] Gasto creado:', {
+      idExpense: newExpense.idExpense,
+      amount,
+      typeExpense,
+      workId: workId || 'N/A',
+      simpleWorkId: simpleWorkId || 'N/A',
+      paymentMethod
+    });
+
+    // 🆕 NO crear SimpleWorkExpense - Los gastos vinculados se gestionan directamente con el campo simpleWorkId
+    // La relación Expense -> SimpleWork es suficiente para mostrar gastos vinculados
 
     // 🏦 AUTO-CREAR BANK TRANSACTION SI EL PAGO ES DESDE CUENTA BANCARIA
     try {

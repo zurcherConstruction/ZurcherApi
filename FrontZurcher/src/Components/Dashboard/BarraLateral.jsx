@@ -73,10 +73,12 @@ const BarraLateral = () => {
       color: "text-orange-400",
       items: [
         { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
-        { name: "Maintenance List", path: "/maintenance-tracker", icon: FaClipboardList },
+        { name: "Staff Attendance", path: "/staff-attendance", icon: FaCalendarCheck }, 
+        { name: "Maintenance Works", path: "/maintenance/works", icon: FaMapMarkedAlt }, 
         { name: "Maintenance", path: "/maintenance", icon: FaWrench },
-        { name: "Edit Maintenance", path: "/legacy-maintenance", icon: FaHistory }, // 🆕 Editor de todos los maintenance
-        { name: "Staff Attendance", path: "/staff-attendance", icon: FaCalendarCheck }, // 🆕 Asistencia del personal
+        { name: "Maintenance List", path: "/maintenance-tracker", icon: FaClipboardList }, 
+        { name: "Edit Maintenance", path: "/legacy-maintenance", icon: FaHistory }, 
+        
       ],
     },
     {
@@ -164,6 +166,7 @@ const BarraLateral = () => {
           items: [
             { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
             { name: "Maintenance List", path: "/maintenance-tracker", icon: FaClipboardList },
+            { name: "Maintenance Works", path: "/maintenance/works", icon: FaMapMarkedAlt }, // 🆕 Visitas por zona
             { name: "Maintenance", path: "/maintenance", icon: FaWrench },
             { name: "Edit Maintenance", path: "/legacy-maintenance", icon: FaHistory }, // 🆕 Editor de todos los maintenance
             { name: "Staff Attendance", path: "/staff-attendance", icon: FaCalendarCheck }, // 🆕 Asistencia del personal
@@ -244,6 +247,7 @@ const BarraLateral = () => {
             { name: "Works (View Only)", path: "/works", icon: FaTasks },
             { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
             { name: "Maintenance List", path: "/maintenance-tracker", icon: FaClipboardList },
+            { name: "Maintenance Works", path: "/maintenance/works", icon: FaMapMarkedAlt }, // 🆕 Visitas por zona
             { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
           ],
         },

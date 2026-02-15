@@ -1,4 +1,4 @@
-const { SupplierInvoice, SupplierInvoiceItem, SupplierInvoiceWork, SupplierInvoiceExpense, Expense, FixedExpense, Work, Staff, Receipt, Permit, sequelize } = require('../data');
+const { SupplierInvoice, SupplierInvoiceItem, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceExpense, Expense, FixedExpense, Work, SimpleWork, Staff, Receipt, Permit, sequelize } = require('../data');
 const { Op } = require('sequelize');
 const { cloudinary } = require('../utils/cloudinaryConfig');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader'); // 🆕 Para subir receipts
@@ -24,6 +24,7 @@ const createSupplierInvoice = async (req, res) => {
       notes,
       items,
       linkedWorks, // 🆕 Works vinculados para auto-generar expenses
+      linkedSimpleWorks, // 🆕 SimpleWorks vinculados para auto-generar expenses
       vendorEmail,
       vendorPhone,
       vendorAddress
@@ -191,8 +192,8 @@ const createSupplierInvoice = async (req, res) => {
         console.log(`  🆕 Expense creado automáticamente: ${newExpense.idExpense} (${expenseType})`);
       }
       // 5. Si NO hay workId (gasto general), crear expense sin work
-      // 🆕 PERO NO si el invoice tiene linkedWorks (se crearán al pagar)
-      else if (!linkedWorks || linkedWorks.length === 0) {
+      // 🆕 PERO NO si el invoice tiene linkedWorks o linkedSimpleWorks (se crearán al pagar)
+      else if ((!linkedWorks || linkedWorks.length === 0) && (!linkedSimpleWorks || linkedSimpleWorks.length === 0)) {
         // Mapear categoría de SupplierInvoiceItem a typeExpense válido de Expense
         const categoryMap = {
           'Otro': 'Gastos Generales',
@@ -217,7 +218,7 @@ const createSupplierInvoice = async (req, res) => {
 
         console.log(`  🆕 Expense general creado: ${newExpense.idExpense} (${expenseType})`);
       } else {
-        console.log(`  ⏸️ Item sin expense (se creará al registrar pago con linkedWorks)`);
+        console.log(`  ⏸️ Item sin expense (se creará al registrar pago con linkedWorks o linkedSimpleWorks)`);
       }
     }
 
@@ -235,10 +236,23 @@ const createSupplierInvoice = async (req, res) => {
       }
     }
 
+    // 🆕 8. Vincular SimpleWorks si se proporcionaron
+    if (linkedSimpleWorks && Array.isArray(linkedSimpleWorks) && linkedSimpleWorks.length > 0) {
+      for (const simpleWorkId of linkedSimpleWorks) {
+        await SupplierInvoiceSimpleWork.create({
+          supplierInvoiceId: invoice.idSupplierInvoice,
+          simpleWorkId: simpleWorkId
+        }, { transaction });
+        console.log(`  🔗 SimpleWork vinculado: ${simpleWorkId}`);
+      }
+    }
+
     // Commit de la transacción
     await transaction.commit();
 
-    console.log(`\n✅ Invoice ${invoiceNumber} creado exitosamente con ${createdItems.length} items${linkedWorks?.length ? ` y ${linkedWorks.length} work(s) vinculado(s)` : ''}\n`);
+    // Calcular total de trabajos vinculados
+    const linkedCount = (linkedWorks?.length || 0) + (linkedSimpleWorks?.length || 0);
+    console.log(`\n✅ Invoice ${invoiceNumber} creado exitosamente con ${createdItems.length} items${linkedCount ? ` y ${linkedCount} trabajo(s) vinculado(s)` : ''}\n`);
 
     // Retornar el invoice con sus items y works vinculados
     const invoiceWithItems = await SupplierInvoice.findByPk(invoice.idSupplierInvoice, {
@@ -274,8 +288,14 @@ const createSupplierInvoice = async (req, res) => {
         },
         {
           model: Work,
-          as: 'linkedWorks', // 🆕 Works vinculados para auto-distribución
+          as: 'linkedWorks',
           attributes: ['idWork', 'propertyAddress'],
+          through: { attributes: [] }
+        },
+        {
+          model: SimpleWork,
+          as: 'linkedSimpleWorks',
+          attributes: ['id', 'workNumber', 'propertyAddress', 'description'],
           through: { attributes: [] }
         }
       ]
@@ -417,6 +437,15 @@ const getSupplierInvoiceById = async (req, res) => {
             attributes: [],
           },
           required: false
+        },
+        {
+          model: SimpleWork,
+          as: 'linkedSimpleWorks',
+          attributes: ['id', 'workNumber', 'description'],
+          through: { 
+            attributes: [],
+          },
+          required: false
         }
       ]
     });
@@ -531,6 +560,12 @@ const registerPayment = async (req, res) => {
           as: 'linkedWorks',
           attributes: ['idWork', 'propertyAddress'],
           through: { attributes: [] }
+        },
+        {
+          model: SimpleWork,
+          as: 'linkedSimpleWorks',
+          attributes: ['id', 'workNumber', 'description'],
+          through: { attributes: [] }
         }
       ]
     });
@@ -570,6 +605,17 @@ const updateSupplierInvoice = async (req, res) => {
       } catch (e) {
         console.warn('⚠️  No se pudo parsear linkedWorks:', e.message);
         linkedWorks = [];
+      }
+    }
+
+    // 🆕 Parsear linkedSimpleWorks si viene como string JSON
+    let linkedSimpleWorks = req.body.linkedSimpleWorks;
+    if (linkedSimpleWorks && typeof linkedSimpleWorks === 'string') {
+      try {
+        linkedSimpleWorks = JSON.parse(linkedSimpleWorks);
+      } catch (e) {
+        console.warn('⚠️  No se pudo parsear linkedSimpleWorks:', e.message);
+        linkedSimpleWorks = [];
       }
     }
     
@@ -690,6 +736,23 @@ const updateSupplierInvoice = async (req, res) => {
           await SupplierInvoiceWork.create({
             supplierInvoiceId: id,
             workId: workId
+          }, { transaction });
+        }
+      }
+    }
+
+    // 🆕 Actualizar linkedSimpleWorks si se proporcionan
+    if (linkedSimpleWorks !== undefined) {
+      await SupplierInvoiceSimpleWork.destroy({
+        where: { supplierInvoiceId: id },
+        transaction
+      });
+
+      if (Array.isArray(linkedSimpleWorks) && linkedSimpleWorks.length > 0) {
+        for (const simpleWorkId of linkedSimpleWorks) {
+          await SupplierInvoiceSimpleWork.create({
+            supplierInvoiceId: id,
+            simpleWorkId: simpleWorkId
           }, { transaction });
         }
       }
@@ -1442,10 +1505,10 @@ const paySupplierInvoice = async (req, res) => {
       });
     }
 
-    if (!['link_existing', 'create_with_works', 'create_general'].includes(paymentType)) {
+    if (!['link_existing', 'create_with_works', 'create_with_simple_works', 'create_general'].includes(paymentType)) {
       await transaction.rollback();
       return res.status(400).json({
-        error: 'paymentType inválido. Debe ser: link_existing, create_with_works, o create_general'
+        error: 'paymentType inválido. Debe ser: link_existing, create_with_works, create_with_simple_works, o create_general'
       });
     }
 
@@ -1688,7 +1751,132 @@ const paySupplierInvoice = async (req, res) => {
         break;
       }
 
-      // ===== OPCIÓN 3: CREAR EXPENSE GENERAL (SIN WORK) =====
+      // ===== OPCIÓN 3B: CREAR EXPENSE(S) VINCULADO(S) A SIMPLEWORK(S) =====
+      case 'create_with_simple_works': {
+        if (!distribution || !Array.isArray(distribution) || distribution.length === 0) {
+          await transaction.rollback();
+          return res.status(400).json({
+            error: 'Para paymentType=create_with_simple_works, se requiere distribution (array de {simpleWorkId, amount})'
+          });
+        }
+
+        console.log(`🏗️  [PayInvoice] Creando expense(s) para ${distribution.length} SimpleWork(s)...`);
+
+        const simpleWorkIds = distribution.map(d => d.simpleWorkId);
+
+        const simpleWorks = await SimpleWork.findAll({
+          where: { id: { [Op.in]: simpleWorkIds } },
+          transaction
+        });
+
+        if (simpleWorks.length !== simpleWorkIds.length) {
+          await transaction.rollback();
+          return res.status(404).json({
+            error: 'Uno o más SimpleWorks no existen',
+            requested: simpleWorkIds.length,
+            found: simpleWorks.length
+          });
+        }
+
+        // Validar distribución contra monto pendiente
+        const alreadyPaid = parseFloat(invoice.paidAmount) || 0;
+        const invoiceTotal = parseFloat(invoice.totalAmount);
+        const remainingAmount = invoiceTotal - alreadyPaid;
+        const totalDistributed = distribution.reduce((sum, d) => sum + parseFloat(d.amount), 0);
+
+        if (Math.abs(totalDistributed - remainingAmount) > 0.01) {
+          await transaction.rollback();
+          return res.status(400).json({
+            error: 'El total distribuido no coincide con el monto pendiente del invoice',
+            invoiceTotal,
+            alreadyPaid,
+            remainingAmount,
+            distributed: totalDistributed
+          });
+        }
+
+        // Subir receipt si existe
+        let receiptUrl = null;
+        let receiptPublicId = null;
+        if (receiptFile) {
+          console.log('📤 Subiendo receipt a Cloudinary...');
+          const uploadResult = await uploadBufferToCloudinary(receiptFile.buffer, {
+            folder: 'zurcher_receipts',
+            resource_type: receiptFile.mimetype === 'application/pdf' ? 'raw' : 'auto',
+            format: receiptFile.mimetype === 'application/pdf' ? undefined : 'jpg',
+            access_mode: 'public'
+          });
+          receiptUrl = uploadResult.secure_url;
+          receiptPublicId = uploadResult.public_id;
+          console.log('✅ Receipt subido exitosamente');
+        }
+
+        // Crear expense para cada SimpleWork
+        for (const item of distribution) {
+          const sw = simpleWorks.find(w => w.id === item.simpleWorkId);
+
+          let expenseDescription = `${invoice.vendor} - Invoice #${invoice.invoiceNumber}`;
+          if (item.description && item.description.trim()) {
+            expenseDescription += ` - ${item.description.trim()}`;
+          }
+
+          const expense = await Expense.create({
+            workId: null,
+            simpleWorkId: item.simpleWorkId, // 🔗 Vinculado al SimpleWork
+            date: finalPaymentDate,
+            amount: parseFloat(item.amount),
+            typeExpense: 'Materiales',
+            notes: expenseDescription,
+            paymentStatus: 'paid',
+            paidDate: finalPaymentDate,
+            paymentMethod: paymentMethod,
+            paymentDetails: paymentDetails || '',
+            vendor: invoice.vendor,
+            verified: false,
+            staffId: req.user?.id || null,
+            supplierInvoiceItemId: invoice.idSupplierInvoice
+          }, { transaction });
+
+          // Crear Receipt si hay archivo
+          if (receiptFile && receiptUrl) {
+            await Receipt.create({
+              relatedModel: 'Expense',
+              relatedId: expense.idExpense.toString(),
+              type: 'Materiales',
+              notes: `Receipt de invoice #${invoice.invoiceNumber}`,
+              fileUrl: receiptUrl,
+              publicId: receiptPublicId,
+              mimeType: receiptFile.mimetype,
+              originalName: receiptFile.originalname
+            }, { transaction });
+          }
+
+          // Vincular expense al invoice
+          const { SupplierInvoiceExpense } = require('../data');
+          await SupplierInvoiceExpense.create({
+            supplierInvoiceId: invoice.idSupplierInvoice,
+            expenseId: expense.idExpense,
+            amountApplied: item.amount,
+            linkedByStaffId: req.user?.id || null,
+            notes: `Creado para SimpleWork ${sw.workNumber}`
+          }, { transaction });
+
+          createdExpenses.push({
+            idExpense: expense.idExpense,
+            simpleWorkId: item.simpleWorkId,
+            workNumber: sw.workNumber,
+            propertyAddress: sw.propertyAddress,
+            amount: item.amount
+          });
+
+          console.log(`  ✅ Expense creado para SimpleWork ${sw.workNumber}: $${item.amount}`);
+        }
+
+        console.log(`✅ ${createdExpenses.length} expense(s) para SimpleWork(s) creado(s) exitosamente`);
+        break;
+      }
+
+      // ===== OPCIÓN 4: CREAR EXPENSE GENERAL (SIN WORK) =====
       case 'create_general': {
         console.log('🌍 [PayInvoice] Creando expense general...');
 
@@ -2001,7 +2189,8 @@ const createSimpleSupplierInvoice = async (req, res) => {
       dueDate,
       totalAmount,
       notes,
-      linkedWorks // 🆕 Works vinculados
+      linkedWorks, // 🆕 Works vinculados
+      linkedSimpleWorks // 🆕 SimpleWorks vinculados
     } = req.body;
 
     const invoiceFile = req.file;
@@ -2011,7 +2200,8 @@ const createSimpleSupplierInvoice = async (req, res) => {
       vendor,
       totalAmount,
       hasFile: !!invoiceFile,
-      linkedWorksCount: linkedWorks ? JSON.parse(linkedWorks).length : 0
+      linkedWorksCount: linkedWorks ? JSON.parse(linkedWorks).length : 0,
+      linkedSimpleWorksCount: linkedSimpleWorks ? JSON.parse(linkedSimpleWorks).length : 0
     });
 
     // Validaciones
@@ -2106,6 +2296,28 @@ const createSimpleSupplierInvoice = async (req, res) => {
       } catch (parseError) {
         console.error('⚠️ Error procesando linkedWorks:', parseError);
         // No fallar la transacción, solo continuar sin vincular
+      }
+    }
+
+    // 🆕 Vincular SimpleWorks si se especificaron
+    if (linkedSimpleWorks) {
+      try {
+        const simpleWorksArray = typeof linkedSimpleWorks === 'string' ? JSON.parse(linkedSimpleWorks) : linkedSimpleWorks;
+        
+        if (Array.isArray(simpleWorksArray) && simpleWorksArray.length > 0) {
+          console.log(`🔗 Vinculando ${simpleWorksArray.length} SimpleWork(s) al invoice...`);
+          
+          for (const simpleWorkId of simpleWorksArray) {
+            await SupplierInvoiceSimpleWork.create({
+              supplierInvoiceId: newInvoice.idSupplierInvoice,
+              simpleWorkId: simpleWorkId
+            }, { transaction });
+          }
+          
+          console.log(`✅ ${simpleWorksArray.length} SimpleWork(s) vinculado(s) exitosamente`);
+        }
+      } catch (parseError) {
+        console.error('⚠️ Error procesando linkedSimpleWorks:', parseError);
       }
     }
 

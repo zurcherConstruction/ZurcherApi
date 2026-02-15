@@ -65,6 +65,12 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
   const [loadingWorks, setLoadingWorks] = useState(false);
   const [workSearchTerm, setWorkSearchTerm] = useState('');
   
+  // 🆕 Estado para vincular SimpleWorks
+  const [linkedSimpleWorks, setLinkedSimpleWorks] = useState([]);
+  const [availableSimpleWorks, setAvailableSimpleWorks] = useState([]);
+  const [loadingSimpleWorks, setLoadingSimpleWorks] = useState(false);
+  const [simpleWorkSearchTerm, setSimpleWorkSearchTerm] = useState('');
+  
   // Estado para archivo del invoice
   const [invoiceFile, setInvoiceFile] = useState(null);
   const [invoiceFilePreview, setInvoiceFilePreview] = useState(null);
@@ -107,6 +113,11 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
       if (invoice.linkedWorks && invoice.linkedWorks.length > 0) {
         setLinkedWorks(invoice.linkedWorks.map(w => w.idWork));
       }
+      
+      // 🆕 Cargar SimpleWorks vinculados si existen
+      if (invoice.linkedSimpleWorks && invoice.linkedSimpleWorks.length > 0) {
+        setLinkedSimpleWorks(invoice.linkedSimpleWorks.map(sw => sw.id));
+      }
     }
     
     // Si estamos editando y hay un PDF del invoice, establecer la preview
@@ -119,6 +130,7 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
   useEffect(() => {
     loadUnpaidExpenses();
     loadAvailableWorks();
+    loadAvailableSimpleWorks(); // 🆕 Cargar SimpleWorks
   }, []);
 
   const loadAvailableWorks = async () => {
@@ -136,6 +148,23 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
       console.error('Error cargando works:', error);
     }
     setLoadingWorks(false);
+  };
+  
+  const loadAvailableSimpleWorks = async () => {
+    setLoadingSimpleWorks(true);
+    try {
+      const response = await api.get('/simple-works');
+      if (!response.data.error) {
+        // Filtrar SimpleWorks activos (no completados o cancelados)
+        const activeSimpleWorks = response.data.filter(sw => 
+          sw.status !== 'completed' && sw.status !== 'cancelled'
+        );
+        setAvailableSimpleWorks(activeSimpleWorks);
+      }
+    } catch (error) {
+      console.error('Error cargando SimpleWorks:', error);
+    }
+    setLoadingSimpleWorks(false);
   };
 
   const loadUnpaidExpenses = async () => {
@@ -392,9 +421,11 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
       return;
     }
 
-    // 🆕 Verificar que no se usen linkedWorks Y items con work asignado al mismo tiempo
+    // 🆕 Verificar que no se usen linkedWorks/linkedSimpleWorks Y items con work/simpleWork asignado al mismo tiempo
     const itemsHaveWorks = items.some(item => item.workId);
-    if (linkedWorks.length > 0 && itemsHaveWorks) {
+    const itemsHaveSimpleWorks = items.some(item => item.simpleWorkId);
+    
+    if ((linkedWorks.length > 0 || linkedSimpleWorks.length > 0) && (itemsHaveWorks || itemsHaveSimpleWorks)) {
       alert('⚠️ No puedes vincular trabajos al invoice Y asignar trabajos a items individuales al mismo tiempo. Elige una opción.');
       return;
     }
@@ -412,6 +443,7 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
       vendorPhone: formData.vendorPhone || null,
       vendorAddress: formData.vendorAddress || null,
       linkedWorks: linkedWorks, // 🆕 Works vinculados al invoice
+      linkedSimpleWorks: linkedSimpleWorks, // 🆕 SimpleWorks vinculados al invoice
       items: items.map(item => ({
         relatedExpenseId: item.relatedExpenseId || null,
         relatedFixedExpenseId: item.relatedFixedExpenseId || null,
@@ -419,6 +451,7 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
         category: item.category || 'Otro',
         amount: parseFloat(item.amount),
         workId: item.workId || null,
+        simpleWorkId: item.simpleWorkId || null, // 🆕 SimpleWork individual del item
         notes: item.notes || null,
       })),
     };
@@ -745,6 +778,144 @@ const SupplierInvoiceForm = ({ invoice, onClose }) => {
                     </div>
                   </div>
                 )}
+                  </>
+                )}
+              </div>
+
+              {/* 🆕 Vincular a SimpleWorks (opcional) */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  🔧 Vincular a SimpleWorks (opcional)
+                </label>
+                
+                {/* Verificar si hay items con SimpleWorks asignados */}
+                {items.some(item => item.simpleWorkId) ? (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <p className="text-sm text-yellow-800">
+                      ⚠️ Ya tienes items con SimpleWorks específicos asignados. 
+                      <br />
+                      No puedes usar "Vincular a SimpleWorks" cuando los items tienen SimpleWorks individuales.
+                      <br />
+                      <strong>Opciones:</strong>
+                      <br />
+                      • Para distribuir equitativamente: Remueve los SimpleWorks de los items
+                      <br />
+                      • Para montos específicos por SimpleWork: Continúa asignando SimpleWorks a cada item
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-xs text-gray-500 mb-3">
+                      Usa esta opción cuando quieras <strong>distribuir el monto total equitativamente</strong> entre varios SimpleWorks. Si cada item va a un SimpleWork específico con su propio monto, asigna el SimpleWork directamente en cada item.
+                    </p>
+                    
+                    {/* Buscador */}
+                    <div className="relative mb-3">
+                      <input
+                        type="text"
+                        placeholder="🔍 Buscar por descripción o número..."
+                        value={simpleWorkSearchTerm}
+                        onChange={(e) => setSimpleWorkSearchTerm(e.target.value)}
+                        className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <svg className="absolute left-3 top-3 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
+
+                    {/* Lista de SimpleWorks disponibles (filtrados) */}
+                    {loadingSimpleWorks ? (
+                      <div className="text-center py-4 text-gray-500">
+                        Cargando SimpleWorks...
+                      </div>
+                    ) : (
+                      <div className="border border-gray-300 rounded-lg max-h-60 overflow-y-auto mb-3">
+                        {availableSimpleWorks
+                          .filter(sw => {
+                            if (!simpleWorkSearchTerm) return true;
+                            const searchLower = simpleWorkSearchTerm.toLowerCase();
+                            return (
+                              sw.description?.toLowerCase().includes(searchLower) ||
+                              sw.workNumber?.toString().includes(searchLower)
+                            );
+                          })
+                          .map(sw => {
+                            const isSelected = linkedSimpleWorks.includes(sw.id);
+                            const clientName = sw.clientData?.firstName && sw.clientData?.lastName
+                              ? `${sw.clientData.firstName} ${sw.clientData.lastName}`
+                              : 'Cliente no especificado';
+                            
+                            return (
+                              <button
+                                key={sw.id}
+                                type="button"
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setLinkedSimpleWorks(linkedSimpleWorks.filter(id => id !== sw.id));
+                                  } else {
+                                    setLinkedSimpleWorks([...linkedSimpleWorks, sw.id]);
+                                  }
+                                }}
+                                className={`w-full text-left px-4 py-3 border-b border-gray-200 hover:bg-orange-50 transition-colors flex items-center justify-between ${
+                                  isSelected ? 'bg-orange-100 border-l-4 border-l-orange-600' : ''
+                                }`}
+                              >
+                                <div className="flex-1">
+                                  <div className="font-medium text-gray-900">
+                                    🔧 #{sw.workNumber} - {clientName}
+                                  </div>
+                                  <div className="text-sm text-gray-600">
+                                    {sw.description}
+                                  </div>
+                                </div>
+                                {isSelected && (
+                                  <svg className="w-6 h-6 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                  </svg>
+                                )}
+                              </button>
+                            );
+                          })}
+                        {availableSimpleWorks.filter(sw => {
+                          if (!simpleWorkSearchTerm) return true;
+                          const searchLower = simpleWorkSearchTerm.toLowerCase();
+                          return (
+                            sw.description?.toLowerCase().includes(searchLower) ||
+                            sw.workNumber?.toString().includes(searchLower)
+                          );
+                        }).length === 0 && (
+                          <div className="text-center py-8 text-gray-500">
+                            {simpleWorkSearchTerm ? 'No se encontraron SimpleWorks' : 'No hay SimpleWorks activos disponibles'}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* SimpleWorks seleccionados */}
+                    {linkedSimpleWorks.length > 0 && (
+                      <div>
+                        <p className="text-sm font-medium text-gray-700 mb-2">
+                          ✅ {linkedSimpleWorks.length} SimpleWork{linkedSimpleWorks.length !== 1 ? 's' : ''} seleccionado{linkedSimpleWorks.length !== 1 ? 's' : ''}:
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {linkedSimpleWorks.map(swId => {
+                            const sw = availableSimpleWorks.find(s => s.id === swId);
+                            return sw ? (
+                              <span key={swId} className="inline-flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white rounded-lg text-sm">
+                                🔧 #{sw.workNumber} - {sw.description}
+                                <button
+                                  type="button"
+                                  onClick={() => setLinkedSimpleWorks(linkedSimpleWorks.filter(id => id !== swId))}
+                                  className="ml-1 text-white hover:text-orange-200 font-bold"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ) : null;
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </div>

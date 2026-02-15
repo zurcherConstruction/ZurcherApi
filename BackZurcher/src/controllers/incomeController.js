@@ -54,42 +54,50 @@ const createIncome = async (req, res) => {
       staffId, 
       paymentMethod, 
       paymentDetails,
-      verified: verified || false 
+      verified: verified || false,
+      simpleWorkId: simpleWorkId || null 
     }, { transaction });
 
-    // 🆕 CREAR SIMPLEWORKPAYMENT SI ES UN PAGO DE SIMPLEWORK
+    console.log('✅ [INCOME] Ingreso creado:', {
+      idIncome: newIncome.idIncome,
+      amount,
+      typeIncome,
+      workId: workId || 'N/A',
+      simpleWorkId: simpleWorkId || 'N/A',
+      paymentMethod
+    });
+
+    // 🔧 ACTUALIZAR totalPaid EN SIMPLEWORK SI ES UN PAGO DE SIMPLEWORK
+    // No crear SimpleWorkPayment duplicado - el Income con simpleWorkId es la fuente de verdad
     if (simpleWorkId && typeIncome === 'Factura SimpleWork') {
       try {
-        const { SimpleWork, SimpleWorkPayment } = require('../data');
+        const { SimpleWork } = require('../data');
         
         // Verificar que el SimpleWork existe
         const simpleWork = await SimpleWork.findByPk(simpleWorkId, { transaction });
         if (simpleWork) {
-          // Crear SimpleWorkPayment
-          await SimpleWorkPayment.create({
-            simpleWorkId: simpleWorkId,
-            amount: amount,
-            paymentMethod: paymentMethod,
-            paymentDate: date,
-            description: notes,
-            createdAt: new Date()
-          }, { transaction });
-
-          // Actualizar totalPaid en SimpleWork
-          const totalPaid = await SimpleWorkPayment.sum('amount', {
+          // Calcular totalPaid desde Income (fuente de verdad) + SimpleWorkPayments legacy
+          const incomeTotal = await Income.sum('amount', {
             where: { simpleWorkId: simpleWorkId },
             transaction
-          });
+          }) || 0;
+
+          const { SimpleWorkPayment } = require('../data');
+          const paymentTotal = await SimpleWorkPayment.sum('amount', {
+            where: { simpleWorkId: simpleWorkId },
+            transaction
+          }) || 0;
+
+          const totalPaid = parseFloat(incomeTotal) + parseFloat(paymentTotal);
 
           await simpleWork.update({ 
-            totalPaid: totalPaid || 0 
+            totalPaid: totalPaid
           }, { transaction });
 
-          console.log(`✅ [SIMPLEWORK] Pago registrado: ${simpleWork.workNumber} +$${amount} → Total: $${totalPaid || 0}`);
+          console.log(`✅ [SIMPLEWORK] Pago registrado: ${simpleWork.workNumber} +$${amount} → Total: $${totalPaid}`);
         }
       } catch (simpleWorkError) {
-        console.error('⚠️ Error procesando SimpleWork payment (no crítico):', simpleWorkError.message);
-        // No hacer rollback, mantener el Income
+        console.error('⚠️ Error actualizando SimpleWork totalPaid (no crítico):', simpleWorkError.message);
       }
     }
     
@@ -124,7 +132,7 @@ const createIncome = async (req, res) => {
       const incomeWithDetails = await Income.findByPk(newIncome.idIncome, {
         include: [
           { model: Staff, as: 'Staff', attributes: ['id', 'name', 'email'] },
-          { model: Work, as: 'Work', attributes: ['idWork', 'propertyAddress'] }
+          { model: Work, as: 'work', attributes: ['idWork', 'propertyAddress'] }
         ]
       });
 

@@ -1,1 +1,11 @@
-/* /index.html 200
+# Netlify Redirects Configuration
+# Redirect www to non-www (301 permanent)
+https://www.zurcherseptic.com/*  https://zurcherseptic.com/:splat  301!
+
+# Force HTTPS (if not already)
+http://zurcherseptic.com/*  https://zurcherseptic.com/:splat  301!
+http://www.zurcherseptic.com/*  https://zurcherseptic.com/:splat  301!
+
+# SPA Fallback - All routes serve index.html
+/*  /index.html  200
+

@@ -99,7 +99,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -360,6 +360,38 @@ SupplierInvoice.hasMany(SupplierInvoiceWork, {
 });
 Work.hasMany(SupplierInvoiceWork, {
   foreignKey: 'workId',
+  as: 'invoiceLinks'
+});
+
+// 🆕 Asociación con SupplierInvoiceSimpleWork para vincular invoices con SimpleWorks
+SupplierInvoice.belongsToMany(SimpleWork, {
+  through: SupplierInvoiceSimpleWork,
+  foreignKey: 'supplierInvoiceId',
+  otherKey: 'simpleWorkId',
+  as: 'linkedSimpleWorks'
+});
+SimpleWork.belongsToMany(SupplierInvoice, {
+  through: SupplierInvoiceSimpleWork,
+  foreignKey: 'simpleWorkId',
+  otherKey: 'supplierInvoiceId',
+  as: 'linkedInvoices'
+});
+
+// Para acceder directamente al modelo intermedio
+SupplierInvoiceSimpleWork.belongsTo(SupplierInvoice, {
+  foreignKey: 'supplierInvoiceId',
+  as: 'invoice'
+});
+SupplierInvoiceSimpleWork.belongsTo(SimpleWork, {
+  foreignKey: 'simpleWorkId',
+  as: 'simpleWork'
+});
+SupplierInvoice.hasMany(SupplierInvoiceSimpleWork, {
+  foreignKey: 'supplierInvoiceId',
+  as: 'simpleWorkLinks'
+});
+SimpleWork.hasMany(SupplierInvoiceSimpleWork, {
+  foreignKey: 'simpleWorkId',
   as: 'invoiceLinks'
 });
 
@@ -673,6 +705,30 @@ SimpleWork.hasMany(SimpleWorkExpense, {
 
 // SimpleWorkExpense pertenece a SimpleWork
 SimpleWorkExpense.belongsTo(SimpleWork, {
+  foreignKey: 'simpleWorkId',
+  as: 'simpleWork'
+});
+
+// 🔗 SimpleWork tiene muchos Income vinculados (ingresos generales)
+SimpleWork.hasMany(Income, {
+  foreignKey: 'simpleWorkId',
+  as: 'linkedIncomes'
+});
+
+// Income opcionalmente vinculado a SimpleWork
+Income.belongsTo(SimpleWork, {
+  foreignKey: 'simpleWorkId',
+  as: 'simpleWork'
+});
+
+// 🔗 SimpleWork tiene muchos Expense vinculados (gastos generales)
+SimpleWork.hasMany(Expense, {
+  foreignKey: 'simpleWorkId',
+  as: 'linkedExpenses'
+});
+
+// Expense opcionalmente vinculado a SimpleWork
+Expense.belongsTo(SimpleWork, {
   foreignKey: 'simpleWorkId',
   as: 'simpleWork'
 });

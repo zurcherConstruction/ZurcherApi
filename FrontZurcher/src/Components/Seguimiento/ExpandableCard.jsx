@@ -133,11 +133,21 @@ const ExpandableCard = ({ title, totalAmount, paidAmount, unpaidAmount, totalCou
                           📍 {expense.propertyAddress}
                         </div>
                       )}
+
+                      {/* Información de SimpleWork vinculado */}
+                      {expense.simpleWork && (
+                        <div className="property-address" style={{ color: '#d97706' }}>
+                          🔨 {expense.simpleWork.workNumber} - {expense.simpleWork.propertyAddress}
+                        </div>
+                      )}
                       
                       <div className="expense-meta">
                         <span className="expense-id">ID: {expense.idExpense}</span>
                         {expense.workId && (
                           <span className="work-id">Work: {expense.workId}</span>
+                        )}
+                        {expense.simpleWorkId && !expense.workId && (
+                          <span className="work-id">SimpleWork: {expense.simpleWork?.workNumber || expense.simpleWorkId}</span>
                         )}
                         {expense.relatedFixedExpenseId && (
                           <span className="fixed-expense-id">Gasto Fijo: {expense.relatedFixedExpenseId}</span>

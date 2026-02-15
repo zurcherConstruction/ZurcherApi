@@ -35,7 +35,7 @@ const generalExpenseTypes = [
   // "Workers", // ❌ Removido del sistema
   "Gastos Generales",
   // "Comisión Vendedor", // ❌ Removido - Las comisiones se pagan desde CommissionsManager.jsx
-  "Gasto Fijo", // 🆕 Los gastos fijos son siempre generales
+  "Gasto Fijo" // 🆕 Los gastos fijos son siempre generales
   // "Comprobante Gasto" // ❌ Removido del sistema
 ];
 
@@ -392,9 +392,9 @@ const AttachReceipt = () => {
     // Determinar si el tipo seleccionado permite transacciones generales
     const canBeGeneral = generalExpenseTypes.includes(type) || generalIncomeTypes.includes(type);
 
-    // Validaciones básicas
-    if (!canBeGeneral && !isGeneralTransaction && !selectedWork) {
-      toast.error("Por favor, selecciona una obra o marca como transacción general.");
+    // Validaciones básicas - permitir si hay SimpleWork seleccionado
+    if (!canBeGeneral && !isGeneralTransaction && !selectedWork && !selectedSimpleWork) {
+      toast.error("Por favor, selecciona una obra, un SimpleWork, o marca como transacción general.");
       return;
     }
 
@@ -757,6 +757,8 @@ const AttachReceipt = () => {
 
         } else {
           // Lógica original para otros tipos de gastos/ingresos
+          
+          // Validación de monto
           if (!generalAmount || isNaN(parseFloat(generalAmount)) || parseFloat(generalAmount) <= 0) {
             toast.error("Por favor, ingrese un monto válido para el ingreso/gasto.");
             return;
@@ -770,14 +772,16 @@ const AttachReceipt = () => {
             date: paymentDate, // 🆕 Usar la fecha de pago seleccionada por el usuario (o hoy por defecto)
             amount: parseFloat(generalAmount),
             notes,
-            // Solo incluir workId si no es transacción general
-            ...(isGeneralTransaction ? {} : { workId: selectedWork }),
+            // Solo incluir workId si no es transacción general (y no hay simpleWorkId)
+            ...(isGeneralTransaction || selectedSimpleWork ? {} : { workId: selectedWork }),
             staffId: staff?.id,
             ...(isIncome ? { typeIncome: type } : { typeExpense: type }),
             // 🆕 Agregar método de pago si se especificó
             ...(paymentMethod ? { paymentMethod } : {}),
             // 🆕 Agregar detalles del pago si se especificó
             ...(paymentDetails ? { paymentDetails } : {}),
+            // 🆕 SIMPLIFIED: Agregar simpleWorkId si se seleccionó un SimpleWork (funciona con CUALQUIER tipo)
+            ...(selectedSimpleWork ? { simpleWorkId: selectedSimpleWork } : {}),
           };
 
           console.log('💰 Datos a enviar (Income/Expense):', incomeExpenseData);
@@ -1515,13 +1519,9 @@ const AttachReceipt = () => {
                       >
                         <option value="">Seleccionar SimpleWork...</option>
                         {simpleWorks.map((sw) => {
-                          const clientName = sw.clientData?.firstName && sw.clientData?.lastName
-                            ? `${sw.clientData.firstName} ${sw.clientData.lastName}`
-                            : 'Cliente no especificado';
-                          
                           return (
                             <option key={sw.id} value={sw.id}>
-                              #{sw.workNumber} - {clientName} - ${parseFloat(sw.finalAmount || sw.estimatedAmount || 0).toFixed(2)}
+                              #{sw.workNumber} - {sw.propertyAddress} - ${parseFloat(sw.finalAmount || sw.estimatedAmount || 0).toFixed(2)}
                             </option>
                           );
                         })}
@@ -1580,7 +1580,8 @@ const AttachReceipt = () => {
                                 </div>
                               </div>
                               
-                              <div className="mt-2 text-xs text-gray-600">
+                              <div className="mt-2 text-xs text-gray-600 space-y-1">
+                                <p><strong>Dirección:</strong> {selectedSW.propertyAddress}</p>
                                 <p><strong>Descripción:</strong> {selectedSW.description}</p>
                                 <p><strong>Estado:</strong> {selectedSW.status}</p>
                               </div>
@@ -1594,8 +1595,8 @@ const AttachReceipt = () => {
               </div>
             )}
 
-            {/* Work Selection - Only show if not general transaction and type is selected */}
-            {type && !isGeneralTransaction && (
+            {/* Work Selection - Only show if not general transaction, type is selected, and no SimpleWork selected */}
+            {type && !isGeneralTransaction && !selectedSimpleWork && (
               <div>
                 <label htmlFor="work" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
                   <BuildingOffice2Icon className="h-5 w-5 mr-2 text-blue-500" />
@@ -1837,6 +1838,100 @@ const AttachReceipt = () => {
               </div>
             )}
 
+            {/* 🆕 SimpleWork Selection - Alternativa a Work para gastos/ingresos, o al revés */}
+            {type && !isGeneralTransaction && !selectedWork && (
+              <div>
+                <label htmlFor="simpleWork" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
+                  <DocumentTextIcon className="h-5 w-5 mr-2 text-orange-500" />
+                  Vincular a SimpleWork (opcional)
+                </label>
+                <p className="text-xs text-gray-500 mb-3">
+                  💡 Si este gasto/ingreso es para un SimpleWork, selecciónalo aquí en lugar de una obra normal.
+                </p>
+
+                {simpleWorksLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
+                    <span className="ml-3 text-sm text-gray-600">Cargando SimpleWorks...</span>
+                  </div>
+                ) : (
+                  <select
+                    id="simpleWork"
+                    value={selectedSimpleWork}
+                    onChange={(e) => setSelectedSimpleWork(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 bg-white"
+                  >
+                    <option value="">No vincular a SimpleWork</option>
+                    {simpleWorks && simpleWorks.map((sw) => {
+                      return (
+                        <option key={sw.id} value={sw.id}>
+                          🔧 #{sw.workNumber} - {sw.propertyAddress}
+                        </option>
+                      );
+                    })}
+                  </select>
+                )}
+
+                {/* SimpleWork Status Card */}
+                {selectedSimpleWork && simpleWorks && (() => {
+                  const selectedSW = simpleWorks.find(sw => sw.id === selectedSimpleWork);
+                  if (!selectedSW) return null;
+
+                  const estimatedAmount = parseFloat(selectedSW.estimatedAmount || 0);
+                  const finalAmount = parseFloat(selectedSW.finalAmount || estimatedAmount);
+                  const paidAmount = parseFloat(selectedSW.totalPaid || 0);
+                  const totalExpenses = parseFloat(selectedSW.totalExpenses || 0);
+                  const profit = paidAmount - totalExpenses;
+                  
+                  return (
+                    <div className="mt-4 bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg p-4 border border-orange-200">
+                      <div className="flex items-center space-x-3 mb-3">
+                        <InformationCircleIcon className="h-5 w-5 text-orange-500" />
+                        <h5 className="font-semibold text-orange-800">Estado del SimpleWork</h5>
+                      </div>
+
+                      <div className="bg-white rounded-lg p-3 space-y-2">
+                        <p className="text-sm text-gray-700">
+                          <span className="font-medium">SimpleWork:</span> #{selectedSW.workNumber} - {selectedSW.propertyAddress}
+                        </p>
+                        <p className="text-xs text-gray-500 italic">
+                          {selectedSW.description}
+                        </p>
+                        
+                        <div className="grid grid-cols-4 gap-2 mt-3">
+                          <div className="text-center">
+                            <p className="text-xs text-gray-600">Monto Total</p>
+                            <p className="text-sm font-bold text-gray-800">${finalAmount.toFixed(2)}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-gray-600">Cobrado</p>
+                            <p className="text-sm font-bold text-green-600">${paidAmount.toFixed(2)}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-gray-600">Gastos</p>
+                            <p className="text-sm font-bold text-orange-600">${totalExpenses.toFixed(2)}</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-xs text-gray-600">Ganancia</p>
+                            <p className={`text-sm font-bold ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              ${profit.toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center space-x-2 mt-2">
+                          <span className="text-xs font-medium text-gray-700">Estado:</span>
+                          <span className="px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200">
+                            {selectedSW.status}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
             {/* Final Invoice Details Card */}
             {type === "Factura Pago Final Budget" && finalInvoiceDetails && currentWorkDetails && (
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-5 border border-blue-200">
@@ -1932,8 +2027,8 @@ const AttachReceipt = () => {
               </div>
             )}
 
-            {/* General Amount Input - Ocultar para Gasto Fijo ya que el monto viene del gasto seleccionado */}
-            {type && type !== "Factura Pago Final Budget" && type !== "Gasto Fijo" && (
+            {/* General Amount Input - Ocultar para Gasto Fijo y Factura SimpleWork (tienen sus propios campos) */}
+            {type && type !== "Factura Pago Final Budget" && type !== "Gasto Fijo" && type !== "Factura SimpleWork" && (
               <div>
                 <label htmlFor="generalAmount" className="flex items-center text-sm font-semibold text-gray-700 mb-3">
                   <CurrencyDollarIcon className="h-5 w-5 mr-2 text-green-500" />
@@ -1944,34 +2039,28 @@ const AttachReceipt = () => {
                   step="any"
                   min="0"
                   id="generalAmount"
-                  value={selectedSimpleWork ? simpleWorkPaymentAmount : generalAmount}
-                  readOnly={selectedSimpleWork} // Solo lectura cuando hay SimpleWork seleccionado
+                  value={generalAmount}
                   onChange={(e) => {
-                    // Solo permitir cambios si NO hay SimpleWork seleccionado
-                    if (!selectedSimpleWork) {
-                      const value = e.target.value;
-                      // Permitir valores vacíos y números válidos
-                      if (value === '' || !isNaN(parseFloat(value))) {
-                        setGeneralAmount(value);
-                      }
+                    const value = e.target.value;
+                    // Permitir valores vacíos y números válidos
+                    if (value === '' || !isNaN(parseFloat(value))) {
+                      setGeneralAmount(value);
+                      // Sincronizar con amount para mantener consistencia
+                      setAmount(value);
                     }
                   }}
                   onBlur={(e) => {
-                    // Solo formatear si NO hay SimpleWork seleccionado
-                    if (!selectedSimpleWork) {
-                      // Formatear solo al perder foco - mantener enteros sin decimales
-                      const value = parseFloat(e.target.value);
-                      if (!isNaN(value) && value >= 0) {
-                        // Si es un número entero, no agregar decimales
-                        const formatted = value % 1 === 0 ? value.toString() : value.toFixed(2);
-                        setGeneralAmount(formatted);
-                      }
+                    // Formatear solo al perder foco - mantener enteros sin decimales
+                    const value = parseFloat(e.target.value);
+                    if (!isNaN(value) && value >= 0) {
+                      // Si es un número entero, no agregar decimales
+                      const formatted = value % 1 === 0 ? value.toString() : value.toFixed(2);
+                      setGeneralAmount(formatted);
+                      setAmount(formatted);
                     }
                   }}
-                  className={`w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 ${
-                    selectedSimpleWork ? 'bg-gray-50 cursor-not-allowed' : ''
-                  }`}
-                  placeholder={selectedSimpleWork ? 'Monto automático desde SimpleWork' : '0.00'}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                  placeholder="0.00"
                   required
                 />
               </div>

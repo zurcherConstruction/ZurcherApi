@@ -42,14 +42,27 @@ module.exports = (sequelize) => {
     },
     
     createdBy: {
-      type: DataTypes.INTEGER,
-      allowNull: true
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'Staffs',
+        key: 'id'
+      }
     }
   }, {
     tableName: 'SimpleWorkExpense',  
     timestamps: true,
     updatedAt: false
   });
+
+  // 🔗 Asociaciones
+  SimpleWorkExpense.associate = (models) => {
+    // Relación con Staff para createdBy
+    SimpleWorkExpense.belongsTo(models.Staff, {
+      foreignKey: 'createdBy',
+      as: 'creator'
+    });
+  };
 
   return SimpleWorkExpense;
 };

@@ -71,6 +71,9 @@ router.delete('/:id', verifyToken, SimpleWorkController.deleteSimpleWork);
 // 💰 POST /api/simple-works/:id/payments - Agregar pago
 router.post('/:id/payments', verifyToken, SimpleWorkController.addPayment);
 
+// 🗑️ DELETE /api/simple-works/:id/payment/:paymentId - Eliminar pago
+router.delete('/:id/payment/:paymentId', verifyToken, SimpleWorkController.deletePayment);
+
 // 🆕 💳 POST /api/simple-works/:id/payments/financial - Registrar pago con integración financiera completa
 router.post('/:id/payments/financial', 
   verifyToken, 
@@ -88,6 +91,9 @@ router.get('/:id/payments/financial',
 
 // 💸 POST /api/simple-works/:id/expenses - Agregar gasto
 router.post('/:id/expenses', verifyToken, SimpleWorkController.addExpense);
+
+// 🗑️ DELETE /api/simple-works/:id/expense/:expenseId - Eliminar gasto
+router.delete('/:id/expense/:expenseId', verifyToken, SimpleWorkController.deleteExpense);
 
 // 📎 POST /api/simple-works/:id/attachments - Subir archivo adjunto (planos, documentos)
 router.post('/:id/attachments', verifyToken, upload.single('file'), SimpleWorkController.uploadAttachment);

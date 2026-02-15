@@ -41,7 +41,9 @@ export const fetchSimpleWorks = (filters = {}) => async (dispatch) => {
 export const fetchSimpleWorkById = (id) => async (dispatch) => {
   dispatch(simpleWorkRequest());
   try {
-    const response = await api.get(`/simple-works/${id}`);
+    const response = await api.get(`/simple-works/${id}`, {
+      headers: { 'Cache-Control': 'no-cache' }
+    });
     dispatch(fetchSimpleWorkByIdSuccess(response.data));
   } catch (error) {
     dispatch(simpleWorkFailure(handleError(error, 'Error al obtener trabajo simple')));

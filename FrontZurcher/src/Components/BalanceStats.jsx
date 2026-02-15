@@ -1406,6 +1406,11 @@ Esto es normal y refleja el flujo real de pagos de nómina/gastos fijos.`;
                                 📍 {expense.propertyAddress}
                               </div>
                             )}
+                            {expense.simpleWork && (
+                              <div className="text-xs text-amber-600 mt-1">
+                                🔨 {expense.simpleWork.workNumber} - {expense.simpleWork.propertyAddress}
+                              </div>
+                            )}
                           </div>
                           <span className="text-red-600 font-semibold">{formatCurrency(expense.amount)}</span>
                         </div>

@@ -43,8 +43,12 @@ module.exports = (sequelize) => {
     },
     
     linkedWorkId: {
-      type: DataTypes.STRING,
-      allowNull: true
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'Works',
+        key: 'idWork'
+      }
     },
     
     description: {

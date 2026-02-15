@@ -42,6 +42,12 @@ module.exports = (sequelize) => {
       type: DataTypes.UUID,
       allowNull: true, // or false, depending on your requirements
     },
+    // 🆕 SimpleWork ID - Para vincular ingresos con Simple Works
+    simpleWorkId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      comment: 'Vincula el ingreso con un SimpleWork (trabajos varios/cotizaciones)'
+    },
     // 🆕 Método/Cuenta de pago
     paymentMethod: {
       type: DataTypes.ENUM(

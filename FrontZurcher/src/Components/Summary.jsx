@@ -958,7 +958,13 @@ const Summary = () => {
                                 <span className="truncate">{mov.work.propertyAddress}</span>
                               </div>
                             )}
-                            {!mov.notes && !mov.work?.propertyAddress && (
+                            {mov.simpleWork && (
+                              <div className="flex items-start gap-0.5 text-xs text-amber-600 truncate" title={`${mov.simpleWork.workNumber} - ${mov.simpleWork.propertyAddress}`}>
+                                <span className="flex-shrink-0">🔨</span>
+                                <span className="truncate">{mov.simpleWork.workNumber} - {mov.simpleWork.propertyAddress}</span>
+                              </div>
+                            )}
+                            {!mov.notes && !mov.work?.propertyAddress && !mov.simpleWork && (
                               <span className="text-gray-400 italic text-xs">-</span>
                             )}
                           </div>

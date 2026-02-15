@@ -70,6 +70,7 @@ import ChangeOrderResponsePage from "./Components/Landing/ChangeOrderResponsePag
 import PrivacyPolicy from "./Components/PrivacyPolicy";
 // Importar componentes de Mantenimiento
 import MaintenanceList from "./Components/Maintenance/MaintenanceList";
+import MaintenanceWorks from "./Components/Maintenance/MaintenanceWorks"; // 🆕 Visitas por zona
 import MaintenanceForm from "./pages/MaintenanceForm";
 import OwnerMaintenanceView from "./Components/Maintenance/OwnerMaintenanceView";
 import LegacyMaintenanceEditor from "./Components/Maintenance/LegacyMaintenanceEditor"; // 🆕 Editor de trabajos legacy
@@ -86,6 +87,7 @@ import WorkerMaintenanceDashboard from "./Components/Workers/WorkerMaintenanceDa
 import WorkerMaintenanceDetail from "./Components/Workers/WorkerMaintenanceDetail";
 import WorkerGeneralExpense from "./Components/Workers/WorkerGeneralExpense";
 import SimpleWorkList from "./Components/SimpleWork/SimpleWorkList";
+import SimpleWorkDetail from "./Components/SimpleWork/SimpleWorkDetail";
 import GalleryManager from "./Components/Admin/GalleryManager";
 import ClientPortalDashboard from "./Components/ClientPortal/ClientPortalDashboard";
 import ClientPortalAdmin from "./Components/ClientPortal/ClientPortalAdmin";
@@ -207,6 +209,15 @@ function App() {
               />
 
               <Route
+                path="/maintenance/works"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "recept", "owner", "finance"]}>
+                    <MaintenanceWorks />
+                  </PrivateRoute>
+                }
+              />
+
+              <Route
                 path="/work-zone-map"
                 element={
                   <PrivateRoute allowedRoles={["admin", "recept", "owner", "finance", "worker"]}>
@@ -246,6 +257,14 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["owner", "admin", "recept"]}>
                     <SimpleWorkList />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/simple-works/:id"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin", "recept"]}>
+                    <SimpleWorkDetail />
                   </PrivateRoute>
                 }
               />

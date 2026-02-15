@@ -285,6 +285,11 @@ const handleCustomChange = (e) => {
           match = match && i.description === selection.description;
         }
 
+        // ✅ Para SAND: verificar supplierName para obtener el precio correcto por zona
+        if (category.toUpperCase() === 'SAND' && selection.supplierName && selection.supplierName !== '') {
+          match = match && i.supplierName === selection.supplierName;
+        }
+
         return match;
       });
 
