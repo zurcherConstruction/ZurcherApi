@@ -1,4 +1,4 @@
-const { SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Work, Staff, sequelize } = require('../data');
+const { SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Work, Staff, Income, Expense, sequelize } = require('../data');
 const { Op } = require('sequelize');
 const fs = require('fs');
 const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader');
@@ -87,6 +87,18 @@ const SimpleWorkController = {
             as: 'items',
             required: false,
             order: [['displayOrder', 'ASC']]
+          },
+          {
+            model: Income,
+            as: 'linkedIncomes',
+            required: false,
+            attributes: ['idIncome', 'date', 'amount', 'typeIncome', 'notes', 'paymentMethod']
+          },
+          {
+            model: Expense,
+            as: 'linkedExpenses',
+            required: false,
+            attributes: ['idExpense', 'date', 'amount', 'typeExpense', 'notes', 'paymentMethod']
           }
         ],
         order: [['createdAt', 'DESC']],
@@ -94,14 +106,49 @@ const SimpleWorkController = {
         offset
       });
 
-      // Calcular totales por trabajo
-      const worksWithTotals = simpleWorks.map(work => {
-        // Usar el totalPaid de la base de datos (más confiable y rápido)
-        const totalPaid = parseFloat(work.totalPaid || 0);
+      // 🔍 DEBUG: Mostrar resumen de SimpleWorks encontrados
+      console.log(`🔍 [SIMPLEWORKS] Total encontrados: ${count}, Mostrando: ${simpleWorks.length}`);
+      
+      simpleWorks.forEach((work, idx) => {
+        const linkedIncomesCount = work.linkedIncomes?.length || 0;
+        const linkedExpensesCount = work.linkedExpenses?.length || 0;
         
-        const totalExpenses = work.expenses?.reduce((sum, expense) => 
-          sum + parseFloat(expense.amount || 0), 0
-        ) || 0;
+        if (linkedIncomesCount > 0 || linkedExpensesCount > 0) {
+          console.log(`  ${idx + 1}. ${work.workNumber} - Ingresos vinculados: ${linkedIncomesCount}, Gastos vinculados: ${linkedExpensesCount}`);
+          
+          if (linkedIncomesCount > 0) {
+            work.linkedIncomes.forEach(income => {
+              console.log(`     💰 Income #${income.idIncome}: $${income.amount} - ${income.typeIncome}`);
+            });
+          }
+          
+          if (linkedExpensesCount > 0) {
+            work.linkedExpenses.forEach(expense => {
+              console.log(`     💸 Expense #${expense.idExpense}: $${expense.amount} - ${expense.typeExpense}`);
+            });
+          }
+        }
+      });
+
+      // Calcular totales por trabajo (combinando dedicados + vinculados)
+      const worksWithTotals = simpleWorks.map(work => {
+        // Calcular totalPaid: SimpleWorkPayments (dedicados) + Income (vinculados)
+        // DEDUPLICAR: Excluir SimpleWorkPayments legacy que coincidan con un linkedIncome
+        const linkedIncomeTotal = work.linkedIncomes?.reduce((sum, i) => sum + parseFloat(i.amount || 0), 0) || 0;
+        
+        const nonDuplicatePayments = (work.payments || []).filter(p => {
+          return !(work.linkedIncomes || []).some(i => 
+            Math.abs(parseFloat(p.amount || 0) - parseFloat(i.amount || 0)) < 0.01 &&
+            String(p.paymentDate || '').substring(0, 10) === String(i.date || '').substring(0, 10)
+          );
+        });
+        const dedicatedPayments = nonDuplicatePayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+        const totalPaid = dedicatedPayments + linkedIncomeTotal;
+        
+        // Calcular totalExpenses: SimpleWorkExpenses (dedicados) + Expense (vinculados)
+        const dedicatedExpenses = work.expenses?.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0) || 0;
+        const linkedExpenseTotal = work.linkedExpenses?.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0) || 0;
+        const totalExpenses = dedicatedExpenses + linkedExpenseTotal;
 
         // Calculate totalCost from items or use finalAmount/estimatedAmount
         const itemsTotal = work.items?.reduce((sum, item) => {
@@ -109,14 +156,15 @@ const SimpleWorkController = {
         }, 0) || 0;
         
         const totalCost = itemsTotal > 0 ? itemsTotal : (work.finalAmount || work.estimatedAmount || 0);
+        const finalAmount = parseFloat(work.finalAmount || work.estimatedAmount || 0);
 
         return {
           ...work.toJSON(),
           totalCost: parseFloat(totalCost),
-          totalPaid, // Ya viene de la base de datos, no necesitamos calcularlo
+          totalPaid,
           totalExpenses,
-          remainingAmount: work.getRemainingAmount(),
-          profit: work.getProfit(),
+          remainingAmount: Math.max(0, finalAmount - totalPaid),
+          profit: totalPaid - totalExpenses,
           statusDisplay: work.getStatusDisplay(),
           workTypeDisplay: work.getWorkTypeDisplay()
         };
@@ -322,6 +370,32 @@ const SimpleWorkController = {
             as: 'linkedWork',
             required: false,
             attributes: ['idWork', 'propertyAddress', 'status']
+          },
+          {
+            model: Income,
+            as: 'linkedIncomes',
+            required: false,
+            attributes: ['idIncome', 'date', 'amount', 'typeIncome', 'notes', 'paymentMethod', 'paymentDetails'],
+            include: [
+              {
+                model: Staff,
+                as: 'Staff',
+                attributes: ['id', 'name']
+              }
+            ]
+          },
+          {
+            model: Expense,
+            as: 'linkedExpenses',
+            required: false,
+            attributes: ['idExpense', 'date', 'amount', 'typeExpense', 'notes', 'paymentMethod', 'paymentDetails'],
+            include: [
+              {
+                model: Staff,
+                as: 'Staff',
+                attributes: ['id', 'name']
+              }
+            ]
           }
         ]
       });
@@ -333,17 +407,67 @@ const SimpleWorkController = {
         });
       }
 
-      // Agregar datos calculados
+      // 🔍 DEBUG: Mostrar gastos e ingresos vinculados
+      console.log('🔍 [SIMPLEWORK] Detalles del SimpleWork:', {
+        id: simpleWork.id,
+        workNumber: simpleWork.workNumber,
+        linkedIncomes: simpleWork.linkedIncomes?.length || 0,
+        linkedExpenses: simpleWork.linkedExpenses?.length || 0
+      });
+
+      if (simpleWork.linkedIncomes?.length > 0) {
+        console.log('💰 [INCOMES] Ingresos vinculados:');
+        simpleWork.linkedIncomes.forEach((income, idx) => {
+          console.log(`  ${idx + 1}. Income #${income.idIncome} - $${income.amount} - ${income.typeIncome} - ${income.date}`);
+        });
+      } else {
+        console.log('⚠️ [INCOMES] No hay ingresos vinculados');
+      }
+
+      if (simpleWork.linkedExpenses?.length > 0) {
+        console.log('💸 [EXPENSES] Gastos vinculados:');
+        simpleWork.linkedExpenses.forEach((expense, idx) => {
+          console.log(`  ${idx + 1}. Expense #${expense.idExpense} - $${expense.amount} - ${expense.typeExpense} - ${expense.date}`);
+        });
+      } else {
+        console.log('⚠️ [EXPENSES] No hay gastos vinculados');
+      }
+
+      // Calcular totales REALES combinando dedicados + vinculados (como Works)
+      // DEDUPLICAR: Si un SimpleWorkPayment coincide con un linkedIncome (mismo monto y fecha),
+      // es un registro legacy duplicado - no sumarlo dos veces
+      const linkedIncomeTotal = simpleWork.linkedIncomes?.reduce((sum, i) => sum + parseFloat(i.amount || 0), 0) || 0;
+      
+      const nonDuplicatePayments = (simpleWork.payments || []).filter(p => {
+        return !(simpleWork.linkedIncomes || []).some(i => 
+          Math.abs(parseFloat(p.amount || 0) - parseFloat(i.amount || 0)) < 0.01 &&
+          String(p.paymentDate || '').substring(0, 10) === String(i.date || '').substring(0, 10)
+        );
+      });
+      const dedicatedPayments = nonDuplicatePayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+      const calculatedTotalPaid = dedicatedPayments + linkedIncomeTotal;
+
+      const dedicatedExpenses = simpleWork.expenses?.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0) || 0;
+      const linkedExpenseTotal = simpleWork.linkedExpenses?.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0) || 0;
+      const calculatedTotalExpenses = dedicatedExpenses + linkedExpenseTotal;
+
+      const finalAmount = parseFloat(simpleWork.finalAmount || simpleWork.estimatedAmount || 0);
+
       const workWithTotals = {
         ...simpleWork.toJSON(),
-        // Usar totalPaid de la base de datos (ya se mantiene actualizado automáticamente)
-        totalPaid: parseFloat(simpleWork.totalPaid || 0),
-        totalExpenses: simpleWork.expenses?.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0) || 0,
-        remainingAmount: simpleWork.getRemainingAmount(),
-        profit: simpleWork.getProfit(),
+        totalPaid: calculatedTotalPaid,
+        totalExpenses: calculatedTotalExpenses,
+        remainingAmount: Math.max(0, finalAmount - calculatedTotalPaid),
+        profit: calculatedTotalPaid - calculatedTotalExpenses,
         statusDisplay: simpleWork.getStatusDisplay(),
         workTypeDisplay: simpleWork.getWorkTypeDisplay()
       };
+
+      res.set({
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      });
 
       res.json({
         success: true,
@@ -1299,6 +1423,112 @@ const SimpleWorkController = {
       res.status(500).json({
         success: false,
         message: 'Error enviando SimpleWork por email',
+        error: error.message
+      });
+    }
+  },
+
+  /**
+   * Eliminar pago de trabajo simple
+   */
+  async deletePayment(req, res) {
+    try {
+      const { id, paymentId } = req.params;
+
+      const simpleWork = await SimpleWork.findByPk(id);
+      if (!simpleWork) {
+        return res.status(404).json({
+          success: false,
+          message: 'Trabajo simple no encontrado'
+        });
+      }
+
+      const payment = await SimpleWorkPayment.findOne({
+        where: {
+          id: paymentId,
+          simpleWorkId: id
+        }
+      });
+
+      if (!payment) {
+        return res.status(404).json({
+          success: false,
+          message: 'Pago no encontrado'
+        });
+      }
+
+      await payment.destroy();
+
+      // Recalcular total pagado
+      const totalPaid = await SimpleWorkPayment.sum('amount', {
+        where: { simpleWorkId: id }
+      });
+
+      await simpleWork.update({ totalPaid: totalPaid || 0 });
+
+      res.json({
+        success: true,
+        message: 'Pago eliminado exitosamente'
+      });
+
+    } catch (error) {
+      console.error('❌ Error eliminando pago:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error eliminando pago',
+        error: error.message
+      });
+    }
+  },
+
+  /**
+   * Eliminar gasto de trabajo simple
+   */
+  async deleteExpense(req, res) {
+    try {
+      const { id, expenseId } = req.params;
+
+      const simpleWork = await SimpleWork.findByPk(id);
+      if (!simpleWork) {
+        return res.status(404).json({
+          success: false,
+          message: 'Trabajo simple no encontrado'
+        });
+      }
+
+      const expense = await SimpleWorkExpense.findOne({
+        where: {
+          id: expenseId,
+          simpleWorkId: id
+        }
+      });
+
+      if (!expense) {
+        return res.status(404).json({
+          success: false,
+          message: 'Gasto no encontrado'
+        });
+      }
+
+      await expense.destroy();
+
+      // Recalcular total de gastos
+      const totalExpenses = await SimpleWorkExpense.sum('amount', {
+        where: { simpleWorkId: id }
+      });
+
+      await simpleWork.update({ totalExpenses: totalExpenses || 0 });
+
+      res.json({
+        success: true,
+        message: 'Gasto eliminado exitosamente'
+      });
+
+    } catch (error) {
+      console.error('❌ Error eliminando gasto:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error eliminando gasto',
         error: error.message
       });
     }

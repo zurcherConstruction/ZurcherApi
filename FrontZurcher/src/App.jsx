@@ -87,6 +87,7 @@ import WorkerMaintenanceDashboard from "./Components/Workers/WorkerMaintenanceDa
 import WorkerMaintenanceDetail from "./Components/Workers/WorkerMaintenanceDetail";
 import WorkerGeneralExpense from "./Components/Workers/WorkerGeneralExpense";
 import SimpleWorkList from "./Components/SimpleWork/SimpleWorkList";
+import SimpleWorkDetail from "./Components/SimpleWork/SimpleWorkDetail";
 import GalleryManager from "./Components/Admin/GalleryManager";
 import ClientPortalDashboard from "./Components/ClientPortal/ClientPortalDashboard";
 import ClientPortalAdmin from "./Components/ClientPortal/ClientPortalAdmin";
@@ -256,6 +257,14 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["owner", "admin", "recept"]}>
                     <SimpleWorkList />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/simple-works/:id"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin", "recept"]}>
+                    <SimpleWorkDetail />
                   </PrivateRoute>
                 }
               />

@@ -187,6 +187,12 @@ const FinancialDashboardController = {
             as: 'work',
             attributes: ['propertyAddress', 'notes'],
             required: false
+          },
+          {
+            model: require('../data').SimpleWork,
+            as: 'simpleWork',
+            attributes: ['id', 'workNumber', 'propertyAddress', 'workType'],
+            required: false
           }
         ],
         order: [['date', 'DESC']]
@@ -422,8 +428,14 @@ const FinancialDashboardController = {
           },
           {
             model: require('../data').FixedExpense,
-            as: 'fixedExpense', // 🆕 Incluir información del FixedExpense relacionado
+            as: 'fixedExpense',
             attributes: ['name', 'description', 'category'],
+            required: false
+          },
+          {
+            model: require('../data').SimpleWork,
+            as: 'simpleWork',
+            attributes: ['id', 'workNumber', 'propertyAddress', 'workType'],
             required: false
           }
         ],

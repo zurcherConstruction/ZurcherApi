@@ -1,4 +1,4 @@
-const { Income, Expense, Receipt, Staff, Work, Budget, FinalInvoice } = require('../data');
+const { Income, Expense, Receipt, Staff, Work, Budget, FinalInvoice, SimpleWork } = require('../data');
 const { Sequelize, Op, literal } = require('sequelize');
 
 const getIncomesAndExpensesByWorkId = async (req, res) => {
@@ -184,7 +184,7 @@ const getGeneralBalance = async (req, res) => {
     if (typeExpense) expenseWhere.typeExpense = typeExpense;
     if (staffId) expenseWhere.staffId = staffId;
 
-    // Obtener ingresos con Staff, Work y Budget
+    // Obtener ingresos con Staff, Work, Budget y SimpleWork
     const allIncomes = await Income.findAll({
       where: incomeWhere,
       order: [['date', 'DESC']],
@@ -213,11 +213,17 @@ const getGeneralBalance = async (req, res) => {
               attributes: ['id', 'status', 'finalAmountDue']
             }
           ]
+        },
+        {
+          model: SimpleWork,
+          as: 'simpleWork',
+          attributes: ['id', 'workNumber', 'propertyAddress', 'workType'],
+          required: false
         }
       ]
     });
 
-    // Obtener gastos con Staff y Work
+    // Obtener gastos con Staff, Work y SimpleWork
     const allExpenses = await Expense.findAll({
       where: expenseWhere,
       order: [['date', 'DESC']],
@@ -232,6 +238,12 @@ const getGeneralBalance = async (req, res) => {
           model: Work,
           as: 'work',
           attributes: ['idWork', 'propertyAddress'],
+          required: false
+        },
+        {
+          model: SimpleWork,
+          as: 'simpleWork',
+          attributes: ['id', 'workNumber', 'propertyAddress', 'workType'],
           required: false
         }
       ]

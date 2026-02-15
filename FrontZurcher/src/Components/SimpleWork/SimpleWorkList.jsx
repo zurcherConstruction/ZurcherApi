@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import {
   fetchSimpleWorks,
   deleteSimpleWork,
@@ -15,11 +16,12 @@ import AdvancedCreateSimpleWorkModal from './AdvancedCreateSimpleWorkModal';
 import SimpleWorkPdfModal from './SimpleWorkPdfModal';
 import { toast } from 'react-toastify';
 import { 
-  FaPlus, FaEdit, FaTrash, FaFilePdf, FaEye, FaSearch, FaTimes, FaEnvelope, FaCheck 
+  FaPlus, FaEdit, FaTrash, FaFilePdf, FaEye, FaSearch, FaTimes, FaEnvelope, FaCheck, FaInfoCircle
 } from 'react-icons/fa';
 
 const SimpleWorkList = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   
   // Redux state
   const {
@@ -540,6 +542,15 @@ const SimpleWorkList = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
+                        {/* View Detail Button */}
+                        <button
+                          onClick={() => navigate(`/simple-works/${work.id}`)}
+                          className="text-blue-600 hover:text-blue-900 p-1"
+                          title="Ver Detalle Completo"
+                        >
+                          <FaInfoCircle />
+                        </button>
+
                         {/* View PDF Button */}
                         <button
                           onClick={() => handleViewPdf(work.id)}

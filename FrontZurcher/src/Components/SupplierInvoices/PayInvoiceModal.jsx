@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { PAYMENT_METHODS } from '../../utils/paymentConstants'; // ✅ Importar constantes
-import { FaTimes, FaLink, FaBriefcase, FaGlobe, FaCheckCircle, FaEye, FaFileInvoiceDollar } from 'react-icons/fa';
+import { FaTimes, FaLink, FaBriefcase, FaGlobe, FaCheckCircle, FaEye, FaFileInvoiceDollar, FaHammer } from 'react-icons/fa';
 import LoadingSpinner from '../LoadingSpinner';
 
 const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
   const token = useSelector((state) => state.auth.token);
-  const [paymentType, setPaymentType] = useState('link_existing'); // 'link_existing', 'create_with_works', 'create_general'
+  const [paymentType, setPaymentType] = useState('link_existing');
   const [paymentMethod, setPaymentMethod] = useState('Chase Bank');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentDetails, setPaymentDetails] = useState('');
-  const [generalExpenseDescription, setGeneralExpenseDescription] = useState(''); // 🆕 Para gasto general
-  const [receiptFile, setReceiptFile] = useState(null); // 🆕 Archivo de receipt
-  const [showInvoiceViewer, setShowInvoiceViewer] = useState(false); // 🆕 Modal para ver invoice
+  const [generalExpenseDescription, setGeneralExpenseDescription] = useState('');
+  const [receiptFile, setReceiptFile] = useState(null);
+  const [showInvoiceViewer, setShowInvoiceViewer] = useState(false);
   
   // Para link_existing
   const [availableExpenses, setAvailableExpenses] = useState([]);
@@ -20,8 +20,13 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
   
   // Para create_with_works
   const [availableWorks, setAvailableWorks] = useState([]);
-  const [distribution, setDistribution] = useState([]); // { workId, amount, description }
-  const [workSearchTerm, setWorkSearchTerm] = useState(''); // 🆕 Para filtrar works
+  const [distribution, setDistribution] = useState([]);
+  const [workSearchTerm, setWorkSearchTerm] = useState('');
+
+  // 🆕 Para create_with_simple_works
+  const [availableSimpleWorks, setAvailableSimpleWorks] = useState([]);
+  const [simpleWorkDistribution, setSimpleWorkDistribution] = useState([]);
+  const [simpleWorkSearchTerm, setSimpleWorkSearchTerm] = useState('');
   
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -31,22 +36,32 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
       fetchAvailableExpenses();
     } else if (paymentType === 'create_with_works') {
       fetchAvailableWorks();
+    } else if (paymentType === 'create_with_simple_works') {
+      fetchAvailableSimpleWorks();
     }
   }, [paymentType]);
 
-  // 🆕 Auto-cargar works vinculados cuando se abre el modal
+  // Auto-cargar works vinculados cuando se abre el modal
   useEffect(() => {
     if (invoice?.linkedWorks && invoice.linkedWorks.length > 0 && paymentType === 'create_with_works') {
-      console.log('🔗 Auto-cargando works vinculados:', invoice.linkedWorks);
-      
-      // Pre-cargar distribution con los works vinculados
       const preloadedDistribution = invoice.linkedWorks.map(work => ({
         workId: work.idWork,
-        amount: 0, // El usuario ajustará los montos
+        amount: 0,
         description: `Pago para ${work.propertyAddress || work.Permit?.permitNumber || 'Work'}`
       }));
-      
       setDistribution(preloadedDistribution);
+    }
+  }, [invoice, paymentType]);
+
+  // 🆕 Auto-cargar SimpleWorks vinculados
+  useEffect(() => {
+    if (invoice?.linkedSimpleWorks && invoice.linkedSimpleWorks.length > 0 && paymentType === 'create_with_simple_works') {
+      const preloadedDistribution = invoice.linkedSimpleWorks.map(sw => ({
+        simpleWorkId: sw.id,
+        amount: 0,
+        description: `Pago para ${sw.workNumber || sw.propertyAddress || 'SimpleWork'}`
+      }));
+      setSimpleWorkDistribution(preloadedDistribution);
     }
   }, [invoice, paymentType]);
 
@@ -100,14 +115,35 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
       if (!response.ok) throw new Error('Error al cargar works');
       
       const data = await response.json();
-      // El endpoint ahora devuelve {works: [...], total, ...} por la paginación
       const worksArray = Array.isArray(data) ? data : (data.works || []);
-      // Filtrar works activos
       const activeWorks = worksArray.filter(w => !['completed', 'cancelled'].includes(w.status));
       setAvailableWorks(activeWorks || []);
     } catch (error) {
       console.error('Error:', error);
       alert('Error al cargar trabajos disponibles');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAvailableSimpleWorks = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/simple-works`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Error al cargar simple works');
+      
+      const data = await response.json();
+      const swArray = Array.isArray(data) ? data : (data.simpleWorks || data.data || []);
+      const activeSimpleWorks = swArray.filter(sw => !['completed', 'cancelled'].includes(sw.status));
+      setAvailableSimpleWorks(activeSimpleWorks || []);
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error al cargar simple works disponibles');
     } finally {
       setLoading(false);
     }
@@ -163,6 +199,38 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
     });
   };
 
+  // --- SimpleWork distribution helpers ---
+  const addSimpleWorkToList = (simpleWorkId) => {
+    if (!simpleWorkDistribution.some(d => d.simpleWorkId === simpleWorkId)) {
+      setSimpleWorkDistribution(prev => [...prev, { simpleWorkId, amount: 0, description: '' }]);
+    }
+  };
+
+  const removeSimpleWorkFromList = (simpleWorkId) => {
+    setSimpleWorkDistribution(prev => prev.filter(d => d.simpleWorkId !== simpleWorkId));
+  };
+
+  const distributeSimpleWorksEqually = () => {
+    if (simpleWorkDistribution.length === 0) return;
+    const amountPerSW = (parseFloat(invoice.totalAmount) / simpleWorkDistribution.length).toFixed(2);
+    setSimpleWorkDistribution(prev => prev.map(d => ({
+      ...d,
+      amount: parseFloat(amountPerSW)
+    })));
+  };
+
+  const updateSimpleWorkDistributionAmount = (simpleWorkId, amount) => {
+    setSimpleWorkDistribution(prev => prev.map(d => 
+      d.simpleWorkId === simpleWorkId ? { ...d, amount: parseFloat(amount) || 0 } : d
+    ));
+  };
+
+  const updateSimpleWorkDistributionDescription = (simpleWorkId, description) => {
+    setSimpleWorkDistribution(prev => prev.map(d => 
+      d.simpleWorkId === simpleWorkId ? { ...d, description } : d
+    ));
+  };
+
   const getSelectedExpensesTotal = () => {
     return selectedExpenses.reduce((sum, expId) => {
       const expense = availableExpenses.find(e => e.idExpense === expId);
@@ -172,6 +240,10 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
 
   const getDistributionTotal = () => {
     return distribution.reduce((sum, d) => sum + d.amount, 0);
+  };
+
+  const getSimpleWorkDistributionTotal = () => {
+    return simpleWorkDistribution.reduce((sum, d) => sum + d.amount, 0);
   };
 
   const validateForm = () => {
@@ -203,17 +275,39 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
       const total = getDistributionTotal();
       const invoiceTotal = parseFloat(invoice.totalAmount);
       const alreadyPaid = parseFloat(invoice.paidAmount) || 0;
-      const remainingAmount = invoiceTotal - alreadyPaid; // 🔧 Monto pendiente
+      const remainingAmount = invoiceTotal - alreadyPaid;
       
       if (Math.abs(total - remainingAmount) > 0.01) {
         alert(`El total distribuido ($${total.toFixed(2)}) debe coincidir con el monto pendiente ($${remainingAmount.toFixed(2)})`);
         return false;
       }
 
-      // Validar que todos los works tengan monto
       const hasZeroAmount = distribution.some(d => !d.amount || d.amount <= 0);
       if (hasZeroAmount) {
         alert('Todos los works deben tener un monto mayor a 0');
+        return false;
+      }
+    }
+
+    if (paymentType === 'create_with_simple_works') {
+      if (simpleWorkDistribution.length === 0) {
+        alert('Agrega al menos un Simple Work');
+        return false;
+      }
+
+      const total = getSimpleWorkDistributionTotal();
+      const invoiceTotal = parseFloat(invoice.totalAmount);
+      const alreadyPaid = parseFloat(invoice.paidAmount) || 0;
+      const remainingAmount = invoiceTotal - alreadyPaid;
+      
+      if (Math.abs(total - remainingAmount) > 0.01) {
+        alert(`El total distribuido ($${total.toFixed(2)}) debe coincidir con el monto pendiente ($${remainingAmount.toFixed(2)})`);
+        return false;
+      }
+
+      const hasZeroAmount = simpleWorkDistribution.some(d => !d.amount || d.amount <= 0);
+      if (hasZeroAmount) {
+        alert('Todos los Simple Works deben tener un monto mayor a 0');
         return false;
       }
     }
@@ -244,10 +338,10 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
       if (paymentType === 'link_existing') {
         formData.append('expenseIds', JSON.stringify(selectedExpenses));
       } else if (paymentType === 'create_with_works') {
-        // Enviar el array de distribution con workId, amount y description
         formData.append('distribution', JSON.stringify(distribution));
+      } else if (paymentType === 'create_with_simple_works') {
+        formData.append('distribution', JSON.stringify(simpleWorkDistribution));
       } else if (paymentType === 'create_general') {
-        // Enviar descripción para gasto general
         formData.append('generalDescription', generalExpenseDescription);
       }
 
@@ -360,7 +454,7 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
             <label className="block text-sm font-semibold text-gray-700 mb-3">
               Tipo de Pago
             </label>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               {/* Opción 1: Vincular Existente */}
               <button
                 type="button"
@@ -395,7 +489,24 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
                 </p>
               </button>
 
-              {/* Opción 3: Gasto General */}
+              {/* Opción 3: Crear con SimpleWorks */}
+              <button
+                type="button"
+                onClick={() => setPaymentType('create_with_simple_works')}
+                className={`p-4 border-2 rounded-lg transition-all ${
+                  paymentType === 'create_with_simple_works'
+                    ? 'border-green-600 bg-green-50 shadow-md'
+                    : 'border-gray-200 hover:border-green-300'
+                }`}
+              >
+                <FaHammer className={`text-3xl mb-2 ${paymentType === 'create_with_simple_works' ? 'text-green-600' : 'text-gray-400'}`} />
+                <h3 className="font-semibold text-gray-800">Crear con SimpleWorks</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Crear expense(s) vinculado(s) a simple work(s)
+                </p>
+              </button>
+
+              {/* Opción 4: Gasto General */}
               <button
                 type="button"
                 onClick={() => setPaymentType('create_general')}
@@ -688,7 +799,219 @@ const PayInvoiceModal = ({ invoice, onClose, onSuccess }) => {
                 </div>
               )}
 
-              {/* OPCIÓN 3: Gasto General */}
+              {/* OPCIÓN 3: Crear con SimpleWorks */}
+              {paymentType === 'create_with_simple_works' && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-800 mb-3">
+                    Distribuir Pago entre Simple Works
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Monto pendiente: {formatCurrency(parseFloat(invoice.totalAmount) - parseFloat(invoice.paidAmount || 0))}
+                  </p>
+
+                  {/* Indicador de SimpleWorks pre-cargados */}
+                  {invoice?.linkedSimpleWorks && invoice.linkedSimpleWorks.length > 0 && simpleWorkDistribution.length > 0 && (
+                    <div className="mb-4 bg-blue-50 border border-blue-300 rounded-lg p-3 flex items-start space-x-2">
+                      <span className="text-blue-600 text-lg">ℹ️</span>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-blue-800">
+                          Simple Works vinculados cargados automáticamente
+                        </p>
+                        <p className="text-xs text-blue-600 mt-1">
+                          Este invoice ya tiene {invoice.linkedSimpleWorks.length} simple work(s) vinculado(s). 
+                          Puedes ajustar los montos o agregar más.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Buscador de SimpleWorks */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Buscar y Seleccionar Simple Work
+                    </label>
+                    <input
+                      type="text"
+                      value={simpleWorkSearchTerm}
+                      onChange={(e) => setSimpleWorkSearchTerm(e.target.value)}
+                      placeholder="Buscar por título o código..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent mb-2"
+                    />
+                    
+                    {simpleWorkSearchTerm && (
+                      <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg bg-white shadow-sm">
+                        {availableSimpleWorks
+                          .filter(sw => {
+                            if (simpleWorkDistribution.some(d => d.simpleWorkId === sw.id)) return false;
+                            const searchLower = simpleWorkSearchTerm.toLowerCase();
+                            const addressMatch = sw.propertyAddress?.toLowerCase().includes(searchLower);
+                            const codeMatch = sw.workNumber?.toLowerCase().includes(searchLower);
+                            const clientMatch = (sw.clientData?.name || sw.clientData?.clientName || '').toLowerCase().includes(searchLower);
+                            return addressMatch || codeMatch || clientMatch;
+                          })
+                          .map(sw => (
+                            <button
+                              key={sw.id}
+                              type="button"
+                              onClick={() => {
+                                addSimpleWorkToList(sw.id);
+                                setSimpleWorkSearchTerm('');
+                              }}
+                              className="w-full text-left px-4 py-2 hover:bg-amber-50 border-b border-gray-100 last:border-b-0 transition-colors"
+                            >
+                              <p className="text-sm font-medium text-gray-800">
+                                {sw.workNumber} - {sw.propertyAddress}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                Cliente: {sw.clientData?.name || sw.clientData?.clientName || 'N/A'} • Status: {sw.status}
+                              </p>
+                            </button>
+                          ))
+                        }
+                        {availableSimpleWorks.filter(sw => {
+                          if (simpleWorkDistribution.some(d => d.simpleWorkId === sw.id)) return false;
+                          const searchLower = simpleWorkSearchTerm.toLowerCase();
+                          return sw.propertyAddress?.toLowerCase().includes(searchLower) || 
+                                 sw.workNumber?.toLowerCase().includes(searchLower) ||
+                                 (sw.clientData?.name || sw.clientData?.clientName || '').toLowerCase().includes(searchLower);
+                        }).length === 0 && (
+                          <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                            No se encontraron simple works
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Lista de SimpleWorks Agregados con Montos */}
+                  {simpleWorkDistribution.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-sm font-semibold text-gray-700">Simple Works Seleccionados</h4>
+                        <button
+                          type="button"
+                          onClick={distributeSimpleWorksEqually}
+                          className="text-xs text-amber-600 hover:text-amber-700 font-medium"
+                        >
+                          Distribuir Equitativamente
+                        </button>
+                      </div>
+
+                      {simpleWorkDistribution.map((dist, index) => {
+                        const sw = availableSimpleWorks.find(s => s.id === dist.simpleWorkId);
+                        // Fallback a linkedSimpleWorks si no está en availableSimpleWorks
+                        const swFromInvoice = invoice?.linkedSimpleWorks?.find(s => s.id === dist.simpleWorkId);
+                        const displaySW = sw || swFromInvoice;
+                        return (
+                          <div key={dist.simpleWorkId} className="bg-white border border-gray-200 rounded-lg p-3">
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-gray-800">
+                                  {index + 1}. {displaySW?.workNumber || ''} - {displaySW?.propertyAddress || 'SimpleWork'}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  Cliente: {displaySW?.clientData?.name || displaySW?.clientData?.clientName || 'N/A'} • Status: {displaySW?.status || ''}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeSimpleWorkFromList(dist.simpleWorkId)}
+                                className="text-red-500 hover:text-red-700 ml-2"
+                              >
+                                <FaTimes />
+                              </button>
+                            </div>
+                            <div className="space-y-2">
+                              <div className="flex items-center space-x-2">
+                                <label className="text-sm text-gray-600 w-16">Monto:</label>
+                                <div className="relative flex-1">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                                  <input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    value={dist.amount || ''}
+                                    onChange={(e) => updateSimpleWorkDistributionAmount(dist.simpleWorkId, e.target.value)}
+                                    className="w-full pl-7 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                                    placeholder="0.00"
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex items-start space-x-2">
+                                <label className="text-sm text-gray-600 w-16 mt-2">Nota:</label>
+                                <textarea
+                                  value={dist.description || ''}
+                                  onChange={(e) => updateSimpleWorkDistributionDescription(dist.simpleWorkId, e.target.value)}
+                                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none"
+                                  placeholder="Descripción específica (opcional)"
+                                  rows="2"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Resumen de Distribución SimpleWorks */}
+                      <div className="bg-amber-100 border border-amber-300 rounded-lg p-3 mt-3">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-sm font-medium text-gray-700">Total Distribuido:</span>
+                          <span className={`text-lg font-bold ${
+                            Math.abs(getSimpleWorkDistributionTotal() - (parseFloat(invoice.totalAmount) - parseFloat(invoice.paidAmount || 0))) < 0.01
+                              ? 'text-green-600'
+                              : 'text-red-600'
+                          }`}>
+                            {formatCurrency(getSimpleWorkDistributionTotal())}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-600">Total del Invoice:</span>
+                          <span className="font-semibold text-gray-800">{formatCurrency(invoice.totalAmount)}</span>
+                        </div>
+                        {parseFloat(invoice.paidAmount || 0) > 0 && (
+                          <div className="flex justify-between items-center text-sm text-blue-600">
+                            <span>Ya Pagado:</span>
+                            <span className="font-semibold">-{formatCurrency(invoice.paidAmount)}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center text-sm border-t pt-2">
+                          <span className="text-gray-700 font-medium">Monto Pendiente:</span>
+                          <span className="font-bold text-gray-900">
+                            {formatCurrency(parseFloat(invoice.totalAmount) - parseFloat(invoice.paidAmount || 0))}
+                          </span>
+                        </div>
+                        {Math.abs(getSimpleWorkDistributionTotal() - (parseFloat(invoice.totalAmount) - parseFloat(invoice.paidAmount || 0))) >= 0.01 && (
+                          <div className="flex justify-between items-center mt-2 text-sm">
+                            <span className="text-red-600 font-medium">Diferencia:</span>
+                            <span className="font-semibold text-red-600">
+                              {formatCurrency(Math.abs(getSimpleWorkDistributionTotal() - (parseFloat(invoice.totalAmount) - parseFloat(invoice.paidAmount || 0))))}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Advertencia si no coincide */}
+                      {Math.abs(getSimpleWorkDistributionTotal() - (parseFloat(invoice.totalAmount) - parseFloat(invoice.paidAmount || 0))) >= 0.01 && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start space-x-2">
+                          <span className="text-red-600 text-lg">⚠️</span>
+                          <p className="text-sm text-red-700">
+                            La suma de los montos debe ser igual al monto pendiente ($
+                            {(parseFloat(invoice.totalAmount) - parseFloat(invoice.paidAmount || 0)).toFixed(2)})
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {simpleWorkDistribution.length === 0 && (
+                    <div className="text-center py-6 text-gray-500 italic">
+                      Selecciona uno o más simple works del listado superior
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* OPCIÓN 4: Gasto General */}
               {paymentType === 'create_general' && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                   <div className="flex items-start space-x-3 mb-3">

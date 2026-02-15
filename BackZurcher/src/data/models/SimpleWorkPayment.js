@@ -52,14 +52,27 @@ module.exports = (sequelize) => {
     },
     
     createdBy: {
-      type: DataTypes.INTEGER,
-      allowNull: true
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'Staffs',
+        key: 'id'
+      }
     }
   }, {
     tableName: 'SimpleWorkPayment',
     timestamps: true,
     updatedAt: false
   });
+
+  // 🔗 Asociaciones
+  SimpleWorkPayment.associate = (models) => {
+    // Relación con Staff para createdBy
+    SimpleWorkPayment.belongsTo(models.Staff, {
+      foreignKey: 'createdBy',
+      as: 'creator'
+    });
+  };
 
   return SimpleWorkPayment;
 };
