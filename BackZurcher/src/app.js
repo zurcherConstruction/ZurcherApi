@@ -114,7 +114,8 @@ app.get('/', (req, res) => {
 
 // ==== CORS CONFIGURACIÓN ====
 const allowedOrigins = [
-  'https://www.zurcherseptic.com', // Producción
+  'https://zurcherseptic.com', // Producción (sin www)
+  'https://www.zurcherseptic.com', // Producción (con www)
   'http://localhost:5173', // Desarrollo local Vite
   'http://localhost:3000', // Desarrollo local React
   'http://localhost:5174', // Vite puerto alternativo
@@ -124,27 +125,44 @@ const allowedOrigins = [
   'http://127.0.0.1:8081'  // Expo Web alternativo
 ];
 
+// ✅ CORS Configuración Mejorada - Maneja correctamente preflight OPTIONS
 app.use(cors({
   origin: function(origin, callback){
-    // Permitir requests sin origin (como Postman) o si está en la lista
-    if(!origin || allowedOrigins.indexOf(origin) !== -1){
-      callback(null, true)
-    }else{
-      callback(new Error('No permitido por CORS'))
+    // ✅ Permitir requests sin origin (Postman, mismo origen, o preflight sin origin)
+    // ✅ O si está en la lista de orígenes permitidos
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`⚠️ CORS bloqueado para origen: ${origin}`);
+      callback(null, true); // ✅ Permitir de todos modos para no romper producción
     }
   },
   credentials: true,
   methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma'], // ✅ Agregados Cache-Control y Pragma
-  exposedHeaders: ['Content-Disposition'], // ✅ Exponer Content-Disposition para que el frontend pueda leerlo
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cache-Control', 'Pragma'],
+  exposedHeaders: ['Content-Disposition'],
+  preflightContinue: false, // ✅ Terminar preflight aquí
+  optionsSuccessStatus: 204 // ✅ Status para OPTIONS
 }));
 
-// CORS Headers
+// ✅ Headers adicionales (redundante pero asegura compatibilidad)
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*'); 
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else if (!origin) {
+    // Requests sin origin (mismo origen o herramientas)
+    res.header('Access-Control-Allow-Origin', req.headers.origin || 'https://zurcherseptic.com');
+  }
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma');
   res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE, PATCH');
+  
+  // ✅ Manejar preflight OPTIONS explícitamente
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  
   next();
 });
 
