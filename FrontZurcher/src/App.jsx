@@ -209,7 +209,7 @@ function App() {
               />
 
               <Route
-                path="/maintenance/works"
+                path="/maintenance/zones"
                 element={
                   <PrivateRoute allowedRoles={["admin", "recept", "owner", "finance"]}>
                     <MaintenanceWorks />

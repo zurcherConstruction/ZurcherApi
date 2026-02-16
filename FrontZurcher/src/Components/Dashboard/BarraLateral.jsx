@@ -28,7 +28,8 @@ import {
   FaMapMarkedAlt, // 🆕 Icono para mapa de zonas
   FaChartPie, // 🆕 Icono para instalaciones mensuales
   FaCalendarCheck, // 🆕 Icono para asistencia del personal
-  FaImage // 🆕 Icono para galería
+  FaImage, // 🆕 Icono para galería
+  FaListUl // 🆕 Icono para lista tracker
 } from "react-icons/fa";
 
 const BarraLateral = () => {
@@ -74,9 +75,10 @@ const BarraLateral = () => {
       items: [
         { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
         { name: "Staff Attendance", path: "/staff-attendance", icon: FaCalendarCheck }, 
-        { name: "Maintenance Works", path: "/maintenance/works", icon: FaMapMarkedAlt }, 
+        { name: "Works List Maintenance", path: "/maintenance/works", icon: FaClipboardList }, 
+        { name: "Zones View Maintenance", path: "/maintenance/zones", icon: FaMapMarkedAlt },
         { name: "Maintenance", path: "/maintenance", icon: FaWrench },
-        { name: "Maintenance List", path: "/maintenance-tracker", icon: FaClipboardList }, 
+        { name: "Maintenance Tracker", path: "/maintenance-tracker", icon: FaListUl }, 
         { name: "Edit Maintenance", path: "/legacy-maintenance", icon: FaHistory }, 
         
       ],
@@ -165,8 +167,9 @@ const BarraLateral = () => {
           color: "text-orange-400",
           items: [
             { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
-            { name: "Maintenance List", path: "/maintenance-tracker", icon: FaClipboardList },
-            { name: "Maintenance Works", path: "/maintenance/works", icon: FaMapMarkedAlt }, // 🆕 Visitas por zona
+            { name: "Maintenance Tracker", path: "/maintenance-tracker", icon: FaListUl },
+            { name: "Works List Maintenance", path: "/maintenance/works", icon: FaClipboardList }, 
+            { name: "Zones View Maintenance", path: "/maintenance/zones", icon: FaMapMarkedAlt }, // 🆕 Visitas por zona
             { name: "Maintenance", path: "/maintenance", icon: FaWrench },
             { name: "Edit Maintenance", path: "/legacy-maintenance", icon: FaHistory }, // 🆕 Editor de todos los maintenance
             { name: "Staff Attendance", path: "/staff-attendance", icon: FaCalendarCheck }, // 🆕 Asistencia del personal
@@ -246,8 +249,9 @@ const BarraLateral = () => {
           items: [
             { name: "Works (View Only)", path: "/works", icon: FaTasks },
             { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
-            { name: "Maintenance List", path: "/maintenance-tracker", icon: FaClipboardList },
-            { name: "Maintenance Works", path: "/maintenance/works", icon: FaMapMarkedAlt }, // 🆕 Visitas por zona
+            { name: "Maintenance Tracker", path: "/maintenance-tracker", icon: FaListUl },
+            { name: "Works List Maintenance", path: "/maintenance/works", icon: FaClipboardList }, 
+            { name: "Zones View Maintenance", path: "/maintenance/zones", icon: FaMapMarkedAlt }, // 🆕 Visitas por zona
             { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
           ],
         },
