@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchWorksInMaintenance } from '../../Redux/Actions/maintenanceActions.jsx';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   MapPinIcon, 
   BuildingOfficeIcon,
@@ -101,6 +101,7 @@ const VISIT_STATUS_LABELS = {
 const MaintenanceWorks = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const { worksInMaintenance, loading, error } = useSelector(state => state.maintenance);
   const { user } = useSelector(state => state.auth);
   
@@ -112,6 +113,17 @@ const MaintenanceWorks = () => {
   useEffect(() => {
     dispatch(fetchWorksInMaintenance());
   }, [dispatch]);
+
+  // Restaurar filtros cuando se vuelve desde otra vista
+  useEffect(() => {
+    if (location.state?.filters) {
+      const { selectedMonth: savedMonth, selectedZone: savedZone } = location.state.filters;
+      if (savedMonth) setSelectedMonth(savedMonth);
+      if (savedZone) setSelectedZone(savedZone);
+      // Limpiar el state
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, navigate, location.pathname]);
 
   // Función para extraer zip code de una dirección
   const extractZipCode = (address) => {
@@ -202,14 +214,54 @@ const MaintenanceWorks = () => {
       });
     });
 
-    // Ordenar visitas: vencidas primero, luego por fecha ascendente
-    allVisits.sort((a, b) => {
-      if (a.isOverdue && !b.isOverdue) return -1;
-      if (!a.isOverdue && b.isOverdue) return 1;
-      return a.daysUntilVisit - b.daysUntilVisit;
+    // Agrupar visitas vencidas por dirección
+    const addressGroups = {};
+    const nonOverdueVisits = [];
+    
+    allVisits.forEach(visit => {
+      if (visit.isOverdue) {
+        const address = visit.propertyAddress || 'Sin dirección';
+        if (!addressGroups[address]) {
+          addressGroups[address] = [];
+        }
+        addressGroups[address].push(visit);
+      } else {
+        nonOverdueVisits.push(visit);
+      }
     });
 
-    setVisitsWithDateInfo(allVisits);
+    // Consolidar visitas vencidas: una entrada por dirección si hay múltiples vencidas
+    const consolidatedVisits = [];
+    
+    Object.entries(addressGroups).forEach(([address, visits]) => {
+      if (visits.length > 1) {
+        // Múltiples visitas vencidas de la misma dirección: crear una entrada consolidada
+        const oldestVisit = visits.reduce((oldest, current) => 
+          current.daysUntilVisit < oldest.daysUntilVisit ? current : oldest
+        );
+        
+        consolidatedVisits.push({
+          ...oldestVisit,
+          isConsolidated: true,
+          consolidatedCount: visits.length,
+          consolidatedVisits: visits
+        });
+      } else {
+        // Solo una visita vencida: mostrarla normalmente
+        consolidatedVisits.push(visits[0]);
+      }
+    });
+
+    // Ordenar visitas consolidadas por fecha más antigua
+    consolidatedVisits.sort((a, b) => a.daysUntilVisit - b.daysUntilVisit);
+    
+    // Ordenar visitas no vencidas por fecha ascendente
+    nonOverdueVisits.sort((a, b) => a.daysUntilVisit - b.daysUntilVisit);
+
+    // Combinar: vencidas primero, luego no vencidas
+    const finalVisits = [...consolidatedVisits, ...nonOverdueVisits];
+
+    setVisitsWithDateInfo(finalVisits);
   }, [worksInMaintenance]);
 
   // Agrupar visitas por zona con filtros aplicados
@@ -317,8 +369,20 @@ const MaintenanceWorks = () => {
       visitsToExport = zoneData[zoneName] || [];
     }
     
+    // Expandir visitas consolidadas para exportación
+    const expandedVisits = [];
+    visitsToExport.forEach(visit => {
+      if (visit.isConsolidated && visit.consolidatedVisits) {
+        // Agregar todas las visitas consolidadas individualmente
+        expandedVisits.push(...visit.consolidatedVisits);
+      } else {
+        // Agregar visita normal
+        expandedVisits.push(visit);
+      }
+    });
+    
     // Filtrar solo visitas pendientes (no completadas, no canceladas) - sin límite de fecha
-    return visitsToExport.filter(visit => {
+    return expandedVisits.filter(visit => {
       return !['completed', 'skipped', 'cancelled_by_client', 'cancelled_other'].includes(visit.status);
     }).sort((a, b) => {
       // Ordenar por fecha ascendente
@@ -461,7 +525,12 @@ const MaintenanceWorks = () => {
   };
 
   const getOverdueCount = () => {
-    return visitsWithDateInfo.filter(v => v.isOverdue).length;
+    return visitsWithDateInfo.filter(v => v.isOverdue).reduce((sum, visit) => {
+      if (visit.isConsolidated) {
+        return sum + visit.consolidatedCount;
+      }
+      return sum + 1;
+    }, 0);
   };
 
   const isWorker = user?.role === 'worker';
@@ -677,7 +746,12 @@ const MaintenanceWorks = () => {
                               className: "block p-4 bg-slate-50 border-2 border-slate-200 rounded-lg cursor-not-allowed opacity-75"
                             }
                           : {
-                              to: `/work/${visit.work.idWork}`,
+                              to: `/maintenance/works`,
+                              state: { 
+                                selectedWorkId: visit.work.idWork,
+                                returnTo: '/maintenance/zones',
+                                returnFilters: { selectedMonth, selectedZone }
+                              },
                               className: `block p-4 bg-slate-50 hover:bg-blue-50 border-2 rounded-lg transition-all duration-200 hover:shadow-md ${
                                 visit.isOverdue ? 'border-red-400 bg-red-50' : 
                                 visit.isToday ? 'border-yellow-400 bg-yellow-50' : 
@@ -687,7 +761,7 @@ const MaintenanceWorks = () => {
 
                         return (
                           <VisitItem
-                            key={visit.id}
+                            key={visit.isConsolidated ? `consolidated-${visit.work.idWork}` : visit.id}
                             {...itemProps}
                           >
                             {/* Dirección */}
@@ -700,9 +774,15 @@ const MaintenanceWorks = () => {
                                   Cliente: {visit.applicantName}
                                 </p>
                               </div>
-                              <span className="ml-2 text-xs px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold">
-                                Visita {visit.visitNumber}
-                              </span>
+                              {visit.isConsolidated ? (
+                                <span className="ml-2 text-xs px-2 py-1 rounded-full bg-red-500 text-white font-semibold">
+                                  {visit.consolidatedCount} visitas vencidas
+                                </span>
+                              ) : (
+                                <span className="ml-2 text-xs px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold">
+                                  Visita {visit.visitNumber}
+                                </span>
+                              )}
                             </div>
 
                             {/* Fecha y estado */}
@@ -718,7 +798,10 @@ const MaintenanceWorks = () => {
                                   visit.isToday ? 'text-yellow-700' : 
                                   'text-slate-700'
                                 }`}>
-                                  {formatVisitDate(visit.scheduledDate, visit.daysUntilVisit)}
+                                  {visit.isConsolidated 
+                                    ? `Desde ${formatVisitDate(visit.scheduledDate, visit.daysUntilVisit)}`
+                                    : formatVisitDate(visit.scheduledDate, visit.daysUntilVisit)
+                                  }
                                 </span>
                               </div>
                               <span className={`text-xs px-2 py-1 rounded-full border font-semibold ${
@@ -732,6 +815,22 @@ const MaintenanceWorks = () => {
                             {visit.assignedStaff && (
                               <div className="mt-2 text-xs text-gray-600">
                                 👤 Asignado a: {visit.assignedStaff.name}
+                              </div>
+                            )}
+                            
+                            {/* Mostrar detalle de visitas consolidadas */}
+                            {visit.isConsolidated && (
+                              <div className="mt-2 pt-2 border-t border-red-200">
+                                <p className="text-xs font-semibold text-red-700 mb-1">
+                                  📋 Visitas pendientes:
+                                </p>
+                                <div className="flex flex-wrap gap-1">
+                                  {visit.consolidatedVisits.map(v => (
+                                    <span key={v.id} className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded">
+                                      Visita {v.visitNumber}
+                                    </span>
+                                  ))}
+                                </div>
                               </div>
                             )}
                           </VisitItem>

@@ -28,6 +28,8 @@ const MaintenanceList = () => {
 
   const [selectedWork, setSelectedWork] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
+  const [returnPath, setReturnPath] = useState(null);
+  const [returnFilters, setReturnFilters] = useState(null);
 
   useEffect(() => {
     dispatch(fetchWorksInMaintenance());
@@ -40,6 +42,11 @@ const MaintenanceList = () => {
       if (work) {
         setSelectedWork(work);
         setShowDetail(true);
+        // Guardar información de retorno
+        if (location.state.returnTo) {
+          setReturnPath(location.state.returnTo);
+          setReturnFilters(location.state.returnFilters);
+        }
         // Limpiar el state para evitar que se abra de nuevo
         navigate(location.pathname, { replace: true, state: {} });
       }
@@ -73,6 +80,13 @@ const MaintenanceList = () => {
   const handleCloseDetail = () => {
     setShowDetail(false);
     setSelectedWork(null);
+    
+    // Si hay una ruta de retorno, navegar allí
+    if (returnPath) {
+      navigate(returnPath, { state: { filters: returnFilters } });
+      setReturnPath(null);
+      setReturnFilters(null);
+    }
   };
 
   // Filtrar obras según los filtros aplicados
