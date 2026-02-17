@@ -67,7 +67,7 @@ function _addPageHeader(doc, simpleWorkData, formattedDate) {
   const isCompleted = status === 'completed' || status === 'paid';
   const documentLabel = isCompleted ? 'INVOICE' : 'QUOTE';
   
-  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(20).fillColor('#063260')
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(14).fillColor('#063260')
     .text(`${documentLabel} #${workNumber}`, quoteInfoX, currentYRight, { width: quoteInfoWidth, align: 'right' });
   currentYRight = doc.y + 45;
 
@@ -219,39 +219,25 @@ function _addItemsTable(doc, simpleWorkData) {
   doc.y = headerY + 18;
   doc.moveDown(0.5);
 
-  // Item rows - Start with main work description item (like Budget's main service)
+  // Item rows
   doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
-  
-  // First, add the main work description as a service item (WITHOUT PRICE - just description)
-  const { description, workType } = simpleWorkData;
-  const workTypeDisplay = _getWorkTypeDisplay(workType);
   
   let currentItemY = doc.y;
   
-  // Main service description item (no price, just description of what's included)
-  doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
-  doc.text(workTypeDisplay.toUpperCase(), xIncludedText, currentItemY, { width: wIncluded });
-  doc.text(description || 'Service provided', xDescText, currentItemY, { width: wDesc });
-  doc.text("—", xQtyText, currentItemY, { width: wQty, align: 'right' });
-  doc.text("—", xRateText, currentItemY, { width: wRate, align: 'right' });
-  doc.text("INCLUDED", xAmountText, currentItemY, { width: wAmount, align: 'right' });
-  
-  doc.moveDown(3.0);
-  
-  // Then add any additional items with their actual prices
+  // Add items with their actual prices
   items.forEach((item, index) => {
     const itemQty = parseInt(item.quantity) || 1;
-    const itemRate = parseFloat(item.unitCost) || 0;  // Changed from unitPrice to unitCost
+    const itemRate = parseFloat(item.unitCost) || 0;
     const itemAmount = itemQty * itemRate;
     
     currentItemY = doc.y;
     
-    // Get the actual item name and description - use category as name since there's no name field
-    const itemName = (item.category || 'Service').toUpperCase();
-    const itemDesc = item.description || itemName;
+    // Use category as the INCLUDED column (user-typed)
+    const itemIncluded = (item.category || '').toUpperCase();
+    const itemDesc = item.description || '';
     
     doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM);
-    doc.text(itemName, xIncludedText, currentItemY, { width: wIncluded });
+    doc.text(itemIncluded, xIncludedText, currentItemY, { width: wIncluded });
     doc.text(itemDesc, xDescText, currentItemY, { width: wDesc });
     doc.text(itemQty.toString(), xQtyText, currentItemY, { width: wQty, align: 'right' });
     doc.text(`$${itemRate.toFixed(2)}`, xRateText, currentItemY, { width: wRate, align: 'right' });
@@ -317,6 +303,9 @@ function _addPaymentSummary(doc, simpleWorkData) {
   doc.text("ASK ABOUT PAYMENT METHODS.".toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: paymentInfoWidth });
   doc.moveDown(1.5);
 
+  // Track end of left column (payment info)
+  const leftColumnEndY = doc.y;
+
   // Totals section (right side)
   doc.y = thanksAndPaymentY;
   const totalsStartX = NEW_PAGE_MARGIN + contentWidth * 0.55;
@@ -324,14 +313,14 @@ function _addPaymentSummary(doc, simpleWorkData) {
   const totalsRightEdge = doc.page.width - NEW_PAGE_MARGIN;
   const cellPadding = 5;
 
-  // ✅ CALCULAR VALORES PARA INITIAL PAYMENT (siguiendo patrón de Budget)
+  // CALCULAR VALORES PARA INITIAL PAYMENT (siguiendo patrón de Budget)
   const initialPaymentPct = paymentPercentage;
   const initialPaymentAmt = paymentAmount;
   const percentageText = parseFloat(initialPaymentPct) === 100 
     ? "INITIAL PAYMENT (TOTAL)" 
     : `INITIAL PAYMENT (${parseFloat(initialPaymentPct)}%)`;
 
-  // ✅ BALANCE DUE es PROMINENTE (como Budget draft)
+  // BALANCE DUE es PROMINENTE (como Budget draft)
   let currentTotalY = doc.y;
   doc.font(FONT_FAMILY_MONO_BOLD).fontSize(12).fillColor(COLOR_TEXT_DARK);
   doc.text("BALANCE DUE", totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
@@ -339,14 +328,17 @@ function _addPaymentSummary(doc, simpleWorkData) {
   doc.text(`$${totalAmount.toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
   doc.moveDown(0.8);
 
-  // ✅ INITIAL PAYMENT - TEXTO PEQUEÑO Y MENOS PROMINENTE (como Budget draft)
+  // INITIAL PAYMENT - TEXTO PEQUEÑO Y MENOS PROMINENTE (como Budget draft)
   currentTotalY = doc.y;
   doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
   doc.text(percentageText, totalsStartX, currentTotalY, { width: totalsValueX - totalsStartX - cellPadding, align: 'left' });
   doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM);
   doc.text(`$${parseFloat(initialPaymentAmt).toFixed(2)}`, totalsValueX, currentTotalY, { width: totalsRightEdge - totalsValueX, align: 'right' });
   
-  doc.moveDown(3);
+  // Ensure Y is past whichever column was taller
+  const rightColumnEndY = doc.y;
+  doc.y = Math.max(leftColumnEndY, rightColumnEndY);
+  doc.moveDown(2);
 }
 
 /**
@@ -354,53 +346,135 @@ function _addPaymentSummary(doc, simpleWorkData) {
  */
 function _buildMainPage(doc, simpleWorkData, formattedDate) {
   _addPageHeader(doc, simpleWorkData, formattedDate);
+  _addDescription(doc, simpleWorkData);
   _addItemsTable(doc, simpleWorkData);
+  _addNotes(doc, simpleWorkData);
   _addPaymentSummary(doc, simpleWorkData);
+  _addTermsAndConditions(doc, simpleWorkData);
   _addSignatureSection(doc, simpleWorkData);
 }
 
 /**
- * Agrega la sección de firma similar a Budget
+ * Imprime Descripción ANTES de la tabla de items
+ */
+function _addDescription(doc, simpleWorkData) {
+  const contentWidth = doc.page.width - NEW_PAGE_MARGIN * 2;
+  const { description, descriptionTitle } = simpleWorkData;
+
+  if (!description || !description.trim()) return;
+
+  const title = (descriptionTitle && descriptionTitle.trim()) || 'DESCRIPTION';
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK)
+    .text(title.toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: contentWidth });
+  doc.moveDown(0.3);
+  doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM)
+    .text(description, NEW_PAGE_MARGIN, doc.y, { width: contentWidth, lineGap: 2 });
+  doc.moveDown(1);
+}
+
+/**
+ * Imprime Notas DESPUÉS de la tabla de items
+ */
+function _addNotes(doc, simpleWorkData) {
+  const contentWidth = doc.page.width - NEW_PAGE_MARGIN * 2;
+  const { notes, notesTitle } = simpleWorkData;
+
+  if (!notes || !notes.trim()) return;
+
+  doc.moveTo(NEW_PAGE_MARGIN, doc.y).lineTo(doc.page.width - NEW_PAGE_MARGIN, doc.y)
+    .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.5).stroke();
+  doc.moveDown(0.8);
+
+  const title = (notesTitle && notesTitle.trim()) || 'NOTES';
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(10).fillColor(COLOR_TEXT_DARK)
+    .text(title.toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: contentWidth });
+  doc.moveDown(0.3);
+  doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM)
+    .text(notes, NEW_PAGE_MARGIN, doc.y, { width: contentWidth, lineGap: 2 });
+  doc.moveDown(1);
+}
+
+/**
+ * Agrega sección de Términos y Condiciones (con título personalizable)
+ */
+function _addTermsAndConditions(doc, simpleWorkData) {
+  const contentWidth = doc.page.width - NEW_PAGE_MARGIN * 2;
+  const { termsAndConditions, termsTitle } = simpleWorkData;
+  
+  if (!termsAndConditions || !termsAndConditions.trim()) return;
+
+  // Check if we need a new page
+  if (doc.y > doc.page.height - 150) {
+    doc.addPage();
+  }
+
+  doc.moveDown(0.5);
+  
+  // Línea divisora
+  doc.moveTo(NEW_PAGE_MARGIN, doc.y).lineTo(doc.page.width - NEW_PAGE_MARGIN, doc.y)
+    .strokeColor(COLOR_BORDER_LIGHT).lineWidth(0.7).stroke();
+  doc.moveDown(0.8);
+
+  // Título personalizable
+  const title = (termsTitle && termsTitle.trim()) || 'TERMS & CONDITIONS';
+  doc.font(FONT_FAMILY_MONO_BOLD).fontSize(11).fillColor(COLOR_TEXT_DARK)
+    .text(title.toUpperCase(), NEW_PAGE_MARGIN, doc.y, { width: contentWidth });
+  doc.moveDown(0.5);
+
+  // Contenido
+  doc.font(FONT_FAMILY_MONO).fontSize(9).fillColor(COLOR_TEXT_MEDIUM)
+    .text(termsAndConditions, NEW_PAGE_MARGIN, doc.y, {
+      width: contentWidth,
+      lineGap: 3
+    });
+  doc.moveDown(1);
+}
+
+/**
+ * Agrega la sección de firma (igual que Budget)
  */
 function _addSignatureSection(doc, simpleWorkData) {
   const contentWidth = doc.page.width - NEW_PAGE_MARGIN * 2;
-  const { status } = simpleWorkData;
-  
-  // Only add signature section for certain statuses
-  const requiresSignature = ['sent', 'approved', 'signed', 'completed'];
-  
-  if (requiresSignature.includes(status)) {
-    doc.moveDown(2);
-    
-    // Title
-    doc.font(FONT_FAMILY_MONO_BOLD).fontSize(12).fillColor(COLOR_TEXT_DARK)
-      .text("CUSTOMER SIGNATURE", NEW_PAGE_MARGIN, doc.y, { width: contentWidth });
-    doc.moveDown(1);
-    
-    // Signature line
-    const signatureLineY = doc.y + 20;
-    const signatureLineWidth = contentWidth * 0.5;
-    
-    doc.moveTo(NEW_PAGE_MARGIN, signatureLineY)
-      .lineTo(NEW_PAGE_MARGIN + signatureLineWidth, signatureLineY)
-      .strokeColor(COLOR_BORDER_MEDIUM).lineWidth(1).stroke();
-    
-    doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM)
-      .text("Signature", NEW_PAGE_MARGIN, signatureLineY + 10, { width: signatureLineWidth });
-    
-    // Date line
-    const dateLineStartX = NEW_PAGE_MARGIN + signatureLineWidth + 40;
-    const dateLineWidth = contentWidth - signatureLineWidth - 40;
-    
-    doc.moveTo(dateLineStartX, signatureLineY)
-      .lineTo(dateLineStartX + dateLineWidth, signatureLineY)
-      .strokeColor(COLOR_BORDER_MEDIUM).lineWidth(1).stroke();
-    
-    doc.font(FONT_FAMILY_MONO).fontSize(10).fillColor(COLOR_TEXT_MEDIUM)
-      .text("Date", dateLineStartX, signatureLineY + 10, { width: dateLineWidth });
-    
-    doc.y = signatureLineY + 40;
+
+  // Verificar si necesitamos nueva página para la firma
+  let signatureY = doc.y + 20;
+  if (signatureY + 80 > doc.page.height - NEW_PAGE_MARGIN) {
+    doc.addPage();
+    doc.y = NEW_PAGE_MARGIN;
+    signatureY = doc.y + 20;
   }
+  doc.y = signatureY;
+
+  const sigFieldWidth = (contentWidth / 2) - 10;
+  const sigLineFullWidth = sigFieldWidth - 80;
+  const dateLineFullWidth = sigFieldWidth - 110;
+
+  doc.font(FONT_FAMILY_MONO).fontSize(8).fillColor(COLOR_TEXT_DARK);
+
+  // Client Signature + Date
+  let currentLineY = doc.y;
+  doc.text("Client Signature:", NEW_PAGE_MARGIN, currentLineY, { width: 80 });
+  doc.moveTo(NEW_PAGE_MARGIN + 80, currentLineY + 8).lineTo(NEW_PAGE_MARGIN + 80 + sigLineFullWidth, currentLineY + 8)
+    .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+
+  doc.text("Date:", NEW_PAGE_MARGIN + sigFieldWidth + 10, currentLineY, { width: 30 });
+  doc.moveTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30, currentLineY + 8)
+    .lineTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30 + dateLineFullWidth, currentLineY + 8)
+    .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+  doc.moveDown(2.5);
+
+  // Provider Representative + Date
+  currentLineY = doc.y;
+  doc.text("Provider Representative:", NEW_PAGE_MARGIN, currentLineY, { width: 115 });
+  doc.moveTo(NEW_PAGE_MARGIN + 115, currentLineY + 8)
+    .lineTo(NEW_PAGE_MARGIN + 115 + (sigLineFullWidth - 35), currentLineY + 8)
+    .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+
+  doc.text("Date:", NEW_PAGE_MARGIN + sigFieldWidth + 10, currentLineY, { width: 30 });
+  doc.moveTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30, currentLineY + 8)
+    .lineTo(NEW_PAGE_MARGIN + sigFieldWidth + 10 + 30 + dateLineFullWidth, currentLineY + 8)
+    .strokeColor(COLOR_TEXT_DARK).lineWidth(0.5).stroke();
+  doc.moveDown(1.5);
 }
 
 /**
