@@ -210,14 +210,19 @@ const SimpleWorkController = {
         description,
         estimatedAmount,
         initialPaymentPercentage = 100, // Default 100%
+        discountPercentage = 0,
         paymentMethod, // 💳 Payment method integration
         notes,
-        items = [], // 🆕 Array de items
-        attachments = [] // 🆕 Array de attachments temporales
+        termsAndConditions,
+        descriptionTitle,
+        notesTitle,
+        termsTitle,
+        items = [],
+        attachments = []
       } = req.body;
 
       // Validaciones básicas
-      if (!workType || !propertyAddress || !clientData || !description || !estimatedAmount) {
+      if (!workType || !propertyAddress || !clientData || !estimatedAmount) {
         return res.status(400).json({
           success: false,
           message: 'Faltan campos requeridos: workType, propertyAddress, clientData, description, estimatedAmount'
@@ -260,10 +265,15 @@ const SimpleWorkController = {
         description,
         estimatedAmount: parseFloat(estimatedAmount),
         finalAmount: finalAmount,
+        discountPercentage: parseFloat(discountPercentage) || 0,
         initialPaymentPercentage: parseFloat(initialPaymentPercentage),
         initialPayment: parseFloat(initialPayment),
-        paymentMethod: paymentMethod || null, // 💳 Payment method integration
+        paymentMethod: paymentMethod || null,
         notes,
+        termsAndConditions: termsAndConditions || null,
+        descriptionTitle: descriptionTitle || 'DESCRIPTION',
+        notesTitle: notesTitle || 'NOTES',
+        termsTitle: termsTitle || 'TERMS & CONDITIONS',
         attachments: attachments || [],
         createdBy: req.user?.id || null
       });
@@ -492,8 +502,6 @@ const SimpleWorkController = {
       const { id } = req.params;
       const updates = req.body;
 
-
-
       const simpleWork = await SimpleWork.findByPk(id);
       if (!simpleWork) {
         return res.status(404).json({
@@ -507,13 +515,13 @@ const SimpleWorkController = {
         'workType', 'propertyAddress', 'clientData', 'description',
         'estimatedAmount', 'finalAmount', 'status', 'assignedStaffId',
         'assignedDate', 'startDate', 'completedDate', 'notes', 'attachments',
-        'discountPercentage', 'initialPaymentPercentage', 'paymentMethod', // 🆕 Campos de payment + payment method
-        'totalPaid' // 🆕 Campo para actualizar el total pagado
+        'discountPercentage', 'initialPaymentPercentage', 'paymentMethod',
+        'totalPaid', 'termsAndConditions', 'linkedWorkId',
+        'descriptionTitle', 'notesTitle', 'termsTitle'
       ];
 
       allowedFields.forEach(field => {
         if (updates[field] !== undefined) {
-          // Manejar campo paymentMethod: convertir cadena vacía a null
           if (field === 'paymentMethod' && updates[field] === '') {
             simpleWork[field] = null;
           } else {
@@ -522,19 +530,72 @@ const SimpleWorkController = {
         }
       });
 
-      // 🆕 Calcular initialPayment basado en el porcentaje actualizado
-      if (updates.initialPaymentPercentage !== undefined || updates.estimatedAmount !== undefined || updates.finalAmount !== undefined) {
+      // 🆕 Si vienen items, recalcular finalAmount basado en los items
+      const { items } = updates;
+      if (items && items.length > 0) {
+        const calculatedAmount = items.reduce((sum, item) => {
+          const finalCost = parseFloat(item.finalCost || item.totalCost || 0);
+          return sum + finalCost;
+        }, 0);
+        simpleWork.estimatedAmount = calculatedAmount;
+        simpleWork.finalAmount = calculatedAmount;
+      }
+
+      // Calcular initialPayment basado en el porcentaje actualizado
+      if (updates.initialPaymentPercentage !== undefined || updates.estimatedAmount !== undefined || updates.finalAmount !== undefined || items) {
         const paymentPercentage = updates.initialPaymentPercentage || simpleWork.initialPaymentPercentage || 100;
-        const totalAmount = parseFloat(updates.finalAmount || updates.estimatedAmount || simpleWork.finalAmount || simpleWork.estimatedAmount || 0);
+        const totalAmount = parseFloat(simpleWork.finalAmount || simpleWork.estimatedAmount || 0);
         simpleWork.initialPayment = totalAmount * (paymentPercentage / 100);
       }
 
       await simpleWork.save();
 
+      // 🆕 Actualizar items: borrar existentes y crear nuevos
+      if (items && Array.isArray(items)) {
+        await SimpleWorkItem.destroy({ where: { simpleWorkId: id } });
+
+        if (items.length > 0) {
+          const itemsData = items.map((item, index) => ({
+            simpleWorkId: id,
+            category: item.category || 'general',
+            description: item.description || '',
+            quantity: parseFloat(item.quantity || 1),
+            unit: item.unit || 'ea',
+            unitCost: parseFloat(item.unitCost || 0),
+            totalCost: parseFloat(item.totalCost || 0),
+            discount: parseFloat(item.discount || 0),
+            markup: parseFloat(item.markup || 0),
+            finalCost: parseFloat(item.finalCost || item.totalCost || 0),
+            notes: item.notes || null,
+            isFromTemplate: item.isFromTemplate || false,
+            templateItemId: item.templateItemId || null,
+            displayOrder: index + 1
+          }));
+
+          await SimpleWorkItem.bulkCreate(itemsData);
+        }
+      }
+
+      // Devolver trabajo con items incluidos
+      const updatedWork = await SimpleWork.findByPk(id, {
+        include: [
+          {
+            model: Staff,
+            as: 'creator',
+            attributes: ['id', 'name']
+          },
+          {
+            model: SimpleWorkItem,
+            as: 'items',
+            required: false
+          }
+        ]
+      });
+
       res.json({
         success: true,
         message: 'Trabajo actualizado exitosamente',
-        data: simpleWork
+        data: updatedWork
       });
 
     } catch (error) {

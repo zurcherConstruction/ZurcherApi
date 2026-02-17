@@ -28,14 +28,18 @@ const AdvancedCreateSimpleWorkModal = ({
 
   // Form state
   const [formData, setFormData] = useState({
-    workType: 'culvert',
+    workType: '',
     firstName: '',
     lastName: '',
     email: '',
     phone: '',
     address: '',
     description: '',
+    descriptionTitle: 'DESCRIPTION',
     notes: '',
+    notesTitle: 'NOTES',
+    termsAndConditions: '',
+    termsTitle: 'TERMS & CONDITIONS',
     linkedWorkId: null,
   });
 
@@ -194,14 +198,18 @@ const AdvancedCreateSimpleWorkModal = ({
     if (editingWork) {
       const clientData = editingWork.clientData || {};
       setFormData({
-        workType: editingWork.workType || 'culvert',
+        workType: editingWork.workType || '',
         firstName: clientData.firstName || '',
         lastName: clientData.lastName || '',
         email: clientData.email || '',
         phone: clientData.phone || '',
         address: clientData.address || editingWork.propertyAddress || '',
         description: editingWork.description || '',
+        descriptionTitle: editingWork.descriptionTitle || 'DESCRIPTION',
         notes: editingWork.notes || '',
+        notesTitle: editingWork.notesTitle || 'NOTES',
+        termsAndConditions: editingWork.termsAndConditions || '',
+        termsTitle: editingWork.termsTitle || 'TERMS & CONDITIONS',
         linkedWorkId: editingWork.linkedWorkId || null,
       });
 
@@ -229,14 +237,18 @@ const AdvancedCreateSimpleWorkModal = ({
     } else {
       // Reset form for new work
       setFormData({
-        workType: 'culvert',
+        workType: '',
         firstName: '',
         lastName: '',
         email: '',
         phone: '',
         address: '',
         description: '',
+        descriptionTitle: 'DESCRIPTION',
         notes: '',
+        notesTitle: 'NOTES',
+        termsAndConditions: '',
+        termsTitle: 'TERMS & CONDITIONS',
         linkedWorkId: null,
       });
       setItems([]);
@@ -398,7 +410,7 @@ const AdvancedCreateSimpleWorkModal = ({
     else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Email debe tener formato válido';
     if (!formData.phone.trim()) newErrors.phone = 'Teléfono requerido';
     if (!formData.address.trim()) newErrors.address = 'Dirección requerida';
-    if (!formData.description.trim()) newErrors.description = 'Descripción requerida';
+    // description, notes y termsAndConditions son opcionales
     
     if (items.length === 0) {
       newErrors.items = 'Debe agregar al menos un item';
@@ -472,8 +484,12 @@ const AdvancedCreateSimpleWorkModal = ({
         },
         propertyAddress: formData.address.trim(),
         description: formData.description.trim(),
-        estimatedAmount: estimatedAmount, // Required field
+        descriptionTitle: formData.descriptionTitle.trim() || 'DESCRIPTION',
+        estimatedAmount: estimatedAmount,
         notes: formData.notes.trim(),
+        notesTitle: formData.notesTitle.trim() || 'NOTES',
+        termsAndConditions: formData.termsAndConditions.trim(),
+        termsTitle: formData.termsTitle.trim() || 'TERMS & CONDITIONS',
         linkedWorkId: formData.linkedWorkId,
         items: itemsForSubmission,
         discountPercentage: discountPercentage,
@@ -533,6 +549,7 @@ const AdvancedCreateSimpleWorkModal = ({
               }`}
               required
             >
+              <option value="">-- Seleccione tipo de trabajo --</option>
               <option value="culvert">Culvert</option>
               <option value="drainfield">Drainfield</option>
               <option value="inspection">Inspection</option>
@@ -714,176 +731,176 @@ const AdvancedCreateSimpleWorkModal = ({
 
           {/* Items Section - Using DynamicCategorySection like CreateBudget */}
           <div className="border border-gray-200 rounded-lg p-4">
-            <h3 className="font-medium text-gray-700 mb-4">📋 Items del Trabajo</h3>
+            <h3 className="font-medium text-gray-700 mb-4">📋 Items del Presupuesto</h3>
             
             <div className="space-y-4">
-              {/* Generar secciones dinámicamente para cada categoría */}
-              {/* {availableCategories.map(category => (
-                <DynamicCategorySection
-                  key={category}
-                  category={category}
-                  normalizedCatalog={normalizedBudgetItemsCatalog}
-                  isVisible={dynamicSectionVisibility[category] || false}
-                  onToggle={() => toggleDynamicSection(category)}
-                  onAddItem={addItemFromDynamicSection}
-                  generateTempId={generateTempId}
-                />
-              ))} */}
-
-              {/* Manual Item Button */}
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowManualItemForm(true)}
-                  className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors"
-                >
-                  + Agregar Item Manual
-                </button>
+              {/* Tabla inline de items */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-100 text-gray-700">
+                      <th className="text-left px-3 py-2 rounded-tl-lg w-36">Included</th>
+                      <th className="text-left px-3 py-2">Descripción</th>
+                      <th className="text-center px-3 py-2 w-20">Cant.</th>
+                      <th className="text-center px-3 py-2 w-28">Precio Unit.</th>
+                      <th className="text-right px-3 py-2 w-28">Total</th>
+                      <th className="text-center px-3 py-2 w-12 rounded-tr-lg"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((item, index) => (
+                      <tr key={item.tempId || index} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="px-2 py-1">
+                          <input
+                            type="text"
+                            value={item.category || ''}
+                            onChange={(e) => {
+                              const updated = [...items];
+                              updated[index] = { ...updated[index], category: e.target.value };
+                              setItems(updated);
+                            }}
+                            className="w-full px-2 py-1.5 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
+                            placeholder="Ej: LABOR, PIPE..."
+                          />
+                        </td>
+                        <td className="px-2 py-1">
+                          <input
+                            type="text"
+                            value={item.description || item.name || ''}
+                            onChange={(e) => {
+                              const updated = [...items];
+                              updated[index] = { ...updated[index], description: e.target.value, name: e.target.value };
+                              setItems(updated);
+                            }}
+                            className="w-full px-2 py-1.5 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm"
+                            placeholder="Descripción del item..."
+                          />
+                        </td>
+                        <td className="px-2 py-1">
+                          <input
+                            type="number"
+                            value={item.quantity || 1}
+                            onChange={(e) => {
+                              const updated = [...items];
+                              const qty = parseFloat(e.target.value) || 0;
+                              updated[index] = {
+                                ...updated[index],
+                                quantity: qty,
+                                totalCost: qty * (parseFloat(updated[index].unitCost) || 0),
+                                finalCost: qty * (parseFloat(updated[index].unitCost) || 0)
+                              };
+                              setItems(updated);
+                            }}
+                            className="w-full px-2 py-1.5 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm text-center"
+                            min="0.01"
+                            step="0.01"
+                          />
+                        </td>
+                        <td className="px-2 py-1">
+                          <div className="relative">
+                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                            <input
+                              type="number"
+                              value={item.unitCost || 0}
+                              onChange={(e) => {
+                                const updated = [...items];
+                                const price = parseFloat(e.target.value) || 0;
+                                updated[index] = {
+                                  ...updated[index],
+                                  unitCost: price,
+                                  totalCost: (parseFloat(updated[index].quantity) || 1) * price,
+                                  finalCost: (parseFloat(updated[index].quantity) || 1) * price
+                                };
+                                setItems(updated);
+                              }}
+                              className="w-full pl-5 pr-2 py-1.5 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 text-sm text-right"
+                              min="0"
+                              step="0.01"
+                            />
+                          </div>
+                        </td>
+                        <td className="px-3 py-1 text-right font-medium text-gray-800">
+                          ${(parseFloat(item.totalCost) || 0).toFixed(2)}
+                        </td>
+                        <td className="px-2 py-1 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setItems(items.filter((_, i) => i !== index))}
+                            className="text-red-400 hover:text-red-600 p-1"
+                          >
+                            <FaTrash size={12} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
 
-              {/* Manual Item Form Modal */}
-              {showManualItemForm && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                  <div className="bg-white p-6 rounded-lg shadow-lg w-96 max-w-90vw">
-                    <h3 className="text-lg font-semibold mb-4">Agregar Item Manual</h3>
-                    
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Descripción *
-                        </label>
-                        <input
-                          type="text"
-                          value={manualItem.description}
-                          onChange={(e) => setManualItem({...manualItem, description: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Descripción del item"
-                        />
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Cantidad
-                          </label>
-                          <input
-                            type="number"
-                            value={manualItem.quantity}
-                            onChange={(e) => setManualItem({...manualItem, quantity: parseFloat(e.target.value) || 1})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            min="1"
-                            step="0.01"
-                          />
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Precio Unitario ($)
-                          </label>
-                          <input
-                            type="number"
-                            value={manualItem.unitCost}
-                            onChange={(e) => setManualItem({...manualItem, unitCost: parseFloat(e.target.value) || 0})}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            min="0"
-                            step="0.01"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Categoría
-                        </label>
-                        <select
-                          value={manualItem.category}
-                          onChange={(e) => setManualItem({...manualItem, category: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="OTHER">Otros</option>
-                          {availableCategories.map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                          ))}
-                        </select>
-                      </div>
-                      
-                      <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
-                        <strong>Total: ${((manualItem.quantity || 1) * (manualItem.unitCost || 0)).toFixed(2)}</strong>
-                      </div>
-                    </div>
-                    
-                    <div className="flex justify-end gap-3 mt-6">
-                      <button
-                        type="button"
-                        onClick={() => setShowManualItemForm(false)}
-                        className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50"
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={addManualItem}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                      >
-                        Agregar Item
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              {/* Show current items */}
+              {/* Agregar nueva línea */}
+              <button
+                type="button"
+                onClick={() => {
+                  setItems([...items, {
+                    id: null,
+                    tempId: generateTempId(),
+                    category: '',
+                    name: '',
+                    description: '',
+                    quantity: 1,
+                    unit: 'ea',
+                    unitCost: 0,
+                    totalCost: 0,
+                    discount: 0,
+                    finalCost: 0,
+                    budgetItemId: null,
+                    isFromTemplate: false,
+                    templateItemId: null
+                  }]);
+                }}
+                className="w-full px-4 py-2.5 border-2 border-dashed border-blue-300 rounded-lg text-blue-600 hover:border-blue-500 hover:bg-blue-50 transition-colors font-medium"
+              >
+                + Agregar Línea
+              </button>
+
+              {/* Totales y descuento */}
               {items.length > 0 && (
-                <div className="mt-6 border-t pt-4">
-                  <h4 className="font-medium text-gray-700 mb-3">Items Agregados:</h4>
-                  <div className="space-y-2">
-                    {items.map((item, index) => (
-                      <div key={item.tempId || index} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                        <div>
-                          <span className="font-medium">{item.description || item.name}</span>
-                          <span className="text-sm text-gray-500 ml-2">
-                            {item.quantity || 1} x ${(parseFloat(item.unitCost) || 0).toFixed(2)} = ${(parseFloat(item.totalCost) || 0).toFixed(2)}
-                          </span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setItems(items.filter((_, i) => i !== index))}
-                          className="text-red-600 hover:text-red-800 p-1"
-                        >
-                          <FaTrash size={14} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+                <div className="mt-4 border-t pt-4">
                   
+                  {/* Subtotal */}
+                  <div className="flex justify-between items-center text-sm text-gray-600 mb-2">
+                    <span>Subtotal ({items.length} item{items.length !== 1 ? 's' : ''}):</span>
+                    <span className="font-medium">${items.reduce((sum, item) => sum + (parseFloat(item.totalCost) || 0), 0).toFixed(2)}</span>
+                  </div>
+
                   {/* Discount section */}
-                  <div className="mt-4 p-3 bg-blue-50 rounded">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Descuento (%)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      value={discountPercentage}
-                      onChange={(e) => setDiscountPercentage(parseFloat(e.target.value) || 0)}
-                      className="w-20 px-2 py-1 border border-gray-300 rounded text-center"
-                    />
-                    <span className="ml-2 text-sm text-gray-600">
-                      Total: ${items.reduce((sum, item) => {
-                        const itemTotal = parseFloat(item.totalCost) || 0;
-                        return sum + itemTotal;
-                      }, 0).toFixed(2)}
-                      {discountPercentage > 0 && (
-                        <span className="ml-2 text-green-600">
-                          (Con descuento: ${(items.reduce((sum, item) => {
-                            const itemTotal = parseFloat(item.totalCost) || 0;
-                            return sum + itemTotal;
-                          }, 0) * (1 - discountPercentage/100)).toFixed(2)})
-                        </span>
-                      )}
-                    </span>
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-600">Descuento:</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={discountPercentage}
+                        onChange={(e) => setDiscountPercentage(parseFloat(e.target.value) || 0)}
+                        className="w-16 px-2 py-1 border border-gray-300 rounded text-center text-sm"
+                      />
+                      <span className="text-sm text-gray-500">%</span>
+                    </div>
+                    {discountPercentage > 0 && (
+                      <span className="text-sm text-red-500">-${(
+                        items.reduce((sum, item) => sum + (parseFloat(item.totalCost) || 0), 0) * (discountPercentage / 100)
+                      ).toFixed(2)}</span>
+                    )}
+                  </div>
+
+                  {/* Total final */}
+                  <div className="flex justify-between items-center text-lg font-bold text-gray-900 border-t border-gray-300 pt-2 mt-2">
+                    <span>Total:</span>
+                    <span className="text-green-700">${(
+                      items.reduce((sum, item) => sum + (parseFloat(item.totalCost) || 0), 0) * (1 - discountPercentage / 100)
+                    ).toFixed(2)}</span>
                   </div>
 
                   {/* Payment Percentage section - like Budget */}
@@ -938,19 +955,25 @@ const AdvancedCreateSimpleWorkModal = ({
           </div>
 
           {/* Description */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Descripción del Trabajo *
-            </label>
+          <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm text-blue-600">Título PDF:</span>
+              <input
+                type="text"
+                value={formData.descriptionTitle}
+                onChange={(e) => handleInputChange('descriptionTitle', e.target.value)}
+                className="px-2 py-1 border border-blue-300 rounded text-sm font-semibold bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 flex-1"
+                placeholder="DESCRIPTION"
+              />
+            </div>
             <textarea
-              placeholder="Describe el trabajo a realizar..."
+              placeholder="Describe el trabajo a realizar... (dejar vacío para no imprimir en PDF)"
               value={formData.description}
               onChange={(e) => handleInputChange('description', e.target.value)}
               rows={4}
               className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                 errors.description ? 'border-red-500' : 'border-gray-300'
               }`}
-              required
             />
             {errors.description && (
               <p className="text-red-500 text-xs mt-1">{errors.description}</p>
@@ -958,17 +981,48 @@ const AdvancedCreateSimpleWorkModal = ({
           </div>
 
           {/* Notes */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Notas Adicionales
-            </label>
+          <div className="border border-green-200 rounded-lg p-4 bg-green-50">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm text-green-600">Título PDF:</span>
+              <input
+                type="text"
+                value={formData.notesTitle}
+                onChange={(e) => handleInputChange('notesTitle', e.target.value)}
+                className="px-2 py-1 border border-green-300 rounded text-sm font-semibold bg-white focus:outline-none focus:ring-1 focus:ring-green-500 flex-1"
+                placeholder="NOTES"
+              />
+            </div>
             <textarea
-              placeholder="Notas adicionales (opcional)..."
+              placeholder="Notas adicionales (dejar vacío para no imprimir en PDF)..."
               value={formData.notes}
               onChange={(e) => handleInputChange('notes', e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-green-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
             />
+          </div>
+
+          {/* Terms and Conditions */}
+          <div className="border border-amber-200 rounded-lg p-4 bg-amber-50">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm text-amber-600">Título PDF:</span>
+              <input
+                type="text"
+                value={formData.termsTitle}
+                onChange={(e) => handleInputChange('termsTitle', e.target.value)}
+                className="px-2 py-1 border border-amber-300 rounded text-sm font-semibold bg-white focus:outline-none focus:ring-1 focus:ring-amber-500 flex-1"
+                placeholder="TERMS & CONDITIONS"
+              />
+            </div>
+            <textarea
+              placeholder="Ej: Payment is due upon completion. Materials are guaranteed for 1 year... (dejar vacío para no imprimir)"
+              value={formData.termsAndConditions}
+              onChange={(e) => handleInputChange('termsAndConditions', e.target.value)}
+              rows={5}
+              className="w-full px-3 py-2 border border-amber-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm"
+            />
+            <p className="text-xs text-amber-600 mt-1">
+              Este texto se imprimirá al final del presupuesto, debajo de los totales
+            </p>
           </div>
 
           {/* Attachments Section */}

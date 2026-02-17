@@ -116,6 +116,33 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: true
     },
+
+    termsAndConditions: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'Términos y condiciones del presupuesto'
+    },
+
+    descriptionTitle: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: 'DESCRIPTION',
+      comment: 'Título personalizable para sección Descripción en PDF'
+    },
+
+    notesTitle: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: 'NOTES',
+      comment: 'Título personalizable para sección Notas en PDF'
+    },
+
+    termsTitle: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: 'TERMS & CONDITIONS',
+      comment: 'Título personalizable para sección Términos en PDF'
+    },
     
     attachments: {
       type: DataTypes.JSON,
