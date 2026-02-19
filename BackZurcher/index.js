@@ -42,15 +42,22 @@ if (shouldSync) {
     process.exit(1);
   });
 } else {
-  // 🚀 Inicio rápido: Solo verificar conexión sin sync
+  // 🚀 Inicio rápido: Solo verificar conexión sin sync (con reintentos automáticos)
   conn.authenticate()
     .then(() => {
       console.log('✅ Conexión a base de datos verificada');
       startServer();
     })
-    .catch((error) => {
+    .catch(async (error) => {
       console.error('❌ Error al conectar con la base de datos:', error);
-      process.exit(1);
+      console.log('🔄 Intentando reconectar...');
+      const reconnected = await reconnectDatabase(3, 5000); // 3 intentos, 5s de espera
+      if (reconnected) {
+        startServer();
+      } else {
+        console.error('💥 No se pudo establecer conexión con la base de datos');
+        process.exit(1);
+      }
     });
 }
 

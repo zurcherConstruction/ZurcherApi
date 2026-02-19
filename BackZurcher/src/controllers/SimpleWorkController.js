@@ -106,29 +106,8 @@ const SimpleWorkController = {
         offset
       });
 
-      // 🔍 DEBUG: Mostrar resumen de SimpleWorks encontrados
+      // 🔍 Log resumen (sin detalle para no impactar performance)
       console.log(`🔍 [SIMPLEWORKS] Total encontrados: ${count}, Mostrando: ${simpleWorks.length}`);
-      
-      simpleWorks.forEach((work, idx) => {
-        const linkedIncomesCount = work.linkedIncomes?.length || 0;
-        const linkedExpensesCount = work.linkedExpenses?.length || 0;
-        
-        if (linkedIncomesCount > 0 || linkedExpensesCount > 0) {
-          console.log(`  ${idx + 1}. ${work.workNumber} - Ingresos vinculados: ${linkedIncomesCount}, Gastos vinculados: ${linkedExpensesCount}`);
-          
-          if (linkedIncomesCount > 0) {
-            work.linkedIncomes.forEach(income => {
-              console.log(`     💰 Income #${income.idIncome}: $${income.amount} - ${income.typeIncome}`);
-            });
-          }
-          
-          if (linkedExpensesCount > 0) {
-            work.linkedExpenses.forEach(expense => {
-              console.log(`     💸 Expense #${expense.idExpense}: $${expense.amount} - ${expense.typeExpense}`);
-            });
-          }
-        }
-      });
 
       // Calcular totales por trabajo (combinando dedicados + vinculados)
       const worksWithTotals = simpleWorks.map(work => {

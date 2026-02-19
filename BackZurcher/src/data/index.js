@@ -29,12 +29,13 @@ const sequelize = (DB_DEPLOY && DB_DEPLOY.startsWith('postgresql://'))
         maxUses: 5000       // ✅ Reciclar después de 5000 usos
       },
       retry: {
-        max: 3,             // 🆕 Reintentar 3 veces en caso de error
-        timeout: 10000      // 🆕 10 segundos entre reintentos
+        max: 5,             // 🆕 Reintentar 5 veces en caso de error (Railway puede tardar)
+        timeout: 15000      // 🆕 15 segundos entre reintentos
       },
       isolationLevel: 'READ COMMITTED',
       dialectOptions: {
         ssl: NODE_ENV === 'production' ? { require: true, rejectUnauthorized: false } : false,
+        connectTimeout: 30000,     // ⏰ 30 segundos para conectar (Railway cold start)
         statement_timeout: 60000,  // ⏰ 60 segundos para queries pesadas
         keepAlive: true,           // 🆕 Mantener conexiones vivas
         keepAliveInitialDelayMillis: 10000  // 🆕 Enviar keepalive cada 10s
