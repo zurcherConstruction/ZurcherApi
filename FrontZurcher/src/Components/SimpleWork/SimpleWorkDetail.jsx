@@ -3,27 +3,39 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
-  FaArrowLeft,
-  FaEdit,
-  FaFilePdf,
-  FaEnvelope,
-  FaDollarSign,
-  FaShoppingCart,
-  FaCheckCircle,
-  FaExclamationTriangle,
-  FaClock
-} from 'react-icons/fa';
+  ArrowLeftIcon,
+  PencilSquareIcon,
+  DocumentTextIcon,
+  EnvelopeIcon,
+  CurrencyDollarIcon,
+  ShoppingCartIcon,
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  ClockIcon,
+  WrenchScrewdriverIcon,
+  CameraIcon,
+  UserIcon,
+  MapPinIcon,
+  PhoneIcon,
+  AtSymbolIcon,
+  CalendarDaysIcon,
+  LinkIcon,
+  BanknotesIcon,
+} from '@heroicons/react/24/outline';
 import {
   fetchSimpleWorkById,
   generateSimpleWorkPdf,
   sendSimpleWorkToClient,
-  markSimpleWorkAsCompleted
+  markSimpleWorkAsCompleted,
+  updateSimpleWork
 } from '../../Redux/Actions/simpleWorkActions';
+import { fetchStaff } from '../../Redux/Actions/adminActions';
 import { clearCurrentSimpleWork } from '../../Redux/Reducer/simpleWorkReducer';
 import SimpleWorkPaymentTab from './SimpleWorkPaymentTab';
 import SimpleWorkExpenseTab from './SimpleWorkExpenseTab';
 import SimpleWorkItemsTab from './SimpleWorkItemsTab';
 import AdvancedCreateSimpleWorkModal from './AdvancedCreateSimpleWorkModal';
+import api from '../../utils/axios';
 
 const SimpleWorkDetail = () => {
   const { id } = useParams();
@@ -31,19 +43,52 @@ const SimpleWorkDetail = () => {
   const dispatch = useDispatch();
 
   const { currentSimpleWork, loading } = useSelector(state => state.simpleWork);
+  const { staffList } = useSelector(state => state.admin);
 
   const [activeTab, setActiveTab] = useState('overview');
   const [showEditModal, setShowEditModal] = useState(false);
+  const [isUploadingCompletion, setIsUploadingCompletion] = useState(false);
 
   useEffect(() => {
     if (id) {
       dispatch(fetchSimpleWorkById(id));
     }
-    // Limpiar al desmontar para forzar datos frescos la próxima vez
+    dispatch(fetchStaff());
     return () => {
       dispatch(clearCurrentSimpleWork());
     };
   }, [id, dispatch]);
+
+  const handleAssignStaff = async (staffId) => {
+    try {
+      await dispatch(updateSimpleWork(work.id, {
+        assignedStaffId: staffId || null,
+        ...(staffId ? { assignedDate: new Date().toISOString() } : {})
+      }));
+      dispatch(fetchSimpleWorkById(id));
+      toast.success(staffId ? 'Staff asignado' : 'Staff desasignado');
+    } catch (e) {
+      toast.error('Error asignando staff');
+    }
+  };
+
+  const handleUploadCompletionImage = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setIsUploadingCompletion(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      await api.post(`/simple-works/${work.id}/attachments`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      dispatch(fetchSimpleWorkById(id));
+      toast.success('Imagen subida exitosamente');
+    } catch (e) {
+      toast.error('Error subiendo imagen');
+    }
+    setIsUploadingCompletion(false);
+  };
 
   if (loading || !currentSimpleWork) {
     return (
@@ -141,7 +186,7 @@ const SimpleWorkDetail = () => {
                 onClick={() => navigate('/simple-works')}
                 className="text-gray-600 hover:text-gray-900"
               >
-                <FaArrowLeft className="text-xl" />
+                <ArrowLeftIcon className="h-5 w-5" />
               </button>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">
@@ -161,21 +206,21 @@ const SimpleWorkDetail = () => {
                 onClick={() => setShowEditModal(true)}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
               >
-                <FaEdit />
+                <PencilSquareIcon className="h-4 w-4" />
                 <span>Editar</span>
               </button>
               <button
                 onClick={handleGeneratePdf}
                 className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center space-x-2"
               >
-                <FaFilePdf />
+                <DocumentTextIcon className="h-4 w-4" />
                 <span>PDF</span>
               </button>
               <button
                 onClick={handleSendEmail}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
               >
-                <FaEnvelope />
+                <EnvelopeIcon className="h-4 w-4" />
                 <span>Enviar</span>
               </button>
             </div>
@@ -196,7 +241,7 @@ const SimpleWorkDetail = () => {
                 </p>
               </div>
               <div className="bg-blue-100 rounded-full p-3">
-                <FaDollarSign className="text-blue-600 text-xl" />
+                <CurrencyDollarIcon className="h-6 w-6 text-blue-600" />
               </div>
             </div>
           </div>
@@ -210,7 +255,7 @@ const SimpleWorkDetail = () => {
                 </p>
               </div>
               <div className="bg-green-100 rounded-full p-3">
-                <FaCheckCircle className="text-green-600 text-xl" />
+                <CheckCircleIcon className="h-6 w-6 text-green-600" />
               </div>
             </div>
           </div>
@@ -224,7 +269,7 @@ const SimpleWorkDetail = () => {
                 </p>
               </div>
               <div className="bg-red-100 rounded-full p-3">
-                <FaShoppingCart className="text-red-600 text-xl" />
+                <ShoppingCartIcon className="h-6 w-6 text-red-600" />
               </div>
             </div>
           </div>
@@ -240,9 +285,9 @@ const SimpleWorkDetail = () => {
               </div>
               <div className={`${profit >= 0 ? 'bg-green-100' : 'bg-red-100'} rounded-full p-3`}>
                 {profit >= 0 ? (
-                  <FaCheckCircle className="text-green-600 text-xl" />
+                  <CheckCircleIcon className="h-6 w-6 text-green-600" />
                 ) : (
-                  <FaExclamationTriangle className="text-red-600 text-xl" />
+                  <ExclamationTriangleIcon className="h-6 w-6 text-red-600" />
                 )}
               </div>
             </div>
@@ -339,6 +384,26 @@ const SimpleWorkDetail = () => {
                         <span className="text-sm font-medium text-gray-500">Estado:</span>
                         <p className="text-gray-900">{getStatusDisplay(work.status)}</p>
                       </div>
+                      {/* Staff Assignment */}
+                      <div>
+                        <span className="text-sm font-medium text-gray-500">Asignado a:</span>
+                        <select
+                          value={work.assignedStaffId || ''}
+                          onChange={(e) => handleAssignStaff(e.target.value)}
+                          className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                        >
+                          <option value="">-- Sin asignar --</option>
+                          {(staffList || []).map(s => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      {work.assignedDate && (
+                        <div>
+                          <span className="text-sm font-medium text-gray-500">Fecha asignación:</span>
+                          <p className="text-gray-900">{new Date(work.assignedDate).toLocaleDateString('es-ES')}</p>
+                        </div>
+                      )}
                       {work.linkedWorkId && (
                         <div>
                           <span className="text-sm font-medium text-gray-500">Trabajo Vinculado:</span>
@@ -388,6 +453,58 @@ const SimpleWorkDetail = () => {
                     </p>
                   </div>
                 )}
+
+                {/* Work Images (from mobile/API uploads) */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    📸 Fotos del Trabajo
+                  </h3>
+                  <div className="flex flex-wrap gap-3 mb-3">
+                    {/* workImages - fotos de trabajo en progreso */}
+                    {(work.workImages || []).map((img, idx) => (
+                      <a key={`work-${img.id || idx}`} href={img.url} target="_blank" rel="noopener noreferrer">
+                        <img src={img.url} alt={img.originalName || 'Foto trabajo'} className="w-24 h-24 object-cover rounded-lg border border-gray-200 hover:shadow-md transition-shadow" />
+                      </a>
+                    ))}
+                    {/* attachments (legacy - images only) */}
+                    {(work.attachments || []).filter(a => a.type !== 'pdf' && /\.(jpg|jpeg|png|gif)$/i.test(a.originalName || a.url || '')).map((img, idx) => (
+                      <a key={`att-${idx}`} href={img.url} target="_blank" rel="noopener noreferrer">
+                        <img src={img.url} alt={img.originalName || 'Foto'} className="w-24 h-24 object-cover rounded-lg border border-gray-200 hover:shadow-md transition-shadow" />
+                      </a>
+                    ))}
+                    {(work.workImages || []).length === 0 && (!work.attachments || work.attachments.filter(a => /\.(jpg|jpeg|png|gif)$/i.test(a.originalName || a.url || '')).length === 0) && (
+                      <p className="text-sm text-gray-400">Sin fotos de trabajo aún</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Completion Images */}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    ✅ Fotos de Finalización
+                  </h3>
+                  <div className="flex flex-wrap gap-3 mb-3">
+                    {(work.completionImages || []).map((img, idx) => (
+                      <a key={`comp-${img.id || idx}`} href={img.url} target="_blank" rel="noopener noreferrer">
+                        <img src={img.url} alt={img.originalName || 'Foto finalización'} className="w-24 h-24 object-cover rounded-lg border border-gray-200 hover:shadow-md transition-shadow" />
+                      </a>
+                    ))}
+                    {(work.completionImages || []).length === 0 && (
+                      <p className="text-sm text-gray-400">Sin fotos de finalización aún</p>
+                    )}
+                  </div>
+                  <label className="cursor-pointer inline-flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded-md text-sm font-medium transition-colors border border-blue-200">
+                    <CameraIcon className="h-4 w-4" />
+                    {isUploadingCompletion ? 'Subiendo...' : 'Subir Foto'}
+                    <input
+                      type="file"
+                      onChange={handleUploadCompletionImage}
+                      className="hidden"
+                      accept=".jpg,.jpeg,.png,.gif"
+                      disabled={isUploadingCompletion}
+                    />
+                  </label>
+                </div>
 
                 {/* Payment Progress Bar */}
                 <div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { fetchAssignedMaintenances } from '../Redux/features/maintenanceSlice';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import MaintenanceFormScreen from './MaintenanceFormScreen';
 
 const Stack = createNativeStackNavigator();
@@ -33,6 +34,15 @@ const CompletedMaintenanceListScreen = ({ navigation }) => {
       loadMaintenances();
     }
   }, [staffId]);
+
+  // 🔄 Auto-refresh al volver de editar mantenimiento
+  useFocusEffect(
+    useCallback(() => {
+      if (staffId) {
+        loadMaintenances();
+      }
+    }, [staffId])
+  );
 
   const loadMaintenances = async () => {
     if (!staffId) {
@@ -55,7 +65,8 @@ const CompletedMaintenanceListScreen = ({ navigation }) => {
 
   const handleVisitPress = (visit) => {
     navigation.navigate('MaintenanceFormScreen', { 
-      visit: visit
+      visit: visit,
+      isEditing: true
     });
   };
 

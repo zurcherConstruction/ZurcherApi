@@ -27,7 +27,6 @@ export const saveFormOffline = async (visitId, formData) => {
       JSON.stringify(data)
     );
     
-    console.log('💾 Formulario guardado offline:', visitId);
     return { success: true };
   } catch (error) {
     console.error('❌ Error guardando offline:', error);
@@ -47,7 +46,6 @@ export const getOfflineForm = async (visitId) => {
     }
     
     const parsed = JSON.parse(data);
-    console.log('📂 Formulario offline recuperado:', visitId);
     return parsed;
   } catch (error) {
     console.error('❌ Error recuperando offline:', error);
@@ -62,7 +60,6 @@ export const clearOfflineData = async (visitId) => {
   try {
     await AsyncStorage.removeItem(`${FORM_PREFIX}${visitId}`);
     await AsyncStorage.removeItem(`${FILES_PREFIX}${visitId}`);
-    console.log('🗑️ Datos offline limpiados:', visitId);
     return { success: true };
   } catch (error) {
     console.error('❌ Error limpiando offline:', error);
@@ -83,7 +80,6 @@ export const saveFilesOffline = async (visitId, files) => {
       })
     );
     
-    console.log('📸 Archivos guardados offline:', files.length);
     return { success: true };
   } catch (error) {
     console.error('❌ Error guardando archivos offline:', error);
@@ -166,7 +162,6 @@ export const clearAllOfflineData = async () => {
     );
     
     await AsyncStorage.multiRemove(offlineKeys);
-    console.log('🧹 Todo el almacenamiento offline limpiado');
     return { success: true, removed: offlineKeys.length };
   } catch (error) {
     console.error('❌ Error limpiando todo:', error);

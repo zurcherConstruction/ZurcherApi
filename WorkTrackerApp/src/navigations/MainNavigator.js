@@ -17,6 +17,8 @@ import CompletedMaintenanceList from '../screens/CompletedMaintenanceList';
 import MaintenanceWebView from '../screens/MaintenanceWebView';
 import MaintenanceFormScreen from '../screens/MaintenanceFormScreen';
 import GeneralExpenseScreen from '../screens/GeneralExpenseScreen';
+import AssignedSimpleWorksScreen from '../screens/AssignedSimpleWorksScreen';
+import AssignedClaimsScreen from '../screens/AssignedClaimsScreen';
 import { logout } from '../Redux/features/authSlice';
 
 const Stack = createNativeStackNavigator();
@@ -161,6 +163,30 @@ const AppDrawerNavigator = () => {
               ),
             }} 
           />
+          
+          <Drawer.Screen 
+            name="MySimpleWorks"
+            component={AssignedSimpleWorksScreen}
+            options={{ 
+              headerShown: false,
+              title: 'Mis Trabajos Varios',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="construct-outline" color={color} size={size} />
+              ),
+            }} 
+          />
+          
+          <Drawer.Screen 
+            name="MyClaims"
+            component={AssignedClaimsScreen}
+            options={{ 
+              headerShown: false,
+              title: 'Mis Reclamos',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="alert-circle-outline" color={color} size={size} />
+              ),
+            }} 
+          />
         </>
       )}
       
@@ -230,6 +256,30 @@ const AppDrawerNavigator = () => {
               title: 'Registrar Gasto',
               drawerIcon: ({ color, size }) => (
                 <Ionicons name="receipt-outline" color={color} size={size} />
+              ),
+            }} 
+          />
+          
+          <Drawer.Screen 
+            name="MySimpleWorks"
+            component={AssignedSimpleWorksScreen}
+            options={{ 
+              headerShown: false,
+              title: 'Mis Trabajos Varios',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="construct-outline" color={color} size={size} />
+              ),
+            }} 
+          />
+          
+          <Drawer.Screen 
+            name="MyClaims"
+            component={AssignedClaimsScreen}
+            options={{ 
+              headerShown: false,
+              title: 'Mis Reclamos',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="alert-circle-outline" color={color} size={size} />
               ),
             }} 
           />

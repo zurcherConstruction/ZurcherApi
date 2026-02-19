@@ -367,7 +367,7 @@ const UploadScreen = () => {
     const allowMultiple = !isTruckStage; 
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       quality: 0.3, // ✅ OPTIMIZACIÓN iPhone: Calidad al 30% desde el picker
       allowsMultipleSelection: allowMultiple, 
     });
@@ -501,7 +501,7 @@ const UploadScreen = () => {
     if (!permissionResult.granted) { return; }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       quality: 0.3, // ✅ OPTIMIZACIÓN iPhone: Calidad al 30% desde la cámara
     });
 

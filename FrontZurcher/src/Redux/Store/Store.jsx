@@ -25,6 +25,7 @@ import checklistReducer from '../Reducer/checklistReducer'; // 🆕 Checklist re
 import monthlyInstallationsReducer from '../Reducer/monthlyInstallationsReducer'; // 🆕 Monthly installations reducer
 import staffAttendanceReducer from '../Reducer/staffAttendanceReducer'; // 🆕 Staff attendance reducer
 import simpleWorkReducer from '../Reducer/simpleWorkReducer'; // 🆕 Simple work reducer
+import claimReducer from '../Reducer/claimReducer'; // 🆕 Claims/Reclamos reducer
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -51,6 +52,7 @@ const rootReducer = combineReducers({
   monthlyInstallations: monthlyInstallationsReducer, // 🆕 Monthly installations reducer
   staffAttendance: staffAttendanceReducer, // 🆕 Staff attendance reducer
   simpleWork: simpleWorkReducer, // 🆕 Simple work reducer
+  claim: claimReducer, // 🆕 Claims/Reclamos reducer
 });
 
 export const store = configureStore({

@@ -29,7 +29,8 @@ import {
   FaChartPie, // 🆕 Icono para instalaciones mensuales
   FaCalendarCheck, // 🆕 Icono para asistencia del personal
   FaImage, // 🆕 Icono para galería
-  FaListUl // 🆕 Icono para lista tracker
+  FaListUl, // 🆕 Icono para lista tracker
+  FaExclamationTriangle // 🆕 Icono para reclamos
 } from "react-icons/fa";
 
 const BarraLateral = () => {
@@ -62,6 +63,7 @@ const BarraLateral = () => {
       items: [
         { name: "Works", path: "/works", icon: FaTasks },
         { name: "Simple Works", path: "/simple-works", icon: FaTools },
+        { name: "Claims", path: "/claims", icon: FaExclamationTriangle },
         { name: "Tracking Work", path: "/check", icon: FaClipboardCheck },
         { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
         { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
@@ -155,6 +157,7 @@ const BarraLateral = () => {
           items: [
             { name: "Works", path: "/works", icon: FaTasks },
             { name: "Simple Works", path: "/simple-works", icon: FaTools },
+            { name: "Claims", path: "/claims", icon: FaExclamationTriangle },
             // Tracking Work removido para admin
             { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
             { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
@@ -223,6 +226,7 @@ const BarraLateral = () => {
             { name: "Upload Vouchers", path: "/attachInvoice", icon: FaReceipt },
             { name: "Send Message", path: "/send-notifications", icon: FaBell },
             { name: "Simple Works", path: "/simple-works", icon: FaTools },
+            { name: "Claims", path: "/claims", icon: FaExclamationTriangle },
             { name: "Calendar", path: "/workCalendar", icon: FaCalendarAlt },
             { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
             { name: "Works", path: "/works", icon: FaTasks },

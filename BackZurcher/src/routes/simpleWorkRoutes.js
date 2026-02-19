@@ -32,6 +32,9 @@ const upload = multer({
  * Todas las rutas requieren autenticación
  */
 
+// 🔍 GET /api/simple-works/assigned - Obtener trabajos asignados al staff autenticado (app móvil)
+router.get('/assigned', verifyToken, allowRoles(['owner', 'worker', 'maintenance', 'admin']), SimpleWorkController.getAssignedSimpleWorks);
+
 // 🔍 GET /api/simple-works - Obtener todos los trabajos con filtros
 router.get('/', verifyToken, SimpleWorkController.getAllSimpleWorks);
 
@@ -101,7 +104,13 @@ router.post('/:id/attachments', verifyToken, upload.single('file'), SimpleWorkCo
 // 🗑️ DELETE /api/simple-works/:id/attachments/:attachmentId - Eliminar archivo adjunto
 router.delete('/:id/attachments/:attachmentId', verifyToken, SimpleWorkController.deleteAttachment);
 
-// 📧 POST /api/simple-works/:id/send-email - Enviar SimpleWork por email al cliente
+// � POST /api/simple-works/:id/images - Subir imagen de trabajo o finalización
+router.post('/:id/images', verifyToken, upload.single('image'), SimpleWorkController.uploadImage);
+
+// 🗑️ DELETE /api/simple-works/:id/images/:imageId - Eliminar imagen
+router.delete('/:id/images/:imageId', verifyToken, SimpleWorkController.deleteImage);
+
+// �📧 POST /api/simple-works/:id/send-email - Enviar SimpleWork por email al cliente
 router.post('/:id/send-email', verifyToken, SimpleWorkController.sendSimpleWorkToClient);
 
 // ✅ PATCH /api/simple-works/:id/complete - Marcar SimpleWork como completado

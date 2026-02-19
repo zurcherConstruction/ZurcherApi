@@ -85,15 +85,9 @@ export const fetchAssignedMaintenances = createAsyncThunk(
   'maintenance/fetchAssignedMaintenances',
   async (workerId, { rejectWithValue }) => {
     try {
-      if (__DEV__) {
-        console.log('[fetchAssignedMaintenances] Consultando para workerId:', workerId);
-      }
       const { data } = await api.get(`/maintenance/assigned`, {
         params: { workerId }
       });
-      if (__DEV__) {
-        console.log('[fetchAssignedMaintenances] Visitas:', data.visits?.length || 0);
-      }
       return data.visits || [];
     } catch (error) {
       console.error("[fetchAssignedMaintenances] Error:", error.response?.data || error.message);

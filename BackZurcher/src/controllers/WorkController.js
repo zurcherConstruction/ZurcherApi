@@ -29,6 +29,29 @@ const {
   deleteReceiptsByWorkAndType,
 } = require('../utils/statusManager');
 
+// 🔄 Helper: Reintentar queries que fallan con ECONNRESET
+const withRetry = async (queryFn, maxRetries = 3, delayMs = 1000) => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await queryFn();
+    } catch (error) {
+      const isConnectionError = 
+        error.name === 'SequelizeDatabaseError' && 
+        (error.parent?.code === 'ECONNRESET' || 
+         error.parent?.code === 'ETIMEDOUT' ||
+         error.original?.code === 'ECONNRESET' ||
+         error.original?.code === 'ETIMEDOUT');
+      
+      if (isConnectionError && attempt < maxRetries) {
+        console.log(`⚠️ DB connection error, retrying (${attempt}/${maxRetries})...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs * attempt));
+        continue;
+      }
+      throw error;
+    }
+  }
+};
+
 
 
 const createWork = async (req, res) => {
@@ -160,16 +183,21 @@ const getWorks = async (req, res) => {
       queryOptions.limit = limit;
     }
 
-    const { count, rows: worksInstances } = await Work.findAndCountAll(queryOptions);
+    // 🔄 QUERY PRINCIPAL con retry automático
+    const { count, rows: worksInstances } = await withRetry(async () => {
+      return await Work.findAndCountAll(queryOptions);
+    });
 
     // OPTIMIZACIÓN: Cargar expenses y receipts en consultas separadas
     // Esto reduce dramáticamente el número de locks necesarios
     const workIds = worksInstances.map(w => w.idWork);
     
-    // Cargar todos los expenses de una vez (en lugar de JOIN)
-    const allExpenses = await Expense.findAll({
-      where: { workId: workIds },
-      raw: true
+    // 🔄 Cargar todos los expenses de una vez (en lugar de JOIN) con retry
+    const allExpenses = await withRetry(async () => {
+      return await Expense.findAll({
+        where: { workId: workIds },
+        raw: true
+      });
     });
     
     // Agrupar expenses por workId
@@ -179,14 +207,16 @@ const getWorks = async (req, res) => {
       return acc;
     }, {});
     
-    // Cargar receipts directos de Works
-    const workReceipts = await Receipt.findAll({
-      where: {
-        relatedModel: 'Work',
-        relatedId: workIds
-      },
-      attributes: ['idReceipt', 'type', 'notes', 'fileUrl', 'publicId', 'mimeType', 'originalName', 'createdAt', 'relatedId'],
-      raw: true
+    // 🔄 Cargar receipts directos de Works con retry
+    const workReceipts = await withRetry(async () => {
+      return await Receipt.findAll({
+        where: {
+          relatedModel: 'Work',
+          relatedId: workIds
+        },
+        attributes: ['idReceipt', 'type', 'notes', 'fileUrl', 'publicId', 'mimeType', 'originalName', 'createdAt', 'relatedId'],
+        raw: true
+      });
     });
     
     // Agrupar receipts por workId
@@ -215,12 +245,15 @@ const getWorks = async (req, res) => {
       if (workJson.expenses && workJson.expenses.length > 0) {
         const expenseIds = workJson.expenses.map(e => e.idExpense);
         if (expenseIds.length > 0) {
-          const foundReceipts = await Receipt.findAll({
-            where: {
-              relatedModel: 'Expense',
-              relatedId: expenseIds,
-              type: 'Inspección Inicial'
-            }
+          // 🔄 Cargar receipts de expenses con retry
+          const foundReceipts = await withRetry(async () => {
+            return await Receipt.findAll({
+              where: {
+                relatedModel: 'Expense',
+                relatedId: expenseIds,
+                type: 'Inspección Inicial'
+              }
+            });
           });
           expenseReceipts = convertPdfDataToUrl(foundReceipts.map(r => ({ ...r.get({ plain: true }), fromExpense: true })));
         }
@@ -316,7 +349,9 @@ const getWorkById = async (req, res) => {
     const { idWork } = req.params;
     const startTime = Date.now();
     
-    const work = await Work.findByPk(idWork, {
+    // 🔄 Query principal con retry automático
+    const work = await withRetry(async () => {
+      return await Work.findByPk(idWork, {
       include: [
         {
           model: Budget,
@@ -436,6 +471,7 @@ const getWorkById = async (req, res) => {
         }
       ],
     });
+    }); // Cierre de withRetry
     
     const queryTime = Date.now() - startTime;
 
@@ -455,12 +491,15 @@ const getWorkById = async (req, res) => {
     if (workJson.expenses && Array.isArray(workJson.expenses) && workJson.expenses.length > 0) {
       const expenseIds = workJson.expenses.map(e => e.idExpense);
       if (expenseIds.length > 0) {
-        const foundReceipts = await Receipt.findAll({
-          where: {
-            relatedModel: 'Expense',
-            relatedId: expenseIds,
-            type: 'Inspección Inicial'
-          }
+        // 🔄 Cargar receipts con retry
+        const foundReceipts = await withRetry(async () => {
+          return await Receipt.findAll({
+            where: {
+              relatedModel: 'Expense',
+              relatedId: expenseIds,
+              type: 'Inspección Inicial'
+            }
+          });
         });
         expenseReceipts = convertPdfDataToUrl(foundReceipts.map(r => ({ ...r.get({ plain: true }), fromExpense: true })));
       }

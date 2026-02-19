@@ -22,6 +22,7 @@ import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import PdfViewer from '../utils/PdfViewer';
 import axios from 'axios';
+import { API_URL } from '../utils/axios';
 import Toast from 'react-native-toast-message';
 
 // 🆕 Importar sistema de autosave y offline
@@ -128,9 +129,14 @@ const CheckboxField = ({ label, value, notes, notesValue, onCheckChange, onNotes
 
 const MaintenanceFormScreen = ({ route, navigation }) => {
   const visit = route?.params?.visit;
+  const isEditing = route?.params?.isEditing || false;
+  const isCompletedVisit = visit?.status === 'completed';
   
   // 🚀 INICIALIZAR UPLOAD MANAGER
   const uploadManager = useRef(new UploadManager()).current;
+  
+  // 🔒 Guard contra doble-press en submit
+  const isSubmittingRef = useRef(false);
   
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -229,8 +235,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
   useEffect(() => {
     if (!visit?.id) return;
 
-    console.log('🚀 Iniciando sistema de autosave para visitId:', visit.id);
-    console.log('📡 Iniciando monitoreo de red para uploads');
+    if (__DEV__) console.log('🚀 Autosave + upload monitor iniciado:', visit.id);
 
     // Inicializar monitoreo de red para uploads inteligentes
     uploadManager.initNetworkMonitoring();
@@ -257,10 +262,10 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
     }, 5000); // Cada 5 segundos
 
     // Intentar procesar cola al iniciar
-    processQueue().catch(err => console.log('Queue processing error:', err));
+    processQueue().catch(err => console.error('Queue error:', err));
 
     return () => {
-      console.log('🛑 Deteniendo autosave');
+      if (__DEV__) console.log('🛑 Deteniendo autosave');
       if (autosaveCleanupRef.current) {
         autosaveCleanupRef.current();
       }
@@ -275,7 +280,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
     try {
       const offlineData = await getOfflineForm(visit.id);
       if (offlineData?.formData) {
-        console.log('📦 Datos offline encontrados, cargando...');
+        if (__DEV__) console.log('📦 Datos offline recuperados');
         setFormData(offlineData.formData);
         Toast.show({
           type: 'success',
@@ -295,45 +300,15 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
       
       setVisitData(visitObj);
       
-      if (__DEV__) {
-        console.log('🔍 DEBUG - Visit data:', {
-          hasWork: !!visitObj.work,
-          hasPermit: !!(visitObj.work?.permit || visitObj.work?.Permit),
-          permitPdfUrl: visitObj.work?.permit?.permitPdfUrl || visitObj.work?.Permit?.permitPdfUrl,
-          optionalDocsUrl: visitObj.work?.permit?.optionalDocsUrl || visitObj.work?.Permit?.optionalDocsUrl,
-          systemVideoUrl: visitObj.system_video_url
-        });
-      }
+
       
       if (visitObj.work?.permit || visitObj.work?.Permit) {
         const permit = visitObj.work.permit || visitObj.work.Permit;
-        if (__DEV__) {
-          console.log('📄 DEBUG - Permit data loaded:', {
-            permitPdfUrl: permit.permitPdfUrl,
-            optionalDocsUrl: permit.optionalDocsUrl,
-            hasPdfData: !!permit.pdfData,
-            hasOptionalDocs: !!permit.optionalDocs
-          });
-        }
         setPermitData(permit);
       }
       
       // Cargar imágenes existentes de mediaFiles organizadas por fieldName
       if (visitObj.mediaFiles && visitObj.mediaFiles.length > 0) {
-        if (__DEV__) {
-          console.log('📸 DEBUG - mediaFiles recibidos:', visitObj.mediaFiles.length);
-          console.log('📸 DEBUG - Primeros 3 archivos:', visitObj.mediaFiles.slice(0, 3).map(m => ({
-            fieldName: m.fieldName,
-            originalName: m.originalName,
-            mediaType: m.mediaType
-          })));
-          console.log('📸 DEBUG - Todos los mediaFiles:', visitObj.mediaFiles.map(m => ({
-            id: m.id,
-            fieldName: m.fieldName,
-            originalName: m.originalName,
-            mediaUrl: m.mediaUrl?.substring(0, 50) + '...'
-          })));
-        }
         
         const imagesByField = {};
         visitObj.mediaFiles.forEach(media => {
@@ -350,12 +325,6 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
           });
         });
       
-        if (__DEV__) {
-          console.log('📸 DEBUG - imagesByField:', Object.keys(imagesByField).map(key => 
-            `${key}: ${imagesByField[key].length} fotos`
-          ));
-        }
-        
         setFiles({ ...imagesByField });
       }
       
@@ -459,28 +428,11 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
   // 🆕 Cargar detalles completos de la visita (con mediaFiles)
   useEffect(() => {
     const fetchVisitDetails = async () => {
-      console.log('🔍 fetchVisitDetails - visitId:', visit?.id);
-      
-      if (!visit?.id) {
-        console.log('⚠️ No hay visitId, omitiendo fetchVisitDetails');
-        return;
-      }
+      if (!visit?.id) return;
       
       try {
         const token = await AsyncStorage.getItem('token');
-        console.log('🔑 Token obtenido:', token ? 'Sí' : 'No');
-        
-        if (!token) {
-          console.log('⚠️ No hay token, omitiendo fetchVisitDetails');
-          return;
-        }
-        
-        const API_URL = __DEV__ 
-          ? 'http://192.168.1.8:3001' 
-          : 'https://zurcherapi.up.railway.app';
-        
-        console.log('🔄 Cargando detalles completos de la visita:', visit.id);
-        console.log('📡 URL:', `${API_URL}/maintenance/${visit.id}/details`);
+        if (!token) return;
         
         const response = await axios.get(
           `${API_URL}/maintenance/${visit.id}/details`,
@@ -489,24 +441,12 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
           }
         );
         
-        console.log('📦 Respuesta recibida:', {
-          status: response.status,
-          hasVisit: !!response.data.visit,
-          mediaFilesCount: response.data.visit?.mediaFiles?.length || 0
-        });
-        
         if (response.data.visit) {
-          console.log('✅ Detalles cargados, mediaFiles:', response.data.visit.mediaFiles?.length || 0);
-          console.log('📋 Procesando visita con processVisitData...');
           processVisitData(response.data.visit);
-          console.log('✅ processVisitData completado');
         }
       } catch (error) {
-        console.error('❌ Error cargando detalles de visita:', error.message);
-        console.error('❌ Error completo:', error);
-        // Si falla, usar los datos que vienen en route.params
+        console.error('❌ Error cargando visita:', error.message);
         if (visit) {
-          console.log('⚠️ Usando datos de route.params como fallback');
           processVisitData(visit);
         }
       }
@@ -617,7 +557,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             text: 'Galería',
             onPress: async () => {
               const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                mediaTypes: ['images'],
                 allowsMultipleSelection: false,
                 quality: 0.3,
                 allowsEditing: true,
@@ -647,11 +587,13 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
         
         if (queued.success) {
           // Guardar referencia local para preview
+          const queueItemId = queued.queueItem?.id; // 🆕 ID de cola para matching
           const fileObject = {
             uri: queued.uri, // URI de imagen comprimida
             name: `${fieldName}_${Date.now()}.jpg`,
             type: 'image/jpeg',
             queued: true, // Marcar como en cola
+            queueId: queueItemId, // 🆕 Para encontrar URL de Cloudinary después
             timestamp: Date.now()
           };
 
@@ -664,19 +606,30 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
           // La foto se agrega visualmente a la lista, no necesita toast adicional
 
           // 🆕 Procesar cola inmediatamente después de agregar
-          processQueue((progress) => {
-            console.log('📊 Progreso de cola:', progress);
-          }).then(async () => {
+          processQueue().then(async (queueResult) => {
             // Actualizar estado después de procesar
             const status = await getQueueStatus();
             setQueueStatus(status);
             
-            // 🆕 Marcar imagen como subida exitosamente
+            // 🆕 Obtener URL de Cloudinary del resultado
+            const uploadResult = queueResult?.uploadedResults?.find(
+              r => r.queueId === queueItemId && r.fieldName === fieldName
+            );
+            const cloudinaryUrl = uploadResult?.mediaUrl;
+            const mediaId = uploadResult?.mediaId;
+            
+            // Marcar imagen como subida y actualizar URI a Cloudinary
             setFiles(prev => ({
               ...prev,
               [fieldName]: (prev[fieldName] || []).map(f => 
                 f.timestamp === fileObject.timestamp 
-                  ? { ...f, isExisting: true, queued: false }
+                  ? { 
+                      ...f, 
+                      isExisting: true, 
+                      queued: false,
+                      uri: cloudinaryUrl || f.uri, // 🔗 Usar URL de Cloudinary
+                      id: mediaId || f.id // 🔗 ID de MaintenanceMedia
+                    }
                   : f
               )
             }));
@@ -710,9 +663,6 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
               // Si la foto ya está guardada en el backend, eliminarla también del servidor
               if (fileToDelete.isExisting && fileToDelete.id) {
                 const token = await AsyncStorage.getItem('token');
-                const API_URL = __DEV__ 
-                  ? 'http://192.168.1.8:3001' 
-                  : 'https://zurcherapi.up.railway.app';
                 
                 const response = await axios.delete(`${API_URL}/maintenance/media/${fileToDelete.id}`, {
                   headers: { Authorization: `Bearer ${token}` }
@@ -758,9 +708,6 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
               // Si la foto ya está guardada en el backend, actualizar el campo a NULL
               if (sampleFile?.isExisting && visit?.id) {
                 const token = await AsyncStorage.getItem('token');
-                const API_URL = __DEV__ 
-                  ? 'http://192.168.1.8:3001' 
-                  : 'https://zurcherapi.up.railway.app';
                 
                 // Actualizar el campo well_sample_X_url a vacío
                 const formDataToSend = new FormData();
@@ -812,7 +759,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             text: 'Galería',
             onPress: async () => {
               const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                mediaTypes: ['images'],
                 quality: 0.3,
                 allowsEditing: true,
                 aspect: [4, 3],
@@ -876,7 +823,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             text: 'Grabar video',
             onPress: async () => {
               const result = await ImagePicker.launchCameraAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+                mediaTypes: ['videos'],
                 videoMaxDuration: 30,
                 quality: 0.3,
               });
@@ -887,7 +834,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             text: 'Galería',
             onPress: async () => {
               const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+                mediaTypes: ['videos'],
                 videoMaxDuration: 30,
                 quality: 0.3,
               });
@@ -940,7 +887,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             text: 'Tomar foto',
             onPress: async () => {
               const result = await ImagePicker.launchCameraAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                mediaTypes: ['images'],
                 quality: 0.3,
                 allowsEditing: true,
                 aspect: [4, 3],
@@ -952,7 +899,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             text: 'Galería',
             onPress: async () => {
               const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                mediaTypes: ['images'],
                 quality: 0.3,
                 allowsEditing: true,
                 aspect: [4, 3],
@@ -996,14 +943,20 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
   };
 
   const handleSubmit = async (markAsCompleted = false) => {
+    // 🔒 Guard sincrónico contra doble-press
+    if (isSubmittingRef.current) {
+      if (__DEV__) console.log('⚠️ Submit ya en progreso, ignorando doble-press');
+      return;
+    }
+    isSubmittingRef.current = true;
+    
     try {
-      if (__DEV__) {
-        console.log('🚀 handleSubmit - markAsCompleted:', markAsCompleted);
-      }
+
       
       if (!visit?.id) {
         Alert.alert('Error', 'ID de visita no válido');
         if (__DEV__) console.error('❌ Visit ID no válido');
+        isSubmittingRef.current = false;
         return;
       }
 
@@ -1088,19 +1041,13 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
             return;
           }
         }
+
       }
 
       setSubmitting(true);
       const token = await AsyncStorage.getItem('token');
       
       // Usar la misma lógica que axios.js para determinar el API_URL
-      const API_URL = __DEV__ 
-        ? 'http://192.168.1.8:3001' 
-        : 'https://zurcherapi.up.railway.app';
-      
-      if (__DEV__) {
-        console.log('📤 Enviando a:', `${API_URL}/maintenance/${visit.id}/complete`);
-      }
       
       const formDataToSend = new FormData();
       
@@ -1121,13 +1068,6 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
       const fileFieldMapping = {};
       
       // Agregar archivos asociados a campos específicos
-      if (__DEV__) {
-        console.log('📸 Procesando archivos:', Object.keys(files).length, 'campos');
-        console.log('📸 Estado de files:', JSON.stringify(Object.keys(files).map(key => ({
-          field: key,
-          count: files[key]?.length || 0
-        })), null, 2));
-      }
       Object.keys(files).forEach(fieldName => {
         const fieldFiles = files[fieldName];
         if (fieldFiles && fieldFiles.length > 0) {
@@ -1151,9 +1091,6 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
 
       // Agregar archivos generales
       if (generalMedia && generalMedia.length > 0) {
-        if (__DEV__) {
-          console.log('📸 Archivos generales:', generalMedia.length);
-        }
         generalMedia.forEach((file, index) => {
           const fileToAppend = {
             uri: file.uri,
@@ -1208,9 +1145,6 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
 
       // Agregar video del sistema
       if (systemVideo && !systemVideo.isExisting) {
-        if (__DEV__) {
-          console.log('🎬 Agregando video del sistema:', systemVideo.name);
-        }
         const videoFile = {
           uri: systemVideo.uri,
           type: systemVideo.type || 'video/mp4',
@@ -1219,21 +1153,13 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
         formDataToSend.append('systemVideo', videoFile);
       } else if (systemVideo && systemVideo.isExisting) {
         // ✅ Si el video ya existe, enviar el URL para preservarlo
-        if (__DEV__) {
-          console.log('⏭️ Video del sistema ya existe, preservando URL:', systemVideo.uri);
-        }
         formDataToSend.append('system_video_url', systemVideo.uri);
       } else {
-        if (__DEV__) {
-          console.log('❌ No hay video del sistema para enviar');
-        }
+        // No hay video
       }
       
       // 🆕 Agregar imagen final del sistema (OBLIGATORIA)
       if (finalSystemImage && !finalSystemImage.isExisting) {
-        if (__DEV__) {
-          console.log('📸 Agregando imagen final del sistema:', finalSystemImage.name);
-        }
         const imageFile = {
           uri: finalSystemImage.uri,
           type: finalSystemImage.type || 'image/jpeg',
@@ -1242,9 +1168,6 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
         formDataToSend.append('finalSystemImage', imageFile);
       } else if (finalSystemImage && finalSystemImage.isExisting) {
         // ✅ Si la imagen ya existe, enviar el URL para preservarla
-        if (__DEV__) {
-          console.log('⏭️ Imagen final ya existe, preservando URL:', finalSystemImage.uri);
-        }
         formDataToSend.append('final_system_image_url', finalSystemImage.uri);
       } else if (!finalSystemImage && markAsCompleted) {
         Alert.alert(
@@ -1259,11 +1182,77 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
       // Agregar mapeo de archivos
       formDataToSend.append('fileFieldMapping', JSON.stringify(fileFieldMapping));
 
-      if (__DEV__) {
-        console.log('📤 Enviando formulario con', Array.from(formDataToSend.keys()).length, 'campos');
+      // 🔍 Detectar si hay archivos nuevos que subir
+      const hasNewFiles = !!(Object.keys(fileFieldMapping).length > 0 || 
+        (systemVideo && !systemVideo.isExisting) ||
+        (finalSystemImage && !finalSystemImage.isExisting) ||
+        (wellSampleFiles.sample1 && !wellSampleFiles.sample1.isExisting) ||
+        (wellSampleFiles.sample2 && !wellSampleFiles.sample2.isExisting) ||
+        (wellSampleFiles.sample3 && !wellSampleFiles.sample3.isExisting));
+
+      // ⚡ Si NO hay archivos nuevos, usar JSON directo (más rápido y confiable)
+      if (!hasNewFiles) {
+
+        // Construir body JSON con todos los campos del formulario
+        const jsonBody = { ...formData, markAsCompleted: markAsCompleted.toString() };
+        
+        // Agregar URLs preservadas
+        if (systemVideo?.isExisting) jsonBody.system_video_url = systemVideo.uri;
+        if (finalSystemImage?.isExisting) jsonBody.final_system_image_url = finalSystemImage.uri;
+        if (wellSampleFiles.sample1?.isExisting) jsonBody.well_sample_1_url = wellSampleFiles.sample1.uri;
+        if (wellSampleFiles.sample2?.isExisting) jsonBody.well_sample_2_url = wellSampleFiles.sample2.uri;
+        if (wellSampleFiles.sample3?.isExisting) jsonBody.well_sample_3_url = wellSampleFiles.sample3.uri;
+        jsonBody.fileFieldMapping = JSON.stringify(fileFieldMapping);
+
+        try {
+          const response = await axios.post(
+            `${API_URL}/maintenance/${visit.id}/complete`,
+            jsonBody,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+              timeout: 30000, // 30s para JSON es suficiente
+            }
+          );
+
+          if (response.data.visit) {
+            setVisitData(response.data.visit);
+          }
+
+          setSubmitting(false);
+
+          if (markAsCompleted) {
+            clearOfflineData(`maintenance_${visit.id}`);
+          }
+
+          Alert.alert(
+            '✅ Éxito',
+            markAsCompleted 
+              ? 'Mantenimiento actualizado exitosamente'
+              : 'Progreso guardado exitosamente',
+            [{ text: 'OK', onPress: () => navigation.goBack() }]
+          );
+          return;
+        } catch (error) {
+          console.error('❌ Error enviando JSON:', error.message);
+          setSubmitting(false);
+          
+          let errorMessage = 'Error enviando formulario';
+          if (error.response?.status === 401) {
+            errorMessage = 'Sesión expirada, por favor inicie sesión nuevamente';
+          } else if (!error.response) {
+            errorMessage = 'Error de conexión. Intenta de nuevo.';
+          } else {
+            errorMessage = error.response?.data?.message || error.message;
+          }
+          Alert.alert('Error', errorMessage);
+          return;
+        }
       }
-      
-      // 📤 ENVIAR FORMULARIO CON UPLOAD MANAGER OPTIMIZADO
+
+      // 📤 ENVIAR CON UPLOAD MANAGER (solo cuando hay archivos nuevos)
       const fileKey = UploadManager.generateFileKey(
         `/maintenance/${visit.id}`, 
         { markAsCompleted, timestamp: Date.now() }
@@ -1274,12 +1263,12 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
         formData: formDataToSend,
         headers: {
           Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
+          // ⚠️ NO establecer Content-Type: multipart/form-data manualmente
+          // React Native auto-genera el boundary necesario para multipart
         },
         fileKey,
         onProgress: (progress) => {
           setUploadProgress(prev => ({ ...prev, [fileKey]: progress }));
-          console.log(`📊 Progreso upload: ${progress.toFixed(1)}%`);
         },
         onError: (error) => {
           console.error('❌ Error en upload:', error);
@@ -1295,7 +1284,6 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
           Alert.alert('Error', errorMessage);
         },
         onSuccess: (responseData) => {
-          console.log('✅ Upload completado exitosamente');
           
           // Actualizar estado con respuesta del servidor
           if (responseData.visit) {
@@ -1329,7 +1317,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
       const result = await uploadManager.uploadWithRetry(uploadConfig);
       
       if (result.success) {
-        console.log(`✅ Upload exitoso en ${result.attempts} intento(s)`);
+        // Upload exitoso
       } else if (result.reason === 'no_connection') {
         Alert.alert(
           '📡 Sin Conexión',
@@ -1351,6 +1339,7 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
       Alert.alert('Error', 'Error al enviar el formulario: ' + (error.response?.data?.message || error.message));
     } finally {
       setSubmitting(false);
+      isSubmittingRef.current = false;
     }
   };
 
@@ -2055,16 +2044,15 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
 
       {/* Botones de acción */}
       <View style={styles.actionButtons}>
-        {/* 🆕 Indicador de autosave - DESHABILITADO temporalmente
-        {lastAutosave && (
-          <View style={styles.autosaveIndicator}>
-            <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-            <Text style={styles.autosaveText}>
-              Guardado automáticamente {new Date(lastAutosave).toLocaleTimeString()}
+        {/* Banner de edición para visitas completadas */}
+        {isEditing && isCompletedVisit && (
+          <View style={styles.editingBanner}>
+            <Ionicons name="create-outline" size={18} color="#1E40AF" />
+            <Text style={styles.editingBannerText}>
+              Editando mantenimiento completado — los cambios se guardarán al presionar el botón
             </Text>
           </View>
         )}
-        */}
 
         {/* 🆕 Indicador de cola de imágenes */}
         {queueStatus.pending > 0 && (
@@ -2076,17 +2064,25 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
           </View>
         )}
 
-        {/* Botón Guardar Progreso */}
+        {/* Botón Guardar / Actualizar */}
         <TouchableOpacity
-          style={[styles.saveProgressButton, submitting && styles.buttonDisabled]}
+          style={[
+            isEditing && isCompletedVisit ? styles.updateButton : styles.saveProgressButton, 
+            submitting && styles.buttonDisabled
+          ]}
           onPress={() => {
-            if (__DEV__) console.log('🔵 Guardar progreso');
-            handleSubmit(false);
+          if (__DEV__) console.log(isEditing ? 'Actualizar' : 'Guardar progreso');
+            handleSubmit(isEditing && isCompletedVisit ? true : false);
           }}
           disabled={submitting}
         >
           {submitting ? (
             <ActivityIndicator color="#fff" size="small" />
+          ) : isEditing && isCompletedVisit ? (
+            <>
+              <Text style={styles.updateButtonText}>📝 Guardar Cambios</Text>
+              <Text style={styles.buttonSubtext}>Actualizar mantenimiento completado</Text>
+            </>
           ) : (
             <>
               <Text style={styles.saveProgressButtonText}>💾 Guardar Progreso</Text>
@@ -2095,24 +2091,26 @@ const MaintenanceFormScreen = ({ route, navigation }) => {
           )}
         </TouchableOpacity>
 
-        {/* Botón Marcar como Completado */}
-        <TouchableOpacity
-          style={[styles.completeButton, submitting && styles.buttonDisabled]}
-          onPress={() => {
-            if (__DEV__) console.log('🟢 Completar visita');
-            handleSubmit(true);
-          }}
-          disabled={submitting}
-        >
-          {submitting ? (
-            <ActivityIndicator color="#fff" size="small" />
-          ) : (
-            <>
-              <Text style={styles.completeButtonText}>✅ Marcar como Completado</Text>
-              <Text style={styles.buttonSubtext}>Finalizar visita</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        {/* Botón Marcar como Completado - solo si NO es edición de completado */}
+        {!(isEditing && isCompletedVisit) && (
+          <TouchableOpacity
+            style={[styles.completeButton, submitting && styles.buttonDisabled]}
+            onPress={() => {
+              if (__DEV__) console.log('Completar visita');
+              handleSubmit(true);
+            }}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Text style={styles.completeButtonText}>✅ Marcar como Completado</Text>
+                <Text style={styles.buttonSubtext}>Finalizar visita</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
       </View>
 
       <View style={{ height: 40 }} />
@@ -2489,6 +2487,33 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.5,
+  },
+  editingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DBEAFE',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    gap: 8,
+  },
+  editingBannerText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#1E40AF',
+    fontWeight: '500',
+  },
+  updateButton: {
+    backgroundColor: '#2563EB',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  updateButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   submitButton: {
     flex: 2,

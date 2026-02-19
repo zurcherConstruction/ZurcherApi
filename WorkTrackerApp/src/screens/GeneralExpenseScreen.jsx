@@ -103,7 +103,7 @@ const GeneralExpenseScreen = () => {
                 text: "Galería",
                 onPress: async () => {
                     let result = await ImagePicker.launchImageLibraryAsync({
-                        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                        mediaTypes: ['images'],
                         allowsEditing: true,
                         aspect: [4, 3],
                         quality: 0.3, // ✅ OPTIMIZACIÓN: Comprobantes no necesitan alta calidad

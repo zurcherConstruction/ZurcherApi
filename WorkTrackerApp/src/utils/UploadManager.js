@@ -33,20 +33,18 @@ export class UploadManager {
 
     // 🔍 Verificar si ya está en progreso
     if (this.pendingUploads.has(fileKey)) {
-      console.log(`⏳ Upload ya en progreso para: ${fileKey}`);
       return { success: false, reason: 'upload_in_progress' };
     }
 
     // ✅ Verificar si ya se subió exitosamente
     if (this.uploadHistory.has(fileKey)) {
-      console.log(`✅ Archivo ya subido anteriormente: ${fileKey}`);
       return { success: true, reason: 'already_uploaded' };
     }
 
     // 📶 Verificar conexión
     const connectionInfo = await NetInfo.fetch();
     if (!connectionInfo.isConnected) {
-      console.log('❌ Sin conexión, guardando para después');
+      console.log('📡 Sin conexión, guardando para después');
       await this.saveForLater(uploadConfig);
       return { success: false, reason: 'no_connection' };
     }
@@ -55,17 +53,17 @@ export class UploadManager {
     this.pendingUploads.set(fileKey, Date.now());
 
     try {
-      console.log(`📤 Iniciando upload (intento ${retryAttempts + 1}): ${fileKey}`);
+      console.log(`📤 Upload (intento ${retryAttempts + 1})`);
 
+      // ⚠️ NO establecer Content-Type manualmente con FormData
+      // React Native necesita auto-generar el boundary para multipart/form-data
+      const { 'Content-Type': _ct, ...safeHeaders } = headers;
+      
       const response = await axios.post(url, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          ...headers
-        },
+        headers: safeHeaders,
         timeout: 120000, // 2 minutos timeout
         onUploadProgress: (progressEvent) => {
           const progress = (progressEvent.loaded / progressEvent.total) * 100;
-          console.log(`📊 Progreso upload ${fileKey}: ${progress.toFixed(1)}%`);
           if (onProgress) onProgress(progress);
         }
       });
@@ -74,7 +72,7 @@ export class UploadManager {
       this.pendingUploads.delete(fileKey);
       this.uploadHistory.add(fileKey);
       
-      console.log(`✅ Upload completado: ${fileKey}`);
+      console.log(`✅ Upload completado (${retryAttempts + 1} intento${retryAttempts > 0 ? 's' : ''})`);
       if (onSuccess) onSuccess(response.data);
       
       return { 
@@ -94,7 +92,7 @@ export class UploadManager {
       
       if (shouldRetry) {
         const delay = this.calculateRetryDelay(retryAttempts);
-        console.log(`🔄 Reintentando en ${delay}ms (intento ${retryAttempts + 2})`);
+        console.log(`🔄 Retry en ${delay}ms (intento ${retryAttempts + 2})`);
         
         await new Promise(resolve => setTimeout(resolve, delay));
         
@@ -136,7 +134,7 @@ export class UploadManager {
     
     // Error 401 (no autorizado) - posible token expirado
     if (error.response && error.response.status === 401) {
-      console.log('⚠️ Error 401, posible token expirado');
+      console.log('⚠️ 401 - token expirado');
       return true; // Intentar una vez más
     }
     
@@ -176,8 +174,6 @@ export class UploadManager {
       });
       
       await AsyncStorage.setItem('pending_uploads', JSON.stringify(uploads));
-      console.log('💾 Upload guardado para cuando haya conexión');
-      
     } catch (error) {
       console.error('❌ Error guardando upload pendiente:', error);
     }
@@ -192,7 +188,7 @@ export class UploadManager {
       if (!pendingUploads) return;
       
       const uploads = JSON.parse(pendingUploads);
-      console.log(`📤 Procesando ${uploads.length} uploads pendientes`);
+      if (uploads.length > 0) console.log(`📤 ${uploads.length} uploads pendientes`);
       
       const remainingUploads = [];
       
@@ -209,9 +205,6 @@ export class UploadManager {
       
       // Actualizar lista de pendientes
       await AsyncStorage.setItem('pending_uploads', JSON.stringify(remainingUploads));
-      
-      console.log(`✅ Uploads pendientes procesados. Quedan: ${remainingUploads.length}`);
-      
     } catch (error) {
       console.error('❌ Error procesando uploads pendientes:', error);
     }
@@ -233,7 +226,6 @@ export class UploadManager {
         );
         
         await AsyncStorage.setItem('pending_uploads', JSON.stringify(recentUploads));
-        console.log('🧹 Historial de uploads limpiado');
       }
       
     } catch (error) {
@@ -268,13 +260,11 @@ export class UploadManager {
    */
   initNetworkMonitoring() {
     NetInfo.addEventListener(state => {
-      console.log('📶 Cambio en conexión:', state.type, state.isConnected);
-      
       if (state.isConnected) {
-        console.log('🌐 Conexión restaurada, procesando uploads pendientes');
+        console.log('📶 Conexión restaurada, procesando pendientes');
         setTimeout(() => {
           this.processPendingUploads();
-        }, 2000); // Esperar un poco para estabilizar conexión
+        }, 2000);
       }
     });
   }

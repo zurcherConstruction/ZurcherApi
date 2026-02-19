@@ -36,7 +36,7 @@ const ImageManagerModal = ({ visible, onClose, images, onAddImage, maxImages = 1
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: [ImagePicker.MediaType.IMAGE],
+      mediaTypes: ['images'],
       quality: 0.5,
     });
 
@@ -61,7 +61,7 @@ const ImageManagerModal = ({ visible, onClose, images, onAddImage, maxImages = 1
     }
 
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: [ImagePicker.MediaType.IMAGE],
+      mediaTypes: ['images'],
       quality: 0.5,
     });
 
