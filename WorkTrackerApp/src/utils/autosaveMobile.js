@@ -44,13 +44,11 @@ export const saveProgress = async (visitId, formData, options = {}) => {
 
   // Evitar guardados concurrentes
   if (isSaving && !force) {
-    console.log('⏸️ Guardado ya en progreso, omitiendo...');
     return { success: false, reason: 'already_saving' };
   }
 
   // Verificar si hay cambios reales
   if (!force && JSON.stringify(formData) === JSON.stringify(lastSavedData)) {
-    console.log('⏸️ Sin cambios desde último guardado, omitiendo...');
     return { success: false, reason: 'no_changes' };
   }
 
@@ -58,7 +56,7 @@ export const saveProgress = async (visitId, formData, options = {}) => {
     isSaving = true;
     
     if (!silent) {
-      console.log('💾 Guardando progreso...');
+      // Guardando progreso
     }
 
     // Verificar conexión
@@ -167,13 +165,12 @@ export const saveProgress = async (visitId, formData, options = {}) => {
     // 🧹 Limpiar datos offline una vez guardado exitosamente online
     try {
       await clearOfflineData(visitId);
-      console.log('🧹 Datos offline limpiados (ya sincronizados)');
     } catch (cleanupError) {
       console.warn('⚠️ Error limpiando datos offline:', cleanupError);
     }
     
     if (!silent) {
-      console.log('✅ Progreso guardado en servidor');
+      // Progreso guardado en servidor
     }
 
     return { success: true, offline: false, data: response.data };
@@ -216,23 +213,16 @@ export const saveProgress = async (visitId, formData, options = {}) => {
  * ⏰ Iniciar autoguardado periódico
  */
 export const startAutosave = (visitId, getFormDataFn, intervalMs = 30000) => {
-  console.log('🚀 Autoguardado iniciado (cada 30s)');
   
   autosaveTimer = setInterval(async () => {
     try {
       const formData = getFormDataFn();
       
       if (!formData) {
-        console.log('⏸️ No hay datos para guardar');
         return;
       }
       
-      const result = await saveProgress(visitId, formData, { silent: true });
-      
-      // Ya no mostramos Toast - el guardado es silencioso en segundo plano
-      if (result.success && !result.offline) {
-        console.log('✅ Autoguardado exitoso (silencioso)');
-      }
+      await saveProgress(visitId, formData, { silent: true });
     } catch (error) {
       console.error('Error en autoguardado:', error);
     }
@@ -253,7 +243,6 @@ export const stopAutosave = () => {
   if (autosaveTimer) {
     clearInterval(autosaveTimer);
     autosaveTimer = null;
-    console.log('🛑 Autoguardado detenido');
   }
 };
 

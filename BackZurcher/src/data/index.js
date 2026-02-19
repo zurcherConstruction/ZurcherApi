@@ -21,17 +21,23 @@ const sequelize = (DB_DEPLOY && DB_DEPLOY.startsWith('postgresql://'))
       native: false,
       timezone: 'America/New_York',
       pool: {
-        max: 50,            // ✅ Aumentado a 50 para soportar múltiples usuarios simultáneos
-        min: 10,            // ✅ 10 warm connections
-        acquire: 60000,     // ✅ 60 segundos timeout para evitar errores prematuros
-        idle: 20000,        // ✅ 20 segundos idle
-        evict: 10000,       // ✅ Eviction cada 10 segundos
+        max: 20,            // ✅ Reducido a 20 (Railway free tier limit ~20-25)
+        min: 5,             // ✅ Reducido a 5 conexiones warm
+        acquire: 60000,     // ✅ 60 segundos para adquirir conexión
+        idle: 60000,        // ✅ Aumentado a 60 segundos antes de cerrar idle
+        evict: 30000,       // ✅ Verificar cada 30 segundos
         maxUses: 5000       // ✅ Reciclar después de 5000 usos
       },
-      isolationLevel: 'READ COMMITTED', // 🆕 Evitar locks largos
+      retry: {
+        max: 3,             // 🆕 Reintentar 3 veces en caso de error
+        timeout: 10000      // 🆕 10 segundos entre reintentos
+      },
+      isolationLevel: 'READ COMMITTED',
       dialectOptions: {
         ssl: NODE_ENV === 'production' ? { require: true, rejectUnauthorized: false } : false,
-        statement_timeout: 60000  // ⏰ 60 segundos para queries pesadas (uploads, múltiples expenses)
+        statement_timeout: 60000,  // ⏰ 60 segundos para queries pesadas
+        keepAlive: true,           // 🆕 Mantener conexiones vivas
+        keepAliveInitialDelayMillis: 10000  // 🆕 Enviar keepalive cada 10s
       }
     })
   : new Sequelize(
@@ -40,15 +46,15 @@ const sequelize = (DB_DEPLOY && DB_DEPLOY.startsWith('postgresql://'))
         logging: false,
         native: false,
         pool: {
-          max: 50,            // ✅ Aumentado a 50
-          min: 10,            // ✅ 10 warm connections
-          acquire: 60000,     // ✅ 60 segundos timeout
-          idle: 20000,        // ✅ 20 segundos idle
-          evict: 10000,       // ✅ Eviction cada 10 segundos
-          maxUses: 5000       // ✅ Reciclar después de 5000 usos
+          max: 50,
+          min: 10,
+          acquire: 60000,
+          idle: 20000,
+          evict: 10000,
+          maxUses: 5000
         },
         dialectOptions: {
-          statement_timeout: 30000, // ⏰ Aumentado a 30 segundos para permitir sync() de Sequelize
+          statement_timeout: 30000,
         }
       }
     );
@@ -90,7 +96,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Claim } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -795,6 +801,13 @@ Staff.hasMany(SimpleWorkExpense, {
   foreignKey: 'createdBy',
   as: 'createdSimpleWorkExpenses'
 });
+
+// 🆕 Asociaciones de Claim (Reclamos)
+Claim.belongsTo(Staff, { foreignKey: 'assignedStaffId', as: 'assignedStaff' });
+Claim.belongsTo(Staff, { foreignKey: 'createdBy', as: 'claimCreator' });
+Claim.belongsTo(Work, { foreignKey: 'linkedWorkId', as: 'linkedWork', constraints: false });
+Claim.belongsTo(SimpleWork, { foreignKey: 'linkedSimpleWorkId', as: 'linkedSimpleWork', constraints: false });
+Staff.hasMany(Claim, { foreignKey: 'assignedStaffId', as: 'assignedClaims' });
 
 
 //---------------------------------------------------------------------------------//

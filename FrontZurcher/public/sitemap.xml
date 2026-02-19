@@ -5,11 +5,11 @@
   
   <!-- Landing Page - English -->
   <url>
-    <loc>https://zurcherseptic.com/</loc>
-    <lastmod>2026-02-13</lastmod>
+    <loc>https://zurcherseptic.com</loc>
+    <lastmod>2026-02-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
-    <xhtml:link rel="alternate" hreflang="es" href="https://zurcherseptic.com/" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://zurcherseptic.com" />
     <image:image>
       <image:loc>https://zurcherseptic.com/logo.png</image:loc>
       <image:caption>Zurcher Septic Logo</image:caption>
@@ -19,7 +19,7 @@
   <!-- Services Page -->
   <url>
     <loc>https://zurcherseptic.com/services</loc>
-    <lastmod>2026-02-13</lastmod>
+    <lastmod>2026-02-18</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
@@ -27,7 +27,7 @@
   <!-- About Page -->
   <url>
     <loc>https://zurcherseptic.com/about</loc>
-    <lastmod>2026-02-13</lastmod>
+    <lastmod>2026-02-18</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
@@ -35,7 +35,7 @@
   <!-- Contact/Quote Request -->
   <url>
     <loc>https://zurcherseptic.com/contact</loc>
-    <lastmod>2026-02-13</lastmod>
+    <lastmod>2026-02-18</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
@@ -43,7 +43,7 @@
   <!-- Installation Page -->
   <url>
     <loc>https://zurcherseptic.com/installation</loc>
-    <lastmod>2026-02-13</lastmod>
+    <lastmod>2026-02-18</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
@@ -51,7 +51,7 @@
   <!-- Gallery Page -->
   <url>
     <loc>https://zurcherseptic.com/gallery</loc>
-    <lastmod>2026-02-13</lastmod>
+    <lastmod>2026-02-18</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
@@ -59,7 +59,7 @@
   <!-- Maintenance Services Page -->
   <url>
     <loc>https://zurcherseptic.com/maintenance-services</loc>
-    <lastmod>2026-02-13</lastmod>
+    <lastmod>2026-02-18</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
@@ -67,7 +67,7 @@
   <!-- Repairs Page -->
   <url>
     <loc>https://zurcherseptic.com/repairs</loc>
-    <lastmod>2026-02-13</lastmod>
+    <lastmod>2026-02-18</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
@@ -75,7 +75,7 @@
   <!-- Thank You Page -->
   <url>
     <loc>https://zurcherseptic.com/thank-you</loc>
-    <lastmod>2026-02-13</lastmod>
+    <lastmod>2026-02-18</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
@@ -83,7 +83,7 @@
   <!-- Privacy Policy -->
   <url>
     <loc>https://zurcherseptic.com/privacy-policy</loc>
-    <lastmod>2026-02-13</lastmod>
+    <lastmod>2026-02-18</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -8,629 +8,633 @@ import {
   viewSimpleWorkPdf,
   sendSimpleWorkToClient,
   markSimpleWorkAsCompleted,
+  updateSimpleWork,
   clearSimpleWorkError,
   clearSimpleWorkSuccessMessage,
 } from '../../Redux/Actions/simpleWorkActions';
-import CreateSimpleWorkModal from './CreateSimpleWorkModal';
+import { fetchStaff } from '../../Redux/Actions/adminActions';
 import AdvancedCreateSimpleWorkModal from './AdvancedCreateSimpleWorkModal';
 import SimpleWorkPdfModal from './SimpleWorkPdfModal';
 import { toast } from 'react-toastify';
-import { 
-  FaPlus, FaEdit, FaTrash, FaFilePdf, FaEye, FaSearch, FaTimes, FaEnvelope, FaCheck, FaInfoCircle
-} from 'react-icons/fa';
+import {
+  WrenchScrewdriverIcon,
+  MagnifyingGlassIcon,
+  PlusIcon,
+  ArrowPathIcon,
+  XMarkIcon,
+  FunnelIcon,
+  ChevronDownIcon,
+  UserIcon,
+  MapPinIcon,
+  CalendarDaysIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  DocumentTextIcon,
+  EnvelopeIcon,
+  ArrowDownTrayIcon,
+  PencilSquareIcon,
+  TrashIcon,
+  BanknotesIcon,
+  CurrencyDollarIcon,
+  DocumentCheckIcon,
+  PaperAirplaneIcon,
+  ExclamationCircleIcon,
+} from '@heroicons/react/24/outline';
+import {
+  WrenchScrewdriverIcon as WrenchSolid,
+} from '@heroicons/react/24/solid';
 
+// ── Config objects ──────────────────────────────────────────────────────
+const STATUS_CONFIG = {
+  quoted:      { label: 'Cotizado',       badge: 'bg-slate-100 text-slate-700 ring-slate-300',    icon: DocumentTextIcon },
+  sent:        { label: 'Enviado',        badge: 'bg-sky-50 text-sky-700 ring-sky-200',           icon: PaperAirplaneIcon },
+  invoiced:    { label: 'Facturado',      badge: 'bg-orange-50 text-orange-700 ring-orange-200',  icon: DocumentCheckIcon },
+  paid:        { label: 'Pagado',         badge: 'bg-amber-50 text-amber-700 ring-amber-200',     icon: BanknotesIcon },
+  completed:   { label: 'Terminado',      badge: 'bg-emerald-50 text-emerald-700 ring-emerald-200', icon: CheckCircleIcon },
+  cancelled:   { label: 'Cancelado',      badge: 'bg-red-50 text-red-600 ring-red-200',           icon: XMarkIcon },
+  // Legacy
+  quote_sent:  { label: 'Cotización Env.',badge: 'bg-sky-50 text-sky-700 ring-sky-200',           icon: PaperAirplaneIcon },
+  approved:    { label: 'Aprobado',       badge: 'bg-cyan-50 text-cyan-700 ring-cyan-200',        icon: CheckCircleIcon },
+  in_progress: { label: 'En Progreso',    badge: 'bg-violet-50 text-violet-700 ring-violet-200',  icon: WrenchScrewdriverIcon },
+};
+
+const TYPE_CONFIG = {
+  culvert:       { label: 'Culvert',          color: 'text-blue-700 bg-blue-50' },
+  drainfield:    { label: 'Drainfield',       color: 'text-teal-700 bg-teal-50' },
+  concrete_work: { label: 'Concreto',         color: 'text-gray-700 bg-gray-100' },
+  excavation:    { label: 'Excavación',       color: 'text-amber-700 bg-amber-50' },
+  plumbing:      { label: 'Plomería',         color: 'text-cyan-700 bg-cyan-50' },
+  electrical:    { label: 'Eléctrico',        color: 'text-yellow-700 bg-yellow-50' },
+  landscaping:   { label: 'Paisajismo',       color: 'text-green-700 bg-green-50' },
+  repair:        { label: 'Reparación',       color: 'text-orange-700 bg-orange-50' },
+  maintenance:   { label: 'Mantenimiento',    color: 'text-purple-700 bg-purple-50' },
+  other:         { label: 'Otro',             color: 'text-gray-600 bg-gray-50' },
+};
+
+const PAYMENT_STATUS = (work) => {
+  const total = parseFloat(work.totalCost || work.finalAmount || work.estimatedAmount || 0);
+  const paid  = parseFloat(work.totalPaid || 0);
+  if (paid >= total && total > 0) return { label: 'Pagado', badge: 'bg-emerald-50 text-emerald-700 ring-emerald-200' };
+  if (paid > 0) return { label: 'Parcial', badge: 'bg-amber-50 text-amber-700 ring-amber-200' };
+  if (work.status !== 'quoted' && work.status !== 'sent') return { label: 'Sin Pago', badge: 'bg-red-50 text-red-600 ring-red-200' };
+  return null;
+};
+
+// ── Helpers ──────────────────────────────────────────────────────────────
+const getClientName = (work) => {
+  if (work.clientData?.firstName) return `${work.clientData.firstName} ${work.clientData.lastName || ''}`.trim();
+  if (work.clientData?.name) return work.clientData.name;
+  if (work.firstName) return `${work.firstName} ${work.lastName || ''}`.trim();
+  return 'Sin nombre';
+};
+
+const fmt = (n) => parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// ═════════════════════════════════════════════════════════════════════════
 const SimpleWorkList = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  
-  // Redux state
-  const {
-    simpleWorks,
-    loading,
-    error,
-    successMessage
-  } = useSelector(state => state.simpleWork);
-  
-  const { staff } = useSelector(state => state.auth);
+
+  const { simpleWorks, loading, error, successMessage } = useSelector(s => s.simpleWork);
+  const { staff } = useSelector(s => s.auth);
+  const { staffList } = useSelector(s => s.admin);
 
   // Local state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingWork, setEditingWork] = useState(null);
-  const [filters, setFilters] = useState({
-    status: '',
-    workType: '',
-    search: '',
-  });
-  
-  // PDF modal state
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({ status: '', workType: '', search: '' });
+
+  // PDF modal
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [pdfUrlForModal, setPdfUrlForModal] = useState('');
   const [pdfTitleForModal, setPdfTitleForModal] = useState('');
-  
+
   // Loading states
   const [viewingPdfId, setViewingPdfId] = useState(null);
   const [sendingEmailId, setSendingEmailId] = useState(null);
   const [completingWorkId, setCompletingWorkId] = useState(null);
+  const [assigningStaffId, setAssigningStaffId] = useState(null);
 
-  // Load simple works on component mount
+  // ── Effects ──
   useEffect(() => {
     dispatch(fetchSimpleWorks());
-    
-    // Cleanup function to revoke object URLs
-    return () => {
-      if (pdfUrlForModal) {
-        URL.revokeObjectURL(pdfUrlForModal);
-      }
-    };
+    dispatch(fetchStaff());
+    return () => { if (pdfUrlForModal) URL.revokeObjectURL(pdfUrlForModal); };
   }, [dispatch]);
 
-  // Handle success/error messages
-  useEffect(() => {
-    if (successMessage) {
-      toast.success(successMessage);
-      dispatch(clearSimpleWorkSuccessMessage());
-    }
-  }, [successMessage, dispatch]);
+  useEffect(() => { if (successMessage) { toast.success(successMessage); dispatch(clearSimpleWorkSuccessMessage()); } }, [successMessage, dispatch]);
+  useEffect(() => { if (error) { toast.error(error); dispatch(clearSimpleWorkError()); } }, [error, dispatch]);
 
-  useEffect(() => {
-    if (error) {
-      toast.error(error);
-      dispatch(clearSimpleWorkError());
-    }
-  }, [error, dispatch]);
-
-  // Filter simple works
-  const filteredWorks = (simpleWorks || []).filter(work => {
-    const matchesStatus = !filters.status || work.status === filters.status;
-    const matchesType = !filters.workType || work.workType === filters.workType;
-    const matchesSearch = !filters.search || 
-      work.workType.toLowerCase().includes(filters.search.toLowerCase()) ||
-      work.propertyAddress?.toLowerCase().includes(filters.search.toLowerCase()) ||
-      (work.clientData?.name || '').toLowerCase().includes(filters.search.toLowerCase());
-    
-    return matchesStatus && matchesType && matchesSearch;
-  });
-
-  // Handle filter changes
-  const handleFilterChange = (field, value) => {
-    const newFilters = { ...filters, [field]: value };
-    setFilters(newFilters);
-    dispatch(fetchSimpleWorks(newFilters));
-  };
-
-  // Clear filters
-  const clearFilters = () => {
-    setFilters({ status: '', workType: '', search: '' });
-    dispatch(fetchSimpleWorks());
-  };
-
-  // Handle edit work
-  const handleEditWork = (work) => {
-    setEditingWork(work);
-    setShowCreateModal(true);
-  };
-
-  // Handle delete work
-  const handleDeleteWork = async (workId) => {
-    if (window.confirm('¿Estás seguro de que deseas eliminar este trabajo?')) {
-      try {
-        await dispatch(deleteSimpleWork(workId));
-      } catch (error) {
-        // Error handled by Redux action
+  // ── Filtering (client-side) ──
+  const filteredWorks = useMemo(() => {
+    return (simpleWorks || []).filter(work => {
+      if (filters.status && work.status !== filters.status) return false;
+      if (filters.workType && work.workType !== filters.workType) return false;
+      if (filters.search) {
+        const q = filters.search.toLowerCase();
+        const searchable = [
+          getClientName(work),
+          work.propertyAddress,
+          work.workNumber,
+          work.workType,
+          work.assignedStaff?.name,
+        ].filter(Boolean).join(' ').toLowerCase();
+        if (!searchable.includes(q)) return false;
       }
+      return true;
+    });
+  }, [simpleWorks, filters]);
+
+  const handleFilterChange = (field, value) => setFilters(prev => ({ ...prev, [field]: value }));
+  const clearFilters = () => setFilters({ status: '', workType: '', search: '' });
+  const hasActiveFilters = filters.status || filters.workType || filters.search;
+
+  // ── Summary ──
+  const summary = useMemo(() => {
+    const all = simpleWorks || [];
+    const fin = filteredWorks.reduce((a, w) => {
+      a.quoted  += parseFloat(w.totalCost || w.finalAmount || w.estimatedAmount || 0);
+      a.paid    += parseFloat(w.totalPaid || 0);
+      a.expenses += parseFloat(w.totalExpenses || 0);
+      return a;
+    }, { quoted: 0, paid: 0, expenses: 0 });
+    return {
+      total: all.length,
+      quoted: all.filter(w => w.status === 'quoted' || w.status === 'sent').length,
+      inProgress: all.filter(w => ['approved', 'in_progress', 'invoiced', 'paid'].includes(w.status)).length,
+      completed: all.filter(w => w.status === 'completed').length,
+      cancelled: all.filter(w => w.status === 'cancelled').length,
+      unassigned: all.filter(w => !w.assignedStaffId && !['completed', 'cancelled'].includes(w.status)).length,
+      ...fin,
+      profit: fin.paid - fin.expenses,
+    };
+  }, [simpleWorks, filteredWorks]);
+
+  // ── Handlers ──
+  const handleEditWork = (e, work) => { e.stopPropagation(); setEditingWork(work); setShowCreateModal(true); };
+
+  const handleDeleteWork = async (e, workId) => {
+    e.stopPropagation();
+    if (window.confirm('¿Eliminar este trabajo? Esta acción no se puede deshacer.')) {
+      try { await dispatch(deleteSimpleWork(workId)); } catch (_) {}
     }
   };
 
-  // Handle generate PDF (download)
-  const handleGeneratePdf = (workId) => {
-    dispatch(generateSimpleWorkPdf(workId));
-  };
+  const handleGeneratePdf = (e, workId) => { e.stopPropagation(); dispatch(generateSimpleWorkPdf(workId)); };
 
-  // Handle view PDF (modal)
-  const handleViewPdf = async (workId) => {
+  const handleViewPdf = async (e, workId) => {
+    e.stopPropagation();
     setViewingPdfId(workId);
-    
-    // Clear previous PDF URL
-    if (pdfUrlForModal) {
-      URL.revokeObjectURL(pdfUrlForModal);
-      setPdfUrlForModal('');
-    }
-
+    if (pdfUrlForModal) { URL.revokeObjectURL(pdfUrlForModal); setPdfUrlForModal(''); }
     try {
       const pdfUrl = await dispatch(viewSimpleWorkPdf(workId));
       setPdfUrlForModal(pdfUrl);
       setPdfTitleForModal(`Trabajo Simple #${workId}`);
       setIsPdfModalOpen(true);
-    } catch (error) {
-      toast.error('Error al cargar PDF');
-      console.error('Error loading PDF:', error);
-    } finally {
-      setViewingPdfId(null);
-    }
+    } catch { toast.error('Error al cargar PDF'); } finally { setViewingPdfId(null); }
   };
 
-  // Handle send email to client
-  const handleSendEmail = async (work) => {
-    const clientEmail = work.clientData?.email || work.email;
-    
-    if (!clientEmail) {
-      toast.error('No hay email de cliente configurado para este trabajo');
-      return;
-    }
-
-    if (!window.confirm(
-      `¿Enviar trabajo simple #${work.workNumber} al cliente?\n\n` +
-      `📧 Destinatario: ${clientEmail}\n` +
-      `📋 Se enviará el presupuesto del trabajo para revisión.\n\n` +
-      `El cliente recibirá:\n` +
-      `- PDF del trabajo con detalles y costos\n` +
-      `- Información de contacto para aprobación`
-    )) {
-      return;
-    }
-
+  const handleSendEmail = async (e, work) => {
+    e.stopPropagation();
+    const email = work.clientData?.email || work.email;
+    if (!email) { toast.error('No hay email de cliente'); return; }
+    if (!window.confirm(`¿Enviar trabajo #${work.workNumber} a ${email}?`)) return;
     setSendingEmailId(work.id);
-    
     try {
       await dispatch(sendSimpleWorkToClient(work.id));
-      toast.success(`✅ Trabajo enviado exitosamente a ${clientEmail}`);
-      
-      // Forzar una actualización adicional después de un momento
-      setTimeout(() => {
-        console.log('🔄 Forzando refresh adicional después de envío de email...');
-        dispatch(fetchSimpleWorks());
-      }, 1000);
-      
-    } catch (error) {
-      toast.error(`❌ Error al enviar trabajo: ${error.message}`);
-      console.error('Error sending email:', error);
-    } finally {
-      setSendingEmailId(null);
-    }
+      toast.success(`Enviado a ${email}`);
+      setTimeout(() => dispatch(fetchSimpleWorks()), 1000);
+    } catch (err) { toast.error(`Error: ${err.message}`); } finally { setSendingEmailId(null); }
   };
 
-  // Handle complete work
-  const handleMarkAsCompleted = async (work) => {
-    const totalCost = parseFloat(work.totalCost || work.finalAmount || work.estimatedAmount || 0);
-    const totalPaid = parseFloat(work.totalPaid || 0);
-    const isFullyPaid = totalPaid >= totalCost && totalCost > 0;
-    
-    const paymentStatus = isFullyPaid ? 
-      '💰 Estado de pago: PAGADO COMPLETO' : 
-      `💰 Estado de pago: PENDIENTE ($${(totalCost - totalPaid).toLocaleString('en-US', { minimumFractionDigits: 2 })} restante)`;
-    
-    if (!window.confirm(
-      `¿Marcar trabajo #${work.workNumber} como TERMINADO?\\n\\n` +
-      `📋 Cliente: ${work.clientData?.firstName || ''} ${work.clientData?.lastName || ''}\\n` +
-      `🏠 Dirección: ${work.propertyAddress}\\n` +
-      `${paymentStatus}\\n\\n` +
-      `⚠️ Esta acción marcará el TRABAJO FÍSICO como finalizado.\\n` +
-      `(El estado de pago es independiente del trabajo terminado)`
-    )) {
-      return;
-    }
-
+  const handleMarkAsCompleted = async (e, work) => {
+    e.stopPropagation();
+    if (!window.confirm(`¿Marcar #${work.workNumber} como terminado?`)) return;
     setCompletingWorkId(work.id);
-    
     try {
       await dispatch(markSimpleWorkAsCompleted(work.id));
-      toast.success(`✅ Trabajo #${work.workNumber} marcado como terminado`);
-      
-      // Refrescar la lista para mostrar el estado actualizado
+      toast.success(`#${work.workNumber} marcado como terminado`);
       dispatch(fetchSimpleWorks());
-    } catch (error) {
-      toast.error(`❌ Error al marcar como terminado: ${error.message}`);
-      console.error('Error marking as completed:', error);
-    } finally {
-      setCompletingWorkId(null);
-    }
+    } catch (err) { toast.error(`Error: ${err.message}`); } finally { setCompletingWorkId(null); }
   };
 
-  // Close PDF modal
+  const handleAssignStaff = async (e, work, staffId) => {
+    e.stopPropagation();
+    setAssigningStaffId(work.id);
+    try {
+      await dispatch(updateSimpleWork(work.id, {
+        assignedStaffId: staffId || null,
+        ...(staffId ? { assignedDate: new Date().toISOString() } : {}),
+      }));
+      toast.success(staffId ? 'Staff asignado' : 'Staff desasignado');
+      dispatch(fetchSimpleWorks());
+    } catch { toast.error('Error asignando staff'); } finally { setAssigningStaffId(null); }
+  };
+
   const handleClosePdfModal = () => {
-    if (pdfUrlForModal) {
-      URL.revokeObjectURL(pdfUrlForModal);
-      setPdfUrlForModal('');
-    }
+    if (pdfUrlForModal) { URL.revokeObjectURL(pdfUrlForModal); setPdfUrlForModal(''); }
     setIsPdfModalOpen(false);
     setPdfTitleForModal('');
   };
 
-  // Close modal and clear editing work
-  const handleCloseModal = () => {
-    setShowCreateModal(false);
-    setEditingWork(null);
-  };
+  const handleCloseModal = () => { setShowCreateModal(false); setEditingWork(null); };
 
-  // Status color mapping
-  const getStatusColor = (status) => {
-    const colors = {
-      'quoted': 'bg-gray-100 text-gray-800',
-      'sent': 'bg-blue-100 text-blue-800', 
-      'invoiced': 'bg-orange-100 text-orange-800',
-      'paid': 'bg-yellow-100 text-yellow-800', // Pagado pero trabajo pendiente
-      'completed': 'bg-green-100 text-green-800', // Trabajo terminado
-      'cancelled': 'bg-red-100 text-red-800',
-      // Legacy statuses (maintain for backwards compatibility)
-      'quote_sent': 'bg-blue-100 text-blue-800',
-      'approved': 'bg-cyan-100 text-cyan-800',
-      'in_progress': 'bg-purple-100 text-purple-800',
-    };
-    return colors[status] || 'bg-gray-100 text-gray-800';
-  };
-
-  // Status text mapping
-  const getStatusText = (status) => {
-    const texts = {
-      'quoted': 'Cotizado',
-      'sent': 'Enviado al Cliente',
-      'invoiced': 'Facturado',
-      'paid': 'Pagado (Trabajo Pendiente)',
-      'completed': '✓ Trabajo Terminado',
-      'cancelled': 'Cancelado',
-      // Legacy statuses (maintain for backwards compatibility)
-      'quote_sent': 'Cotización Enviada',
-      'approved': 'Aprobado para Iniciar',
-      'in_progress': 'Trabajo en Progreso',
-    };
-    return texts[status] || status;
-  };
-
-  // Calculate financial summary
-  const financialSummary = filteredWorks.reduce((acc, work) => {
-    acc.totalQuoted += parseFloat(work.totalCost || 0);
-    acc.totalPaid += parseFloat(work.totalPaid || 0);
-    acc.totalExpenses += parseFloat(work.totalExpenses || 0);
-    acc.totalProfit += (parseFloat(work.totalPaid || 0) - parseFloat(work.totalExpenses || 0));
-    return acc;
-  }, { totalQuoted: 0, totalPaid: 0, totalExpenses: 0, totalProfit: 0 });
-
-  if (loading && simpleWorks.length === 0) {
+  // ── Loading state ──
+  if (loading && (simpleWorks || []).length === 0) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      <div className="flex justify-center items-center h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto" />
+          <p className="text-sm text-gray-500 mt-4">Cargando trabajos...</p>
+        </div>
       </div>
     );
   }
 
+  // ═════════════════════════════════════════════════════════════════════
   return (
-    <div className="container mx-auto p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold text-gray-900">
-            Trabajos Simples
-          </h1>
-          <div className="flex space-x-3">
+    <div className="min-h-screen bg-gray-50/50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        {/* ── Header ── */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2.5">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <WrenchSolid className="h-6 w-6 text-blue-600" />
+              </div>
+              Trabajos Simples
+            </h1>
+            <p className="text-sm text-gray-500 mt-1 ml-12">
+              {summary.total} total &middot; {filteredWorks.length} mostrados
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
             <button
               onClick={() => dispatch(fetchSimpleWorks())}
-              className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
-              title="Actualizar lista"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition shadow-sm"
+              title="Actualizar"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              <span>Actualizar</span>
+              <ArrowPathIcon className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              Actualizar
             </button>
             <button
-              onClick={() => setShowCreateModal(true)}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
+              onClick={() => { setEditingWork(null); setShowCreateModal(true); }}
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition shadow-sm"
             >
-              <FaPlus />
-              <span>Nueva Cotización</span>
+              <PlusIcon className="h-4 w-4" />
+              Nueva Cotización
             </button>
           </div>
         </div>
 
-      
+        {/* ── Summary Cards ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+          {[
+            { key: 'quoted',      label: 'Cotizados',   count: summary.quoted,      color: 'border-slate-300 bg-white',           textColor: 'text-slate-800', filterStatus: ['quoted', 'sent'] },
+            { key: 'inProgress',  label: 'En Progreso', count: summary.inProgress,  color: 'border-violet-300 bg-violet-50/50',   textColor: 'text-violet-800', filterStatus: ['approved', 'in_progress', 'invoiced', 'paid'] },
+            { key: 'completed',   label: 'Terminados',  count: summary.completed,   color: 'border-emerald-300 bg-emerald-50/50', textColor: 'text-emerald-800', filterStatus: ['completed'] },
+            { key: 'total',       label: 'Total',       count: summary.total,       color: 'border-gray-300 bg-white',            textColor: 'text-gray-800', filterStatus: null },
+            { key: 'unassigned',  label: 'Sin Asignar', count: summary.unassigned,  color: 'border-amber-300 bg-amber-50/50',     textColor: 'text-amber-800', filterStatus: null, isSpecial: true },
+          ].map(card => (
+            <button
+              key={card.key}
+              onClick={() => {
+                if (!card.filterStatus) { clearFilters(); return; }
+                if (card.isSpecial) return;
+                const firstStatus = card.filterStatus[0];
+                handleFilterChange('status', filters.status === firstStatus ? '' : firstStatus);
+              }}
+              className={`border rounded-xl p-3 text-center transition hover:shadow-md cursor-pointer ${card.color} ${
+                card.filterStatus && card.filterStatus.includes(filters.status) ? 'ring-2 ring-blue-400 shadow-md' : ''
+              }`}
+            >
+              <p className={`text-2xl font-bold ${card.textColor}`}>{card.count}</p>
+              <p className="text-xs text-gray-500 font-medium mt-0.5">{card.label}</p>
+            </button>
+          ))}
+        </div>
 
-        {/* Filters */}
-        <div className="bg-white p-4 rounded-lg shadow mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Estado</label>
-              <select
-                value={filters.status}
-                onChange={(e) => handleFilterChange('status', e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="">Todos los estados</option>
-                <option value="quote_sent">Cotización Enviada</option>
-                <option value="approved">Aprobado</option>
-                <option value="in_progress">En Progreso</option>
-                <option value="completed">Completado</option>
-                <option value="cancelled">Cancelado</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Trabajo</label>
-              <select
-                value={filters.workType}
-                onChange={(e) => handleFilterChange('workType', e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="">Todos los tipos</option>
-                <option value="culvert">Culvert</option>
-                <option value="drainfield">Drainfield</option>
-                <option value="repair">Reparación</option>
-                <option value="maintenance">Mantenimiento</option>
-                <option value="other">Otro</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Buscar</label>
-              <div className="relative">
-                <FaSearch className="absolute left-3 top-3 text-gray-400" />
-                <input
-                  type="text"
-                  value={filters.search}
-                  onChange={(e) => handleFilterChange('search', e.target.value)}
-                  placeholder="Buscar por cliente, dirección, tipo..."
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
+        {/* ── Financial Bar ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          {[
+            { label: 'Cotizado',   value: summary.quoted,   color: 'text-gray-900', icon: CurrencyDollarIcon, iconBg: 'bg-slate-100', iconColor: 'text-slate-600' },
+            { label: 'Cobrado',    value: summary.paid,     color: 'text-emerald-700', icon: BanknotesIcon, iconBg: 'bg-emerald-100', iconColor: 'text-emerald-600' },
+            { label: 'Gastos',     value: summary.expenses, color: 'text-red-600', icon: ExclamationCircleIcon, iconBg: 'bg-red-100', iconColor: 'text-red-600' },
+            { label: 'Ganancia',   value: summary.profit,   color: summary.profit >= 0 ? 'text-emerald-700' : 'text-red-600', icon: CheckCircleIcon, iconBg: summary.profit >= 0 ? 'bg-emerald-100' : 'bg-red-100', iconColor: summary.profit >= 0 ? 'text-emerald-600' : 'text-red-600' },
+          ].map(item => (
+            <div key={item.label} className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex items-center gap-3">
+              <div className={`p-2.5 rounded-lg ${item.iconBg}`}>
+                <item.icon className={`h-5 w-5 ${item.iconColor}`} />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 font-medium">{item.label}</p>
+                <p className={`text-lg font-bold ${item.color}`}>${fmt(item.value)}</p>
               </div>
             </div>
-            <div className="flex items-end">
-              <button
-                onClick={clearFilters}
-                className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md flex items-center space-x-2 transition-colors"
-              >
-                <FaTimes />
-                <span>Limpiar</span>
-              </button>
-            </div>
-          </div>
+          ))}
         </div>
-      </div>
 
-      {/* Works List */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        {filteredWorks.length === 0 ? (
-          <div className="p-8 text-center">
-            <p className="text-gray-500">No se encontraron trabajos simples</p>
+        {/* ── Search + Filters ── */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
+          <div className="p-4 flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                value={filters.search}
+                onChange={(e) => handleFilterChange('search', e.target.value)}
+                placeholder="Buscar por cliente, dirección, número, staff..."
+                className="w-full pl-10 pr-10 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+              />
+              {filters.search && (
+                <button onClick={() => handleFilterChange('search', '')} className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <XMarkIcon className="h-4 w-4 text-gray-400 hover:text-gray-600" />
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border rounded-lg transition ${
+                hasActiveFilters ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <FunnelIcon className="h-4 w-4" />
+              Filtros
+              {hasActiveFilters && (
+                <span className="ml-1 inline-flex items-center justify-center h-5 w-5 rounded-full bg-blue-600 text-white text-xs font-bold">
+                  {[filters.status, filters.workType].filter(Boolean).length}
+                </span>
+              )}
+              <ChevronDownIcon className={`h-3.5 w-3.5 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+            </button>
+            {hasActiveFilters && (
+              <button onClick={clearFilters} className="inline-flex items-center gap-1 px-3 py-2.5 text-sm text-gray-600 hover:text-blue-600 transition">
+                <XMarkIcon className="h-4 w-4" />
+                Limpiar
+              </button>
+            )}
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Cliente
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tipo de Trabajo
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Dirección
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Estado
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Costo Total
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Estado de Pago
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Fecha Creación
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Acciones
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredWorks.map((work) => (
-                  <tr key={work.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {(() => {
-                            // Try different ways to get client name
-                            if (work.clientData?.firstName) {
-                              return `${work.clientData.firstName} ${work.clientData.lastName || ''}`.trim();
-                            } else if (work.clientData?.name) {
-                              return work.clientData.name;
-                            } else if (work.firstName) {
-                              return `${work.firstName} ${work.lastName || ''}`.trim();
-                            } else {
-                              return 'Sin nombre';
-                            }
-                          })()} 
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {work.clientData?.email || work.email || 'Sin email'}
-                        </div>
-                        {(work.clientData?.phone || work.phone) && (
-                          <div className="text-xs text-gray-400">
-                            {work.clientData?.phone || work.phone}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 capitalize">
-                        {work.workType.replace('_', ' ')}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {work.propertyAddress || work.address || 'Sin dirección'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="space-y-1">
-                        {/* Estado del trabajo */}
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(work.status)}`}>
-                          {getStatusText(work.status)}
-                        </span>
-                        
-                        {/* Estado de pago adicional */}
-                        {(() => {
-                          const totalCost = parseFloat(work.totalCost || work.finalAmount || work.estimatedAmount || 0);
-                          const totalPaid = parseFloat(work.totalPaid || 0);
-                          
-                          if (totalPaid >= totalCost && totalCost > 0) {
-                            return (
-                              <div className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                                💰 Pagado Completo
-                              </div>
-                            );
-                          } else if (totalPaid > 0) {
-                            return (
-                              <div className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                                💰 Pago Parcial
-                              </div>
-                            );
-                          } else if (work.status !== 'quoted' && work.status !== 'sent') {
-                            return (
-                              <div className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                                💰 Sin Pagar
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        <div className="font-medium">
-                          Total: ${parseFloat(work.totalCost || work.finalAmount || work.estimatedAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </div>
+          {showFilters && (
+            <div className="px-4 pb-4 pt-0 border-t border-gray-100">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Estado</label>
+                  <select
+                    value={filters.status}
+                    onChange={(e) => handleFilterChange('status', e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Todos los estados</option>
+                    {Object.entries(STATUS_CONFIG).map(([k, v]) => (
+                      <option key={k} value={k}>{v.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Tipo</label>
+                  <select
+                    value={filters.workType}
+                    onChange={(e) => handleFilterChange('workType', e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Todos los tipos</option>
+                    {Object.entries(TYPE_CONFIG).map(([k, v]) => (
+                      <option key={k} value={k}>{v.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
-                        {/* Mostrar desglose de pago igual que BudgetList */}
-                        {work.initialPaymentPercentage && work.initialPaymentPercentage < 100 && (
-                          <div className="text-xs text-gray-600 mt-1 font-semibold">
-                            Pay {work.initialPaymentPercentage}%: ${parseFloat(work.initialPayment || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm">
-                        <div className="font-medium text-green-600">
-                          Pagado: ${parseFloat(work.totalPaid || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </div>
-                        {(() => {
-                          const totalCost = parseFloat(work.totalCost || work.finalAmount || work.estimatedAmount || 0);
-                          const totalPaid = parseFloat(work.totalPaid || 0);
-                          const remaining = totalCost - totalPaid;
-                          
-                          if (remaining > 0) {
-                            return (
-                              <div className="text-xs text-orange-600 mt-1">
-                                Falta: ${remaining.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                              </div>
-                            );
-                          } else if (remaining === 0 && totalPaid > 0) {
-                            return (
-                              <div className="text-xs text-green-600 mt-1 font-semibold">
-                                ✓ Completamente pagado
-                              </div>
-                            );
-                          }
-                          return null;
-                        })()}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {new Date(work.createdAt).toLocaleDateString()}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <div className="flex space-x-2">
-                        {/* View Detail Button */}
-                        <button
-                          onClick={() => navigate(`/simple-works/${work.id}`)}
-                          className="text-blue-600 hover:text-blue-900 p-1"
-                          title="Ver Detalle Completo"
-                        >
-                          <FaInfoCircle />
-                        </button>
-
-                        {/* View PDF Button */}
-                        <button
-                          onClick={() => handleViewPdf(work.id)}
-                          disabled={viewingPdfId === work.id}
-                          className="text-green-600 hover:text-green-900 p-1 disabled:opacity-50"
-                          title="Ver Presupuesto"
-                        >
-                          {viewingPdfId === work.id ? (
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
-                          ) : (
-                            <FaEye />
-                          )}
-                        </button>
-                        
-                        {/* Send Email Button */}
-                        <button
-                          onClick={() => handleSendEmail(work)}
-                          disabled={sendingEmailId === work.id}
-                          className="text-blue-600 hover:text-blue-900 p-1 disabled:opacity-50"
-                          title="Enviar por Email"
-                        >
-                          {sendingEmailId === work.id ? (
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                          ) : (
-                            <FaEnvelope />
-                          )}
-                        </button>
-                        
-                        {/* Download PDF Button */}
-                        <button
-                          onClick={() => handleGeneratePdf(work.id)}
-                          className="text-red-600 hover:text-red-900 p-1"
-                          title="Descargar PDF"
-                        >
-                          <FaFilePdf />
-                        </button>
-                        
-                        {/* Complete Work Button - Para trabajos que no están completados */}
-                        {work.status !== 'completed' && work.status !== 'cancelled' && (
-                          <button
-                            onClick={() => handleMarkAsCompleted(work)}
-                            disabled={completingWorkId === work.id}
-                            className="text-green-600 hover:text-green-900 p-1 disabled:opacity-50"
-                            title="Marcar Trabajo como Terminado"
-                          >
-                            {completingWorkId === work.id ? (
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
-                            ) : (
-                              <FaCheck />
-                            )}
-                          </button>
-                        )}
-                        
-                        {/* Edit Button */}
-                        <button
-                          onClick={() => handleEditWork(work)}
-                          className="text-yellow-600 hover:text-yellow-900 p-1"
-                          title="Editar"
-                        >
-                          <FaEdit />
-                        </button>
-                        
-                        {/* Delete Button */}
-                        {(staff?.role === 'admin' || staff?.role === 'manager') && (
-                          <button
-                            onClick={() => handleDeleteWork(work.id)}
-                            className="text-red-600 hover:text-red-900 p-1"
-                            title="Eliminar"
-                          >
-                            <FaTrash />
-                          </button>
-                        )}
-                      </div>
-                    </td>
+        {/* ── Table ── */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          {filteredWorks.length === 0 ? (
+            <div className="p-16 text-center">
+              <MagnifyingGlassIcon className="mx-auto h-12 w-12 text-gray-300" />
+              <h3 className="mt-3 text-sm font-semibold text-gray-900">No se encontraron trabajos</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                {hasActiveFilters ? 'Intenta ajustar los filtros.' : 'Comienza creando una nueva cotización.'}
+              </p>
+              {hasActiveFilters && (
+                <button onClick={clearFilters} className="mt-4 text-sm font-medium text-blue-600 hover:text-blue-700">
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead>
+                  <tr className="bg-gray-50/80">
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">#</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Cliente & Dirección</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Tipo</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Estado</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Monto</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Asignado</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Fecha</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Acciones</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredWorks.map((work) => {
+                    const statusCfg = STATUS_CONFIG[work.status] || STATUS_CONFIG.quoted;
+                    const StatusIcon = statusCfg.icon;
+                    const typeCfg = TYPE_CONFIG[work.workType] || TYPE_CONFIG.other;
+                    const paymentCfg = PAYMENT_STATUS(work);
+                    const totalCost = parseFloat(work.totalCost || work.finalAmount || work.estimatedAmount || 0);
+                    const totalPaid = parseFloat(work.totalPaid || 0);
+
+                    return (
+                      <tr
+                        key={work.id}
+                        className="hover:bg-blue-50/40 transition cursor-pointer group"
+                        onClick={() => navigate(`/simple-works/${work.id}`)}
+                      >
+                        {/* Work Number */}
+                        <td className="px-4 py-3.5 whitespace-nowrap">
+                          <span className="text-sm font-semibold text-gray-900 font-mono">{work.workNumber || '—'}</span>
+                        </td>
+
+                        {/* Client & Address */}
+                        <td className="px-4 py-3.5">
+                          <div className="max-w-xs">
+                            <div className="flex items-center gap-1.5">
+                              <UserIcon className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                              <span className="text-sm font-medium text-gray-900 truncate">{getClientName(work)}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <MapPinIcon className="h-3.5 w-3.5 text-blue-400 flex-shrink-0" />
+                              <span className="text-xs text-gray-500 truncate" title={work.propertyAddress}>
+                                {work.propertyAddress || 'Sin dirección'}
+                              </span>
+                            </div>
+                            {(work.clientData?.email || work.email) && (
+                              <p className="text-xs text-gray-400 mt-0.5 truncate">{work.clientData?.email || work.email}</p>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Type */}
+                        <td className="px-4 py-3.5 whitespace-nowrap">
+                          <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-md ${typeCfg.color}`}>
+                            {typeCfg.label}
+                          </span>
+                        </td>
+
+                        {/* Status */}
+                        <td className="px-4 py-3.5 whitespace-nowrap">
+                          <div className="space-y-1">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full ring-1 ${statusCfg.badge}`}>
+                              <StatusIcon className="h-3.5 w-3.5" />
+                              {statusCfg.label}
+                            </span>
+                            {paymentCfg && (
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ring-1 ${paymentCfg.badge}`}>
+                                <BanknotesIcon className="h-3 w-3" />
+                                {paymentCfg.label}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Amount */}
+                        <td className="px-4 py-3.5 whitespace-nowrap">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">${fmt(totalCost)}</p>
+                            {totalPaid > 0 && (
+                              <p className="text-xs text-emerald-600 font-medium mt-0.5">
+                                Pagado: ${fmt(totalPaid)}
+                              </p>
+                            )}
+                            {totalPaid > 0 && totalPaid < totalCost && (
+                              <p className="text-xs text-orange-500 mt-0.5">
+                                Falta: ${fmt(totalCost - totalPaid)}
+                              </p>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Assigned Staff */}
+                        <td className="px-4 py-3.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          <select
+                            value={work.assignedStaffId || ''}
+                            onChange={(e) => handleAssignStaff(e, work, e.target.value)}
+                            disabled={assigningStaffId === work.id}
+                            className={`text-sm border rounded-lg px-2 py-1.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition w-full max-w-[160px] ${
+                              work.assignedStaffId 
+                                ? 'border-blue-200 bg-blue-50/50 text-blue-800 font-medium' 
+                                : 'border-gray-200 bg-gray-50 text-gray-400 italic'
+                            } ${assigningStaffId === work.id ? 'opacity-50' : ''}`}
+                          >
+                            <option value="">Sin asignar</option>
+                            {(staffList || []).map(s => (
+                              <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                          </select>
+                        </td>
+
+                        {/* Date */}
+                        <td className="px-4 py-3.5 whitespace-nowrap">
+                          <div className="space-y-0.5">
+                            <p className="text-xs text-gray-500">
+                              {new Date(work.createdAt).toLocaleDateString()}
+                            </p>
+                            {work.completedDate && (
+                              <p className="text-xs text-emerald-600 font-medium flex items-center gap-1">
+                                <CheckCircleIcon className="h-3 w-3" />
+                                {new Date(work.completedDate).toLocaleDateString()}
+                              </p>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Actions */}
+                        <td className="px-4 py-3.5 whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {/* View PDF */}
+                            <button
+                              onClick={(e) => handleViewPdf(e, work.id)}
+                              disabled={viewingPdfId === work.id}
+                              className="p-1.5 rounded-md text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition disabled:opacity-50"
+                              title="Ver PDF"
+                            >
+                              {viewingPdfId === work.id
+                                ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600" />
+                                : <DocumentTextIcon className="h-4 w-4" />
+                              }
+                            </button>
+
+                            {/* Send Email */}
+                            <button
+                              onClick={(e) => handleSendEmail(e, work)}
+                              disabled={sendingEmailId === work.id}
+                              className="p-1.5 rounded-md text-gray-500 hover:text-sky-600 hover:bg-sky-50 transition disabled:opacity-50"
+                              title="Enviar Email"
+                            >
+                              {sendingEmailId === work.id
+                                ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-sky-600" />
+                                : <EnvelopeIcon className="h-4 w-4" />
+                              }
+                            </button>
+
+                            {/* Download PDF */}
+                            <button
+                              onClick={(e) => handleGeneratePdf(e, work.id)}
+                              className="p-1.5 rounded-md text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 transition"
+                              title="Descargar PDF"
+                            >
+                              <ArrowDownTrayIcon className="h-4 w-4" />
+                            </button>
+
+                            {/* Complete */}
+                            {work.status !== 'completed' && work.status !== 'cancelled' && (
+                              <button
+                                onClick={(e) => handleMarkAsCompleted(e, work)}
+                                disabled={completingWorkId === work.id}
+                                className="p-1.5 rounded-md text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 transition disabled:opacity-50"
+                                title="Marcar Terminado"
+                              >
+                                {completingWorkId === work.id
+                                  ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-600" />
+                                  : <CheckCircleIcon className="h-4 w-4" />
+                                }
+                              </button>
+                            )}
+
+                            {/* Edit */}
+                            <button
+                              onClick={(e) => handleEditWork(e, work)}
+                              className="p-1.5 rounded-md text-gray-500 hover:text-amber-600 hover:bg-amber-50 transition"
+                              title="Editar"
+                            >
+                              <PencilSquareIcon className="h-4 w-4" />
+                            </button>
+
+                            {/* Delete */}
+                            {(staff?.role === 'admin' || staff?.role === 'manager') && (
+                              <button
+                                onClick={(e) => handleDeleteWork(e, work.id)}
+                                className="p-1.5 rounded-md text-gray-500 hover:text-red-600 hover:bg-red-50 transition"
+                                title="Eliminar"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Advanced Create/Edit Modal */}
@@ -639,9 +643,7 @@ const SimpleWorkList = () => {
           isOpen={showCreateModal}
           onClose={handleCloseModal}
           editingWork={editingWork}
-          onWorkCreated={() => {
-            dispatch(fetchSimpleWorks(filters));
-          }}
+          onWorkCreated={() => dispatch(fetchSimpleWorks())}
         />
       )}
 

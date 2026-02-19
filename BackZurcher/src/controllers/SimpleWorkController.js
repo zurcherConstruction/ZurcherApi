@@ -1,7 +1,7 @@
 const { SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Work, Staff, Income, Expense, sequelize } = require('../data');
 const { Op } = require('sequelize');
 const fs = require('fs');
-const { uploadBufferToCloudinary } = require('../utils/cloudinaryUploader');
+const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryUploader');
 const { generateAndSaveSimpleWorkPDF } = require('../utils/pdfGenerators/simpleWorkPdfGenerator');
 const { sendEmail } = require('../utils/notifications/emailService');
 const { handleSimpleWorkSendLogic } = require('../helpers/simpleWorkHelpers');
@@ -1661,6 +1661,122 @@ const SimpleWorkController = {
         message: 'Error marcando SimpleWork como completado',
         error: error.message
       });
+    }
+  },
+
+  /**
+   * Subir imagen de trabajo o finalización
+   */
+  async uploadImage(req, res) {
+    try {
+      const { id } = req.params;
+      const { type } = req.query; // 'work' o 'completion'
+
+      if (!req.file) {
+        return res.status(400).json({ success: false, message: 'No se proporcionó archivo' });
+      }
+
+      const simpleWork = await SimpleWork.findByPk(id);
+      if (!simpleWork) {
+        return res.status(404).json({ success: false, message: 'SimpleWork no encontrado' });
+      }
+
+      const folder = `zurcher/simple-works/${id}/${type || 'work'}`;
+      const result = await uploadBufferToCloudinary(req.file.buffer, { folder, resource_type: 'image' });
+
+      const imageData = {
+        id: result.public_id || `img_${Date.now()}`,
+        publicId: result.public_id,
+        url: result.secure_url || result.url,
+        originalName: req.file.originalname,
+        uploadedAt: new Date().toISOString(),
+        uploadedBy: req.user?.id || null
+      };
+
+      const imageField = type === 'completion' ? 'completionImages' : 'workImages';
+      const currentImages = [...(simpleWork[imageField] || [])];
+      currentImages.push(imageData);
+      simpleWork[imageField] = currentImages;
+      simpleWork.changed(imageField, true);
+
+      await simpleWork.save();
+
+      res.json({
+        success: true,
+        message: `Imagen de ${type === 'completion' ? 'finalización' : 'trabajo'} subida`,
+        data: imageData
+      });
+    } catch (error) {
+      console.error('❌ Error subiendo imagen:', error);
+      res.status(500).json({ success: false, message: 'Error subiendo imagen', error: error.message });
+    }
+  },
+
+  /**
+   * Eliminar imagen de SimpleWork
+   */
+  async deleteImage(req, res) {
+    try {
+      const { id, imageId } = req.params;
+      const { type } = req.query;
+
+      const simpleWork = await SimpleWork.findByPk(id);
+      if (!simpleWork) {
+        return res.status(404).json({ success: false, message: 'SimpleWork no encontrado' });
+      }
+
+      const imageField = type === 'completion' ? 'completionImages' : 'workImages';
+      const currentImages = simpleWork[imageField] || [];
+      const imageToDelete = currentImages.find(img => img.id === imageId || img.publicId === imageId);
+
+      if (imageToDelete && imageToDelete.publicId) {
+        try { await deleteFromCloudinary(imageToDelete.publicId); } catch(e) {}
+      }
+
+      simpleWork[imageField] = currentImages.filter(img => img.id !== imageId && img.publicId !== imageId);
+      simpleWork.changed(imageField, true);
+      await simpleWork.save();
+
+      res.json({ success: true, message: 'Imagen eliminada' });
+    } catch (error) {
+      console.error('❌ Error eliminando imagen:', error);
+      res.status(500).json({ success: false, message: 'Error eliminando imagen', error: error.message });
+    }
+  },
+
+  /**
+   * Obtener SimpleWorks asignados al staff autenticado (para app móvil)
+   */
+  async getAssignedSimpleWorks(req, res) {
+    try {
+      const staffId = req.staff.id;
+
+      const simpleWorks = await SimpleWork.findAll({
+        where: { assignedStaffId: staffId },
+        attributes: [
+          'id', 'workNumber', 'workType', 'propertyAddress',
+          'description', 'status', 'assignedDate', 'startDate',
+          'completedDate', 'estimatedAmount', 'notes', 'createdAt', 'updatedAt',
+          'workImages', 'completionImages', 'resolution', 'clientData'
+        ],
+        include: [
+          {
+            model: Staff,
+            as: 'assignedStaff',
+            attributes: ['id', 'name']
+          }
+        ],
+        order: [['createdAt', 'DESC']]
+      });
+
+      res.status(200).json({
+        error: false,
+        simpleWorks,
+        message: simpleWorks.length === 0 ? 'No tienes trabajos varios asignados' : undefined
+      });
+    } catch (error) {
+      console.error('❌ [getAssignedSimpleWorks] Error:', error);
+      res.status(500).json({ error: true, simpleWorks: [], message: 'Error interno del servidor' });
     }
   }
 

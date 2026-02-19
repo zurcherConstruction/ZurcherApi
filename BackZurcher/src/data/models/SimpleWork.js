@@ -194,6 +194,25 @@ module.exports = (sequelize) => {
     createdBy: {
       type: DataTypes.UUID,
       allowNull: true
+    },
+
+    // 📸 Imágenes del trabajo y de finalización
+    workImages: {
+      type: DataTypes.JSON,
+      defaultValue: [],
+      comment: 'Fotos del trabajo en progreso'
+    },
+
+    completionImages: {
+      type: DataTypes.JSON,
+      defaultValue: [],
+      comment: 'Fotos de finalización del trabajo'
+    },
+
+    resolution: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'Descripción de los trabajos realizados / resolución'
     }
   }, {
     tableName: 'SimpleWork',

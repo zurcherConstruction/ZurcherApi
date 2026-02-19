@@ -11,6 +11,26 @@ require("dotenv").config();
 // Esto acelera enormemente el arranque del servidor
 const shouldSync = process.env.ENABLE_DB_SYNC === 'true';
 
+// 🔄 Función de reconexión automática
+const reconnectDatabase = async (retries = 5, delay = 5000) => {
+  for (let i = 1; i <= retries; i++) {
+    try {
+      console.log(`🔄 Intento de reconexión ${i}/${retries}...`);
+      await conn.authenticate();
+      console.log('✅ Reconexión exitosa');
+      return true;
+    } catch (error) {
+      console.log(`❌ Fallo intento ${i}/${retries}: ${error.message}`);
+      if (i < retries) {
+        console.log(`⏳ Esperando ${delay/1000}s antes del próximo intento...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  console.error('❌ No se pudo reconectar a la base de datos después de varios intentos');
+  return false;
+};
+
 if (shouldSync) {
   console.log('⚠️ DB_SYNC activado - El servidor tardará más en iniciar');
   const syncOptions = process.env.DB_SYNC_ALTER === 'true' ? { alter: true } : { force: false };

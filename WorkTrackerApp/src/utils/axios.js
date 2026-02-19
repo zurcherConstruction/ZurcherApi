@@ -3,11 +3,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // ⚡ NO importar store directamente para evitar ciclos
 import { logout } from '../Redux/features/authSlice';
 
+// 🔧 URL base centralizada - cambiar IP aquí cuando cambie la red
+export const API_URL = __DEV__ 
+  ? 'http://192.168.1.9:3001' // Desarrollo local
+  : 'https://zurcherapi.up.railway.app'; // Producción
+
 // Crear instancia de Axios con la URL base
 const api = axios.create({
-  baseURL: __DEV__ 
-    ? 'http://192.168.1.8:3001/' // Desarrollo local
-    : 'https://zurcherapi.up.railway.app/', // Producción
+  baseURL: API_URL + '/',
   timeout: 30000,
 });
 

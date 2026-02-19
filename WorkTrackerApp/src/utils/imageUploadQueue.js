@@ -23,8 +23,6 @@ const MAX_RETRIES = 3;
  */
 export const queueImageUpload = async (visitId, imageUri, fieldName) => {
   try {
-    console.log('📸 Comprimiendo y agregando a cola:', fieldName);
-    
     // Comprimir imagen (1280px ancho, 60% calidad)
     const compressed = await manipulateAsync(
       imageUri,
@@ -46,8 +44,6 @@ export const queueImageUpload = async (visitId, imageUri, fieldName) => {
     
     queue.push(queueItem);
     await saveQueue(queue);
-    
-    console.log('✅ Imagen agregada a cola:', queueItem.id);
     
     return {
       success: true,
@@ -74,14 +70,14 @@ export const processQueue = async (onProgress = null) => {
   );
   
   if (pendingItems.length === 0) {
-    console.log('✅ Cola vacía, nada que procesar');
     return { success: true, processed: 0 };
   }
   
-  console.log(`📤 Procesando ${pendingItems.length} imágenes en cola...`);
+  console.log(`📤 Cola: ${pendingItems.length} pendientes`);
   
   let processed = 0;
   let failed = 0;
+  const uploadedResults = []; // 🆕 Guardar URLs de Cloudinary por item
   
   for (const item of pendingItems) {
     try {
@@ -116,7 +112,6 @@ export const processQueue = async (onProgress = null) => {
       formData.append('fieldName', item.fieldName);
       
       // Subir al servidor
-      console.log('⬆️ Subiendo imagen:', item.id);
       const response = await axios.post(
         `/maintenance/${item.visitId}/upload-image`,
         formData,
@@ -127,7 +122,17 @@ export const processQueue = async (onProgress = null) => {
       );
       
       if (response.status === 200 || response.status === 201) {
-        console.log('✅ Imagen subida exitosamente:', item.id);
+        // Guardar URL de Cloudinary para actualizar UI
+        const uploadedMedia = response.data?.uploadedMedia;
+        if (uploadedMedia && uploadedMedia.length > 0) {
+          uploadedResults.push({
+            queueId: item.id,
+            fieldName: item.fieldName,
+            visitId: item.visitId,
+            mediaUrl: uploadedMedia[0].mediaUrl,
+            mediaId: uploadedMedia[0].id
+          });
+        }
         
         // Eliminar de cola
         await removeFromQueue(item.id);
@@ -135,7 +140,6 @@ export const processQueue = async (onProgress = null) => {
         // Eliminar archivo temporal
         try {
           await FileSystem.deleteAsync(item.uri, { idempotent: true });
-          console.log('🗑️ Archivo temporal eliminado:', item.uri);
         } catch (deleteError) {
           console.warn('⚠️ No se pudo eliminar archivo temporal:', deleteError);
         }
@@ -155,7 +159,7 @@ export const processQueue = async (onProgress = null) => {
         await updateQueueItemStatus(item.id, 'failed', newRetries);
         failed++;
       } else {
-        console.log(`🔄 Reintentando... (${newRetries}/${MAX_RETRIES})`);
+        console.log(`🔄 Retry ${newRetries}/${MAX_RETRIES}`);
         await updateQueueItemStatus(item.id, 'pending', newRetries);
       }
     }
@@ -179,7 +183,8 @@ export const processQueue = async (onProgress = null) => {
     success: true,
     processed,
     failed,
-    total: pendingItems.length
+    total: pendingItems.length,
+    uploadedResults // 🆕 URLs de Cloudinary para actualizar UI
   };
 };
 
@@ -217,7 +222,6 @@ export const clearQueue = async () => {
     }
     
     await AsyncStorage.removeItem(QUEUE_KEY);
-    console.log('🗑️ Cola limpiada completamente');
     return { success: true, removed: queue.length };
   } catch (error) {
     console.error('❌ Error limpiando cola:', error);
@@ -279,8 +283,6 @@ const updateQueueItemStatus = async (itemId, status, retries = null) => {
  */
 export const uploadImageImmediate = async (visitId, imageUri, fieldName, onProgress = null) => {
   try {
-    console.log('📸 Subiendo imagen inmediatamente:', fieldName);
-    
     // Comprimir imagen
     const compressed = await manipulateAsync(
       imageUri,

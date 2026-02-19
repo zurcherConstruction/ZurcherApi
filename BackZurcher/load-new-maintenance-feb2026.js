@@ -34,7 +34,6 @@ const maintenanceData = [
   { address: '9033 Bamboo Cir La Belle, FL 33935', visitDate: '2025-12-11', visitNumber: 1 },
   { address: '5010 SE Tradewinds La Belle, FL 33935', visitDate: '2026-05-21', visitNumber: 1 },
   { address: '9027 Bamboo Cir La Belle, FL 33935', visitDate: '2026-05-07', visitNumber: 1 },
-  { address: '9035 W Broad Cir La Belle, FL 33935', visitDate: '2026-05-21', visitNumber: 1 },
   { address: '1020 Carroll St E Lehigh Acres, FL 33974', visitDate: '2026-05-10', visitNumber: 1 },
   { address: '765 Chambers St E Lehigh', visitDate: '2026-07-07', visitNumber: 1 },
   { address: '331 Rawlings Ave Lehigh Acres, FL 33974', visitDate: '2026-04-30', visitNumber: 1 }, // Corregido: 2026-04-31 → 2026-04-30
@@ -47,8 +46,17 @@ const maintenanceData = [
   { address: '1241 Denham St E, Lehigh Acres, FL 33974', visitDate: '2026-09-16', visitNumber: 1 },
   { address: '1043 Brenton Ave, Lehigh acres, FL 33974', visitDate: '2026-01-23', visitNumber: 1 },
   { address: '3510 21st St SW, Lehigh Acres, FL 33976', visitDate: '2026-03-17', visitNumber: 1 },
-  { address: '729 Lamar St E, Lehigh Acres, FL 33974', visitDate: '2026-02-29', visitNumber: 1 },
+  { address: '729 Lamar St E, Lehigh Acres, FL 33974', visitDate: '2026-02-28', visitNumber: 1 },
   { address: '842 Sentinela Blvd, Lehigh Acres, FL 33974', visitDate: '2025-11-30', visitNumber: 1 },
+  { address: '309 Murphy Ave, Lehigh Acres, FL 33972', visitDate: '2025-12-05', visitNumber: 1 },
+  { address: '1144 Monday St, La Belle FL, 33935', visitDate: '2026-02-01', visitNumber: 1 },
+  { address: '402 Thompson ave, Lehigh acres, fl 33972', visitDate: '2026-02-11', visitNumber: 1 },
+  { address: '2814 39th W St, Lehigh Acres. FL 33971', visitDate: '2026-01-24', visitNumber: 1 },
+  { address: '1509 Marlin Dr, Kissimmee, FL 34759', visitDate: '2026-01-25', visitNumber: 1 },
+  { address: '3314 43rd St W, Lehigh Acres, FL 33971', visitDate: '2025-11-07', visitNumber: 1 },
+  { address: '2812 39th St W, Lehigh Acres, FL 33971', visitDate: '2026-01-10', visitNumber: 1 },
+
+
 ];
 
 // Función para normalizar direcciones (eliminar espacios extra, mayúsculas consistentes)

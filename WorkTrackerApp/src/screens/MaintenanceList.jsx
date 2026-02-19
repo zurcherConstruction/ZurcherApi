@@ -1,20 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
-  FlatList,
+  SectionList,
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
   StyleSheet,
   Alert,
-  Platform
+  Platform,
+  Linking
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchAssignedMaintenances } from '../Redux/features/maintenanceSlice';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { Ionicons } from '@expo/vector-icons';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import MaintenanceFormScreen from './MaintenanceFormScreen';
 
 const Stack = createNativeStackNavigator();
@@ -23,12 +26,11 @@ const MaintenanceListScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   
   const { assignedMaintenances, loadingAssigned, error } = useSelector(state => state.maintenance);
-  const { staff } = useSelector(state => state.auth); // Obtener staff completo
+  const { staff } = useSelector(state => state.auth);
   
   const [refreshing, setRefreshing] = useState(false);
   
-  const staffId = staff?.id; // Extraer el ID del staff
-
+  const staffId = staff?.id;
 
   useEffect(() => {
     if (staffId) {
@@ -36,12 +38,20 @@ const MaintenanceListScreen = ({ navigation }) => {
     }
   }, [staffId]);
 
+  // 🔄 Auto-refresh al volver de MaintenanceFormScreen
+  useFocusEffect(
+    useCallback(() => {
+      if (staffId) {
+        loadMaintenances();
+      }
+    }, [staffId])
+  );
+
   const loadMaintenances = async () => {
     if (!staffId) {
       Alert.alert('Error', 'No se pudo identificar el usuario');
       return;
     }
-    
     try {
       await dispatch(fetchAssignedMaintenances(staffId)).unwrap();
     } catch (err) {
@@ -56,104 +66,182 @@ const MaintenanceListScreen = ({ navigation }) => {
   };
 
   const handleVisitPress = (visit) => {
-    navigation.navigate('MaintenanceFormScreen', { 
-      visit: visit
+    navigation.navigate('MaintenanceFormScreen', { visit });
+  };
+
+  const openInMaps = (address) => {
+    if (!address) return;
+    const url = Platform.OS === 'ios'
+      ? `maps:0,0?q=${encodeURIComponent(address)}`
+      : `geo:0,0?q=${encodeURIComponent(address)}`;
+    Linking.openURL(url).catch(() => {
+      Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`);
     });
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending_scheduling':
-        return '#9CA3AF'; // gray
-      case 'scheduled':
-        return '#3B82F6'; // blue
-      case 'assigned':
-        return '#F59E0B'; // yellow/orange
-      case 'completed':
-        return '#10B981'; // green
-      case 'skipped':
-        return '#EF4444'; // red
-      default:
-        return '#9CA3AF';
-    }
-  };
+  // ── Agrupar por zona y ordenar por más vencido ──
+  const sections = useMemo(() => {
+    const pendingVisits = assignedMaintenances.filter(v => 
+      v.status !== 'completed' && v.staffId === staffId
+    );
 
-  const getStatusText = (status) => {
-    switch (status) {
-      case 'pending_scheduling':
-        return 'Pendiente';
-      case 'scheduled':
-        return 'Programada';
-      case 'assigned':
-        return 'Asignada';
-      case 'completed':
-        return 'Completada';
-      case 'skipped':
-        return 'Omitida';
-      default:
-        return status;
-    }
-  };
+    if (pendingVisits.length === 0) return [];
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'pending_scheduling':
-        return '⏳';
-      case 'scheduled':
-        return '📅';
-      case 'assigned':
-        return '👤';
-      case 'completed':
-        return '✅';
-      case 'skipped':
-        return '⏭️';
-      default:
-        return '📋';
-    }
-  };
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Calcular días para cada visita
+    const withDays = pendingVisits.map(v => {
+      const scheduled = new Date(v.scheduledDate);
+      scheduled.setHours(0, 0, 0, 0);
+      const days = Math.floor((scheduled - today) / (1000 * 60 * 60 * 24));
+      return { ...v, _days: days, _isOverdue: days < 0 };
+    });
+
+    // Ordenar: más vencido primero (menor _days primero)
+    withDays.sort((a, b) => a._days - b._days);
+
+    // Agrupar por zona (ciudad extraída del backend)
+    const zoneMap = {};
+    withDays.forEach(v => {
+      const zone = v.extractedCity 
+        ? v.extractedCity.replace(/\b\w/g, c => c.toUpperCase()) 
+        : 'Sin Zona';
+      if (!zoneMap[zone]) {
+        zoneMap[zone] = { visits: [], overdueCount: 0, totalDays: 0 };
+      }
+      zoneMap[zone].visits.push(v);
+      if (v._isOverdue) zoneMap[zone].overdueCount++;
+      zoneMap[zone].totalDays += v._days;
+    });
+
+    // Convertir a secciones y ordenar zonas: 
+    // primero las que tienen más vencidos, luego por promedio de días
+    const sectionList = Object.entries(zoneMap).map(([zone, data]) => ({
+      title: zone,
+      data: data.visits,
+      overdueCount: data.overdueCount,
+      count: data.visits.length,
+      avgDays: data.totalDays / data.visits.length,
+    }));
+
+    sectionList.sort((a, b) => {
+      // Zonas con vencidos primero
+      if (a.overdueCount !== b.overdueCount) return b.overdueCount - a.overdueCount;
+      // Luego por promedio de días (más urgente primero)
+      return a.avgDays - b.avgDays;
+    });
+
+    return sectionList;
+  }, [assignedMaintenances, staffId]);
+
+  const totalPending = sections.reduce((sum, s) => sum + s.count, 0);
+  const totalOverdue = sections.reduce((sum, s) => sum + s.overdueCount, 0);
+
+  const renderSectionHeader = ({ section }) => (
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionHeaderLeft}>
+        <Ionicons name="location" size={18} color="#1e3a8a" />
+        <Text style={styles.sectionTitle}>{section.title}</Text>
+      </View>
+      <View style={styles.sectionBadges}>
+        {section.overdueCount > 0 && (
+          <View style={styles.overdueBadge}>
+            <Text style={styles.overdueBadgeText}>
+              {section.overdueCount} vencida{section.overdueCount > 1 ? 's' : ''}
+            </Text>
+          </View>
+        )}
+        <View style={styles.countBadge}>
+          <Text style={styles.countBadgeText}>{section.count}</Text>
+        </View>
+      </View>
+    </View>
+  );
 
   const renderVisitCard = ({ item: visit }) => {
     const permitData = visit.work?.Permit;
+    const address = permitData?.propertyAddress || visit.fullAddress || 'Dirección no disponible';
+    const isOverdue = visit._isOverdue;
+    const days = Math.abs(visit._days);
+
+    let urgencyColor = '#10B981'; // verde - a tiempo
+    let urgencyBg = '#ECFDF5';
+    let urgencyText = `En ${days} día${days !== 1 ? 's' : ''}`;
+    
+    if (isOverdue) {
+      urgencyColor = '#DC2626';
+      urgencyBg = '#FEF2F2';
+      urgencyText = `Vencida hace ${days} día${days !== 1 ? 's' : ''}`;
+    } else if (visit._days === 0) {
+      urgencyColor = '#EA580C';
+      urgencyBg = '#FFF7ED';
+      urgencyText = 'HOY';
+    } else if (visit._days <= 3) {
+      urgencyColor = '#F59E0B';
+      urgencyBg = '#FFFBEB';
+      urgencyText = `En ${days} día${days !== 1 ? 's' : ''}`;
+    }
 
     return (
       <TouchableOpacity
         onPress={() => handleVisitPress(visit)}
-        style={styles.card}
+        style={[styles.card, isOverdue && styles.cardOverdue]}
         activeOpacity={0.7}
       >
-        {/* Dirección de la propiedad */}
-        <View style={styles.propertyHeader}>
-          <Text style={styles.propertyIcon}>🏠</Text>
-          <Text style={styles.propertyAddress}>
-            {permitData?.propertyAddress || 'Dirección no disponible'}
-          </Text>
+        {/* Urgencia */}
+        <View style={[styles.urgencyBar, { backgroundColor: urgencyBg }]}>
+          <Ionicons 
+            name={isOverdue ? 'warning' : visit._days === 0 ? 'alarm' : 'time-outline'} 
+            size={16} 
+            color={urgencyColor} 
+          />
+          <Text style={[styles.urgencyText, { color: urgencyColor }]}>{urgencyText}</Text>
         </View>
 
-        {/* Banner naranja de VISITA DE MANTENIMIENTO */}
-        <View style={styles.maintenanceBanner}>
-          <Text style={styles.bannerText}>VISITA DE MANTENIMIENTO</Text>
+        {/* Dirección de la propiedad - tappable para mapa */}
+        <TouchableOpacity 
+          onPress={() => openInMaps(address)}
+          style={styles.addressRow}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="navigate-outline" size={16} color="#2563EB" />
+          <Text style={styles.propertyAddress} numberOfLines={2}>{address}</Text>
+        </TouchableOpacity>
+
+        {/* Info row */}
+        <View style={styles.infoRow}>
+          {visit.scheduledDate && (
+            <View style={styles.infoItem}>
+              <Ionicons name="calendar-outline" size={14} color="#6B7280" />
+              <Text style={styles.infoText}>
+                {format(parseISO(visit.scheduledDate), 'MM-dd-yyyy', { locale: es })}
+              </Text>
+            </View>
+          )}
+          <View style={styles.infoItem}>
+            <Ionicons name="repeat-outline" size={14} color="#6B7280" />
+            <Text style={styles.infoText}>Visita #{visit.visitNumber}</Text>
+          </View>
+          {permitData?.systemType && (
+            <View style={[styles.systemBadge]}>
+              <Text style={styles.systemText}>{permitData.systemType}</Text>
+            </View>
+          )}
         </View>
 
-        {/* Fecha Mantenimiento */}
-        {visit.scheduledDate && (
-          <Text style={styles.dateText}>
-            <Text style={styles.dateLabel}>Fecha Mantenimiento: </Text>
-            {format(parseISO(visit.scheduledDate), 'MM-dd-yyyy', { locale: es })}
-          </Text>
-        )}
-
-        {/* Número de visita */}
-        <Text style={styles.visitText}>
-          <Text style={styles.visitLabel}>Visita #: </Text>
-          {visit.visitNumber}
-        </Text>
+        {/* Flecha */}
+        <View style={styles.arrowRow}>
+          <Text style={styles.ctaLabel}>Completar inspección</Text>
+          <Ionicons name="chevron-forward" size={18} color="#3B82F6" />
+        </View>
       </TouchableOpacity>
     );
   };
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
-      <Text style={styles.emptyIcon}>📋</Text>
+      <Ionicons name="checkmark-done-circle-outline" size={64} color="#10B981" />
       <Text style={styles.emptyTitle}>No hay mantenimientos pendientes</Text>
       <Text style={styles.emptyText}>
         Todas tus visitas asignadas han sido completadas
@@ -173,36 +261,45 @@ const MaintenanceListScreen = ({ navigation }) => {
     );
   }
 
-  // Filtrar solo visitas no completadas Y asignadas al usuario logueado
-  const pendingVisits = assignedMaintenances.filter(v => 
-    v.status !== 'completed' && v.staffId === staffId
-  );
-  const completedVisits = assignedMaintenances.filter(v => 
-    v.status === 'completed' && v.completed_by_staff_id === staffId
-  );
-
   return (
     <View style={styles.container}>
-      {/* Header */}
-     
+      {/* Summary bar */}
+      {totalPending > 0 && (
+        <View style={styles.summaryBar}>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryNumber}>{totalPending}</Text>
+            <Text style={styles.summaryLabel}>Pendientes</Text>
+          </View>
+          {totalOverdue > 0 && (
+            <View style={[styles.summaryItem, styles.summaryOverdue]}>
+              <Text style={[styles.summaryNumber, { color: '#DC2626' }]}>{totalOverdue}</Text>
+              <Text style={[styles.summaryLabel, { color: '#DC2626' }]}>Vencidas</Text>
+            </View>
+          )}
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryNumber}>{sections.length}</Text>
+            <Text style={styles.summaryLabel}>Zonas</Text>
+          </View>
+        </View>
+      )}
 
-      {/* Lista de visitas SOLO PENDIENTES */}
-      <FlatList
-        data={pendingVisits}
-        keyExtractor={(item) => item.id}
-        renderItem={renderVisitCard}
-        ListEmptyComponent={renderEmptyState}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />
-        }
-        contentContainerStyle={[
-          styles.listContent,
-          pendingVisits.length === 0 && styles.listContentEmpty
-        ]}
-        showsVerticalScrollIndicator={false}
-      />
-
-      
+      {/* Lista agrupada por zona */}
+      {sections.length === 0 ? (
+        renderEmptyState()
+      ) : (
+        <SectionList
+          sections={sections}
+          keyExtractor={(item) => item.id}
+          renderItem={renderVisitCard}
+          renderSectionHeader={renderSectionHeader}
+          stickySectionHeadersEnabled={true}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />
+          }
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
     </View>
   );
 };
@@ -212,46 +309,84 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F3F4F6',
   },
-  header: {
+  summaryBar: {
+    flexDirection: 'row',
     backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
-    paddingBottom: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
+    justifyContent: 'space-around',
   },
-  headerContent: {
+  summaryItem: {
+    alignItems: 'center',
+  },
+  summaryOverdue: {
+    backgroundColor: '#FEF2F2',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  summaryNumber: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1F2937',
+  },
+  summaryLabel: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#DBEAFE',
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  completedButton: {
+  sectionHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#10B981',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
+    gap: 6,
   },
-  completedButtonText: {
-    color: '#FFFFFF',
-    fontSize: 13,
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1e3a8a',
+    textTransform: 'capitalize',
+  },
+  sectionBadges: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  overdueBadge: {
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  overdueBadgeText: {
+    fontSize: 11,
     fontWeight: '600',
-    marginRight: 4,
+    color: '#DC2626',
   },
-  completedButtonIcon: {
-    color: '#FFFFFF',
-    fontSize: 14,
+  countBadge: {
+    backgroundColor: '#DBEAFE',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1e3a8a',
   },
   loadingContainer: {
     flex: 1,
@@ -265,191 +400,97 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   listContent: {
-    padding: 16,
-  },
-  listContentEmpty: {
-    flexGrow: 1,
+    paddingBottom: 20,
   },
   card: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    marginBottom: 16,
-    marginHorizontal: 8,
+    borderRadius: 10,
+    marginBottom: 10,
+    marginHorizontal: 12,
     marginTop: 8,
-    padding: 16,
+    overflow: 'hidden',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
+        shadowOpacity: 0.08,
         shadowRadius: 4,
       },
       android: {
-        elevation: 3,
+        elevation: 2,
       },
     }),
   },
-  propertyHeader: {
+  cardOverdue: {
+    borderLeftWidth: 4,
+    borderLeftColor: '#DC2626',
+  },
+  urgencyBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
   },
-  propertyIcon: {
-    fontSize: 20,
-    marginRight: 8,
-  },
-  propertyAddress: {
-    fontSize: 18,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    color: '#1F2937',
-    flex: 1,
-  },
-  maintenanceBanner: {
-    backgroundColor: '#EA580C',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 4,
-    marginBottom: 12,
-    alignItems: 'center',
-  },
-  bannerText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  dateText: {
-    fontSize: 14,
-    color: '#2563EB',
-    marginBottom: 8,
-  },
-  dateLabel: {
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  visitText: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  visitLabel: {
-    fontWeight: '700',
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statusIcon: {
-    fontSize: 20,
-    marginRight: 8,
-  },
-  visitNumber: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
+  urgencyText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  propertySection: {
+  addressRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 12,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingBottom: 8,
   },
-  propertyInfo: {
+  propertyAddress: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1F2937',
     flex: 1,
+    textDecorationLine: 'underline',
+    textDecorationColor: '#93C5FD',
   },
-  propertyLabel: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 2,
-  },
-  propertyApplicant: {
-    fontSize: 14,
-    color: '#4B5563',
-  },
-  systemTypeContainer: {
+  infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingBottom: 8,
+    flexWrap: 'wrap',
   },
-  systemTypeLabel: {
-    fontSize: 14,
+  infoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  infoText: {
+    fontSize: 13,
     color: '#6B7280',
-    marginRight: 8,
   },
-  systemTypeBadge: {
+  systemBadge: {
     backgroundColor: '#DBEAFE',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
     borderRadius: 6,
   },
-  systemTypeText: {
-    fontSize: 13,
+  systemText: {
+    fontSize: 11,
     fontWeight: '600',
     color: '#1E40AF',
   },
-  dateContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  dateIcon: {
-    fontSize: 16,
-    marginRight: 8,
-  },
-  dateValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  notesContainer: {
-    marginBottom: 12,
-    padding: 12,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-  },
-  notesLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginBottom: 4,
-  },
-  notesText: {
-    fontSize: 14,
-    color: '#4B5563',
-    lineHeight: 20,
-  },
-  ctaContainer: {
+  arrowRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
   },
-  ctaText: {
-    fontSize: 14,
+  ctaLabel: {
+    fontSize: 13,
     fontWeight: '600',
-    color: '#3B82F6',
-  },
-  ctaArrow: {
-    fontSize: 18,
     color: '#3B82F6',
   },
   emptyContainer: {
@@ -458,15 +499,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 40,
   },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: '#111827',
     marginBottom: 8,
+    marginTop: 16,
     textAlign: 'center',
   },
   emptyText: {
@@ -485,18 +523,6 @@ const styles = StyleSheet.create({
   refreshButtonText: {
     color: '#FFFFFF',
     fontSize: 14,
-    fontWeight: '600',
-  },
-  completedSection: {
-    backgroundColor: '#ECFDF5',
-    padding: 12,
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#D1FAE5',
-  },
-  completedTitle: {
-    fontSize: 14,
-    color: '#059669',
     fontWeight: '600',
   },
 });
