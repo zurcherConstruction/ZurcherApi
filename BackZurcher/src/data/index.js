@@ -13,7 +13,6 @@ const {
   NODE_ENV
   } = require('../config/envs');
 
-
 //-------------------------------- CONFIGURACION UNIFICADA (LOCAL Y DEPLOY) -----------------------------------
 // Usar DB_DEPLOY si existe (Railway/Producción), sino usar configuración local
 const sequelize = (DB_DEPLOY && DB_DEPLOY.startsWith('postgresql://'))
@@ -30,18 +29,16 @@ const sequelize = (DB_DEPLOY && DB_DEPLOY.startsWith('postgresql://'))
         maxUses: 5000       // ✅ Reciclar después de 5000 usos
       },
       retry: {
-        max: 3,             // 🆕 Reintentar 3 veces en caso de error
-        timeout: 10000      // 🆕 10 segundos entre reintentos
+        max: 5,             // 🆕 Reintentar 5 veces en caso de error (Railway puede tardar)
+        timeout: 15000      // 🆕 15 segundos entre reintentos
       },
       isolationLevel: 'READ COMMITTED',
       dialectOptions: {
         ssl: NODE_ENV === 'production' ? { require: true, rejectUnauthorized: false } : false,
-        // ⚡ Optimizaciones para Railway V1 con proxy público
-        keepAlive: true,              // Mantener conexiones TCP vivas
-        keepAliveInitialDelayMillis: 10000, // Enviar keepalive cada 10s
-        statement_timeout: 60000,     // Timeout de 60s por query
-        query_timeout: 60000,
-        connectionTimeoutMillis: 10000, // Timeout de conexión 10s (más rápido)
+        connectTimeout: 30000,     // ⏰ 30 segundos para conectar (Railway cold start)
+        statement_timeout: 60000,  // ⏰ 60 segundos para queries pesadas
+        keepAlive: true,           // 🆕 Mantener conexiones vivas
+        keepAliveInitialDelayMillis: 10000  // 🆕 Enviar keepalive cada 10s
       }
     })
   : new Sequelize(

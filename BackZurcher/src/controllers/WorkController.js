@@ -188,17 +188,23 @@ const getWorks = async (req, res) => {
       return await Work.findAndCountAll(queryOptions);
     });
 
-    // OPTIMIZACIÓN: Cargar expenses y receipts en consultas separadas
-    // Esto reduce dramáticamente el número de locks necesarios
+    // 🚀 OPTIMIZACIÓN: Cargar expenses y receipts EN PARALELO
     const workIds = worksInstances.map(w => w.idWork);
     
-    // 🔄 Cargar todos los expenses de una vez (en lugar de JOIN) con retry
-    const allExpenses = await withRetry(async () => {
-      return await Expense.findAll({
+    // Ejecutar las 2 queries independientes en paralelo
+    const [allExpenses, workReceipts] = await Promise.all([
+      // Query 1: Todos los expenses
+      withRetry(() => Expense.findAll({
         where: { workId: workIds },
         raw: true
-      });
-    });
+      })),
+      // Query 2: Receipts directos de Works
+      withRetry(() => Receipt.findAll({
+        where: { relatedModel: 'Work', relatedId: workIds },
+        attributes: ['idReceipt', 'type', 'notes', 'fileUrl', 'publicId', 'mimeType', 'originalName', 'createdAt', 'relatedId'],
+        raw: true
+      }))
+    ]);
     
     // Agrupar expenses por workId
     const expensesByWork = allExpenses.reduce((acc, exp) => {
@@ -207,18 +213,6 @@ const getWorks = async (req, res) => {
       return acc;
     }, {});
     
-    // 🔄 Cargar receipts directos de Works con retry
-    const workReceipts = await withRetry(async () => {
-      return await Receipt.findAll({
-        where: {
-          relatedModel: 'Work',
-          relatedId: workIds
-        },
-        attributes: ['idReceipt', 'type', 'notes', 'fileUrl', 'publicId', 'mimeType', 'originalName', 'createdAt', 'relatedId'],
-        raw: true
-      });
-    });
-    
     // Agrupar receipts por workId
     const receiptsByWork = workReceipts.reduce((acc, receipt) => {
       if (!acc[receipt.relatedId]) acc[receipt.relatedId] = [];
@@ -226,8 +220,23 @@ const getWorks = async (req, res) => {
       return acc;
     }, {});
 
+    // 🚀 Query 3: Cargar TODOS los expense receipts en UNA sola query (elimina N+1)
+    const allExpenseIds = allExpenses.map(e => e.idExpense).filter(Boolean);
+    let expenseReceiptsByExpenseId = {};
+    if (allExpenseIds.length > 0) {
+      const allExpenseReceipts = await withRetry(() => Receipt.findAll({
+        where: { relatedModel: 'Expense', relatedId: allExpenseIds, type: 'Inspección Inicial' },
+        raw: true
+      }));
+      expenseReceiptsByExpenseId = allExpenseReceipts.reduce((acc, receipt) => {
+        if (!acc[receipt.relatedId]) acc[receipt.relatedId] = [];
+        acc[receipt.relatedId].push({ ...receipt, fromExpense: true });
+        return acc;
+      }, {});
+    }
+
     // Para cada work, combinar los receipts directos y los de expenses (sin romper la estructura original)
-    const worksWithDetails = await Promise.all(worksInstances.map(async (workInstance) => {
+    const worksWithDetails = worksInstances.map((workInstance) => {
       const workJson = workInstance.get({ plain: true });
       
       // Agregar expenses desde el objeto precargado
@@ -240,22 +249,13 @@ const getWorks = async (req, res) => {
         directReceipts = convertPdfDataToUrl(workReceiptsData);
       }
 
-      // Receipts de tipo Inspección Inicial asociados a Expenses
+      // 🚀 Receipts de expenses desde el objeto precargado (sin query adicional)
       let expenseReceipts = [];
       if (workJson.expenses && workJson.expenses.length > 0) {
-        const expenseIds = workJson.expenses.map(e => e.idExpense);
-        if (expenseIds.length > 0) {
-          // 🔄 Cargar receipts de expenses con retry
-          const foundReceipts = await withRetry(async () => {
-            return await Receipt.findAll({
-              where: {
-                relatedModel: 'Expense',
-                relatedId: expenseIds,
-                type: 'Inspección Inicial'
-              }
-            });
-          });
-          expenseReceipts = convertPdfDataToUrl(foundReceipts.map(r => ({ ...r.get({ plain: true }), fromExpense: true })));
+        const matchingReceipts = workJson.expenses
+          .flatMap(e => expenseReceiptsByExpenseId[e.idExpense] || []);
+        if (matchingReceipts.length > 0) {
+          expenseReceipts = convertPdfDataToUrl(matchingReceipts);
         }
       }
 
@@ -312,7 +312,7 @@ const getWorks = async (req, res) => {
       // Unir ambos arrays de receipts (sin romper la estructura original)
       workJson.Receipts = [...directReceipts, ...expenseReceipts];
       return workJson;
-    }));
+    });
 
     // 📊 METADATA DE PAGINACIÓN
     const totalPages = limit ? Math.ceil(count / limit) : 1;

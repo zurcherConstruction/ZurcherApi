@@ -416,7 +416,7 @@ const ClaimFormModal = ({ isOpen, onClose, editingClaim = null, onSaved }) => {
                   <option value="">Sin asignar</option>
                   {(staffList || []).map(staff => (
                     <option key={staff.id} value={staff.id}>
-                      {staff.firstName} {staff.lastName} — {staff.role}
+                      {staff.name} — {staff.role}
                     </option>
                   ))}
                 </select>
