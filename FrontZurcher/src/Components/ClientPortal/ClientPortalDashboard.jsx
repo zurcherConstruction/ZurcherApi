@@ -37,6 +37,7 @@ const ClientPortalDashboard = () => {
   const [loadingPdf, setLoadingPdf] = useState(false);
 
   // Work status labels in English for client portal
+  //  ALIGNED WITH PROGRESSTRACKER: States map to same steps as ProgressTracker
   const workStatusLabels = {
     pending: { label: 'Pending Assignment', color: 'bg-gray-500', icon: FaClock, step: 0 },
     assigned: { label: 'Purchase in Progress', color: 'bg-blue-500', icon: FaTools, step: 1 },
@@ -48,21 +49,22 @@ const ClientPortalDashboard = () => {
     coverPending: { label: 'Cover Pending', color: 'bg-purple-500', icon: FaTools, step: 4 },
     covered: { label: 'Cover Pending', color: 'bg-purple-500', icon: FaTools, step: 4 },
     invoiceFinal: { label: 'Final Payment Pending', color: 'bg-indigo-500', icon: FaDollarSign, step: 5 },
-    paymentReceived: { label: 'Final Payment Pending', color: 'bg-green-500', icon: FaCheckCircle, step: 5 },
+    paymentReceived: { label: 'Final Inspection Pending', color: 'bg-blue-400', icon: FaClipboardList, step: 6 },
     finalInspectionPending: { label: 'Final Inspection Pending', color: 'bg-blue-400', icon: FaClipboardList, step: 6 },
+    finalRejected: { label: 'Final Inspection Pending', color: 'bg-orange-500', icon: FaClipboardList, step: 6 },
     finalApproved: { label: 'Work Completed', color: 'bg-green-600', icon: FaCheckCircle, step: 7 },
-    finalRejected: { label: 'Final Inspection Pending', color: 'bg-blue-400', icon: FaClipboardList, step: 6 },
     maintenance: { label: 'Work Completed', color: 'bg-green-600', icon: FaCheckCircle, step: 7 }
   };
 
   // Progress steps for visual tracker (showing consecutive numbers 1-7 to client)
+  // ✅ ALIGNED WITH PROGRESSTRACKER
   const progressSteps = [
     { id: 1, label: 'Purchase in Progress', status: 'assigned' },
     { id: 2, label: 'Installing', status: 'inProgress' },
     { id: 3, label: 'Inspection Pending', status: 'installed' },
     { id: 4, label: 'Cover Pending', status: 'coverPending' },
     { id: 5, label: 'Final Payment Pending', status: 'invoiceFinal' },
-    { id: 6, label: 'Final Inspection Pending', status: 'finalInspectionPending' },
+    { id: 6, label: 'Final Inspection Pending', status: 'paymentReceived' },
     { id: 7, label: 'Work Completed', status: 'maintenance' }
   ];
 
@@ -441,19 +443,16 @@ const ClientPortalDashboard = () => {
     const statusInfo = workStatusLabels[status];
     if (!statusInfo || statusInfo.step === 0) return 0;
     
-    // Map internal steps to visual steps (1,2,3,4,6,7 -> 1,2,3,4,5,6)
-    let visualStep = statusInfo.step;
-    if (statusInfo.step >= 6) visualStep = statusInfo.step - 1; // 6->5, 7->6
-    
-    return (visualStep / 6) * 100; // 6 visible steps total
+    // ✅ 7 pasos visuales (1-7), alineados con ProgressTracker
+    return (statusInfo.step / 7) * 100;
   };
 
-  // Get current step for visual tracker (mapping internal to visual steps)
+  // Get current step for visual tracker
+  // ✅ ALIGNED WITH PROGRESSTRACKER
   const getCurrentStep = (status) => {
     const statusInfo = workStatusLabels[status];
     if (!statusInfo || statusInfo.step === 0) return 0;
     
-    // Con 7 pasos visuales, devolver el step directamente
     return statusInfo.step;
   };
 
