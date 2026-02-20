@@ -35,6 +35,8 @@ const upload = multer({
 // 🔍 GET /api/simple-works/assigned - Obtener trabajos asignados al staff autenticado (app móvil)
 router.get('/assigned', verifyToken, allowRoles(['owner', 'worker', 'maintenance', 'admin']), SimpleWorkController.getAssignedSimpleWorks);
 
+// ✅ POST /approve/:token ahora está en simpleWorkPublicRoutes.js (montada antes de verifyToken)
+
 // 🔍 GET /api/simple-works - Obtener todos los trabajos con filtros
 router.get('/', verifyToken, SimpleWorkController.getAllSimpleWorks);
 
@@ -115,5 +117,8 @@ router.post('/:id/send-email', verifyToken, SimpleWorkController.sendSimpleWorkT
 
 // ✅ PATCH /api/simple-works/:id/complete - Marcar SimpleWork como completado
 router.patch('/:id/complete', verifyToken, SimpleWorkController.markAsCompleted);
+
+// ✅ PATCH /api/simple-works/:id/approve - Aprobar SimpleWork manualmente (admin/owner/recept)
+router.patch('/:id/approve', verifyToken, allowRoles(['admin', 'owner', 'recept']), SimpleWorkController.approveSimpleWorkManually);
 
 module.exports = router;

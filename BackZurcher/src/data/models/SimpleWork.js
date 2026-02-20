@@ -101,6 +101,13 @@ module.exports = (sequelize) => {
       allowNull: true,
       comment: 'Fecha cuando se envió por email al cliente'
     },
+
+    // 🆕 Token para aprobación del cliente por email
+    approvalToken: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      comment: 'Token único para que el cliente apruebe la cotización desde el email'
+    },
     
     totalPaid: {
       type: DataTypes.DECIMAL(10, 2),

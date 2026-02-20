@@ -347,9 +347,42 @@ const getWorks = async (req, res) => {
 const getWorkById = async (req, res) => {
   try {
     const { idWork } = req.params;
+    const { light } = req.query; // ⚡ Modo light para respuestas rápidas
     const startTime = Date.now();
     
-    // 🔄 Query principal con retry automático
+    //  Modo LIGHT: Solo lo esencial (Budget, Permit, Staff)
+    if (light === 'true') {
+      const workLight = await withRetry(async () => {
+        return await Work.findByPk(idWork, {
+          include: [
+            {
+              model: Budget,
+              as: 'budget',
+              attributes: ['idBudget', 'propertyAddress', 'status', 'applicantName', 'totalPrice'],
+              required: false
+            },
+            {
+              model: Permit,
+              attributes: ['idPermit', 'propertyAddress', 'applicantName', 'expirationDate'],
+              required: false
+            },
+            {
+              model: Staff,
+              attributes: ['id', 'name', 'email'],
+              required: false
+            }
+          ]
+        });
+      });
+      
+      if (!workLight) {
+        return res.status(404).json({ error: true, message: 'Obra no encontrada' });
+      }
+      
+      return res.status(200).json(workLight);
+    }
+    
+    // 🔄 Query COMPLETA con retry automático
     const work = await withRetry(async () => {
       return await Work.findByPk(idWork, {
       include: [
@@ -596,24 +629,36 @@ const updateWork = async (req, res) => {
       ]
     });
 
-    // --- Notificaciones ---
+    //  Notificaciones asíncronas sin bloquear (fire and forget)
     if (statusChanged) {
-      try {
-        await sendNotifications(workInstance.status, workWithStaff, req.app.get('io'));
-      } catch (notificationError) {
-        console.error(`Error sending notifications for work ${idWork} status ${workInstance.status}:`, notificationError);
-      }
+      sendNotifications(workInstance.status, workWithStaff, req.app.get('io')).catch(err => {
+        console.error(`Error sending notifications for work ${idWork} status ${workInstance.status}:`, err);
+      });
     }
     // Notificar si cambia asignación aunque el estado no cambie
     if (assignmentChanged) {
-      try {
-        await sendNotifications('assigned', workWithStaff, req.app.get('io'));
-      } catch (notificationError) {
-        console.error(`Error sending assignment notifications for work ${idWork}:`, notificationError);
-      }
+      sendNotifications('assigned', workWithStaff, req.app.get('io')).catch(err => {
+        console.error(`Error sending assignment notifications for work ${idWork}:`, err);
+      });
     }
 
-    // --- RECARGAR LA OBRA CON SUS ASOCIACIONES ANTES DE DEVOLVERLA ---
+    //  OPTIMIZACIÓN: Si solo cambió asignación/fecha (no status), devolver respuesta mínima
+    const isSimpleAssignment = assignmentChanged && !statusChanged;
+    
+    if (isSimpleAssignment) {
+      //  Respuesta rápida: solo Budget, Permit y Staff (lo esencial)
+      const updatedWorkLight = await Work.findByPk(idWork, {
+        include: [
+          { model: Budget, as: 'budget', attributes: ['idBudget', 'propertyAddress', 'status', 'applicantName']},
+          { model: Permit, attributes: ['idPermit', 'propertyAddress', 'applicantName', 'expirationDate']},
+          { model: Staff, attributes: ['id', 'name', 'email'] }
+        ],
+      });
+      
+      return res.status(200).json(updatedWorkLight);
+    }
+
+    // --- RECARGAR LA OBRA CON SUS ASOCIACIONES COMPLETAS (solo si cambió status u otros campos) ---
     const updatedWorkWithAssociations = await Work.findByPk(idWork, {
       include: [
         { model: Budget, as: 'budget', attributes: ['idBudget', 'propertyAddress', 'status', 'paymentInvoice', 'paymentProofType', 'initialPayment', 'date', 'applicantName','totalPrice', 'initialPaymentPercentage']},

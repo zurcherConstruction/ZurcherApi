@@ -1,6 +1,7 @@
 const { generateAndSaveSimpleWorkPDF } = require('../utils/pdfGenerators/simpleWorkPdfGenerator.js');
 const { sendEmail } = require('../utils/notifications/emailService.js');
 const { sendNotifications } = require('../utils/notifications/notificationManager.js');
+const { v4: uuidv4 } = require('uuid');
 
 /**
  * Helper para manejar lógica de envío de SimpleWork por email
@@ -49,38 +50,52 @@ async function handleSimpleWorkSendLogic(simpleWorkInstance, transaction, reqIO,
   if (!clientEmail || !clientEmail.includes('@')) {
     console.warn(`⚠️ Advertencia: El cliente para SimpleWork ID ${simpleWorkInstance.id} no tiene un correo válido. No se enviará email.`);
   } else {
+    // Generar token de aprobación
+    const approvalToken = uuidv4();
+    simpleWorkInstance.approvalToken = approvalToken;
+    await simpleWorkInstance.save({ transaction });
+
+    // Determinar URL del frontend
+    let frontendBaseUrl = process.env.FRONTEND_URL;
+    if (!frontendBaseUrl) {
+      frontendBaseUrl = process.env.NODE_ENV === 'production'
+        ? 'https://www.zurcherseptic.com'
+        : 'http://localhost:5173';
+    }
+    const approvalLink = `${frontendBaseUrl}/simple-work-approve/${approvalToken}`;
+
     const emailSubject = isUpdate
-      ? `Cotización Actualizada #${workNumber} - ${propertyAddress}`
-      : `Nueva Cotización #${workNumber} - ${propertyAddress}`;
+      ? `Updated Quote #${workNumber} - ${propertyAddress}`
+      : `New Quote #${workNumber} - ${propertyAddress}`;
       
     const emailText = isUpdate
-      ? `Estimado/a ${clientName},
+      ? `Dear ${clientName},
 
-Adjunto encontrará su cotización actualizada para el trabajo en:
+Please find attached your updated quote for the work at:
 ${propertyAddress}
 
-Número de Cotización: #${workNumber}
-Tipo de Trabajo: ${simpleWorkInstance.getWorkTypeDisplay ? simpleWorkInstance.getWorkTypeDisplay() : simpleWorkInstance.workType}
+Quote Number: #${workNumber}
+Type of Work: ${simpleWorkInstance.getWorkTypeDisplay ? simpleWorkInstance.getWorkTypeDisplay() : simpleWorkInstance.workType}
 
-Por favor revise cuidadosamente los detalles y no dude en contactarnos si tiene alguna pregunta.
+Please review the details carefully and do not hesitate to contact us if you have any questions.
 
-Para aprobar la cotización, simplemente responda a este correo confirmando su aprobación.
+To approve the quote, please visit: ${approvalLink}
 
-Saludos cordiales,
+Best regards,
 ZURCHER CONSTRUCTION`
-      : `Estimado/a ${clientName},
+      : `Dear ${clientName},
 
-Adjunto encontrará la cotización solicitada para el trabajo en:
+Please find attached the requested quote for the work at:
 ${propertyAddress}
 
-Número de Cotización: #${workNumber}
-Tipo de Trabajo: ${simpleWorkInstance.getWorkTypeDisplay ? simpleWorkInstance.getWorkTypeDisplay() : simpleWorkInstance.workType}
+Quote Number: #${workNumber}
+Type of Work: ${simpleWorkInstance.getWorkTypeDisplay ? simpleWorkInstance.getWorkTypeDisplay() : simpleWorkInstance.workType}
 
-Por favor revise cuidadosamente los detalles y no dude en contactarnos si tiene alguna pregunta.
+Please review the details carefully and do not hesitate to contact us if you have any questions.
 
-Para aprobar la cotización, simplemente responda a este correo confirmando su aprobación.
+To approve the quote, please visit: ${approvalLink}
 
-Saludos cordiales,
+Best regards,
 ZURCHER CONSTRUCTION`;
 
     const clientMailOptions = {
@@ -96,39 +111,43 @@ ZURCHER CONSTRUCTION`;
             </div>
             
             <h2 style="color: #34495e; margin-bottom: 20px;">
-              ${isUpdate ? '📋 Cotización Actualizada' : '🆕 Nueva Cotización'}
+              ${isUpdate ? '📋 Updated Quote' : '🆕 New Quote'}
             </h2>
             
-            <p style="margin-bottom: 15px; color: #555;">Estimado/a <strong>${clientName}</strong>,</p>
+            <p style="margin-bottom: 15px; color: #555;">Dear <strong>${clientName}</strong>,</p>
             
             <p style="margin-bottom: 20px; color: #555;">
-              Adjunto encontrará ${isUpdate ? 'su cotización actualizada' : 'la cotización solicitada'} para el trabajo en:
+              Please find attached ${isUpdate ? 'your updated quote' : 'the requested quote'} for the work at:
             </p>
             
             <div style="background-color: #ecf0f1; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
-              <p style="margin: 5px 0; color: #2c3e50;"><strong>🏠 Dirección:</strong> ${propertyAddress}</p>
-              <p style="margin: 5px 0; color: #2c3e50;"><strong>📋 Cotización #:</strong> ${workNumber}</p>
-              <p style="margin: 5px 0; color: #2c3e50;"><strong>🔧 Tipo de Trabajo:</strong> ${simpleWorkInstance.getWorkTypeDisplay ? simpleWorkInstance.getWorkTypeDisplay() : simpleWorkInstance.workType}</p>
+              <p style="margin: 5px 0; color: #2c3e50;"><strong>🏠 Address:</strong> ${propertyAddress}</p>
+              <p style="margin: 5px 0; color: #2c3e50;"><strong>📋 Quote #:</strong> ${workNumber}</p>
+              <p style="margin: 5px 0; color: #2c3e50;"><strong>🔧 Type of Work:</strong> ${simpleWorkInstance.getWorkTypeDisplay ? simpleWorkInstance.getWorkTypeDisplay() : simpleWorkInstance.workType}</p>
             </div>
             
             <p style="margin-bottom: 20px; color: #555;">
-              Por favor revise cuidadosamente los detalles y no dude en contactarnos si tiene alguna pregunta.
+              Please review the details carefully and do not hesitate to contact us if you have any questions.
             </p>
             
-            <div style="background-color: #d5e8d4; padding: 15px; border-radius: 5px; border-left: 4px solid #27ae60; margin-bottom: 20px;">
-              <p style="margin: 0; color: #27ae60; font-weight: bold;">
-                ✅ Para aprobar la cotización, simplemente responda a este correo confirmando su aprobación.
-              </p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${approvalLink}" target="_blank" style="background-color: #27ae60; color: white; padding: 16px 40px; text-align: center; text-decoration: none; display: inline-block; border-radius: 6px; font-weight: bold; font-size: 18px; letter-spacing: 1px;">
+                ✅ APPROVE QUOTE
+              </a>
             </div>
             
+            <p style="margin-bottom: 10px; color: #888; font-size: 13px; text-align: center;">
+              Click the button above to approve this quote, or reply to this email if you have any questions.
+            </p>
+            
             <p style="margin-bottom: 30px; color: #555;">
-              Saludos cordiales,<br>
+              Best regards,<br>
               <strong>ZURCHER CONSTRUCTION</strong>
             </p>
             
             <div style="text-align: center; border-top: 1px solid #ecf0f1; padding-top: 20px;">
               <p style="margin: 0; color: #999; font-size: 12px;">
-                Este correo fue enviado automáticamente. Por favor no responder a este mensaje para consultas generales.
+                This email was sent automatically. For general inquiries, please contact us directly.
               </p>
             </div>
           </div>

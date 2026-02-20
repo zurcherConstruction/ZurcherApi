@@ -1,5 +1,6 @@
 const { SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Work, Staff, Income, Expense, sequelize } = require('../data');
 const { Op } = require('sequelize');
+const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryUploader');
 const { generateAndSaveSimpleWorkPDF } = require('../utils/pdfGenerators/simpleWorkPdfGenerator');
@@ -13,6 +14,7 @@ const SimpleWorkController = {
 
   /**
    * Obtener todos los trabajos con filtros
+   *  OPTIMIZADO: Reduce includes, usa agregaciones SQL, limita registros
    */
   async getAllSimpleWorks(req, res) {
     try {
@@ -24,8 +26,12 @@ const SimpleWorkController = {
         endDate,
         search,
         page = 1,
-        limit = 20
+        limit = 20 // Default 20, máximo 100
       } = req.query;
+
+      // ⚡ Limitar máximo de registros para evitar sobrecarga
+      const maxLimit = Math.min(parseInt(limit), 100);
+      const offset = (parseInt(page) - 1) * maxLimit;
 
       // Construir filtros
       const where = {};
@@ -56,11 +62,46 @@ const SimpleWorkController = {
         ];
       }
 
-      // Calcular offset para paginación
-      const offset = (parseInt(page) - 1) * parseInt(limit);
-
+      // ⚡ OPTIMIZACIÓN: Usar subquery para calcular totales en SQL
       const { count, rows: simpleWorks } = await SimpleWork.findAndCountAll({
         where,
+        attributes: {
+          include: [
+            // ⚡ Calcular totales con SQL (más rápido que en JS)
+            [
+              sequelize.literal(`(
+                SELECT COALESCE(SUM(amount), 0)
+                FROM "SimpleWorkPayment"
+                WHERE "SimpleWorkPayment"."simpleWorkId" = "SimpleWork"."id"
+              )`),
+              'totalPaidDirect'
+            ],
+            [
+              sequelize.literal(`(
+                SELECT COALESCE(SUM(amount), 0)
+                FROM "Incomes"
+                WHERE "Incomes"."simpleWorkId" = "SimpleWork"."id"
+              )`),
+              'totalPaidLinked'
+            ],
+            [
+              sequelize.literal(`(
+                SELECT COALESCE(SUM(amount), 0)
+                FROM "SimpleWorkExpense"
+                WHERE "SimpleWorkExpense"."simpleWorkId" = "SimpleWork"."id"
+              )`),
+              'totalExpensesDirect'
+            ],
+            [
+              sequelize.literal(`(
+                SELECT COALESCE(SUM(amount), 0)
+                FROM "Expenses"
+                WHERE "Expenses"."simpleWorkId" = "SimpleWork"."id"
+              )`),
+              'totalExpensesLinked'
+            ]
+          ]
+        },
         include: [
           {
             model: Staff,
@@ -72,63 +113,32 @@ const SimpleWorkController = {
             as: 'creator',
             attributes: ['id', 'name']
           },
-          {
-            model: SimpleWorkPayment,
-            as: 'payments',
-            required: false
-          },
-          {
-            model: SimpleWorkExpense,
-            as: 'expenses',
-            required: false
-          },
+          //  Solo cargar items si realmente se necesitan (sin otros includes pesados)
           {
             model: SimpleWorkItem,
             as: 'items',
             required: false,
+            attributes: ['id', 'description', 'quantity', 'unitCost', 'totalCost', 'finalCost'],
+            separate: true, // ⚡ Evita problemas con limit
             order: [['displayOrder', 'ASC']]
-          },
-          {
-            model: Income,
-            as: 'linkedIncomes',
-            required: false,
-            attributes: ['idIncome', 'date', 'amount', 'typeIncome', 'notes', 'paymentMethod']
-          },
-          {
-            model: Expense,
-            as: 'linkedExpenses',
-            required: false,
-            attributes: ['idExpense', 'date', 'amount', 'typeExpense', 'notes', 'paymentMethod']
           }
         ],
         order: [['createdAt', 'DESC']],
-        limit: parseInt(limit),
-        offset
+        limit: maxLimit,
+        offset,
+        subQuery: false // ⚡ Más eficiente para conteo
       });
 
-      // 🔍 Log resumen (sin detalle para no impactar performance)
-      console.log(`🔍 [SIMPLEWORKS] Total encontrados: ${count}, Mostrando: ${simpleWorks.length}`);
+      console.log(`🔍 [SIMPLEWORKS] Total: ${count}, Mostrando: ${simpleWorks.length}, Página: ${page}/${Math.ceil(count / maxLimit)}`);
 
-      // Calcular totales por trabajo (combinando dedicados + vinculados)
+      // ⚡ Calcular totales (ahora más rápido porque vienen de SQL)
       const worksWithTotals = simpleWorks.map(work => {
-        // Calcular totalPaid: SimpleWorkPayments (dedicados) + Income (vinculados)
-        // DEDUPLICAR: Excluir SimpleWorkPayments legacy que coincidan con un linkedIncome
-        const linkedIncomeTotal = work.linkedIncomes?.reduce((sum, i) => sum + parseFloat(i.amount || 0), 0) || 0;
+        const workData = work.toJSON();
         
-        const nonDuplicatePayments = (work.payments || []).filter(p => {
-          return !(work.linkedIncomes || []).some(i => 
-            Math.abs(parseFloat(p.amount || 0) - parseFloat(i.amount || 0)) < 0.01 &&
-            String(p.paymentDate || '').substring(0, 10) === String(i.date || '').substring(0, 10)
-          );
-        });
-        const dedicatedPayments = nonDuplicatePayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
-        const totalPaid = dedicatedPayments + linkedIncomeTotal;
+        // Usar valores calculados por SQL
+        const totalPaid = parseFloat(workData.totalPaidDirect || 0) + parseFloat(workData.totalPaidLinked || 0);
+        const totalExpenses = parseFloat(workData.totalExpensesDirect || 0) + parseFloat(workData.totalExpensesLinked || 0);
         
-        // Calcular totalExpenses: SimpleWorkExpenses (dedicados) + Expense (vinculados)
-        const dedicatedExpenses = work.expenses?.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0) || 0;
-        const linkedExpenseTotal = work.linkedExpenses?.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0) || 0;
-        const totalExpenses = dedicatedExpenses + linkedExpenseTotal;
-
         // Calculate totalCost from items or use finalAmount/estimatedAmount
         const itemsTotal = work.items?.reduce((sum, item) => {
           return sum + parseFloat(item.finalCost || item.totalCost || 0);
@@ -138,7 +148,7 @@ const SimpleWorkController = {
         const finalAmount = parseFloat(work.finalAmount || work.estimatedAmount || 0);
 
         return {
-          ...work.toJSON(),
+          ...workData,
           totalCost: parseFloat(totalCost),
           totalPaid,
           totalExpenses,
@@ -149,10 +159,10 @@ const SimpleWorkController = {
         };
       });
 
+      // ⚡ Cache de 10 segundos para reducir carga en peticiones repetidas
       res.set({
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
+        'Cache-Control': 'private, max-age=10',
+        'ETag': `"sw-${count}-${page}-${Date.now()}"`,
       });
 
       res.json({
@@ -160,9 +170,9 @@ const SimpleWorkController = {
         data: worksWithTotals,
         pagination: {
           page: parseInt(page),
-          limit: parseInt(limit),
+          limit: maxLimit,
           total: count,
-          pages: Math.ceil(count / parseInt(limit))
+          pages: Math.ceil(count / maxLimit)
         }
       });
 
@@ -789,40 +799,31 @@ const SimpleWorkController = {
   /**
    * Obtener Works existentes para vinculación (con datos de cliente)
    */
+  /**
+   * ⚡ OPTIMIZADO: Obtener works para vinculación (más rápido)
+   */
   async getWorksForLinking(req, res) {
     try {
-      const { search, limit = 100 } = req.query;
-
-      // Construir filtros de búsqueda
-      const where = {};
-      if (search) {
-        where[Op.or] = [
-          { propertyAddress: { [Op.iLike]: `%${search}%` } },
-        ];
-      }
-
+      // ⚡ OPTIMIZACIÓN: Cargar TODOS los Works (como ProgressTracker)
+      // El filtrado se hace en el frontend (instantáneo en memoria)
+      const Budget = require('../data').Budget;
+      
+      // 🚀 Query simple: cargar todos los Works con Budget
       const works = await Work.findAll({
-        where,
         include: [
           {
-            model: require('../data').Budget,
+            model: Budget,
             as: 'budget',
             attributes: ['applicantName', 'applicantEmail', 'contactCompany', 'propertyAddress'],
-            where: search ? {
-              [Op.or]: [
-                { applicantName: { [Op.iLike]: `%${search}%` } },
-                { applicant_email: { [Op.iLike]: `%${search}%` } },
-                { propertyAddress: { [Op.iLike]: `%${search}%` } }
-              ]
-            } : undefined,
-            required: false // LEFT JOIN para incluir Works sin Budget
+            required: false
           }
         ],
         attributes: ['idWork', 'propertyAddress', 'status', 'createdAt'],
-        order: [['createdAt', 'DESC']],
-        limit: parseInt(limit)
+        order: [['createdAt', 'DESC']]
+        // ✅ Sin limit: cargar todos para filtrado local en frontend
       });
 
+      // ⚡ Mapeo simplificado
       const worksForLinking = works.map(work => ({
         id: work.idWork,
         propertyAddress: work.propertyAddress,
@@ -831,11 +832,17 @@ const SimpleWorkController = {
         clientData: {
           name: work.budget?.applicantName || 'No disponible',
           email: work.budget?.applicantEmail || '',
-          phone: '', // No disponible en Budget
+          phone: '',
           address: work.budget?.propertyAddress || work.propertyAddress,
           company: work.budget?.contactCompany || ''
         }
       }));
+
+      // ⚡ Cache de 30 segundos (datos raramente cambian)
+      res.set({
+        'Cache-Control': 'private, max-age=30',
+        'ETag': `"link-works-${worksForLinking.length}-${Date.now()}"`,
+      });
 
       res.json({
         success: true,
@@ -1756,6 +1763,119 @@ const SimpleWorkController = {
     } catch (error) {
       console.error('❌ [getAssignedSimpleWorks] Error:', error);
       res.status(500).json({ error: true, simpleWorks: [], message: 'Error interno del servidor' });
+    }
+  },
+
+  /**
+   * Aprobar SimpleWork por token (público, sin autenticación)
+   * POST /api/simple-works/approve/:token
+   */
+  async approveSimpleWorkByToken(req, res) {
+    try {
+      const { token } = req.params;
+
+      if (!token) {
+        return res.status(400).json({ success: false, message: 'Token de aprobación requerido' });
+      }
+
+      const simpleWork = await SimpleWork.findOne({
+        where: { approvalToken: token }
+      });
+
+      if (!simpleWork) {
+        return res.status(404).json({
+          success: false,
+          message: 'Token de aprobación no válido o ya fue utilizado'
+        });
+      }
+
+      // Verificar que el SimpleWork está en estado 'sent' (pendiente de aprobación)
+      if (simpleWork.status === 'approved') {
+        return res.json({
+          success: true,
+          alreadyApproved: true,
+          message: 'Esta cotización ya fue aprobada anteriormente',
+          data: {
+            workNumber: simpleWork.workNumber,
+            propertyAddress: simpleWork.propertyAddress,
+            status: simpleWork.status
+          }
+        });
+      }
+
+      if (!['sent', 'quoted'].includes(simpleWork.status)) {
+        return res.status(400).json({
+          success: false,
+          message: `No se puede aprobar una cotización con estado "${simpleWork.status}"`
+        });
+      }
+
+      // Aprobar
+      simpleWork.status = 'approved';
+      simpleWork.approvalToken = null; // Invalidar token después de uso
+      await simpleWork.save();
+
+      const clientName = `${simpleWork.clientData?.firstName || ''} ${simpleWork.clientData?.lastName || ''}`.trim() || 'Cliente';
+
+      res.json({
+        success: true,
+        message: 'Cotización aprobada exitosamente',
+        data: {
+          workNumber: simpleWork.workNumber,
+          propertyAddress: simpleWork.propertyAddress,
+          clientName,
+          status: simpleWork.status
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error aprobando SimpleWork por token:', error);
+      res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+  },
+
+  /**
+   * Aprobar SimpleWork manualmente (requiere autenticación)
+   * PATCH /api/simple-works/:id/approve
+   */
+  async approveSimpleWorkManually(req, res) {
+    try {
+      const { id } = req.params;
+
+      const simpleWork = await SimpleWork.findByPk(id);
+      if (!simpleWork) {
+        return res.status(404).json({ success: false, message: 'SimpleWork no encontrado' });
+      }
+
+      // Permitir aprobar desde quoted o sent
+      if (!['quoted', 'sent'].includes(simpleWork.status)) {
+        return res.status(400).json({
+          success: false,
+          message: `No se puede aprobar un SimpleWork con estado "${simpleWork.status}". Solo se pueden aprobar cotizaciones en estado "quoted" o "sent".`
+        });
+      }
+
+      simpleWork.status = 'approved';
+      simpleWork.approvalToken = null; // Limpiar token si existía
+      await simpleWork.save();
+
+      const clientName = `${simpleWork.clientData?.firstName || ''} ${simpleWork.clientData?.lastName || ''}`.trim() || 'Cliente';
+
+      res.json({
+        success: true,
+        message: `Cotización #${simpleWork.workNumber} aprobada manualmente`,
+        data: {
+          id: simpleWork.id,
+          workNumber: simpleWork.workNumber,
+          propertyAddress: simpleWork.propertyAddress,
+          clientName,
+          status: simpleWork.status
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error aprobando SimpleWork manualmente:', error);
+      res.status(500).json({ success: false, message: 'Error interno del servidor' });
     }
   }
 

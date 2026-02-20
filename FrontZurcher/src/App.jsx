@@ -67,6 +67,7 @@ import RepairsPage from "./Components/Landing/RepairsPage";
 import ContactPage from "./Components/Landing/ContactPage";
 import ThankYou from "./Components/Landing/ThankYou";
 import ChangeOrderResponsePage from "./Components/Landing/ChangeOrderResponsePage";
+import SimpleWorkApprovalPage from "./Components/Landing/SimpleWorkApprovalPage";
 import PrivacyPolicy from "./Components/PrivacyPolicy";
 // Importar componentes de Mantenimiento
 import MaintenanceList from "./Components/Maintenance/MaintenanceList";
@@ -114,7 +115,8 @@ function App() {
     const isPublicRoute = publicRoutes.some(route =>
       location.pathname === route || 
       location.pathname.startsWith("/reset-password") ||
-      location.pathname.startsWith("/client-portal/")
+      location.pathname.startsWith("/client-portal/") ||
+      location.pathname.startsWith("/simple-work-approve/")
     );
 
     // No redirigir automáticamente desde la landing principal
@@ -132,9 +134,10 @@ function App() {
     "/", "/about", "/services", "/installation", "/gallery", "/maintenance-services", "/repairs", "/contact",
     "/thank-you", "/change-order-response", "/privacy-policy", "/maintenance-form"
   ];
+  const isSimpleWorkApproveRoute = location.pathname.startsWith("/simple-work-approve/");
   const isBudgetReviewRoute = location.pathname.startsWith("/budget-review/");
   const isClientPortalRoute = location.pathname.startsWith("/client-portal/");
-  const isPublicLandingRoute = publicLandingRoutes.includes(location.pathname) || isBudgetReviewRoute || isClientPortalRoute;
+  const isPublicLandingRoute = publicLandingRoutes.includes(location.pathname) || isBudgetReviewRoute || isClientPortalRoute || isSimpleWorkApproveRoute;
 
   // Determinar si mostrar header y sidebar
   const shouldShowLayout = isAuthenticated && !isPublicLandingRoute;
@@ -160,6 +163,7 @@ function App() {
 
               <Route path="/thank-you" element={<ThankYou />} />
               <Route path="/change-order-response" element={<ChangeOrderResponsePage />} />
+              <Route path="/simple-work-approve/:token" element={<SimpleWorkApprovalPage />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
 
               {/* 🆕 Ruta pública para revisión de presupuestos */}

@@ -138,7 +138,8 @@ export const updateWork = (idWork, workData) => async (dispatch) => {
         // Verificar el estado actualizado después de un breve delay
         setTimeout(async () => {
           try {
-            const verificationResponse = await api.get(`/work/${idWork}`);
+            //  Usar modo light para verificación rápida
+            const verificationResponse = await api.get(`/work/${idWork}?light=true`);
             if (verificationResponse.data.staffId === workData.staffId) {
               dispatch(updateWorkSuccess(verificationResponse.data));
             }
@@ -162,8 +163,8 @@ export const updateWork = (idWork, workData) => async (dispatch) => {
     // Si es un error de timeout pero la operación podría haber sido exitosa
     if (error.code === 'ECONNABORTED') {
       try {
-        // Intentar verificar si la actualización fue exitosa
-        const verificationResponse = await api.get(`/work/${idWork}`);
+        // ⚡ Intentar verificar si la actualización fue exitosa (modo light)
+        const verificationResponse = await api.get(`/work/${idWork}?light=true`);
         if (verificationResponse.data.staffId === workData.staffId) {
           dispatch(updateWorkSuccess(verificationResponse.data));
           return {
