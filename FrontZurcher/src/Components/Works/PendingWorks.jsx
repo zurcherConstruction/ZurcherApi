@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector }  from "react-redux";
 import { fetchWorks, updateWork } from "../../Redux/Actions/workActions";
+import { fetchSimpleWorks, updateSimpleWork } from "../../Redux/Actions/simpleWorkActions";
 import { fetchStaff } from "../../Redux/Actions/adminActions";
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
@@ -12,12 +13,13 @@ import socket from "../../utils/io";
 import logo from "../../assets/logoseptic.png";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { UserIcon, CalendarDaysIcon, ArrowPathIcon, CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/outline";
+import { UserIcon, CalendarDaysIcon, ArrowPathIcon, CheckCircleIcon, XCircleIcon, WrenchScrewdriverIcon } from "@heroicons/react/24/outline";
 import { XMarkIcon, CalendarDaysIcon as CalendarIcon } from "@heroicons/react/24/outline";
 
 const PendingWorks = () => {
   const dispatch = useDispatch();
   const { works } = useSelector((state) => state.work);
+  const { simpleWorks } = useSelector((state) => state.simpleWork);
   const { staffList: staff, loading: staffLoading, error: staffError } = useSelector((state) => state.admin);
   
   // ✅ Obtener el rol del usuario para permisos
@@ -30,6 +32,7 @@ const PendingWorks = () => {
   const isReadOnly = !canEdit;
 
   const [selectedWork, setSelectedWork] = useState(null);
+  const [selectedType, setSelectedType] = useState('work'); // 'work' o 'simpleWork'
   const [startDate, setStartDate] = useState(new Date());
   const [selectedStaff, setSelectedStaff] = useState("");
   const [editMode, setEditMode] = useState(false);
@@ -71,21 +74,42 @@ const PendingWorks = () => {
     work.status === "inProgress" && work.budget?.status !== 'legacy_maintenance'
   );
 
+  // ✅ SimpleWorks filtrados por estado
+  const pendingSimpleWorks = (simpleWorks || []).filter((sw) => sw.status === 'approved');
+  const assignedSimpleWorks = (simpleWorks || []).filter((sw) => sw.status === 'in_progress' && sw.assignedStaffId);
+
   useEffect(() => {
     dispatch(fetchStaff());
     dispatch(fetchWorks(1, 'all')); // ✅ Obtener todos los trabajos para gestión completa
+    dispatch(fetchSimpleWorks({ status: 'all', limit: 100 })); // ⚡ OPTIMIZADO: Reducido de 500 a 100
   }, [dispatch]);
 
   // Cuando seleccionas un trabajo, carga sus datos actuales
   useEffect(() => {
     if (selectedWork) {
-      setStartDate(selectedWork.startDate ? moment(selectedWork.startDate).toDate() : new Date());
-      setSelectedStaff(selectedWork.staffId || "");
-      setEditMode(['pending', 'assigned', 'inProgress'].includes(selectedWork.status));
+      if (selectedType === 'simpleWork') {
+        setStartDate(selectedWork.startDate ? moment(selectedWork.startDate).toDate() : new Date());
+        setSelectedStaff(selectedWork.assignedStaffId || "");
+        setEditMode(['approved', 'in_progress'].includes(selectedWork.status));
+      } else {
+        setStartDate(selectedWork.startDate ? moment(selectedWork.startDate).toDate() : new Date());
+        setSelectedStaff(selectedWork.staffId || "");
+        setEditMode(['pending', 'assigned', 'inProgress'].includes(selectedWork.status));
+      }
     } else {
       setEditMode(false);
     }
-  }, [selectedWork]);
+  }, [selectedWork, selectedType]);
+
+  // ✅ Helpers para seleccionar Work o SimpleWork
+  const handleSelectWork = (work) => {
+    setSelectedWork(work);
+    setSelectedType('work');
+  };
+  const handleSelectSimpleWork = (sw) => {
+    setSelectedWork(sw);
+    setSelectedType('simpleWork');
+  };
 
   const handleAssignOrUpdate = async () => {
     if (!selectedWork || !selectedStaff) {
@@ -93,8 +117,8 @@ const PendingWorks = () => {
       return;
     }
 
-    // ✅ Validar que el permiso no esté vencido antes de asignar
-    if (hasExpiredPermit(selectedWork)) {
+    // ✅ Validar permiso vencido solo para Works regulares
+    if (selectedType === 'work' && hasExpiredPermit(selectedWork)) {
       toast.error("No se puede asignar este trabajo porque el permiso está vencido. Por favor, renueva el permiso primero.");
       return;
     }
@@ -112,14 +136,29 @@ const PendingWorks = () => {
       rawDate = moment(startDate).format('YYYY-MM-DD');
     }
     try {
-      await dispatch(
-        updateWork(selectedWork.idWork, {
-          startDate: rawDate,
-          staffId: selectedStaff,
-          status: "assigned",
-        })
-      );
-      toast.success(editMode ? "Asignación modificada correctamente." : "Trabajo asignado correctamente.");
+      if (selectedType === 'simpleWork') {
+        // ✅ Asignar SimpleWork
+        await dispatch(
+          updateSimpleWork(selectedWork.id, {
+            startDate: rawDate,
+            assignedStaffId: selectedStaff,
+            assignedDate: rawDate,
+            status: "in_progress",
+          })
+        );
+        toast.success(editMode ? "SimpleWork modificado correctamente." : "SimpleWork asignado correctamente.");
+        dispatch(fetchSimpleWorks({ status: 'all' })); // Refrescar lista
+      } else {
+        // ✅ Asignar Work regular
+        await dispatch(
+          updateWork(selectedWork.idWork, {
+            startDate: rawDate,
+            staffId: selectedStaff,
+            status: "assigned",
+          })
+        );
+        toast.success(editMode ? "Asignación modificada correctamente." : "Trabajo asignado correctamente.");
+      }
       setSelectedWork(null);
       setSelectedStaff("");
     } catch (error) {
@@ -133,12 +172,21 @@ const PendingWorks = () => {
     if (!selectedWork) return;
     if (!window.confirm("¿Seguro que deseas suspender/cancelar este trabajo?")) return;
     try {
-      await dispatch(
-        updateWork(selectedWork.idWork, {
-          ...selectedWork,
-          status: "cancelled",
-        })
-      );
+      if (selectedType === 'simpleWork') {
+        await dispatch(
+          updateSimpleWork(selectedWork.id, {
+            status: "cancelled",
+          })
+        );
+        dispatch(fetchSimpleWorks({ status: 'all' }));
+      } else {
+        await dispatch(
+          updateWork(selectedWork.idWork, {
+            ...selectedWork,
+            status: "cancelled",
+          })
+        );
+      }
       toast.success("Trabajo suspendido/cancelado correctamente.");
       setSelectedWork(null);
       setSelectedStaff("");
@@ -148,30 +196,56 @@ const PendingWorks = () => {
     }
   };
 
-  const events = works
-    .filter((work) => {
-      // ✅ Filtrar trabajos con permiso vencido
-      if (!work.startDate || hasExpiredPermit(work)) return false;
-      
-      // ✅ Filtrar trabajos de mantenimiento (tanto maintenance como legacy_maintenance)
-      if (work.status === 'maintenance' || work.budget?.status === 'legacy_maintenance') return false;
-      
-      return true;
-    })
-    .map((work) => {
-      const staffMember = staff.find((member) => member.id === work.staffId);
-      const staffName = staffMember ? staffMember.name : "Sin asignar";
-      // Mostrar siempre en horario de Miami
-      const startMiami = moment.tz(work.startDate, "America/New_York").toDate();
-      return {
-        title: `${work.propertyAddress} - (${staffName})`,
-        start: startMiami,
-        end: startMiami,
-        work,
-      };
-    });
+  const events = [
+    // ✅ Works regulares
+    ...works
+      .filter((work) => {
+        if (!work.startDate || hasExpiredPermit(work)) return false;
+        if (work.status === 'maintenance' || work.budget?.status === 'legacy_maintenance') return false;
+        return true;
+      })
+      .map((work) => {
+        const staffMember = staff.find((member) => member.id === work.staffId);
+        const staffName = staffMember ? staffMember.name : "Sin asignar";
+        const startMiami = moment.tz(work.startDate, "America/New_York").toDate();
+        return {
+          title: `${work.propertyAddress} - (${staffName})`,
+          start: startMiami,
+          end: startMiami,
+          work,
+          eventType: 'work',
+        };
+      }),
+    // ✅ SimpleWorks con fecha asignada
+    ...(simpleWorks || [])
+      .filter((sw) => sw.startDate && sw.assignedStaffId)
+      .map((sw) => {
+        const staffMember = staff.find((member) => member.id === sw.assignedStaffId);
+        const staffName = staffMember ? staffMember.name : "Sin asignar";
+        const startMiami = moment.tz(sw.startDate, "America/New_York").toDate();
+        return {
+          title: `⚡ ${sw.propertyAddress || sw.workType || 'SimpleWork'} - (${staffName})`,
+          start: startMiami,
+          end: startMiami,
+          work: sw,
+          eventType: 'simpleWork',
+        };
+      }),
+  ];
 
   const eventStyleGetter = (event) => {
+    if (event.eventType === 'simpleWork') {
+      return {
+        style: {
+          backgroundColor: "#f97316", // naranja para SimpleWorks
+          color: "white",
+          borderRadius: "5px",
+          padding: "5px",
+          textAlign: "center",
+          border: "2px solid #ea580c",
+        },
+      };
+    }
     return {
       style: {
         backgroundColor: event.work.status === "assigned" ? "#2563eb" : "#4CAF50",
@@ -193,7 +267,7 @@ const PendingWorks = () => {
     <div className="p-4 min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
       <h1 className="text-2xl font-bold mb-6 text-blue-900 flex items-center gap-2">
         <CalendarDaysIcon className="h-7 w-7 text-blue-500" />
-        Gestión de Asignaciones de Instalación
+        Gestión de Asignaciones
       </h1>
       <div className="flex flex-col md:flex-row gap-6">
         {/* Panel izquierdo: Trabajos pendientes y asignados */}
@@ -212,9 +286,9 @@ const PendingWorks = () => {
                   <li
                     key={work.idWork}
                     className={`p-3 border rounded-lg cursor-pointer transition-all hover:bg-blue-50 ${
-                      selectedWork?.idWork === work.idWork ? "bg-blue-100 border-blue-400" : "bg-gray-50"
+                      selectedType === 'work' && selectedWork?.idWork === work.idWork ? "bg-blue-100 border-blue-400" : "bg-gray-50"
                     } ${isExpired ? "border-red-400 bg-red-50" : ""}`}
-                    onClick={() => setSelectedWork(work)}
+                    onClick={() => handleSelectWork(work)}
                   >
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center justify-between">
@@ -244,8 +318,8 @@ const PendingWorks = () => {
               {assignedWorks.map((work) => (
                 <li
                   key={work.idWork}
-                  className={`p-3 border rounded-lg cursor-pointer transition-all hover:bg-blue-50 ${selectedWork?.idWork === work.idWork ? "bg-blue-100 border-blue-400" : "bg-gray-50"}`}
-                  onClick={() => setSelectedWork(work)}
+                  className={`p-3 border rounded-lg cursor-pointer transition-all hover:bg-blue-50 ${selectedType === 'work' && selectedWork?.idWork === work.idWork ? "bg-blue-100 border-blue-400" : "bg-gray-50"}`}
+                  onClick={() => handleSelectWork(work)}
                 >
                   <span className="font-semibold text-blue-700">{work.propertyAddress}</span>
                   <span className="ml-2 text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800">Asignado</span>
@@ -265,8 +339,8 @@ const PendingWorks = () => {
               {inProgressWorks.map((work) => (
                 <li
                   key={work.idWork}
-                  className={`p-3 border rounded-lg cursor-pointer transition-all hover:bg-blue-50 ${selectedWork?.idWork === work.idWork ? "bg-blue-100 border-blue-400" : "bg-gray-50"}`}
-                  onClick={() => setSelectedWork(work)}
+                  className={`p-3 border rounded-lg cursor-pointer transition-all hover:bg-blue-50 ${selectedType === 'work' && selectedWork?.idWork === work.idWork ? "bg-blue-100 border-blue-400" : "bg-gray-50"}`}
+                  onClick={() => handleSelectWork(work)}
                 >
                   <span className="font-semibold text-blue-700">{work.propertyAddress}</span>
                   <span className="ml-2 text-xs px-2 py-0.5 rounded bg-green-100 text-green-800">En Progreso</span>
@@ -275,6 +349,69 @@ const PendingWorks = () => {
               ))}
             </ul>
           )}
+
+          {/* ✅ SECCION SIMPLEWORKS */}
+          <div className="border-t-2 border-orange-200 mt-6 pt-4">
+            <h2 className="text-lg font-semibold text-orange-700 mb-2 flex items-center gap-2">
+              <WrenchScrewdriverIcon className="h-5 w-5 text-orange-500" />
+              SimpleWorks Pendientes
+            </h2>
+            {pendingSimpleWorks.length === 0 && assignedSimpleWorks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-20">
+                <XCircleIcon className="h-8 w-8 text-gray-300 mb-1" />
+                <p className="text-md font-medium text-gray-400">No hay SimpleWorks pendientes</p>
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {/* ✅ Pendientes (Aprobados) - Color verde/azul */}
+                {pendingSimpleWorks.map((sw) => (
+                  <li
+                    key={sw.id}
+                    className={`p-3 border rounded-lg cursor-pointer transition-all hover:bg-blue-50 ${
+                      selectedType === 'simpleWork' && selectedWork?.id === sw.id ? "bg-blue-100 border-blue-400" : "bg-blue-50 border-blue-200"
+                    }`}
+                    onClick={() => handleSelectSimpleWork(sw)}
+                  >
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-blue-700">{sw.propertyAddress || sw.workType || 'Sin dirección'}</span>
+                        <span className="ml-2 text-xs px-2 py-0.5 rounded bg-blue-200 text-blue-800 font-medium">⚡ Aprobado</span>
+                      </div>
+                      {sw.workType && (
+                        <span className="text-xs text-gray-600">{sw.workType}</span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+                
+                {/* ✅ Asignados (En Progreso) - Color amarillo/naranja */}
+                {assignedSimpleWorks.map((sw) => (
+                  <li
+                    key={sw.id}
+                    className={`p-3 border rounded-lg cursor-pointer transition-all hover:bg-yellow-50 ${
+                      selectedType === 'simpleWork' && selectedWork?.id === sw.id ? "bg-yellow-100 border-yellow-500" : "bg-yellow-50 border-yellow-300"
+                    }`}
+                    onClick={() => handleSelectSimpleWork(sw)}
+                  >
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-yellow-800">{sw.propertyAddress || sw.workType || 'Sin dirección'}</span>
+                        <span className="ml-2 text-xs px-2 py-0.5 rounded bg-yellow-300 text-yellow-900 font-medium">⚡ En Progreso</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {sw.workType && (
+                          <span className="text-xs text-gray-600">{sw.workType}</span>
+                        )}
+                        {sw.startDate && (
+                          <span className="text-xs text-gray-500">• {moment.tz(sw.startDate, "America/New_York").format("MM-DD-YYYY")}</span>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
         {/* Panel central: Detalle y asignación/modificación */}
         <div className="flex-1 bg-white shadow-xl rounded-xl p-6 flex flex-col gap-4">
@@ -286,16 +423,21 @@ const PendingWorks = () => {
           ) : (
             <>
               <h2 className="text-xl font-bold text-blue-800 mb-2 flex items-center gap-2">
-                {selectedWork.propertyAddress}
-                {selectedWork.status === "assigned" ? (
+                {selectedType === 'simpleWork' && (
+                  <span className="text-xs px-2 py-0.5 rounded bg-orange-100 text-orange-800 font-medium">⚡ SimpleWork</span>
+                )}
+                {selectedWork.propertyAddress || selectedWork.workType || 'Sin dirección'}
+                {selectedType === 'work' && selectedWork.status === "assigned" ? (
                   <CheckCircleIcon className="h-5 w-5 text-green-500" />
+                ) : selectedType === 'simpleWork' && selectedWork.status === "in_progress" ? (
+                  <CheckCircleIcon className="h-5 w-5 text-orange-500" />
                 ) : (
                   <ArrowPathIcon className="h-5 w-5 text-yellow-500" />
                 )}
               </h2>
 
-              {/* ✅ Alerta de permiso vencido */}
-              {hasExpiredPermit(selectedWork) && (
+              {/* ✅ Alerta de permiso vencido - solo para Works regulares */}
+              {selectedType === 'work' && hasExpiredPermit(selectedWork) && (
                 <div className="bg-red-50 border-2 border-red-500 rounded-lg p-4 mb-4">
                   <div className="flex items-center gap-2">
                     <XCircleIcon className="h-6 w-6 text-red-600 flex-shrink-0" />
@@ -361,20 +503,22 @@ const PendingWorks = () => {
                 <button
                   onClick={handleAssignOrUpdate}
                   className={`flex-1 py-3 rounded-lg font-semibold text-white transition-all duration-200 ${
-                    !selectedWork || !selectedStaff || isReadOnly || hasExpiredPermit(selectedWork)
+                    !selectedWork || !selectedStaff || isReadOnly || (selectedType === 'work' && hasExpiredPermit(selectedWork))
                       ? "bg-gray-300 cursor-not-allowed"
-                      : "bg-blue-600 hover:bg-blue-700 shadow-md hover:scale-[1.02]"
+                      : selectedType === 'simpleWork' 
+                        ? "bg-orange-500 hover:bg-orange-600 shadow-md hover:scale-[1.02]"
+                        : "bg-blue-600 hover:bg-blue-700 shadow-md hover:scale-[1.02]"
                   }`}
-                  disabled={!selectedWork || !selectedStaff || isReadOnly || hasExpiredPermit(selectedWork)}
+                  disabled={!selectedWork || !selectedStaff || isReadOnly || (selectedType === 'work' && hasExpiredPermit(selectedWork))}
                   title={
-                    hasExpiredPermit(selectedWork) 
+                    selectedType === 'work' && hasExpiredPermit(selectedWork) 
                       ? "No se puede asignar - Permiso vencido" 
                       : isReadOnly 
                       ? "View only - No edit permissions" 
                       : ""
                   }
                 >
-                  {editMode ? "Guardar cambios" : "Asignar trabajo"}
+                  {editMode ? "Guardar cambios" : selectedType === 'simpleWork' ? "Asignar SimpleWork" : "Asignar trabajo"}
                 </button>
                 <button
                   onClick={() => setSelectedWork(null)}
@@ -418,10 +562,18 @@ const PendingWorks = () => {
           <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[95vh] flex flex-col">
             {/* Header fijo con botón cerrar */}
             <div className="flex items-center justify-between p-4 sm:p-6 border-b flex-shrink-0">
-              <h2 className="text-lg sm:text-xl font-bold text-blue-800 flex items-center gap-2">
-                <CalendarIcon className="h-5 w-5 sm:h-6 sm:w-6 text-blue-500" />
-                Calendario de trabajos
-              </h2>
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold text-blue-800 flex items-center gap-2">
+                  <CalendarIcon className="h-5 w-5 sm:h-6 sm:w-6 text-blue-500" />
+                  Calendario de trabajos
+                </h2>
+                {/* Leyenda de colores */}
+                <div className="flex items-center gap-4 mt-2 text-xs">
+                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-blue-600"></span> Asignado</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-green-500"></span> En Progreso</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-orange-500"></span> ⚡ SimpleWork</span>
+                </div>
+              </div>
               <button
                 onClick={() => setCalendarOpen(false)}
                 className="text-gray-400 hover:text-gray-700 p-1"

@@ -183,6 +183,20 @@ export const markSimpleWorkAsCompleted = (id) => async (dispatch) => {
   }
 };
 
+// Aprobar SimpleWork manualmente
+export const approveSimpleWork = (id) => async (dispatch) => {
+  dispatch(simpleWorkRequest());
+  try {
+    const response = await api.patch(`/simple-works/${id}/approve`);
+    dispatch(updateSimpleWorkSuccess(response.data));
+    return response.data;
+  } catch (error) {
+    const errorMessage = handleError(error, 'Error al aprobar SimpleWork');
+    dispatch(simpleWorkFailure(errorMessage));
+    throw new Error(errorMessage);
+  }
+};
+
 // Obtener trabajos del cliente (para linking)
 export const fetchClientWorks = (clientData) => async (dispatch) => {
   dispatch(simpleWorkRequest());

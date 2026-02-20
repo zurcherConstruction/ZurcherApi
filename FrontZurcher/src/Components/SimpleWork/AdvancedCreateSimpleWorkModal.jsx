@@ -179,19 +179,37 @@ const AdvancedCreateSimpleWorkModal = ({
     }
   }, [isOpen, dispatch]);
 
-  // Debug para verificar carga de datos
+  // Auto-load ALL client works when work search is opened (solo una vez)
   useEffect(() => {
-    console.log('📊 BudgetItems actualizados:', budgetItemsCatalog?.length || 0, budgetItemsCatalog);
-    console.log('🔗 ClientWorks actualizados:', clientWorks?.length || 0, clientWorks);
-  }, [budgetItemsCatalog, clientWorks]);
-
-  // Auto-load client works when work search is opened
-  useEffect(() => {
-    if (showWorkSearch && (!clientWorks || clientWorks.length === 0)) {
-      console.log('🔄 Auto-cargando trabajos disponibles...');
-      dispatch(fetchClientWorks({ limit: 50 }));
+    // ⚡ Cargar TODOS los Works una vez cuando se abre el search
+    if (isOpen && showWorkSearch && (!clientWorks || clientWorks.length === 0)) {
+      console.log('🔄 Cargando TODOS los trabajos disponibles...');
+      dispatch(fetchClientWorks()); // ⚡ Sin parámetros = cargar todos
     }
-  }, [showWorkSearch, clientWorks, dispatch]);
+  }, [isOpen, showWorkSearch, dispatch]); // ⚡ Removido clientWorks de las dependencias para evitar loop
+
+  // ⚡ Filtrado local de Works (como ProgressTracker - instantáneo)
+  const filteredClientWorks = useMemo(() => {
+    if (!clientWorks || clientWorks.length === 0) return [];
+    
+    if (!workSearchQuery.trim()) {
+      return clientWorks; // Sin búsqueda = mostrar todos
+    }
+    
+    const searchLower = workSearchQuery.toLowerCase().trim();
+    return clientWorks.filter(work => {
+      // 🔍 Buscar en todos los campos relevantes
+      const searchableText = [
+        work.propertyAddress,
+        work.clientData?.name,
+        work.clientData?.email,
+        work.clientData?.company,
+        work.clientData?.address
+      ].filter(Boolean).join(' ').toLowerCase();
+      
+      return searchableText.includes(searchLower);
+    });
+  }, [clientWorks, workSearchQuery]);
 
   // Initialize form when editing
   useEffect(() => {
@@ -278,14 +296,10 @@ const AdvancedCreateSimpleWorkModal = ({
     }
   };
 
-  // Search client works
+  // Search client works (ahora solo filtra localmente, no llama al backend)
   const handleWorkSearch = () => {
-    if (workSearchQuery.trim()) {
-      dispatch(fetchClientWorks({
-        search: workSearchQuery.trim(),
-        limit: 10
-      }));
-    }
+    // ⚡ El filtrado se hace automáticamente con useMemo cuando cambia workSearchQuery
+    // Esta función ya no es necesaria pero se mantiene por compatibilidad
   };
 
   // Select linked work
@@ -581,38 +595,32 @@ const AdvancedCreateSimpleWorkModal = ({
                   <div className="flex gap-2">
                     <input
                       type="text"
-                      placeholder="Buscar por dirección, nombre del cliente..."
+                      placeholder="Buscar por dirección, nombre del cliente... (filtrado instantáneo)"
                       value={workSearchQuery}
                       onChange={(e) => setWorkSearchQuery(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleWorkSearch()}
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
                     />
-                    <button
-                      type="button"
-                      onClick={handleWorkSearch}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                    >
-                      Buscar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => dispatch(fetchClientWorks({ limit: 50 }))}
-                      className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-                    >
-                      Ver Todos
-                    </button>
+                    {workSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setWorkSearchQuery('')}
+                        className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+                      >
+                        Limpiar
+                      </button>
+                    )}
                   </div>
 
-                  {clientWorks && clientWorks.length > 0 ? (
+                  {filteredClientWorks && filteredClientWorks.length > 0 ? (
                     <div className="max-h-40 overflow-y-auto space-y-2">
-                      {clientWorks.map(work => (
+                      <div className="text-xs text-gray-500 mb-2">Mostrando {filteredClientWorks.length} de {clientWorks?.length || 0} trabajos</div>
+                      {filteredClientWorks.map(work => (
                         <div
                           key={work.id}
                           onClick={() => selectLinkedWork(work)}
                           className="p-3 border border-gray-200 rounded-md cursor-pointer hover:bg-gray-50"
                         >
-                          <div className="font-medium">Work #{work.id}</div>
-                          <div className="text-sm text-gray-700">{work.propertyAddress}</div>
+                          <div className="font-medium text-gray-700">{work.propertyAddress}</div>
                           <div className="text-xs text-gray-500">
                             Cliente: {work.clientData?.name || 'No disponible'} - Status: {work.status}
                           </div>
