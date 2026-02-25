@@ -164,7 +164,6 @@ BackZurcher/debug-*.js
 BackZurcher/create-*.js
 BackZurcher/clean-*.js
 BackZurcher/cleanup-*.js
-BackZurcher/analyze-*.js
 BackZurcher/deploy-*.js
 BackZurcher/deactivate-*.js
 BackZurcher/delete-*.js
@@ -177,4 +176,14 @@ BackZurcher/*.sql
 !BackZurcher/README.md
 !WorkTrackerApp/README.md
 !SEO_CANONICAL_FIX_GUIDE.md
+
+# ✅ Excepciones: Scripts de consolidación portal cliente (NECESARIOS en producción)
+!BackZurcher/analyze-missing-contactcompany.js
+!BackZurcher/update-contactcompany.js
+!BackZurcher/consolidate-client-portal-tokens.js
+!BackZurcher/consolidate-by-company.js
+
+# 🔄 Client Portal Consolidation - Generated files only
+BackZurcher/missing-contactcompany-report.json
+BackZurcher/contactcompany-update-log-*.json
 

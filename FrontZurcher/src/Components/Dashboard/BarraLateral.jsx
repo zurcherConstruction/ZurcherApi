@@ -253,10 +253,7 @@ const BarraLateral = () => {
           items: [
             { name: "Works (View Only)", path: "/works", icon: FaTasks },
             { name: "Progress", path: "/progress-tracker", icon: FaChartBar },
-            { name: "Maintenance Tracker", path: "/maintenance-tracker", icon: FaListUl },
-            { name: "Works List Maintenance", path: "/maintenance/works", icon: FaClipboardList }, 
-            { name: "Zones View Maintenance", path: "/maintenance/zones", icon: FaMapMarkedAlt }, // 🆕 Visitas por zona
-            { name: "Zone Map", path: "/work-zone-map", icon: FaMapMarkedAlt }, // 🆕 Mapa de obras por zona
+            { name: "Claims", path: "/claims", icon: FaExclamationTriangle },
           ],
         },
         {
