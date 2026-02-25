@@ -252,7 +252,7 @@ function App() {
               <Route
                 path="/works"
                 element={
-                  <PrivateRoute allowedRoles={["owner", "admin", "recept"]}>
+                  <PrivateRoute allowedRoles={["owner", "admin", "recept", "finance"]}>
                     <Works />
                   </PrivateRoute>
                 }
@@ -276,7 +276,7 @@ function App() {
               <Route
                 path="/claims"
                 element={
-                  <PrivateRoute allowedRoles={["owner", "admin", "recept"]}>
+                  <PrivateRoute allowedRoles={["owner", "admin", "recept", "finance"]}>
                     <ClaimList />
                   </PrivateRoute>
                 }

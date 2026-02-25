@@ -10,8 +10,13 @@ const { Budget } = require('../data');
 
 /**
  * Generar o obtener token existente para un cliente
+ * LÓGICA DE AGRUPACIÓN MEJORADA:
+ * 1. SIEMPRE agrupar por applicantEmail (prioridad máxima)
+ * 2. Además, si existe contactCompany, sincronizar todos los budgets de esa empresa con el mismo token
+ * 3. Resultado: Si john@abc.com tiene budgets con y sin empresa, TODOS comparten el mismo token
+ * 
  * @param {string} applicantEmail - Email del cliente
- * @param {string} contactCompany - Empresa del cliente (opcional)
+ * @param {string} contactCompany - Empresa del cliente (opcional, para sincronización adicional)
  * @returns {Promise<string>} - Token del portal de cliente
  */
 async function generateOrGetClientPortalToken(applicantEmail, contactCompany = null) {
@@ -20,35 +25,34 @@ async function generateOrGetClientPortalToken(applicantEmail, contactCompany = n
   }
 
   try {
-    // 🔧 Normalizar email a minúsculas para evitar duplicados
     const normalizedEmail = applicantEmail.toLowerCase().trim();
+    const normalizedCompany = contactCompany?.trim() || null;
     
-    console.log(`🔍 Buscando token existente para: ${normalizedEmail}`);
+    console.log(`🔍 Buscando token existente para: ${normalizedEmail}${normalizedCompany ? ` (Empresa: ${normalizedCompany})` : ''}`);
 
-    // 1. Buscar si ya existe un token para este cliente (email normalizado) - búsqueda más exhaustiva
+    // 📧 PASO 1: Buscar si ya existe un token para este EMAIL (sin importar empresa)
     const existingBudget = await Budget.findOne({
       where: {
         [require('sequelize').Op.and]: [
           {
             [require('sequelize').Op.or]: [
               { applicantEmail: normalizedEmail },
-              { applicantEmail: applicantEmail }, // Buscar también el original por si acaso
-              { applicantEmail: normalizedEmail.toUpperCase() }, // Y en mayúsculas
-              { applicantEmail: { [require('sequelize').Op.iLike]: normalizedEmail } } // Búsqueda case-insensitive
+              { applicantEmail: applicantEmail },
+              { applicantEmail: normalizedEmail.toUpperCase() },
+              { applicantEmail: { [require('sequelize').Op.iLike]: normalizedEmail } }
             ]
           },
           { clientPortalToken: { [require('sequelize').Op.ne]: null } }
         ]
       },
-      order: [['updatedAt', 'DESC']] // Obtener el más reciente
+      order: [['updatedAt', 'DESC']]
     });
 
-    // 2. Si ya existe, retornar el token existente
+    // PASO 2: Si ya existe token para este email, reutilizarlo para TODOS sus budgets
     if (existingBudget && existingBudget.clientPortalToken) {
       console.log(`✅ Token existente encontrado para ${normalizedEmail}: ${existingBudget.clientPortalToken.substring(0, 16)}...`);
-      console.log(`📧 Email del presupuesto con token: ${existingBudget.applicantEmail}`);
       
-      // ** CORRECCIÓN CRÍTICA: Asegurar que TODOS los budgets similares usen el mismo token **
+      // Sincronizar TODOS los budgets del mismo email con el token existente
       try {
         const [updatedCount] = await Budget.update(
           { clientPortalToken: existingBudget.clientPortalToken },
@@ -73,7 +77,24 @@ async function generateOrGetClientPortalToken(applicantEmail, contactCompany = n
             }
           }
         );
-        console.log(`🔄 Sincronizados ${updatedCount} presupuestos con el token existente`);
+        console.log(`🔄 Sincronizados ${updatedCount} presupuestos del email ${normalizedEmail}`);
+        
+        // 🏢 PASO 2B: Si además tiene empresa, sincronizar TODOS los budgets de esa empresa
+        if (normalizedCompany) {
+          const [companyUpdated] = await Budget.update(
+            { clientPortalToken: existingBudget.clientPortalToken },
+            { 
+              where: {
+                contactCompany: normalizedCompany,
+                [require('sequelize').Op.or]: [
+                  { clientPortalToken: null },
+                  { clientPortalToken: { [require('sequelize').Op.ne]: existingBudget.clientPortalToken } }
+                ]
+              }
+            }
+          );
+          console.log(`🏢 Sincronizados ${companyUpdated} presupuestos adicionales de la empresa ${normalizedCompany}`);
+        }
       } catch (syncError) {
         console.log(`⚠️ Error sincronizando presupuestos (no crítico): ${syncError.message}`);
       }
@@ -81,33 +102,51 @@ async function generateOrGetClientPortalToken(applicantEmail, contactCompany = n
       return existingBudget.clientPortalToken;
     }
 
-    // 3. Si no existe, generar uno nuevo con email normalizado
+    // PASO 3: No existe token, generar uno nuevo
+    // 🏢 Si hay empresa, generar basado en empresa (para agrupar múltiples emails)
+    // 📧 Si no hay empresa, generar basado en email
+    const tokenBase = normalizedCompany || normalizedEmail;
     const tokenSalt = crypto.randomBytes(16).toString('hex');
     const clientToken = crypto
       .createHash('sha256')
-      .update(normalizedEmail + tokenSalt + (process.env.JWT_SECRET || 'default-secret'))
+      .update(tokenBase + tokenSalt + (process.env.JWT_SECRET || 'default-secret'))
       .digest('hex');
 
-    console.log(`🔑 Generando nuevo token para ${normalizedEmail}...`);
+    console.log(`🔑 Generando nuevo token para ${normalizedEmail}${normalizedCompany ? ` (Empresa: ${normalizedCompany})` : ''}...`);
 
-    // 4. Actualizar todos los budgets del cliente (incluyendo variaciones de email)
-    const updateWhereClause = { 
-      [require('sequelize').Op.or]: [
-        { applicantEmail: normalizedEmail },
-        { applicantEmail: applicantEmail },
-        { applicantEmail: normalizedEmail.toUpperCase() }
-      ]
-    };
-    if (contactCompany) {
-      updateWhereClause.contactCompany = contactCompany;
+    // PASO 4: Aplicar el nuevo token a todos los budgets relevantes
+    const updatePromises = [];
+    
+    // 4A: Actualizar todos los budgets del EMAIL
+    updatePromises.push(
+      Budget.update(
+        { clientPortalToken: clientToken },
+        { 
+          where: {
+            [require('sequelize').Op.or]: [
+              { applicantEmail: normalizedEmail },
+              { applicantEmail: applicantEmail },
+              { applicantEmail: normalizedEmail.toUpperCase() }
+            ]
+          }
+        }
+      )
+    );
+    
+    // 4B: Si hay empresa, TAMBIÉN actualizar todos los budgets de esa EMPRESA
+    if (normalizedCompany) {
+      updatePromises.push(
+        Budget.update(
+          { clientPortalToken: clientToken },
+          { where: { contactCompany: normalizedCompany } }
+        )
+      );
     }
 
-    const [updatedCount] = await Budget.update(
-      { clientPortalToken: clientToken },
-      { where: updateWhereClause }
-    );
+    const results = await Promise.all(updatePromises);
+    const totalUpdated = results.reduce((sum, [count]) => sum + count, 0);
 
-    console.log(`✅ Token generado para ${normalizedEmail}: ${updatedCount} presupuestos actualizados`);
+    console.log(`✅ Token generado: ${totalUpdated} presupuestos actualizados`);
     return clientToken;
 
   } catch (error) {
@@ -161,30 +200,30 @@ async function generateOrGetClientPortalToken(applicantEmail, contactCompany = n
 
 /**
  * Obtener URL completa del portal para un cliente
+ * LÓGICA DE BÚSQUEDA:
+ * 1. Buscar por applicantEmail (siempre, sin importar si tiene empresa o no)
+ * 
  * @param {string} applicantEmail - Email del cliente
- * @param {string} contactCompany - Empresa del cliente (opcional)
+ * @param {string} contactCompany - Empresa del cliente (opcional, no afecta la búsqueda)
  * @returns {Promise<string|null>} - URL completa del portal o null si no tiene token
  */
 async function getClientPortalUrl(applicantEmail, contactCompany = null) {
   try {
-    // 🔧 Normalizar email a minúsculas
     const normalizedEmail = applicantEmail.toLowerCase().trim();
     
-    const whereClause = { 
-      [require('sequelize').Op.or]: [
-        { applicantEmail: normalizedEmail },
-        { applicantEmail: applicantEmail },
-        { applicantEmail: normalizedEmail.toUpperCase() }
-      ]
-    };
-    if (contactCompany) {
-      whereClause.contactCompany = contactCompany;
-    }
-
+    // Buscar token por email (sin importar si tiene o no contactCompany)
     const budget = await Budget.findOne({
       where: {
-        ...whereClause,
-        clientPortalToken: { [require('sequelize').Op.ne]: null }
+        [require('sequelize').Op.and]: [
+          {
+            [require('sequelize').Op.or]: [
+              { applicantEmail: normalizedEmail },
+              { applicantEmail: applicantEmail },
+              { applicantEmail: normalizedEmail.toUpperCase() }
+            ]
+          },
+          { clientPortalToken: { [require('sequelize').Op.ne]: null } }
+        ]
       },
       attributes: ['clientPortalToken']
     });

@@ -178,9 +178,82 @@ async function importExistingWork(req, res) {
 
     console.log("✅ Datos validados correctamente");
 
-    // 4️⃣ VERIFICAR SI YA EXISTE UN PERMIT CON ESA DIRECCIÓN
+    // 4️⃣ VERIFICAR SI YA EXISTE UN PERMIT (por permitNumber o propertyAddress)
+    console.log(`🔍 Verificando si ya existe un permit para:`);
+    console.log(`   - Permit Number: ${permitNumber}`);
+    console.log(`   - Property Address: ${propertyAddress}`);
+    
+    // Verificar si el usuario confirmó usar el permit existente
+    const useExistingPermit = req.body.useExistingPermit === 'true' || req.body.useExistingPermit === true;
+    
+    // ✅ PRIMERO buscar por permitNumber (ya que es único y más específico)
+    let existingPermit = await Permit.findOne({
+      where: { permitNumber },
+      transaction
+    });
+    
+    if (existingPermit && !useExistingPermit) {
+      // 🚨 Existe un permit con ese número y el usuario NO confirmó usarlo
+      console.log(`⚠️  Permit existente encontrado por número (${permitNumber})`);
+      await transaction.rollback();
+      return res.status(409).json({
+        error: true,
+        code: 'PERMIT_EXISTS',
+        conflictType: 'permitNumber',
+        message: `Ya existe un Permit con el número "${permitNumber}"`,
+        existingPermit: {
+          idPermit: existingPermit.idPermit,
+          permitNumber: existingPermit.permitNumber,
+          propertyAddress: existingPermit.propertyAddress,
+          applicantName: existingPermit.applicantName,
+          systemType: existingPermit.systemType
+        },
+        question: '¿Deseas usar el Permit existente o cambiar el número de Permit?'
+      });
+    }
+    
+    // ✅ Si no existe por permitNumber, buscar por propertyAddress
+    if (!existingPermit) {
+      existingPermit = await Permit.findOne({
+        where: { propertyAddress },
+        transaction
+      });
+      
+      if (existingPermit && !useExistingPermit) {
+        // 🚨 Existe un permit con esa dirección y el usuario NO confirmó usarlo
+        console.log(`⚠️  Permit existente encontrado por dirección (${propertyAddress})`);
+        await transaction.rollback();
+        return res.status(409).json({
+          error: true,
+          code: 'PERMIT_EXISTS',
+          conflictType: 'propertyAddress',
+          message: `Ya existe un Permit para la dirección "${propertyAddress}"`,
+          existingPermit: {
+            idPermit: existingPermit.idPermit,
+            permitNumber: existingPermit.permitNumber,
+            propertyAddress: existingPermit.propertyAddress,
+            applicantName: existingPermit.applicantName,
+            systemType: existingPermit.systemType
+          },
+          question: '¿Deseas usar el Permit existente o cambiar la dirección?'
+        });
+      }
+    }
+    
     let nuevoPermit;
-    try {
+    
+    if (existingPermit && useExistingPermit) {
+      // ✅ El usuario confirmó que quiere usar el existente
+      console.log(`🔄 Usando permit existente confirmado por usuario: ${existingPermit.idPermit}`);
+      console.log(`   📋 Permit number: ${existingPermit.permitNumber}`);
+      console.log(`   📍 Property address: ${existingPermit.propertyAddress}`);
+      nuevoPermit = existingPermit;
+    } else {
+      // ✅ No existe ninguno, crear uno nuevo
+      console.log(`🆕 Creando nuevo permit con:`);
+      console.log(`   - Permit Number: ${permitNumber}`);
+      console.log(`   - Property Address: ${propertyAddress}`);
+      
       nuevoPermit = await Permit.create({
         permitNumber,
         propertyAddress,
@@ -200,47 +273,10 @@ async function importExistingWork(req, res) {
         // Marcar como importado
         isLegacy: true
       }, { transaction });
-    } catch (error) {
-      if (error.name === 'SequelizeUniqueConstraintError' && error.fields?.propertyAddress) {
-        console.log(`⚠️  Ya existe un permiso para la dirección: ${propertyAddress}`);
-        
-        // Buscar el permiso existente
-        const existingPermit = await Permit.findOne({
-          where: { propertyAddress },
-          transaction
-        });
-        
-        if (existingPermit) {
-          console.log(`🔄 Usando permiso existente: ${existingPermit.idPermit}`);
-          nuevoPermit = existingPermit;
-        } else {
-          // Si no se encuentra (caso raro), intentar con dirección modificada
-          const modifiedAddress = `${propertyAddress} (Legacy-${Date.now()})`;
-          console.log(`🆕 Creando permiso con dirección modificada: ${modifiedAddress}`);
-          
-          nuevoPermit = await Permit.create({
-            permitNumber: `${permitNumber}-LEGACY`,
-            propertyAddress: modifiedAddress,
-            applicantName,
-            applicantEmail: applicantEmail || '',
-            applicantPhone: applicantPhone || '',
-            systemType: systemType || 'Solar',
-            lot: lot || '',
-            block: block || '',
-            // ✅ Guardar URLs de Cloudinary en columnas correctas
-            permitPdfUrl: documentosGuardados.permit?.url || null,
-            permitPdfPublicId: documentosGuardados.permit?.publicId || null,
-            optionalDocsUrl: documentosGuardados.opcional?.url || null,
-            optionalDocsPublicId: documentosGuardados.opcional?.publicId || null,
-            isLegacy: true
-          }, { transaction });
-        }
-      } else {
-        throw error; // Re-lanzar otros errores
-      }
+      console.log(`✅ Permit creado exitosamente: ${nuevoPermit.idPermit}`);
     }
 
-    console.log("✅ Permit creado:", nuevoPermit.idPermit);
+    console.log("✅ Permit disponible:", nuevoPermit.idPermit);
 
     // 5️⃣ CREAR PRESUPUESTO
     // Parsear line items si vienen como JSON string
@@ -269,6 +305,17 @@ async function importExistingWork(req, res) {
       isLegacy: true
     });
 
+    // ✅ VERIFICAR SI YA EXISTE UN BUDGET CON ESA DIRECCIÓN
+    console.log(`🔍 Verificando si ya existe un presupuesto para: ${propertyAddress}`);
+    const existingBudget = await Budget.findOne({
+      where: { propertyAddress },
+      transaction
+    });
+    
+    if (existingBudget) {
+      throw new Error(`Ya existe un presupuesto para la dirección "${propertyAddress}". Si necesitas importar otro trabajo para esta dirección, por favor modifica la dirección (ejemplo: "${propertyAddress} - Unit 2" o "${propertyAddress} - Fase 2").`);
+    }
+
     // ✅ Formatear fechas como YYYY-MM-DD para DATEONLY
     const now = new Date();
     const currentDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
@@ -278,6 +325,7 @@ async function importExistingWork(req, res) {
     const budgetStatus = req.body.status || 'approved';
     const hasSignedPdf = !!documentosGuardados.presupuesto?.url;
     
+    console.log(`🆕 Creando nuevo presupuesto para: ${propertyAddress}`);
     const nuevoPresupuesto = await Budget.create({
       PermitIdPermit: nuevoPermit.idPermit,
       propertyAddress,
@@ -397,19 +445,55 @@ async function importExistingWork(req, res) {
       const sizeMatch = error.message.match(/\((\d+\.?\d*) MB\)/);
       const sizeMB = sizeMatch ? parseFloat(sizeMatch[1]) : null;
       
-      res.status(400).json({
+      return res.status(400).json({
         error: true,
         message: error.message,
         sizeMB: sizeMB,
         maxSizeMB: 10
       });
-    } else {
-      res.status(500).json({
+    }
+    
+    // Detectar si es un error de dirección duplicada
+    if (error.message && error.message.includes('Ya existe un presupuesto para la dirección')) {
+      return res.status(400).json({
         error: true,
-        message: 'Error al importar el trabajo',
-        details: error.message
+        code: 'DUPLICATE_ADDRESS',
+        message: error.message
       });
     }
+    
+    // Detectar errores de Sequelize de unicidad (por si acaso)
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      let duplicateField = 'desconocido';
+      let duplicateValue = '';
+      
+      // Intentar extraer el campo y valor del error
+      if (error.parent?.constraint) {
+        if (error.parent.constraint.includes('propertyAddress')) {
+          duplicateField = 'dirección de propiedad';
+        } else if (error.parent.constraint.includes('permitNumber')) {
+          duplicateField = 'número de permit';
+        }
+      }
+      
+      if (error.parent?.detail) {
+        const match = error.parent.detail.match(/=\((.*?)\)/);
+        if (match) duplicateValue = match[1];
+      }
+      
+      return res.status(400).json({
+        error: true,
+        code: 'DUPLICATE_ENTRY',
+        message: `Ya existe un registro con ese ${duplicateField}${duplicateValue ? `: "${duplicateValue}"` : ''}. Por favor verifica los datos e intenta nuevamente.`
+      });
+    }
+    
+    // Otros errores
+    res.status(500).json({
+      error: true,
+      message: 'Error al importar el trabajo',
+      details: error.message
+    });
   }
 }
 

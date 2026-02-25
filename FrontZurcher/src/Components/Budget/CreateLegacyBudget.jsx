@@ -48,6 +48,10 @@ const CreateLegacyBudget = () => {
 
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  
+  // Estado para manejar conflicto de Permit existente
+  const [permitConflict, setPermitConflict] = useState(null);
+  const [showConflictModal, setShowConflictModal] = useState(false);
 
   // Función para calcular el total después del descuento
   const calculateFinalTotal = () => {
@@ -294,8 +298,21 @@ const CreateLegacyBudget = () => {
         const status = error.response.status;
         const data = error.response.data;
         
+        // ⚠️ Verificar si es un conflicto de Permit existente
+        if (status === 409 && data?.code === 'PERMIT_EXISTS') {
+          console.log('🔍 Permit existente detectado:', data.existingPermit);
+          setPermitConflict(data);
+          setShowConflictModal(true);
+          setLoading(false);
+          return; // No mostrar mensaje de error, mostrar modal en su lugar
+        }
+        
+        // Verificar si es un error de dirección duplicada
+        if (data?.code === 'DUPLICATE_ADDRESS' || data?.code === 'DUPLICATE_ENTRY') {
+          errorMessage = `⚠️ ${data.message}`;
+        }
         // Verificar si es un error de tamaño de archivo
-        if (data?.error && data?.sizeMB) {
+        else if (data?.error && data?.sizeMB) {
           errorMessage = `❌ ${data.message}`;
         } else {
           errorMessage = `Error ${status}: ${data?.message || data?.error || error.response.statusText}`;
@@ -311,14 +328,162 @@ const CreateLegacyBudget = () => {
         console.error('❌ Error de configuración:', error.message);
       }
       
-      setMessage(`❌ ${errorMessage}`);
+      setMessage(`${errorMessage}`);
     } finally {
       setLoading(false);
     }
   };
 
+  // 🔄 Función para usar el Permit existente
+  const handleUseExistingPermit = async () => {
+    setShowConflictModal(false);
+    setLoading(true);
+    setMessage('');
+
+    try {
+      console.log('✅ Usuario confirmó usar el Permit existente');
+      
+      // Crear FormData igual que en handleSubmit pero con el flag de confirmación
+      const formDataToSend = new FormData();
+      
+      // Agregar todos los datos del formulario
+      formDataToSend.append('permitNumber', formData.permitNumber);
+      formDataToSend.append('applicantName', formData.applicantName);
+      formDataToSend.append('applicantEmail', formData.applicantEmail || '');
+      formDataToSend.append('applicantPhone', formData.applicantPhone || '');
+      formDataToSend.append('propertyAddress', formData.propertyAddress);
+      formDataToSend.append('lot', formData.lot || '');
+      formDataToSend.append('block', formData.block || '');
+      formDataToSend.append('systemType', formData.systemType);
+      formDataToSend.append('status', formData.status);
+      formDataToSend.append('totalPrice', formData.totalPrice.toString());
+      formDataToSend.append('initialPayment', formData.initialPayment.toString());
+      formDataToSend.append('discountAmount', formData.discountAmount || 0);
+      formDataToSend.append('discountDescription', formData.discountDescription || '');
+      formDataToSend.append('generalNotes', formData.generalNotes || '');
+      formDataToSend.append('workStatus', formData.workStatus || '');
+      formDataToSend.append('workStartDate', formData.workStartDate || '');
+      formDataToSend.append('workEndDate', formData.workEndDate || '');
+      
+      // ✅ IMPORTANTE: Agregar el flag de confirmación
+      formDataToSend.append('useExistingPermit', 'true');
+
+      // Agregar archivos
+      if (files.signedBudget) formDataToSend.append('signedBudget', files.signedBudget);
+      if (files.permitPdf) formDataToSend.append('permitPdf', files.permitPdf);
+      if (files.optionalDocs) formDataToSend.append('optionalDocs', files.optionalDocs);
+
+      const response = await api.post('import/work', formDataToSend);
+
+      if (response.data.success) {
+        setMessage(`✅ ¡Trabajo importado exitosamente usando Permit existente!\n\n` +
+                   `📋 Budget ID: ${response.data.data.budget.idBudget}\n` +
+                   `🏠 Dirección: ${response.data.data.budget.propertyAddress}\n` +
+                   `💰 Total: $${response.data.data.budget.totalPrice}`);
+        
+        // Limpiar formulario
+        setFormData({
+          permitNumber: '',
+          applicantName: '',
+          applicantEmail: '',
+          applicantPhone: '',
+          propertyAddress: '',
+          lot: '',
+          block: '',
+          systemType: '',
+          status: 'approved',
+          totalPrice: '',
+          initialPayment: '',
+          initialPaymentPercentage: 60,
+          discountAmount: 0,
+          discountDescription: '',
+          generalNotes: '',
+          workStatus: '',
+          workStartDate: '',
+          workEndDate: ''
+        });
+        setFiles({ signedBudget: null, permitPdf: null, optionalDocs: null });
+        setFilePreviews({ signedBudget: '', permitPdf: '', optionalDocs: '' });
+
+        setTimeout(() => {
+          navigate('/progress-tracker');
+        }, 3000);
+      }
+    } catch (error) {
+      console.error('❌ Error al usar Permit existente:', error);
+      setMessage(`❌ Error al importar: ${error.response?.data?.message || error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✏️ Función para cambiar los datos
+  const handleChangeData = () => {
+    setShowConflictModal(false);
+    setPermitConflict(null);
+    
+    // Mensaje guía para el usuario
+    const conflictType = permitConflict?.conflictType;
+    if (conflictType === 'permitNumber') {
+      setMessage(`⚠️ Por favor modifica el Número de Permit para continuar. Actual: "${formData.permitNumber}"`);
+    } else if (conflictType === 'propertyAddress') {
+      setMessage(`⚠️ Por favor modifica la Dirección de la Propiedad para continuar. Actual: "${formData.propertyAddress}"`);
+    }
+    
+    // Scrollear al top para que el usuario vea el mensaje
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <div className="max-w-6xl mx-auto p-6 bg-white rounded-lg shadow-lg">
+      {/* Modal de conflicto de Permit */}
+      {showConflictModal && permitConflict && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 p-6">
+            <h3 className="text-xl font-bold mb-4 text-orange-600">
+              ⚠️ Permit Existente Detectado
+            </h3>
+            
+            <p className="mb-4 text-gray-700">
+              {permitConflict.message}
+            </p>
+            
+            <div className="bg-blue-50 p-4 rounded-lg mb-6">
+              <h4 className="font-semibold mb-2 text-blue-900">📋 Información del Permit Existente:</h4>
+              <div className="space-y-1 text-sm">
+                <p><strong>Permit Number:</strong> {permitConflict.existingPermit.permitNumber}</p>
+                <p><strong>Dirección:</strong> {permitConflict.existingPermit.propertyAddress}</p>
+                <p><strong>Cliente:</strong> {permitConflict.existingPermit.applicantName}</p>
+                <p><strong>Tipo de Sistema:</strong> {permitConflict.existingPermit.systemType}</p>
+              </div>
+            </div>
+            
+            <p className="mb-6 text-gray-700 font-medium">
+              {permitConflict.question}
+            </p>
+            
+            <div className="flex gap-4">
+              <button
+                onClick={handleUseExistingPermit}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors"
+              >
+                ✅ Usar Permit Existente
+              </button>
+              <button
+                onClick={handleChangeData}
+                className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 px-4 rounded-lg transition-colors"
+              >
+                ✏️ Cambiar Datos
+              </button>
+            </div>
+            
+            <p className="mt-4 text-sm text-gray-500 text-center">
+              💡 Si cambias los datos, podrás modificar el {permitConflict.conflictType === 'permitNumber' ? 'número de Permit' : 'dirección'} antes de enviar nuevamente.
+            </p>
+          </div>
+        </div>
+      )}
+
       <h2 className="text-2xl font-bold mb-6 text-gray-800">
         📁 Importar Trabajo Legacy
       </h2>
@@ -330,7 +495,11 @@ const CreateLegacyBudget = () => {
 
       {message && (
         <div className={`mb-4 p-4 rounded-lg ${
-          message.includes('❌') ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+          message.includes('⚠️') 
+            ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' 
+            : message.includes('❌') 
+              ? 'bg-red-100 text-red-700' 
+              : 'bg-green-100 text-green-700'
         }`}>
           <pre className="whitespace-pre-wrap">{message}</pre>
         </div>
