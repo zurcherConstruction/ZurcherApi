@@ -756,7 +756,7 @@ const ClientPortalDashboard = () => {
                         </div>
                         <div>
                           <p className="text-xs lg:text-sm text-slate-600 font-medium">Total Projects</p>
-                          <p className="text-2xl lg:text-3xl font-bold text-slate-800">{clientInfo?.projectsCount || 0}</p>
+                          <p className="text-2xl lg:text-3xl font-bold text-slate-800">{works.length}</p>
                         </div>
                       </div>
                     </div>
@@ -768,7 +768,7 @@ const ClientPortalDashboard = () => {
                         <div>
                           <p className="text-xs lg:text-sm text-slate-600 font-medium">Active Projects</p>
                           <p className="text-2xl lg:text-3xl font-bold text-slate-800">
-                            {works.filter(w => w.status !== 'maintenance').length}
+                            {works.filter(w => w.status !== 'maintenance' && w.status !== 'finalApproved').length}
                           </p>
                         </div>
                       </div>
