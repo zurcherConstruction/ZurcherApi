@@ -187,3 +187,6 @@ BackZurcher/*.sql
 BackZurcher/missing-contactcompany-report.json
 BackZurcher/contactcompany-update-log-*.json
 
+# 🔍 FrontZurcher - Debug and validation scripts (temporary utilities)
+FrontZurcher/debug-*.js
+FrontZurcher/validate-*.js
