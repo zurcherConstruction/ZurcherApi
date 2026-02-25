@@ -671,7 +671,9 @@ const ClientPortalDashboard = () => {
                 </div>
                 <div className="text-center lg:text-left">
                   <h1 className="text-2xl lg:text-4xl font-bold tracking-tight">Client Portal</h1>
-                  <p className="text-blue-100 mt-1 text-sm lg:text-base">Welcome, {clientInfo?.name}</p>
+                  <p className="text-blue-100 mt-1 text-sm lg:text-base">
+                    Welcome, {clientInfo?.company || clientInfo?.name}
+                  </p>
                 </div>
               </div>
               
@@ -858,7 +860,7 @@ const ClientPortalDashboard = () => {
               {works.length === 0 ? (
                 <div className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-8 lg:p-12 text-center border border-slate-200">
                   <FaTools className="text-slate-300 text-5xl lg:text-6xl mx-auto mb-4" />
-                  <p className="text-slate-600 text-lg">No active projects at this time.</p>
+                  <p className="text-slate-600 text-lg">No projects at this time.</p>
                 </div>
               ) : (
                 <div className="grid gap-4 lg:gap-6">
@@ -866,16 +868,25 @@ const ClientPortalDashboard = () => {
                     const statusInfo = workStatusLabels[work.status] || workStatusLabels.pending;
                     const StatusIcon = statusInfo.icon;
                     const progress = getProgressPercentage(work.status);
+                    const isCompleted = work.status === 'maintenance' || work.status === 'finalApproved';
                     
                     return (
-                      <div key={work.idWork} className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-4 lg:p-6 border border-slate-200 hover:shadow-2xl transition-all duration-300 hover:scale-[1.01]">
+                      <div key={work.idWork} className={`bg-white/90 backdrop-blur-sm rounded-xl shadow-lg p-4 lg:p-6 border border-slate-200 transition-all duration-300 ${isCompleted ? 'opacity-75' : 'hover:shadow-2xl hover:scale-[1.01]'}`}>
                         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 mb-4">
                           <div className="flex items-start gap-3 lg:gap-4">
                             <div className={`w-12 h-12 lg:w-14 lg:h-14 ${statusInfo.color} rounded-xl shadow-lg flex items-center justify-center text-white flex-shrink-0`}>
                               <StatusIcon className="text-xl lg:text-2xl" />
                             </div>
                             <div className="flex-1">
-                              <h3 className="text-lg lg:text-xl font-bold text-slate-800 mb-1">{work.propertyAddress}</h3>
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="text-lg lg:text-xl font-bold text-slate-800">{work.propertyAddress}</h3>
+                                {isCompleted && (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                                    <FaCheckCircle className="mr-1" />
+                                    Completed
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-slate-600 font-medium text-sm lg:text-base">{statusInfo.label}</p>
                               <div className="mt-2 space-y-1 text-xs lg:text-sm text-slate-500">
                                 {work.startDate && (
@@ -915,15 +926,22 @@ const ClientPortalDashboard = () => {
                           <ProgressTracker currentStatus={work.status} />
                         </div>
 
-                        {/* View Details Button */}
+                        {/* View Details Button - Only enabled for active projects */}
                         <div className="mb-4">
-                          <button 
-                            onClick={() => selectWork(work)}
-                            className="w-full lg:w-auto bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
-                          >
-                            <FaFileContract className="text-base" />
-                            View Project Details
-                          </button>
+                          {isCompleted ? (
+                            <div className="w-full lg:w-auto bg-gradient-to-r from-gray-300 to-gray-400 text-gray-600 px-6 py-3 rounded-xl flex items-center justify-center gap-2 font-semibold cursor-not-allowed">
+                              <FaCheckCircle className="text-base" />
+                              Project Completed
+                            </div>
+                          ) : (
+                            <button 
+                              onClick={() => selectWork(work)}
+                              className="w-full lg:w-auto bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105"
+                            >
+                              <FaFileContract className="text-base" />
+                              View Project Details
+                            </button>
+                          )}
                         </div>
 
                         {/* Work Notes visible to client */}
