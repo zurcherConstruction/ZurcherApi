@@ -72,8 +72,9 @@ const FinalInvoiceComponent = ({ workId }) => {
   const [discountReason, setDiscountReason] = useState(''); // 🆕
 
   // Estado para la carga y error de la descarga del PDF
-  // Removed download functionality - using only preview
- const [isPreviewing, setIsPreviewing] = useState(false);
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
   const [selectedChangeOrderIds, setSelectedChangeOrderIds] = useState([]);
   
   useEffect(() => {
@@ -252,14 +253,33 @@ const handleGeneratePdf = () => {
       const response = await api.get(previewUrl, { responseType: 'blob' });
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const objectUrl = window.URL.createObjectURL(blob);
-      window.open(objectUrl, '_blank');
-      window.URL.revokeObjectURL(objectUrl); // Limpia la URL del objeto después de abrirla
+      setPdfBlobUrl(objectUrl);
+      setShowPdfModal(true);
     } catch (err) {
       console.error("Error al generar la vista previa del PDF:", err);
       alert("No se pudo generar la vista previa del PDF. Por favor, inténtalo de nuevo.");
     } finally {
       setIsPreviewing(false);
     }
+  };
+
+  const handleClosePdfModal = () => {
+    if (pdfBlobUrl) {
+      window.URL.revokeObjectURL(pdfBlobUrl);
+      setPdfBlobUrl(null);
+    }
+    setShowPdfModal(false);
+  };
+
+  const handleDownloadPdfFromModal = () => {
+    if (!pdfBlobUrl) return;
+    
+    const link = document.createElement('a');
+    link.href = pdfBlobUrl;
+    link.download = `Final_Invoice_${currentInvoice.invoiceNumber || currentInvoice.id}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   
@@ -542,14 +562,14 @@ const handleGeneratePdf = () => {
                 {loadingPdf ? 'Procesando...' : (currentInvoice?.pdfPath ? 'Actualizar Invoice PDF' : 'Generar Invoice PDF')}
               </button>
               
-              {/* ✅ PASO 3: AÑADE EL NUEVO BOTÓN DE VISTA PREVIA */}
+              {/* Ver y Descargar PDF */}
               {currentInvoice?.id && (
                 <button
                   onClick={handlePreviewPdf}
-                  className="button-standard bg-gray-500 hover:bg-gray-600 text-white text-sm py-1 px-3 rounded disabled:opacity-50"
+                  className="button-standard bg-green-600 hover:bg-green-700 text-white text-sm py-1 px-3 rounded disabled:opacity-50"
                   disabled={loadingPdf || isPreviewing}
                 >
-                  {isPreviewing ? 'Cargando...' : 'Vista Previa'}
+                  {isPreviewing ? 'Cargando...' : '📄 Ver y Descargar Invoice'}
                 </button>
               )}
             </div>
@@ -590,6 +610,57 @@ const handleGeneratePdf = () => {
             )}
          </div>
       </div>
+
+      {/* Modal para ver y descargar PDF */}
+      {showPdfModal && pdfBlobUrl && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center"
+          style={{ padding: '20px' }}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-2xl flex flex-col"
+            style={{ 
+              width: '95vw', 
+              height: '95vh',
+              maxWidth: '1400px',
+              maxHeight: '900px'
+            }}
+          >
+            {/* Header del Modal */}
+            <div className="flex justify-between items-center px-6 py-4 border-b bg-gray-50 rounded-t-lg">
+              <h2 className="text-xl font-bold text-gray-800">
+                Final Invoice #{currentInvoice.invoiceNumber || currentInvoice.id}
+              </h2>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={handleDownloadPdfFromModal}
+                  className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-sm transition-colors flex items-center space-x-2"
+                >
+                  <span>⬇</span>
+                  <span>Descargar Invoice #{currentInvoice.invoiceNumber || currentInvoice.id}</span>
+                </button>
+                <button
+                  onClick={handleClosePdfModal}
+                  className="text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-full w-8 h-8 flex items-center justify-center text-2xl font-bold transition-colors"
+                  title="Cerrar"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            
+            {/* Contenido del Modal - PDF */}
+            <div className="flex-1 overflow-hidden bg-gray-100">
+              <iframe
+                src={pdfBlobUrl}
+                className="w-full h-full border-0"
+                title="Final Invoice PDF"
+                style={{ minHeight: '600px' }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

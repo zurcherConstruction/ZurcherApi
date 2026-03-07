@@ -455,48 +455,62 @@ const ClaimFormModal = ({ isOpen, onClose, editingClaim = null, onSaved }) => {
 
               {/* Claim Images */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">📸 Fotos del Reclamo</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">📸 Fotos/Videos del Reclamo</label>
                 <div className="flex flex-wrap gap-3">
-                  {claimImages.map((img) => (
-                    <div key={img.id} className="relative group w-24 h-24">
-                      <img src={img.url} alt="Reclamo" className="w-24 h-24 object-cover rounded-lg border" />
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteImage(img.id, 'claim')}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
-                      >
-                        <FaTrash size={10} />
-                      </button>
-                    </div>
-                  ))}
+                  {claimImages.map((img) => {
+                    const isVideo = img.url?.match(/\.(mp4|mov|avi|mkv|webm)(\?|$)/i);
+                    return (
+                      <div key={img.id} className="relative group w-24 h-24">
+                        {isVideo ? (
+                          <video src={img.url} className="w-24 h-24 object-cover rounded-lg border" />
+                        ) : (
+                          <img src={img.url} alt="Reclamo" className="w-24 h-24 object-cover rounded-lg border" />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteImage(img.id, 'claim')}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                        >
+                          <FaTrash size={10} />
+                        </button>
+                      </div>
+                    );
+                  })}
                   <label className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-blue-400 transition">
                     <FaCamera className="text-gray-400 mb-1" />
                     <span className="text-xs text-gray-400">Agregar</span>
-                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'claim')} />
+                    <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => handleImageUpload(e, 'claim')} />
                   </label>
                 </div>
               </div>
 
               {/* Repair Images */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">🔧 Fotos de Reparación</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">🔧 Fotos/Videos de Reparación</label>
                 <div className="flex flex-wrap gap-3">
-                  {repairImages.map((img) => (
-                    <div key={img.id} className="relative group w-24 h-24">
-                      <img src={img.url} alt="Reparación" className="w-24 h-24 object-cover rounded-lg border" />
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteImage(img.id, 'repair')}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
-                      >
-                        <FaTrash size={10} />
-                      </button>
-                    </div>
-                  ))}
+                  {repairImages.map((img) => {
+                    const isVideo = img.url?.match(/\.(mp4|mov|avi|mkv|webm)(\?|$)/i);
+                    return (
+                      <div key={img.id} className="relative group w-24 h-24">
+                        {isVideo ? (
+                          <video src={img.url} className="w-24 h-24 object-cover rounded-lg border" />
+                        ) : (
+                          <img src={img.url} alt="Reparación" className="w-24 h-24 object-cover rounded-lg border" />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteImage(img.id, 'repair')}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
+                        >
+                          <FaTrash size={10} />
+                        </button>
+                      </div>
+                    );
+                  })}
                   <label className="w-24 h-24 border-2 border-dashed border-green-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-green-400 transition">
                     <FaCamera className="text-green-400 mb-1" />
                     <span className="text-xs text-green-400">Agregar</span>
-                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'repair')} />
+                    <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => handleImageUpload(e, 'repair')} />
                   </label>
                 </div>
               </div>

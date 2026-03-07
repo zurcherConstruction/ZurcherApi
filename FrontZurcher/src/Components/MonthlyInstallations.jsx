@@ -5,7 +5,8 @@ import {
   CalendarIcon,
   BuildingOfficeIcon,
   ChartBarIcon,
-  UserGroupIcon
+  UserGroupIcon,
+  ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
 import {
   fetchMonthlyInstallations,
@@ -17,6 +18,7 @@ import {
   setSelectedMonth
 } from '../Redux/Reducer/monthlyInstallationsReducer';
 import useAutoRefresh from '../utils/useAutoRefresh';
+import api from '../utils/axios';
 
 const MONTH_NAMES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -38,6 +40,8 @@ const MonthlyInstallations = () => {
   } = useSelector((state) => state.monthlyInstallations);
 
   const [viewMode, setViewMode] = useState('monthly'); // 'monthly' | 'yearly'
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [selectedStaffId, setSelectedStaffId] = useState('all'); // 'all' o staffId específico
 
   // ✅ Verificar si el usuario es worker (solo lectura)
   const isWorker = user?.role === 'worker';
@@ -77,6 +81,53 @@ const MonthlyInstallations = () => {
   const handleMonthChange = (month) => {
     dispatch(setSelectedMonth(month));
     dispatch(fetchMonthlyInstallations(selectedYear, month));
+  };
+
+  const handleDownloadPDF = async () => {
+    try {
+      setDownloadingPdf(true);
+      
+      const params = { 
+        year: selectedYear, 
+        month: selectedMonth 
+      };
+      
+      // Agregar staffId solo si no es "all"
+      if (selectedStaffId !== 'all') {
+        params.staffId = selectedStaffId;
+      }
+      
+      const response = await api.get('/monthly-installations/download-pdf', {
+        params,
+        responseType: 'blob'
+      });
+
+      // Crear blob y descargar
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Nombre del archivo según filtro
+      let fileName = `Instalaciones_${MONTH_NAMES[selectedMonth - 1]}_${selectedYear}`;
+      if (selectedStaffId !== 'all') {
+        const staffName = summary.byStaff.find(s => s.staffId === selectedStaffId)?.staffName || 'Staff';
+        fileName += `_${staffName.replace(/\s+/g, '_')}`;
+      }
+      fileName += '.pdf';
+      link.download = fileName;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+    } catch (error) {
+      console.error('Error al descargar PDF:', error);
+      alert('Error al generar el PDF. Por favor, intenta de nuevo.');
+    } finally {
+      setDownloadingPdf(false);
+    }
   };
 
   const formatDate = (dateString) => {
@@ -243,13 +294,40 @@ const MonthlyInstallations = () => {
 
             {/* Lista de Instalaciones */}
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-              <div className="bg-gradient-to-r from-slate-700 to-blue-600 text-white p-4">
-                <h2 className="text-xl font-bold">
-                  Instalaciones - {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
-                </h2>
-                <p className="text-sm opacity-90">
-                  {installations.length} {installations.length === 1 ? 'trabajo' : 'trabajos'} instalados
-                </p>
+              <div className="bg-gradient-to-r from-slate-700 to-blue-600 text-white p-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold">
+                    Instalaciones - {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
+                  </h2>
+                  <p className="text-sm opacity-90">
+                    {installations.length} {installations.length === 1 ? 'trabajo' : 'trabajos'} instalados
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  {/* Selector de Staff */}
+                  <select
+                    value={selectedStaffId}
+                    onChange={(e) => setSelectedStaffId(e.target.value)}
+                    className="px-3 py-2 bg-white text-slate-700 rounded-lg text-sm font-medium border-2 border-white focus:outline-none focus:ring-2 focus:ring-green-300"
+                  >
+                    <option value="all">Todos los Staff</option>
+                    {summary.byStaff.map(staff => (
+                      <option key={staff.staffId} value={staff.staffId}>
+                        {staff.staffName} ({staff.count})
+                      </option>
+                    ))}
+                  </select>
+                  
+                  {/* Botón Descargar */}
+                  <button
+                    onClick={handleDownloadPDF}
+                    disabled={downloadingPdf || loading}
+                    className="flex items-center gap-2 px-4 py-2 bg-white text-green-700 hover:bg-green-50 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                  >
+                    <ArrowDownTrayIcon className="h-5 w-5" />
+                    {downloadingPdf ? 'Generando...' : 'Descargar PDF'}
+                  </button>
+                </div>
               </div>
 
               {installations.length > 0 ? (

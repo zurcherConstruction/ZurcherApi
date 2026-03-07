@@ -132,10 +132,10 @@ export class UploadManager {
       return true;
     }
     
-    // Error 401 (no autorizado) - posible token expirado
+    // Error 401 (no autorizado) - NO reintentar, requiere re-login
     if (error.response && error.response.status === 401) {
-      console.log('⚠️ 401 - token expirado');
-      return true; // Intentar una vez más
+      console.log('⚠️ 401 - sesión expirada, requiere iniciar sesión nuevamente');
+      return false; // NO reintentar - el usuario debe hacer login
     }
     
     // Error 408 (timeout) - sí reintentar

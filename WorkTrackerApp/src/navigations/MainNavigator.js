@@ -17,6 +17,7 @@ import CompletedMaintenanceList from '../screens/CompletedMaintenanceList';
 import MaintenanceWebView from '../screens/MaintenanceWebView';
 import MaintenanceFormScreen from '../screens/MaintenanceFormScreen';
 import GeneralExpenseScreen from '../screens/GeneralExpenseScreen';
+import MyExpensesScreen from '../screens/MyExpensesScreen';
 import AssignedSimpleWorksScreen from '../screens/AssignedSimpleWorksScreen';
 import AssignedClaimsScreen from '../screens/AssignedClaimsScreen';
 import { logout } from '../Redux/features/authSlice';
@@ -165,6 +166,17 @@ const AppDrawerNavigator = () => {
           />
           
           <Drawer.Screen 
+            name="MyExpenses"
+            component={MyExpensesScreen}
+            options={{ 
+              title: 'Mis Gastos',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="wallet-outline" color={color} size={size} />
+              ),
+            }} 
+          />
+          
+          <Drawer.Screen 
             name="MySimpleWorks"
             component={AssignedSimpleWorksScreen}
             options={{ 
@@ -256,6 +268,17 @@ const AppDrawerNavigator = () => {
               title: 'Registrar Gasto',
               drawerIcon: ({ color, size }) => (
                 <Ionicons name="receipt-outline" color={color} size={size} />
+              ),
+            }} 
+          />
+          
+          <Drawer.Screen 
+            name="MyExpenses"
+            component={MyExpensesScreen}
+            options={{ 
+              title: 'Mis Gastos',
+              drawerIcon: ({ color, size }) => (
+                <Ionicons name="wallet-outline" color={color} size={size} />
               ),
             }} 
           />

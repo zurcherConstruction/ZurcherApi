@@ -93,6 +93,7 @@ import ClaimList from "./Components/Claims/ClaimList";
 import GalleryManager from "./Components/Admin/GalleryManager";
 import ClientPortalDashboard from "./Components/ClientPortal/ClientPortalDashboard";
 import ClientPortalAdmin from "./Components/ClientPortal/ClientPortalAdmin";
+import SalesDashboard from "./Components/Sales/SalesDashboard"; // 🆕 Dashboard de ventas
 
 function App() {
   const dispatch = useDispatch();
@@ -245,6 +246,16 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["admin", "owner", "finance"]}>
                     <StaffAttendance />
+                  </PrivateRoute>
+                }
+              />
+
+              {/* 🆕 Dashboard de ventas para sales_rep */}
+              <Route
+                path="/sales-dashboard"
+                element={
+                  <PrivateRoute allowedRoles={["sales_rep", "admin", "owner"]}>
+                    <SalesDashboard />
                   </PrivateRoute>
                 }
               />

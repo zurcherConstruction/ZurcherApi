@@ -21,6 +21,7 @@ import {
   CalendarDaysIcon,
   LinkIcon,
   BanknotesIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 import {
   fetchSimpleWorkById,
@@ -48,6 +49,7 @@ const SimpleWorkDetail = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [showEditModal, setShowEditModal] = useState(false);
   const [isUploadingCompletion, setIsUploadingCompletion] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState(null);
 
   useEffect(() => {
     if (id) {
@@ -457,23 +459,59 @@ const SimpleWorkDetail = () => {
                 {/* Work Images (from mobile/API uploads) */}
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    📸 Fotos del Trabajo
+                    📸 Fotos/Videos del Trabajo
                   </h3>
                   <div className="flex flex-wrap gap-3 mb-3">
-                    {/* workImages - fotos de trabajo en progreso */}
-                    {(work.workImages || []).map((img, idx) => (
-                      <a key={`work-${img.id || idx}`} href={img.url} target="_blank" rel="noopener noreferrer">
-                        <img src={img.url} alt={img.originalName || 'Foto trabajo'} className="w-24 h-24 object-cover rounded-lg border border-gray-200 hover:shadow-md transition-shadow" />
-                      </a>
-                    ))}
-                    {/* attachments (legacy - images only) */}
-                    {(work.attachments || []).filter(a => a.type !== 'pdf' && /\.(jpg|jpeg|png|gif)$/i.test(a.originalName || a.url || '')).map((img, idx) => (
-                      <a key={`att-${idx}`} href={img.url} target="_blank" rel="noopener noreferrer">
-                        <img src={img.url} alt={img.originalName || 'Foto'} className="w-24 h-24 object-cover rounded-lg border border-gray-200 hover:shadow-md transition-shadow" />
-                      </a>
-                    ))}
-                    {(work.workImages || []).length === 0 && (!work.attachments || work.attachments.filter(a => /\.(jpg|jpeg|png|gif)$/i.test(a.originalName || a.url || '')).length === 0) && (
-                      <p className="text-sm text-gray-400">Sin fotos de trabajo aún</p>
+                    {/* workImages - fotos/videos de trabajo en progreso */}
+                    {(work.workImages || []).map((img, idx) => {
+                      const isVideo = img.url?.match(/\.(mp4|mov|avi|mkv|webm)(\?|$)/i);
+                      return (
+                        <button
+                          key={`work-${img.id || idx}`}
+                          onClick={() => setLightboxImage(img.url)}
+                          className="relative group"
+                        >
+                          {isVideo ? (
+                            <div className="relative w-24 h-24">
+                              <video src={img.url} className="w-24 h-24 object-cover rounded-lg border border-gray-200 hover:shadow-md transition-shadow" />
+                              <div className="absolute inset-0 bg-black/30 flex items-center justify-center rounded-lg">
+                                <svg className="h-8 w-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M8 5v14l11-7z" />
+                                </svg>
+                              </div>
+                            </div>
+                          ) : (
+                            <img src={img.url} alt={img.originalName || 'Foto trabajo'} className="w-24 h-24 object-cover rounded-lg border border-gray-200 hover:shadow-md transition-shadow" />
+                          )}
+                        </button>
+                      );
+                    })}
+                    {/* attachments (legacy - images/videos only) */}
+                    {(work.attachments || []).filter(a => a.type !== 'pdf' && /\.(jpg|jpeg|png|gif|mp4|mov|avi|mkv|webm)$/i.test(a.originalName || a.url || '')).map((img, idx) => {
+                      const isVideo = (img.url || '').match(/\.(mp4|mov|avi|mkv|webm)(\?|$)/i);
+                      return (
+                        <button
+                          key={`att-${idx}`}
+                          onClick={() => setLightboxImage(img.url)}
+                          className="relative group"
+                        >
+                          {isVideo ? (
+                            <div className="relative w-24 h-24">
+                              <video src={img.url} className="w-24 h-24 object-cover rounded-lg border border-gray-200 hover:shadow-md transition-shadow" />
+                              <div className="absolute inset-0 bg-black/30 flex items-center justify-center rounded-lg">
+                                <svg className="h-8 w-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M8 5v14l11-7z" />
+                                </svg>
+                              </div>
+                            </div>
+                          ) : (
+                            <img src={img.url} alt={img.originalName || 'Foto'} className="w-24 h-24 object-cover rounded-lg border border-gray-200 hover:shadow-md transition-shadow" />
+                          )}
+                        </button>
+                      );
+                    })}
+                    {(work.workImages || []).length === 0 && (!work.attachments || work.attachments.filter(a => /\.(jpg|jpeg|png|gif|mp4|mov|avi|mkv|webm)$/i.test(a.originalName || a.url || '')).length === 0) && (
+                      <p className="text-sm text-gray-400">Sin fotos/videos de trabajo aún</p>
                     )}
                   </div>
                 </div>
@@ -481,26 +519,44 @@ const SimpleWorkDetail = () => {
                 {/* Completion Images */}
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                    ✅ Fotos de Finalización
+                    ✅ Fotos/Videos de Finalización
                   </h3>
                   <div className="flex flex-wrap gap-3 mb-3">
-                    {(work.completionImages || []).map((img, idx) => (
-                      <a key={`comp-${img.id || idx}`} href={img.url} target="_blank" rel="noopener noreferrer">
-                        <img src={img.url} alt={img.originalName || 'Foto finalización'} className="w-24 h-24 object-cover rounded-lg border border-gray-200 hover:shadow-md transition-shadow" />
-                      </a>
-                    ))}
+                    {(work.completionImages || []).map((img, idx) => {
+                      const isVideo = img.url?.match(/\.(mp4|mov|avi|mkv|webm)(\?|$)/i);
+                      return (
+                        <button
+                          key={`comp-${img.id || idx}`}
+                          onClick={() => setLightboxImage(img.url)}
+                          className="relative group"
+                        >
+                          {isVideo ? (
+                            <div className="relative w-24 h-24">
+                              <video src={img.url} className="w-24 h-24 object-cover rounded-lg border border-gray-200 hover:shadow-md transition-shadow" />
+                              <div className="absolute inset-0 bg-black/30 flex items-center justify-center rounded-lg">
+                                <svg className="h-8 w-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M8 5v14l11-7z" />
+                                </svg>
+                              </div>
+                            </div>
+                          ) : (
+                            <img src={img.url} alt={img.originalName || 'Foto finalización'} className="w-24 h-24 object-cover rounded-lg border border-gray-200 hover:shadow-md transition-shadow" />
+                          )}
+                        </button>
+                      );
+                    })}
                     {(work.completionImages || []).length === 0 && (
-                      <p className="text-sm text-gray-400">Sin fotos de finalización aún</p>
+                      <p className="text-sm text-gray-400">Sin fotos/videos de finalización aún</p>
                     )}
                   </div>
                   <label className="cursor-pointer inline-flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded-md text-sm font-medium transition-colors border border-blue-200">
                     <CameraIcon className="h-4 w-4" />
-                    {isUploadingCompletion ? 'Subiendo...' : 'Subir Foto'}
+                    {isUploadingCompletion ? 'Subiendo...' : 'Subir Foto/Video'}
                     <input
                       type="file"
                       onChange={handleUploadCompletionImage}
                       className="hidden"
-                      accept=".jpg,.jpeg,.png,.gif"
+                      accept=".jpg,.jpeg,.png,.gif,.mp4,.mov,.avi,.mkv,.webm"
                       disabled={isUploadingCompletion}
                     />
                   </label>
@@ -553,6 +609,37 @@ const SimpleWorkDetail = () => {
             dispatch(fetchSimpleWorkById(id));
           }}
         />
+      )}
+
+      {/* Image/Video Lightbox */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center cursor-pointer"
+          onClick={() => setLightboxImage(null)}
+        >
+          <button
+            className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full transition"
+            onClick={() => setLightboxImage(null)}
+          >
+            <XMarkIcon className="h-6 w-6 text-white" />
+          </button>
+          {lightboxImage?.match(/\.(mp4|mov|avi|mkv|webm)(\?|$)/i) ? (
+            <video
+              src={lightboxImage}
+              controls
+              autoPlay
+              className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <img
+              src={lightboxImage}
+              alt="Preview"
+              className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+        </div>
       )}
     </div>
   );

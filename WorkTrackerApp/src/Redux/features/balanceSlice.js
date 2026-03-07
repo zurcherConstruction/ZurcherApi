@@ -177,6 +177,34 @@ export const createGeneralExpenseWithReceipt = createAsyncThunk(
   }
 );
 
+// 📱 Thunk para obtener gastos del usuario logueado
+export const getMyExpenses = createAsyncThunk(
+  'balance/getMyExpenses',
+  async ({ startDate, endDate, groupBy } = {}, { rejectWithValue }) => {
+    try {
+      const params = {};
+      if (startDate) params.startDate = startDate;
+      if (endDate) params.endDate = endDate;
+      if (groupBy) params.groupBy = groupBy;
+
+      if (__DEV__) {
+        console.log('📱 Obteniendo mis gastos con filtros:', params);
+      }
+
+      const response = await api.get('/expense/my', { params });
+      
+      if (__DEV__) {
+        console.log('✅ Mis gastos obtenidos:', response.data?.length || 0);
+      }
+
+      return response.data;
+    } catch (error) {
+      console.error('❌ Error obteniendo mis gastos:', error.response?.data || error.message);
+      return rejectWithValue(error.response?.data?.message || error.message || 'Error al obtener tus gastos');
+    }
+  }
+);
+
 // --- Slice Definition ---
 const balanceSlice = createSlice({
   name: 'balance',
@@ -248,6 +276,23 @@ const balanceSlice = createSlice({
       .addCase(createGeneralExpenseWithReceipt.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
+      })
+      // Get My Expenses
+      .addCase(getMyExpenses.pending, (state) => { 
+        state.loading = true; 
+        state.error = null; 
+      })
+      .addCase(getMyExpenses.fulfilled, (state, action) => { 
+        state.loading = false; 
+        state.expenses = action.payload || [];
+        if (__DEV__) {
+          console.log('📱 Mis gastos cargados:', state.expenses.length);
+        }
+      })
+      .addCase(getMyExpenses.rejected, (state, action) => { 
+        state.loading = false; 
+        state.error = action.payload;
+        console.error('❌ Error cargando mis gastos:', action.payload);
       });
   },
 });

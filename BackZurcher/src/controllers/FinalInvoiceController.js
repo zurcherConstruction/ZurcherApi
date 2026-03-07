@@ -638,23 +638,40 @@ async viewFinalInvoicePDF(req, res) {
   async downloadFinalInvoicePDF(req, res) {
     try {
       const { finalInvoiceId } = req.params;
-      const finalInvoice = await FinalInvoice.findByPk(finalInvoiceId, { attributes: ['pdfPath'] });
+      const finalInvoice = await FinalInvoice.findByPk(finalInvoiceId, { 
+        attributes: ['pdfPath', 'invoiceNumber', 'id'] 
+      });
 
       if (!finalInvoice || !finalInvoice.pdfPath) {
-        return res.status(404).send('PDF no encontrado para esta factura final.');
+        return res.status(404).json({ error: true, message: 'PDF no encontrado para esta factura final.' });
       }
-      // Ahora 'fs' estará definido aquí
+      
       if (!fs.existsSync(finalInvoice.pdfPath)) {
         console.error(`Error: Archivo PDF no encontrado en la ruta física: ${finalInvoice.pdfPath}`);
-        return res.status(404).send('Archivo PDF no encontrado en el servidor.');
+        return res.status(404).json({ error: true, message: 'Archivo PDF no encontrado en el servidor.' });
       }
 
-      // 'path' es necesario aquí para obtener el nombre del archivo
-      const filename = path.basename(finalInvoice.pdfPath);
-      res.download(finalInvoice.pdfPath, filename);
+      // Usar el mismo método que funciona en preview, pero con 'attachment' para forzar descarga
+      const filename = `Final_Invoice_${finalInvoice.invoiceNumber || finalInvoice.id}.pdf`;
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      
+      const fileStream = fs.createReadStream(finalInvoice.pdfPath);
+      fileStream.pipe(res);
+      
+      fileStream.on('error', (err) => {
+        console.error('Error en el stream del PDF de descarga:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ error: true, message: 'Error al leer el archivo PDF.' });
+        }
+      });
+      
     } catch (error) {
       console.error(`Error en downloadFinalInvoicePDF para ID ${req.params.finalInvoiceId}:`, error);
-      res.status(500).send('Error interno al procesar la solicitud del PDF.');
+      if (!res.headersSent) {
+        res.status(500).json({ error: true, message: 'Error interno al procesar la solicitud del PDF.' });
+      }
     }
   },
 

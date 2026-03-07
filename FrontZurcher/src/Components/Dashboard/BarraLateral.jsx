@@ -314,6 +314,18 @@ const BarraLateral = () => {
           ],
         },
       ];
+    } else if (staff?.role === "sales_rep") {
+      // 🆕 Sales Rep: Dashboard de ventas con presupuestos y works
+      return [
+        {
+          name: "Sales Dashboard",
+          icon: FaChartBar,
+          color: "text-blue-400",
+          items: [
+            { name: "My Sales Dashboard", path: "/sales-dashboard", icon: FaChartBar },
+          ],
+        },
+      ];
     }
     return []; // Sin acceso por defecto
   };

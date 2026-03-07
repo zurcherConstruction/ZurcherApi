@@ -6,23 +6,23 @@ const SimpleWorkPaymentController = require('../controllers/SimpleWorkPaymentCon
 const { verifyToken } = require('../middleware/isAuth');
 const { allowRoles } = require('../middleware/byRol'); // 🆕
 
-// Configurar multer para archivos en memoria
+// Configurar multer para archivos en memoria (imágenes, videos y PDFs)
 const upload = multer({ 
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB limite
+    fileSize: 100 * 1024 * 1024 // 100MB para videos
   },
   fileFilter: (req, file, cb) => {
-    // Permitir solo imágenes (JPG, PNG, GIF) y PDFs
-    const allowedTypes = /jpeg|jpg|png|gif|pdf/;
+    // Permitir imágenes, videos y PDFs
+    const allowedTypes = /jpeg|jpg|png|gif|pdf|mp4|mov|avi|mkv|webm/;
     const extension = file.originalname.toLowerCase().split('.').pop();
     const extname = allowedTypes.test(extension);
-    const mimetype = /image\/(jpeg|jpg|png|gif)|application\/pdf/.test(file.mimetype);
+    const mimetype = /image\/(jpeg|jpg|png|gif)|application\/pdf|video\/(mp4|quicktime|x-msvideo|x-matroska|webm)/.test(file.mimetype);
     
     if (mimetype && extname) {
       return cb(null, true);
     } else {
-      cb(new Error('Solo se permiten archivos de imagen (JPG, PNG, GIF) y PDFs'));
+      cb(new Error('Solo se permiten imágenes (JPG, PNG, GIF), videos (MP4, MOV, AVI, MKV, WEBM) y PDFs'));
     }
   }
 });

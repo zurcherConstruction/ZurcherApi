@@ -798,6 +798,103 @@ const createGeneralExpenseWithReceipt = async (req, res) => {
   }
 };
 
+// 📱 Obtener gastos del usuario logueado (para app móvil)
+const getMyExpenses = async (req, res) => {
+  try {
+    const { startDate, endDate, groupBy } = req.query;
+    const staffId = req.user.id; // Usuario logueado desde el token JWT
+
+    console.log('📱 GET /expenses/my - Usuario:', staffId, 'Filtros:', { startDate, endDate, groupBy });
+
+    // Construir filtro base (solo del usuario logueado)
+    const where = { staffId };
+    
+    // Filtrar por rango de fechas si se proporciona
+    if (startDate || endDate) {
+      where.date = {};
+      if (startDate) where.date[Op.gte] = startDate;
+      if (endDate) where.date[Op.lte] = endDate;
+    }
+
+    // Obtener gastos con receipts
+    const expenses = await Expense.findAll({
+      where,
+      include: [
+        {
+          model: Staff,
+          as: 'Staff',
+          attributes: ['id', 'name', 'email'],
+          required: false
+        }
+      ],
+      order: [['date', 'DESC'], ['createdAt', 'DESC']]
+    });
+
+    // Obtener receipts por separado
+    const expenseIds = expenses.map(expense => expense.idExpense);
+    const receipts = expenseIds.length > 0 ? await Receipt.findAll({
+      where: {
+        relatedModel: 'Expense',
+        relatedId: {
+          [Op.in]: expenseIds.map(id => id.toString())
+        }
+      },
+      attributes: ['idReceipt', 'relatedId', 'fileUrl', 'mimeType', 'originalName', 'notes']
+    }) : [];
+
+    // Asociar receipts manualmente
+    const expensesWithReceipts = expenses.map(expense => {
+      const expenseReceipts = receipts.filter(receipt => 
+        receipt.relatedId === expense.idExpense.toString()
+      );
+      return {
+        ...expense.toJSON(),
+        Receipts: expenseReceipts
+      };
+    });
+
+    // Agrupar por día o mes si se solicita
+    let result = expensesWithReceipts;
+    if (groupBy === 'day') {
+      const grouped = {};
+      expensesWithReceipts.forEach(expense => {
+        const date = expense.date;
+        if (!grouped[date]) {
+          grouped[date] = {
+            date,
+            expenses: [],
+            total: 0
+          };
+        }
+        grouped[date].expenses.push(expense);
+        grouped[date].total += parseFloat(expense.amount || 0);
+      });
+      result = Object.values(grouped).sort((a, b) => new Date(b.date) - new Date(a.date));
+    } else if (groupBy === 'month') {
+      const grouped = {};
+      expensesWithReceipts.forEach(expense => {
+        const month = expense.date.substring(0, 7); // YYYY-MM
+        if (!grouped[month]) {
+          grouped[month] = {
+            month,
+            expenses: [],
+            total: 0
+          };
+        }
+        grouped[month].expenses.push(expense);
+        grouped[month].total += parseFloat(expense.amount || 0);
+      });
+      result = Object.values(grouped).sort((a, b) => b.month.localeCompare(a.month));
+    }
+
+    console.log(`✅ GET /expenses/my - ${expensesWithReceipts.length} gastos encontrados`);
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('❌ Error al obtener mis gastos:', error);
+    res.status(500).json({ message: 'Error al obtener tus gastos', error: error.message });
+  }
+};
+
 module.exports = {
   createExpense,
   getAllExpenses,
@@ -807,5 +904,6 @@ module.exports = {
   getExpenseTypes,
   getUnpaidExpenses,
   getExpensesByPaymentStatus,
-  createGeneralExpenseWithReceipt
+  createGeneralExpenseWithReceipt,
+  getMyExpenses
 };
