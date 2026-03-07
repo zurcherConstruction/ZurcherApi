@@ -208,11 +208,10 @@ async function generateMonthlyInstallationsPDF(data) {
         doc.font('Helvetica-Bold')
           .fontSize(9)
           .fillColor('white')
-          .text('#', PAGE_MARGIN + 5, yPosition + 6, { width: 25 })
-          .text('Property Address', PAGE_MARGIN + 35, yPosition + 6, { width: 200 })
-          .text('Staff', PAGE_MARGIN + 240, yPosition + 6, { width: 120 })
-          .text('Installed Date', PAGE_MARGIN + 365, yPosition + 6, { width: 80 })
-          .text('Status', PAGE_MARGIN + 450, yPosition + 6, { width: 80 });
+          .text('#', PAGE_MARGIN + 5, yPosition + 6, { width: 30 })
+          .text('Property Address', PAGE_MARGIN + 40, yPosition + 6, { width: 260 })
+          .text('Staff', PAGE_MARGIN + 305, yPosition + 6, { width: 140 })
+          .text('Installed Date', PAGE_MARGIN + 450, yPosition + 6, { width: 100 });
 
         yPosition += 25;
 
@@ -232,11 +231,10 @@ async function generateMonthlyInstallationsPDF(data) {
             doc.font('Helvetica-Bold')
               .fontSize(9)
               .fillColor('white')
-              .text('#', PAGE_MARGIN + 5, yPosition + 6, { width: 25 })
-              .text('Property Address', PAGE_MARGIN + 35, yPosition + 6, { width: 200 })
-              .text('Staff', PAGE_MARGIN + 240, yPosition + 6, { width: 120 })
-              .text('Installed Date', PAGE_MARGIN + 365, yPosition + 6, { width: 80 })
-              .text('Status', PAGE_MARGIN + 450, yPosition + 6, { width: 80 });
+              .text('#', PAGE_MARGIN + 5, yPosition + 6, { width: 30 })
+              .text('Property Address', PAGE_MARGIN + 40, yPosition + 6, { width: 260 })
+              .text('Staff', PAGE_MARGIN + 305, yPosition + 6, { width: 140 })
+              .text('Installed Date', PAGE_MARGIN + 450, yPosition + 6, { width: 100 });
 
             yPosition += 25;
             doc.font('Helvetica').fontSize(9).fillColor(TEXT_COLOR);
@@ -249,20 +247,16 @@ async function generateMonthlyInstallationsPDF(data) {
           }
 
           doc.fillColor(TEXT_COLOR)
-            .text(`${index + 1}`, PAGE_MARGIN + 5, yPosition, { width: 25 })
-            .text(installation.propertyAddress || 'N/A', PAGE_MARGIN + 35, yPosition, { 
-              width: 200, 
+            .text(`${index + 1}`, PAGE_MARGIN + 5, yPosition, { width: 30 })
+            .text(installation.propertyAddress || 'N/A', PAGE_MARGIN + 40, yPosition, { 
+              width: 260, 
               ellipsis: true 
             })
-            .text(installation.staff?.name || 'Unassigned', PAGE_MARGIN + 240, yPosition, { 
-              width: 120, 
+            .text(installation.staff?.name || 'Unassigned', PAGE_MARGIN + 305, yPosition, { 
+              width: 140, 
               ellipsis: true 
             })
-            .text(formatDate(installation.installedDate), PAGE_MARGIN + 365, yPosition, { width: 80 })
-            .text(installation.currentStatus || 'N/A', PAGE_MARGIN + 450, yPosition, { 
-              width: 80,
-              ellipsis: true  
-            });
+            .text(formatDate(installation.installedDate), PAGE_MARGIN + 450, yPosition, { width: 100 });
 
           yPosition += 20;
         });
