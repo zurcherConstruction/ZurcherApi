@@ -266,8 +266,20 @@ const ClaimController = {
         return res.status(404).json({ success: false, message: 'Reclamo no encontrado' });
       }
 
+      // Detectar si es video o imagen
+      const mimeType = req.file.mimetype || '';
+      const isVideo = mimeType.startsWith('video/');
+      const resourceType = isVideo ? 'video' : 'image';
+      
       const folder = `zurcher/claims/${id}/${type || 'claim'}`;
-      const result = await uploadBufferToCloudinary(req.file.buffer, { folder, resource_type: 'image' });
+      const uploadOptions = { folder, resource_type: resourceType };
+      
+      // Para videos grandes, usar procesamiento asíncrono
+      if (isVideo && req.file.size > 15 * 1024 * 1024) {
+        uploadOptions.eager_async = true;
+      }
+      
+      const result = await uploadBufferToCloudinary(req.file.buffer, uploadOptions);
 
       const imageData = {
         id: result.public_id || `img_${Date.now()}`,

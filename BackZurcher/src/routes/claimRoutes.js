@@ -4,17 +4,21 @@ const multer = require('multer');
 const ClaimController = require('../controllers/ClaimController');
 const { verifyToken } = require('../middleware/isAuth');
 
-// Multer para imágenes
+// Multer para imágenes y videos
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB para videos
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif/;
+    const allowedTypes = /jpeg|jpg|png|gif|mp4|mov|avi|mkv|webm/;
     const extension = file.originalname.toLowerCase().split('.').pop();
-    if (allowedTypes.test(extension)) {
+    const mimeType = file.mimetype || '';
+    const isImage = /image\/(jpeg|jpg|png|gif)/.test(mimeType);
+    const isVideo = /video\/(mp4|quicktime|x-msvideo|x-matroska|webm)/.test(mimeType);
+    
+    if (allowedTypes.test(extension) && (isImage || isVideo)) {
       return cb(null, true);
     }
-    cb(new Error('Solo se permiten imágenes (JPG, PNG, GIF)'));
+    cb(new Error('Solo se permiten imágenes (JPG, PNG, GIF) y videos (MP4, MOV, AVI, MKV, WEBM)'));
   }
 });
 

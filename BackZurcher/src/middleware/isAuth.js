@@ -9,7 +9,7 @@ const verifyToken = async (req, res, next) => {
     if (!authorization) {
       return res.status(401).json({
         error: true,
-        message: 'Token no proporcionado',
+        message: 'Sesión expirada. Por favor cierre sesión e inicie sesión nuevamente.',
       });
     }
 
@@ -18,7 +18,7 @@ const verifyToken = async (req, res, next) => {
       if (err) {
         return res.status(401).json({
           error: true,
-          message: 'Token inválido o expirado',
+          message: 'Sesión expirada. Por favor cierre sesión e inicie sesión nuevamente.',
         });
       }
 
@@ -27,7 +27,7 @@ const verifyToken = async (req, res, next) => {
       if (!staff) {
         return res.status(401).json({
           error: true,
-          message: 'Usuario no encontrado',
+          message: 'Usuario no encontrado. Por favor inicie sesión nuevamente.',
         });
       }
 
@@ -37,7 +37,7 @@ const verifyToken = async (req, res, next) => {
       next();
     });
   } catch (error) {
-    console.error('Error de autenticación:', error);
+    console.error('❌ [AUTH] Error de autenticación:', error);
     return res.status(500).json({
       error: true,
       message: 'Error interno del servidor',
@@ -54,7 +54,7 @@ const generateToken = (staffData) => {
       email: staffData.email
     },
     process.env.JWT_SECRET_KEY,
-    { expiresIn: '24h' }
+    { expiresIn: '7d' } // ⏰ Cambiado de 24h a 7 días para app móvil
   );
 };
 

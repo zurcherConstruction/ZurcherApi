@@ -6,6 +6,7 @@ import {
 } from "react-native";
 import Ionicons from "react-native-vector-icons/Ionicons";
 import * as ImagePicker from "expo-image-picker";
+import { Video } from 'expo-av';
 import { useDispatch } from "react-redux";
 import { updateSimpleWorkStatus, uploadSimpleWorkImage } from "../Redux/Actions/simpleWorkActions";
 import moment from "moment-timezone";
@@ -84,12 +85,14 @@ const SimpleWorkDetailScreen = ({ route, navigation }) => {
   const pickFromCamera = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Permiso necesario", "Se necesita acceso a la cámara para tomar fotos.");
+      Alert.alert("Permiso necesario", "Se necesita acceso a la cámara para tomar fotos/videos.");
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
       quality: 0.3,
       allowsEditing: false,
+      videoMaxDuration: 60,
     });
     if (!result.canceled && result.assets?.[0]) {
       setLocalImages((prev) => [...prev, result.assets[0]]);
@@ -103,6 +106,7 @@ const SimpleWorkDetailScreen = ({ route, navigation }) => {
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.All,
       quality: 0.3,
       allowsMultipleSelection: true,
       selectionLimit: 5,
@@ -139,7 +143,7 @@ const SimpleWorkDetailScreen = ({ route, navigation }) => {
     if (!resolution.trim() && localImages.length === 0) {
       Alert.alert(
         "Comentario requerido",
-        "Por favor agregue un comentario o fotos del trabajo antes de marcar como completado."
+        "Por favor agregue un comentario o fotos/videos del trabajo antes de marcar como completado."
       );
       return;
     }
@@ -166,7 +170,10 @@ const SimpleWorkDetailScreen = ({ route, navigation }) => {
                 { text: "OK", onPress: () => navigation.goBack() },
               ]);
             } catch (err) {
-              Alert.alert("Error", "No se pudo actualizar el trabajo.");
+              const errorMsg = err.response?.status === 401 
+                ? "Sesión expirada. Por favor cierre sesión e inicie sesión nuevamente." 
+                : "No se pudo actualizar el trabajo.";
+              Alert.alert("Error", errorMsg);
             } finally {
               setSaving(false);
             }
@@ -181,7 +188,7 @@ const SimpleWorkDetailScreen = ({ route, navigation }) => {
     if (!resolution.trim() && localImages.length === 0) {
       Alert.alert(
         "Comentario requerido",
-        "Por favor agregue un comentario o fotos antes de enviar un reporte."
+        "Por favor agregue un comentario o fotos/videos antes de enviar un reporte."
       );
       return;
     }
@@ -199,7 +206,10 @@ const SimpleWorkDetailScreen = ({ route, navigation }) => {
         { text: "OK", onPress: () => navigation.goBack() },
       ]);
     } catch (err) {
-      Alert.alert("Error", "No se pudo enviar el reporte.");
+      const errorMsg = err.response?.status === 401 
+        ? "Sesión expirada. Por favor cierre sesión e inicie sesión nuevamente." 
+        : "No se pudo enviar el reporte.";
+      Alert.alert("Error", errorMsg);
     } finally {
       setSaving(false);
     }
@@ -344,7 +354,7 @@ const SimpleWorkDetailScreen = ({ route, navigation }) => {
         {/* ---- Image Upload Section ---- */}
         <View className="bg-white mx-3 mt-4 p-4 rounded-xl shadow-sm">
           <Text className="text-sm font-bold text-gray-700 mb-3">
-            Agregar fotos del trabajo
+            Agregar fotos/videos del trabajo
           </Text>
 
           <View className="flex-row mb-3">
@@ -364,28 +374,47 @@ const SimpleWorkDetailScreen = ({ route, navigation }) => {
             </TouchableOpacity>
           </View>
 
-          {/* Local image preview */}
+          {/* Local media preview */}
           {localImages.length > 0 && (
             <View>
               <Text className="text-xs text-gray-500 mb-2">
-                {localImages.length} foto{localImages.length !== 1 ? "s" : ""} seleccionada{localImages.length !== 1 ? "s" : ""}
+                {localImages.length} archivo{localImages.length !== 1 ? "s" : ""} seleccionado{localImages.length !== 1 ? "s" : ""}
               </Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {localImages.map((img, idx) => (
-                  <View key={idx} className="mr-2 relative">
-                    <Image
-                      source={{ uri: img.uri }}
-                      className="w-24 h-24 rounded-lg"
-                      resizeMode="cover"
-                    />
-                    <TouchableOpacity
-                      onPress={() => removeLocalImage(idx)}
-                      className="absolute -top-2 -right-2 bg-red-600 rounded-full w-6 h-6 items-center justify-center"
-                    >
-                      <Ionicons name="close" size={14} color="white" />
-                    </TouchableOpacity>
-                  </View>
-                ))}
+                {localImages.map((item, idx) => {
+                  const isVideo = item.type === 'video' || item.uri?.match(/\.(mp4|mov|avi|mkv|webm)$/i);
+                  return (
+                    <View key={idx} className="mr-2 relative">
+                      {isVideo ? (
+                        <View className="relative">
+                          <Video
+                            source={{ uri: item.uri }}
+                            className="w-24 h-24 rounded-lg bg-black"
+                            resizeMode="cover"
+                            shouldPlay={false}
+                            isLooping={false}
+                            useNativeControls={false}
+                          />
+                          <View className="absolute inset-0 items-center justify-center">
+                            <Ionicons name="play-circle" size={32} color="white" style={{ opacity: 0.8 }} />
+                          </View>
+                        </View>
+                      ) : (
+                        <Image
+                          source={{ uri: item.uri }}
+                          className="w-24 h-24 rounded-lg"
+                          resizeMode="cover"
+                        />
+                      )}
+                      <TouchableOpacity
+                        onPress={() => removeLocalImage(idx)}
+                        className="absolute -top-2 -right-2 bg-red-600 rounded-full w-6 h-6 items-center justify-center"
+                      >
+                        <Ionicons name="close" size={14} color="white" />
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
               </ScrollView>
             </View>
           )}
@@ -413,7 +442,7 @@ const SimpleWorkDetailScreen = ({ route, navigation }) => {
             <View className="items-center py-4">
               <ActivityIndicator size="large" color="#1e3a8a" />
               <Text className="text-sm text-blue-700 mt-2">
-                {uploading ? "Subiendo fotos..." : "Guardando..."}
+                {uploading ? "Subiendo archivos..." : "Guardando..."}
               </Text>
             </View>
           ) : (

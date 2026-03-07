@@ -329,15 +329,19 @@ const AdvancedCreateSimpleWorkModal = ({
     const file = event.target.files[0];
     if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('El archivo no puede ser mayor a 10MB');
+    if (file.size > 100 * 1024 * 1024) {
+      toast.error('El archivo no puede ser mayor a 100MB');
       return;
     }
 
-    // Allow common file types (images and PDFs)
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'application/pdf'];
+    // Allow images, videos, and PDFs
+    const allowedTypes = [
+      'image/jpeg', 'image/jpg', 'image/png', 'image/gif',
+      'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/webm',
+      'application/pdf'
+    ];
     if (!allowedTypes.includes(file.type)) {
-      toast.error('Solo se permiten imágenes (JPG, PNG, GIF) y PDFs');
+      toast.error('Solo se permiten imágenes (JPG, PNG, GIF), videos (MP4, MOV, AVI, MKV, WEBM) y PDFs');
       return;
     }
 
@@ -1047,63 +1051,76 @@ const AdvancedCreateSimpleWorkModal = ({
                   type="file"
                   onChange={handleFileUpload}
                   className="hidden"
-                  accept=".jpg,.jpeg,.png,.gif,.pdf"
+                  accept=".jpg,.jpeg,.png,.gif,.mp4,.mov,.avi,.mkv,.webm,.pdf"
                   disabled={isUploadingAttachment}
                 />
               </label>
               <p className="text-xs text-gray-500 mt-1">
-                Formatos permitidos: JPG, PNG, GIF, PDF (máx. 10MB)
+                Formatos permitidos: JPG, PNG, GIF, MP4, MOV, AVI, MKV, WEBM, PDF (máx. 100MB)
               </p>
             </div>
 
               {/* Attachments list */}
               {attachments.length > 0 && (
                 <div className="space-y-2">
-                  {attachments.map((attachment) => (
-                    <div key={attachment.id} className="flex items-center justify-between bg-gray-50 p-3 rounded-md">
-                      <div className="flex items-center space-x-3">
-                        <div className="flex-shrink-0">
-                          {attachment.type?.includes('image') ? (
-                            <img
-                              src={attachment.url}
-                              alt={attachment.filename}
-                              className="w-10 h-10 object-cover rounded"
-                            />
-                          ) : (
-                            <div className="w-10 h-10 bg-blue-100 rounded flex items-center justify-center">
-                              <span className="text-blue-600 text-xs font-bold">
-                                {attachment.filename?.split('.').pop()?.toUpperCase() || 'DOC'}
-                              </span>
-                            </div>
-                          )}
+                  {attachments.map((attachment) => {
+                    const isImage = attachment.type?.includes('image');
+                    const isVideo = attachment.type?.includes('video') || attachment.filename?.match(/\.(mp4|mov|avi|mkv|webm)$/i);
+                    return (
+                      <div key={attachment.id} className="flex items-center justify-between bg-gray-50 p-3 rounded-md">
+                        <div className="flex items-center space-x-3">
+                          <div className="flex-shrink-0">
+                            {isImage ? (
+                              <img
+                                src={attachment.url}
+                                alt={attachment.filename}
+                                className="w-10 h-10 object-cover rounded"
+                              />
+                            ) : isVideo ? (
+                              <div className="relative w-10 h-10 bg-black rounded">
+                                <video src={attachment.url} className="w-10 h-10 object-cover rounded" />
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M8 5v14l11-7z" />
+                                  </svg>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="w-10 h-10 bg-blue-100 rounded flex items-center justify-center">
+                                <span className="text-blue-600 text-xs font-bold">
+                                  {attachment.filename?.split('.').pop()?.toUpperCase() || 'DOC'}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{attachment.filename}</p>
+                            <p className="text-xs text-gray-500">
+                              {new Date(attachment.uploadedAt).toLocaleDateString()} - 
+                              {attachment.size ? ` ${(attachment.size / 1024).toFixed(0)}KB` : ''}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{attachment.filename}</p>
-                          <p className="text-xs text-gray-500">
-                            {new Date(attachment.uploadedAt).toLocaleDateString()} - 
-                            {attachment.size ? ` ${(attachment.size / 1024).toFixed(0)}KB` : ''}
-                          </p>
+                        <div className="flex items-center space-x-2">
+                          <a
+                            href={attachment.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 text-sm"
+                          >
+                            Ver
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAttachment(attachment.id)}
+                            className="text-red-600 hover:text-red-800 text-sm"
+                          >
+                            Eliminar
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <a
-                          href={attachment.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 text-sm"
-                        >
-                          Ver
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteAttachment(attachment.id)}
-                          className="text-red-600 hover:text-red-800 text-sm"
-                        >
-                          Eliminar
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 

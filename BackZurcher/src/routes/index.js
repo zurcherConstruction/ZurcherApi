@@ -49,6 +49,7 @@ const exportRoutes = require('./exportRoutes'); // 🆕 Rutas para exportar dato
 const simpleWorkRoutes = require('./simpleWorkRoutes'); // 🆕 Rutas para trabajos varios
 const simpleWorkPublicRoutes = require('./simpleWorkPublicRoutes'); // 🆕 Rutas públicas para aprobación de SimpleWork
 const claimRoutes = require('./claimRoutes'); // 🆕 Rutas para reclamos
+const salesRoutes = require('./salesRoutes'); // 🆕 Rutas para dashboard de ventas
 // Health check endpoint (público, sin autenticación)
 router.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -109,5 +110,6 @@ router.use('/monthly-installations', monthlyInstallationsRoutes); // 🆕 Ruta p
 router.use('/staff-attendance', staffAttendanceRoutes); // 🆕 Ruta para asistencia del personal
 router.use('/simple-works', simpleWorkRoutes); // 🆕 Ruta para trabajos varios (culvert, drainfield, etc.)
 router.use('/claims', claimRoutes); // 🆕 Ruta para reclamos/garantías
+router.use('/sales', salesRoutes); // 🆕 Ruta para dashboard de ventas
 
 module.exports = router;

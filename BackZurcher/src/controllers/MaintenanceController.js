@@ -1412,7 +1412,8 @@ const completeMaintenanceVisit = async (req, res) => {
 
         // Si el video es muy grande (>15MB), aplicar compresión más agresiva
         if (videoSize > 15) {
-          console.log(`🎯 Video grande (${videoSize}MB), aplicando compresión agresiva`);
+          console.log(`🎯 Video grande (${videoSize}MB), aplicando compresión agresiva y procesamiento asíncrono`);
+          compressionOptions.eager_async = true; //  Procesar transformaciones de forma asíncrona
           compressionOptions.transformation.push({
             // Reducir resolución si es necesario
             width: 1280,
@@ -1433,13 +1434,13 @@ const completeMaintenanceVisit = async (req, res) => {
         // 📊 Información de compresión
         const originalSizeMB = Math.round(videoFile.size / 1024 / 1024);
         const compressedSizeKB = Math.round(cloudinaryResult.bytes / 1024);
-        const compressedSizeMB = Math.round(compressedSizeKB / 1024);
+        const compressedSizeMB = (cloudinaryResult.bytes / 1024 / 1024).toFixed(2);
         const compressionRatio = ((1 - cloudinaryResult.bytes / videoFile.size) * 100).toFixed(1);
         
         console.log('✅ Video del sistema cargado y comprimido:', {
           url: cloudinaryResult.secure_url,
           originalSize: `${originalSizeMB}MB`,
-          compressedSize: `${compressedSizeMB}MB`,
+          compressedSize: compressedSizeKB < 1024 ? `${compressedSizeKB}KB` : `${compressedSizeMB}MB`,
           compressionRatio: `${compressionRatio}%`,
           format: cloudinaryResult.format
         });
@@ -1604,7 +1605,8 @@ const completeMaintenanceVisit = async (req, res) => {
 
           // Si el video es grande (>10MB), aplicar más compresión
           if (originalSize > 10240) { // 10MB en KB
-            console.log(`🎯 Video grande (${Math.round(originalSize/1024)}MB), aplicando compresión agresiva`);
+            console.log(`🎯 Video grande (${Math.round(originalSize/1024)}MB), aplicando compresión agresiva y procesamiento asíncrono`);
+            uploadOptions.eager_async = true; // 🔥 Procesar transformaciones de forma asíncrona
             uploadOptions.transformation.push({
               // Limitar resolución
               width: 1280,

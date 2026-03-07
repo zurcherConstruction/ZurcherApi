@@ -251,22 +251,36 @@ const ClaimDetailModal = ({ isOpen, claim, onClose, onEdit, onStatusChange }) =>
                 <div>
                   <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-2">
                     <PhotoIcon className="h-4 w-4 text-blue-500" />
-                    Fotos del Reclamo
+                    Fotos/Videos del Reclamo
                     <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-normal">{claim.claimImages.length}</span>
                   </h3>
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    {claim.claimImages.map((img) => (
-                      <button
-                        key={img.id || img.url}
-                        onClick={() => setLightboxImage(img.url)}
-                        className="aspect-square rounded-xl overflow-hidden border-2 border-transparent hover:border-blue-400 transition group relative"
-                      >
-                        <img src={img.url} alt="Reclamo" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition flex items-center justify-center">
-                          <ArrowTopRightOnSquareIcon className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition drop-shadow" />
-                        </div>
-                      </button>
-                    ))}
+                    {claim.claimImages.map((img) => {
+                      const isVideo = img.url?.match(/\.(mp4|mov|avi|mkv|webm)(\?|$)/i);
+                      return (
+                        <button
+                          key={img.id || img.url}
+                          onClick={() => setLightboxImage(img.url)}
+                          className="aspect-square rounded-xl overflow-hidden border-2 border-transparent hover:border-blue-400 transition group relative"
+                        >
+                          {isVideo ? (
+                            <>
+                              <video src={img.url} className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                                <svg className="h-12 w-12 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M8 5v14l11-7z" />
+                                </svg>
+                              </div>
+                            </>
+                          ) : (
+                            <img src={img.url} alt="Reclamo" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                          )}
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition flex items-center justify-center">
+                            <ArrowTopRightOnSquareIcon className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition drop-shadow" />
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -276,22 +290,36 @@ const ClaimDetailModal = ({ isOpen, claim, onClose, onEdit, onStatusChange }) =>
                 <div>
                   <h3 className="text-sm font-semibold text-emerald-700 uppercase tracking-wider mb-3 flex items-center gap-2">
                     <WrenchScrewdriverIcon className="h-4 w-4 text-emerald-500" />
-                    Fotos de Reparación
+                    Fotos/Videos de Reparación
                     <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-normal">{claim.repairImages.length}</span>
                   </h3>
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                    {claim.repairImages.map((img) => (
-                      <button
-                        key={img.id || img.url}
-                        onClick={() => setLightboxImage(img.url)}
-                        className="aspect-square rounded-xl overflow-hidden border-2 border-transparent hover:border-emerald-400 transition group relative"
-                      >
-                        <img src={img.url} alt="Reparación" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition flex items-center justify-center">
-                          <ArrowTopRightOnSquareIcon className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition drop-shadow" />
-                        </div>
-                      </button>
-                    ))}
+                    {claim.repairImages.map((img) => {
+                      const isVideo = img.url?.match(/\.(mp4|mov|avi|mkv|webm)(\?|$)/i);
+                      return (
+                        <button
+                          key={img.id || img.url}
+                          onClick={() => setLightboxImage(img.url)}
+                          className="aspect-square rounded-xl overflow-hidden border-2 border-transparent hover:border-emerald-400 transition group relative"
+                        >
+                          {isVideo ? (
+                            <>
+                              <video src={img.url} className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                                <svg className="h-12 w-12 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M8 5v14l11-7z" />
+                                </svg>
+                              </div>
+                            </>
+                          ) : (
+                            <img src={img.url} alt="Reparación" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                          )}
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition flex items-center justify-center">
+                            <ArrowTopRightOnSquareIcon className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition drop-shadow" />
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -359,7 +387,7 @@ const ClaimDetailModal = ({ isOpen, claim, onClose, onEdit, onStatusChange }) =>
         </div>
       </div>
 
-      {/* Image Lightbox */}
+      {/* Image/Video Lightbox */}
       {lightboxImage && (
         <div
           className="fixed inset-0 z-[60] bg-black/90 flex items-center justify-center cursor-pointer"
@@ -371,12 +399,22 @@ const ClaimDetailModal = ({ isOpen, claim, onClose, onEdit, onStatusChange }) =>
           >
             <XMarkIcon className="h-6 w-6 text-white" />
           </button>
-          <img
-            src={lightboxImage}
-            alt="Imagen"
-            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          />
+          {lightboxImage?.match(/\.(mp4|mov|avi|mkv|webm)(\?|$)/i) ? (
+            <video
+              src={lightboxImage}
+              controls
+              autoPlay
+              className="max-w-[90vw] max-h-[90vh] rounded-lg shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <img
+              src={lightboxImage}
+              alt="Imagen"
+              className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
         </div>
       )}
     </>
