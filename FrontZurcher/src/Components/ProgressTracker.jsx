@@ -56,8 +56,15 @@ const ProgressTracker = () => {
 
   useEffect(() => {
     if (works) {
-      // ✅ EXCLUIR works en maintenance (tienen su propio componente)
-      const activeWorks = works.filter((work) => work.status !== 'maintenance');
+      // ✅ EXCLUIR works en maintenance SOLO SI tienen finalReviewCompleted = true
+      // Esto evita que se escondan works que pasaron a maintenance sin completar todos los checks
+      const activeWorks = works.filter((work) => {
+        if (work.status === 'maintenance') {
+          // Solo ocultar si el checklist está completo
+          return !work.checklist?.finalReviewCompleted;
+        }
+        return true;
+      });
       
       // Filtrar por búsqueda
       const filtered = activeWorks.filter((work) =>
