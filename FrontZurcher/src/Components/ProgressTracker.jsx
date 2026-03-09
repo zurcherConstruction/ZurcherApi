@@ -56,11 +56,16 @@ const ProgressTracker = () => {
 
   useEffect(() => {
     if (works) {
-      // ✅ EXCLUIR works en maintenance SOLO SI tienen finalReviewCompleted = true
+      // ✅ EXCLUIR works en maintenance SOLO SI tienen finalReviewCompleted = true O son works legacy
       // Esto evita que se escondan works que pasaron a maintenance sin completar todos los checks
+      // pero SÍ excluye los works legacy que fueron cargados directamente en maintenance
       const activeWorks = works.filter((work) => {
         if (work.status === 'maintenance') {
-          // Solo ocultar si el checklist está completo
+          // Ocultar si es legacy (cargado directamente en maintenance)
+          if (work.isLegacy) {
+            return false;
+          }
+          // Ocultar si el checklist está completo
           return !work.checklist?.finalReviewCompleted;
         }
         return true;

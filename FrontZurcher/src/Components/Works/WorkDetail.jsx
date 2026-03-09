@@ -341,6 +341,11 @@ const WorkDetail = () => {
   const [quickInspectionLoading, setQuickInspectionLoading] = useState(false);
   const [selectedInvoiceModal, setSelectedInvoiceModal] = useState(null);
   
+  // 📋 Estados para modal de comprobantes de inspección
+  const [showInspectionDocModal, setShowInspectionDocModal] = useState(false);
+  const [inspectionDocUrl, setInspectionDocUrl] = useState(null);
+  const [inspectionDocTitle, setInspectionDocTitle] = useState('');
+  
   // 🆕 Estados para documentos finales
   const [operatingPermitFile, setOperatingPermitFile] = useState(null);
   const [maintenanceServiceFile, setMaintenanceServiceFile] = useState(null);
@@ -374,15 +379,19 @@ const WorkDetail = () => {
 
   // ℹ️ Obtener historial de inspecciones para mostrar
   const initialInspectionsHistory = useMemo(() => {
-    return inspectionsByWork
+    const history = inspectionsByWork
       .filter(insp => insp.type === 'initial' && insp.finalStatus)
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    console.log('📋 [Inspecciones Iniciales] Historia:', history);
+    return history;
   }, [inspectionsByWork]);
 
   const finalInspectionsHistory = useMemo(() => {
-    return inspectionsByWork
+    const history = inspectionsByWork
       .filter(insp => insp.type === 'final' && insp.finalStatus)
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    console.log('📋 [Inspecciones Finales] Historia:', history);
+    return history;
   }, [inspectionsByWork]);
 
   // ✅ Permissions based on user role (already declared at top)
@@ -1837,6 +1846,233 @@ const handleUploadImage = async () => {
                     isVisible={openSections.inspectionFlow}
                   />
                 )}
+                
+                {/* 📋 Historial de Inspecciones Rápidas - Sección expandible */}
+                {(initialInspectionsHistory.length > 0 || finalInspectionsHistory.length > 0) && (
+                  <div className="mt-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+                    <button
+                      onClick={() => toggleSection('inspectionHistory')}
+                      className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">📋</span>
+                        <h3 className="text-md font-semibold text-gray-800">
+                          Historial de Inspecciones
+                        </h3>
+                        <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
+                          {initialInspectionsHistory.length + finalInspectionsHistory.length}
+                        </span>
+                      </div>
+                      <svg 
+                        className={`w-5 h-5 transform transition-transform ${openSections.inspectionHistory ? 'rotate-180' : ''}`}
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    
+                    {openSections.inspectionHistory && (
+                      <div className="p-4 border-t border-gray-200 space-y-4">
+                        {/* Inspecciones Iniciales */}
+                        {initialInspectionsHistory.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-bold text-blue-700 mb-3 flex items-center gap-2">
+                              🔵 Inspección Inicial
+                              {hasApprovedInitialInspection && <span className="text-green-600">✅ APROBADA</span>}
+                            </h4>
+                            <div className="space-y-3">
+                              {initialInspectionsHistory.map((insp, idx) => (
+                                <div 
+                                  key={insp.idInspection} 
+                                  className={`p-4 rounded-lg border-2 ${
+                                    insp.finalStatus === 'approved' 
+                                      ? 'bg-green-50 border-green-300' 
+                                      : 'bg-red-50 border-red-300'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm font-bold uppercase">
+                                      {insp.finalStatus === 'approved' ? '✅ APROBADA' : '❌ RECHAZADA'}
+                                    </span>
+                                    <span className="text-xs text-gray-600">
+                                      {formatDateSafe(insp.dateResultReceived || insp.createdAt)}
+                                    </span>
+                                  </div>
+                                  {insp.notes && (
+                                    <p className="text-sm text-gray-700 mb-2">
+                                      <strong>Notas:</strong> {insp.notes}
+                                    </p>
+                                  )}
+                                  {insp.resultDocumentUrl && (
+                                    <button
+                                      onClick={() => {
+                                        console.log('🔵 [Inspección Inicial] URL del documento:', insp.resultDocumentUrl);
+                                        setInspectionDocUrl(insp.resultDocumentUrl);
+                                        setInspectionDocTitle(`Inspección Inicial - ${insp.finalStatus === 'approved' ? 'Aprobada' : 'Rechazada'}`);
+                                        setShowInspectionDocModal(true);
+                                        console.log('✅ [Modal] Estado actualizado - showModal: true');
+                                      }}
+                                      className="inline-flex items-center gap-2 px-3 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                      </svg>
+                                      Ver Comprobante
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Inspecciones Finales */}
+                        {finalInspectionsHistory.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-bold text-purple-700 mb-3 flex items-center gap-2">
+                              🟣 Inspección Final
+                              {hasApprovedFinalInspection && <span className="text-green-600">✅ APROBADA</span>}
+                            </h4>
+                            <div className="space-y-3">
+                              {finalInspectionsHistory.map((insp, idx) => (
+                                <div 
+                                  key={insp.idInspection} 
+                                  className={`p-4 rounded-lg border-2 ${
+                                    insp.finalStatus === 'approved' 
+                                      ? 'bg-green-50 border-green-300' 
+                                      : 'bg-red-50 border-red-300'
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm font-bold uppercase">
+                                      {insp.finalStatus === 'approved' ? '✅ APROBADA' : '❌ RECHAZADA'}
+                                    </span>
+                                    <span className="text-xs text-gray-600">
+                                      {formatDateSafe(insp.dateResultReceived || insp.createdAt)}
+                                    </span>
+                                  </div>
+                                  {insp.notes && (
+                                    <p className="text-sm text-gray-700 mb-2">
+                                      <strong>Notas:</strong> {insp.notes}
+                                    </p>
+                                  )}
+                                  {insp.resultDocumentUrl && (
+                                    <button
+                                      onClick={() => {
+                                        console.log('🟣 [Inspección Final] URL del documento:', insp.resultDocumentUrl);
+                                        setInspectionDocUrl(insp.resultDocumentUrl);
+                                        setInspectionDocTitle(`Inspección Final - ${insp.finalStatus === 'approved' ? 'Aprobada' : 'Rechazada'}`);
+                                        setShowInspectionDocModal(true);
+                                        console.log('✅ [Modal] Estado actualizado - showModal: true');
+                                      }}
+                                      className="inline-flex items-center gap-2 px-3 py-2 text-sm text-white bg-purple-600 hover:bg-purple-700 rounded-lg font-medium transition-colors"
+                                    >
+                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                      </svg>
+                                      Ver Comprobante
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+            {/* 📄 Modal para ver Comprobante de Inspección */}
+            {showInspectionDocModal && inspectionDocUrl && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                {console.log('🎯 [Modal] Renderizando modal con URL:', inspectionDocUrl)}
+                <div className="bg-white rounded-lg shadow-2xl w-[95vw] h-[95vh] flex flex-col">
+                  {/* Header del modal */}
+                  <div className="flex items-center justify-between p-4 border-b border-gray-200">
+                    <h3 className="text-lg font-bold text-gray-800">{inspectionDocTitle}</h3>
+                    <button
+                      onClick={() => {
+                        setShowInspectionDocModal(false);
+                        setInspectionDocUrl(null);
+                        setInspectionDocTitle('');
+                      }}
+                      className="text-gray-500 hover:text-red-600 text-2xl font-bold"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  
+                  {/* Contenedor del documento */}
+                  <div className="flex-1 p-4 overflow-auto bg-gray-100">
+                    <div className="w-full h-full flex items-center justify-center">
+                      {/* Detectar tipo de archivo por extensión */}
+                      {inspectionDocUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                        <>
+                          {console.log('🖼️ [Modal] Mostrando como imagen:', inspectionDocUrl)}
+                          <img
+                            src={inspectionDocUrl}
+                            alt={inspectionDocTitle}
+                            className="max-w-full max-h-full object-contain rounded shadow-lg"
+                          />
+                        </>
+                      ) : inspectionDocUrl.match(/\.(pdf)$/i) ? (
+                        <>
+                          {console.log('📄 [Modal] Mostrando PDF con Google Docs Viewer:', inspectionDocUrl)}
+                          <iframe
+                            src={`https://docs.google.com/gview?url=${encodeURIComponent(inspectionDocUrl)}&embedded=true`}
+                            title={inspectionDocTitle}
+                            className="w-full h-full rounded border-2 border-gray-300 bg-white"
+                            style={{ minHeight: '600px' }}
+                          />
+                        </>
+                      ) : (
+                        <>
+                          {console.log('⚠️ [Modal] Archivo sin extensión o tipo desconocido. Mostrando directamente:', inspectionDocUrl)}
+                          <iframe
+                            src={inspectionDocUrl}
+                            title={inspectionDocTitle}
+                            className="w-full h-full rounded border-2 border-gray-300 bg-white"
+                            style={{ minHeight: '600px' }}
+                          />
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Footer con botones */}
+                  <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200">
+                    <a
+                      href={inspectionDocUrl}
+                      download
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors inline-flex items-center gap-2"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Descargar
+                    </a>
+                    <button
+                      onClick={() => {
+                        setShowInspectionDocModal(false);
+                        setInspectionDocUrl(null);
+                        setInspectionDocTitle('');
+                      }}
+                      className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium transition-colors"
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {/* Modal para resultado rápido de inspección */}
             {showQuickInspectionModal && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
@@ -2061,6 +2297,28 @@ const handleUploadImage = async () => {
                         return;
                       }
                       
+                      // ✅ Validación: No permitir inspección final si no hay pago del Final Invoice
+                      if (quickInspectionType === 'final') {
+                        // Buscar receipts asociados a pagos del Final Invoice
+                        // Los receipts de Final Invoice tienen relatedModel === 'FinalInvoice'
+                        const hasFinalInvoicePayment = allReceipts?.some(r => 
+                          r.relatedModel === 'FinalInvoice'
+                        );
+                        
+                        // También verificar si el Final Invoice existe y está pagado
+                        const finalInvoicePaid = work?.finalInvoice?.status === 'paid';
+                        
+                        console.log('🔍 [Validación Final Invoice] hasFinalInvoicePayment:', hasFinalInvoicePayment);
+                        console.log('🔍 [Validación Final Invoice] finalInvoicePaid:', finalInvoicePaid);
+                        console.log('🔍 [Validación Final Invoice] finalInvoice:', work?.finalInvoice);
+                        
+                        if (!hasFinalInvoicePayment && !finalInvoicePaid) {
+                          alert('⚠️ ERROR: No se puede registrar el resultado de la inspección final.\n\nDebe existir un comprobante de pago del Final Invoice antes de subir el resultado de la inspección final.\n\nPor favor, asegúrate de que el cliente haya pagado el Final Invoice y que el comprobante esté cargado en el sistema.');
+                          setQuickInspectionLoading(false);
+                          return;
+                        }
+                      }
+                      
                       if (!quickInspectionFile) return alert('Debes subir una imagen o PDF.');
                       setQuickInspectionLoading(true);
                       try {
@@ -2070,13 +2328,17 @@ const handleUploadImage = async () => {
                         formData.append('resultDocumentFile', quickInspectionFile);
                         if (quickInspectionNotes) formData.append('notes', quickInspectionNotes);
                         await dispatch(registerQuickInspectionResult(work.idWork, formData));
-                        setShowQuickInspectionModal(false);
+                        
+                        // ✅ Limpiar formulario pero NO cerrar modal para ver historial actualizado
                         setQuickInspectionFile(null);
                         setQuickInspectionNotes('');
                         setQuickInspectionLoading(false);
+                        
                         // ✅ Recargar datos de la obra e inspecciones (optimizado - paralelo)
                         await refreshWorkData({ fullRefresh: true });
-                        alert('✅ Resultado de inspección registrado exitosamente.');
+                        
+                        // ✅ Mensaje de éxito sin cerrar modal
+                        alert('✅ Resultado de inspección registrado exitosamente.\n\nPuedes ver el registro actualizado en el historial arriba. El modal permanecerá abierto para que puedas registrar otro resultado si es necesario.');
                       } catch (err) {
                         console.error('Error al registrar resultado rápido:', err);
                         const errorData = err.response?.data;

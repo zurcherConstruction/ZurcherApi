@@ -1,3 +1,4 @@
+const path = require('path');
 const { Inspection, Work, Permit, Image, Budget } = require('../data'); // Asegúrate de importar Image
 const { sendEmail } = require('../utils/notifications/emailService');
 const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryUploader');
@@ -114,11 +115,15 @@ const registerQuickInspectionResult = async (req, res) => {
       bufferToUpload = await compressPdfIfNeeded(bufferToUpload, req.file.originalname);
     }
 
+    // Obtener extensión del archivo original para preservarla en la URL
+    const fileExtension = path.extname(req.file.originalname).toLowerCase(); // .pdf, .jpg, .png, etc.
+    const timestamp = Date.now();
+
     // Subir archivo a Cloudinary
     const cloudinaryResult = await uploadBufferToCloudinary(bufferToUpload, {
       folder: `inspections/${workId}/quick_result`,
-      resource_type: 'raw',
-      public_id: `quick_result_${Date.now()}`
+      resource_type: isPdf ? 'raw' : 'auto', // 'auto' para imágenes, 'raw' para PDFs
+      public_id: `quick_result_${timestamp}${fileExtension}` // Ahora incluye la extensión
     });
 
     // Crear la inspección directamente con el resultado
