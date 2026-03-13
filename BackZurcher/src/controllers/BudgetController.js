@@ -502,6 +502,17 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
       console.log(`   - Nombre: ${budget.Permit.applicantName}`);
       console.log(`   - Dirección: ${budget.Permit.propertyAddress}`);
 
+      // 🆕 PREPARAR ATTACHMENTS PARA EMAIL AL CLIENTE
+      const attachmentsForClient = [];
+      if (fs.existsSync(localPdfPath)) {
+        const budgetAttachment = {
+          filename: `Budget_${idBudget}.pdf`,
+          path: localPdfPath,
+          contentType: 'application/pdf'
+        };
+        attachmentsForClient.push(budgetAttachment);
+      }
+
       // 📧 ENVIAR EMAIL AL CLIENTE CON PDF Y LINK DE PAGO
       console.log('📧 Enviando email al cliente con presupuesto y link de pago...');
       
@@ -6185,6 +6196,183 @@ async optionalDocs(req, res) {
       console.error('Error al obtener budgets con alertas:', error);
       res.status(500).json({
         error: 'Error al obtener budgets con alertas próximas',
+        details: error.message
+      });
+    }
+  },
+
+  /**
+   * 🆕 APROBACIÓN MANUAL DE PRESUPUESTO (OWNER BYPASS CLIENT WAIT)
+   * Permite al owner aprobar un presupuesto directamente sin esperar respuesta del cliente
+   * RUTA: POST /api/budgets/:idBudget/manual-approve
+   * PERMISOS: admin, owner
+   */
+  async manualApprove(req, res) {
+    const transaction = await conn.transaction();
+    
+    try {
+      const { idBudget } = req.params;
+      const { convertToInvoice = true } = req.body;
+      
+      console.log(`✋ Owner aprobando manualmente presupuesto ${idBudget}...`);
+
+      const budget = await Budget.findByPk(idBudget, {
+        include: [{ model: Permit, attributes: ['applicantName', 'propertyAddress', 'applicantEmail'] }],
+        transaction
+      });
+
+      if (!budget) {
+        await transaction.rollback();
+        return res.status(404).json({ error: 'Presupuesto no encontrado' });
+      }
+
+      // Validar que el presupuesto está en un estado que permite aprobación manual
+      const validStates = ['pending_review', 'send', 'notResponded'];
+      if (!validStates.includes(budget.status)) {
+        await transaction.rollback();
+        return res.status(400).json({ 
+          error: `No se puede aprobar manualmente este presupuesto (estado actual: ${budget.status}). Solo se pueden aprobar presupuestos en pending_review, send, o notResponded`
+        });
+      }
+
+      // Obtener información del staff que aprueba (desde el token)
+      const approvedByStaffId = req.user.id;
+      const approvedByStaff = await Staff.findByPk(approvedByStaffId, {
+        attributes: ['id', 'name', 'email']
+      });
+
+      let invoiceNumber = null;
+      if (convertToInvoice) {
+        // Generar invoice number si no existe
+        if (budget.invoiceNumber) {
+          invoiceNumber = budget.invoiceNumber;
+          console.log(`♻️  Manteniendo Invoice Number existente: ${invoiceNumber}`);
+        } else {
+          invoiceNumber = await getNextInvoiceNumber(transaction);
+          console.log(`📋 Asignando nuevo Invoice Number: ${invoiceNumber}`);
+        }
+
+        await budget.update({
+          status: 'created',
+          reviewedAt: new Date(),
+          invoiceNumber: invoiceNumber,
+          convertedToInvoiceAt: budget.convertedToInvoiceAt || new Date(),
+          manuallyApprovedBy: approvedByStaffId, // 🆕 Registrar quién aprobó manualmente
+          manuallyApprovedAt: new Date() // 🆕 Registrar cuándo se aprobó manualmente
+        }, { transaction });
+
+      } else {
+        // Solo aprobar sin convertir a invoice
+        await budget.update({
+          status: 'client_approved',
+          reviewedAt: new Date(),
+          manuallyApprovedBy: approvedByStaffId,
+          manuallyApprovedAt: new Date()
+        }, { transaction });
+      }
+
+      await transaction.commit();
+      console.log(`✅ Presupuesto ${idBudget} aprobado manualmente por ${approvedByStaff.name}${invoiceNumber ? ` y convertido a Invoice #${invoiceNumber}` : ''}`);
+
+      res.status(200).json({
+        success: true,
+        message: `Presupuesto aprobado manualmente por ${approvedByStaff.name}${invoiceNumber ? ` y convertido a Invoice #${invoiceNumber}` : ''}`,
+        budget: {
+          id: budget.idBudget,
+          status: budget.status,
+          invoiceNumber: invoiceNumber,
+          reviewedAt: budget.reviewedAt,
+          manuallyApprovedBy: approvedByStaff.name,
+          manuallyApprovedAt: budget.manuallyApprovedAt
+        }
+      });
+
+    } catch (error) {
+      await transaction.rollback();
+      console.error('❌ Error en aprobación manual:', error);
+      res.status(500).json({
+        error: 'Error al aprobar presupuesto manualmente',
+        details: error.message
+      });
+    }
+  },
+
+  /**
+   * 🆕 OBTENER ENLACE DE FIRMA DE DOCUSIGN
+   * Genera una URL de firma embebida que el owner puede copiar y enviar por WhatsApp/SMS
+   * RUTA: GET /api/budgets/:idBudget/signature-link
+   * PERMISOS: isStaff
+   */
+  async getSignatureLink(req, res) {
+    try {
+      const { idBudget } = req.params;
+      
+      console.log(`🔗 Generando enlace de firma para presupuesto ${idBudget}...`);
+
+      const budget = await Budget.findByPk(idBudget, {
+        include: [{ 
+          model: Permit, 
+          attributes: ['applicantName', 'applicantEmail'] 
+        }]
+      });
+
+      if (!budget) {
+        return res.status(404).json({ error: 'Presupuesto no encontrado' });
+      }
+
+      // Verificar que el presupuesto tiene un envelope de DocuSign
+      if (!budget.docusignEnvelopeId) {
+        return res.status(400).json({ 
+          error: 'Este presupuesto no tiene un documento enviado a DocuSign',
+          suggestion: 'Primero envía el presupuesto para firma usando el botón "Send for Signature"'
+        });
+      }
+
+      // Obtener email y nombre del cliente
+      const clientEmail = budget.Permit?.applicantEmail || budget.applicantEmail;
+      const clientName = budget.Permit?.applicantName || budget.applicantName;
+
+      if (!clientEmail || !clientName) {
+        return res.status(400).json({ 
+          error: 'Faltan datos del cliente (email o nombre)',
+          suggestion: 'Verifica que el presupuesto tenga la información completa del cliente'
+        });
+      }
+
+      // Generar URL de firma embebida usando DocuSignService
+      const docuSignService = new DocuSignService();
+      const signingUrl = await docuSignService.getRecipientViewUrl(
+        budget.docusignEnvelopeId,
+        clientEmail,
+        clientName,
+        process.env.FRONTEND_URL || 'https://zurcher-construction.vercel.app'
+      );
+
+      console.log(`✅ Enlace de firma generado exitosamente para presupuesto ${idBudget}`);
+
+      res.status(200).json({
+        success: true,
+        signingUrl: signingUrl,
+        envelopeId: budget.docusignEnvelopeId,
+        clientName: clientName,
+        clientEmail: clientEmail,
+        expiresIn: '5-15 minutes of inactivity',
+        note: 'Este enlace es válido por 5-15 minutos después de inactividad. Puedes regenerarlo cuantas veces necesites.'
+      });
+
+    } catch (error) {
+      console.error('❌ Error generando enlace de firma:', error);
+      
+      // Error específico de DocuSign (envelope no encontrado, ya firmado, etc.)
+      if (error.message?.includes('ENVELOPE_VOIDED') || error.message?.includes('ENVELOPE_COMPLETED')) {
+        return res.status(400).json({
+          error: 'El documento ya fue firmado o cancelado',
+          details: error.message
+        });
+      }
+
+      res.status(500).json({
+        error: 'Error al generar enlace de firma',
         details: error.message
       });
     }

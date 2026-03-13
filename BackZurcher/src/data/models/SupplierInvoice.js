@@ -125,6 +125,17 @@ module.exports = (sequelize) => {
       comment: 'Staff que creó el registro del invoice'
     },
     
+    // 🆕 Vínculo a Income (cuando el pago de tarjeta proviene de un ingreso)
+    relatedIncomeId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      references: {
+        model: 'Incomes',
+        key: 'idIncome'
+      },
+      comment: 'ID del Income que generó este pago de tarjeta (para devoluciones/créditos)'
+    },
+    
     // Información de contacto del proveedor (opcional)
     vendorEmail: {
       type: DataTypes.STRING,

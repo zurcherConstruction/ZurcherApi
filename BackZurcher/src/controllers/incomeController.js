@@ -25,6 +25,106 @@ const normalizeDateToLocal = (dateInput) => {
   }
 };
 
+// 💳 Helper: Aplicar ingreso como pago a tarjeta de crédito (FIFO)
+// Cuando se registra un ingreso con paymentMethod = tarjeta de crédito, 
+// aplicar ese monto como pago sobre los expenses pendientes de esa tarjeta
+const applyCreditCardPayment = async ({ 
+  creditCardName,  // 'Chase Credit Card' o 'AMEX'
+  amount, 
+  date, 
+  description, 
+  relatedIncomeId,
+  staffId,
+  transaction 
+}) => {
+  try {
+    console.log(`💳 [${creditCardName}] Aplicando ingreso de $${amount} como pago de tarjeta...`);
+
+    const { Expense, SupplierInvoice } = require('../data');
+    const paymentAmount = parseFloat(amount);
+    
+    // 1. Buscar expenses pendientes de esta tarjeta (FIFO: más antiguos primero)
+    const pendingExpenses = await Expense.findAll({
+      where: {
+        paymentMethod: creditCardName,
+        paymentStatus: ['unpaid', 'partial']
+      },
+      order: [['date', 'ASC']], // FIFO
+      transaction
+    });
+
+    let remainingPayment = paymentAmount;
+    const updatedExpenses = [];
+
+    // 2. Aplicar el pago sobre cada expense pendiente
+    for (const expense of pendingExpenses) {
+      if (remainingPayment <= 0) break;
+
+      const expenseAmount = parseFloat(expense.amount);
+      const paidAmount = parseFloat(expense.paidAmount || 0);
+      const pendingAmount = expenseAmount - paidAmount;
+
+      if (pendingAmount > 0) {
+        const amountToApply = Math.min(remainingPayment, pendingAmount);
+        const newPaidAmount = paidAmount + amountToApply;
+
+        // Actualizar el expense
+        await expense.update({
+          paidAmount: newPaidAmount,
+          paymentStatus: newPaidAmount >= expenseAmount ? 'paid' : 'partial',
+          paidDate: newPaidAmount >= expenseAmount ? date : expense.paidDate
+        }, { transaction });
+
+        updatedExpenses.push({
+          idExpense: expense.idExpense,
+          notes: expense.notes,
+          amount: expenseAmount,
+          appliedPayment: amountToApply,
+          newStatus: newPaidAmount >= expenseAmount ? 'paid' : 'partial'
+        });
+
+        remainingPayment -= amountToApply;
+        console.log(`  ✅ Expense "${expense.notes}": $${amountToApply} aplicado (${newPaidAmount >= expenseAmount ? 'PAGADO' : 'PARCIAL'})`);
+      }
+    }
+
+    console.log(`💳 [${creditCardName}] ${updatedExpenses.length} expense(s) actualizados. Sobrante: $${remainingPayment.toFixed(2)}`);
+
+    // 3. Registrar el pago en SupplierInvoice para tracking
+    const paymentRecord = await SupplierInvoice.create({
+      invoiceNumber: `${creditCardName === 'AMEX' ? 'AMEX' : 'CC'}-INCOME-CREDIT-${Date.now()}`,
+      vendor: creditCardName,
+      issueDate: date,
+      dueDate: null,
+      totalAmount: paymentAmount,
+      paymentStatus: 'paid',
+      paymentMethod: null, // NULL porque es crédito automático, no viene de cuenta específica
+      paymentDetails: `Crédito automático desde ingreso: ${description}`,
+      paymentDate: date,
+      paidAmount: paymentAmount,
+      notes: `💰 Crédito a favor por ingreso (devolución)`,
+      transactionType: 'payment',
+      isCreditCard: true,
+      balanceAfter: 0, // Se recalcula en el frontend
+      createdByStaffId: staffId,
+      relatedIncomeId: relatedIncomeId // 🆕 Vincular con el Income
+    }, { transaction });
+
+    console.log(`✅ [${creditCardName}] Pago registrado en SupplierInvoice ID: ${paymentRecord.idSupplierInvoice}`);
+
+    return {
+      success: true,
+      updatedExpenses,
+      paymentRecordId: paymentRecord.idSupplierInvoice,
+      remainingCredit: remainingPayment
+    };
+
+  } catch (error) {
+    console.error(`❌ [${creditCardName}] Error aplicando pago de tarjeta:`, error.message);
+    throw error;
+  }
+};
+
 // Crear un nuevo ingreso
 const createIncome = async (req, res) => {
   let { date, amount, typeIncome, notes, workId, staffId, paymentMethod, paymentDetails, verified, simpleWorkId } = req.body;
@@ -67,7 +167,54 @@ const createIncome = async (req, res) => {
       paymentMethod
     });
 
-    // 🔧 ACTUALIZAR totalPaid EN SIMPLEWORK SI ES UN PAGO DE SIMPLEWORK
+    // � AUTO-APLICAR COMO PAGO A TARJETA DE CRÉDITO SI CORRESPONDE
+    // Cuando el ingreso es recibido por tarjeta de crédito (ej: devoluciones),
+    // aplicar automáticamente como pago sobre los expenses pendientes de esa tarjeta
+    const { PAYMENT_METHODS } = require('../constants/paymentMethods');
+    
+    const creditCardMethods = [
+      PAYMENT_METHODS.CHASE_CREDIT,  // 'Chase Credit Card'
+      PAYMENT_METHODS.AMEX            // 'AMEX'
+    ];
+
+    const isCreditCardPayment = creditCardMethods.includes(paymentMethod);
+
+    if (isCreditCardPayment) {
+      try {
+        console.log(`💳 Ingreso detectado con pago a tarjeta: ${paymentMethod}`);
+        
+        const creditCardPaymentResult = await applyCreditCardPayment({
+          creditCardName: paymentMethod,  // Usar el valor exacto de la constante
+          amount,
+          date,
+          description: `${typeIncome}${notes ? ': ' + notes : ''}${workId ? ` (Work #${workId.slice(0, 8)})` : ''}`,
+          relatedIncomeId: newIncome.idIncome,
+          staffId,
+          transaction
+        });
+
+        console.log(`✅ [${paymentMethod}] Ingreso aplicado como pago de tarjeta:`, {
+          expensesUpdated: creditCardPaymentResult.updatedExpenses.length,
+          remainingCredit: creditCardPaymentResult.remainingCredit
+        });
+
+        // Si queda crédito sobrante, informarlo
+        if (creditCardPaymentResult.remainingCredit > 0.01) {
+          console.log(`💰 [${paymentMethod}] Crédito sobrante: $${creditCardPaymentResult.remainingCredit.toFixed(2)} (no hay más expenses pendientes)`);
+        }
+
+      } catch (creditCardError) {
+        // Si falla la aplicación del pago a tarjeta, hacer rollback completo
+        console.error('❌ Error aplicando ingreso como pago de tarjeta:', creditCardError.message);
+        await transaction.rollback();
+        return res.status(500).json({ 
+          message: 'Error aplicando ingreso como pago de tarjeta de crédito', 
+          error: creditCardError.message 
+        });
+      }
+    }
+
+    // �🔧 ACTUALIZAR totalPaid EN SIMPLEWORK SI ES UN PAGO DE SIMPLEWORK
     // No crear SimpleWorkPayment duplicado - el Income con simpleWorkId es la fuente de verdad
     if (simpleWorkId && typeIncome === 'Factura SimpleWork') {
       try {
