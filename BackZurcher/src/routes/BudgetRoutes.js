@@ -182,6 +182,22 @@ router.get('/upcoming-alerts', verifyToken, isStaff, BudgetController.getBudgets
 
 router.delete('/:idBudget', verifyToken, isOwner, BudgetController.deleteBudget); // Solo el dueño puede eliminar presupuestos
 
+// 🆕 APROBACIÓN MANUAL DE PRESUPUESTOS (OWNER BYPASS CLIENT WAIT)
+router.post(
+  '/:idBudget/manual-approve',
+  verifyToken,
+  allowRoles(['admin', 'owner']),
+  BudgetController.manualApprove
+);
+
+// 🆕 OBTENER ENLACE DE FIRMA DE DOCUSIGN PARA COMPARTIR
+router.get(
+  '/:idBudget/signature-link',
+  verifyToken,
+  isStaff,
+  BudgetController.getSignatureLink
+);
+
 // ========== RUTAS PARA EDITAR DATOS DE CLIENTE ==========
 
 // Obtener datos de cliente de un presupuesto

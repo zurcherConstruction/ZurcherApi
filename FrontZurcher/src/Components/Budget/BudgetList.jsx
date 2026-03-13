@@ -785,6 +785,72 @@ const BudgetList = () => {
     }
   };
   
+  // 🆕 FUNCIÓN: Aprobación manual del presupuesto (Owner bypass client wait)
+  const handleManualApprove = async (budget) => {
+    if (!window.confirm(
+      `¿Aprobar manualmente presupuesto #${budget.idBudget}?\n\n` +
+      `Cliente: ${budget.applicantName}\n` +
+      `Total: $${budget.totalPrice}\n\n` +
+      `Esto aprobará el presupuesto sin esperar respuesta del cliente.`
+    )) {
+      return;
+    }
+
+    try {
+      const response = await api.post(`/budget/${budget.idBudget}/manual-approve`, {
+        convertToInvoice: true // Convertir a invoice automáticamente
+      });
+      
+      if (response.data.success) {
+        alert(
+          `✅ Presupuesto aprobado manualmente\n\n` +
+          `Invoice #${response.data.budget.invoiceNumber || budget.idBudget}\n` +
+          `Aprobado por: ${response.data.budget.manuallyApprovedBy}\n\n` +
+          `Ahora puedes enviarlo para firma.`
+        );
+        refreshBudgets();
+      }
+    } catch (error) {
+      console.error('Error al aprobar manualmente:', error);
+      const errorMsg = error.response?.data?.error || error.message;
+      alert(`❌ Error al aprobar: ${errorMsg}`);
+    }
+  };
+
+  // 🆕 FUNCIÓN: Copiar enlace de firma de DocuSign
+  const handleCopySignatureLink = async (budget) => {
+    try {
+      // Mostrar indicador de carga
+      const loadingMsg = alert('⏳ Generando enlace de firma...');
+      
+      const response = await api.get(`/budget/${budget.idBudget}/signature-link`);
+      
+      if (response.data.success && response.data.signingUrl) {
+        // Copiar al portapapeles
+        await navigator.clipboard.writeText(response.data.signingUrl);
+        
+        alert(
+          `✅ Enlace de firma copiado al portapapeles\n\n` +
+          `Cliente: ${response.data.clientName}\n` +
+          `Email: ${response.data.clientEmail}\n\n` +
+          `⚠️  El enlace expira en 5-15 minutos de inactividad.\n` +
+          `Puedes regenerarlo cuantas veces necesites.\n\n` +
+          `Envíalo al cliente por WhatsApp, SMS u otro medio.`
+        );
+      }
+    } catch (error) {
+      console.error('Error al copiar enlace de firma:', error);
+      const errorMsg = error.response?.data?.error || error.message;
+      const suggestion = error.response?.data?.suggestion || '';
+      
+      alert(
+        `❌ Error al generar enlace de firma\n\n` +
+        `${errorMsg}\n\n` +
+        `${suggestion ? `💡 ${suggestion}` : ''}`
+      );
+    }
+  };
+  
   // 🆕 FUNCIÓN: Convertir Draft a Invoice
   // --- FUNCIÓN PARA MOSTRAR PDF DE PERMISO/OPCIONAL EN MODAL ---
   const handleShowPermitPdfInModal = async (budget, pdfType) => {
@@ -1331,6 +1397,18 @@ const BudgetList = () => {
                                   <p className="text-green-700 text-[10px] font-semibold bg-green-100 px-1.5 py-0.5 rounded text-center">
                                     ✅ Ready
                                   </p>
+                                  
+                                  {/* 🆕 BOTÓN: Copiar enlace de firma de DocuSign si existe y no está firmado */}
+                                  {budget.docusignEnvelopeId && !['signed', 'approved'].includes(budget.status) && (
+                                    <button
+                                      onClick={() => handleCopySignatureLink(budget)}
+                                      className="inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm bg-blue-500 text-white hover:bg-blue-600"
+                                      title="Copy DocuSign signature link to send via WhatsApp/SMS"
+                                    >
+                                      📋 Copy Link
+                                    </button>
+                                  )}
+                                  
                                   <button
                                     onClick={() => handleSendToSignNow(budget)}
                                     disabled={isReadOnly}
@@ -1397,6 +1475,17 @@ const BudgetList = () => {
                                   >
                                     🔄 Resend
                                   </button>
+                                  
+                                  {/* 🆕 BOTÓN: Aprobación Manual (Owner Bypass) */}
+                                  {(userRole === 'owner' || userRole === 'admin') && (
+                                    <button
+                                      onClick={() => handleManualApprove(budget)}
+                                      className="inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm bg-green-500 text-white hover:bg-green-600"
+                                      title="Approve manually without waiting for client response"
+                                    >
+                                      ✅ Approve
+                                    </button>
+                                  )}
                                 </div>
                               )}
                               
@@ -1428,6 +1517,29 @@ const BudgetList = () => {
                                   <p className="text-yellow-700 text-[10px] font-semibold bg-yellow-100 px-1.5 py-0.5 rounded text-center">
                                     📤 Sent
                                   </p>
+                                  
+                                  {/* 🆕 BOTÓN: Aprobación Manual (Owner Bypass) también para "send" */}
+                                  {(userRole === 'owner' || userRole === 'admin') && (
+                                    <button
+                                      onClick={() => handleManualApprove(budget)}
+                                      className="inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm bg-green-500 text-white hover:bg-green-600 mb-0.5"
+                                      title="Approve manually without waiting for client response"
+                                    >
+                                      ✅ Approve
+                                    </button>
+                                  )}
+                                  
+                                  {/* 🆕 BOTÓN: Copiar enlace de firma de DocuSign si existe y no está firmado */}
+                                  {budget.docusignEnvelopeId && !['signed', 'approved'].includes(budget.status) && (
+                                    <button
+                                      onClick={() => handleCopySignatureLink(budget)}
+                                      className="inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm bg-blue-500 text-white hover:bg-blue-600 mb-0.5"
+                                      title="Copy DocuSign signature link to send via WhatsApp/SMS"
+                                    >
+                                      📋 Copy Link
+                                    </button>
+                                  )}
+                                  
                                   <div className="flex gap-0.5">
                                     <button
                                       onClick={() => handleResendBudget(budget)}
@@ -1468,6 +1580,18 @@ const BudgetList = () => {
                                   <p className="text-blue-700 text-[10px] font-semibold bg-blue-100 px-1.5 py-0.5 rounded text-center">
                                     ✍️ Signing
                                   </p>
+                                  
+                                  {/* 🆕 BOTÓN: Copiar enlace de firma de DocuSign si existe y no está firmado */}
+                                  {budget.docusignEnvelopeId && !['signed', 'approved'].includes(budget.status) && (
+                                    <button
+                                      onClick={() => handleCopySignatureLink(budget)}
+                                      className="inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm bg-blue-500 text-white hover:bg-blue-600"
+                                      title="Copy DocuSign signature link to send via WhatsApp/SMS"
+                                    >
+                                      📋 Copy Link
+                                    </button>
+                                  )}
+                                  
                                   <button
                                     onClick={() =>
                                       handleUpdateStatus(
@@ -1530,6 +1654,29 @@ const BudgetList = () => {
                                   <p className="text-orange-700 text-[10px] font-semibold bg-orange-100 px-1.5 py-0.5 rounded text-center">
                                     ⏳ Waiting
                                   </p>
+                                  
+                                  {/* 🆕 BOTÓN: Aprobación Manual (Owner Bypass) también para "notResponded" */}
+                                  {(userRole === 'owner' || userRole === 'admin') && (
+                                    <button
+                                      onClick={() => handleManualApprove(budget)}
+                                      className="inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm bg-green-500 text-white hover:bg-green-600 mb-0.5"
+                                      title="Approve manually without waiting for client response"
+                                    >
+                                      ✅ Approve
+                                    </button>
+                                  )}
+                                  
+                                  {/* 🆕 BOTÓN: Copiar enlace de firma de DocuSign si existe y no está firmado */}
+                                  {budget.docusignEnvelopeId && !['signed', 'approved'].includes(budget.status) && (
+                                    <button
+                                      onClick={() => handleCopySignatureLink(budget)}
+                                      className="inline-flex items-center justify-center px-2 py-1 rounded text-[10px] font-medium w-full shadow-sm bg-blue-500 text-white hover:bg-blue-600 mb-0.5"
+                                      title="Copy DocuSign signature link to send via WhatsApp/SMS"
+                                    >
+                                      📋 Copy Link
+                                    </button>
+                                  )}
+                                  
                                   <button
                                     onClick={() =>
                                       handleUpdateStatus(

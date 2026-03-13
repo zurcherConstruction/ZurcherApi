@@ -327,6 +327,28 @@ module.exports = (sequelize) => {
     type: DataTypes.DATE,
     allowNull: true,
     comment: 'Fecha en que el borrador se convirtió en Invoice definitivo.'
+  },
+  
+  // --- 🆕 APROBACIÓN MANUAL (OWNER BYPASS CLIENT WAIT) ---
+  
+  // ID del staff que aprobó manualmente (bypass de aprobación del cliente)
+  manuallyApprovedBy: {
+    type: DataTypes.UUID,
+    allowNull: true,
+    references: {
+      model: 'Staffs',
+      key: 'id'
+    },
+    onUpdate: 'CASCADE',
+    onDelete: 'SET NULL',
+    comment: 'Staff que aprobó manualmente el presupuesto sin esperar respuesta del cliente'
+  },
+  
+  // Fecha de aprobación manual
+  manuallyApprovedAt: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    comment: 'Fecha en que el presupuesto fue aprobado manualmente por staff (bypass de cliente)'
   }
     
   }, {
