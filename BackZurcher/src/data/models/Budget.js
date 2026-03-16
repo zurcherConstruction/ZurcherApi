@@ -56,6 +56,7 @@ module.exports = (sequelize) => {
         "approved",           // Aprobado (después de firma y/o pago)
         "notResponded",       // Cliente no respondió
         "rejected",           // Rechazado por el cliente
+        "archived",           // 🗄️ Archivado (no activo, pero conservado con notas)
         "legacy_maintenance"  // 🆕 LEGACY: Para mantenimientos viejos (no suma estadísticas)
       ),
       allowNull: false,
@@ -349,6 +350,15 @@ module.exports = (sequelize) => {
     type: DataTypes.DATE,
     allowNull: true,
     comment: 'Fecha en que el presupuesto fue aprobado manualmente por staff (bypass de cliente)'
+  },
+  
+  // 🆕 SEGUIMIENTO (FOLLOW-UP)
+  requiresFollowUp: {
+    type: DataTypes.BOOLEAN,
+    field: 'requires_follow_up', // ✅ Mapeo explícito camelCase -> snake_case
+    allowNull: true,
+    defaultValue: false,
+    comment: 'Indica si el presupuesto requiere seguimiento por el equipo de follow-up'
   }
     
   }, {

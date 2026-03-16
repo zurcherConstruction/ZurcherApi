@@ -1434,10 +1434,10 @@ async getBudgets(req, res) {
     const baseWhereClause = {};
     const whereClause = {};
 
-    // ✅ EXCLUIR budgets con status 'legacy_maintenance' (mantenimiento legacy)
+    // ✅ EXCLUIR budgets con status 'legacy_maintenance' y 'archived'
     // Estos budgets NO deben aparecer en la gestión normal
-    baseWhereClause.status = { [Op.ne]: 'legacy_maintenance' };
-    whereClause.status = { [Op.ne]: 'legacy_maintenance' };
+    baseWhereClause.status = { [Op.notIn]: ['legacy_maintenance', 'archived'] };
+    whereClause.status = { [Op.notIn]: ['legacy_maintenance', 'archived'] };
 
     // 🔍 Condición de búsqueda SOLO para la query principal (no para stats)
     if (search && search.trim()) {
@@ -1624,7 +1624,8 @@ async getBudgets(req, res) {
         'manualSignedPdfPath',
         'manualSignedPdfPublicId',
         'signedPdfPath',
-        'signNowDocumentId'
+        'signNowDocumentId',
+        'requiresFollowUp' // ✅ Incluir para mostrar el estado de la campana en BudgetList
       ]
     });
 
@@ -5705,6 +5706,9 @@ async optionalDocs(req, res) {
       // Construir condiciones WHERE dinámicamente
       const whereConditions = {};
       
+      // ✅ EXCLUIR budgets archivados y legacy_maintenance de la exportación
+      whereConditions.status = { [Op.notIn]: ['archived', 'legacy_maintenance'] };
+      
       // 🎯 Filtro por estado (con lógica de agrupación)
       if (status && status !== 'all') {
         // ✅ Caso especial: "approved" incluye status='approved' O isLegacy=true
@@ -6125,6 +6129,9 @@ async optionalDocs(req, res) {
 
       // Buscar notas con recordatorios activos en el rango
       const budgetsWithAlerts = await Budget.findAll({
+        where: {
+          status: { [Op.notIn]: ['archived', 'legacy_maintenance'] } // ✅ Excluir archivados
+        },
         include: [
           {
             model: BudgetNote,
@@ -6397,7 +6404,8 @@ async optionalDocs(req, res) {
           contactCompany: {
             [Op.ne]: null, // Excluir valores NULL
             [Op.ne]: ''    // Excluir strings vacíos
-          }
+          },
+          status: { [Op.notIn]: ['archived', 'legacy_maintenance'] } // ✅ Excluir archivados
         },
         raw: true,
         order: [['contactCompany', 'ASC']] // Ordenar alfabéticamente
@@ -6420,6 +6428,241 @@ async optionalDocs(req, res) {
       console.error('❌ Error obteniendo contactCompanies:', error);
       res.status(500).json({
         error: 'Error al obtener lista de contactCompany',
+        details: error.message
+      });
+    }
+  },
+
+  // 🆕 Marcar/desmarcar presupuesto para seguimiento
+  async toggleRequiresFollowUp(req, res) {
+    try {
+      const { idBudget } = req.params;
+      const { requiresFollowUp } = req.body;
+
+      console.log(`🔄 Actualizando requiresFollowUp para Budget #${idBudget} a:`, requiresFollowUp);
+
+      const budget = await Budget.findByPk(idBudget);
+
+      if (!budget) {
+        return res.status(404).json({
+          error: 'Presupuesto no encontrado'
+        });
+      }
+
+      // Actualizar campo
+      await budget.update({ requiresFollowUp });
+
+      console.log(`✅ Budget #${idBudget} ${requiresFollowUp ? 'marcado' : 'desmarcado'} para seguimiento`);
+
+      res.status(200).json({
+        success: true,
+        message: requiresFollowUp 
+          ? 'Presupuesto marcado para seguimiento' 
+          : 'Presupuesto removido de seguimiento',
+        data: {
+          idBudget: budget.idBudget,
+          requiresFollowUp: budget.requiresFollowUp
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error actualizando requiresFollowUp:', error);
+      res.status(500).json({
+        error: 'Error al actualizar estado de seguimiento',
+        details: error.message
+      });
+    }
+  },
+
+  // 🆕 Obtener presupuestos que requieren seguimiento
+  async getFollowUpBudgets(req, res) {
+    try {
+      const { page = 1, pageSize = 20, search = '', status = '' } = req.query;
+
+      console.log('📋 Obteniendo budgets que requieren seguimiento...');
+
+      // Construir filtros
+      const whereClause = {
+        requiresFollowUp: true, // Solo budgets marcados para seguimiento
+        status: { [Op.ne]: 'legacy_maintenance' } // 🆕 Excluir legacy_maintenance automáticamente
+      };
+
+      // Filtro de búsqueda
+      if (search) {
+        whereClause[Op.or] = [
+          { idBudget: isNaN(search) ? null : parseInt(search) },
+          { applicantName: { [Op.iLike]: `%${search}%` } },
+          { propertyAddress: { [Op.iLike]: `%${search}%` } },
+          { contactCompany: { [Op.iLike]: `%${search}%` } }
+        ];
+      }
+
+      // Filtro de status (si se especifica, sobrescribe la exclusión de legacy)
+      if (status && status !== 'all') {
+        whereClause.status = status;
+      }
+
+      // Obtener budgets con seguimiento
+      const { count, rows: budgets } = await Budget.findAndCountAll({
+        where: whereClause,
+        include: [
+          {
+            model: Permit,
+            attributes: ['idPermit', 'permitNumber', 'applicantName', 'applicantEmail', 'propertyAddress']
+          }
+        ],
+        order: [['date', 'DESC']],
+        limit: parseInt(pageSize),
+        offset: (parseInt(page) - 1) * parseInt(pageSize)
+      });
+
+      // Obtener estadísticas de status (excluyendo legacy_maintenance)
+      const statusStats = await Budget.findAll({
+        where: { 
+          requiresFollowUp: true,
+          status: { [Op.ne]: 'legacy_maintenance' } // 🆕 Excluir legacy de stats
+        },
+        attributes: [
+          'status',
+          [sequelize.fn('COUNT', sequelize.col('idBudget')), 'count']
+        ],
+        group: ['status'],
+        raw: true
+      });
+
+      console.log(`✅ ${count} budgets con seguimiento encontrados`);
+
+      res.status(200).json({
+        success: true,
+        budgets,
+        total: count,
+        page: parseInt(page),
+        pageSize: parseInt(pageSize),
+        totalPages: Math.ceil(count / parseInt(pageSize)),
+        stats: {
+          byStatus: statusStats.reduce((acc, stat) => {
+            acc[stat.status] = parseInt(stat.count);
+            return acc;
+          }, {})
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error obteniendo budgets con seguimiento:', error);
+      res.status(500).json({
+        error: 'Error al obtener budgets con seguimiento',
+        details: error.message
+      });
+    }
+  },
+
+  // 🗄️ ARCHIVAR PRESUPUESTO
+  async archiveBudget(req, res) {
+    try {
+      const { idBudget } = req.params;
+
+      console.log(`🗄️ Archivando budget ${idBudget}...`);
+
+      const budget = await Budget.findByPk(idBudget);
+
+      if (!budget) {
+        return res.status(404).json({ error: 'Presupuesto no encontrado' });
+      }
+
+      // 📝 VALIDACIÓN: Verificar que tenga al menos una nota antes de archivar
+      const notesCount = await BudgetNote.count({
+        where: { budgetId: idBudget }
+      });
+
+      if (notesCount === 0) {
+        console.log(`⚠️ Budget ${idBudget} no puede archivarse: sin notas`);
+        return res.status(400).json({ 
+          error: 'No se puede archivar sin documentación',
+          message: 'Debes agregar al menos una nota explicando el motivo del archivo antes de archivar este presupuesto.',
+          needsNote: true
+        });
+      }
+
+      // Cambiar status a archived
+      budget.status = 'archived';
+      
+      // Si está en seguimiento, remover de seguimiento
+      if (budget.requiresFollowUp) {
+        budget.requiresFollowUp = false;
+      }
+
+      await budget.save();
+
+      console.log(`✅ Budget ${idBudget} archivado exitosamente (${notesCount} notas)`);
+
+      res.json({
+        success: true,
+        message: 'Presupuesto archivado exitosamente',
+        data: {
+          idBudget: budget.idBudget,
+          status: budget.status,
+          requiresFollowUp: budget.requiresFollowUp
+        }
+      });
+    } catch (error) {
+      console.error('❌ Error archivando budget:', error);
+      res.status(500).json({
+        error: 'Error al archivar presupuesto',
+        details: error.message
+      });
+    }
+  },
+
+  // 📋 OBTENER PRESUPUESTOS ARCHIVADOS
+  async getArchivedBudgetsFromDB(req, res) {
+    try {
+      const { page = 1, pageSize = 20, search = '' } = req.query;
+
+      console.log('📋 Obteniendo budgets archivados...');
+
+      // Construir filtros
+      const whereClause = {
+        status: 'archived'
+      };
+
+      // Filtro de búsqueda
+      if (search) {
+        whereClause[Op.or] = [
+          { idBudget: isNaN(search) ? null : parseInt(search) },
+          { applicantName: { [Op.iLike]: `%${search}%` } },
+          { propertyAddress: { [Op.iLike]: `%${search}%` } },
+          { contactCompany: { [Op.iLike]: `%${search}%` } }
+        ];
+      }
+
+      // Obtener budgets archivados
+      const { count, rows: budgets } = await Budget.findAndCountAll({
+        where: whereClause,
+        include: [
+          {
+            model: Permit,
+            attributes: ['idPermit', 'permitNumber', 'applicantName', 'applicantEmail', 'propertyAddress']
+          }
+        ],
+        order: [['updatedAt', 'DESC']], // Más recientes primero
+        limit: parseInt(pageSize),
+        offset: (parseInt(page) - 1) * parseInt(pageSize)
+      });
+
+      console.log(`✅ ${count} budgets archivados encontrados`);
+
+      res.json({
+        success: true,
+        budgets,
+        total: count,
+        page: parseInt(page),
+        pageSize: parseInt(pageSize),
+        totalPages: Math.ceil(count / parseInt(pageSize))
+      });
+    } catch (error) {
+      console.error('❌ Error obteniendo budgets archivados:', error);
+      res.status(500).json({
+        error: 'Error al obtener budgets archivados',
         details: error.message
       });
     }

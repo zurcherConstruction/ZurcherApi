@@ -5,7 +5,8 @@ import {
   updateBudget,
   resendBudgetToClient,
   sendBudgetToSignNow,
-  exportBudgetsToExcel, // 🆕 Importar la nueva acción
+  exportBudgetsToExcel,
+  toggleBudgetFollowUp, // Para el sistema de seguimiento
   // uploadInvoice, // Ya no se usa aquí si se eliminó handleUploadPayment
 } from "../../Redux/Actions/budgetActions";
 import {
@@ -18,7 +19,8 @@ import {
   PaperClipIcon,
   UserIcon,
   DocumentCheckIcon,
-  ArrowDownTrayIcon, // 🆕 Icono para exportar Excel
+  ArrowDownTrayIcon,
+  BellIcon, // 🆕 Icono para follow-up
 } from "@heroicons/react/24/outline"; // Icono para descarga
 //import BudgetPDF from "./BudgetPDF";
 import { parseISO, format } from "date-fns";
@@ -937,6 +939,20 @@ const BudgetList = () => {
   const handleClientDataUpdated = (updatedData) => {
     // Recargar la lista de presupuestos para mostrar los datos actualizados
     refreshBudgets(); // ✅ Refrescar con parámetros actuales
+  };
+
+  // 🔔 HANDLER PARA TOGGLE FOLLOW-UP
+  const handleToggleFollowUp = async (budgetId, currentValue) => {
+    try {
+      const newValue = !currentValue;
+      await dispatch(toggleBudgetFollowUp(budgetId, newValue));
+      console.log(`✅ Follow-up ${newValue ? 'activado' : 'desactivado'} para presupuesto ${budgetId}`);
+      // Refrescar la lista para mostrar el estado actualizado
+      refreshBudgets();
+    } catch (error) {
+      console.error('❌ Error al actualizar follow-up:', error);
+      alert('Error al actualizar el estado de seguimiento');
+    }
   };
 
   // 🆕 HANDLER PARA EXPORTAR A EXCEL
@@ -1960,6 +1976,28 @@ const BudgetList = () => {
                               >
                                 <UserIcon className="h-3 w-3" />
                               </button>
+
+                              {/* 🔔 Botón para marcar/desmarcar seguimiento (follow-up) */}
+                              <button
+                                onClick={() => handleToggleFollowUp(budget.idBudget, budget.requiresFollowUp)}
+                                disabled={isReadOnly}
+                                className={`inline-flex items-center justify-center p-1 rounded shadow-sm ${
+                                  isReadOnly 
+                                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                    : budget.requiresFollowUp
+                                    ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                                    : 'bg-gray-400 text-white hover:bg-gray-500'
+                                }`}
+                                title={
+                                  isReadOnly 
+                                    ? "View only - No edit permissions" 
+                                    : budget.requiresFollowUp 
+                                    ? "Requiere Seguimiento - Click para desmarcar" 
+                                    : "Marcar para Seguimiento"
+                                }
+                              >
+                                <BellIcon className="h-3 w-3" />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -2740,6 +2778,22 @@ const BudgetList = () => {
                             >
                               <UserIcon className="h-4 w-4 mr-2" />
                               Edit Client Data
+                            </button>
+
+                            {/* 🔔 Botón para marcar/desmarcar seguimiento (follow-up) */}
+                            <button
+                              onClick={() => handleToggleFollowUp(budget.idBudget, budget.requiresFollowUp)}
+                              disabled={isReadOnly}
+                              className={`w-full flex items-center justify-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                                isReadOnly 
+                                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                                  : budget.requiresFollowUp
+                                  ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                                  : 'bg-gray-400 text-white hover:bg-gray-500'
+                              }`}
+                            >
+                              <BellIcon className="h-4 w-4 mr-2" />
+                              {budget.requiresFollowUp ? '🔔 Requiere Seguimiento' : 'Marcar para Seguimiento'}
                             </button>
                           </div>
                         </div>

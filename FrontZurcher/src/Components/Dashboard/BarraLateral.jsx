@@ -92,6 +92,7 @@ const BarraLateral = () => {
       items: [
         { name: "Upload Permits", path: "/pdf", icon: FaUpload },
         { name: "Budgets", path: "/budgets", icon: FaFolderOpen },
+        { name: "Follow-Up Budgets", path: "/follow-up-budgets", icon: FaBell }, // 🔔 Seguimiento
         { name: "Legacy Budgets", path: "/create-legacy-budget", icon: FaHistory },
         { name: "Items Budgets", path: "/itemBudget", icon: FaBoxes },
         { name: "Edit Budgets", path: "/editBudget", icon: FaEdit },
@@ -185,6 +186,7 @@ const BarraLateral = () => {
           items: [
             { name: "Upload Permits", path: "/pdf", icon: FaUpload },
             { name: "Budgets", path: "/budgets", icon: FaFolderOpen },
+            { name: "Follow-Up Budgets", path: "/follow-up-budgets", icon: FaBell }, // 🔔 Seguimiento
             { name: "Legacy Budgets", path: "/create-legacy-budget", icon: FaHistory },
             { name: "Items Budgets", path: "/itemBudget", icon: FaBoxes },
             { name: "Edit Budgets", path: "/editBudget", icon: FaEdit },
@@ -310,6 +312,7 @@ const BarraLateral = () => {
           icon: FaFolderOpen,
           color: "text-purple-400",
           items: [
+            { name: "Follow-Up Budgets", path: "/follow-up-budgets", icon: FaBell }, // 🔔 Presupuestos en Seguimiento
             { name: "Gestion Budgets", path: "/gestionBudgets", icon: FaCog },
           ],
         },

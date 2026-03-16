@@ -51,6 +51,7 @@ import EditBudget from "./Components/Budget/EditBudget";
 import Summary from "./Components/Summary";
 import AccountsReceivable from "./Components/AccountsReceivable";
 import GestionBudgets from "./Components/Budget/GestionBudgets";
+import FollowUpBudgets from "./Components/Budget/FollowUpBudgets"; // 🔔 Presupuestos en Seguimiento
 import CreateLegacyBudget from "./Components/Budget/CreateLegacyBudget";
 import FixedExpensesManager from "./Components/FixedExpenses/FixedExpensesManager"; // 🆕 Gastos Fijos
 import MonthlyExpensesView from "./Components/MonthlyExpensesView"; // 🆕 Gastos Devengados Mensuales
@@ -347,6 +348,14 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["owner", "admin", "finance", "recept"]}>
                     <BudgetList />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/follow-up-budgets"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin", "finance", "follow-up"]}>
+                    <FollowUpBudgets />
                   </PrivateRoute>
                 }
               />
