@@ -371,3 +371,127 @@ export const fetchBudgetsWithUpcomingAlerts = (days = 7) => async (dispatch) => 
     };
   }
 };
+
+// 🆕 Obtener lista de contactCompany únicos (para autocomplete)
+export const fetchContactCompanies = () => async () => {
+  try {
+    const response = await api.get('/budget/contact-companies');
+    console.log('✅ ContactCompanies cargados:', response.data);
+    return {
+      type: 'FETCH_CONTACT_COMPANIES_SUCCESS',
+      payload: response.data.contactCompanies || []
+    };
+  } catch (error) {
+    console.error('❌ Error al obtener contactCompanies:', error);
+    return {
+      type: 'FETCH_CONTACT_COMPANIES_FAILURE',
+      payload: error.message
+    };
+  }
+};
+
+// 🔔 TOGGLE ESTADO DE SEGUIMIENTO (FOLLOW-UP) DE UN PRESUPUESTO
+export const toggleBudgetFollowUp = (idBudget, requiresFollowUp) => async (dispatch) => {
+  try {
+    const response = await api.patch(`/budget/${idBudget}/follow-up`, { requiresFollowUp });
+    console.log(`✅ Follow-up actualizado para presupuesto ${idBudget}:`, requiresFollowUp);
+    
+    // Actualizar el presupuesto en Redux
+    dispatch(updateBudgetSuccess(response.data.data));
+    
+    return {
+      type: 'TOGGLE_BUDGET_FOLLOWUP_SUCCESS',
+      payload: response.data.data
+    };
+  } catch (error) {
+    console.error('❌ Error al actualizar follow-up:', error);
+    return {
+      type: 'TOGGLE_BUDGET_FOLLOWUP_FAILURE',
+      payload: error.response?.data?.message || 'Error al actualizar el seguimiento'
+    };
+  }
+};
+
+// 🔍 OBTENER PRESUPUESTOS QUE REQUIEREN SEGUIMIENTO
+export const fetchFollowUpBudgets = ({
+  page = 1,
+  pageSize = 20,
+  search = '',
+  status = ''
+} = {}) => async () => {
+  try {
+    const params = new URLSearchParams();
+    params.append('page', page);
+    params.append('pageSize', pageSize);
+    if (search) params.append('search', search);
+    if (status && status !== 'all') params.append('status', status);
+
+    const response = await api.get(`/budget/follow-up?${params.toString()}`);
+    console.log('✅ Presupuestos con seguimiento cargados:', response.data);
+    
+    return {
+      type: 'FETCH_FOLLOWUP_BUDGETS_SUCCESS',
+      payload: response.data
+    };
+  } catch (error) {
+    console.error('❌ Error al obtener presupuestos con seguimiento:', error);
+    return {
+      type: 'FETCH_FOLLOWUP_BUDGETS_FAILURE',
+      payload: error.response?.data?.message || 'Error al cargar presupuestos con seguimiento'
+    };
+  }
+};
+
+// 🗄️ ARCHIVAR UN PRESUPUESTO
+export const archiveBudget = (idBudget) => async (dispatch) => {
+  try {
+    const response = await api.patch(`/budget/${idBudget}/archive`);
+    console.log(`✅ Budget ${idBudget} archivado exitosamente`);
+    
+    return {
+      type: 'ARCHIVE_BUDGET_SUCCESS',
+      payload: response.data.data
+    };
+  } catch (error) {
+    console.error('❌ Error al archivar presupuesto:', error);
+    
+    // Retornar el error completo con toda la información del backend
+    return {
+      type: 'ARCHIVE_BUDGET_FAILURE',
+      error: true,
+      payload: {
+        message: error.response?.data?.message || error.response?.data?.error || 'Error al archivar el presupuesto',
+        needsNote: error.response?.data?.needsNote || false
+      }
+    };
+  }
+};
+
+// 📋 OBTENER PRESUPUESTOS ARCHIVADOS
+export const fetchArchivedBudgetsFromDB = ({
+  page = 1,
+  pageSize = 20,
+  search = ''
+} = {}) => async () => {
+  try {
+    const params = new URLSearchParams();
+    params.append('page', page);
+    params.append('pageSize', pageSize);
+    if (search) params.append('search', search);
+
+    const response = await api.get(`/budget/archived?${params.toString()}`);
+    console.log('✅ Presupuestos archivados cargados:', response.data);
+    
+    return {
+      type: 'FETCH_ARCHIVED_BUDGETS_DB_SUCCESS',
+      payload: response.data
+    };
+  } catch (error) {
+    console.error('❌ Error al obtener presupuestos archivados:', error);
+    return {
+      type: 'FETCH_ARCHIVED_BUDGETS_DB_FAILURE',
+      payload: error.response?.data?.message || 'Error al cargar presupuestos archivados'
+    };
+  }
+};
+

@@ -23,6 +23,17 @@ router.post('/legacy', verifyToken, allowRoles(['admin', 'owner']), upload.field
 
 router.get('/all', verifyToken, isStaff, BudgetController.getBudgets); // Personal del hotel puede ver presupuestos (incluyendo follow-up)
 
+// 🆕 Obtener lista de contactCompany únicos (para autocomplete)
+router.get('/contact-companies', verifyToken, isStaff, BudgetController.getContactCompanies);
+
+// 🆕 SEGUIMIENTO (FOLLOW-UP)
+// Obtener budgets que requieren seguimiento
+router.get('/follow-up', verifyToken, allowRoles(['admin', 'owner', 'follow-up', 'finance']), BudgetController.getFollowUpBudgets);
+
+// 🗄️ ARCHIVO (ARCHIVED BUDGETS)
+// Obtener budgets archivados desde la base de datos
+router.get('/archived', verifyToken, allowRoles(['admin', 'owner', 'follow-up', 'finance']), BudgetController.getArchivedBudgetsFromDB);
+
 // 🆕 EXPORTAR BUDGETS A EXCEL
 router.get('/export/excel', verifyToken, allowRoles(['admin', 'owner', 'finance', 'follow-up']), BudgetController.exportBudgetsToExcel);
 
@@ -176,6 +187,13 @@ router.post(
 
 // 🔔 RUTA PARA OBTENER BUDGETS CON ALERTAS PRÓXIMAS (debe ir ANTES de /:idBudget)
 router.get('/upcoming-alerts', verifyToken, isStaff, BudgetController.getBudgetsWithUpcomingAlerts);
+
+// 🆕 ACTUALIZAR SEGUIMIENTO (FOLLOW-UP)
+// 🆕 ACTUALIZAR SEGUIMIENTO (FOLLOW-UP)
+router.patch('/:idBudget/follow-up', verifyToken, allowRoles(['admin', 'owner', 'follow-up', 'finance']), BudgetController.toggleRequiresFollowUp);
+
+// 🗄️ ARCHIVAR PRESUPUESTO
+router.patch('/:idBudget/archive', verifyToken, allowRoles(['admin', 'owner', 'follow-up', 'finance']), BudgetController.archiveBudget);
 
   router.put('/:idBudget', verifyToken, BudgetController.updateBudget); // Solo administradores pueden actualizar presupuestos
   router.get('/:idBudget', verifyToken, isStaff, BudgetController.getBudgetById); // Personal del hotel puede ver un presupuesto específico

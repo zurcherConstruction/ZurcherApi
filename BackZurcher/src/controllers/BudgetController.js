@@ -1374,6 +1374,7 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
           {
             model: BudgetLineItem,
             as: 'lineItems',
+            separate: true, // OPTIMIZACIÓN: Previene duplicación de filas y mejora performance
             include: [
               {
                 model: BudgetItem,
@@ -1383,6 +1384,7 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
             ],
           },
         ],
+        timeout: 30000, //  OPTIMIZACIÓN: Aumentar timeout a 30 segundos para Railway
       });
 
       if (!budget) {
@@ -1432,10 +1434,10 @@ async getBudgets(req, res) {
     const baseWhereClause = {};
     const whereClause = {};
 
-    // ✅ EXCLUIR budgets con status 'legacy_maintenance' (mantenimiento legacy)
+    // ✅ EXCLUIR budgets con status 'legacy_maintenance' y 'archived'
     // Estos budgets NO deben aparecer en la gestión normal
-    baseWhereClause.status = { [Op.ne]: 'legacy_maintenance' };
-    whereClause.status = { [Op.ne]: 'legacy_maintenance' };
+    baseWhereClause.status = { [Op.notIn]: ['legacy_maintenance', 'archived'] };
+    whereClause.status = { [Op.notIn]: ['legacy_maintenance', 'archived'] };
 
     // 🔍 Condición de búsqueda SOLO para la query principal (no para stats)
     if (search && search.trim()) {
@@ -1622,7 +1624,8 @@ async getBudgets(req, res) {
         'manualSignedPdfPath',
         'manualSignedPdfPublicId',
         'signedPdfPath',
-        'signNowDocumentId'
+        'signNowDocumentId',
+        'requiresFollowUp' // ✅ Incluir para mostrar el estado de la campana en BudgetList
       ]
     });
 
@@ -3540,13 +3543,13 @@ async optionalDocs(req, res) {
     
     try {
       const { idBudget } = req.params;
-      const { applicantName, applicantEmail, applicantPhone, propertyAddress } = req.body;
+      const { applicantName, applicantEmail, applicantPhone, propertyAddress, contactCompany } = req.body;
 
       // Validaciones básicas
-      if (!applicantName && !applicantEmail && !applicantPhone && !propertyAddress) {
+      if (!applicantName && !applicantEmail && !applicantPhone && !propertyAddress && !contactCompany) {
         return res.status(400).json({
           error: true,
-          message: 'Se requiere al menos un campo para actualizar (applicantName, applicantEmail, applicantPhone, propertyAddress)'
+          message: 'Se requiere al menos un campo para actualizar (applicantName, applicantEmail, applicantPhone, propertyAddress, contactCompany)'
         });
       }
 
@@ -3571,6 +3574,7 @@ async optionalDocs(req, res) {
       const budgetUpdateData = {};
       if (applicantName) budgetUpdateData.applicantName = applicantName;
       if (propertyAddress) budgetUpdateData.propertyAddress = propertyAddress;
+      if (contactCompany !== undefined) budgetUpdateData.contactCompany = contactCompany; // 🆕 NUEVO
 
       // Preparar datos para actualizar en Permit
       const permitUpdateData = {};
@@ -3608,7 +3612,8 @@ async optionalDocs(req, res) {
           budget: {
             idBudget: updatedBudget.idBudget,
             applicantName: updatedBudget.applicantName,
-            propertyAddress: updatedBudget.propertyAddress
+            propertyAddress: updatedBudget.propertyAddress,
+            contactCompany: updatedBudget.contactCompany // 🆕 NUEVO
           },
           permit: updatedBudget.Permit ? {
             idPermit: updatedBudget.Permit.idPermit,
@@ -3640,7 +3645,7 @@ async optionalDocs(req, res) {
       const { idBudget } = req.params;
 
       const budget = await Budget.findByPk(idBudget, {
-        attributes: ['idBudget', 'applicantName', 'propertyAddress', 'status', 'date'],
+        attributes: ['idBudget', 'applicantName', 'propertyAddress', 'status', 'date', 'contactCompany'], // 🆕 AGREGADO contactCompany
         include: [{
           model: Permit,
           attributes: ['idPermit', 'applicantName', 'applicantEmail', 'applicantPhone', 'propertyAddress', 'permitNumber']
@@ -3661,6 +3666,7 @@ async optionalDocs(req, res) {
             idBudget: budget.idBudget,
             applicantName: budget.applicantName,
             propertyAddress: budget.propertyAddress,
+            contactCompany: budget.contactCompany, // 🆕 AGREGADO
             status: budget.status,
             date: budget.date
           },
@@ -5700,6 +5706,9 @@ async optionalDocs(req, res) {
       // Construir condiciones WHERE dinámicamente
       const whereConditions = {};
       
+      // ✅ EXCLUIR budgets archivados y legacy_maintenance de la exportación
+      whereConditions.status = { [Op.notIn]: ['archived', 'legacy_maintenance'] };
+      
       // 🎯 Filtro por estado (con lógica de agrupación)
       if (status && status !== 'all') {
         // ✅ Caso especial: "approved" incluye status='approved' O isLegacy=true
@@ -6120,6 +6129,9 @@ async optionalDocs(req, res) {
 
       // Buscar notas con recordatorios activos en el rango
       const budgetsWithAlerts = await Budget.findAll({
+        where: {
+          status: { [Op.notIn]: ['archived', 'legacy_maintenance'] } // ✅ Excluir archivados
+        },
         include: [
           {
             model: BudgetNote,
@@ -6373,6 +6385,284 @@ async optionalDocs(req, res) {
 
       res.status(500).json({
         error: 'Error al generar enlace de firma',
+        details: error.message
+      });
+    }
+  },
+
+  // 🆕 Obtener lista de contactCompany únicos existentes (para autocomplete)
+  async getContactCompanies(req, res) {
+    try {
+      console.log('--- Obteniendo lista de contactCompany únicos ---');
+
+      // Obtener contactCompany únicos que no sean NULL, ordenados alfabéticamente
+      const contactCompanies = await Budget.findAll({
+        attributes: [
+          [sequelize.fn('DISTINCT', sequelize.col('contact_company')), 'contactCompany']
+        ],
+        where: {
+          contactCompany: {
+            [Op.ne]: null, // Excluir valores NULL
+            [Op.ne]: ''    // Excluir strings vacíos
+          },
+          status: { [Op.notIn]: ['archived', 'legacy_maintenance'] } // ✅ Excluir archivados
+        },
+        raw: true,
+        order: [['contactCompany', 'ASC']] // Ordenar alfabéticamente
+      });
+
+      // Convertir de [{contactCompany: 'ABC'}] a ['ABC', 'XYZ', ...]
+      const companiesList = contactCompanies
+        .map(item => item.contactCompany)
+        .filter(name => name && name.trim().length > 0); // Filtrar valores vacíos
+
+      console.log(`✅ Se encontraron ${companiesList.length} contactCompany únicos`);
+
+      res.status(200).json({
+        success: true,
+        count: companiesList.length,
+        contactCompanies: companiesList
+      });
+
+    } catch (error) {
+      console.error('❌ Error obteniendo contactCompanies:', error);
+      res.status(500).json({
+        error: 'Error al obtener lista de contactCompany',
+        details: error.message
+      });
+    }
+  },
+
+  // 🆕 Marcar/desmarcar presupuesto para seguimiento
+  async toggleRequiresFollowUp(req, res) {
+    try {
+      const { idBudget } = req.params;
+      const { requiresFollowUp } = req.body;
+
+      console.log(`🔄 Actualizando requiresFollowUp para Budget #${idBudget} a:`, requiresFollowUp);
+
+      const budget = await Budget.findByPk(idBudget);
+
+      if (!budget) {
+        return res.status(404).json({
+          error: 'Presupuesto no encontrado'
+        });
+      }
+
+      // Actualizar campo
+      await budget.update({ requiresFollowUp });
+
+      console.log(`✅ Budget #${idBudget} ${requiresFollowUp ? 'marcado' : 'desmarcado'} para seguimiento`);
+
+      res.status(200).json({
+        success: true,
+        message: requiresFollowUp 
+          ? 'Presupuesto marcado para seguimiento' 
+          : 'Presupuesto removido de seguimiento',
+        data: {
+          idBudget: budget.idBudget,
+          requiresFollowUp: budget.requiresFollowUp
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error actualizando requiresFollowUp:', error);
+      res.status(500).json({
+        error: 'Error al actualizar estado de seguimiento',
+        details: error.message
+      });
+    }
+  },
+
+  // 🆕 Obtener presupuestos que requieren seguimiento
+  async getFollowUpBudgets(req, res) {
+    try {
+      const { page = 1, pageSize = 20, search = '', status = '' } = req.query;
+
+      console.log('📋 Obteniendo budgets que requieren seguimiento...');
+
+      // Construir filtros
+      const whereClause = {
+        requiresFollowUp: true, // Solo budgets marcados para seguimiento
+        status: { [Op.ne]: 'legacy_maintenance' } // 🆕 Excluir legacy_maintenance automáticamente
+      };
+
+      // Filtro de búsqueda
+      if (search) {
+        whereClause[Op.or] = [
+          { idBudget: isNaN(search) ? null : parseInt(search) },
+          { applicantName: { [Op.iLike]: `%${search}%` } },
+          { propertyAddress: { [Op.iLike]: `%${search}%` } },
+          { contactCompany: { [Op.iLike]: `%${search}%` } }
+        ];
+      }
+
+      // Filtro de status (si se especifica, sobrescribe la exclusión de legacy)
+      if (status && status !== 'all') {
+        whereClause.status = status;
+      }
+
+      // Obtener budgets con seguimiento
+      const { count, rows: budgets } = await Budget.findAndCountAll({
+        where: whereClause,
+        include: [
+          {
+            model: Permit,
+            attributes: ['idPermit', 'permitNumber', 'applicantName', 'applicantEmail', 'propertyAddress']
+          }
+        ],
+        order: [['date', 'DESC']],
+        limit: parseInt(pageSize),
+        offset: (parseInt(page) - 1) * parseInt(pageSize)
+      });
+
+      // Obtener estadísticas de status (excluyendo legacy_maintenance)
+      const statusStats = await Budget.findAll({
+        where: { 
+          requiresFollowUp: true,
+          status: { [Op.ne]: 'legacy_maintenance' } // 🆕 Excluir legacy de stats
+        },
+        attributes: [
+          'status',
+          [sequelize.fn('COUNT', sequelize.col('idBudget')), 'count']
+        ],
+        group: ['status'],
+        raw: true
+      });
+
+      console.log(`✅ ${count} budgets con seguimiento encontrados`);
+
+      res.status(200).json({
+        success: true,
+        budgets,
+        total: count,
+        page: parseInt(page),
+        pageSize: parseInt(pageSize),
+        totalPages: Math.ceil(count / parseInt(pageSize)),
+        stats: {
+          byStatus: statusStats.reduce((acc, stat) => {
+            acc[stat.status] = parseInt(stat.count);
+            return acc;
+          }, {})
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Error obteniendo budgets con seguimiento:', error);
+      res.status(500).json({
+        error: 'Error al obtener budgets con seguimiento',
+        details: error.message
+      });
+    }
+  },
+
+  // 🗄️ ARCHIVAR PRESUPUESTO
+  async archiveBudget(req, res) {
+    try {
+      const { idBudget } = req.params;
+
+      console.log(`🗄️ Archivando budget ${idBudget}...`);
+
+      const budget = await Budget.findByPk(idBudget);
+
+      if (!budget) {
+        return res.status(404).json({ error: 'Presupuesto no encontrado' });
+      }
+
+      // 📝 VALIDACIÓN: Verificar que tenga al menos una nota antes de archivar
+      const notesCount = await BudgetNote.count({
+        where: { budgetId: idBudget }
+      });
+
+      if (notesCount === 0) {
+        console.log(`⚠️ Budget ${idBudget} no puede archivarse: sin notas`);
+        return res.status(400).json({ 
+          error: 'No se puede archivar sin documentación',
+          message: 'Debes agregar al menos una nota explicando el motivo del archivo antes de archivar este presupuesto.',
+          needsNote: true
+        });
+      }
+
+      // Cambiar status a archived
+      budget.status = 'archived';
+      
+      // Si está en seguimiento, remover de seguimiento
+      if (budget.requiresFollowUp) {
+        budget.requiresFollowUp = false;
+      }
+
+      await budget.save();
+
+      console.log(`✅ Budget ${idBudget} archivado exitosamente (${notesCount} notas)`);
+
+      res.json({
+        success: true,
+        message: 'Presupuesto archivado exitosamente',
+        data: {
+          idBudget: budget.idBudget,
+          status: budget.status,
+          requiresFollowUp: budget.requiresFollowUp
+        }
+      });
+    } catch (error) {
+      console.error('❌ Error archivando budget:', error);
+      res.status(500).json({
+        error: 'Error al archivar presupuesto',
+        details: error.message
+      });
+    }
+  },
+
+  // 📋 OBTENER PRESUPUESTOS ARCHIVADOS
+  async getArchivedBudgetsFromDB(req, res) {
+    try {
+      const { page = 1, pageSize = 20, search = '' } = req.query;
+
+      console.log('📋 Obteniendo budgets archivados...');
+
+      // Construir filtros
+      const whereClause = {
+        status: 'archived'
+      };
+
+      // Filtro de búsqueda
+      if (search) {
+        whereClause[Op.or] = [
+          { idBudget: isNaN(search) ? null : parseInt(search) },
+          { applicantName: { [Op.iLike]: `%${search}%` } },
+          { propertyAddress: { [Op.iLike]: `%${search}%` } },
+          { contactCompany: { [Op.iLike]: `%${search}%` } }
+        ];
+      }
+
+      // Obtener budgets archivados
+      const { count, rows: budgets } = await Budget.findAndCountAll({
+        where: whereClause,
+        include: [
+          {
+            model: Permit,
+            attributes: ['idPermit', 'permitNumber', 'applicantName', 'applicantEmail', 'propertyAddress']
+          }
+        ],
+        order: [['updatedAt', 'DESC']], // Más recientes primero
+        limit: parseInt(pageSize),
+        offset: (parseInt(page) - 1) * parseInt(pageSize)
+      });
+
+      console.log(`✅ ${count} budgets archivados encontrados`);
+
+      res.json({
+        success: true,
+        budgets,
+        total: count,
+        page: parseInt(page),
+        pageSize: parseInt(pageSize),
+        totalPages: Math.ceil(count / parseInt(pageSize))
+      });
+    } catch (error) {
+      console.error('❌ Error obteniendo budgets archivados:', error);
+      res.status(500).json({
+        error: 'Error al obtener budgets archivados',
         details: error.message
       });
     }

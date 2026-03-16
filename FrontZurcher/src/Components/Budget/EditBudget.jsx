@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useParams } from "react-router-dom";
-import { fetchBudgets, fetchBudgetById, updateBudget, } from "../../Redux/Actions/budgetActions";
+import { fetchBudgets, fetchBudgetById, updateBudget, fetchContactCompanies } from "../../Redux/Actions/budgetActions";
 import { fetchWorks } from "../../Redux/Actions/workActions"; // 🆕 Para refrescar works cuando se actualiza permit
 import { toast } from 'react-toastify'; // 🆕 Para notificaciones
 // ✅ AGREGAR ESTAS IMPORTACIONES:
@@ -18,6 +18,18 @@ import api from "../../utils/axios";
 
 // --- Helper para generar IDs temporales ---
 const generateTempId = () => `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+// 🆕 Helper para normalizar contactCompany a Title Case
+const normalizeCompanyName = (name) => {
+  if (!name || typeof name !== 'string') return '';
+  
+  return name
+    .trim()
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
 
 const EditBudget = () => {
   
@@ -122,6 +134,11 @@ const EditBudget = () => {
     commissionAmount: ''
   });
 
+  // 🆕 Lista de contactCompany existentes para autocomplete
+  const [contactCompanies, setContactCompanies] = useState([]);
+  const [showContactDropdown, setShowContactDropdown] = useState(false); // 🆕 Control dropdown contactCompany
+  const [contactSearchTerm, setContactSearchTerm] = useState(''); // 🆕 Término de búsqueda para filtrar
+
   // --- Cargar Lista de Budgets para Búsqueda ---
   useEffect(() => {
     // Cargar TODOS los presupuestos disponibles (hasta 1000)
@@ -136,6 +153,22 @@ const EditBudget = () => {
   // 🆕 Cargar lista de staff al montar
   useEffect(() => {
     dispatch(fetchStaff()); // Usar la acción correcta
+  }, [dispatch]);
+
+  // 🆕 Cargar contactCompanies para autocomplete
+  useEffect(() => {
+    const loadContactCompanies = async () => {
+      try {
+        const result = await dispatch(fetchContactCompanies());
+        if (result.payload) {
+          setContactCompanies(result.payload);
+          console.log(`✅ ${result.payload.length} contactCompanies cargados`);
+        }
+      } catch (error) {
+        console.error('❌ Error cargando contactCompanies:', error);
+      }
+    };
+    loadContactCompanies();
   }, [dispatch]);
 
   // ✅ NUEVO: Cargar presupuesto automáticamente si viene budgetId en la URL
@@ -609,7 +642,7 @@ const editableBudgets = useMemo(() => {
       discountAmount: parseFloat(formData.discountAmount) || 0,
       generalNotes: formData.generalNotes,
       initialPaymentPercentage: parseFloat(formData.initialPaymentPercentage) || 60,
-      contactCompany: formData.contactCompany || null, // 🆕 Empresa/contacto referente
+      contactCompany: normalizeCompanyName(formData.contactCompany) || null, // 🆕 Normalizado a Title Case
       // 🆕 Campos de comisiones
       leadSource: formData.leadSource,
       createdByStaffId: formData.createdByStaffId || null,
@@ -697,6 +730,7 @@ const editableBudgets = useMemo(() => {
         ...prev,
         applicantName: updatedData.budget?.applicantName || prev.applicantName,
         propertyAddress: updatedData.budget?.propertyAddress || prev.propertyAddress,
+        contactCompany: updatedData.budget?.contactCompany || prev.contactCompany, // 🆕 AGREGADO
         // Actualizar también los campos del permit
         applicantEmail: updatedData.permit?.applicantEmail || prev.applicantEmail,
         applicantPhone: updatedData.permit?.applicantPhone || prev.applicantPhone,
@@ -1302,15 +1336,63 @@ const editableBudgets = useMemo(() => {
                     <label className="block text-sm font-medium text-gray-500">Phone</label>
                     <p className="mt-1 text-base text-gray-900 font-semibold">{formData.applicantPhone || 'N/A'}</p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500">Contact/Company</label>
-                    <input
-                      type="text"
-                      value={formData.contactCompany || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, contactCompany: e.target.value }))}
-                      placeholder="e.g. Home Depot, Lowe's, John Realty"
-                      className="mt-1 w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
+                  <div className="relative">
+                    <label className="block text-sm font-medium text-gray-500 mb-1">Contact/Company</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={formData.contactCompany || ''}
+                        onChange={(e) => {
+                          setFormData(prev => ({ ...prev, contactCompany: e.target.value }));
+                          setContactSearchTerm(e.target.value);
+                          setShowContactDropdown(true);
+                        }}
+                        onFocus={() => {
+                          setContactSearchTerm(formData.contactCompany || '');
+                          setShowContactDropdown(true);
+                        }}
+                        onBlur={() => setTimeout(() => setShowContactDropdown(false), 200)}
+                        placeholder="Select existing or type new company"
+                        className="mt-1 w-full px-3 py-2 pr-8 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <svg className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                    
+                    {/* Dropdown con opciones existentes */}
+                    {showContactDropdown && contactCompanies.length > 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                        <div className="px-3 py-2 text-xs font-semibold text-gray-500 bg-gray-50 border-b">
+                          Existing Companies ({contactCompanies.filter(c => 
+                            c.toLowerCase().includes((contactSearchTerm || '').toLowerCase())
+                          ).length})
+                        </div>
+                        {contactCompanies
+                          .filter(company => 
+                            company.toLowerCase().includes((contactSearchTerm || '').toLowerCase())
+                          )
+                          .slice(0, 10)
+                          .map((company, idx) => (
+                            <div
+                              key={idx}
+                              onClick={() => {
+                                setFormData(prev => ({ ...prev, contactCompany: company }));
+                                setShowContactDropdown(false);
+                              }}
+                              className="px-3 py-2 text-sm hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                            >
+                              {company}
+                            </div>
+                          ))
+                        }
+                        {contactCompanies.filter(c => 
+                          c.toLowerCase().includes((contactSearchTerm || '').toLowerCase())
+                        ).length === 0 && (
+                          <div className="px-3 py-2 text-sm text-gray-500 italic">No matches found - type to add new</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-500">Lot / Block</label>

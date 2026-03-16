@@ -7,7 +7,7 @@ import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/solid';
 import { unwrapResult } from '@reduxjs/toolkit';
 import { fetchBudgetItems } from "../../Redux/Actions/budgetItemActions";
 import { fetchPermitById } from "../../Redux/Actions/permitActions";
-import { createBudget } from "../../Redux/Actions/budgetActions";
+import { createBudget, fetchContactCompanies } from "../../Redux/Actions/budgetActions";
 import { fetchStaff } from "../../Redux/Actions/adminActions";
 import PPISelectorSimple from "./PPISelectorSimple";
 import EditPermitFieldsModal from "./EditPermitFieldsModal";
@@ -58,6 +58,19 @@ const getLocalDateString = () => {
   const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
+
+// 🆕 Helper para normalizar contactCompany a Title Case
+const normalizeCompanyName = (name) => {
+  if (!name || typeof name !== 'string') return '';
+  
+  return name
+    .trim()
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
 // --- Hook para leer Query Params ---
 function useQuery() {
   return new URLSearchParams(useLocation().search);
@@ -148,6 +161,9 @@ const CreateBudget = () => {
   const [submissionProgress, setSubmissionProgress] = useState(''); // Estado para mostrar progreso
   const [createdBudgetInfo, setCreatedBudgetInfo] = useState(null); // Para guardar info del budget creado
   const [showEditPermitModal, setShowEditPermitModal] = useState(false); // 🆕 Modal para editar Permit
+  const [contactCompanies, setContactCompanies] = useState([]); // 🆕 Lista de contactCompany existentes para autocomplete
+  const [showContactDropdown, setShowContactDropdown] = useState(false); // 🆕 Control dropdown contactCompany
+  const [contactSearchTerm, setContactSearchTerm] = useState(''); // 🆕 Término de búsqueda para filtrar
   
   // Estados para manejar fechas en formato USA
   const [displayDate, setDisplayDate] = useState(() => {
@@ -243,6 +259,20 @@ const CreateBudget = () => {
     // Siempre cargar catálogo y staff
     dispatch(fetchBudgetItems());
     dispatch(fetchStaff()); // 🆕 Cargar staff para vendedores
+
+    // 🆕 Cargar lista de contactCompanies para autocomplete
+    const loadContactCompanies = async () => {
+      try {
+        const result = await dispatch(fetchContactCompanies());
+        if (result.payload) {
+          setContactCompanies(result.payload);
+          console.log(`✅ ${result.payload.length} contactCompanies cargados`);
+        }
+      } catch (error) {
+        console.error('❌ Error cargando contactCompanies:', error);
+      }
+    };
+    loadContactCompanies();
 
     // Cargar Permit si hay ID en la query
     if (permitIdFromQuery) {
@@ -965,7 +995,7 @@ const customCategoryOrder = [
         discountAmount: parseFloat(formData.discountAmount) || 0,
         generalNotes: formData.generalNotes,
         initialPaymentPercentage: formData.initialPaymentPercentage,
-        contactCompany: formData.contactCompany || null, // 🆕 Empresa/contacto referente
+        contactCompany: normalizeCompanyName(formData.contactCompany) || null, // 🆕 Normalizado a Title Case
         // 🆕 Campos de origen y vendedor
         leadSource: formData.leadSource || 'web',
         createdByStaffId: formData.leadSource === 'sales_rep' ? formData.createdByStaffId : null,
@@ -1232,15 +1262,61 @@ const customCategoryOrder = [
                     <label className="block text-xs font-medium text-gray-500">Email</label>
                     <p className="text-sm font-semibold text-gray-800 mt-1">{formData.applicantEmail || 'N/A'}</p>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500">Contact/Company</label>
-                    <input
-                      type="text"
-                      value={formData.contactCompany || ''}
-                      onChange={(e) => setFormData(prev => ({ ...prev, contactCompany: e.target.value }))}
-                      placeholder="e.g. Home Depot, Lowe's, John Realty"
-                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
+                  <div className="relative">
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Contact/Company</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={formData.contactCompany || ''}
+                        onChange={(e) => {
+                          setFormData(prev => ({ ...prev, contactCompany: e.target.value }));
+                          setContactSearchTerm(e.target.value);
+                          setShowContactDropdown(true);
+                        }}
+                        onFocus={() => {
+                          setContactSearchTerm(formData.contactCompany || '');
+                          setShowContactDropdown(true);
+                        }}
+                        onBlur={() => setTimeout(() => setShowContactDropdown(false), 200)}
+                        placeholder="Select existing or type new company"
+                        className="w-full px-3 py-1.5 pr-8 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <ChevronDownIcon className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                    </div>
+                    
+                    {/* Dropdown con opciones existentes */}
+                    {showContactDropdown && contactCompanies.length > 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                        <div className="px-3 py-2 text-xs font-semibold text-gray-500 bg-gray-50 border-b">
+                          Existing Companies ({contactCompanies.filter(c => 
+                            c.toLowerCase().includes((contactSearchTerm || '').toLowerCase())
+                          ).length})
+                        </div>
+                        {contactCompanies
+                          .filter(company => 
+                            company.toLowerCase().includes((contactSearchTerm || '').toLowerCase())
+                          )
+                          .slice(0, 10)
+                          .map((company, idx) => (
+                            <div
+                              key={idx}
+                              onClick={() => {
+                                setFormData(prev => ({ ...prev, contactCompany: company }));
+                                setShowContactDropdown(false);
+                              }}
+                              className="px-3 py-2 text-sm hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                            >
+                              {company}
+                            </div>
+                          ))
+                        }
+                        {contactCompanies.filter(c => 
+                          c.toLowerCase().includes((contactSearchTerm || '').toLowerCase())
+                        ).length === 0 && (
+                          <div className="px-3 py-2 text-sm text-gray-500 italic">No matches found - type to add new</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-xs font-medium text-gray-500">Property Address</label>
