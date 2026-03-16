@@ -371,3 +371,21 @@ export const fetchBudgetsWithUpcomingAlerts = (days = 7) => async (dispatch) => 
     };
   }
 };
+
+// 🆕 Obtener lista de contactCompany únicos (para autocomplete)
+export const fetchContactCompanies = () => async () => {
+  try {
+    const response = await api.get('/budget/contact-companies');
+    console.log('✅ ContactCompanies cargados:', response.data);
+    return {
+      type: 'FETCH_CONTACT_COMPANIES_SUCCESS',
+      payload: response.data.contactCompanies || []
+    };
+  } catch (error) {
+    console.error('❌ Error al obtener contactCompanies:', error);
+    return {
+      type: 'FETCH_CONTACT_COMPANIES_FAILURE',
+      payload: error.message
+    };
+  }
+};

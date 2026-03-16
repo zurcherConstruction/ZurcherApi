@@ -1374,6 +1374,7 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
           {
             model: BudgetLineItem,
             as: 'lineItems',
+            separate: true, // OPTIMIZACIÓN: Previene duplicación de filas y mejora performance
             include: [
               {
                 model: BudgetItem,
@@ -1383,6 +1384,7 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
             ],
           },
         ],
+        timeout: 30000, //  OPTIMIZACIÓN: Aumentar timeout a 30 segundos para Railway
       });
 
       if (!budget) {
@@ -3540,13 +3542,13 @@ async optionalDocs(req, res) {
     
     try {
       const { idBudget } = req.params;
-      const { applicantName, applicantEmail, applicantPhone, propertyAddress } = req.body;
+      const { applicantName, applicantEmail, applicantPhone, propertyAddress, contactCompany } = req.body;
 
       // Validaciones básicas
-      if (!applicantName && !applicantEmail && !applicantPhone && !propertyAddress) {
+      if (!applicantName && !applicantEmail && !applicantPhone && !propertyAddress && !contactCompany) {
         return res.status(400).json({
           error: true,
-          message: 'Se requiere al menos un campo para actualizar (applicantName, applicantEmail, applicantPhone, propertyAddress)'
+          message: 'Se requiere al menos un campo para actualizar (applicantName, applicantEmail, applicantPhone, propertyAddress, contactCompany)'
         });
       }
 
@@ -3571,6 +3573,7 @@ async optionalDocs(req, res) {
       const budgetUpdateData = {};
       if (applicantName) budgetUpdateData.applicantName = applicantName;
       if (propertyAddress) budgetUpdateData.propertyAddress = propertyAddress;
+      if (contactCompany !== undefined) budgetUpdateData.contactCompany = contactCompany; // 🆕 NUEVO
 
       // Preparar datos para actualizar en Permit
       const permitUpdateData = {};
@@ -3608,7 +3611,8 @@ async optionalDocs(req, res) {
           budget: {
             idBudget: updatedBudget.idBudget,
             applicantName: updatedBudget.applicantName,
-            propertyAddress: updatedBudget.propertyAddress
+            propertyAddress: updatedBudget.propertyAddress,
+            contactCompany: updatedBudget.contactCompany // 🆕 NUEVO
           },
           permit: updatedBudget.Permit ? {
             idPermit: updatedBudget.Permit.idPermit,
@@ -3640,7 +3644,7 @@ async optionalDocs(req, res) {
       const { idBudget } = req.params;
 
       const budget = await Budget.findByPk(idBudget, {
-        attributes: ['idBudget', 'applicantName', 'propertyAddress', 'status', 'date'],
+        attributes: ['idBudget', 'applicantName', 'propertyAddress', 'status', 'date', 'contactCompany'], // 🆕 AGREGADO contactCompany
         include: [{
           model: Permit,
           attributes: ['idPermit', 'applicantName', 'applicantEmail', 'applicantPhone', 'propertyAddress', 'permitNumber']
@@ -3661,6 +3665,7 @@ async optionalDocs(req, res) {
             idBudget: budget.idBudget,
             applicantName: budget.applicantName,
             propertyAddress: budget.propertyAddress,
+            contactCompany: budget.contactCompany, // 🆕 AGREGADO
             status: budget.status,
             date: budget.date
           },
@@ -6373,6 +6378,48 @@ async optionalDocs(req, res) {
 
       res.status(500).json({
         error: 'Error al generar enlace de firma',
+        details: error.message
+      });
+    }
+  },
+
+  // 🆕 Obtener lista de contactCompany únicos existentes (para autocomplete)
+  async getContactCompanies(req, res) {
+    try {
+      console.log('--- Obteniendo lista de contactCompany únicos ---');
+
+      // Obtener contactCompany únicos que no sean NULL, ordenados alfabéticamente
+      const contactCompanies = await Budget.findAll({
+        attributes: [
+          [sequelize.fn('DISTINCT', sequelize.col('contact_company')), 'contactCompany']
+        ],
+        where: {
+          contactCompany: {
+            [Op.ne]: null, // Excluir valores NULL
+            [Op.ne]: ''    // Excluir strings vacíos
+          }
+        },
+        raw: true,
+        order: [['contactCompany', 'ASC']] // Ordenar alfabéticamente
+      });
+
+      // Convertir de [{contactCompany: 'ABC'}] a ['ABC', 'XYZ', ...]
+      const companiesList = contactCompanies
+        .map(item => item.contactCompany)
+        .filter(name => name && name.trim().length > 0); // Filtrar valores vacíos
+
+      console.log(`✅ Se encontraron ${companiesList.length} contactCompany únicos`);
+
+      res.status(200).json({
+        success: true,
+        count: companiesList.length,
+        contactCompanies: companiesList
+      });
+
+    } catch (error) {
+      console.error('❌ Error obteniendo contactCompanies:', error);
+      res.status(500).json({
+        error: 'Error al obtener lista de contactCompany',
         details: error.message
       });
     }

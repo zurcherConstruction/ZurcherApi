@@ -1,24 +1,59 @@
 import React, { useState, useEffect } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import { useDispatch } from 'react-redux';
+import { fetchContactCompanies } from '../../Redux/Actions/budgetActions';
 import api from '../../utils/axios';
 
+// 🆕 Helper para normalizar contactCompany a Title Case
+const normalizeCompanyName = (name) => {
+  if (!name || typeof name !== 'string') return '';
+  
+  return name
+    .trim()
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
 const EditClientDataModal = ({ isOpen, onClose, budgetId, onDataUpdated }) => {
+  const dispatch = useDispatch();
+  
   const [clientData, setClientData] = useState({
     applicantName: '',
     applicantEmail: '',
     applicantPhone: '',
-    propertyAddress: ''
+    propertyAddress: '',
+    contactCompany: '' 
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  
+  // 🆕 Estados para autocomplete de contactCompany
+  const [contactCompanies, setContactCompanies] = useState([]);
+  const [showContactDropdown, setShowContactDropdown] = useState(false);
+  const [contactSearchTerm, setContactSearchTerm] = useState('');
 
   // Cargar datos actuales cuando se abre el modal
   useEffect(() => {
     if (isOpen && budgetId) {
       loadClientData();
+      loadContactCompanies(); // 🆕 Cargar lista de empresas
     }
   }, [isOpen, budgetId]);
+
+  // 🆕 Cargar lista de contactCompanies
+  const loadContactCompanies = async () => {
+    try {
+      const result = await dispatch(fetchContactCompanies());
+      if (result.payload) {
+        setContactCompanies(result.payload);
+      }
+    } catch (error) {
+      console.error('❌ Error cargando contactCompanies:', error);
+    }
+  };
 
   const loadClientData = async () => {
     setLoading(true);
@@ -31,7 +66,8 @@ const EditClientDataModal = ({ isOpen, onClose, budgetId, onDataUpdated }) => {
           applicantName: permit?.applicantName || budget?.applicantName || '',
           applicantEmail: permit?.applicantEmail || '',
           applicantPhone: permit?.applicantPhone || '',
-          propertyAddress: permit?.propertyAddress || budget?.propertyAddress || ''
+          propertyAddress: permit?.propertyAddress || budget?.propertyAddress || '',
+          contactCompany: budget?.contactCompany || '' 
         });
       }
     } catch (error) {
@@ -56,7 +92,13 @@ const EditClientDataModal = ({ isOpen, onClose, budgetId, onDataUpdated }) => {
     setError('');
 
     try {
-      const response = await api.patch(`/budget/${budgetId}/client-data`, clientData);
+      // 🆕 Normalizar contactCompany antes de enviar
+      const dataToSend = {
+        ...clientData,
+        contactCompany: normalizeCompanyName(clientData.contactCompany)
+      };
+      
+      const response = await api.patch(`/budget/${budgetId}/client-data`, dataToSend);
       
       if (response.data.success) {
         // Llamar callback para notificar que los datos se actualizaron
@@ -79,7 +121,8 @@ const EditClientDataModal = ({ isOpen, onClose, budgetId, onDataUpdated }) => {
       applicantName: '',
       applicantEmail: '',
       applicantPhone: '',
-      propertyAddress: ''
+      propertyAddress: '',
+      contactCompany: '' 
     });
     onClose();
   };
@@ -168,6 +211,72 @@ const EditClientDataModal = ({ isOpen, onClose, budgetId, onDataUpdated }) => {
                            focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500
                            transition-colors bg-white"
                 />
+              </div>
+
+              {/* 🆕 Contact/Company con autocomplete */}
+              <div className="relative">
+                <label htmlFor="contactCompany" className="block text-sm font-medium text-gray-700 mb-1">
+                  Contact/Company
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    id="contactCompany"
+                    name="contactCompany"
+                    value={clientData.contactCompany || ''}
+                    onChange={(e) => {
+                      handleInputChange(e);
+                      setContactSearchTerm(e.target.value);
+                      setShowContactDropdown(true);
+                    }}
+                    onFocus={() => {
+                      setContactSearchTerm(clientData.contactCompany || '');
+                      setShowContactDropdown(true);
+                    }}
+                    onBlur={() => setTimeout(() => setShowContactDropdown(false), 200)}
+                    placeholder="Select existing or type new company"
+                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 pr-8 text-sm sm:text-base border border-gray-300 rounded-md shadow-sm 
+                             focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500
+                             transition-colors bg-white"
+                  />
+                  <svg className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+                
+                {/* Dropdown con opciones existentes */}
+                {showContactDropdown && contactCompanies.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                    <div className="px-3 py-2 text-xs font-semibold text-gray-500 bg-gray-50 border-b sticky top-0">
+                      Existing Companies ({contactCompanies.filter(c => 
+                        c.toLowerCase().includes((contactSearchTerm || '').toLowerCase())
+                      ).length})
+                    </div>
+                    {contactCompanies
+                      .filter(company => 
+                        company.toLowerCase().includes((contactSearchTerm || '').toLowerCase())
+                      )
+                      .slice(0, 10)
+                      .map((company, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => {
+                            setClientData(prev => ({ ...prev, contactCompany: company }));
+                            setShowContactDropdown(false);
+                          }}
+                          className="px-3 py-2 text-sm hover:bg-indigo-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                        >
+                          {company}
+                        </div>
+                      ))
+                    }
+                    {contactCompanies.filter(c => 
+                      c.toLowerCase().includes((contactSearchTerm || '').toLowerCase())
+                    ).length === 0 && (
+                      <div className="px-3 py-2 text-sm text-gray-500 italic">No matches - type to add new</div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Dirección de la Propiedad */}

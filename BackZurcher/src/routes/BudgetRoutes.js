@@ -23,6 +23,9 @@ router.post('/legacy', verifyToken, allowRoles(['admin', 'owner']), upload.field
 
 router.get('/all', verifyToken, isStaff, BudgetController.getBudgets); // Personal del hotel puede ver presupuestos (incluyendo follow-up)
 
+// 🆕 Obtener lista de contactCompany únicos (para autocomplete)
+router.get('/contact-companies', verifyToken, isStaff, BudgetController.getContactCompanies);
+
 // 🆕 EXPORTAR BUDGETS A EXCEL
 router.get('/export/excel', verifyToken, allowRoles(['admin', 'owner', 'finance', 'follow-up']), BudgetController.exportBudgetsToExcel);
 
