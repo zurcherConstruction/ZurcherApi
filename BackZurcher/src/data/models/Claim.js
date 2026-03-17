@@ -165,14 +165,34 @@ module.exports = (sequelize) => {
   // Generar número de reclamo único
   Claim.generateClaimNumber = async function() {
     const year = new Date().getFullYear();
-    const count = await Claim.count({
+    const prefix = `CLM-${year}-`;
+
+    // Usar MAX en lugar de COUNT para evitar huecos por eliminaciones o concurrencia
+    const lastClaim = await Claim.findOne({
       where: sequelize.where(
-        sequelize.fn('EXTRACT', sequelize.literal('YEAR FROM "createdAt"')),
-        year
-      )
+        sequelize.fn('LEFT', sequelize.col('claimNumber'), prefix.length),
+        prefix
+      ),
+      order: [['claimNumber', 'DESC']],
+      attributes: ['claimNumber'],
     });
-    const nextNumber = (count + 1).toString().padStart(3, '0');
-    return `CLM-${year}-${nextNumber}`;
+
+    let nextSeq = 1;
+    if (lastClaim) {
+      const lastSeq = parseInt(lastClaim.claimNumber.replace(prefix, ''), 10);
+      if (!isNaN(lastSeq)) nextSeq = lastSeq + 1;
+    }
+
+    // Retry hasta encontrar un número libre (protección contra race conditions)
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const candidate = `${prefix}${nextSeq.toString().padStart(3, '0')}`;
+      const exists = await Claim.findOne({ where: { claimNumber: candidate }, attributes: ['id'] });
+      if (!exists) return candidate;
+      nextSeq++;
+    }
+
+    // Fallback con timestamp si todos los intentos fallan
+    return `${prefix}${Date.now()}`;
   };
 
   // Asociaciones

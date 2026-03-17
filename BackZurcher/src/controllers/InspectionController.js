@@ -1,5 +1,5 @@
 const path = require('path');
-const { Inspection, Work, Permit, Image, Budget } = require('../data'); // Asegúrate de importar Image
+const { Inspection, Work, Permit, Image, Budget, sequelize } = require('../data'); // Asegúrate de importar Image
 const { sendEmail } = require('../utils/notifications/emailService');
 const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinaryUploader');
 const { sendNotifications } = require('../utils/notifications/notificationManager'); // Para notificaciones internas si es necesario
@@ -126,81 +126,88 @@ const registerQuickInspectionResult = async (req, res) => {
       public_id: `quick_result_${timestamp}${fileExtension}` // Ahora incluye la extensión
     });
 
-    // Crear la inspección directamente con el resultado
-    const inspection = await Inspection.create({
-      workId,
-      type,
-      processStatus: type === 'initial'
-        ? (finalStatus === 'approved' ? 'result_approved' : 'result_rejected')
-        : (finalStatus === 'approved' ? 'result_approved' : 'result_rejected'),
-      finalStatus,
-      dateInspectionPerformed: dateInspectionPerformed || new Date(),
-      dateResultReceived: new Date(),
-      resultDocumentUrl: cloudinaryResult.secure_url,
-      resultDocumentPublicId: cloudinaryResult.public_id,
-      notes,
+    // ✅ TRANSACCIÓN ATÓMICA: Inspection.create + work.save juntos
+    // Si work.save() falla (timeout), la inspección también se revierte
+    // y el usuario puede reintentar sin el bloqueo de "ya existe aprobada"
+    let inspection;
+    let notificationKey;
+    let notificationExtras = {};
+    let oldWorkStatusForSchedule = null;
+    let isATUSystemForSchedule = false;
+
+    await sequelize.transaction(async (t) => {
+      // Crear la inspección dentro de la transacción
+      inspection = await Inspection.create({
+        workId,
+        type,
+        processStatus: finalStatus === 'approved' ? 'result_approved' : 'result_rejected',
+        finalStatus,
+        dateInspectionPerformed: dateInspectionPerformed || new Date(),
+        dateResultReceived: new Date(),
+        resultDocumentUrl: cloudinaryResult.secure_url,
+        resultDocumentPublicId: cloudinaryResult.public_id,
+        notes,
+      }, { transaction: t });
+
+      // Determinar nuevo status del work
+      if (type === 'initial') {
+        if (finalStatus === 'approved') {
+          work.status = 'coverPending';
+          console.log(`[InspectionController - Quick] Inspección inicial aprobada para work ${work.idWork}. Estado → 'coverPending'.`);
+          notificationKey = 'coverPending';
+        } else {
+          work.status = 'rejectedInspection';
+          notificationKey = 'initial_inspection_rejected';
+          notificationExtras = { notes };
+        }
+      } else if (type === 'final') {
+        if (finalStatus === 'approved') {
+          const rawSystemType = work.Permit?.systemType || work.systemType || null;
+          const systemTypeNormalized = rawSystemType ? String(rawSystemType).toLowerCase() : '';
+          isATUSystemForSchedule = systemTypeNormalized.includes('atu');
+          console.log(`[InspectionController - Quick] Work ${work.idWork} FINAL APPROVED. rawSystemType="${rawSystemType}", isATU=${isATUSystemForSchedule}`);
+
+          if (isATUSystemForSchedule) {
+            oldWorkStatusForSchedule = work.status;
+            work.status = 'maintenance';
+            if (!work.maintenanceStartDate) work.maintenanceStartDate = new Date();
+            notificationKey = 'final_inspection_approved_maintenance';
+          } else {
+            work.status = 'finalApproved';
+            notificationKey = 'finalApproved';
+          }
+        } else {
+          work.status = 'finalRejected';
+          notificationKey = 'final_inspection_rejected';
+          notificationExtras = { notes };
+        }
+      }
+
+      // Guardar work dentro de la misma transacción
+      await work.save({ transaction: t });
     });
 
-    // Actualizar estado de la obra según lógica existente (ajustada para ATU / no ATU)
-    if (type === 'initial') {
-      if (finalStatus === 'approved') {
-        // Automatizar la transición: inspección inicial aprobada → coverPending directamente
-        work.status = 'coverPending';
-        console.log(`[InspectionController - Quick] Inspección inicial aprobada para work ${work.idWork}. Estado cambiado automáticamente a 'coverPending'.`);
-        await work.save();
-        // ✅ SOLO enviar notificación de coverPending (incluye la info de inspección aprobada)
-        await sendNotifications('coverPending', work, req.app.get('io'), { inspectionId: inspection.idInspection });
-      } else {
-        work.status = 'rejectedInspection';
-        // Incluir la URL del documento de resultado en el objeto work para la notificación
-        work.resultDocumentUrl = inspection.resultDocumentUrl;
-        await sendNotifications('initial_inspection_rejected', work, req.app.get('io'), { inspectionId: inspection.idInspection, notes });
-        // Limpia el campo auxiliar después de la notificación para no persistirlo en la BD
-        delete work.resultDocumentUrl;
-      }
-    } else if (type === 'final') {
-      if (finalStatus === 'approved') {
-        // Determinar si el sistema es ATU (solo estos pasan a maintenance)
-        const rawSystemType = work.Permit?.systemType || work.systemType || null;
-        const systemTypeNormalized = rawSystemType ? String(rawSystemType).toLowerCase() : '';
-        const isATUSystem = systemTypeNormalized.includes('atu');
-        console.log(`[InspectionController - Quick] Work ${work.idWork} FINAL APPROVED via quick-result. rawSystemType="${rawSystemType}", normalized="${systemTypeNormalized}", isATUSystem=${isATUSystem}`);
+    // ── Fuera de la transacción: notificaciones y side-effects ──────────
+    notificationExtras.inspectionId = inspection.idInspection;
 
-        if (isATUSystem) {
-          // Solo ATU: pasan a maintenance y generan visitas
-          const oldWorkStatus = work.status;
-          work.status = 'maintenance';
+    if (notificationKey === 'initial_inspection_rejected') {
+      work.resultDocumentUrl = inspection.resultDocumentUrl;
+      await sendNotifications(notificationKey, work, req.app.get('io'), notificationExtras);
+      delete work.resultDocumentUrl;
+    } else {
+      await sendNotifications(notificationKey, work, req.app.get('io'), notificationExtras);
+    }
 
-          if (!work.maintenanceStartDate) {
-            work.maintenanceStartDate = new Date();
-          }
-
-          await work.save();
-
-          // Programar visitas iniciales solo si recién entra a maintenance
-          if (oldWorkStatus !== 'maintenance') {
-            try {
-              console.log(`[InspectionController - Quick] ATTEMPTING to call scheduleInitialMaintenanceVisits for work ${work.idWork}`);
-              await scheduleInitialMaintenanceVisits(work.idWork);
-              console.log(`[InspectionController - Quick] SUCCESSFULLY CALLED scheduleInitialMaintenanceVisits for work ${work.idWork}`);
-            } catch (scheduleError) {
-              console.error(`[InspectionController - Quick] ERROR CALLING scheduleInitialMaintenanceVisits for work ${work.idWork}:`, scheduleError);
-            }
-          }
-
-          await sendNotifications('final_inspection_approved_maintenance', work, req.app.get('io'), { inspectionId: inspection.idInspection });
-        } else {
-          // NO ATU: se consideran finalizados sin mantenimiento
-          work.status = 'finalApproved';
-          await work.save();
-          await sendNotifications('finalApproved', work, req.app.get('io'), { inspectionId: inspection.idInspection });
-        }
-      } else {
-        work.status = 'finalRejected';
-        await sendNotifications('final_inspection_rejected', work, req.app.get('io'), { inspectionId: inspection.idInspection, notes });
+    // Programar visitas de mantenimiento (ATU final aprobado)
+    if (isATUSystemForSchedule && oldWorkStatusForSchedule !== 'maintenance') {
+      try {
+        console.log(`[InspectionController - Quick] ATTEMPTING scheduleInitialMaintenanceVisits for work ${work.idWork}`);
+        await scheduleInitialMaintenanceVisits(work.idWork);
+        console.log(`[InspectionController - Quick] SUCCESS scheduleInitialMaintenanceVisits for work ${work.idWork}`);
+      } catch (scheduleError) {
+        console.error(`[InspectionController - Quick] ERROR scheduleInitialMaintenanceVisits for work ${work.idWork}:`, scheduleError);
       }
     }
-    await work.save();
 
     return res.status(201).json({
       message: 'Resultado de inspección registrado rápidamente.',
