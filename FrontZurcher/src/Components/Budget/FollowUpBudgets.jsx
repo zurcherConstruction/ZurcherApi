@@ -18,6 +18,20 @@ import BudgetNotesModal from './BudgetNotesModal';
 import NotesAlertBadge from '../Common/NotesAlertBadge';
 import api from '../../utils/axios';
 
+const STATUS_LABELS = {
+  draft:              'Borrador',
+  pending_review:     'En Revisión',
+  client_approved:    'Pre-Aprobado',
+  created:            'Creado',
+  send:               'Enviado',
+  sent_for_signature: 'Para Firma',
+  signed:             'Firmado',
+  approved:           'Aprobado',
+  rejected:           'Rechazado',
+  notResponded:       'Sin Respuesta',
+  archived:           'Archivado',
+};
+
 const FollowUpBudgets = () => {
   const dispatch = useDispatch();
   
@@ -280,19 +294,37 @@ const FollowUpBudgets = () => {
         </p>
       </div>
 
-      {/* Estadísticas por Estado */}
+          {/* Estadísticas por Estado */}
       {stats && stats.byStatus && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          {Object.entries(stats.byStatus).map(([status, count]) => (
-            <div key={status} className="bg-white p-4 rounded-lg shadow border border-gray-200">
-              <p className="text-sm text-gray-600 uppercase font-semibold">{status}</p>
-              <p className="text-2xl font-bold text-gray-800">{count}</p>
-            </div>
-          ))}
-          <div className="bg-yellow-50 p-4 rounded-lg shadow border border-yellow-200">
+          {Object.entries(stats.byStatus).map(([status, count]) => {
+            const isActive = statusFilter === status;
+            return (
+              <button
+                key={status}
+                onClick={() => { setStatusFilter(isActive ? 'all' : status); setPage(1); }}
+                className={`p-4 rounded-lg shadow border text-left transition-all cursor-pointer
+                  ${isActive
+                    ? 'bg-yellow-50 border-yellow-400 ring-2 ring-yellow-400'
+                    : 'bg-white border-gray-200 hover:border-yellow-300 hover:shadow-md'
+                  }`}
+              >
+                <p className={`text-sm uppercase font-semibold ${isActive ? 'text-yellow-700' : 'text-gray-600'}`}>{STATUS_LABELS[status] || status}</p>
+                <p className={`text-2xl font-bold ${isActive ? 'text-yellow-600' : 'text-gray-800'}`}>{count}</p>
+              </button>
+            );
+          })}
+          <button
+            onClick={() => { setStatusFilter('all'); setPage(1); }}
+            className={`p-4 rounded-lg shadow border text-left transition-all cursor-pointer
+              ${statusFilter === 'all'
+                ? 'bg-yellow-100 border-yellow-500 ring-2 ring-yellow-500'
+                : 'bg-yellow-50 border-yellow-200 hover:border-yellow-400 hover:shadow-md'
+              }`}
+          >
             <p className="text-sm text-yellow-800 uppercase font-semibold">Total</p>
             <p className="text-2xl font-bold text-yellow-600">{total}</p>
-          </div>
+          </button>
         </div>
       )}
 
@@ -320,17 +352,15 @@ const FollowUpBudgets = () => {
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent appearance-none"
             >
               <option value="all">Todos los Estados</option>
-              <option value="draft">Draft</option>
-              <option value="pending_review">Pending Review</option>
-              <option value="client_approved">Client Approved</option>
-              <option value="created">Created</option>
-              <option value="send">Send</option>
-              <option value="sent_for_signature">Sent for Signature</option>
-              <option value="signed">Signed</option>
-              <option value="approved">Approved</option>
-              <option value="notResponded">Not Responded</option>
-              <option value="rejected">Rejected</option>
-              <option value="archived">Archived</option>
+              <option value="draft">Borrador</option>
+              <option value="pending_review">En Revisión</option>
+              <option value="client_approved">Pre-Aprobado</option>
+              <option value="created">Creado</option>
+              <option value="send">Enviado</option>
+              <option value="sent_for_signature">Para Firma</option>
+              <option value="signed">Firmado</option>
+              <option value="notResponded">Sin Respuesta</option>
+              <option value="rejected">Rechazado</option>
             </select>
           </div>
 
