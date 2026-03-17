@@ -6484,7 +6484,7 @@ async optionalDocs(req, res) {
       // Construir filtros
       const whereClause = {
         requiresFollowUp: true, // Solo budgets marcados para seguimiento
-        status: { [Op.ne]: 'legacy_maintenance' } // 🆕 Excluir legacy_maintenance automáticamente
+        status: { [Op.notIn]: ['legacy_maintenance', 'approved', 'archived'] } // Excluir los que ya no necesitan acción
       };
 
       // Filtro de búsqueda
@@ -6520,7 +6520,7 @@ async optionalDocs(req, res) {
       const statusStats = await Budget.findAll({
         where: { 
           requiresFollowUp: true,
-          status: { [Op.ne]: 'legacy_maintenance' } // 🆕 Excluir legacy de stats
+          status: { [Op.notIn]: ['legacy_maintenance', 'approved', 'archived'] } // Excluir los que ya no necesitan acción
         },
         attributes: [
           'status',
