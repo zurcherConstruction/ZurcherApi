@@ -60,6 +60,10 @@ const ProgressTracker = () => {
       // Esto evita que se escondan works que pasaron a maintenance sin completar todos los checks
       // pero SÍ excluye los works legacy que fueron cargados directamente en maintenance
       const activeWorks = works.filter((work) => {
+        // Excluir works DEMO
+        if (work.propertyAddress?.toUpperCase().includes('DEMO')) {
+          return false;
+        }
         if (work.status === 'maintenance') {
           // Ocultar si es legacy (cargado directamente en maintenance)
           if (work.isLegacy) {
