@@ -94,7 +94,9 @@ import ClaimList from "./Components/Claims/ClaimList";
 import GalleryManager from "./Components/Admin/GalleryManager";
 import ClientPortalDashboard from "./Components/ClientPortal/ClientPortalDashboard";
 import ClientPortalAdmin from "./Components/ClientPortal/ClientPortalAdmin";
-import SalesDashboard from "./Components/Sales/SalesDashboard"; // 🆕 Dashboard de ventas
+import SalesDashboard from './Components/Sales/SalesDashboard'; // 🆕 Dashboard de ventas
+import ReminderPanel from './Components/Reminders/ReminderPanel'; // 🆕 Recordatorios
+import ReminderPopup from './Components/Reminders/ReminderPopup'; // 🆕 Popup de recordatorios
 
 function App() {
   const dispatch = useDispatch();
@@ -147,6 +149,7 @@ function App() {
   return (
     <>
       {shouldShowLayout && <Header />}
+      {isAuthenticated && <ReminderPopup />}
       <LoadingSpinner />
       <div className={`flex ${shouldShowLayout ? "pt-16 md:pt-20" : ""} min-h-screen bg-gray-50`}>
         {shouldShowLayout && <BarraLateral />}
@@ -663,6 +666,16 @@ function App() {
               <Route path="/unauthorized" element={<Unauthorized />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password/:token" element={<ResetPassword />} />
+
+              {/* Recordatorios */}
+              <Route
+                path="/reminders"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "owner", "recept", "finance", "finance-viewer", "follow-up", "worker", "maintenance"]}>
+                    <ReminderPanel />
+                  </PrivateRoute>
+                }
+              />
 
               {/* Ruta por defecto para 404 */}
               <Route path="*" element={<NotFound />} />

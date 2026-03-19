@@ -6508,7 +6508,7 @@ async optionalDocs(req, res) {
         include: [
           {
             model: Permit,
-            attributes: ['idPermit', 'permitNumber', 'applicantName', 'applicantEmail', 'propertyAddress']
+            attributes: ['idPermit', 'permitNumber', 'applicantName', 'applicantEmail', 'applicantPhone', 'propertyAddress']
           }
         ],
         order: [['date', 'DESC']],

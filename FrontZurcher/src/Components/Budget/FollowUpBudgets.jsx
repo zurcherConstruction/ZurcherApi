@@ -12,7 +12,11 @@ import {
   ChatBubbleLeftRightIcon,
   BellIcon,
   XMarkIcon,
-  ArchiveBoxIcon
+  ArchiveBoxIcon,
+  UserCircleIcon,
+  EnvelopeIcon,
+  PhoneIcon,
+  BuildingOfficeIcon,
 } from '@heroicons/react/24/outline';
 import BudgetNotesModal from './BudgetNotesModal';
 import NotesAlertBadge from '../Common/NotesAlertBadge';
@@ -58,6 +62,9 @@ const FollowUpBudgets = () => {
   const [verifyingReminders, setVerifyingReminders] = useState(false);
   // 🔔 Estado para alertas/badges de cada budget (unread, overdue, upcoming)
   const [budgetAlerts, setBudgetAlerts] = useState({});
+
+  // 👤 Estado para popover de contacto del cliente
+  const [clientPopover, setClientPopover] = useState(null); // null | budget object
 
   // Get user info for permissions
   const { user, currentStaff } = useSelector((state) => state.auth);
@@ -536,6 +543,15 @@ const FollowUpBudgets = () => {
                           />
                         </button>
 
+                        {/* 👤 Botón Datos del Cliente */}
+                        <button
+                          onClick={() => setClientPopover(budget)}
+                          className="p-1 rounded hover:bg-indigo-100 text-indigo-500 transition-colors"
+                          title="Ver datos del cliente"
+                        >
+                          <UserCircleIcon className="h-5 w-5" />
+                        </button>
+
                         {/* Botón Ya No Requiere Seguimiento */}
                         {!isReadOnly && (
                           <button
@@ -615,6 +631,15 @@ const FollowUpBudgets = () => {
                   Notas y Alertas
                 </button>
 
+                {/* 👤 Botón Datos del Cliente (mobile) */}
+                <button
+                  onClick={() => setClientPopover(budget)}
+                  className="px-3 py-2 bg-indigo-100 text-indigo-600 rounded-lg hover:bg-indigo-200 transition-colors"
+                  title="Ver datos del cliente"
+                >
+                  <UserCircleIcon className="h-4 w-4" />
+                </button>
+
                 {!isReadOnly && (
                   <>
                     <button
@@ -685,6 +710,133 @@ const FollowUpBudgets = () => {
           onClose={handleCloseNotesModal}
           onAlertsChange={reloadBudgetAlerts}
         />
+      )}
+
+      {/* 👤 Popover de Datos del Cliente (solo lectura) */}
+      {clientPopover && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={() => setClientPopover(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-indigo-600 to-indigo-500 px-5 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <UserCircleIcon className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-base leading-tight">Datos del Cliente</h3>
+                  <p className="text-indigo-200 text-xs mt-0.5">Budget #{clientPopover.idBudget} · solo lectura</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setClientPopover(null)}
+                className="w-8 h-8 flex items-center justify-center hover:bg-white/10 rounded-xl transition-colors text-indigo-200 hover:text-white"
+              >
+                <XMarkIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-5 py-5 space-y-4">
+              {/* Nombre */}
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <UserCircleIcon className="h-5 w-5 text-indigo-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Nombre</p>
+                  <p className="text-sm font-semibold text-gray-800 break-words">
+                    {clientPopover.Permit?.applicantName || clientPopover.applicantName || <span className="text-gray-400 italic">Sin nombre</span>}
+                  </p>
+                </div>
+              </div>
+
+              {/* Email */}
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-sky-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <EnvelopeIcon className="h-5 w-5 text-sky-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Email</p>
+                  {(clientPopover.Permit?.applicantEmail || clientPopover.applicantEmail) ? (
+                    <a
+                      href={`mailto:${clientPopover.Permit?.applicantEmail || clientPopover.applicantEmail}`}
+                      className="text-sm text-sky-600 hover:text-sky-800 hover:underline break-all font-medium"
+                    >
+                      {clientPopover.Permit?.applicantEmail || clientPopover.applicantEmail}
+                    </a>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">Sin email</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Teléfono */}
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <PhoneIcon className="h-5 w-5 text-violet-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Teléfono</p>
+                  {(clientPopover.Permit?.applicantPhone || clientPopover.applicantPhone) ? (
+                    <a
+                      href={`tel:${clientPopover.Permit.applicantPhone || clientPopover.applicantPhone}`}
+                      className="text-sm text-violet-600 hover:text-violet-800 hover:underline font-medium"
+                    >
+                      {clientPopover.Permit.applicantPhone || clientPopover.applicantPhone}
+                    </a>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">Sin teléfono</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Empresa */}
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <BuildingOfficeIcon className="h-5 w-5 text-amber-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Empresa</p>
+                  <p className="text-sm font-medium text-gray-800 break-words">
+                    {clientPopover.contactCompany || <span className="text-gray-400 italic">Sin empresa</span>}
+                  </p>
+                </div>
+              </div>
+
+              {/* Dirección */}
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <svg className="h-5 w-5 text-emerald-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Dirección</p>
+                  <p className="text-sm font-medium text-gray-800 break-words">
+                    {clientPopover.Permit?.propertyAddress || clientPopover.propertyAddress || <span className="text-gray-400 italic">Sin dirección</span>}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 pb-5">
+              <button
+                onClick={() => setClientPopover(null)}
+                className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-semibold text-sm transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
