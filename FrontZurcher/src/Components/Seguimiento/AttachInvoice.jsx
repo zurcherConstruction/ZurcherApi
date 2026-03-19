@@ -913,11 +913,12 @@ const AttachReceipt = () => {
 
     let filteredWorks;
 
-    // Si seleccionó "Factura Pago Final Budget", mostrar SOLO obras en estado 'invoiceFinal'
+    // Si seleccionó "Factura Pago Final Budget", mostrar obras en estado 'invoiceFinal'
+    // También incluir works en 'maintenance' que tengan factura final pendiente de cobro
     if (type === "Factura Pago Final Budget") {
       filteredWorks = works.filter(work => {
-        // Primero verificar que el Work tenga estado 'invoiceFinal'
-        if (work.status !== 'invoiceFinal') {
+        // Permitir 'invoiceFinal' (flujo normal) y 'maintenance' (ATU que pasó a mantenimiento con factura pendiente)
+        if (!['invoiceFinal', 'maintenance'].includes(work.status)) {
           return false;
         }
 
