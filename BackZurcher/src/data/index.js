@@ -98,7 +98,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Claim } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Claim, Reminder, ReminderAssignment, ReminderComment } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -810,6 +810,20 @@ Claim.belongsTo(Staff, { foreignKey: 'createdBy', as: 'claimCreator' });
 Claim.belongsTo(Work, { foreignKey: 'linkedWorkId', as: 'linkedWork', constraints: false });
 Claim.belongsTo(SimpleWork, { foreignKey: 'linkedSimpleWorkId', as: 'linkedSimpleWork', constraints: false });
 Staff.hasMany(Claim, { foreignKey: 'assignedStaffId', as: 'assignedClaims' });
+
+// ========================= REMINDER ASSOCIATIONS ========================= //
+Reminder.belongsTo(Staff, { foreignKey: 'created_by', as: 'creator' });
+Staff.hasMany(Reminder, { foreignKey: 'created_by', as: 'createdReminders' });
+
+Reminder.hasMany(ReminderAssignment, { foreignKey: 'reminder_id', as: 'assignments' });
+ReminderAssignment.belongsTo(Reminder, { foreignKey: 'reminder_id', as: 'reminder' });
+ReminderAssignment.belongsTo(Staff, { foreignKey: 'staff_id', as: 'staff' });
+Staff.hasMany(ReminderAssignment, { foreignKey: 'staff_id', as: 'reminderAssignments' });
+
+Reminder.hasMany(ReminderComment, { foreignKey: 'reminder_id', as: 'comments' });
+ReminderComment.belongsTo(Reminder, { foreignKey: 'reminder_id', as: 'reminder' });
+ReminderComment.belongsTo(Staff, { foreignKey: 'staff_id', as: 'author' });
+Staff.hasMany(ReminderComment, { foreignKey: 'staff_id', as: 'reminderComments' });
 
 
 //---------------------------------------------------------------------------------//

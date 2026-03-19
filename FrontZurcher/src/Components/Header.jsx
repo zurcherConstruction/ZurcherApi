@@ -10,7 +10,8 @@ import {
   FaUser, 
   FaChevronDown,
   FaCog,
-  FaUserCircle
+  FaUserCircle,
+  FaClipboardList
 } from "react-icons/fa";
 
 const Header = () => {
@@ -18,6 +19,9 @@ const Header = () => {
   const navigate = useNavigate();
   const { isAuthenticated, currentStaff } = useSelector((state) => state.auth);
   const { notifications } = useSelector((state) => state.notifications);
+  const { reminders } = useSelector((state) => state.reminders || { reminders: [] });
+
+  const pendingReminders = reminders.filter(r => !r.myAssignment?.completed).length;
 
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -90,6 +94,22 @@ const Header = () => {
         {/* Panel de usuario */}
         {isAuthenticated && (
           <div className="flex items-center gap-2 md:gap-4">
+            {/* Recordatorios */}
+            <div className="relative">
+              <button
+                onClick={() => navigate('/reminders')}
+                title="Recordatorios"
+                className="relative p-2 md:p-3 rounded-xl bg-gray-700 hover:bg-gray-600 transition-all duration-300 group border border-gray-600 hover:border-orange-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+              >
+                <FaClipboardList className="w-5 h-5 text-gray-300 group-hover:text-orange-400 transition-colors duration-300" />
+                {pendingReminders > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center font-bold shadow-md">
+                    {pendingReminders > 99 ? '99+' : pendingReminders}
+                  </span>
+                )}
+              </button>
+            </div>
+
             {/* Notificaciones */}
             <div className="relative">
               <button

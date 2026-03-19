@@ -26,6 +26,7 @@ import monthlyInstallationsReducer from '../Reducer/monthlyInstallationsReducer'
 import staffAttendanceReducer from '../Reducer/staffAttendanceReducer'; // 🆕 Staff attendance reducer
 import simpleWorkReducer from '../Reducer/simpleWorkReducer'; // 🆕 Simple work reducer
 import claimReducer from '../Reducer/claimReducer'; // 🆕 Claims/Reclamos reducer
+import reminderReducer from '../Reducer/reminderReducer'; // 🆕 Recordatorios reducer
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -53,6 +54,7 @@ const rootReducer = combineReducers({
   staffAttendance: staffAttendanceReducer, // 🆕 Staff attendance reducer
   simpleWork: simpleWorkReducer, // 🆕 Simple work reducer
   claim: claimReducer, // 🆕 Claims/Reclamos reducer
+  reminders: reminderReducer, // 🆕 Recordatorios reducer
 });
 
 export const store = configureStore({
