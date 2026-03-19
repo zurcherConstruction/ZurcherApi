@@ -914,33 +914,33 @@ const AttachReceipt = () => {
     let filteredWorks;
 
     // Si seleccionó "Factura Pago Final Budget", mostrar obras en estado 'invoiceFinal'
-    // También incluir works en 'maintenance' que tengan factura final pendiente de cobro
+    // También incluir works en 'maintenance' que tengan factura final pendiente de cobro (no legacy)
     if (type === "Factura Pago Final Budget") {
       filteredWorks = works.filter(work => {
-        // Permitir 'invoiceFinal' (flujo normal) y 'maintenance' (ATU que pasó a mantenimiento con factura pendiente)
-        if (!['invoiceFinal', 'maintenance'].includes(work.status)) {
-          return false;
-        }
+        const validStatuses = ['pending', 'partially_paid', 'send', 'sent'];
 
-        // Si tiene finalInvoice, verificar sus condiciones
-        if (work.finalInvoice && work.finalInvoice.id) {
-          // El invoice NO debe estar cancelado ni completamente pagado
-          const validStatuses = ['pending', 'partially_paid', 'send', 'sent'];
-          if (!validStatuses.includes(work.finalInvoice.status)) {
-            return false;
+        if (work.status === 'invoiceFinal') {
+          // Flujo normal: si tiene finalInvoice debe tener saldo pendiente
+          if (work.finalInvoice && work.finalInvoice.id) {
+            if (!validStatuses.includes(work.finalInvoice.status)) return false;
+            const remaining = parseFloat(work.finalInvoice.finalAmountDue || 0) - parseFloat(work.finalInvoice.totalAmountPaid || 0);
+            return remaining > 0;
           }
-
-          // Verificar que aún tenga saldo pendiente
-          const totalDue = parseFloat(work.finalInvoice.finalAmountDue || 0);
-          const totalPaid = parseFloat(work.finalInvoice.totalAmountPaid || 0);
-          const remainingBalance = totalDue - totalPaid;
-
-          return remainingBalance > 0;
-        } else {
-          // Si no tiene finalInvoice pero está en estado invoiceFinal, incluirlo
-          // Esto permite crear el primer pago final
+          // Sin finalInvoice aún: incluir para poder registrar el primero
           return true;
         }
+
+        if (work.status === 'maintenance') {
+          // Excluir legacy (no deberían tener factura final real)
+          if (work.isLegacy) return false;
+          // Solo incluir si tiene finalInvoice generado en estado válido con saldo pendiente
+          if (!work.finalInvoice || !work.finalInvoice.id) return false;
+          if (!validStatuses.includes(work.finalInvoice.status)) return false;
+          const remaining = parseFloat(work.finalInvoice.finalAmountDue || 0) - parseFloat(work.finalInvoice.totalAmountPaid || 0);
+          return remaining > 0;
+        }
+
+        return false;
       });
     } else {
       // Para otros tipos de comprobantes, mostrar todas las obras
