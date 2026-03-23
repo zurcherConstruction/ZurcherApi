@@ -45,7 +45,7 @@ const BudgetController = {
       console.log("--- Iniciando createBudget (Backend PDF Gen) ---");
       // ... (Extracción de req.body, validaciones, búsqueda de Permit) ...
       const {
-        permitId, date, expirationDate, status = 'pending', discountDescription,
+        permitId, date, expirationDate, status = 'draft', discountDescription,
         discountAmount = 0, generalNotes, initialPaymentPercentage: initialPaymentPercentageInput, lineItems,
         leadSource, createdByStaffId, // 🆕 Campos de origen y vendedor interno
         externalReferralName, externalReferralEmail, externalReferralPhone, // 🆕 Campos de referido externo
@@ -57,6 +57,7 @@ const BudgetController = {
         throw new Error('Se requiere al menos un item en lineItems.');
       }
 
+      console.log(`[createBudget] Buscando Permit ID: ${permitId}`);
       const permit = await Permit.findByPk(permitId, {
         attributes: ['idPermit', 'propertyAddress', 'applicantEmail', 'applicantName', 'lot', 'block'], // Incluir campos necesarios
         transaction
@@ -97,6 +98,7 @@ const BudgetController = {
         };
         let priceAtTime = 0;
         if (incomingItem.budgetItemId) {
+          console.log(`[createBudget] Buscando BudgetItem ID: ${incomingItem.budgetItemId}`);
           const budgetItemDetails = await BudgetItem.findByPk(incomingItem.budgetItemId, { transaction });
           if (!budgetItemDetails || !budgetItemDetails.isActive) throw new Error(`Item base ID ${incomingItem.budgetItemId} no encontrado o inactivo.`);
           priceAtTime = parseFloat(budgetItemDetails.unitPrice);
@@ -161,6 +163,7 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
   console.log(`Presupuesto con referido externo - Trabajo: $${finalTotal} + Comisión: $${commission} = Total cliente: $${finalTotalWithCommission}`);
 }
 
+      console.log(`[createBudget] Intentando Budget.create, status: "${status}", leadSource: "${leadSource}"`);
       const newBudget = await Budget.create({
         idBudget: nextBudgetId,
         PermitIdPermit: permit.idPermit,
@@ -384,7 +387,10 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
       });
 
     } catch (error) {
-      console.error("Error FATAL durante createBudget:", error);
+      console.error("Error FATAL durante createBudget:", error.message);
+      console.error("[createBudget] Error code:", error.original?.code || error.code);
+      console.error("[createBudget] Error detail:", error.original?.detail || error.detail);
+      console.error("[createBudget] Stack:", error.stack?.split('\n').slice(0, 5).join('\n'));
       // Revertir si la transacción principal no terminó
       if (transaction && !transaction.finished) {
         try {
