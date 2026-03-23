@@ -46,10 +46,10 @@ module.exports = (sequelize) => {
     },
     status: {
       type: DataTypes.ENUM(
-        "draft",              // 🆕 NUEVO: Borrador inicial (no enviado) - OPCIONAL
-        "pending_review",     // 🆕 NUEVO: Enviado para revisión del cliente (sin firma) - OPCIONAL
-        "client_approved",    // 🆕 NUEVO: Cliente aprobó, listo para firma - OPCIONAL
-        "created",            // ✅ Estado original y DEFAULT
+        "draft",              // NUEVO: Borrador inicial (no enviado) - OPCIONAL
+        "pending_review",     // NUEVO: Enviado para revisión del cliente (sin firma) - OPCIONAL
+        "client_approved",    // NUEVO: Cliente aprobó, listo para firma - OPCIONAL
+        "created",            // Estado original y DEFAULT
         "send",               // Enviado (legacy)
         "sent_for_signature", // Enviado a SignNow para firma
         "signed",             // Firmado por el cliente
