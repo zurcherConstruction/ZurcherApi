@@ -30,7 +30,7 @@ const sequelize = (DB_DEPLOY && DB_DEPLOY.startsWith('postgresql://'))
       },
       retry: {
         max: 5,             // 🆕 Reintentar 5 veces en caso de error (Railway puede tardar)
-        timeout: 15000      // 🆕 15 segundos entre reintentos
+        timeout: 60000      // ✅ 60 segundos (igual que acquire) para evitar TimeoutError en operaciones lentas
       },
       isolationLevel: 'READ COMMITTED',
       dialectOptions: {

@@ -64,20 +64,6 @@ const BudgetController = {
       });
       if (!permit) throw new Error(`Permit con ID ${permitId} no encontrado.`);
 
-      // --- Obtener el último idBudget existente ---
-      let nextBudgetId = null;
-      const lastBudget = await Budget.findOne({
-        order: [['idBudget', 'DESC']],
-        attributes: ['idBudget'],
-        transaction
-      });
-      if (!lastBudget) {
-        nextBudgetId = 2246;
-      } else {
-        nextBudgetId = lastBudget.idBudget + 1;
-      }
-      console.log(`ID para el nuevo presupuesto: ${nextBudgetId}`);
-
       // --- Procesar Items y Calcular Subtotal ---
       let calculatedSubtotal = 0;
       const lineItemsDataForCreation = [];
@@ -152,7 +138,7 @@ const BudgetController = {
 
 if (leadSource === 'sales_rep' && createdByStaffId) {
   // Sales rep interno - obtener comisión del staff o usar $500 por defecto
-  const salesRep = await Staff.findByPk(createdByStaffId, { attributes: ['salesRepCommission'] });
+  const salesRep = await Staff.findByPk(createdByStaffId, { attributes: ['salesRepCommission'], transaction });
   commission = parseFloat(salesRep?.salesRepCommission) || 500;
   finalTotalWithCommission = finalTotal + commission;
   console.log(`Presupuesto con vendedor interno - Trabajo: $${finalTotal} + Comisión: $${commission} = Total cliente: $${finalTotalWithCommission}`);
@@ -165,7 +151,6 @@ if (leadSource === 'sales_rep' && createdByStaffId) {
 
       console.log(`[createBudget] Intentando Budget.create, status: "${status}", leadSource: "${leadSource}"`);
       const newBudget = await Budget.create({
-        idBudget: nextBudgetId,
         PermitIdPermit: permit.idPermit,
         date: date || new Date().toISOString().split('T')[0],
         expirationDate: expirationDate || null,
