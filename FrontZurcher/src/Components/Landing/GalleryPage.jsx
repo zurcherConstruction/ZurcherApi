@@ -16,7 +16,7 @@ const GalleryPage = () => {
         title="Septic System Work Gallery | Zurcher Septic Projects"
         description="View our professional septic system installations in Southwest Florida. ATU aerobic systems, drain field replacements, new construction septic projects. Quality workmanship guaranteed."
         keywords="septic system gallery, septic installation photos, ATU installation examples, septic work portfolio, septic contractor gallery Florida"
-        canonicalUrl="https://zurcherseptic.com/gallery"
+        canonicalUrl="https://www.zurcherseptic.com/gallery"
       />
       <Navbar onLoginClick={() => setIsLoginModalOpen(true)} />
       <WorkGallery />

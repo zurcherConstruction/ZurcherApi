@@ -16,7 +16,7 @@ const MaintenancePage = () => {
         title="Septic Maintenance Services Florida | ATU & System Care"
         description="Professional septic system maintenance in Southwest Florida. ATU servicing, routine pumping, system inspections, emergency repairs. Keep your septic system running efficiently with Zurcher Septic."
         keywords="septic maintenance Florida, ATU maintenance, septic system pumping, septic inspection, septic repairs Lehigh Acres, septic service Fort Myers"
-        canonicalUrl="https://zurcherseptic.com/maintenance-services"
+        canonicalUrl="https://www.zurcherseptic.com/maintenance-services"
       />
       <Navbar onLoginClick={() => setIsLoginModalOpen(true)} />
       <ComingSoon 
