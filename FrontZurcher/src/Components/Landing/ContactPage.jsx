@@ -25,7 +25,7 @@ const ContactPage = () => {
         title="Contact Zurcher Septic | Free Quotes & 24/7 Service"
         description="Contact Zurcher Septic for free septic system quotes in Southwest Florida. Professional installation, repairs, maintenance. Serving Lehigh Acres, Fort Myers, Cape Coral. Call (954) 636-8200."
         keywords="contact septic contractor, septic quote Florida, septic installation quote, septic service Lehigh Acres, septic company Fort Myers, free septic estimate"
-        canonicalUrl="https://zurcherseptic.com/contact"
+        canonicalUrl="https://www.zurcherseptic.com/contact"
       />
       <Navbar onLoginClick={() => setIsLoginModalOpen(true)} />
       

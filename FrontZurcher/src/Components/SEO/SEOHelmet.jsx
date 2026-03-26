@@ -24,7 +24,7 @@ const SEOHelmet = ({
     'Professional septic system installation in Southwest Florida. ATU aerobic systems, drain field replacement, FHA inspections. Licensed & insured septic contractors.';
 
   // Base URL for absolute paths  
-  const baseUrl = 'https://zurcherseptic.com';
+  const baseUrl = 'https://www.zurcherseptic.com';
   const fullOgImage = ogImage.startsWith('http') ? ogImage : `${baseUrl}${ogImage}`;
   
   // Normalizar canonical URL para evitar duplicados
@@ -43,8 +43,11 @@ const SEOHelmet = ({
       if (normalized.startsWith('http')) {
         const urlObj = new URL(normalized);
         
-        // Remover www. si existe
-        let hostname = urlObj.hostname.replace(/^www\./, '');
+        // AGREGAR www. si no existe (normalizar hacia www)
+        let hostname = urlObj.hostname;
+        if (hostname === 'zurcherseptic.com') {
+          hostname = 'www.zurcherseptic.com';
+        }
         
         // Remover trailing slash (excepto para la raíz)
         let pathname = urlObj.pathname;

@@ -16,7 +16,7 @@ const ServicesPage = () => {
         title="Septic System Services Florida | Installation, ATU, Repairs"
         description="Comprehensive septic services in Southwest Florida: new installations, ATU aerobic systems, drain fields, FHA inspections, repairs & maintenance. Licensed contractors serving Lehigh Acres, Fort Myers, Cape Coral."
         keywords="septic services Florida, septic installation, ATU aerobic systems, drain field installation, FHA septic inspection, septic repairs, septic maintenance"
-        canonicalUrl="https://zurcherseptic.com/services"
+        canonicalUrl="https://www.zurcherseptic.com/services"
       />
       <Navbar onLoginClick={() => setIsLoginModalOpen(true)} />
       <ComingSoon 

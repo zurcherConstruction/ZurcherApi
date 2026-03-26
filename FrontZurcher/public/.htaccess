@@ -6,9 +6,9 @@
   RewriteCond %{HTTPS} off
   RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R=301,L]
   
-  # Redirect www to non-www
-  RewriteCond %{HTTP_HOST} ^www\.zurcherseptic\.com [NC]
-  RewriteRule ^(.*)$ https://zurcherseptic.com/$1 [R=301,L]
+  # Redirect non-www to www
+  RewriteCond %{HTTP_HOST} ^zurcherseptic\.com [NC]
+  RewriteRule ^(.*)$ https://www.zurcherseptic.com/$1 [R=301,L]
   
   # Remove trailing slashes (except for root)
   RewriteCond %{REQUEST_FILENAME} !-d

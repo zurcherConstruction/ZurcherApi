@@ -16,7 +16,7 @@ const AboutPage = () => {
         title="About Zurcher Septic | Licensed Septic Contractors Florida"
         description="Learn about Zurcher Septic, Southwest Florida's trusted septic system contractors. 15+ years experience, licensed & insured, serving Lehigh Acres, Fort Myers, Cape Coral with quality septic installations."
         keywords="about Zurcher Septic, septic contractors Florida, licensed septic installers, septic company Lehigh Acres, septic professionals Fort Myers"
-        canonicalUrl="https://zurcherseptic.com/about"
+        canonicalUrl="https://www.zurcherseptic.com/about"
       />
       <Navbar onLoginClick={() => setIsLoginModalOpen(true)} />
       <ComingSoon 

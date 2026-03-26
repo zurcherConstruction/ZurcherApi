@@ -16,7 +16,7 @@ const InstallationPage = () => {
         title="Septic System Installation Process | Step-by-Step Guide"
         description="Learn our comprehensive septic system installation process in Florida. From permits to final inspection. ATU aerobic systems, conventional septic, drain fields. Professional installation guaranteed."
         keywords="septic installation process, septic system permits Florida, ATU installation steps, drain field installation, septic installation guide"
-        canonicalUrl="https://zurcherseptic.com/installation"
+        canonicalUrl="https://www.zurcherseptic.com/installation"
       />
       <Navbar onLoginClick={() => setIsLoginModalOpen(true)} />
       <InstallationProcess />
