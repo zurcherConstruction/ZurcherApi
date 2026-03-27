@@ -97,6 +97,8 @@ import ClientPortalAdmin from "./Components/ClientPortal/ClientPortalAdmin";
 import SalesDashboard from './Components/Sales/SalesDashboard'; // 🆕 Dashboard de ventas
 import ReminderPanel from './Components/Reminders/ReminderPanel'; // 🆕 Recordatorios
 import ReminderPopup from './Components/Reminders/ReminderPopup'; // 🆕 Popup de recordatorios
+import SalesLeads from './Components/SalesLeads/SalesLeads'; // 🆕 Sales Leads Management
+import NewLeadForm from './Components/SalesLeads/NewLeadForm'; // 🆕 New lead form
 
 function App() {
   const dispatch = useDispatch();
@@ -260,6 +262,24 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["sales_rep", "admin", "owner"]}>
                     <SalesDashboard />
+                  </PrivateRoute>
+                }
+              />
+
+              {/* 🆕 Sales Leads Management */}
+              <Route
+                path="/sales-leads"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "owner", "recept", "sales_rep", "follow-up"]}>
+                    <SalesLeads />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/sales-leads/new"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "owner", "recept", "sales_rep", "follow-up"]}>
+                    <NewLeadForm />
                   </PrivateRoute>
                 }
               />

@@ -51,6 +51,8 @@ const simpleWorkPublicRoutes = require('./simpleWorkPublicRoutes'); // 🆕 Ruta
 const claimRoutes = require('./claimRoutes'); // 🆕 Rutas para reclamos
 const salesRoutes = require('./salesRoutes'); // 🆕 Rutas para dashboard de ventas
 const reminderRoutes = require('./reminderRoutes'); // 🆕 Rutas para recordatorios
+const salesLeadRoutes = require('./SalesLeadRoutes'); // 🆕 Rutas para prospectos de venta
+const leadNoteRoutes = require('./LeadNoteRoutes'); // 🆕 Rutas para notas de leads
 // Health check endpoint (público, sin autenticación)
 router.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -113,5 +115,7 @@ router.use('/simple-works', simpleWorkRoutes); // 🆕 Ruta para trabajos varios
 router.use('/claims', claimRoutes); // 🆕 Ruta para reclamos/garantías
 router.use('/sales', salesRoutes); // 🆕 Ruta para dashboard de ventas
 router.use('/reminders', reminderRoutes); // 🆕 Ruta para recordatorios
+router.use('/sales-leads', salesLeadRoutes); // 🆕 Ruta para prospectos de venta
+router.use('/lead-notes', leadNoteRoutes); // 🆕 Ruta para notas de leads
 
 module.exports = router;

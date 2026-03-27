@@ -13,20 +13,25 @@ class SalesController {
 
       console.log(`📊 Sales Dashboard - User ID: ${userId}`);
 
-      // Verificar que el usuario sea sales_rep
+      // Verificar que el usuario exista y obtener su rol
       const user = await Staff.findByPk(userId);
-      if (!user || user.role !== 'sales_rep') {
-        return res.status(403).json({
+      if (!user) {
+        return res.status(404).json({
           error: true,
-          message: 'Solo usuarios con rol sales_rep pueden acceder a este dashboard'
+          message: 'Usuario no encontrado'
         });
       }
 
       // === 📋 FILTROS ===
       const budgetFilters = {
-        createdByStaffId: userId,
         leadSource: 'sales_rep'
       };
+
+      // Si es sales_rep, solo ve sus propios presupuestos
+      // Si es admin/owner, ve TODOS los presupuestos de ventas
+      if (user.role === 'sales_rep') {
+        budgetFilters.createdByStaffId = userId;
+      }
 
       // Filtro por mes/año
       if (month && year) {
@@ -71,7 +76,13 @@ class SalesController {
         workFilters.status = workStatus;
       }
 
-      // Works que vienen de budgets del vendedor
+      // Filtro condicional para budgets en works
+      const workBudgetWhere = { leadSource: 'sales_rep' };
+      if (user.role === 'sales_rep') {
+        workBudgetWhere.createdByStaffId = userId;
+      }
+
+      // Works que vienen de budgets del vendedor (o todos si es admin/owner)
       const works = await Work.findAll({
         where: workFilters,
         include: [
@@ -79,10 +90,7 @@ class SalesController {
             model: Budget,
             as: 'budget', // ✅ Usar alias correcto
             required: true,
-            where: {
-              createdByStaffId: userId,
-              leadSource: 'sales_rep'
-            },
+            where: workBudgetWhere,
             include: [
               {
                 model: Permit,
@@ -102,18 +110,27 @@ class SalesController {
       const monthStartDate = new Date(currentYear, currentMonth - 1, 1);
       const monthEndDate = new Date(currentYear, currentMonth, 0, 23, 59, 59);
 
+      const monthlyBudgetWhere = {
+        leadSource: 'sales_rep',
+        createdAt: {
+          [Op.between]: [monthStartDate, monthEndDate]
+        }
+      };
+      if (user.role === 'sales_rep') {
+        monthlyBudgetWhere.createdByStaffId = userId;
+      }
+
       const monthlyBudgets = await Budget.findAll({
-        where: {
-          createdByStaffId: userId,
-          leadSource: 'sales_rep',
-          createdAt: {
-            [Op.between]: [monthStartDate, monthEndDate]
-          }
-        },
+        where: monthlyBudgetWhere,
         attributes: ['status', 'totalPrice']
       });
 
       // Contar works concretados del mes
+      const monthlyWorkBudgetWhere = { leadSource: 'sales_rep' };
+      if (user.role === 'sales_rep') {
+        monthlyWorkBudgetWhere.createdByStaffId = userId;
+      }
+
       const monthlyWorks = await Work.count({
         where: {
           createdAt: {
@@ -125,10 +142,7 @@ class SalesController {
             model: Budget,
             as: 'budget',
             required: true,
-            where: {
-              createdByStaffId: userId,
-              leadSource: 'sales_rep'
-            },
+            where: monthlyWorkBudgetWhere,
             attributes: []
           }
         ]

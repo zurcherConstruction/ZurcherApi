@@ -97,7 +97,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Claim, Reminder, ReminderAssignment, ReminderComment } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Claim, Reminder, ReminderAssignment, ReminderComment, SalesLead, LeadNote } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -514,6 +514,48 @@ Staff.hasMany(BudgetNote, {
 BudgetNote.belongsTo(Staff, {
   foreignKey: 'staffId',
   as: 'author'
+});
+
+// --- RELACIONES PARA SALES LEADS (PROSPECTOS DE VENTA) ---
+
+// Un SalesLead tiene muchas LeadNotes (notas de seguimiento)
+SalesLead.hasMany(LeadNote, {
+  foreignKey: 'leadId',
+  as: 'leadNotes'
+});
+LeadNote.belongsTo(SalesLead, {
+  foreignKey: 'leadId',
+  as: 'lead'
+});
+
+// Un Staff puede crear muchos SalesLeads
+Staff.hasMany(SalesLead, {
+  foreignKey: 'createdBy',
+  as: 'createdLeads'
+});
+SalesLead.belongsTo(Staff, {
+  foreignKey: 'createdBy',
+  as: 'creator'
+});
+
+// Un Staff puede crear muchas LeadNotes
+Staff.hasMany(LeadNote, {
+  foreignKey: 'staffId',
+  as: 'leadNotes'
+});
+LeadNote.belongsTo(Staff, {
+  foreignKey: 'staffId',
+  as: 'author'
+});
+
+// Un SalesLead puede convertirse en un Budget
+SalesLead.belongsTo(Budget, {
+  foreignKey: 'convertedToBudgetId',
+  as: 'convertedBudget'
+});
+Budget.hasOne(SalesLead, {
+  foreignKey: 'convertedToBudgetId',
+  as: 'originLead'
 });
 
 // --- RELACIONES PARA WORK NOTES (SEGUIMIENTO DE OBRAS) ---

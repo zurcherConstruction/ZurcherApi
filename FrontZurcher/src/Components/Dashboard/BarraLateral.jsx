@@ -30,7 +30,8 @@ import {
   FaCalendarCheck, // 🆕 Icono para asistencia del personal
   FaImage, // 🆕 Icono para galería
   FaListUl, // 🆕 Icono para lista tracker
-  FaExclamationTriangle // 🆕 Icono para reclamos
+  FaExclamationTriangle, // 🆕 Icono para reclamos
+  FaUserPlus // 🆕 Icon for sales leads
 } from "react-icons/fa";
 
 const BarraLateral = () => {
@@ -54,6 +55,15 @@ const BarraLateral = () => {
       color: "text-blue-400",
       items: [
         { name: "Dashboard", path: "/dashboard", icon: FaChartBar },
+      ],
+    },
+    {
+      name: "Sales Leads",
+      icon: FaUserPlus,
+      color: "text-indigo-400",
+      items: [
+        { name: "Sales Leads", path: "/sales-leads", icon: FaUserPlus },
+        { name: "Sales Dashboard", path: "/sales-dashboard", icon: FaChartBar },
       ],
     },
     {
@@ -152,6 +162,15 @@ const BarraLateral = () => {
           ],
         },
         {
+          name: "Sales Leads",
+          icon: FaUserPlus,
+          color: "text-indigo-400",
+          items: [
+            { name: "Sales Leads", path: "/sales-leads", icon: FaUserPlus },
+            { name: "Sales Dashboard", path: "/sales-dashboard", icon: FaChartBar },
+          ],
+        },
+        {
           name: "Works Management",
           icon: FaTasks,
           color: "text-green-400",
@@ -218,6 +237,14 @@ const BarraLateral = () => {
     } else if (staff?.role === "recept") {
       // Solo materiales, itemBudget, attachInvoice, send-notifications, calendario y progress tracker
       return [
+        {
+          name: "Sales Leads",
+          icon: FaUserPlus,
+          color: "text-indigo-400",
+          items: [
+            { name: "Sales Leads", path: "/sales-leads", icon: FaUserPlus },
+          ],
+        },
         {
           name: "Reception Tasks",
           icon: FaClipboardCheck,
@@ -308,6 +335,14 @@ const BarraLateral = () => {
       // Follow-up: Solo Gestión de Budgets (ver, descargar Excel, chat y notas)
       return [
         {
+          name: "Sales Leads",
+          icon: FaUserPlus,
+          color: "text-indigo-400",
+          items: [
+            { name: "Sales Leads", path: "/sales-leads", icon: FaUserPlus },
+          ],
+        },
+        {
           name: "Client Follow-up",
           icon: FaFolderOpen,
           color: "text-purple-400",
@@ -321,10 +356,11 @@ const BarraLateral = () => {
       // 🆕 Sales Rep: Dashboard de ventas con presupuestos y works
       return [
         {
-          name: "Sales Dashboard",
-          icon: FaChartBar,
-          color: "text-blue-400",
+          name: "Sales Leads",
+          icon: FaUserPlus,
+          color: "text-indigo-400",
           items: [
+            { name: "Sales Leads", path: "/sales-leads", icon: FaUserPlus },
             { name: "My Sales Dashboard", path: "/sales-dashboard", icon: FaChartBar },
           ],
         },
