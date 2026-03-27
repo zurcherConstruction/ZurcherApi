@@ -4,6 +4,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorks, fetchWorkById, updateWork } from "../Redux/Actions/workActions";
+import { clearWorkDetails } from "../Redux/Reducer/workReducer";
 import logo from '../../public/logo.png'; // Asegúrate de que la ruta sea correcta
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faEdit, faTrash, faUpload } from "@fortawesome/free-solid-svg-icons";
@@ -165,8 +166,13 @@ const Materiales = () => {
 // Cuando se selecciona una dirección, cargar detalles de la obra
 useEffect(() => {
   if (selectedAddress) {
+    //  CRÍTICO: Limpiar work anterior ANTES de cargar el nuevo
+    // Esto previene mostrar datos cruzados durante el periodo de carga
+    dispatch(clearWorkDetails());
+    
     const selectedWork = works.find((work) => work.propertyAddress === selectedAddress);
     if (selectedWork) {
+      console.log(`📍 [MATERIALES] Cargando work para dirección: ${selectedAddress}`);
       dispatch(fetchWorkById(selectedWork.idWork)); // Cargar detalles del trabajo
       setFormData({
         ...formData,
@@ -203,7 +209,17 @@ const formatDate = (isoDate) => {
   const permitPdfUrl = useMemo(() => {
     if (!selectedAddress || !work?.Permit) return null;
     
-    // ✅ Primero intentar URL de Cloudinary (nuevo sistema)
+    //  VALIDACIÓN CRÍTICA: Verificar que el work actual corresponde a la dirección seleccionada
+    // Esto previene mostrar datos de un work anterior cuando hay cambio de dirección
+    if (work.propertyAddress !== selectedAddress) {
+      console.warn('[MATERIALES] Work cargado no coincide con dirección seleccionada');
+      console.warn(`   Expected: "${selectedAddress}"`);
+      console.warn(`   Got: "${work.propertyAddress}"`);
+      console.warn('   → Esperando actualización correcta del work...');
+      return null; //  NO mostrar PDF de work incorrecto
+    }
+    
+    //  Primero intentar URL de Cloudinary (nuevo sistema)
     if (work.Permit.permitPdfUrl) {
       return work.Permit.permitPdfUrl;
     }
@@ -224,10 +240,16 @@ const formatDate = (isoDate) => {
     }
     
     return null;
-  }, [selectedAddress, work?.Permit]);
+  }, [selectedAddress, work?.Permit, work?.propertyAddress]);
 
   const optionalDocsUrl = useMemo(() => {
     if (!selectedAddress || !work?.Permit) return null;
+    
+    //  VALIDACIÓN CRÍTICA: Verificar coherencia entre work y dirección seleccionada
+    if (work.propertyAddress !== selectedAddress) {
+      console.warn(' [MATERIALES] Work no coincide - omitiendo optionalDocs');
+      return null; //  NO mostrar documentos de work incorrecto
+    }
     
     // ✅ Primero intentar URL de Cloudinary (nuevo sistema)
     if (work.Permit.optionalDocsUrl) {

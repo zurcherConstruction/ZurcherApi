@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchWorkById, updateWork, sendChangeOrderToClient, deleteChangeOrder, addImagesToWork } from "../../Redux/Actions/workActions";
+import { clearWorkDetails } from "../../Redux/Reducer/workReducer";
 import { balanceActions } from "../../Redux/Actions/balanceActions";
 import {
   fetchIncomesAndExpensesRequest,
@@ -197,10 +198,12 @@ const WorkDetail = () => {
 
   // Cargar datos cuando cambia idWork
   useEffect(() => {
+    //  Limpiar estado de work anterior para prevenir cross-contamination
+    dispatch(clearWorkDetails());
     loadInitialData();
   }, [idWork]);
 
-  // 🆕 Cargar supplier invoices vinculados
+  //  Cargar supplier invoices vinculados
   useEffect(() => {
     const loadLinkedInvoices = async () => {
       if (!idWork) return;
@@ -224,6 +227,17 @@ const WorkDetail = () => {
   // 🆕 Cargar Permit PDF mediante fetch y convertir a blob URL
   useEffect(() => {
     const loadPermitPdf = async () => {
+      //  VALIDAR que el work cargado corresponde al idWork de la URL
+      if (work && work.idWork !== idWork) {
+        console.warn(' [WORKDETAIL] Work cargado no coincide con idWork de URL', {
+          workId: work.idWork,
+          urlId: idWork,
+          propertyAddress: work.propertyAddress
+        });
+        setPermitPdfBlob(null);
+        return;
+      }
+      
       // Solo cargar si hay URL o publicId (no legacy BLOB)
       if (!work?.Permit?.idPermit || !(work.Permit?.permitPdfUrl || work.Permit?.permitPdfPublicId)) {
         setPermitPdfBlob(null);
@@ -267,6 +281,17 @@ const WorkDetail = () => {
   // Cargar Optional Docs mediante fetch y convertir a blob URL
   useEffect(() => {
     const loadOptionalDocs = async () => {
+      //  VALIDAR que el work cargado corresponde al idWork de la URL
+      if (work && work.idWork !== idWork) {
+        console.warn(' [WORKDETAIL] Work cargado no coincide con idWork de URL', {
+          workId: work.idWork,
+          urlId: idWork,
+          propertyAddress: work.propertyAddress
+        });
+        setOptionalDocsBlob(null);
+        return;
+      }
+      
       // Solo cargar si hay URL o publicId (no legacy BLOB)
       if (!work?.Permit?.idPermit || !(work.Permit?.optionalDocsUrl || work.Permit?.optionalDocsPublicId)) {
         setOptionalDocsBlob(null);
