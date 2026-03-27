@@ -17,10 +17,21 @@ const MentionTextarea = ({ value, onChange, placeholder, rows = 3, maxLength = 5
 
   const loadStaff = async () => {
     try {
+      console.log('🔍 Cargando staff para menciones...');
       const response = await api.get('/budget-notes/staff/active');
-      setStaffList(response.data);
+      console.log('✅ Staff cargado:', response.data);
+      
+      if (response.data && Array.isArray(response.data)) {
+        setStaffList(response.data);
+        console.log(`📋 ${response.data.length} staff disponibles`);
+      } else {
+        console.warn('⚠️ Respuesta de staff no es un array:', response.data);
+        setStaffList([]);
+      }
     } catch (error) {
-      console.error('Error al cargar staff:', error);
+      console.error('❌ Error al cargar staff:', error);
+      console.error('Detalles:', error.response?.data || error.message);
+      setStaffList([]);
     }
   };
 
@@ -109,12 +120,15 @@ const MentionTextarea = ({ value, onChange, placeholder, rows = 3, maxLength = 5
         placeholder={placeholder}
         rows={rows}
         maxLength={maxLength}
-        className={`w-full px-3 py-2 border rounded ${className}`}
+        className={`w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${className}`}
       />
 
       {/* Dropdown de menciones */}
       {showMentions && filteredStaff.length > 0 && (
         <div className="absolute z-50 w-64 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+          <div className="px-2 py-1 text-xs text-gray-500 bg-gray-50 border-b">
+            {filteredStaff.length} {filteredStaff.length === 1 ? 'resultado' : 'resultados'}
+          </div>
           {filteredStaff.map((staff, index) => (
             <div
               key={staff.id}
@@ -129,7 +143,7 @@ const MentionTextarea = ({ value, onChange, placeholder, rows = 3, maxLength = 5
                 </div>
                 <div>
                   <div className="font-medium text-sm">{staff.name}</div>
-                  <div className="text-xs text-gray-500">{staff.role}</div>
+                  <div className="text-xs text-gray-500">{staff.role || 'Staff'}</div>
                 </div>
               </div>
             </div>
@@ -137,8 +151,19 @@ const MentionTextarea = ({ value, onChange, placeholder, rows = 3, maxLength = 5
         </div>
       )}
 
+      {/* Debug info */}
+      {showMentions && filteredStaff.length === 0 && (
+        <div className="absolute z-50 w-64 mt-1 bg-white border border-yellow-300 rounded-lg shadow-lg p-3">
+          <div className="text-xs text-yellow-700">
+            No se encontraron coincidencias para "{mentionSearch}"
+            <br />
+            <span className="text-gray-500">Staff total: {staffList.length}</span>
+          </div>
+        </div>
+      )}
+
       <p className="text-xs text-gray-500 mt-1">
-        {value.length}/{maxLength} caracteres • Usa @ para mencionar
+        {value.length}/{maxLength} caracteres • Usa @ para mencionar {staffList.length > 0 && `(${staffList.length} disponibles)`}
       </p>
     </div>
   );

@@ -31,7 +31,7 @@ router.post(
   PermitController.createPermit
 );
 
-router.get('/check-by-address', verifyToken, allowRoles(['admin', 'recept', 'owner']), PermitController.checkPermitByPropertyAddress);
+router.get('/check-by-address', verifyToken, allowRoles(['admin', 'recept', 'owner', 'sales_rep', 'follow-up']), PermitController.checkPermitByPropertyAddress);
 
 // 🆕 Verificar si un número de permit ya existe
 router.get('/check-permit-number/:permitNumber', verifyToken, allowRoles(['admin', 'recept', 'owner']), PermitController.checkPermitNumber);
