@@ -344,6 +344,14 @@ deleteChangeOrderFailure: (state, action) => {
     clearWorkError: (state) => {
       state.error = null;
     },
+    
+    //  Limpiar detalles de trabajo seleccionado (previene datos cruzados)
+    clearWorkDetails: (state) => {
+      state.work = null;
+      state.selectedWork = null;
+      state.images = [];
+      state.error = null;
+    },
   },
 });
 
@@ -367,6 +375,7 @@ export const {
   deleteWorkSuccess,
   deleteWorkFailure,
   clearWorkError,
+  clearWorkDetails, // 🆕 Limpiar detalles de trabajo (previene datos cruzados)
   createChangeOrderRequest,
   createChangeOrderSuccess,
   createChangeOrderFailure,
