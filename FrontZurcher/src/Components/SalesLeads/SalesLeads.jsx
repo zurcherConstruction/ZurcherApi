@@ -4,7 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import {
   fetchLeads,
   updateLead,
-  archiveLead
+  archiveLead,
+  deleteLead
 } from '../../Redux/Actions/salesLeadActions';
 import {
   MagnifyingGlassIcon,
@@ -20,9 +21,12 @@ import {
   ArrowPathIcon,
   ChatBubbleLeftRightIcon,
   DocumentTextIcon,
-  BellIcon
+  BellIcon,
+  PencilSquareIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 import LeadNotesModal from './LeadNotesModal';
+import EditLeadModal from './EditLeadModal';
 import api from '../../utils/axios';
 
 // 🔔 Componente de badge de alertas para leads
@@ -127,6 +131,10 @@ const SalesLeads = () => {
   // Estados para modal de notas
   const [showNotesModal, setShowNotesModal] = useState(false);
   const [selectedLead, setSelectedLead] = useState(null);
+
+  // Estados para modal de edición
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [leadToEdit, setLeadToEdit] = useState(null);
 
   // 🔔 Estados para alertas de notas
   const [leadAlerts, setLeadAlerts] = useState({});
@@ -242,6 +250,26 @@ const SalesLeads = () => {
     }
   };
 
+  // Handler para eliminar permanentemente (solo admin/owner)
+  const handleDelete = async (leadId, leadName) => {
+    const confirmMessage = `⚠️ ELIMINAR PERMANENTEMENTE\n\nEsto eliminará "${leadName}" y todas sus notas asociadas.\n\n¿Estás seguro? Esta acción NO se puede deshacer.`;
+    
+    if (!window.confirm(confirmMessage)) return;
+    
+    // Doble confirmación
+    const finalConfirm = window.confirm('¿Realmente deseas eliminar este lead permanentemente?');
+    if (!finalConfirm) return;
+
+    try {
+      await dispatch(deleteLead(leadId));
+      loadLeads();
+      loadLeadAlerts();
+    } catch (error) {
+      console.error('Error al eliminar lead:', error);
+      alert(error.response?.data?.error || 'Error al eliminar el lead');
+    }
+  };
+
   // Handler para abrir modal de notas
   const handleOpenNotes = (lead) => {
     setSelectedLead(lead);
@@ -253,6 +281,24 @@ const SalesLeads = () => {
     setShowNotesModal(false);
     setSelectedLead(null);
     // Recargar lista y alertas
+    loadLeads();
+    loadLeadAlerts();
+  };
+
+  // Handlers para modal de edición
+  const handleOpenEdit = (lead) => {
+    setLeadToEdit(lead);
+    setShowEditModal(true);
+  };
+
+  const handleCloseEdit = () => {
+    setShowEditModal(false);
+    setLeadToEdit(null);
+  };
+
+  const handleSaveLead = async (leadId, formData) => {
+    console.log('💾 Saving lead:', leadId, formData);
+    await dispatch(updateLead({ id: leadId, updates: formData }));
     loadLeads();
     loadLeadAlerts();
   };
@@ -487,6 +533,14 @@ const SalesLeads = () => {
                         {lead.status !== 'won' && lead.status !== 'archived' && (
                           <>
                             <button
+                              onClick={() => handleOpenEdit(lead)}
+                              className="p-1 rounded hover:bg-green-100 text-green-600 transition-colors"
+                              title="Editar Lead"
+                            >
+                              <PencilSquareIcon className="h-5 w-5" />
+                            </button>
+
+                            <button
                               onClick={() => handleQuickStatusChange(lead.id, lead.status === 'lost' ? 'contacted' : 'lost')}
                               className="p-1 rounded hover:bg-red-100 text-red-600 transition-colors"
                               title={lead.status === 'lost' ? "Reactivar" : "Marcar como perdido"}
@@ -501,6 +555,17 @@ const SalesLeads = () => {
                             >
                               <ArchiveBoxIcon className="h-5 w-5" />
                             </button>
+
+                            {/* Eliminar permanentemente - Solo admin/owner */}
+                            {(staff?.role === 'admin' || staff?.role === 'owner') && (
+                              <button
+                                onClick={() => handleDelete(lead.id, lead.customerName)}
+                                className="p-1 rounded hover:bg-red-100 text-red-700 transition-colors"
+                                title="Eliminar permanentemente (solo admin/owner)"
+                              >
+                                <TrashIcon className="h-5 w-5" />
+                              </button>
+                            )}
                           </>
                         )}
                       </div>
@@ -542,6 +607,15 @@ const SalesLeads = () => {
           lead={selectedLead}
           onClose={handleCloseNotesModal}
           onNoteRead={loadLeadAlerts}
+        />
+      )}
+
+      {/* Modal de Edición */}
+      {showEditModal && leadToEdit && (
+        <EditLeadModal
+          lead={leadToEdit}
+          onClose={handleCloseEdit}
+          onSave={handleSaveLead}
         />
       )}
     </div>

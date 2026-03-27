@@ -349,6 +349,46 @@ const SalesLeadController = {
     }
   },
 
+  // ❌ Eliminar permanentemente un lead (hard delete)
+  async deleteLead(req, res) {
+    try {
+      const { id } = req.params;
+
+      const lead = await SalesLead.findByPk(id);
+      
+      if (!lead) {
+        return res.status(404).json({ 
+          error: 'Lead no encontrado' 
+        });
+      }
+
+      // Guardar info antes de eliminar para el log
+      const leadInfo = {
+        id: lead.id,
+        customerName: lead.customerName,
+        phone: lead.phone,
+        status: lead.status
+      };
+
+      // Eliminar permanentemente (las notas se eliminan en cascada si está configurado)
+      await lead.destroy();
+
+      console.log('🗑️ Lead eliminado permanentemente:', leadInfo);
+
+      res.json({
+        message: 'Lead eliminado permanentemente',
+        deletedLead: leadInfo
+      });
+
+    } catch (error) {
+      console.error('Error al eliminar lead:', error);
+      res.status(500).json({ 
+        error: 'Error al eliminar el lead',
+        details: error.message 
+      });
+    }
+  },
+
   // 🔄 Convertir lead a presupuesto
   async convertToBudget(req, res) {
     try {

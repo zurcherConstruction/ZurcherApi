@@ -89,6 +89,19 @@ export const archiveLead = createAsyncThunk(
   }
 );
 
+// ❌ Eliminar permanentemente un lead (solo admin/owner)
+export const deleteLead = createAsyncThunk(
+  'salesLeads/deleteLead',
+  async (id, { rejectWithValue }) => {
+    try {
+      const response = await api.delete(`/sales-leads/${id}`);
+      return { ...response.data, deletedId: id };
+    } catch (error) {
+      return rejectWithValue(error.response?.data || { error: 'Error al eliminar lead' });
+    }
+  }
+);
+
 // 🔄 Convertir lead a presupuesto
 export const convertToBudget = createAsyncThunk(
   'salesLeads/convertToBudget',
