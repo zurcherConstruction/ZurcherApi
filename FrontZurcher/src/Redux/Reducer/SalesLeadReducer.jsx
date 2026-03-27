@@ -5,6 +5,7 @@ import {
   fetchLeadById,
   updateLead,
   archiveLead,
+  deleteLead,
   convertToBudget,
   fetchDashboardStats,
   createLeadNote,
@@ -135,6 +136,28 @@ const salesLeadSlice = createSlice({
       .addCase(archiveLead.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload?.error || 'Error al archivar lead';
+      });
+
+    // ========== DELETE LEAD ==========
+    builder
+      .addCase(deleteLead.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(deleteLead.fulfilled, (state, action) => {
+        state.loading = false;
+        // Eliminar del array de leads
+        state.leads = state.leads.filter(lead => lead.id !== action.payload.deletedId);
+        state.total -= 1;
+        // Si era el lead actual, limpiarlo
+        if (state.currentLead && state.currentLead.id === action.payload.deletedId) {
+          state.currentLead = null;
+          state.notes = [];
+        }
+      })
+      .addCase(deleteLead.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload?.error || 'Error al eliminar lead';
       });
 
     // ========== CONVERT TO BUDGET ==========

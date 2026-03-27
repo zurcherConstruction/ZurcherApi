@@ -29,6 +29,9 @@ router.put('/:id', verifyToken, allowRoles(authorizedRoles), SalesLeadController
 // 🗑️ Archivar un lead
 router.patch('/:id/archive', verifyToken, allowRoles(authorizedRoles), SalesLeadController.archiveLead);
 
+// ❌ Eliminar permanentemente un lead (solo admin/owner)
+router.delete('/:id', verifyToken, allowRoles(['admin', 'owner']), SalesLeadController.deleteLead);
+
 // 🔄 Convertir lead a presupuesto
 router.post('/:id/convert-to-budget', verifyToken, allowRoles(authorizedRoles), SalesLeadController.convertToBudget);
 
