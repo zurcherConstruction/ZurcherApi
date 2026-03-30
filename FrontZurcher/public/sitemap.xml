@@ -5,31 +5,15 @@
   
   <!-- Landing Page - English -->
   <url>
-    <loc>https://www.zurcherseptic.com</loc>
-    <lastmod>2026-03-25</lastmod>
+    <loc>https://www.zurcherseptic.com/</loc>
+    <lastmod>2026-03-30</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
-    <xhtml:link rel="alternate" hreflang="es" href="https://www.zurcherseptic.com" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.zurcherseptic.com/" />
     <image:image>
       <image:loc>https://www.zurcherseptic.com/logo.png</image:loc>
       <image:caption>Zurcher Septic Logo</image:caption>
     </image:image>
-  </url>
-
-  <!-- Services Page -->
-  <url>
-    <loc>https://www.zurcherseptic.com/services</loc>
-    <lastmod>2026-03-25</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.9</priority>
-  </url>
-
-  <!-- About Page -->
-  <url>
-    <loc>https://www.zurcherseptic.com/about</loc>
-    <lastmod>2026-03-25</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
   </url>
 
   <!-- Contact/Quote Request -->
@@ -54,22 +38,6 @@
     <lastmod>2026-03-25</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
-  </url>
-
-  <!-- Maintenance Services Page -->
-  <url>
-    <loc>https://www.zurcherseptic.com/maintenance-services</loc>
-    <lastmod>2026-03-25</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-
-  <!-- Repairs Page -->
-  <url>
-    <loc>https://www.zurcherseptic.com/repairs</loc>
-    <lastmod>2026-03-25</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
   </url>
 
   <!-- Thank You Page -->

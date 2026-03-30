@@ -14,6 +14,7 @@ const SEOHelmet = ({
   locale = 'en_US',
   siteName = 'Zurcher Septic',
   twitterHandle = '@ZurcherSeptic',
+  robots = 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1',
   schema
 }) => {
   const fullTitle = title 
@@ -80,9 +81,9 @@ const SEOHelmet = ({
       {keywords && <meta name="keywords" content={keywords} />}
       
       {/* Advanced SEO Meta Tags */}
-      <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
-      <meta name="googlebot" content="index, follow" />
-      <meta name="bingbot" content="index, follow" />
+      <meta name="robots" content={robots} />
+      <meta name="googlebot" content={robots} />
+      <meta name="bingbot" content={robots} />
       
       {/* Canonical URL */}
       <link rel="canonical" href={fullCanonicalUrl} />

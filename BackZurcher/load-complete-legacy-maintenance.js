@@ -29,64 +29,67 @@ const { v4: uuidv4 } = require('uuid');
 const DRY_RUN = process.argv.includes('--dry-run');
 
 // 📅 Listado completo de 42 mantenimientos
-const maintenanceData = [
+const maintenanceData = [   
+
+
+  { address: '52 Paula, Lehigh Acres, FL, 33976', visitDate: '2026-09-30', visitNumber: 1 },
   // MAYO 2025
-  { address: '935 Panda Dr, Lehigh Acres', visitDate: '2025-05-05', visitNumber: 1 },
-  { address: '614 Locust ave. Lehigh Acres', visitDate: '2025-05-20', visitNumber: 1 },
-  { address: '1028 Milwaukee blvd, Lehigh Acres', visitDate: '2025-05-05', visitNumber: 1 },
-  { address: '323 Mangonia Ave, Lehigh Acres', visitDate: '2025-05-20', visitNumber: 1 },
-  { address: '219 Bell Blvd., Lehigh Acres', visitDate: '2025-05-06', visitNumber: 1 },
-  { address: '2614 39th st sw, Lehigh Acres', visitDate: '2025-05-11', visitNumber: 1 },
+  // { address: '935 Panda Dr, Lehigh Acres', visitDate: '2025-05-05', visitNumber: 1 },
+  // { address: '614 Locust ave. Lehigh Acres', visitDate: '2025-05-20', visitNumber: 1 },
+  // { address: '1028 Milwaukee blvd, Lehigh Acres', visitDate: '2025-05-05', visitNumber: 1 },
+  // { address: '323 Mangonia Ave, Lehigh Acres', visitDate: '2025-05-20', visitNumber: 1 },
+  // { address: '219 Bell Blvd., Lehigh Acres', visitDate: '2025-05-06', visitNumber: 1 },
+  // { address: '2614 39th st sw, Lehigh Acres', visitDate: '2025-05-11', visitNumber: 1 },
   
   // JUNIO 2025
-  { address: '145 Bell Blvd, Lehigh Acres', visitDate: '2025-06-12', visitNumber: 1 },
-  { address: '902 Grant Blvd, Lehigh Acres', visitDate: '2025-06-04', visitNumber: 1 },
-  { address: '912 Anthony st, Lehigh Acres', visitDate: '2025-06-17', visitNumber: 1 },
-  { address: '166 Freemont Ave S, Lehigh acres', visitDate: '2025-06-04', visitNumber: 1 },
-  { address: '164 Thornton ave. Lehigh acres', visitDate: '2025-06-04', visitNumber: 1 },
-  { address: '336 Hermosa Ave. Lehigh acres', visitDate: '2025-06-04', visitNumber: 1 },
-  { address: '815 Sentinela Blvd, Lehigh Acres', visitDate: '2025-06-04', visitNumber: 1 },
-  { address: '195 Beckley Dr. Lehigh Acres', visitDate: '2025-06-12', visitNumber: 1 },
+  // { address: '145 Bell Blvd, Lehigh Acres', visitDate: '2025-06-12', visitNumber: 1 },
+  // { address: '902 Grant Blvd, Lehigh Acres', visitDate: '2025-06-04', visitNumber: 1 },
+  // { address: '912 Anthony st, Lehigh Acres', visitDate: '2025-06-17', visitNumber: 1 },
+  // { address: '166 Freemont Ave S, Lehigh acres', visitDate: '2025-06-04', visitNumber: 1 },
+  // { address: '164 Thornton ave. Lehigh acres', visitDate: '2025-06-04', visitNumber: 1 },
+  // { address: '336 Hermosa Ave. Lehigh acres', visitDate: '2025-06-04', visitNumber: 1 },
+  // { address: '815 Sentinela Blvd, Lehigh Acres', visitDate: '2025-06-04', visitNumber: 1 },
+  // { address: '195 Beckley Dr. Lehigh Acres', visitDate: '2025-06-12', visitNumber: 1 },
   
   // JULIO 2025
-  { address: '642 Stanley ave, Lehigh Acres', visitDate: '2025-07-21', visitNumber: 1 },
-  { address: '2509 38th St. Lehigh Acres', visitDate: '2025-07-30', visitNumber: 1 },
+  // { address: '642 Stanley ave, Lehigh Acres', visitDate: '2025-07-21', visitNumber: 1 },
+  // { address: '2509 38th St. Lehigh Acres', visitDate: '2025-07-30', visitNumber: 1 },
   
   // AGOSTO 2025
-  { address: '945 Butler St e, Lehigh Acres', visitDate: '2025-08-21', visitNumber: 1 },
-  { address: '944 Grant Blvd, Lehigh acres', visitDate: '2025-08-20', visitNumber: 1 },
-  { address: '1108 Cove st e, Lehigh Acres', visitDate: '2025-08-26', visitNumber: 1 },
-  { address: '1023 Bank Ave s, Lehigh acres', visitDate: '2025-08-17', visitNumber: 1 },
-  { address: '712 Clemwood ave s, Lehigh Acres', visitDate: '2025-08-25', visitNumber: 1 },
-  { address: '325 Hermosa ave, Lehigh Acres', visitDate: '2025-08-21', visitNumber: 1 },
+  // { address: '945 Butler St e, Lehigh Acres', visitDate: '2025-08-21', visitNumber: 1 },
+  // { address: '944 Grant Blvd, Lehigh acres', visitDate: '2025-08-20', visitNumber: 1 },
+  // { address: '1108 Cove st e, Lehigh Acres', visitDate: '2025-08-26', visitNumber: 1 },
+  // { address: '1023 Bank Ave s, Lehigh acres', visitDate: '2025-08-17', visitNumber: 1 },
+  // { address: '712 Clemwood ave s, Lehigh Acres', visitDate: '2025-08-25', visitNumber: 1 },
+  // { address: '325 Hermosa ave, Lehigh Acres', visitDate: '2025-08-21', visitNumber: 1 },
   
   // SEPTIEMBRE 2025
-  { address: '546 Montclair Ave S, Lehigh Acres', visitDate: '2025-09-04', visitNumber: 1 },
-  { address: '1131 Columbus blvd, Lehigh Acres', visitDate: '2025-09-05', visitNumber: 1 },
-  { address: '2615 23rd, Lehigh Acres', visitDate: '2025-09-12', visitNumber: 1 },
-  { address: '322 Browardave, Lehigh Acres', visitDate: '2025-09-13', visitNumber: 1 },
-  { address: '1037 Macy st e, Lehigh Acres', visitDate: '2025-09-27', visitNumber: 1 },
-  { address: '748 Homestead rd S, Lehigh Acres', visitDate: '2025-09-18', visitNumber: 1 },
-  { address: '1135 Columbus Blvd, Lehigh acres', visitDate: '2025-09-05', visitNumber: 1 },
+  // { address: '546 Montclair Ave S, Lehigh Acres', visitDate: '2025-09-04', visitNumber: 1 },
+  // { address: '1131 Columbus blvd, Lehigh Acres', visitDate: '2025-09-05', visitNumber: 1 },
+  // { address: '2615 23rd, Lehigh Acres', visitDate: '2025-09-12', visitNumber: 1 },
+  // { address: '322 Browardave, Lehigh Acres', visitDate: '2025-09-13', visitNumber: 1 },
+  // { address: '1037 Macy st e, Lehigh Acres', visitDate: '2025-09-27', visitNumber: 1 },
+  // { address: '748 Homestead rd S, Lehigh Acres', visitDate: '2025-09-18', visitNumber: 1 },
+  // { address: '1135 Columbus Blvd, Lehigh acres', visitDate: '2025-09-05', visitNumber: 1 },
   
   // OCTUBRE 2025
-  { address: '1215 Bayou St. Lehigh Acres', visitDate: '2025-10-23', visitNumber: 1 },
-  { address: '1127 Holly ave S, Lehigh Acres', visitDate: '2025-10-23', visitNumber: 1 },
+  // { address: '1215 Bayou St. Lehigh Acres', visitDate: '2025-10-23', visitNumber: 1 },
+  // { address: '1127 Holly ave S, Lehigh Acres', visitDate: '2025-10-23', visitNumber: 1 },
   
   // NOVIEMBRE 2025
-  { address: '842/844 Alabama Rd S. Lehigh Acres', visitDate: '2025-11-28', visitNumber: 1 },
-  { address: '552 Cottonwood av S, Lehigh Acres', visitDate: '2025-11-22', visitNumber: 1 },
-  { address: '825 Porter, Lehigh Acres', visitDate: '2025-11-09', visitNumber: 1 },
-  { address: '204 Aurora av 2, Lehigh Acres', visitDate: '2025-11-09', visitNumber: 1 },
-  { address: '1825 Lindenwood Dr, Lehigh Acres', visitDate: '2025-11-09', visitNumber: 1 },
-  { address: '942 Sunrise Blvd, Lehigh Acres', visitDate: '2025-11-09', visitNumber: 1 },
-  { address: '4105 E 15th St. Lehigh Acres', visitDate: '2025-11-23', visitNumber: 1 },
-  { address: '337 Jourferie Rd, Lehigh Acres', visitDate: '2025-11-30', visitNumber: 1 },
+  // { address: '842/844 Alabama Rd S. Lehigh Acres', visitDate: '2025-11-28', visitNumber: 1 },
+  // { address: '552 Cottonwood av S, Lehigh Acres', visitDate: '2025-11-22', visitNumber: 1 },
+  // { address: '825 Porter, Lehigh Acres', visitDate: '2025-11-09', visitNumber: 1 },
+  // { address: '204 Aurora av 2, Lehigh Acres', visitDate: '2025-11-09', visitNumber: 1 },
+  // { address: '1825 Lindenwood Dr, Lehigh Acres', visitDate: '2025-11-09', visitNumber: 1 },
+  // { address: '942 Sunrise Blvd, Lehigh Acres', visitDate: '2025-11-09', visitNumber: 1 },
+  // { address: '4105 E 15th St. Lehigh Acres', visitDate: '2025-11-23', visitNumber: 1 },
+  // { address: '337 Jourferie Rd, Lehigh Acres', visitDate: '2025-11-30', visitNumber: 1 },
   
   // DICIEMBRE 2025
-  { address: '1502 Oak ave, Lake Placid', visitDate: '2025-12-02', visitNumber: 1 },
-  { address: '1505 chatsworth st, Lake Placid', visitDate: '2025-12-02', visitNumber: 1 },
-  { address: '1507 Chatsworth st, Lake Placid', visitDate: '2025-12-02', visitNumber: 1 },
+  // { address: '1502 Oak ave, Lake Placid', visitDate: '2025-12-02', visitNumber: 1 },
+  // { address: '1505 chatsworth st, Lake Placid', visitDate: '2025-12-02', visitNumber: 1 },
+  // { address: '1507 Chatsworth st, Lake Placid', visitDate: '2025-12-02', visitNumber: 1 },
 ];
 
 async function loadCompleteLegacyMaintenance() {

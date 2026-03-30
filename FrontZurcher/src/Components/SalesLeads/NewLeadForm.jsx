@@ -11,7 +11,7 @@ const NewLeadForm = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [staffList, setStaffList] = useState([]);
-  const { user } = useSelector((state) => state.auth);
+  const { currentStaff } = useSelector((state) => state.auth);
   
   // 🔍 Estado validación dirección
   const [addressCheck, setAddressCheck] = useState({ status: 'idle', permit: null }); // idle | checking | has_budget | clear
@@ -86,7 +86,7 @@ const NewLeadForm = () => {
     e.preventDefault();
     
     // Validar que el usuario esté logueado
-    if (!user?.id) {
+    if (!currentStaff?.id) {
       alert('Error: Sesión no válida. Por favor, inicia sesión nuevamente.');
       return;
     }
@@ -154,7 +154,7 @@ const NewLeadForm = () => {
             // Si no hay staff seleccionado, usar el usuario actual como default
             const reminderStaffIds = formData.reminderStaff.length > 0 
               ? formData.reminderStaff 
-              : [user.id]; // ✅ Siempre asignar al usuario logueado si no hay selección
+              : [currentStaff.id]; // ✅ Siempre asignar al usuario logueado si no hay selección
 
             await api.patch(`/lead-notes/${createdNote.id}/reminder`, {
               reminderDate: reminderDateTime.toISOString(),

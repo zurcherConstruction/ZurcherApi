@@ -26,7 +26,11 @@ module.exports = (sequelize) => {
           msg: 'Formato de email inválido'
         }
       },
-      field: 'applicant_email'
+      field: 'applicant_email',
+      set(value) {
+        // Convertir strings vacíos a null para que no fallen las validaciones
+        this.setDataValue('applicantEmail', value?.trim() || null);
+      }
     },
     applicantPhone: {
       type: DataTypes.STRING,

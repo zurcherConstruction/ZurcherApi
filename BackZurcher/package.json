@@ -20,6 +20,7 @@
     "colombian-invoice-library": "^1.0.0",
     "compression": "^1.8.1",
     "cors": "^2.8.5",
+    "csv-parser": "^3.2.0",
     "date-fns": "^4.1.0",
     "docusign-esign": "^8.5.0",
     "dotenv": "^16.4.5",

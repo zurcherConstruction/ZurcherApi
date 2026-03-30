@@ -112,9 +112,8 @@ const SalesLeads = () => {
   
   // Estados de Redux
   const { leads, loading, stats, total, page: reduxPage, pageSize: reduxPageSize, totalPages } = useSelector((state) => state.salesLeads);
-  const { user, currentStaff } = useSelector((state) => state.auth);
-  const staff = currentStaff || user;
-  const userRole = staff?.role || '';
+  const { currentStaff } = useSelector((state) => state.auth);
+  const userRole = currentStaff?.role || '';
 
   // Verificar permisos
   const canAccess = ['admin', 'owner', 'recept', 'sales_rep', 'follow-up'].includes(userRole);
@@ -557,7 +556,7 @@ const SalesLeads = () => {
                             </button>
 
                             {/* Eliminar permanentemente - Solo admin/owner */}
-                            {(staff?.role === 'admin' || staff?.role === 'owner') && (
+                            {(currentStaff?.role === 'admin' || currentStaff?.role === 'owner') && (
                               <button
                                 onClick={() => handleDelete(lead.id, lead.customerName)}
                                 className="p-1 rounded hover:bg-red-100 text-red-700 transition-colors"

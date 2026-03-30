@@ -12,6 +12,12 @@ Disallow: /budget
 Disallow: /works
 Disallow: /change-order-response
 
+# Block pages under construction (Coming Soon)
+Disallow: /about
+Disallow: /repairs
+Disallow: /services
+Disallow: /maintenance-services
+
 # Sitemap location
 Sitemap: https://www.zurcherseptic.com/sitemap.xml
 

@@ -70,7 +70,7 @@ const LandingClients = () => {
       title="Septic Tank Installation Florida | ATU Aerobic Systems"
       description="Professional septic system installation in Southwest Florida. ATU aerobic systems, drain field replacement, FHA inspections, new construction septic. Serving Lehigh Acres, Fort Myers, Cape Coral, Port Charlotte, North Port, Sarasota. Licensed & insured septic contractors."
       keywords="septic tank installation, ATU septic system, aerobic septic system, septic installation Florida, septic installers Lehigh Acres, septic system Fort Myers, drain field installation, FHA septic inspection, new construction septic, septic system replacement, instalación tanque séptico"
-      canonicalUrl="https://www.zurcherseptic.com"
+      canonicalUrl="https://www.zurcherseptic.com/"
     />
     
     {/* NAVBAR */}
