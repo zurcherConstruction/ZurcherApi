@@ -41,10 +41,9 @@ const priorityLevels = {
 const LeadNotesModal = ({ lead, onClose, onNoteRead }) => {
   const dispatch = useDispatch();
   const { notes, loading } = useSelector((state) => state.salesLeads);
-  const { user, currentStaff } = useSelector((state) => state.auth);
+  const { currentStaff } = useSelector((state) => state.auth);
   
-  const staff = currentStaff || user;
-  const userId = staff?.id;
+  const userId = currentStaff?.id;
 
   // Estados locales
   const [showAddForm, setShowAddForm] = useState(false);
