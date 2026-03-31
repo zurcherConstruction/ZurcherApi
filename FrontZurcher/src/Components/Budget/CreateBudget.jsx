@@ -95,6 +95,9 @@ const CreateBudget = () => {
     company: '',
     commissionAmount: ''
   });
+
+  // 🆕 Comisión manual editable para staff interno (sales_rep / recept)
+  const [staffCommissionOverride, setStaffCommissionOverride] = useState('');
   
   
   const defaultLayoutPluginInstance = defaultLayoutPlugin({
@@ -150,7 +153,7 @@ const CreateBudget = () => {
   
   // --- 🆕 Estado de Staff (vendedores) ---
   const { staffList = [], loading: loadingStaff } = useSelector(state => state.admin) || {};
-  const salesReps = staffList.filter(s => s.role === 'sales_rep' && s.isActive);
+  const salesReps = staffList.filter(s => (s.role === 'sales_rep' || s.role === 'recept') && s.isActive);
  
   const [permitExpirationAlert, setPermitExpirationAlert] = useState({ type: "", message: "" });
   const [pdfPreview, setPdfPreview] = useState(null);
@@ -555,9 +558,8 @@ const CreateBudget = () => {
     // 💰 AGREGAR COMISIÓN
     let commission = 0;
     if (formData.leadSource === 'sales_rep' && formData.createdByStaffId) {
-      // Sales rep interno - obtener comisión del staff
-      const selectedStaff = staffList.find(s => s.id === formData.createdByStaffId);
-      commission = selectedStaff?.salesRepCommission || 500; // Usar comisión del staff o $500 por defecto
+      // Sales rep / recept interno - usar monto manual si fue ingresado
+      commission = parseFloat(staffCommissionOverride) || 500;
     } else if (formData.leadSource === 'external_referral' && externalReferralInfo.commissionAmount) {
       // Referido externo - monto variable
       commission = parseFloat(externalReferralInfo.commissionAmount) || 0;
@@ -581,7 +583,7 @@ const CreateBudget = () => {
         initialPayment: payment,
       }));
     }
-  }, [formData.lineItems, formData.discountAmount, formData.initialPaymentPercentage, formData.leadSource, formData.createdByStaffId, externalReferralInfo.commissionAmount, formData.subtotalPrice, formData.totalPrice, formData.initialPayment, staffList]);
+  }, [formData.lineItems, formData.discountAmount, formData.initialPaymentPercentage, formData.leadSource, formData.createdByStaffId, externalReferralInfo.commissionAmount, staffCommissionOverride, formData.subtotalPrice, formData.totalPrice, formData.initialPayment, staffList]);
 
   // --- Effect para calcular Expiration Date siempre que Date cambie ---
   useEffect(() => {
@@ -658,6 +660,15 @@ const handleGeneralInputChange = (e) => {
       ...prev,
       [name]: value,
     }));
+    // Auto-poblar comisión al seleccionar staff
+    if (name === 'createdByStaffId') {
+      const selectedStaff = staffList.find(s => s.id === value);
+      setStaffCommissionOverride(selectedStaff?.salesRepCommission ? String(selectedStaff.salesRepCommission) : '500');
+    }
+    // Limpiar override si cambian a otro leadSource
+    if (name === 'leadSource' && value !== 'sales_rep') {
+      setStaffCommissionOverride('');
+    }
   }
 };
 
@@ -1004,7 +1015,11 @@ const customCategoryOrder = [
         externalReferralEmail: formData.leadSource === 'external_referral' ? externalReferralInfo.email : null,
         externalReferralPhone: formData.leadSource === 'external_referral' ? externalReferralInfo.phone : null,
         externalReferralCompany: formData.leadSource === 'external_referral' ? externalReferralInfo.company : null,
-        customCommissionAmount: formData.leadSource === 'external_referral' ? parseFloat(externalReferralInfo.commissionAmount) : null,
+        customCommissionAmount: formData.leadSource === 'external_referral'
+          ? parseFloat(externalReferralInfo.commissionAmount)
+          : formData.leadSource === 'sales_rep' && formData.createdByStaffId
+            ? parseFloat(staffCommissionOverride) || 500
+            : null,
         lineItems: formData.lineItems.map(item => ({
           budgetItemId: item.budgetItemId || null,
           quantity: item.quantity,
@@ -1472,13 +1487,19 @@ const customCategoryOrder = [
                             ))
                           )}
                         </select>
-                        <p className="text-xs text-indigo-600 mt-1 font-medium">
-                          💰 Commission: ${(() => {
-                            const selectedStaff = staffList.find(s => s.id === formData.createdByStaffId);
-                            const commission = selectedStaff?.salesRepCommission || 500;
-                            return typeof commission === 'number' ? commission : parseFloat(commission) || 500;
-                          })()} USD (will increase client's total price)
-                        </p>
+                        <div className="mt-2">
+                          <label className="block text-xs font-medium text-indigo-700 mb-1">💰 Commission Amount (USD)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={staffCommissionOverride}
+                            onChange={(e) => setStaffCommissionOverride(e.target.value)}
+                            placeholder="500"
+                            className="block w-full px-3 py-2 bg-white border-2 border-indigo-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                          />
+                          <p className="text-xs text-indigo-500 mt-1">Will be added to the client's total price</p>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1832,11 +1853,7 @@ const customCategoryOrder = [
               )}
               {formData.leadSource === 'sales_rep' && formData.createdByStaffId && (
                 <p className="text-indigo-600 text-sm italic">
-                  Sales Commission (internal): <span className="font-semibold">+${(() => {
-                    const selectedStaff = staffList.find(s => s.id === formData.createdByStaffId);
-                    const commission = selectedStaff?.salesRepCommission || 500;
-                    return (typeof commission === 'number' ? commission : parseFloat(commission) || 500).toFixed(2);
-                  })()}</span>
+                  Sales Commission (internal): <span className="font-semibold">+${(parseFloat(staffCommissionOverride) || 500).toFixed(2)}</span>
                 </p>
               )}
               {formData.leadSource === 'external_referral' && externalReferralInfo.commissionAmount && (

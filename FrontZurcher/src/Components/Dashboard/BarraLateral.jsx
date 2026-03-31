@@ -243,6 +243,7 @@ const BarraLateral = () => {
           color: "text-indigo-400",
           items: [
             { name: "Sales Leads", path: "/sales-leads", icon: FaUserPlus },
+            { name: "My Sales Dashboard", path: "/sales-dashboard", icon: FaChartBar },
           ],
         },
         {
@@ -352,8 +353,8 @@ const BarraLateral = () => {
           ],
         },
       ];
-    } else if (staff?.role === "sales_rep") {
-      // 🆕 Sales Rep: Dashboard de ventas con presupuestos y works
+    } else if (staff?.role === "sales_rep" || staff?.role === "recept") {
+      // Sales Rep / Recept: Dashboard de ventas con presupuestos y works
       return [
         {
           name: "Sales Leads",

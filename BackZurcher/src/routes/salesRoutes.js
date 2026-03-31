@@ -13,7 +13,7 @@ const { allowRoles } = require("../middleware/byRol");
 router.get(
   '/my-dashboard',
   verifyToken,
-  allowRoles(['sales_rep', 'admin', 'owner']), // admin y owner pueden ver para supervisión
+  allowRoles(['sales_rep', 'recept', 'admin', 'owner']), // admin y owner pueden ver para supervisión
   SalesController.getMySalesDashboard
 );
 

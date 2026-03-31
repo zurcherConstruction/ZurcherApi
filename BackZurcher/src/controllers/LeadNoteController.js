@@ -1,5 +1,29 @@
 const { LeadNote, SalesLead, Staff, sequelize } = require('../data');
 const { Op } = require('sequelize');
+const { sendNotifications } = require('../utils/notifications/notificationManager');
+
+// 🔧 Helper: Extraer menciones @usuario del mensaje
+const extractMentions = (message) => {
+  const mentionRegex = /@(\w+)/g;
+  const mentions = [];
+  let match;
+  while ((match = mentionRegex.exec(message)) !== null) {
+    mentions.push(match[1]);
+  }
+  return mentions;
+};
+
+// 🔧 Helper: Encontrar staff por nombres mencionados
+const findStaffByNames = async (names) => {
+  if (!names || names.length === 0) return [];
+  return Staff.findAll({
+    where: {
+      [Op.or]: names.map(name => ({ name: { [Op.iLike]: `%${name}%` } })),
+      isActive: true
+    },
+    attributes: ['id', 'name']
+  });
+};
 
 const LeadNoteController = {
   
@@ -32,13 +56,20 @@ const LeadNoteController = {
         });
       }
 
-      // Verificar que el lead existe
-      const lead = await SalesLead.findByPk(leadId);
+      // 👥 Extraer menciones (sync) y buscar lead + staff en paralelo
+      const mentionedNames = extractMentions(message);
+      const [lead, mentionedStaff] = await Promise.all([
+        SalesLead.findByPk(leadId),
+        findStaffByNames(mentionedNames)
+      ]);
+
       if (!lead) {
         return res.status(404).json({ 
           error: 'Lead no encontrado' 
         });
       }
+
+      const mentionedStaffIds = mentionedStaff.map(s => s.id);
 
       // Crear la nota
       const note = await LeadNote.create({
@@ -54,19 +85,30 @@ const LeadNoteController = {
         isReminderActive: isReminderActive || false
       });
 
-      // Actualizar lastActivityDate del lead
-      await lead.update({ lastActivityDate: new Date() });
+      // Cargar nota con autor + actualizar lastActivityDate en paralelo
+      const [noteWithAuthor] = await Promise.all([
+        LeadNote.findByPk(note.id, {
+          include: [{ model: Staff, as: 'author', attributes: ['id', 'name', 'email'] }]
+        }),
+        lead.update({ lastActivityDate: new Date() })
+      ]);
 
-      // Cargar la nota con el autor
-      const noteWithAuthor = await LeadNote.findByPk(note.id, {
-        include: [
-          {
-            model: Staff,
-            as: 'author',
-            attributes: ['id', 'name', 'email']
-          }
-        ]
-      });
+      // 🔔 Enviar emails a mencionados (fire-and-forget — no bloquea la respuesta)
+      if (mentionedStaffIds.length > 0) {
+        const location = lead.propertyAddress || lead.applicantName || `Lead #${leadId}`;
+        Staff.findByPk(staffId, { attributes: ['name', 'email'] }).then(author => {
+          return sendNotifications('mentionInNote', {
+            mentionedStaffIds,
+            authorName: author?.name || 'Un usuario',
+            location,
+            notePreview: message.substring(0, 200),
+            noteType: 'lead_note',
+            leadId
+          });
+        }).catch(emailError => {
+          console.error('❌ [LeadNote] Error enviando emails de mención:', emailError);
+        });
+      }
 
       res.status(201).json({
         message: 'Nota creada exitosamente',
@@ -245,33 +287,40 @@ const LeadNoteController = {
       const upcomingDate = new Date();
       upcomingDate.setDate(upcomingDate.getDate() + parseInt(days));
 
-      // 1. Notas no leídas por el usuario actual (no aparece en read_by)
-      const unreadNotes = await LeadNote.findAll({
-        where: sequelize.literal(
-          `NOT ("read_by" @> ARRAY['${staffId}']::uuid[])`
-        ),
-        attributes: ['id', 'leadId', 'message', 'createdAt']
-      });
+      // Validar formato UUID para uso seguro en raw SQL
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!staffId || !uuidRegex.test(staffId)) {
+        return res.status(400).json({ error: 'Usuario inválido' });
+      }
 
-      // 2. Recordatorios vencidos asignados al usuario actual
-      const overdueReminders = await LeadNote.findAll({
-        where: {
-          isReminderActive: true,
-          reminderDate: { [Op.lt]: now },
-          reminderFor: { [Op.contains]: [staffId] }
-        },
-        attributes: ['id', 'leadId', 'reminderDate']
-      });
-
-      // 3. Recordatorios próximos asignados al usuario actual
-      const upcomingReminders = await LeadNote.findAll({
-        where: {
-          isReminderActive: true,
-          reminderDate: { [Op.between]: [now, upcomingDate] },
-          reminderFor: { [Op.contains]: [staffId] }
-        },
-        attributes: ['id', 'leadId', 'reminderDate']
-      });
+      // Las 3 queries en paralelo para reducir tiempo de respuesta
+      const [unreadNotes, overdueReminders, upcomingReminders] = await Promise.all([
+        // 1. Notas no leídas por el usuario actual (staffId validado como UUID — seguro en literal)
+        LeadNote.findAll({
+          where: sequelize.literal(
+            `NOT ("read_by" @> ARRAY['${staffId}']::uuid[])`
+          ),
+          attributes: ['leadId']
+        }),
+        // 2. Recordatorios vencidos
+        LeadNote.findAll({
+          where: {
+            isReminderActive: true,
+            reminderDate: { [Op.lt]: now },
+            reminderFor: { [Op.contains]: [staffId] }
+          },
+          attributes: ['leadId']
+        }),
+        // 3. Recordatorios próximos
+        LeadNote.findAll({
+          where: {
+            isReminderActive: true,
+            reminderDate: { [Op.between]: [now, upcomingDate] },
+            reminderFor: { [Op.contains]: [staffId] }
+          },
+          attributes: ['leadId']
+        })
+      ]);
 
       // Agrupar por leadId
       const alertMap = {};
