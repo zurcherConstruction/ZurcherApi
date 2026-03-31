@@ -1,6 +1,7 @@
 const { Budget, Work, Permit, Staff } = require('../data');
 const { Op } = require('sequelize');
 const { sendEmail } = require('../utils/notifications/emailService');
+const { sendSalesEmail } = require('../utils/notifications/salesEmailService');
 
 class SalesController {
   /**
@@ -412,9 +413,9 @@ class SalesController {
         contentType: file.mimetype
       }));
 
-      await sendEmail({
-        from: `"${senderName} — Zurcher Septic" <${process.env.SMTP_USER}>`,
-        replyTo: process.env.SALES_EMAIL || process.env.SMTP_USER,
+      await sendSalesEmail({
+        from: `"${senderName} — Zurcher Septic" <${process.env.SALES_SMTP_USER}>`,
+        replyTo: process.env.SALES_SMTP_USER,
         to,
         subject: emailSubject,
         html: htmlContent,
