@@ -27,6 +27,7 @@ import {
 } from '@heroicons/react/24/outline';
 import LeadNotesModal from './LeadNotesModal';
 import EditLeadModal from './EditLeadModal';
+import SendProposalModal from './SendProposalModal';
 import api from '../../utils/axios';
 
 // 🔔 Componente de badge de alertas para leads
@@ -134,6 +135,11 @@ const SalesLeads = () => {
   // Estados para modal de edición
   const [showEditModal, setShowEditModal] = useState(false);
   const [leadToEdit, setLeadToEdit] = useState(null);
+
+  // Estados para modal de propuesta
+  const [showProposalModal, setShowProposalModal] = useState(false);
+  const [leadForProposal, setLeadForProposal] = useState(null);
+  const [proposalSentLeads, setProposalSentLeads] = useState(new Set());
 
   // 🔔 Estados para alertas de notas
   const [leadAlerts, setLeadAlerts] = useState({});
@@ -540,6 +546,18 @@ const SalesLeads = () => {
                             </button>
 
                             <button
+                              onClick={() => { setLeadForProposal(lead); setShowProposalModal(true); }}
+                              className={`p-1 rounded transition-colors ${
+                                proposalSentLeads.has(lead.id)
+                                  ? 'bg-green-100 text-green-600 hover:bg-green-200'
+                                  : 'hover:bg-indigo-100 text-indigo-400 hover:text-indigo-600'
+                              }`}
+                              title={proposalSentLeads.has(lead.id) ? '✅ Proposal sent — click to resend' : 'Send Proposal Email'}
+                            >
+                              <EnvelopeIcon className="h-5 w-5" />
+                            </button>
+
+                            <button
                               onClick={() => handleQuickStatusChange(lead.id, lead.status === 'lost' ? 'contacted' : 'lost')}
                               className="p-1 rounded hover:bg-red-100 text-red-600 transition-colors"
                               title={lead.status === 'lost' ? "Reactivar" : "Marcar como perdido"}
@@ -615,6 +633,14 @@ const SalesLeads = () => {
           lead={leadToEdit}
           onClose={handleCloseEdit}
           onSave={handleSaveLead}
+        />
+      )}
+
+      {showProposalModal && leadForProposal && (
+        <SendProposalModal
+          lead={leadForProposal}
+          onClose={() => { setShowProposalModal(false); setLeadForProposal(null); }}
+          onSent={(leadId) => setProposalSentLeads(prev => new Set([...prev, leadId]))}
         />
       )}
     </div>

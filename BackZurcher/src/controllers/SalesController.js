@@ -1,5 +1,7 @@
 const { Budget, Work, Permit, Staff } = require('../data');
 const { Op } = require('sequelize');
+const { sendEmail } = require('../utils/notifications/emailService');
+const { sendSalesEmail } = require('../utils/notifications/salesEmailService');
 
 class SalesController {
   /**
@@ -225,6 +227,206 @@ class SalesController {
         message: 'Error al obtener el dashboard de ventas',
         details: error.message
       });
+    }
+  }
+
+  /**
+   * Enviar propuesta comercial por email al cliente
+   * POST /sales/send-proposal  (multipart/form-data)
+   */
+  async sendProposal(req, res) {
+    try {
+      const { to, clientName, subject, personalMessage } = req.body;
+      const senderStaff = await Staff.findByPk(req.user.id, { attributes: ['name', 'email'] });
+
+      if (!to || !to.includes('@')) {
+        return res.status(400).json({ error: 'Email del destinatario inválido' });
+      }
+
+      const senderName = senderStaff?.name || 'Zurcher Septic Sales';
+      const emailSubject = subject?.trim() || `Septic System Proposal — Zurcher Septic`;
+      const greeting = clientName ? `Hi ${clientName},` : 'Hi there,';
+      const customMessage = personalMessage?.trim() || '';
+      const uploadedFiles = (req.files || []).slice(0, 2);
+      const hasAttachments = uploadedFiles.length > 0;
+      const attachmentFileNames = uploadedFiles.map(f => f.originalname);
+
+      const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+</head>
+<body style="margin:0;padding:0;background:#f0f4f8;font-family:'Segoe UI',Arial,sans-serif;">
+
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f4f8;padding:30px 0;">
+    <tr>
+      <td align="center">
+        <table width="620" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
+
+          <!-- HEADER BRAND -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#1a3a5c 0%,#2563a8 100%);padding:32px 40px;text-align:center;">
+              <h1 style="color:#ffffff;margin:0;font-size:28px;font-weight:700;letter-spacing:1px;">
+                Zurcher Septic
+              </h1>
+              <p style="color:#a8c8f0;margin:6px 0 0;font-size:14px;letter-spacing:2px;text-transform:uppercase;">
+                Professional Septic Solutions
+              </p>
+            </td>
+          </tr>
+
+          <!-- GREETING -->
+          <tr>
+            <td style="padding:36px 40px 20px;">
+              <p style="font-size:18px;color:#1a3a5c;font-weight:600;margin:0 0 14px;">${greeting}</p>
+              <p style="font-size:15px;color:#4a5568;line-height:1.7;margin:0 0 12px;">
+                Thank you for your interest in Zurcher Septic. We specialize in 
+                septic system installation, repair, and maintenance across Central & Southwest Florida — 
+                delivering fast, reliable service with no hidden costs.
+              </p>
+              ${customMessage ? `
+              <div style="background:#f0f7ff;border-left:4px solid #2563a8;border-radius:4px;padding:16px 20px;margin:20px 0;">
+                <p style="font-size:14px;color:#2d3748;line-height:1.7;margin:0;white-space:pre-line;">${customMessage}</p>
+              </div>` : ''}
+            </td>
+          </tr>
+
+          <!-- FLYER IMAGE -->
+          <tr>
+            <td style="padding:0 40px 28px;">
+              <a href="https://www.zurcherseptic.com/installation" target="_blank">
+                <img
+                  src="https://res.cloudinary.com/dt4ah1jmy/image/upload/v1774963095/flayer1_c1hnl4.jpg"
+                  alt="Zurcher Septic Services"
+                  width="540"
+                  style="width:100%;max-width:540px;border-radius:10px;display:block;border:1px solid #e2e8f0;"
+                />
+              </a>
+            </td>
+          </tr>
+
+          <!-- WHY CHOOSE US -->
+          <tr>
+            <td style="padding:0 40px 28px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding:0 0 16px;">
+                    <h2 style="font-size:18px;color:#1a3a5c;margin:0 0 16px;font-weight:700;">
+                      ✅ Why Choose Zurcher Septic?
+                    </h2>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <table width="100%" cellpadding="0" cellspacing="8">
+                      <tr>
+                        <td width="48%" style="background:#f8fafc;border-radius:8px;padding:14px 16px;vertical-align:top;">
+                          <p style="margin:0;font-size:14px;color:#2d3748;font-weight:600;">🏆 Licensed &amp; Insured</p>
+                          <p style="margin:4px 0 0;font-size:13px;color:#718096;">Fully certified for all septic work in Florida.</p>
+                        </td>
+                        <td width="4%"></td>
+                        <td width="48%" style="background:#f8fafc;border-radius:8px;padding:14px 16px;vertical-align:top;">
+                          <p style="margin:0;font-size:14px;color:#2d3748;font-weight:600;">⚡ Fast Installation</p>
+                          <p style="margin:4px 0 0;font-size:13px;color:#718096;">Efficient crews, on-time and on-budget.</p>
+                        </td>
+                      </tr>
+                      <tr><td colspan="3" height="8"></td></tr>
+                      <tr>
+                        <td width="48%" style="background:#f8fafc;border-radius:8px;padding:14px 16px;vertical-align:top;">
+                          <p style="margin:0;font-size:14px;color:#2d3748;font-weight:600;">💰 Competitive Pricing</p>
+                          <p style="margin:4px 0 0;font-size:13px;color:#718096;">Transparent quotes — no hidden fees.</p>
+                        </td>
+                        <td width="4%"></td>
+                        <td width="48%" style="background:#f8fafc;border-radius:8px;padding:14px 16px;vertical-align:top;">
+                          <p style="margin:0;font-size:14px;color:#2d3748;font-weight:600;">📋 Permit Handling</p>
+                          <p style="margin:4px 0 0;font-size:13px;color:#718096;">We manage all permits and inspections.</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- CTA BUTTON -->
+          <tr>
+            <td style="padding:0 40px 36px;text-align:center;">
+              <a href="https://www.zurcherseptic.com/installation" target="_blank"
+                 style="display:inline-block;background:linear-gradient(135deg,#1a3a5c 0%,#2563a8 100%);color:#ffffff;text-decoration:none;padding:16px 44px;border-radius:30px;font-size:16px;font-weight:700;letter-spacing:0.5px;box-shadow:0 4px 16px rgba(37,99,168,0.35);">
+                🌐 View Our Services &amp; Get a Free Quote
+              </a>
+              <p style="margin:14px 0 0;font-size:13px;color:#718096;">
+                Or call us directly: <a href="tel:+19546368200" style="color:#2563a8;font-weight:600;">+1(954) 636-8200</a>
+              </p>
+            </td>
+          </tr>
+
+          <!-- DIVIDER -->
+          <tr>
+            <td style="padding:0 40px;">
+              <hr style="border:none;border-top:1px solid #e2e8f0;margin:0;" />
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td style="padding:24px 40px;text-align:center;">
+              <p style="font-size:13px;color:#a0aec0;margin:0 0 4px;">
+                This proposal was sent by <strong style="color:#4a5568;">${senderName}</strong> from Zurcher Septic
+              </p>
+              <p style="font-size:12px;color:#cbd5e0;margin:0;">
+                Zurcher Septic · Central Florida ·
+                <a href="https://www.zurcherseptic.com" style="color:#2563a8;">zurcherseptic.com</a>
+              </p>
+            </td>
+          </tr>
+
+          ${hasAttachments ? `
+          <!-- ATTACHMENTS NOTICE -->
+          <tr>
+            <td style="padding:0 40px 28px;">
+              <div style="background:#f0fff4;border:1px solid #9ae6b4;border-radius:8px;padding:16px 20px;text-align:center;">
+                <p style="font-size:14px;color:#276749;font-weight:600;margin:0 0 6px;">📎 Budgets attached to this email</p>
+                <p style="font-size:13px;color:#276749;margin:0;">
+                  For any questions, please contact us at
+                  <a href="mailto:admin@zurcherseptic.com" style="color:#2563a8;font-weight:600;">admin@zurcherseptic.com</a>
+                </p>
+              </div>
+            </td>
+          </tr>` : ''}
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>`;
+
+      // Preparar adjuntos desde archivos subidos (max 2)
+      const attachments = uploadedFiles.map(file => ({
+        filename: file.originalname,
+        content: file.buffer,
+        contentType: file.mimetype
+      }));
+
+      await sendSalesEmail({
+        from: `"${senderName} — Zurcher Septic" <${process.env.SALES_SMTP_USER}>`,
+        replyTo: process.env.SALES_SMTP_USER,
+        to,
+        subject: emailSubject,
+        html: htmlContent,
+        attachments
+      });
+
+      res.json({ success: true, message: `Propuesta enviada a ${to}` });
+
+    } catch (error) {
+      console.error('❌ Error en sendProposal:', error);
+      res.status(500).json({ error: 'Error al enviar la propuesta', details: error.message });
     }
   }
 }
