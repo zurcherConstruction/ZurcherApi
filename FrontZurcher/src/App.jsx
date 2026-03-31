@@ -260,7 +260,7 @@ function App() {
               <Route
                 path="/sales-dashboard"
                 element={
-                  <PrivateRoute allowedRoles={["sales_rep", "admin", "owner"]}>
+                  <PrivateRoute allowedRoles={["sales_rep", "recept", "admin", "owner"]}>
                     <SalesDashboard />
                   </PrivateRoute>
                 }
