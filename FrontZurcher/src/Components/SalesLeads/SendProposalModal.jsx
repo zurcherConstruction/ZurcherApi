@@ -5,14 +5,15 @@ import api from '../../utils/axios';
 const SendProposalModal = ({ lead, onClose, onSent }) => {
   const DEFAULT_MESSAGE = `As per our recent conversation, please find attached the requested proposals for your septic system project.
 
-If you decide to move forward, we’ll just need the following to get started and schedule your installation as soon as possible:
+<strong>If you decide to move forward, we'll just need the following to get started and schedule your installation as soon as possible:
 
+Both Approval for Health Department:
   • Permit
-  • Site Plan
+  • Site Plan</strong>
 
 Our team handles the entire process from start to finish, making it simple and hassle-free for you.
 
-Please feel free to reply to this email or contact us at admin@zurcherseptic.com if you have any questions. We look forward to working with you!`;
+Please feel free to reply to this email or contact us at sales@zurcherseptic.com if you have any questions. We look forward to working with you!`;
 
   const [formData, setFormData] = useState({
     to: lead?.applicantEmail || '',

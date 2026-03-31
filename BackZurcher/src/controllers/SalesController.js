@@ -392,7 +392,7 @@ class SalesController {
                 <p style="font-size:14px;color:#276749;font-weight:600;margin:0 0 6px;">📎 Budgets attached to this email</p>
                 <p style="font-size:13px;color:#276749;margin:0;">
                   For any questions, please contact us at
-                  <a href="mailto:admin@zurcherseptic.com" style="color:#2563a8;font-weight:600;">admin@zurcherseptic.com</a>
+                  <a href="mailto:sales@zurcherseptic.com" style="color:#2563a8;font-weight:600;">sales@zurcherseptic.com</a>
                 </p>
               </div>
             </td>
