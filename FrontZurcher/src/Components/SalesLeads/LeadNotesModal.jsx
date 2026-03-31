@@ -47,6 +47,7 @@ const LeadNotesModal = ({ lead, onClose, onNoteRead }) => {
 
   // Estados locales
   const [showAddForm, setShowAddForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     message: '',
     noteType: 'follow_up',
@@ -62,17 +63,19 @@ const LeadNotesModal = ({ lead, onClose, onNoteRead }) => {
     }
   }, [dispatch, lead?.id]);
 
-  // Formatear fecha
+  // Formatear fecha (convierte UTC a hora local del browser de cada usuario)
   const formatDate = (dateString) => {
     if (!dateString) return '';
-    const date = new Date(dateString);
-    return date.toLocaleString('es-ES', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+    // Si no tiene info de timezone, forzar interpretación como UTC
+    const normalized = /Z|[+-]\d{2}:\d{2}$/.test(dateString) ? dateString : dateString + 'Z';
+    const date = new Date(normalized);
+    if (isNaN(date.getTime())) return '';
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    const yyyy = date.getFullYear();
+    const hh = String(date.getHours()).padStart(2, '0');
+    const min = String(date.getMinutes()).padStart(2, '0');
+    return `${mm}/${dd}/${yyyy} ${hh}:${min}`;
   };
 
   // Manejar submit
@@ -108,13 +111,16 @@ const LeadNotesModal = ({ lead, onClose, onNoteRead }) => {
       noteData.isReminderActive = true;
     }
 
-    const result = await dispatch(createLeadNote(noteData));
-    
-    if (result.type.includes('fulfilled')) {
-      setShowAddForm(false);
-      resetForm();
-      // Recargar notas
-      dispatch(fetchLeadNotes({ leadId: lead.id }));
+    setSubmitting(true);
+    try {
+      const result = await dispatch(createLeadNote(noteData));
+      if (result.type.includes('fulfilled')) {
+        setShowAddForm(false);
+        resetForm();
+        dispatch(fetchLeadNotes({ leadId: lead.id }));
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -268,9 +274,10 @@ const LeadNotesModal = ({ lead, onClose, onNoteRead }) => {
                   <div className="flex gap-2">
                     <button
                       type="submit"
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+                      disabled={submitting}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      Guardar Nota
+                      {submitting ? 'Guardando...' : 'Guardar Nota'}
                     </button>
                     <button
                       type="button"

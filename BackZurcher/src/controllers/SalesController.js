@@ -27,9 +27,9 @@ class SalesController {
         leadSource: 'sales_rep'
       };
 
-      // Si es sales_rep, solo ve sus propios presupuestos
-      // Si es admin/owner, ve TODOS los presupuestos de ventas
-      if (user.role === 'sales_rep') {
+      // sales_rep y recept ven solo sus propios presupuestos
+      // admin/owner ven TODOS los presupuestos de ventas
+      if (user.role === 'sales_rep' || user.role === 'recept') {
         budgetFilters.createdByStaffId = userId;
       }
 
@@ -78,7 +78,7 @@ class SalesController {
 
       // Filtro condicional para budgets en works
       const workBudgetWhere = { leadSource: 'sales_rep' };
-      if (user.role === 'sales_rep') {
+      if (user.role === 'sales_rep' || user.role === 'recept') {
         workBudgetWhere.createdByStaffId = userId;
       }
 
@@ -116,7 +116,7 @@ class SalesController {
           [Op.between]: [monthStartDate, monthEndDate]
         }
       };
-      if (user.role === 'sales_rep') {
+      if (user.role === 'sales_rep' || user.role === 'recept') {
         monthlyBudgetWhere.createdByStaffId = userId;
       }
 
@@ -127,7 +127,7 @@ class SalesController {
 
       // Contar works concretados del mes
       const monthlyWorkBudgetWhere = { leadSource: 'sales_rep' };
-      if (user.role === 'sales_rep') {
+      if (user.role === 'sales_rep' || user.role === 'recept') {
         monthlyWorkBudgetWhere.createdByStaffId = userId;
       }
 

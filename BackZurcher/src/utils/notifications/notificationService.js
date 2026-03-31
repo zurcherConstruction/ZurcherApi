@@ -407,7 +407,8 @@ const stateNotificationMap = {
       const notePreview = data?.notePreview || '';
       const noteType = data?.noteType || 'nota';
       
-      return `${authorName} te mencionó en ${noteType === 'budget_note' ? 'un seguimiento de presupuesto' : 'un seguimiento de obra'} para ${location}:\n\n"${notePreview}"`;
+      const typeLabel = noteType === 'budget_note' ? 'un seguimiento de presupuesto' : noteType === 'lead_note' ? 'un Sales Lead' : 'un seguimiento de obra';
+      return `${authorName} te mencionó en ${typeLabel} para ${location}:\n\n"${notePreview}"`;
     },
     subject: (data) => {
       const authorName = data?.authorName || 'Alguien';
@@ -419,7 +420,7 @@ const stateNotificationMap = {
       const location = data?.location || 'un proyecto';
       const notePreview = data?.notePreview || '';
       const noteType = data?.noteType || 'nota';
-      const typeLabel = noteType === 'budget_note' ? '💰 Budget' : '🏠 Work';
+      const typeLabel = noteType === 'budget_note' ? '💰 Budget' : noteType === 'lead_note' ? '🎯 Sales Lead' : '🏠 Work';
       
       return `
         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f8f9fa;">
@@ -438,7 +439,7 @@ const stateNotificationMap = {
                 <span style="color: #1e90ff; font-weight: 600; font-size: 16px;">👤 ${authorName}</span>
               </div>
               <p style="color: #6c757d; margin: 5px 0; font-size: 14px;">
-                te mencionó en ${noteType === 'budget_note' ? 'un seguimiento de budget' : 'un seguimiento de work'}
+                te mencionó en ${noteType === 'budget_note' ? 'un seguimiento de budget' : noteType === 'lead_note' ? 'un Sales Lead' : 'un seguimiento de work'}
               </p>
             </div>
             

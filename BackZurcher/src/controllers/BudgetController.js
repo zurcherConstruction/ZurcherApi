@@ -137,9 +137,13 @@ const BudgetController = {
      let finalTotalWithCommission = finalTotal;
 
 if (leadSource === 'sales_rep' && createdByStaffId) {
-  // Sales rep interno - obtener comisión del staff o usar $500 por defecto
-  const salesRep = await Staff.findByPk(createdByStaffId, { attributes: ['salesRepCommission'], transaction });
-  commission = parseFloat(salesRep?.salesRepCommission) || 500;
+  // Usar comisión manual si fue enviada desde el frontend, sino leer del staff, sino $500
+  if (customCommissionAmount !== undefined && customCommissionAmount !== null && parseFloat(customCommissionAmount) >= 0) {
+    commission = parseFloat(customCommissionAmount);
+  } else {
+    const salesRep = await Staff.findByPk(createdByStaffId, { attributes: ['salesRepCommission'], transaction });
+    commission = parseFloat(salesRep?.salesRepCommission) || 500;
+  }
   finalTotalWithCommission = finalTotal + commission;
   console.log(`Presupuesto con vendedor interno - Trabajo: $${finalTotal} + Comisión: $${commission} = Total cliente: $${finalTotalWithCommission}`);
 } else if (leadSource === 'external_referral') {
@@ -1616,7 +1620,10 @@ async getBudgets(req, res) {
         'manualSignedPdfPublicId',
         'signedPdfPath',
         'signNowDocumentId',
-        'requiresFollowUp' // ✅ Incluir para mostrar el estado de la campana en BudgetList
+        'requiresFollowUp', // ✅ Incluir para mostrar el estado de la campana en BudgetList
+        'leadSource',
+        'createdByStaffId',
+        'salesCommissionAmount'
       ]
     });
 
@@ -2061,10 +2068,14 @@ async optionalDocs(req, res) {
         const currentStaffId = createdByStaffId !== undefined ? createdByStaffId : budget.createdByStaffId;
         
         if (currentLeadSource === 'sales_rep' && currentStaffId) {
-          // Obtener comisión del staff o usar $500 por defecto
-          const salesRep = await Staff.findByPk(currentStaffId, { attributes: ['salesRepCommission'] });
-          generalUpdateData.salesCommissionAmount = parseFloat(salesRep?.salesRepCommission) || 500;
-          console.log(`💰 Comisión actualizada del Staff ${currentStaffId}: $${generalUpdateData.salesCommissionAmount}`);
+          // Usar comisión manual si fue enviada, sino leer del staff, sino $500
+          if (salesCommissionAmount !== undefined && salesCommissionAmount !== null && parseFloat(salesCommissionAmount) >= 0) {
+            generalUpdateData.salesCommissionAmount = parseFloat(salesCommissionAmount);
+          } else {
+            const salesRep = await Staff.findByPk(currentStaffId, { attributes: ['salesRepCommission'] });
+            generalUpdateData.salesCommissionAmount = parseFloat(salesRep?.salesRepCommission) || 500;
+          }
+          console.log(`💰 Comisión actualizada para Staff ${currentStaffId}: $${generalUpdateData.salesCommissionAmount}`);
         } else if (currentLeadSource === 'external_referral' && salesCommissionAmount !== undefined) {
           generalUpdateData.salesCommissionAmount = parseFloat(salesCommissionAmount) || 0;
         } else {
@@ -2215,9 +2226,8 @@ async optionalDocs(req, res) {
       let commission = 0;
       const currentLeadSource = budget.leadSource || 'web';
       if (currentLeadSource === 'sales_rep' && budget.createdByStaffId) {
-        // Obtener comisión del staff o usar $500 por defecto
-        const salesRep = await Staff.findByPk(budget.createdByStaffId, { attributes: ['salesRepCommission'] });
-        commission = parseFloat(salesRep?.salesRepCommission) || 500;
+        // Usar el salesCommissionAmount ya guardado en el budget (incluye override manual)
+        commission = parseFloat(budget.salesCommissionAmount) || 500;
         console.log(`💰 Comisión de Sales Rep: $${commission} (Staff ID: ${budget.createdByStaffId})`);
       } else if (currentLeadSource === 'external_referral' && budget.salesCommissionAmount) {
         commission = parseFloat(budget.salesCommissionAmount) || 0;
