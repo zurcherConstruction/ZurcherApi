@@ -151,6 +151,33 @@ const SalesLeads = () => {
     }
   }, [leads]);
 
+  // � Agrupación por contacto duplicado
+  const [groupDuplicates, setGroupDuplicates] = useState(false);
+
+  // Etiqueta _groupType para indicadores visuales (el backend ya los ordena juntos)
+  const displayedLeads = useMemo(() => {
+    if (leads.length === 0) return leads;
+    const emailMap = {};
+    const phoneMap = {};
+    leads.forEach(l => {
+      const email = l.applicantEmail?.trim().toLowerCase();
+      if (email) emailMap[email] = (emailMap[email] || 0) + 1;
+      const phone = l.applicantPhone?.replace(/\D/g, '') || '';
+      if (phone.length > 5) phoneMap[phone] = (phoneMap[phone] || 0) + 1;
+    });
+    return leads.map(l => {
+      const email = l.applicantEmail?.trim().toLowerCase();
+      const phone = l.applicantPhone?.replace(/\D/g, '') || '';
+      if (email && emailMap[email] > 1) return { ...l, _groupType: 'email' };
+      if (phone.length > 5 && phoneMap[phone] > 1) return { ...l, _groupType: 'phone' };
+      return { ...l, _groupType: null };
+    });
+  }, [leads]);
+
+  // Conteo de duplicados en la página actual (para el badge del botón)
+  const duplicateCount = useMemo(() =>
+    displayedLeads.filter(l => l._groupType).length,
+  [displayedLeads]);
   // 🔔 Estados para alertas de notas
   const [leadAlerts, setLeadAlerts] = useState({});
   const [loadingAlerts, setLoadingAlerts] = useState(false);
@@ -193,7 +220,7 @@ const SalesLeads = () => {
     if (canAccess) {
       loadLeads();
     }
-  }, [page, debouncedSearchTerm, statusFilter, priorityFilter, sourceFilter, canAccess]);
+  }, [page, debouncedSearchTerm, statusFilter, priorityFilter, sourceFilter, groupDuplicates, canAccess]);
 
   const loadLeads = async () => {
     try {
@@ -203,7 +230,8 @@ const SalesLeads = () => {
         search: debouncedSearchTerm,
         status: statusFilter,
         priority: priorityFilter,
-        source: sourceFilter
+        source: sourceFilter,
+        sortBy: groupDuplicates ? 'contact_group' : 'lastActivityDate'
       }));
     } catch (error) {
       console.error('Error al cargar leads:', error);
@@ -369,22 +397,22 @@ const SalesLeads = () => {
     <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-6">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-wrap justify-between items-start gap-3 mb-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
-              <UserCircleIcon className="h-8 w-8 text-blue-600" />
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-800 flex items-center gap-2">
+              <UserCircleIcon className="h-7 w-7 md:h-8 md:w-8 text-blue-600" />
               Sales Leads
             </h1>
-            <p className="text-gray-600 mt-2">
+            <p className="text-gray-600 mt-1 text-sm md:text-base">
               Lead management and sales pipeline tracking
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-wrap">
             {/* 🔔 Botón Verificar Recordatorios */}
             <button
               onClick={handleCheckReminders}
               disabled={verifyingReminders}
-              className={`inline-flex items-center px-4 py-3 rounded-lg font-medium text-sm transition-all ${
+              className={`inline-flex items-center px-3 md:px-4 py-2 md:py-3 rounded-lg font-medium text-sm transition-all ${
                 verifyingReminders
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : 'bg-amber-600 text-white hover:bg-amber-700 hover:shadow-lg'
@@ -407,7 +435,7 @@ const SalesLeads = () => {
             </button>
             <button
               onClick={() => navigate('/sales-leads/new')}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors shadow-lg hover:shadow-xl"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 md:px-6 py-2 md:py-3 rounded-lg flex items-center gap-2 transition-colors shadow-lg hover:shadow-xl text-sm md:text-base"
             >
               <PlusIcon className="h-5 w-5" />
               New Lead
@@ -506,6 +534,33 @@ const SalesLeads = () => {
             </select>
           </div>
         </div>
+
+        {/* Botón agrupar duplicados */}
+        {duplicateCount > 0 && (
+          <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-3">
+            <button
+              onClick={() => { setGroupDuplicates(v => !v); setPage(1); }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+                groupDuplicates
+                  ? 'bg-orange-600 text-white border-orange-600 hover:bg-orange-700'
+                  : 'bg-white text-orange-700 border-orange-300 hover:bg-orange-50'
+              }`}
+            >
+              🔗 {groupDuplicates ? 'Agrupado por contacto' : 'Agrupar por contacto'}
+              <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                groupDuplicates ? 'bg-white text-orange-600' : 'bg-orange-100 text-orange-700'
+              }`}>
+                {duplicateCount}
+              </span>
+            </button>
+            {groupDuplicates && (
+              <div className="flex items-center gap-3 text-xs text-gray-500">
+                <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-orange-400"></span> Mismo email</span>
+                <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-400"></span> Mismo teléfono</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 🔔 Panel de Alertas Próximas - DESPLEGABLE */}
@@ -621,7 +676,145 @@ const SalesLeads = () => {
           <p className="text-gray-600">Start by adding your first sales lead</p>
         </div>
       ) : (
-        <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
+        <>
+          {/* Vista Mobile — Tarjetas */}
+          <div className="block md:hidden space-y-3">
+            {displayedLeads.map((lead) => (
+              <div key={lead.id} className={`bg-white rounded-lg shadow-sm p-4 border-l-4 border border-gray-100 ${
+                lead._groupType === 'email' ? 'border-l-orange-400' :
+                lead._groupType === 'phone' ? 'border-l-blue-400' : 'border-l-gray-100'
+              }`}>
+                {/* Cabecera: nombre + badges */}
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900 truncate">{lead.applicantName}</p>
+                    {lead._groupType && (
+                      <span className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full mt-0.5 ${
+                        lead._groupType === 'email' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        {lead._groupType === 'email' ? '📧 mismo email' : '📞 mismo tel.'}
+                      </span>
+                    )}
+                    {lead.propertyAddress && (
+                      <p className="text-xs text-gray-500 truncate mt-0.5">{lead.propertyAddress}</p>
+                    )}
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    {lead.status === 'quoted' && (
+                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-500 text-white flex items-center gap-1">
+                        <DocumentTextIcon className="h-3 w-3" />
+                        COTIZADO
+                      </span>
+                    )}
+                    <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${
+                      lead.priority === 'urgent' ? 'bg-red-100 text-red-800' :
+                      lead.priority === 'high' ? 'bg-orange-100 text-orange-800' :
+                      lead.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {lead.priority === 'urgent' ? '⚡ Urgent' :
+                       lead.priority === 'high' ? 'High' :
+                       lead.priority === 'medium' ? 'Medium' : 'Low'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Contacto */}
+                <div className="text-sm text-gray-600 space-y-0.5 mb-3">
+                  {lead.applicantPhone && (
+                    <div className="flex items-center gap-1">
+                      <PhoneIcon className="h-3 w-3 shrink-0" />
+                      <span>{lead.applicantPhone}</span>
+                    </div>
+                  )}
+                  {lead.applicantEmail && (
+                    <div className="flex items-center gap-1">
+                      <EnvelopeIcon className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{lead.applicantEmail}</span>
+                    </div>
+                  )}
+                  <div className="text-xs text-gray-400">{getRelativeTime(lead.lastActivityDate)}</div>
+                </div>
+
+                {/* Estado + Acciones */}
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-100">
+                  <select
+                    value={lead.status}
+                    onChange={(e) => handleQuickStatusChange(lead.id, e.target.value)}
+                    className={`px-2 py-1 text-xs font-medium rounded-full border-0 cursor-pointer focus:ring-2 focus:ring-blue-500 ${STATUS_COLORS[lead.status]}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleOpenNotes(lead)}
+                      className="p-1.5 rounded hover:bg-blue-100 text-blue-600 transition-colors"
+                      title="Ver Notas"
+                    >
+                      <LeadAlertBadge leadId={lead.id} alertData={leadAlerts[lead.id]} className="h-5 w-5" />
+                    </button>
+
+                    {lead.status !== 'won' && lead.status !== 'archived' && (
+                      <>
+                        <button
+                          onClick={() => handleOpenEdit(lead)}
+                          className="p-1.5 rounded hover:bg-green-100 text-green-600 transition-colors"
+                          title="Editar"
+                        >
+                          <PencilSquareIcon className="h-5 w-5" />
+                        </button>
+
+                        <button
+                          onClick={() => { setLeadForProposal(lead); setShowProposalModal(true); }}
+                          className={`p-1.5 rounded transition-colors ${
+                            proposalSentLeads.has(lead.id)
+                              ? 'bg-green-100 text-green-600 hover:bg-green-200'
+                              : 'hover:bg-indigo-100 text-indigo-400 hover:text-indigo-600'
+                          }`}
+                          title="Enviar Propuesta"
+                        >
+                          <EnvelopeIcon className="h-5 w-5" />
+                        </button>
+
+                        <button
+                          onClick={() => handleQuickStatusChange(lead.id, lead.status === 'lost' ? 'contacted' : 'lost')}
+                          className="p-1.5 rounded hover:bg-red-100 text-red-600 transition-colors"
+                          title={lead.status === 'lost' ? 'Reactivar' : 'Marcar como perdido'}
+                        >
+                          {lead.status === 'lost' ? <ArrowPathIcon className="h-5 w-5" /> : <XCircleIcon className="h-5 w-5" />}
+                        </button>
+
+                        <button
+                          onClick={() => handleArchive(lead.id)}
+                          className="p-1.5 rounded hover:bg-gray-100 text-gray-600 transition-colors"
+                          title="Archivar"
+                        >
+                          <ArchiveBoxIcon className="h-5 w-5" />
+                        </button>
+
+                        {(currentStaff?.role === 'admin' || currentStaff?.role === 'owner') && (
+                          <button
+                            onClick={() => handleDelete(lead.id, lead.applicantName)}
+                            className="p-1.5 rounded hover:bg-red-100 text-red-700 transition-colors"
+                            title="Eliminar"
+                          >
+                            <TrashIcon className="h-5 w-5" />
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Vista Desktop — Tabla */}
+          <div className="hidden md:block bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -636,11 +829,21 @@ const SalesLeads = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {leads.map((lead) => (
-                  <tr key={lead.id} className="hover:bg-gray-50">
+                {displayedLeads.map((lead) => (
+                  <tr key={lead.id} className={`hover:bg-gray-50 ${
+                    lead._groupType === 'email' ? 'border-l-4 border-l-orange-400' :
+                    lead._groupType === 'phone' ? 'border-l-4 border-l-blue-400' : ''
+                  }`}>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <span className="font-medium text-gray-900">{lead.applicantName}</span>
+                        {lead._groupType && (
+                          <span className={`px-1.5 py-0.5 text-xs rounded-full ${
+                            lead._groupType === 'email' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+                          }`}>
+                            {lead._groupType === 'email' ? '📧 mismo email' : '📞 mismo tel.'}
+                          </span>
+                        )}
                         {lead.status === 'quoted' && (
                           <span className="px-2 py-1 rounded-full text-xs font-semibold bg-purple-500 text-white flex items-center gap-1 animate-pulse">
                             <DocumentTextIcon className="h-3 w-3" />
@@ -766,28 +969,92 @@ const SalesLeads = () => {
             </table>
           </div>
         </div>
+        </>
       )}
 
       {/* Paginación */}
       {totalPages > 1 && (
-        <div className="mt-6 flex justify-center gap-2">
+        <div className="mt-6 flex flex-wrap justify-center items-center gap-1">
+          {/* Primera + Anterior */}
+          <button
+            onClick={() => setPage(1)}
+            disabled={page === 1}
+            className="px-2 py-2 border border-gray-300 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 text-sm"
+            title="Primera página"
+          >
+            «
+          </button>
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+            className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 text-sm"
           >
-            Anterior
+            ‹ Anterior
           </button>
-          <span className="px-4 py-2">
-            Page {page} of {totalPages} ({total} leads)
-          </span>
+
+          {/* Números de página con ventana deslizante */}
+          {(() => {
+            const pages = [];
+            const delta = 2; // páginas a cada lado de la actual
+            const left = Math.max(1, page - delta);
+            const right = Math.min(totalPages, page + delta);
+
+            if (left > 1) {
+              pages.push(
+                <button key={1} onClick={() => setPage(1)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">
+                  1
+                </button>
+              );
+              if (left > 2) pages.push(<span key="left-ellipsis" className="px-2 py-2 text-gray-400">…</span>);
+            }
+
+            for (let i = left; i <= right; i++) {
+              pages.push(
+                <button key={i} onClick={() => setPage(i)}
+                  className={`px-3 py-2 border rounded-lg text-sm font-medium transition-colors ${
+                    i === page
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'border-gray-300 hover:bg-gray-50'
+                  }`}>
+                  {i}
+                </button>
+              );
+            }
+
+            if (right < totalPages) {
+              if (right < totalPages - 1) pages.push(<span key="right-ellipsis" className="px-2 py-2 text-gray-400">…</span>);
+              pages.push(
+                <button key={totalPages} onClick={() => setPage(totalPages)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">
+                  {totalPages}
+                </button>
+              );
+            }
+
+            return pages;
+          })()}
+
+          {/* Siguiente + Última */}
           <button
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
-            className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+            className="px-3 py-2 border border-gray-300 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 text-sm"
           >
-            Siguiente
+            Siguiente ›
           </button>
+          <button
+            onClick={() => setPage(totalPages)}
+            disabled={page === totalPages}
+            className="px-2 py-2 border border-gray-300 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 text-sm"
+            title="Última página"
+          >
+            »
+          </button>
+
+          <span className="px-3 py-2 text-sm text-gray-500">
+            {total} leads
+          </span>
         </div>
       )}
 
