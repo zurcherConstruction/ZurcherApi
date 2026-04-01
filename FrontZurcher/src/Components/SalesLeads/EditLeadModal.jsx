@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import DuplicateWarning from '../Common/DuplicateWarning';
+import api from '../../utils/axios';
 
 const EditLeadModal = ({ lead, onClose, onSave }) => {
   const [formData, setFormData] = useState({
@@ -11,10 +13,34 @@ const EditLeadModal = ({ lead, onClose, onSave }) => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [duplicates, setDuplicates] = useState({ email: { found: false, matches: [] }, phone: { found: false, matches: [] }, address: { found: false, matches: [] } });
+  const dupTimerRef = useRef(null);
+
+  const checkDuplicates = async (data) => {
+    const { applicantEmail, applicantPhone, propertyAddress } = data;
+    const hasAny = (applicantEmail?.trim().length > 3) || (applicantPhone?.trim().length > 5) || (propertyAddress?.trim().length > 5);
+    if (!hasAny) return;
+    try {
+      const params = new URLSearchParams();
+      if (applicantEmail?.trim()) params.set('email', applicantEmail.trim());
+      if (applicantPhone?.trim()) params.set('phone', applicantPhone.trim());
+      if (propertyAddress?.trim()) params.set('address', propertyAddress.trim());
+      if (lead?.id) params.set('excludeLeadId', lead.id);
+      const res = await api.get(`/sales-leads/check-duplicates?${params.toString()}`);
+      setDuplicates(res.data);
+    } catch {
+      // silencioso
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+    if (['applicantEmail', 'applicantPhone', 'propertyAddress'].includes(name)) {
+      clearTimeout(dupTimerRef.current);
+      const updated = { ...formData, [name]: value };
+      dupTimerRef.current = setTimeout(() => checkDuplicates(updated), 800);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -92,9 +118,12 @@ const EditLeadModal = ({ lead, onClose, onSave }) => {
                   name="applicantEmail"
                   value={formData.applicantEmail}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    duplicates.email.found ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
+                  }`}
                   placeholder="john@example.com"
                 />
+                <DuplicateWarning field="email" data={duplicates.email} label="Email" />
               </div>
 
               <div>
@@ -106,9 +135,12 @@ const EditLeadModal = ({ lead, onClose, onSave }) => {
                   name="applicantPhone"
                   value={formData.applicantPhone}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    duplicates.phone.found ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
+                  }`}
                   placeholder="(555) 123-4567"
                 />
+                <DuplicateWarning field="phone" data={duplicates.phone} label="Teléfono" />
               </div>
 
               <div>
@@ -120,9 +152,12 @@ const EditLeadModal = ({ lead, onClose, onSave }) => {
                   name="propertyAddress"
                   value={formData.propertyAddress}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    duplicates.address.found ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
+                  }`}
                   placeholder="123 Main St, City, State ZIP"
                 />
+                <DuplicateWarning field="address" data={duplicates.address} label="Dirección" />
               </div>
             </div>
           </div>

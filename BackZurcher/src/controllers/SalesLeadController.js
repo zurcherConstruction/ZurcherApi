@@ -1,4 +1,4 @@
-const { SalesLead, LeadNote, Budget, Staff, sequelize } = require('../data');
+﻿const { SalesLead, LeadNote, Budget, Permit, Staff, sequelize } = require('../data');
 const { Op } = require('sequelize');
 
 const SalesLeadController = {
@@ -100,6 +100,125 @@ const SalesLeadController = {
   },
 
   // �📋 Listar leads con filtros y paginación
+  // 🔍 Verificar duplicados de email, telefono y direccion en todo el sistema
+  async checkDuplicates(req, res) {
+    try {
+      const { email, phone, address, excludeLeadId } = req.query;
+
+      const result = {
+        email: { found: false, matches: [] },
+        phone: { found: false, matches: [] },
+        address: { found: false, matches: [] },
+      };
+
+      const checks = [];
+
+      // --- EMAIL ---
+      if (email?.trim() && email.trim().length > 3) {
+        const emailVal = email.trim().toLowerCase();
+        checks.push(
+          SalesLead.findAll({
+            where: {
+              applicantEmail: { [Op.iLike]: emailVal },
+              ...(excludeLeadId ? { id: { [Op.ne]: excludeLeadId } } : {})
+            },
+            attributes: ['id', 'applicantName', 'applicantEmail', 'applicantPhone', 'propertyAddress', 'status'],
+            limit: 5
+          }).then(rows => {
+            rows.forEach(r => result.email.matches.push({ source: 'lead', id: r.id, applicantName: r.applicantName, detail: r.propertyAddress || r.applicantPhone, status: r.status }));
+          }),
+          Budget.findAll({
+            where: { applicantEmail: { [Op.iLike]: emailVal } },
+            attributes: ['idBudget', 'applicantName', 'applicantEmail', 'propertyAddress', 'status'],
+            limit: 5
+          }).then(rows => {
+            rows.forEach(r => result.email.matches.push({ source: 'budget', id: r.idBudget, applicantName: r.applicantName, detail: r.propertyAddress, status: r.status }));
+          }),
+          Permit.findAll({
+            where: { applicantEmail: { [Op.iLike]: emailVal } },
+            attributes: ['idPermit', 'applicantName', 'applicantEmail', 'applicantPhone', 'propertyAddress'],
+            limit: 5
+          }).then(rows => {
+            rows.forEach(r => result.email.matches.push({ source: 'permit', id: r.idPermit, applicantName: r.applicantName, detail: r.propertyAddress || r.applicantPhone, status: null }));
+          })
+        );
+      }
+
+      // --- TELEFONO ---
+      if (phone?.trim() && phone.trim().length > 5) {
+        const phoneDigits = phone.trim().replace(/\D/g, '');
+        checks.push(
+          SalesLead.findAll({
+            where: {
+              applicantPhone: { [Op.ne]: null },
+              ...(excludeLeadId ? { id: { [Op.ne]: excludeLeadId } } : {})
+            },
+            attributes: ['id', 'applicantName', 'applicantPhone', 'applicantEmail', 'propertyAddress', 'status'],
+            limit: 200
+          }).then(rows => {
+            rows.forEach(r => {
+              if (r.applicantPhone && r.applicantPhone.replace(/\D/g, '') === phoneDigits) {
+                result.phone.matches.push({ source: 'lead', id: r.id, applicantName: r.applicantName, detail: r.propertyAddress || r.applicantEmail, status: r.status });
+              }
+            });
+          }),
+          Permit.findAll({
+            where: { applicantPhone: { [Op.ne]: null } },
+            attributes: ['idPermit', 'applicantName', 'applicantPhone', 'propertyAddress'],
+            limit: 200
+          }).then(rows => {
+            rows.forEach(r => {
+              if (r.applicantPhone && r.applicantPhone.replace(/\D/g, '') === phoneDigits) {
+                result.phone.matches.push({ source: 'permit', id: r.idPermit, applicantName: r.applicantName, detail: r.propertyAddress, status: null });
+              }
+            });
+          })
+        );
+      }
+
+      // --- DIRECCION ---
+      if (address?.trim() && address.trim().length > 5) {
+        const addressVal = address.trim();
+        checks.push(
+          SalesLead.findAll({
+            where: {
+              propertyAddress: { [Op.iLike]: `%${addressVal}%` },
+              ...(excludeLeadId ? { id: { [Op.ne]: excludeLeadId } } : {})
+            },
+            attributes: ['id', 'applicantName', 'applicantPhone', 'applicantEmail', 'propertyAddress', 'status'],
+            limit: 5
+          }).then(rows => {
+            rows.forEach(r => result.address.matches.push({ source: 'lead', id: r.id, applicantName: r.applicantName, detail: r.applicantPhone || r.applicantEmail, status: r.status }));
+          }),
+          Budget.findAll({
+            where: { propertyAddress: { [Op.iLike]: `%${addressVal}%` } },
+            attributes: ['idBudget', 'applicantName', 'applicantEmail', 'propertyAddress', 'status'],
+            limit: 5
+          }).then(rows => {
+            rows.forEach(r => result.address.matches.push({ source: 'budget', id: r.idBudget, applicantName: r.applicantName, detail: r.applicantEmail, status: r.status }));
+          }),
+          Permit.findAll({
+            where: { propertyAddress: { [Op.iLike]: `%${addressVal}%` } },
+            attributes: ['idPermit', 'applicantName', 'applicantPhone', 'propertyAddress'],
+            limit: 5
+          }).then(rows => {
+            rows.forEach(r => result.address.matches.push({ source: 'permit', id: r.idPermit, applicantName: r.applicantName, detail: r.applicantPhone, status: null }));
+          })
+        );
+      }
+
+      await Promise.all(checks);
+
+      result.email.found = result.email.matches.length > 0;
+      result.phone.found = result.phone.matches.length > 0;
+      result.address.found = result.address.matches.length > 0;
+
+      return res.status(200).json(result);
+    } catch (error) {
+      console.error('Error al verificar duplicados:', error);
+      res.status(500).json({ error: error.message });
+    }
+  },
   async getLeads(req, res) {
     try {
       const {
@@ -151,6 +270,31 @@ const SalesLeadController = {
       const offset = (parseInt(page) - 1) * parseInt(pageSize);
       const limit = parseInt(pageSize);
 
+      // Orden: si se pide agrupar por contacto, ordenar por email+teléfono (los duplicados quedan juntos en todas las páginas)
+      let orderClause;
+      if (sortBy === 'contact_group') {
+        // Subquery que asigna la clave de grupo = MIN(id) entre todos los leads que
+        // comparten email O teléfono con el lead actual. Así quedan juntos aunque
+        // solo coincidan en uno de los dos campos.
+        orderClause = [
+          sequelize.literal(`(
+            SELECT MIN(sl2.created_at)
+            FROM "SalesLeads" sl2
+            WHERE
+              (sl2.applicant_email IS NOT NULL AND sl2.applicant_email != ''
+               AND sl2.applicant_email = "SalesLead"."applicant_email")
+              OR
+              (sl2.applicant_phone IS NOT NULL AND sl2.applicant_phone != ''
+               AND sl2.applicant_phone = "SalesLead"."applicant_phone")
+          ) ASC NULLS LAST`),
+          sequelize.literal(`"SalesLead"."last_activity_date" DESC`)
+        ];
+      } else {
+        const validSortFields = ['lastActivityDate', 'createdAt', 'applicantName', 'status', 'priority'];
+        const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'lastActivityDate';
+        orderClause = [[safeSortBy, sortOrder === 'ASC' ? 'ASC' : 'DESC']];
+      }
+
       // Consulta
       const { count, rows: leads } = await SalesLead.findAndCountAll({
         where: whereClause,
@@ -166,7 +310,7 @@ const SalesLeadController = {
             attributes: ['idBudget', 'propertyAddress', 'status']
           }
         ],
-        order: [[sortBy, sortOrder]],
+        order: orderClause,
         limit,
         offset
       });

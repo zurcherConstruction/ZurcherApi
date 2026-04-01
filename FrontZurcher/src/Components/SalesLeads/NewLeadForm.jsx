@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { createLead, createLeadNote } from '../../Redux/Actions/salesLeadActions';
 import { UserCircleIcon, BellIcon } from '@heroicons/react/24/outline';
 import MentionTextarea from '../Common/MentionTextarea';
+import DuplicateWarning from '../Common/DuplicateWarning';
 import api from '../../utils/axios';
 
 const NewLeadForm = () => {
@@ -13,9 +14,12 @@ const NewLeadForm = () => {
   const [staffList, setStaffList] = useState([]);
   const { currentStaff } = useSelector((state) => state.auth);
   
-  // 🔍 Estado validación dirección
-  const [addressCheck, setAddressCheck] = useState({ status: 'idle', permit: null }); // idle | checking | has_budget | clear
-  const [addressCheckTimeout, setAddressCheckTimeout] = useState(null);
+  // 🔍 Estado validación dirección (legacy, se mantiene para compatibilidad)
+  const [addressCheck, setAddressCheck] = useState({ status: 'idle', permit: null });
+  // 🔍 Estado verificación duplicados
+  const [duplicates, setDuplicates] = useState({ email: { found: false, matches: [] }, phone: { found: false, matches: [] }, address: { found: false, matches: [] } });
+  const [checkingDuplicates, setCheckingDuplicates] = useState(false);
+  const dupTimerRef = useRef(null);
   
   const [formData, setFormData] = useState({
     applicantName: '',
@@ -61,6 +65,25 @@ const NewLeadForm = () => {
     }
   };
 
+  const checkDuplicates = async (data) => {
+    const { applicantEmail, applicantPhone, propertyAddress } = data;
+    const hasAny = (applicantEmail?.trim().length > 3) || (applicantPhone?.trim().length > 5) || (propertyAddress?.trim().length > 5);
+    if (!hasAny) return;
+    setCheckingDuplicates(true);
+    try {
+      const params = new URLSearchParams();
+      if (applicantEmail?.trim()) params.set('email', applicantEmail.trim());
+      if (applicantPhone?.trim()) params.set('phone', applicantPhone.trim());
+      if (propertyAddress?.trim()) params.set('address', propertyAddress.trim());
+      const res = await api.get(`/sales-leads/check-duplicates?${params.toString()}`);
+      setDuplicates(res.data);
+    } catch {
+      // silencioso, no bloquear flujo
+    } finally {
+      setCheckingDuplicates(false);
+    }
+  };
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({
@@ -68,8 +91,13 @@ const NewLeadForm = () => {
       [name]: type === 'checkbox' ? checked : value
     }));
     if (name === 'propertyAddress') {
-      clearTimeout(addressCheckTimeout);
-      setAddressCheckTimeout(setTimeout(() => checkAddress(value), 700));
+      checkAddress(value);
+    }
+    // Verificar duplicados con debounce para email, teléfono y dirección
+    if (['applicantEmail', 'applicantPhone', 'propertyAddress'].includes(name)) {
+      clearTimeout(dupTimerRef.current);
+      const updated = { ...formData, [name]: value };
+      dupTimerRef.current = setTimeout(() => checkDuplicates(updated), 800);
     }
   };
 
@@ -222,9 +250,12 @@ const NewLeadForm = () => {
                   name="applicantEmail"
                   value={formData.applicantEmail}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    duplicates.email.found ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
+                  }`}
                   placeholder="john@example.com"
                 />
+                <DuplicateWarning field="email" data={duplicates.email} label="Email" />
               </div>
 
               <div>
@@ -236,9 +267,12 @@ const NewLeadForm = () => {
                   name="applicantPhone"
                   value={formData.applicantPhone}
                   onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    duplicates.phone.found ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
+                  }`}
                   placeholder="(555) 123-4567"
                 />
+                <DuplicateWarning field="phone" data={duplicates.phone} label="Teléfono" />
               </div>
 
               <div className="md:col-span-2">
@@ -251,14 +285,15 @@ const NewLeadForm = () => {
                   value={formData.propertyAddress}
                   onChange={handleChange}
                   className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
-                    addressCheck.status === 'has_budget' ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
+                    duplicates.address.found || addressCheck.status === 'has_budget' ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
                   }`}
                   placeholder="123 Main St, City, FL 12345"
                 />
-                {addressCheck.status === 'checking' && (
-                  <p className="text-xs text-gray-400 mt-1">🔍 Verificando dirección...</p>
+                {checkingDuplicates && (
+                  <p className="text-xs text-gray-400 mt-1">🔍 Verificando...</p>
                 )}
-                {addressCheck.status === 'has_budget' && (
+                <DuplicateWarning field="address" data={duplicates.address} label="Dirección" />
+                {!duplicates.address.found && addressCheck.status === 'has_budget' && (
                   <div className="mt-2 p-3 bg-amber-50 border border-amber-300 rounded-lg">
                     <p className="text-sm font-semibold text-amber-800">⚠️ Esta dirección ya tiene un presupuesto activo</p>
                     <p className="text-xs text-amber-700 mt-1">
@@ -268,7 +303,7 @@ const NewLeadForm = () => {
                     <p className="text-xs text-amber-600 mt-1">Considera usar <strong>Follow-Up Budgets</strong> en lugar de crear un nuevo lead.</p>
                   </div>
                 )}
-                {addressCheck.status === 'clear' && formData.propertyAddress.trim().length > 5 && (
+                {!duplicates.address.found && addressCheck.status === 'clear' && formData.propertyAddress.trim().length > 5 && (
                   <p className="text-xs text-green-600 mt-1">✅ Dirección disponible</p>
                 )}
               </div>

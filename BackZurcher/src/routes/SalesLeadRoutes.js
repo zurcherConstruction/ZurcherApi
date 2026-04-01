@@ -13,7 +13,10 @@ router.get('/dashboard/stats', verifyToken, allowRoles(authorizedRoles), SalesLe
 // 🔍 Verificar si ya existe un lead con esa dirección
 router.get('/check-by-address', verifyToken, allowRoles(authorizedRoles), SalesLeadController.checkLeadByAddress);
 
-// 📝 Crear un nuevo lead
+// � Verificar duplicados (email, teléfono, dirección) en todo el sistema
+router.get('/check-duplicates', verifyToken, allowRoles(authorizedRoles), SalesLeadController.checkDuplicates);
+
+// �📝 Crear un nuevo lead
 router.post('/', verifyToken, allowRoles(authorizedRoles), SalesLeadController.createLead);
 
 // 📋 Listar leads con filtros y paginación
