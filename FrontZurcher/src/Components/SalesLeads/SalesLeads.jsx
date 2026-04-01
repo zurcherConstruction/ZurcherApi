@@ -536,31 +536,31 @@ const SalesLeads = () => {
         </div>
 
         {/* Botón agrupar duplicados */}
-        {duplicateCount > 0 && (
-          <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-3">
-            <button
-              onClick={() => { setGroupDuplicates(v => !v); setPage(1); }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
-                groupDuplicates
-                  ? 'bg-orange-600 text-white border-orange-600 hover:bg-orange-700'
-                  : 'bg-white text-orange-700 border-orange-300 hover:bg-orange-50'
-              }`}
-            >
-              🔗 {groupDuplicates ? 'Agrupado por contacto' : 'Agrupar por contacto'}
+        <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-3">
+          <button
+            onClick={() => { setGroupDuplicates(v => !v); setPage(1); }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border transition-all ${
+              groupDuplicates
+                ? 'bg-orange-600 text-white border-orange-600 hover:bg-orange-700'
+                : 'bg-white text-orange-700 border-orange-300 hover:bg-orange-50'
+            }`}
+          >
+            🔗 {groupDuplicates ? 'Agrupado por contacto' : 'Agrupar por contacto'}
+            {duplicateCount > 0 && (
               <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
                 groupDuplicates ? 'bg-white text-orange-600' : 'bg-orange-100 text-orange-700'
               }`}>
                 {duplicateCount}
               </span>
-            </button>
-            {groupDuplicates && (
-              <div className="flex items-center gap-3 text-xs text-gray-500">
-                <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-orange-400"></span> Mismo email</span>
-                <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-400"></span> Mismo teléfono</span>
-              </div>
             )}
-          </div>
-        )}
+          </button>
+          {groupDuplicates && (
+            <div className="flex items-center gap-3 text-xs text-gray-500">
+              <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-orange-400"></span> Mismo email</span>
+              <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-blue-400"></span> Mismo teléfono</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 🔔 Panel de Alertas Próximas - DESPLEGABLE */}
