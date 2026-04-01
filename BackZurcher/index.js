@@ -4,6 +4,7 @@ const { PORT } = require("./src/config/envs.js");
 const { startSignatureCheckCron } = require("./src/services/checkPendingSignatures.js");
 const { startFixedExpensesCron } = require("./src/services/autoGenerateFixedExpenses.js");
 const { startBudgetRemindersCron } = require("./src/services/checkBudgetReminders.js");
+const { startLeadRemindersCron } = require("./src/services/checkLeadReminders.js");
 
 require("dotenv").config();
 
@@ -67,6 +68,7 @@ function startServer() {
     startSignatureCheckCron(); // Iniciar el cron para verificar firmas pendientes
     startFixedExpensesCron(); // Iniciar el cron para auto-generar gastos fijos vencidos
     startBudgetRemindersCron(); // Iniciar el cron para recordatorios de budget
+    startLeadRemindersCron(); // Iniciar el cron para recordatorios de leads
   });
 }
 

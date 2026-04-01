@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -141,9 +141,22 @@ const SalesLeads = () => {
   const [leadForProposal, setLeadForProposal] = useState(null);
   const [proposalSentLeads, setProposalSentLeads] = useState(new Set());
 
+  // Sincronizar propuestas enviadas desde la DB (persiste entre sesiones y dispositivos)
+  useEffect(() => {
+    if (leads.length > 0) {
+      const sentIds = leads.filter(l => l.proposalSentAt).map(l => l.id);
+      if (sentIds.length > 0) {
+        setProposalSentLeads(prev => new Set([...prev, ...sentIds]));
+      }
+    }
+  }, [leads]);
+
   // 🔔 Estados para alertas de notas
   const [leadAlerts, setLeadAlerts] = useState({});
   const [loadingAlerts, setLoadingAlerts] = useState(false);
+  const [verifyingReminders, setVerifyingReminders] = useState(false);
+  const [upcomingAlertLeads, setUpcomingAlertLeads] = useState([]);
+  const [alertsCollapsed, setAlertsCollapsed] = useState(true);
 
   // Formato de fecha
   const formatDate = (dateString) => {
@@ -201,16 +214,22 @@ const SalesLeads = () => {
   const loadLeadAlerts = async () => {
     setLoadingAlerts(true);
     try {
-      const response = await api.get('/lead-notes/alerts/leads');
+      const [alertsResponse, upcomingResponse] = await Promise.all([
+        api.get('/lead-notes/alerts/leads'),
+        api.get('/lead-notes/alerts/upcoming?days=7')
+      ]);
+
       const alertsMap = {};
-      
-      if (response.data && Array.isArray(response.data)) {
-        response.data.forEach(alertInfo => {
+      if (alertsResponse.data && Array.isArray(alertsResponse.data)) {
+        alertsResponse.data.forEach(alertInfo => {
           alertsMap[alertInfo.leadId] = alertInfo;
         });
       }
-      
       setLeadAlerts(alertsMap);
+
+      if (upcomingResponse.data?.leads) {
+        setUpcomingAlertLeads(upcomingResponse.data.leads);
+      }
     } catch (error) {
       console.error('Error al cargar alertas de leads:', error);
     } finally {
@@ -230,6 +249,33 @@ const SalesLeads = () => {
       return () => clearInterval(interval);
     }
   }, [canAccess]);
+
+  // 🔔 Verificar recordatorios manualmente (ejecuta el cron ahora)
+  const handleCheckReminders = async () => {
+    if (verifyingReminders) return;
+
+    const confirm = window.confirm(
+      '¿Ejecutar ahora la verificación de recordatorios de leads?\n\n' +
+      'Esto buscará recordatorios programados para mañana (24hs antes) ' +
+      'y enviará emails a los usuarios correspondientes.'
+    );
+
+    if (!confirm) return;
+
+    setVerifyingReminders(true);
+    try {
+      const response = await api.post('/sales-leads/check-reminders');
+      if (response.data.success) {
+        alert('✅ Verificación de recordatorios completada\n\nRevisa los logs del servidor para ver los detalles de los emails enviados.');
+        await loadLeadAlerts();
+      }
+    } catch (error) {
+      console.error('Error verificando recordatorios:', error);
+      alert(`❌ Error al verificar recordatorios:\n${error.response?.data?.details || error.message}`);
+    } finally {
+      setVerifyingReminders(false);
+    }
+  };
 
   // Handler para cambiar estado rápido
   const handleQuickStatusChange = async (leadId, newStatus) => {
@@ -333,13 +379,40 @@ const SalesLeads = () => {
               Lead management and sales pipeline tracking
             </p>
           </div>
-          <button
-            onClick={() => navigate('/sales-leads/new')}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors shadow-lg hover:shadow-xl"
-          >
-            <PlusIcon className="h-5 w-5" />
-            New Lead
-         </button>
+          <div className="flex items-center gap-3">
+            {/* 🔔 Botón Verificar Recordatorios */}
+            <button
+              onClick={handleCheckReminders}
+              disabled={verifyingReminders}
+              className={`inline-flex items-center px-4 py-3 rounded-lg font-medium text-sm transition-all ${
+                verifyingReminders
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  : 'bg-amber-600 text-white hover:bg-amber-700 hover:shadow-lg'
+              }`}
+            >
+              {verifyingReminders ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Verificando...
+                </>
+              ) : (
+                <>
+                  <span className="text-lg mr-2">🔔</span>
+                  Verificar Recordatorios
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => navigate('/sales-leads/new')}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors shadow-lg hover:shadow-xl"
+            >
+              <PlusIcon className="h-5 w-5" />
+              New Lead
+            </button>
+          </div>
         </div>
       </div>
 
@@ -434,6 +507,106 @@ const SalesLeads = () => {
           </div>
         </div>
       </div>
+
+      {/* 🔔 Panel de Alertas Próximas - DESPLEGABLE */}
+      {upcomingAlertLeads.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-orange-200 rounded-lg shadow-md mb-6">
+          <div
+            className="flex items-center justify-between p-4 cursor-pointer hover:bg-orange-100 transition-colors rounded-t-lg"
+            onClick={() => setAlertsCollapsed(!alertsCollapsed)}
+          >
+            <h3 className="text-lg font-bold text-orange-800 flex items-center gap-2">
+              <svg className="w-6 h-6 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+              </svg>
+              🔔 Leads con Recordatorios Próximos ({upcomingAlertLeads.length})
+            </h3>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-orange-600 font-medium">Próximos 7 días</span>
+              <svg
+                className={`w-5 h-5 text-orange-600 transition-transform ${alertsCollapsed ? '' : 'rotate-180'}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
+
+          {!alertsCollapsed && (
+            <div className="px-6 pb-6 pt-2 space-y-3">
+              {upcomingAlertLeads.map((lead) => {
+                const alert = lead.nearestAlert;
+                const priorityColors = {
+                  urgent: 'bg-red-100 border-red-400 text-red-800',
+                  high: 'bg-orange-100 border-orange-400 text-orange-800',
+                  medium: 'bg-yellow-100 border-yellow-400 text-yellow-800',
+                  low: 'bg-blue-100 border-blue-400 text-blue-800'
+                };
+                const priorityIcons = { urgent: '🔴', high: '🟠', medium: '🟡', low: '⚪' };
+
+                return (
+                  <div
+                    key={lead.id}
+                    className={`border-l-4 rounded-lg p-4 ${
+                      alert.isToday ? 'bg-red-50 border-red-600' :
+                      alert.isUrgent ? 'bg-orange-50 border-orange-500' :
+                      'bg-white border-gray-300'
+                    } hover:shadow-md transition-shadow cursor-pointer`}
+                    onClick={() => handleOpenNotes(lead)}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className="font-bold text-gray-900">{lead.applicantName}</span>
+                          <span className="text-sm font-medium text-gray-700">{lead.propertyAddress}</span>
+                          {alert.isToday && (
+                            <span className="px-2 py-1 bg-red-600 text-white text-xs font-bold rounded-full animate-pulse">
+                              ¡HOY!
+                            </span>
+                          )}
+                          {!alert.isToday && alert.isUrgent && (
+                            <span className="px-2 py-1 bg-orange-500 text-white text-xs font-bold rounded-full">
+                              {alert.daysRemaining} día{alert.daysRemaining !== 1 ? 's' : ''}
+                            </span>
+                          )}
+                          {!alert.isToday && !alert.isUrgent && (
+                            <span className="px-2 py-1 bg-blue-500 text-white text-xs font-medium rounded-full">
+                              {alert.daysRemaining} día{alert.daysRemaining !== 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold border ${priorityColors[alert.priority] || priorityColors.low}`}>
+                            {priorityIcons[alert.priority] || '⚪'} {(alert.priority || 'low').toUpperCase()}
+                          </span>
+                          <span className="text-xs text-gray-600">
+                            {(alert.noteType || '').replace('_', ' ').toUpperCase()}
+                          </span>
+                          {lead.alertCount > 1 && (
+                            <span className="text-xs text-gray-500">(+{lead.alertCount - 1} más)</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-700 line-clamp-2">{alert.message}</p>
+                        {alert.author && (
+                          <p className="text-xs text-gray-500 mt-2">Por: {alert.author.name}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleOpenNotes(lead); }}
+                        className="ml-4 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                      >
+                        📝 Ver Notas
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Lista de Leads - Tabla Desktop */}
       {loading ? (
@@ -640,7 +813,10 @@ const SalesLeads = () => {
         <SendProposalModal
           lead={leadForProposal}
           onClose={() => { setShowProposalModal(false); setLeadForProposal(null); }}
-          onSent={(leadId) => setProposalSentLeads(prev => new Set([...prev, leadId]))}
+          onSent={(leadId) => {
+            setProposalSentLeads(prev => new Set([...prev, leadId]));
+            loadLeads(); // refrescar lista para actualizar status a "Cotizado"
+          }}
         />
       )}
     </div>

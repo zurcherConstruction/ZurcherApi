@@ -1,4 +1,4 @@
-const { Budget, Work, Permit, Staff } = require('../data');
+const { Budget, Work, Permit, Staff, SalesLead } = require('../data');
 const { Op } = require('sequelize');
 const { sendEmail } = require('../utils/notifications/emailService');
 const { sendSalesEmail } = require('../utils/notifications/salesEmailService');
@@ -236,7 +236,7 @@ class SalesController {
    */
   async sendProposal(req, res) {
     try {
-      const { to, clientName, subject, personalMessage } = req.body;
+      const { to, clientName, subject, personalMessage, leadId } = req.body;
       const senderStaff = await Staff.findByPk(req.user.id, { attributes: ['name', 'email'] });
 
       if (!to || !to.includes('@')) {
@@ -422,7 +422,15 @@ class SalesController {
         attachments
       });
 
-      res.json({ success: true, message: `Propuesta enviada a ${to}` });
+      // Marcar el lead como propuesta enviada y cambiar status a 'quoted'
+      if (leadId) {
+        await SalesLead.update(
+          { proposalSentAt: new Date(), status: 'quoted' },
+          { where: { id: leadId } }
+        );
+      }
+
+      res.json({ success: true, message: `Propuesta enviada a ${to}`, proposalSentAt: new Date() });
 
     } catch (error) {
       console.error('❌ Error en sendProposal:', error);

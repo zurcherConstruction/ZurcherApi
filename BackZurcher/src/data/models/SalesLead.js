@@ -138,6 +138,12 @@ module.exports = (sequelize) => {
       comment: 'Fecha en que se convirtió a presupuesto/venta',
       field: 'conversion_date'
     },
+    proposalSentAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      comment: 'Fecha en que se envió la propuesta por email',
+      field: 'proposal_sent_at'
+    },
     
     // 👤 CREACIÓN
     createdBy: {
