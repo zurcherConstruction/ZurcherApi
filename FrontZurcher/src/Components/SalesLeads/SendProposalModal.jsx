@@ -65,6 +65,7 @@ Please feel free to reply to this email or contact us at sales@zurcherseptic.com
       payload.append('clientName', formData.clientName);
       payload.append('subject', formData.subject);
       payload.append('personalMessage', formData.personalMessage);
+      if (lead?.id) payload.append('leadId', lead.id);
       attachments.forEach(file => payload.append('attachments', file));
 
       await api.post('/sales/send-proposal', payload, {

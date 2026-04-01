@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -140,6 +140,16 @@ const SalesLeads = () => {
   const [showProposalModal, setShowProposalModal] = useState(false);
   const [leadForProposal, setLeadForProposal] = useState(null);
   const [proposalSentLeads, setProposalSentLeads] = useState(new Set());
+
+  // Sincronizar propuestas enviadas desde la DB (persiste entre sesiones y dispositivos)
+  useEffect(() => {
+    if (leads.length > 0) {
+      const sentIds = leads.filter(l => l.proposalSentAt).map(l => l.id);
+      if (sentIds.length > 0) {
+        setProposalSentLeads(prev => new Set([...prev, ...sentIds]));
+      }
+    }
+  }, [leads]);
 
   // 🔔 Estados para alertas de notas
   const [leadAlerts, setLeadAlerts] = useState({});
@@ -640,7 +650,10 @@ const SalesLeads = () => {
         <SendProposalModal
           lead={leadForProposal}
           onClose={() => { setShowProposalModal(false); setLeadForProposal(null); }}
-          onSent={(leadId) => setProposalSentLeads(prev => new Set([...prev, leadId]))}
+          onSent={(leadId) => {
+            setProposalSentLeads(prev => new Set([...prev, leadId]));
+            loadLeads(); // refrescar lista para actualizar status a "Cotizado"
+          }}
         />
       )}
     </div>
