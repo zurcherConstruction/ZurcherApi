@@ -35,4 +35,22 @@ router.delete('/:id', verifyToken, allowRoles(['admin', 'owner']), SalesLeadCont
 // 🔄 Convertir lead a presupuesto
 router.post('/:id/convert-to-budget', verifyToken, allowRoles(authorizedRoles), SalesLeadController.convertToBudget);
 
+// 🔔 Ejecutar manualmente verificación de recordatorios de leads
+router.post('/check-reminders', verifyToken, allowRoles(authorizedRoles), async (req, res) => {
+  try {
+    const { checkLeadReminders } = require('../services/checkLeadReminders');
+    await checkLeadReminders();
+    res.json({
+      success: true,
+      message: 'Verificación de recordatorios completada. Revisa los logs del servidor para ver los resultados.'
+    });
+  } catch (error) {
+    console.error('Error al verificar recordatorios de leads:', error);
+    res.status(500).json({
+      success: false,
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;

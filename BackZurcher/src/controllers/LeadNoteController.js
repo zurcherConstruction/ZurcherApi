@@ -439,6 +439,80 @@ const LeadNoteController = {
     }
   },
 
+  // 🔔 Obtener leads con recordatorios próximos (con detalles completos)
+  async getLeadsWithUpcomingAlerts(req, res) {
+    try {
+      const { days = 7 } = req.query;
+
+      const now = new Date();
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + parseInt(days));
+
+      const leadsWithAlerts = await SalesLead.findAll({
+        where: {
+          status: { [Op.notIn]: ['archived'] }
+        },
+        include: [
+          {
+            model: LeadNote,
+            as: 'leadNotes',
+            required: true,
+            where: {
+              isReminderActive: true,
+              reminderDate: {
+                [Op.gte]: now,
+                [Op.lte]: futureDate
+              },
+              reminderCompletedAt: null
+            },
+            attributes: ['id', 'message', 'noteType', 'priority', 'reminderDate', 'createdAt'],
+            include: [
+              {
+                model: Staff,
+                as: 'author',
+                attributes: ['id', 'name', 'email']
+              }
+            ]
+          }
+        ],
+        attributes: ['id', 'applicantName', 'propertyAddress', 'status', 'createdAt'],
+        order: [[{ model: LeadNote, as: 'leadNotes' }, 'reminderDate', 'ASC']]
+      });
+
+      const result = leadsWithAlerts.map(lead => {
+        const leadData = lead.toJSON();
+        const nearestAlert = leadData.leadNotes[0];
+        const daysRemaining = Math.ceil(
+          (new Date(nearestAlert.reminderDate) - now) / (1000 * 60 * 60 * 24)
+        );
+
+        return {
+          ...leadData,
+          nearestAlert: {
+            ...nearestAlert,
+            daysRemaining,
+            isToday: daysRemaining === 0,
+            isUrgent: daysRemaining <= 2
+          },
+          alertCount: leadData.leadNotes.length
+        };
+      });
+
+      res.status(200).json({
+        success: true,
+        count: result.length,
+        leads: result
+      });
+
+    } catch (error) {
+      console.error('Error al obtener leads con alertas próximas:', error);
+      res.status(500).json({
+        error: 'Error al obtener leads con alertas próximas',
+        details: error.message
+      });
+    }
+  },
+
   // ⏰ Crear o actualizar recordatorio en una nota
   async setReminder(req, res) {
     try {

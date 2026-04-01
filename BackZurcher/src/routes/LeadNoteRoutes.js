@@ -19,6 +19,9 @@ router.get('/lead/:leadId', verifyToken, allowRoles(authorizedRoles), LeadNoteCo
 // Obtener leads con alertas (notas no leídas o recordatorios próximos)
 router.get('/alerts/leads', verifyToken, allowRoles(authorizedRoles), LeadNoteController.getLeadsWithAlerts);
 
+// 🔔 Obtener leads con recordatorios próximos (con detalles completos, próximos 7 días)
+router.get('/alerts/upcoming', verifyToken, allowRoles(authorizedRoles), LeadNoteController.getLeadsWithUpcomingAlerts);
+
 // Marcar nota como leída
 router.patch('/:id/read', verifyToken, allowRoles(authorizedRoles), LeadNoteController.markAsRead);
 
