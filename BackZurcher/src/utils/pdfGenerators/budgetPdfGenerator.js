@@ -19,6 +19,7 @@ const {
 } = require('./shared/constants');
 
 const { formatDateDDMMYYYY } = require('./shared/helpers');
+const { title } = require('process');
 // === CONFIGURACIÓN DE ITEMS INCLUIDOS ===
 
 // 1. Items que aparecen SIEMPRE en todos los presupuestos
@@ -812,11 +813,24 @@ function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formatt
     },
     {
       number: "7.",
+      title: "Lift Station and Additional Costs:",
+      bulletPoints: [
+        "If a gravity flow system cannot be achieved and a lift station is required for the system installation, a lift station, pump, and audiovisual alarm will be installed for a cost of $2,750.",
+        "This cost does not include sod installation or any electrical work required to power the lift station, if applicable.",
+      ],
+      subtitle2: "Price Changes and Notification:",
+      bulletPoints2: [
+        "Due to market volatility and material availability, prices are subject to change.",
+        "If a price adjustment is necessary, a written notification will be provided prior to starting any additional work with the updated pricing.",
+      ]
+    },
+    {
+      number: "8.",
       title: "Warranty:",
       content: "The installation of the drainfield is covered by a one (1) year limited warranty from the date of the initial inspection, provided the system is used in accordance with the conditions established in the health department permit. Component parts are subject to the manufacturer's warranty. Damage caused by misuse, neglect, or unauthorized modifications will void the warranty."
     },
     {
-      number: "8.",
+      number: "9.",
       title: "Limitation of Liability:",
       subtitle: "The Provider is not responsible for:",
       bulletPoints: [
@@ -826,7 +840,7 @@ function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formatt
       ]
     },
     {
-      number: "9.",
+      number: "10.",
       title: "Contract Termination:",
       subtitle: "This agreement may be terminated:",
       bulletPoints: [
@@ -836,7 +850,7 @@ function _buildTermsAndConditionsPage_v2(doc, budgetData, formattedDate, formatt
       ]
     },
      {
-      number: "10.",
+      number: "11.",
       title: "Additional Material Costs (if not included)",
       content: "In the event that soil and sand are not included in this invoice, the Client understands and accepts that additional materials may be required to complete the work after the inspection. The estimated cost per truckload is as follows:",
       bulletPoints: [

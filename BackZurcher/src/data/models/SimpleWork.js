@@ -27,6 +27,8 @@ module.exports = (sequelize) => {
         'plumbing', 
         'electrical',
         'landscaping',
+        'repair',
+        'maintenance',
         'other'
       ),
       allowNull: false
@@ -325,6 +327,8 @@ module.exports = (sequelize) => {
       plumbing: 'Plomería',
       electrical: 'Eléctrico',
       landscaping: 'Jardinería',
+      repair: 'Reparación',
+      maintenance: 'Mantenimiento',
       other: 'Otro'
     };
     return typeMap[this.workType] || this.workType;
