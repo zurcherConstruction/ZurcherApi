@@ -267,11 +267,11 @@ class SalesController {
 
           <!-- HEADER BRAND -->
           <tr>
-            <td style="background:linear-gradient(135deg,#1a3a5c 0%,#2563a8 100%);padding:32px 40px;text-align:center;">
-              <h1 style="color:#ffffff;margin:0;font-size:28px;font-weight:700;letter-spacing:1px;">
+            <td bgcolor="#1a3a5c" style="background:linear-gradient(135deg,#1a3a5c 0%,#2563a8 100%) !important;background-color:#1a3a5c !important;padding:32px 40px;text-align:center;">
+              <h1 style="color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;margin:0;font-size:28px;font-weight:700;letter-spacing:1px;">
                 Zurcher Septic
               </h1>
-              <p style="color:#a8c8f0;margin:6px 0 0;font-size:14px;letter-spacing:2px;text-transform:uppercase;">
+              <p style="color:#a8c8f0 !important;-webkit-text-fill-color:#a8c8f0 !important;margin:6px 0 0;font-size:14px;letter-spacing:2px;text-transform:uppercase;">
                 Professional Septic Solutions
               </p>
             </td>
@@ -280,15 +280,15 @@ class SalesController {
           <!-- GREETING -->
           <tr>
             <td style="padding:36px 40px 20px;">
-              <p style="font-size:18px;color:#1a3a5c;font-weight:600;margin:0 0 14px;">${greeting}</p>
-              <p style="font-size:15px;color:#4a5568;line-height:1.7;margin:0 0 12px;">
+              <p style="font-size:18px;color:#1a3a5c !important;-webkit-text-fill-color:#1a3a5c !important;font-weight:600;margin:0 0 14px;">${greeting}</p>
+              <p style="font-size:15px;color:#4a5568 !important;-webkit-text-fill-color:#4a5568 !important;line-height:1.7;margin:0 0 12px;">
                 Thank you for your interest in Zurcher Septic. We specialize in 
                 septic system installation, repair, and maintenance across Central & Southwest Florida — 
                 delivering fast, reliable service with no hidden costs.
               </p>
               ${customMessage ? `
-              <div style="background:#f0f7ff;border-left:4px solid #2563a8;border-radius:4px;padding:16px 20px;margin:20px 0;">
-                <p style="font-size:14px;color:#2d3748;line-height:1.7;margin:0;white-space:pre-line;">${customMessage}</p>
+              <div style="background:#f0f7ff !important;background-color:#f0f7ff !important;border-left:4px solid #2563a8;border-radius:4px;padding:16px 20px;margin:20px 0;">
+                <p style="font-size:14px;color:#2d3748 !important;-webkit-text-fill-color:#2d3748 !important;line-height:1.7;margin:0;white-space:pre-line;">${customMessage}</p>
               </div>` : ''}
             </td>
           </tr>
@@ -313,7 +313,7 @@ class SalesController {
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="padding:0 0 16px;">
-                    <h2 style="font-size:18px;color:#1a3a5c;margin:0 0 16px;font-weight:700;">
+                    <h2 style="font-size:18px;color:#1a3a5c !important;-webkit-text-fill-color:#1a3a5c !important;margin:0 0 16px;font-weight:700;">
                       ✅ Why Choose Zurcher Septic?
                     </h2>
                   </td>
@@ -322,26 +322,26 @@ class SalesController {
                   <td>
                     <table width="100%" cellpadding="0" cellspacing="8">
                       <tr>
-                        <td width="48%" style="background:#f8fafc;border-radius:8px;padding:14px 16px;vertical-align:top;">
-                          <p style="margin:0;font-size:14px;color:#2d3748;font-weight:600;">🏆 Licensed &amp; Insured</p>
-                          <p style="margin:4px 0 0;font-size:13px;color:#718096;">Fully certified for all septic work in Florida.</p>
+                        <td width="48%" bgcolor="#f8fafc" style="background:#f8fafc !important;background-color:#f8fafc !important;border-radius:8px;padding:14px 16px;vertical-align:top;">
+                          <p style="margin:0;font-size:14px;color:#2d3748 !important;-webkit-text-fill-color:#2d3748 !important;font-weight:600;">🏆 Licensed &amp; Insured</p>
+                          <p style="margin:4px 0 0;font-size:13px;color:#718096 !important;-webkit-text-fill-color:#718096 !important;">Fully certified for all septic work in Florida.</p>
                         </td>
                         <td width="4%"></td>
-                        <td width="48%" style="background:#f8fafc;border-radius:8px;padding:14px 16px;vertical-align:top;">
-                          <p style="margin:0;font-size:14px;color:#2d3748;font-weight:600;">⚡ Fast Installation</p>
-                          <p style="margin:4px 0 0;font-size:13px;color:#718096;">Efficient crews, on-time and on-budget.</p>
+                        <td width="48%" bgcolor="#f8fafc" style="background:#f8fafc !important;background-color:#f8fafc !important;border-radius:8px;padding:14px 16px;vertical-align:top;">
+                          <p style="margin:0;font-size:14px;color:#2d3748 !important;-webkit-text-fill-color:#2d3748 !important;font-weight:600;">⚡ Fast Installation</p>
+                          <p style="margin:4px 0 0;font-size:13px;color:#718096 !important;-webkit-text-fill-color:#718096 !important;">Efficient crews, on-time and on-budget.</p>
                         </td>
                       </tr>
                       <tr><td colspan="3" height="8"></td></tr>
                       <tr>
-                        <td width="48%" style="background:#f8fafc;border-radius:8px;padding:14px 16px;vertical-align:top;">
-                          <p style="margin:0;font-size:14px;color:#2d3748;font-weight:600;">💰 Competitive Pricing</p>
-                          <p style="margin:4px 0 0;font-size:13px;color:#718096;">Transparent quotes — no hidden fees.</p>
+                        <td width="48%" bgcolor="#f8fafc" style="background:#f8fafc !important;background-color:#f8fafc !important;border-radius:8px;padding:14px 16px;vertical-align:top;">
+                          <p style="margin:0;font-size:14px;color:#2d3748 !important;-webkit-text-fill-color:#2d3748 !important;font-weight:600;">💰 Competitive Pricing</p>
+                          <p style="margin:4px 0 0;font-size:13px;color:#718096 !important;-webkit-text-fill-color:#718096 !important;">Transparent quotes — no hidden fees.</p>
                         </td>
                         <td width="4%"></td>
-                        <td width="48%" style="background:#f8fafc;border-radius:8px;padding:14px 16px;vertical-align:top;">
-                          <p style="margin:0;font-size:14px;color:#2d3748;font-weight:600;">📋 Permit Handling</p>
-                          <p style="margin:4px 0 0;font-size:13px;color:#718096;">We manage all permits and inspections.</p>
+                        <td width="48%" bgcolor="#f8fafc" style="background:#f8fafc !important;background-color:#f8fafc !important;border-radius:8px;padding:14px 16px;vertical-align:top;">
+                          <p style="margin:0;font-size:14px;color:#2d3748 !important;-webkit-text-fill-color:#2d3748 !important;font-weight:600;">📋 Permit Handling</p>
+                          <p style="margin:4px 0 0;font-size:13px;color:#718096 !important;-webkit-text-fill-color:#718096 !important;">We manage all permits and inspections.</p>
                         </td>
                       </tr>
                     </table>
@@ -355,11 +355,11 @@ class SalesController {
           <tr>
             <td style="padding:0 40px 36px;text-align:center;">
               <a href="https://www.zurcherseptic.com/installation" target="_blank"
-                 style="display:inline-block;background:linear-gradient(135deg,#1a3a5c 0%,#2563a8 100%);color:#ffffff;text-decoration:none;padding:16px 44px;border-radius:30px;font-size:16px;font-weight:700;letter-spacing:0.5px;box-shadow:0 4px 16px rgba(37,99,168,0.35);">
-                🌐 View Our Services &amp; Get a Free Quote
+                 style="display:inline-block;background:linear-gradient(135deg,#1a3a5c 0%,#2563a8 100%) !important;background-color:#1a3a5c !important;color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;text-decoration:none;padding:16px 44px;border-radius:30px;font-size:16px;font-weight:700;letter-spacing:0.5px;box-shadow:0 8px 24px rgba(26,58,92,0.35), 0 4px 12px rgba(37,99,168,0.40);">
+                <span style="text-shadow:0 0 12px rgba(246,208,44,1), 0 3px 6px rgba(246,208,44,1), 0 0 20px rgba(246,208,44,0.8);">🌐</span> View Our Services &amp; Get a Free Quote
               </a>
-              <p style="margin:14px 0 0;font-size:13px;color:#718096;">
-                Or call us directly: <a href="tel:+19546368200" style="color:#2563a8;font-weight:600;">+1(954) 636-8200</a>
+              <p style="margin:14px 0 0;font-size:13px;color:#718096 !important;-webkit-text-fill-color:#718096 !important;">
+                Or call us directly: <a href="tel:+19546368200" style="color:#2563a8 !important;-webkit-text-fill-color:#2563a8 !important;font-weight:600;text-decoration:none;">+1(954) 636-8200</a>
               </p>
             </td>
           </tr>
@@ -374,12 +374,12 @@ class SalesController {
           <!-- FOOTER -->
           <tr>
             <td style="padding:24px 40px;text-align:center;">
-              <p style="font-size:13px;color:#a0aec0;margin:0 0 4px;">
-                This proposal was sent by <strong style="color:#4a5568;">${senderName}</strong> from Zurcher Septic
+              <p style="font-size:13px;color:#a0aec0 !important;-webkit-text-fill-color:#a0aec0 !important;margin:0 0 4px;">
+                This proposal was sent by <strong style="color:#4a5568 !important;-webkit-text-fill-color:#4a5568 !important;">${senderName}</strong> from Zurcher Septic
               </p>
-              <p style="font-size:12px;color:#cbd5e0;margin:0;">
+              <p style="font-size:12px;color:#cbd5e0 !important;-webkit-text-fill-color:#cbd5e0 !important;margin:0;">
                 Zurcher Septic · Central Florida ·
-                <a href="https://www.zurcherseptic.com" style="color:#2563a8;">zurcherseptic.com</a>
+                <a href="https://www.zurcherseptic.com" style="color:#2563a8 !important;-webkit-text-fill-color:#2563a8 !important;text-decoration:none;">zurcherseptic.com</a>
               </p>
             </td>
           </tr>
@@ -388,11 +388,11 @@ class SalesController {
           <!-- ATTACHMENTS NOTICE -->
           <tr>
             <td style="padding:0 40px 28px;">
-              <div style="background:#f0fff4;border:1px solid #9ae6b4;border-radius:8px;padding:16px 20px;text-align:center;">
-                <p style="font-size:14px;color:#276749;font-weight:600;margin:0 0 6px;">📎 Budgets attached to this email</p>
-                <p style="font-size:13px;color:#276749;margin:0;">
+              <div style="background:#f0fff4 !important;background-color:#f0fff4 !important;border:1px solid #9ae6b4;border-radius:8px;padding:16px 20px;text-align:center;">
+                <p style="font-size:14px;color:#276749 !important;-webkit-text-fill-color:#276749 !important;font-weight:600;margin:0 0 6px;">📎 Budgets attached to this email</p>
+                <p style="font-size:13px;color:#276749 !important;-webkit-text-fill-color:#276749 !important;margin:0;">
                   For any questions, please contact us at
-                  <a href="mailto:sales@zurcherseptic.com" style="color:#2563a8;font-weight:600;">sales@zurcherseptic.com</a>
+                  <a href="mailto:sales@zurcherseptic.com" style="color:#2563a8 !important;-webkit-text-fill-color:#2563a8 !important;font-weight:600;text-decoration:none;">sales@zurcherseptic.com</a>
                 </p>
               </div>
             </td>

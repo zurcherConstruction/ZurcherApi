@@ -678,7 +678,7 @@ async viewFinalInvoicePDF(req, res) {
  // --- NUEVO: emailFinalInvoicePDF ---
 async emailFinalInvoicePDF(req, res) {
    const { finalInvoiceId } = req.params;
-   const { recipientEmail } = req.body;
+   const { recipientEmail, recipientEmails, includeGoogleReview } = req.body;
 
    try {
        // 1. Buscar la factura con TODOS los datos necesarios para el PDF, igual que en la vista previa.
@@ -708,16 +708,36 @@ async emailFinalInvoicePDF(req, res) {
        await finalInvoice.update({ pdfPath: pdfPathToUse });
        console.log(`PDF regenerado y guardado en: ${pdfPathToUse}`);
 
-       // 4. Preparar y enviar el correo con el PDF recién generado.
+       // 4. Preparar destinatarios
        const budget = finalInvoice.Work?.budget;
        const permit = budget?.Permit;
-       const clientEmail = recipientEmail || permit?.applicantEmail || budget?.applicantEmail;
-        const clientName = budget?.applicantName || permit?.applicantName || 'Customer';
-       const propertyAddress = finalInvoice.Work?.propertyAddress || budget?.propertyAddress || 'N/A';
-
-       if (!clientEmail || !clientEmail.includes('@')) {
-           return res.status(400).json({ error: true, message: 'No se pudo determinar un correo electrónico válido para el cliente.' });
+       const defaultEmail = permit?.applicantEmail || budget?.applicantEmail;
+       
+       // 🆕 Construir lista de emails destinatarios
+       let emailsToSend = [];
+       
+       // Si se envió un array de emails seleccionados, usar esos
+       if (recipientEmails && Array.isArray(recipientEmails) && recipientEmails.length > 0) {
+         emailsToSend = recipientEmails.filter(email => email && email.includes('@'));
+       } 
+       // Si se envió un email individual (compatibilidad con versión anterior)
+       else if (recipientEmail && recipientEmail.includes('@')) {
+         emailsToSend = [recipientEmail];
        }
+       // Si no se especificó ninguno, usar el email principal del cliente
+       else if (defaultEmail && defaultEmail.includes('@')) {
+         emailsToSend = [defaultEmail];
+       }
+       
+       if (emailsToSend.length === 0) {
+           return res.status(400).json({ 
+             error: true, 
+             message: 'No se pudo determinar ningún correo electrónico válido para enviar la factura.' 
+           });
+       }
+       
+       const clientName = budget?.applicantName || permit?.applicantName || 'Customer';
+       const propertyAddress = finalInvoice.Work?.propertyAddress || budget?.propertyAddress || 'N/A';
       
        // 🆕 USAR invoiceNumber REAL EN LUGAR DEL ID
        const invoiceNumber = finalInvoice.invoiceNumber || finalInvoice.id.toString().substring(0, 8);
@@ -742,11 +762,197 @@ async emailFinalInvoicePDF(req, res) {
          }
        }
 
+       // 🆕 GOOGLE REVIEW: Construir sección de review si está habilitada
+       const googleReviewLink = 'https://g.page/r/CVtNkk-2-u5GEAI/review';
+       let reviewSection = '';
+       let reviewSectionHtml = '';
+       
+       if (includeGoogleReview) {
+         // Versión texto plano (fallback)
+         reviewSection = `\n\n${'─'.repeat(50)}\n\n⭐ WE VALUE YOUR FEEDBACK ⭐\n\nIf we made your project simple and stress-free, we'd love to hear from you.\n\nYour review helps other homeowners choose a reliable septic company—and helps us keep improving every day.\n\n👉 Share your experience in 30 seconds\n\nLeave Your Review: ${googleReviewLink}\n\nThank you for trusting Zurcher Septic!`;
+         
+         // Versión HTML profesional con colores de la empresa (compatible con modo oscuro)
+         reviewSectionHtml = `
+         <!-- DIVIDER -->
+         <tr>
+           <td style="padding:0 40px;">
+             <hr style="border:none;border-top:2px solid #e2e8f0;margin:28px 0;" />
+           </td>
+         </tr>
+
+         <!-- GOOGLE REVIEW SECTION -->
+         <tr>
+           <td style="padding:0 40px 36px;">
+             <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#1a3a5c" style="background:linear-gradient(135deg,#1a3a5c 0%,#2563a8 100%) !important;background-color:#1a3a5c !important;border-radius:12px;overflow:hidden;border:3px solid #f6d02c;">
+               <tr>
+                 <td bgcolor="#1a3a5c" style="padding:32px 28px;text-align:center;background:linear-gradient(135deg,#1a3a5c 0%,#2563a8 100%) !important;">
+                   <!-- 5 Estrellas como Google -->
+                   <div style="font-size:40px;line-height:1;margin-bottom:12px;letter-spacing:4px;color:#fde047 !important;-webkit-text-fill-color:#fde047 !important;">⭐⭐⭐⭐⭐</div>
+                   
+                   <h2 style="color:#f6d02c !important;-webkit-text-fill-color:#f6d02c !important;margin:0 0 18px;font-size:26px;font-weight:700;text-shadow:0 2px 8px rgba(0,0,0,0.5);">
+                     WE VALUE YOUR FEEDBACK
+                   </h2>
+                   
+                   <p style="font-size:16px;color:#f5f5f5 !important;-webkit-text-fill-color:#f5f5f5 !important;line-height:1.7;margin:0 0 16px;max-width:520px;margin-left:auto;margin-right:auto;text-shadow:0 1px 4px rgba(0,0,0,0.3);">
+                     If we made your project <strong style="color:#fde047 !important;-webkit-text-fill-color:#fde047 !important;font-weight:800;">simple and stress-free</strong>, we'd love to hear from you.
+                   </p>
+                   
+                   <p style="font-size:15px;color:#f5f5f5 !important;-webkit-text-fill-color:#f5f5f5 !important;line-height:1.6;margin:0 0 24px;max-width:500px;margin-left:auto;margin-right:auto;text-shadow:0 1px 4px rgba(0,0,0,0.3);">
+                     Your review helps other homeowners choose a reliable septic company—and helps us keep improving every day.
+                   </p>
+                   
+                   <p style="font-size:14px;color:#fde047 !important;-webkit-text-fill-color:#fde047 !important;font-weight:700;margin:0 0 20px;letter-spacing:0.5px;text-shadow:0 2px 6px rgba(0,0,0,0.4);">
+                     👉 Share your experience in 30 seconds
+                   </p>
+                   
+                   <!-- Botón con colores de la empresa -->
+                   <a href="${googleReviewLink}" target="_blank"
+                      style="display:inline-block;background:#f6d02c !important;background-color:#f6d02c !important;color:#000000 !important;-webkit-text-fill-color:#000000 !important;text-decoration:none;padding:16px 44px;border-radius:30px;font-size:17px;font-weight:700;letter-spacing:0.5px;box-shadow:0 8px 24px rgba(0,0,0,0.25), 0 4px 12px rgba(246,208,44,0.40);">
+                     <span style="color:#000000 !important;-webkit-text-fill-color:#000000 !important;text-shadow:0 0 12px rgba(26,58,92,1), 0 3px 6px rgba(26,58,92,1), 0 0 20px rgba(26,58,92,0.8);">⭐</span> Leave Your Review
+                   </a>
+                   
+                   <p style="margin:20px 0 0;font-size:15px;color:#f5f5f5 !important;-webkit-text-fill-color:#f5f5f5 !important;font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,0.3);">
+                     Thank you for trusting Zurcher Septic!
+                   </p>
+                 </td>
+               </tr>
+             </table>
+           </td>
+         </tr>`;
+       }
+
+       // 🆕 Construir email HTML profesional
+       const htmlContent = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+</head>
+<body style="margin:0;padding:0;background:#f0f4f8;font-family:'Segoe UI',Arial,sans-serif;">
+
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f4f8;padding:30px 0;">
+    <tr>
+      <td align="center">
+        <table width="620" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
+
+          <!-- HEADER -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#1a3a5c 0%,#2563a8 100%);padding:32px 40px;text-align:center;">
+              <h1 style="color:#ffffff;margin:0;font-size:28px;font-weight:700;letter-spacing:1px;">
+                Zurcher Septic
+              </h1>
+              <p style="color:#a8c8f0;margin:6px 0 0;font-size:14px;letter-spacing:2px;text-transform:uppercase;">
+                Final Invoice #${invoiceNumber}
+              </p>
+            </td>
+          </tr>
+
+          <!-- GREETING -->
+          <tr>
+            <td style="padding:36px 40px 28px;">
+              <p style="font-size:18px;color:#1a3a5c;font-weight:600;margin:0 0 14px;">Dear ${clientName},</p>
+              <p style="font-size:15px;color:#4a5568;line-height:1.7;margin:0 0 12px;">
+                Please find attached the final invoice <strong>#${invoiceNumber}</strong> for the work completed at <strong>${propertyAddress}</strong>.
+              </p>
+            </td>
+          </tr>
+
+          <!-- INVOICE DETAILS -->
+          <tr>
+            <td style="padding:0 40px 28px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0;">
+                <tr>
+                  <td style="padding:20px 24px;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="padding:6px 0;font-size:14px;color:#4a5568;">
+                          <strong style="color:#1a3a5c;">Subtotal:</strong>
+                        </td>
+                        <td align="right" style="padding:6px 0;font-size:14px;color:#2d3748;font-weight:600;">
+                          $${(remainingBudgetAmount + totalExtras).toFixed(2)}
+                        </td>
+                      </tr>
+                      ${discountAmount > 0 ? `
+                      <tr>
+                        <td style="padding:6px 0;font-size:14px;color:#4a5568;">
+                          <strong style="color:#059669;">Discount Applied:</strong>
+                          ${discountReason && discountReason.trim() ? `<br/><span style="font-size:12px;color:#6b7280;">${discountReason.trim()}</span>` : ''}
+                        </td>
+                        <td align="right" style="padding:6px 0;font-size:14px;color:#059669;font-weight:600;">
+                          -$${discountAmount.toFixed(2)}
+                        </td>
+                      </tr>
+                      ` : ''}
+                      <tr>
+                        <td colspan="2" style="padding:12px 0 8px;">
+                          <hr style="border:none;border-top:2px solid #cbd5e0;margin:0;" />
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:8px 0;font-size:18px;color:#1a3a5c;">
+                          <strong>Total Amount Due:</strong>
+                        </td>
+                        <td align="right" style="padding:8px 0;font-size:22px;color:#2563a8;font-weight:700;">
+                          $${correctTotalAmount.toFixed(2)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:6px 0;font-size:13px;color:#6b7280;">
+                          Status:
+                        </td>
+                        <td align="right" style="padding:6px 0;font-size:13px;color:#6b7280;text-transform:uppercase;">
+                          ${finalInvoice.status?.replace('_', ' ') || 'PENDING'}
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          ${reviewSectionHtml}
+
+          <!-- DIVIDER -->
+          <tr>
+            <td style="padding:0 40px;">
+              <hr style="border:none;border-top:1px solid #e2e8f0;margin:0;" />
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td style="padding:24px 40px;text-align:center;">
+              <p style="font-size:14px;color:#4a5568;margin:0 0 8px;font-weight:600;">
+                Best regards,<br/>Zurcher Septic Team
+              </p>
+              <p style="font-size:13px;color:#a0aec0;margin:0 0 8px;">
+                Professional Septic Solutions | Licensed & Insured
+              </p>
+              <p style="font-size:13px;color:#a0aec0;margin:0;">
+                📞 <a href="tel:+19546368200" style="color:#2563a8;text-decoration:none;">+1(954) 636-8200</a> | 
+                🌐 <a href="https://www.zurcherseptic.com" style="color:#2563a8;text-decoration:none;">www.zurcherseptic.com</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>`;
+
+       // 🆕 Enviar a todos los emails seleccionados
        const mailOptions = {
-           to: clientEmail,
+           to: emailsToSend.join(', '), // Múltiples destinatarios separados por coma
            subject: `Final Invoice #${invoiceNumber} for ${propertyAddress}`,
-           // Usar la variable 'correctTotalAmount' para el texto del email
-           text: `Dear ${clientName},\n\nPlease find attached the final invoice #${invoiceNumber} for the work completed at ${propertyAddress}.\n\nSubtotal: $${(remainingBudgetAmount + totalExtras).toFixed(2)}${discountText}\n\nTotal Amount Due: $${correctTotalAmount.toFixed(2)}\nStatus: ${finalInvoice.status?.replace('_', ' ').toUpperCase() || 'N/A'}\n\nBest regards,\nZurcher Construction`,
+           // Texto plano como fallback
+           text: `Dear ${clientName},\n\nPlease find attached the final invoice #${invoiceNumber} for the work completed at ${propertyAddress}.\n\nSubtotal: $${(remainingBudgetAmount + totalExtras).toFixed(2)}${discountText}\n\nTotal Amount Due: $${correctTotalAmount.toFixed(2)}\nStatus: ${finalInvoice.status?.replace('_', ' ').toUpperCase() || 'N/A'}\n\nBest regards,\nZurcher Septic${reviewSection}`,
+           // HTML profesional
+           html: htmlContent,
            attachments: [
                {
                    filename: `final_invoice_${invoiceNumber}.pdf`,
@@ -757,17 +963,24 @@ async emailFinalInvoicePDF(req, res) {
        }
        await sendEmail(mailOptions);
        
-       console.log(`✅ Final Invoice #${invoiceNumber} enviada exitosamente al cliente`);
+       console.log(`✅ Final Invoice #${invoiceNumber} enviada exitosamente a: ${emailsToSend.join(', ')}`);
+       if (includeGoogleReview) {
+         console.log(`⭐ Solicitud de Google Review incluida en el email`);
+       }
        
        // 🆕 Crear nota automática para envío de Final Invoice
        try {
          const invoiceNum = finalInvoice.invoiceNumber || finalInvoice.id.substring(0, 8);
          const totalAmount = correctTotalAmount ? `$${correctTotalAmount.toFixed(2)}` : 'monto pendiente';
+         const reviewNote = includeGoogleReview ? ' + Review Request' : '';
+         const emailList = emailsToSend.length > 1 
+           ? `${emailsToSend.length} destinatarios` 
+           : emailsToSend[0];
          
          await WorkNote.create({
            workId: finalInvoice.workId,
            staffId: null, // Sistema automático
-           message: `Factura Final #${invoiceNum} ENVIADA al cliente - Total: ${totalAmount} - Email: ${clientEmail}`,
+           message: `Factura Final #${invoiceNum} ENVIADA${reviewNote} - Total: ${totalAmount} - Enviado a: ${emailList}`,
            noteType: 'payment',
            priority: 'high',
            relatedStatus: 'invoiceFinal',
@@ -789,7 +1002,10 @@ async emailFinalInvoicePDF(req, res) {
          await sendNotifications('invoiceFinal', work);
        }
        
-       res.status(200).json({ message: `Factura final enviada exitosamente a ${clientEmail}.` });
+       const recipientMessage = emailsToSend.length > 1 
+         ? `${emailsToSend.length} destinatarios` 
+         : emailsToSend[0];
+       res.status(200).json({ message: `Factura final enviada exitosamente a ${recipientMessage}.` });
 
    } catch (error) {
        console.error(`Error al enviar por correo la factura final ${finalInvoiceId}:`, error);

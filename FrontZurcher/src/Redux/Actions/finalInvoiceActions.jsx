@@ -131,10 +131,18 @@ export const generateFinalInvoicePdf = createAsyncThunk(
 // Acción para enviar la factura final por correo electrónico
 export const emailFinalInvoice = createAsyncThunk(
     'finalInvoice/emailInvoice',
-    async ({ finalInvoiceId, recipientEmail }, { rejectWithValue }) => {
+    async ({ finalInvoiceId, recipientEmails, includeGoogleReview }, { rejectWithValue }) => {
       try {
-        // recipientEmail es opcional, el backend usará el del cliente si no se provee
-        const payload = recipientEmail ? { recipientEmail } : {};
+        // recipientEmails es un array de emails seleccionados
+        // includeGoogleReview indica si se debe incluir solicitud de review
+        const payload = {};
+        if (recipientEmails && recipientEmails.length > 0) {
+          payload.recipientEmails = recipientEmails;
+        }
+        if (includeGoogleReview !== undefined) {
+          payload.includeGoogleReview = includeGoogleReview;
+        }
+        
         const response = await api.post(`/final-invoice/${finalInvoiceId}/email`, payload);
         // El backend devuelve { message }
         // Devolvemos el mensaje para mostrar una notificación

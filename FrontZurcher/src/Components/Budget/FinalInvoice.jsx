@@ -14,6 +14,7 @@ import {
 import { fetchWorkById } from '../../Redux/Actions/workActions';
 import { clearFinalInvoiceState, clearEmailMessage } from '../../Redux/Reducer/finalInvoiceReducer'; // Para limpiar al desmontar
 import api from '../../utils/axios';
+import GoogleReviewRequestModal from './GoogleReviewRequestModal';
 
 const ExtraItemRow = ({ item, onUpdate, onRemove, isEditing, onSave, onCancelEdit, editFormData, onEditFormChange }) => {
   if (isEditing) {
@@ -76,6 +77,9 @@ const FinalInvoiceComponent = ({ workId }) => {
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
   const [selectedChangeOrderIds, setSelectedChangeOrderIds] = useState([]);
+  
+  // 🆕 Estado para el modal de Google Review
+  const [showReviewModal, setShowReviewModal] = useState(false);
   
   useEffect(() => {
     if (workId) {
@@ -284,32 +288,46 @@ const handleGeneratePdf = () => {
 
   
 
-  const handleSendEmail = async () => {
+  // 🆕 Función para mostrar el modal de confirmación con opción de review
+  const handleSendEmail = () => {
     console.log("handleSendEmail - currentInvoice:", currentInvoice);
-    if (currentInvoice && currentInvoice.id && currentInvoice.pdfPath) { // Asegurarse que pdfPath existe
+    if (currentInvoice && currentInvoice.id && currentInvoice.pdfPath) {
       if (recipientEmail && !/\S+@\S+\.\S+/.test(recipientEmail)) {
         alert('Por favor, ingresa un correo electrónico válido o déjalo vacío para usar el del cliente.');
         return;
       }
-      if (window.confirm(`¿Enviar factura a ${recipientEmail || 'cliente principal'}?`)) {
-        try {
-          console.log("Dispatching emailFinalInvoice with ID:", currentInvoice.id);
-          await dispatch(emailFinalInvoice({ finalInvoiceId: currentInvoice.id, recipientEmail: recipientEmail || undefined }));
-          
-          // ✅ Refresh work data to update status in UI
-          if (selectedWork?.idWork) {
-            console.log("🔄 Refreshing work data after email sent");
-            await dispatch(fetchWorkById(selectedWork.idWork));
-          }
-          
-          setRecipientEmail('');
-        } catch (error) {
-          console.error("Error sending email:", error);
-        }
-      }
+      // Mostrar modal en lugar de window.confirm
+      setShowReviewModal(true);
     } else {
-        console.error("Error: No se puede enviar email porque la información de la factura (ID o PDF) no está cargada.", currentInvoice);
-        alert("Error: No se puede enviar el correo. Asegúrate de que la factura y su PDF estén generados.");
+      console.error("Error: No se puede enviar email porque la información de la factura (ID o PDF) no está cargada.", currentInvoice);
+      alert("Error: No se puede enviar el correo. Asegúrate de que la factura y su PDF estén generados.");
+    }
+  };
+
+  // 🆕 Función que se ejecuta cuando se confirma el envío desde el modal
+  const handleConfirmSendEmail = async (includeGoogleReview, selectedEmails) => {
+    try {
+      console.log("Dispatching emailFinalInvoice with ID:", currentInvoice.id);
+      console.log("Include Google Review:", includeGoogleReview);
+      console.log("Selected Emails:", selectedEmails);
+      
+      await dispatch(emailFinalInvoice({ 
+        finalInvoiceId: currentInvoice.id, 
+        recipientEmails: selectedEmails, // Array de emails seleccionados
+        includeGoogleReview 
+      }));
+      
+      // ✅ Refresh work data to update status in UI
+      if (selectedWork?.idWork) {
+        console.log("🔄 Refreshing work data after email sent");
+        await dispatch(fetchWorkById(selectedWork.idWork));
+      }
+      
+      setRecipientEmail('');
+      setShowReviewModal(false);
+    } catch (error) {
+      console.error("Error sending email:", error);
+      setShowReviewModal(false);
     }
   };
 
@@ -661,6 +679,21 @@ const handleGeneratePdf = () => {
           </div>
         </div>
       )}
+
+      {/* 🆕 Modal de Solicitud de Google Review */}
+      <GoogleReviewRequestModal
+        isOpen={showReviewModal}
+        onClose={() => setShowReviewModal(false)}
+        onConfirm={handleConfirmSendEmail}
+        primaryEmail={
+          recipientEmail || 
+          selectedWork?.budget?.applicantEmail || 
+          selectedWork?.Permit?.applicantEmail || 
+          ''
+        }
+        notificationEmails={selectedWork?.Permit?.notificationEmails || []}
+        clientName={selectedWork?.budget?.applicantName || selectedWork?.Permit?.applicantName || 'Cliente'}
+      />
     </div>
   );
 };
