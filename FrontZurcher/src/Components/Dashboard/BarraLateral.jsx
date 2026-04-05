@@ -31,7 +31,8 @@ import {
   FaImage, // 🆕 Icono para galería
   FaListUl, // 🆕 Icono para lista tracker
   FaExclamationTriangle, // 🆕 Icono para reclamos
-  FaUserPlus // 🆕 Icon for sales leads
+  FaUserPlus, // 🆕 Icon for sales leads
+  FaEnvelope // 🆕 Icon for email marketing
 } from "react-icons/fa";
 
 const BarraLateral = () => {
@@ -64,6 +65,7 @@ const BarraLateral = () => {
       items: [
         { name: "Sales Leads", path: "/sales-leads", icon: FaUserPlus },
         { name: "Sales Dashboard", path: "/sales-dashboard", icon: FaChartBar },
+        
       ],
     },
     {
@@ -142,6 +144,7 @@ const BarraLateral = () => {
       color: "text-pink-400",
       items: [
         { name: "Gallery Manager", path: "/gallery-manager", icon: FaImage },
+         { name: "Email Marketing", path: "/marketing-campaigns", icon: FaEnvelope },
       ],
     },
   ];

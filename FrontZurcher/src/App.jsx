@@ -95,6 +95,7 @@ import GalleryManager from "./Components/Admin/GalleryManager";
 import ClientPortalDashboard from "./Components/ClientPortal/ClientPortalDashboard";
 import ClientPortalAdmin from "./Components/ClientPortal/ClientPortalAdmin";
 import SalesDashboard from './Components/Sales/SalesDashboard'; // 🆕 Dashboard de ventas
+import MarketingCampaigns from './Components/Sales/MarketingCampaigns'; // 🆕 Email marketing campaigns
 import ReminderPanel from './Components/Reminders/ReminderPanel'; // 🆕 Recordatorios
 import ReminderPopup from './Components/Reminders/ReminderPopup'; // 🆕 Popup de recordatorios
 import SalesLeads from './Components/SalesLeads/SalesLeads'; // 🆕 Sales Leads Management
@@ -280,6 +281,16 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["admin", "owner", "recept", "sales_rep", "follow-up"]}>
                     <NewLeadForm />
+                  </PrivateRoute>
+                }
+              />
+
+              {/* 🆕 Marketing Campaigns - Email masivo */}
+              <Route
+                path="/marketing-campaigns"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "owner"]}>
+                    <MarketingCampaigns />
                   </PrivateRoute>
                 }
               />
