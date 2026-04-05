@@ -28,6 +28,7 @@ import simpleWorkReducer from '../Reducer/simpleWorkReducer'; // 🆕 Simple wor
 import claimReducer from '../Reducer/claimReducer'; // 🆕 Claims/Reclamos reducer
 import reminderReducer from '../Reducer/reminderReducer'; // 🆕 Recordatorios reducer
 import salesLeadReducer from '../Reducer/SalesLeadReducer'; // 🆕 Sales Leads reducer
+import marketingCampaignsReducer from '../Reducer/marketingCampaignsReducer'; // 🆕 Marketing Campaigns reducer
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -57,6 +58,7 @@ const rootReducer = combineReducers({
   claim: claimReducer, // 🆕 Claims/Reclamos reducer
   reminders: reminderReducer, // 🆕 Recordatorios reducer
   salesLeads: salesLeadReducer, // 🆕 Sales Leads reducer
+  marketingCampaigns: marketingCampaignsReducer, // 🆕 Marketing Campaigns reducer
 });
 
 export const store = configureStore({
