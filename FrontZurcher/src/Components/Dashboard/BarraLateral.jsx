@@ -32,7 +32,8 @@ import {
   FaListUl, // 🆕 Icono para lista tracker
   FaExclamationTriangle, // 🆕 Icono para reclamos
   FaUserPlus, // 🆕 Icon for sales leads
-  FaEnvelope // 🆕 Icon for email marketing
+  FaEnvelope, // 🆕 Icon for email marketing
+  FaBook // 🆕 Icon for knowledge base
 } from "react-icons/fa";
 
 const BarraLateral = () => {
@@ -136,6 +137,7 @@ const BarraLateral = () => {
         { name: "Materials", path: "/materiales", icon: FaTools },
         { name: "Send Message", path: "/send-notifications", icon: FaBell },
         { name: "Staff", path: "/register", icon: FaUsers },
+        { name: "Knowledge Base", path: "/knowledge-base", icon: FaBook }, // 🆕 Base de Conocimiento
       ],
     },
     {

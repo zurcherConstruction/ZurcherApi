@@ -100,6 +100,7 @@ import ReminderPanel from './Components/Reminders/ReminderPanel'; // 🆕 Record
 import ReminderPopup from './Components/Reminders/ReminderPopup'; // 🆕 Popup de recordatorios
 import SalesLeads from './Components/SalesLeads/SalesLeads'; // 🆕 Sales Leads Management
 import NewLeadForm from './Components/SalesLeads/NewLeadForm'; // 🆕 New lead form
+import KnowledgeBase from './Components/KnowledgeBase/KnowledgeBase'; // 🆕 Base de Conocimiento
 
 function App() {
   const dispatch = useDispatch();
@@ -291,6 +292,16 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["admin", "owner"]}>
                     <MarketingCampaigns />
+                  </PrivateRoute>
+                }
+              />
+
+              {/* Base de Conocimiento */}
+              <Route
+                path="/knowledge-base"
+                element={
+                  <PrivateRoute allowedRoles={["admin", "owner"]}>
+                    <KnowledgeBase />
                   </PrivateRoute>
                 }
               />

@@ -51,6 +51,8 @@ const getWorkChecklist = async (req, res) => {
  * PUT /api/works/:workId/checklist
  */
 const updateWorkChecklist = async (req, res) => {
+  const startTime = Date.now();
+  
   try {
     const { workId } = req.params;
     const updates = req.body;
@@ -59,19 +61,31 @@ const updateWorkChecklist = async (req, res) => {
     console.log(`📝 Actualizando checklist para work ${workId}`);
     console.log('Datos recibidos:', updates);
 
-    // Verificar que el work existe
-    const work = await Work.findByPk(workId);
+    // ⏱️ Timeout de 5 segundos para queries rápidas
+    const QUERY_TIMEOUT = 5000;
+
+    // Verificar que el work existe (con timeout)
+    const work = await Work.findByPk(workId, {
+      timeout: QUERY_TIMEOUT,
+      attributes: ['idWork'] // Solo necesitamos verificar existencia
+    });
+    
     if (!work) {
       return res.status(404).json({
         error: 'Work no encontrado'
       });
     }
 
-    // Buscar o crear el checklist
-    let checklist = await WorkChecklist.findOne({ where: { workId } });
+    // ✅ Buscar o crear checklist de forma ATÓMICA (sin locks explícitos)
+    // El índice UNIQUE en workId previene duplicados
+    const [checklist, created] = await WorkChecklist.findOrCreate({ 
+      where: { workId },
+      defaults: { workId },
+      timeout: QUERY_TIMEOUT
+    });
     
-    if (!checklist) {
-      checklist = await WorkChecklist.create({ workId });
+    if (created) {
+      console.log('📝 Nuevo checklist creado');
     }
 
     // Si se está marcando finalReviewCompleted como true, guardar quién y cuándo
@@ -88,29 +102,45 @@ const updateWorkChecklist = async (req, res) => {
       console.log(`⚠️ Revisión final desmarcada`);
     }
 
-    // Actualizar el checklist
-    await checklist.update(updates);
-
-    // Recargar con las relaciones
-    await checklist.reload({
-      include: [
-        {
-          model: Staff,
-          as: 'reviewer',
-          attributes: ['id', 'name', 'email']
-        }
-      ]
+    // Actualizar el checklist (con timeout)
+    await checklist.update(updates, { 
+      timeout: QUERY_TIMEOUT 
     });
 
-    console.log(`✅ Checklist actualizado exitosamente`);
+    // ✅ OPTIMIZACIÓN: En lugar de reload con include (lento), 
+    // hacemos una query separada solo cuando sea necesario
+    let reviewer = null;
+    if (checklist.reviewedBy) {
+      reviewer = await Staff.findByPk(checklist.reviewedBy, {
+        attributes: ['id', 'name', 'email'],
+        timeout: QUERY_TIMEOUT
+      });
+    }
+
+    console.log(`✅ Checklist actualizado exitosamente en ${Date.now() - startTime}ms`);
 
     return res.status(200).json({
       success: true,
       message: 'Checklist actualizado exitosamente',
-      checklist
+      checklist: {
+        ...checklist.toJSON(),
+        reviewer: reviewer ? reviewer.toJSON() : null
+      }
     });
   } catch (error) {
-    console.error('❌ Error al actualizar checklist:', error);
+    const elapsed = Date.now() - startTime;
+    console.error(`❌ Error al actualizar checklist después de ${elapsed}ms:`, error);
+    
+    // Mejorar logs de error para diagnóstico
+    if (error.name === 'SequelizeTimeoutError') {
+      console.error('⏱️ TIMEOUT: La consulta tardó más de 5 segundos');
+      console.error('💡 Verifica que los índices estén creados correctamente');
+      return res.status(504).json({
+        error: 'Timeout al actualizar el checklist',
+        details: 'La operación tardó demasiado. Contacta al administrador.'
+      });
+    }
+    
     return res.status(500).json({
       error: 'Error al actualizar el checklist',
       details: error.message

@@ -29,6 +29,7 @@ import claimReducer from '../Reducer/claimReducer'; // 🆕 Claims/Reclamos redu
 import reminderReducer from '../Reducer/reminderReducer'; // 🆕 Recordatorios reducer
 import salesLeadReducer from '../Reducer/SalesLeadReducer'; // 🆕 Sales Leads reducer
 import marketingCampaignsReducer from '../Reducer/marketingCampaignsReducer'; // 🆕 Marketing Campaigns reducer
+import knowledgeBaseReducer from '../Reducer/knowledgeBaseReducer'; // 🆕 Knowledge Base reducer
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -59,6 +60,7 @@ const rootReducer = combineReducers({
   reminders: reminderReducer, // 🆕 Recordatorios reducer
   salesLeads: salesLeadReducer, // 🆕 Sales Leads reducer
   marketingCampaigns: marketingCampaignsReducer, // 🆕 Marketing Campaigns reducer
+  knowledgeBase: knowledgeBaseReducer, // 🆕 Knowledge Base reducer
 });
 
 export const store = configureStore({

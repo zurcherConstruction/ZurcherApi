@@ -458,6 +458,7 @@ const ClaimList = () => {
         onClose={() => { setShowDetailModal(false); setSelectedClaim(null); }}
         onEdit={handleEditFromDetail}
         onStatusChange={handleQuickStatusChange}
+        onDelete={handleDelete}
       />
 
       {/* Form Modal */}
